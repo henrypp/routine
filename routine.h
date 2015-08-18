@@ -1,10 +1,9 @@
-// _routine (library)
+// routine++
+// Copyright © 2013, 2015 Henry++
 //
-// copyright (c) henry++
-// lastmod: Apr 30, 2015
+// lastmod: Aug 18, 2015
 
-#ifndef __ROUTINE_H__
-#define __ROUTINE_H__
+#pragma once
 
 #define _WIN32_DCOM
 
@@ -36,15 +35,28 @@ extern WCHAR _r_cfg_path[MAX_PATH];
 extern HANDLE _r_hmutex;
 
 #define ROUTINE_TASKSCHD_NAME APP_NAME_SHORT L"SkipUAC"
-#define ROUTINE_BUFFER_LENGTH 256
+#define ROUTINE_BUFFER_LENGTH 4096
 #define ROUTINE_UPDATE_PERIOD 2
 
 #define ROUTINE_PERCENT_OF(val, total) (INT)ceil((double(val) / double(total)) * 100.0)
 #define ROUTINE_PERCENT_VAL(val, total) (double(total) * double(val) / 100.0)
 
+#define WDEBUG0() _r_dbgW(__FUNCTIONW__, TEXT(__FILE__), __LINE__, nullptr)
+#define WDEBUG1(a) _r_dbgW(__FUNCTIONW__, TEXT(__FILE__), __LINE__, L"%s", a)
+#define WDEBUG2(a, b) _r_dbgW(__FUNCTIONW__, TEXT(__FILE__), __LINE__, a, b)
+#define WDEBUG3(a, b, c) _r_dbgW(__FUNCTIONW__, TEXT(__FILE__), __LINE__, a, b, c)
+#define WDEBUG4(a, b, c, d) _r_dbgW(__FUNCTIONW__, TEXT(__FILE__), __LINE__, a, b, c, d)
+
+#define ADEBUG0() _r_dbgA(__FUNCTION__, __FILE__, __LINE__, nullptr)
+#define ADEBUG1(a) _r_dbgA(__FUNCTION__, __FILE__, __LINE__, "%s", a)
+#define ADEBUG2(a, b) _r_dbgA(__FUNCTION__, __FILE__, __LINE__, a, b)
+#define ADEBUG3(a, b, c) _r_dbgA(__FUNCTION__, __FILE__, __LINE__, a, b, c)
+#define ADEBUG4(a, b, c, d) _r_dbgA(__FUNCTION__, __FILE__, __LINE__, a, b, c, d)
+
 typedef VOID (WINAPI *PTDI) (TASKDIALOGCONFIG*, INT*, INT*, BOOL*); // TaskDialogIndirect
 
-VOID mb(INT code);
+VOID _r_dbgA (LPCSTR function, LPCSTR file, DWORD line, LPCSTR format, ...);
+VOID _r_dbgW (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...);
 
 BOOL _r_initialize(DLGPROC proc);
 VOID _r_uninitialize(BOOL restart);
@@ -103,16 +115,31 @@ VOID _r_windowtotop(HWND hwnd, BOOL enable);
 HWND _r_setcontroltip(HWND hwnd, INT ctrl, LPWSTR text);
 BOOL _r_seteditbaloontip(HWND hwnd, INT ctrl, LPCWSTR title, LPCWSTR text, INT icon);
 
-BOOL _r_helper_fileexists(LPCWSTR path);
-CString _r_helper_format(LPCWSTR format, ...);
-CString _r_helper_formatsize64(DWORDLONG size);
-__time64_t _r_helper_unixtime64();
-BOOL _r_helper_unixtime2systemtime(__time64_t t, LPSYSTEMTIME pst);
-CString _r_helper_formatdate(LPSYSTEMTIME pst);
-INT _r_helper_versioncompare(LPCWSTR v1, LPCWSTR v2);
+BOOL _r_file_is_exists (LPCWSTR path);
+DWORD64 _r_file_size (HANDLE h);
+
+CStringA _r_fmtA (LPCSTR format, ...);
+CStringW _r_fmtW (LPCWSTR format, ...);
+
+CString _r_fmt_date (LPFILETIME ft, const DWORD flags = FDTF_DEFAULT); // see SHFormatDateTime flags definition
+CString _r_fmt_date (__time64_t ut, const DWORD flags = FDTF_DEFAULT);
+
+CString _r_fmt_size64 (DWORDLONG size);
+
+__time64_t _r_unixtime ();
+VOID _r_unixtime_to_filetime (__time64_t t, LPFILETIME pft);
+VOID _r_unixtime_to_systemtime (__time64_t t, LPSYSTEMTIME pst);
+
+INT _r_versioncompare (LPCWSTR v1, LPCWSTR v2);
 
 BOOL _r_skipuac_run();
 BOOL _r_skipuac_is_present(BOOL checkandrun);
 BOOL _r_skipuac_cancer(BOOL remove);
 
-#endif // __ROUTINE_H__
+#ifdef UNICODE
+#define _r_dbg _r_dbgW
+#define _r_fmt _r_fmtW
+#else
+#define _r_dbg _r_dbgA
+#define _r_fmt _r_fmtA
+#endif
