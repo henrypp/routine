@@ -1,18 +1,17 @@
 ﻿// routine++
-// Copyright © 2013, 2015 Henry++
+// © 2013-2015 Henry++
 //
-// lastmod: Aug 18, 2015
+// lastmod: Oct 3, 2015
 
 #include "routine.h"
 
-HWND _r_hwnd = NULL;
-LCID _r_lcid = NULL;
-WCHAR _r_cfg_path[MAX_PATH] = {0};
-HANDLE _r_hmutex = NULL;
+/*
+	Write debug log to console
+*/
 
-VOID _r_dbgA (LPCSTR function, LPCSTR file, DWORD line, LPCSTR format, ...)
+VOID _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...)
 {
-	CStringA result;
+	CString buffer;
 
 	DWORD dwLE = GetLastError ();
 	DWORD dwTC = GetTickCount ();
@@ -27,201 +26,90 @@ VOID _r_dbgA (LPCSTR function, LPCSTR file, DWORD line, LPCSTR format, ...)
 		va_list args = nullptr;
 		va_start (args, format);
 
-		result.FormatV (format, args);
+		buffer.FormatV (format, args);
 
 		va_end (args);
 	}
 
-	result = _r_fmtA ("[%02d:%02d:%02d] TC=%010d, PID=%04d, TID=%04d, LE=%d (0x%x), FN=%s, FL=%s:%d, T=%s\r\n", lt.wHour, lt.wMinute, lt.wSecond, dwTC, dwPID, dwTID, dwLE, dwLE, function, file, line, result.GetLength () ? result : "<none>");
-
-	OutputDebugStringA (result);
+	OutputDebugString (_r_fmt (L"[%02d:%02d:%02d] TC=%010d, PID=%04d, TID=%04d, LE=%d (0x%x), FN=%s, FL=%s:%d, T=%s\r\n", lt.wHour, lt.wMinute, lt.wSecond, dwTC, dwPID, dwTID, dwLE, dwLE, function, file, line, buffer.IsEmpty () ? L"<none>" : buffer));
 }
 
-VOID _r_dbgW (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...)
+/*
+	Format strings, dates, numbers
+*/
+
+CString _r_fmt (LPCWSTR format, ...)
 {
-	CStringW result;
+	CString buffer;
 
-	DWORD dwLE = GetLastError ();
-	DWORD dwTC = GetTickCount ();
-	DWORD dwPID = GetCurrentProcessId ();
-	DWORD dwTID = GetCurrentThreadId ();
+	va_list args = nullptr;
+	va_start (args, format);
 
-	SYSTEMTIME lt = {0};
-	GetLocalTime (&lt);
+	StringCchVPrintf (buffer.GetBuffer (ROUTINE_BUFFER_LENGTH), ROUTINE_BUFFER_LENGTH, format, args);
+	buffer.ReleaseBuffer ();
 
-	if (format)
-	{
-		va_list args = nullptr;
-		va_start (args, format);
+	va_end (args);
 
-		result.FormatV (format, args);
-
-		va_end (args);
-	}
-
-	result = _r_fmtW (L"[%02d:%02d:%02d] TC=%010d, PID=%04d, TID=%04d, LE=%d (0x%x), FN=%s, FL=%s:%d, T=%s\r\n", lt.wHour, lt.wMinute, lt.wSecond, dwTC, dwPID, dwTID, dwLE, dwLE, function, file, line, result.GetLength () ? result : L"<none>");
-
-	OutputDebugStringW (result);
+	return buffer;
 }
 
-BOOL _r_initialize (DLGPROC proc)
+CString _r_fmt_date (LPFILETIME ft, const DWORD flags)
 {
-	// 1. Check mutex (always)
-	_r_hmutex = CreateMutex (NULL, FALSE, APP_NAME_SHORT);
+	CString buffer;
+	DWORD pflags = flags;
 
-	if (GetLastError () == ERROR_ALREADY_EXISTS)
-	{
-		HWND h = FindWindowEx (NULL, NULL, NULL, APP_NAME);
+	SHFormatDateTime (ft, &pflags, buffer.GetBuffer (ROUTINE_BUFFER_LENGTH), ROUTINE_BUFFER_LENGTH);
+	buffer.ReleaseBuffer ();
 
-		if (h)
-		{
-			_r_windowtoggle (h, TRUE);
-		}
-
-		CloseHandle (_r_hmutex);
-
-		return FALSE;
-	}
-
-#ifdef ROUTINE_ADMIN_RIGHTS
-
-	if (_r_system_uacstate () && _r_skipuac_run ())
-	{
-		return FALSE;
-	}
-
-#endif
-
-	// 2. Set locale
-	_r_locale_set (_r_cfg_read (L"Language", 0));
-
-	// 3. Create window
-	INITCOMMONCONTROLSEX icex = {0};
-
-	icex.dwSize = sizeof (icex);
-	icex.dwICC = ICC_WIN95_CLASSES | ICC_STANDARD_CLASSES;
-
-	InitCommonControlsEx (&icex);
-
-	if (proc && (_r_hwnd = CreateDialog (NULL, MAKEINTRESOURCE (IDD_MAIN), NULL, proc)) == NULL)
-	{
-		return FALSE;
-	}
-
-	SetWindowText (_r_hwnd, APP_NAME);
-
-	SendMessage (_r_hwnd, WM_SETICON, ICON_SMALL, (LPARAM)LoadImage (GetModuleHandle (NULL), MAKEINTRESOURCE (IDI_MAIN), IMAGE_ICON, GetSystemMetrics (SM_CXSMICON), GetSystemMetrics (SM_CYSMICON), 0));
-	SendMessage (_r_hwnd, WM_SETICON, ICON_BIG, (LPARAM)LoadImage (GetModuleHandle (NULL), MAKEINTRESOURCE (IDI_MAIN), IMAGE_ICON, GetSystemMetrics (SM_CXICON), GetSystemMetrics (SM_CYICON), 0));
-
-	// 4. Check updates
-	_r_updatecheck (TRUE);
-
-	return TRUE;
+	return buffer;
 }
 
-VOID _r_uninitialize (BOOL restart)
+CString _r_fmt_date (__time64_t ut, const DWORD flags)
 {
-	if (_r_hmutex)
-	{
-		CloseHandle (_r_hmutex);
-	}
+	CString buffer;
+	FILETIME ft = {0};
 
-	if (restart)
-	{
-		WCHAR buffer[MAX_PATH] = {0};
-		GetModuleFileName (NULL, buffer, MAX_PATH);
+	_r_unixtime_to_filetime (ut, &ft);
+	_r_fmt_date (&ft, flags);
 
-		STARTUPINFO si = {0};
-		PROCESS_INFORMATION pi = {0};
-
-		si.cb = sizeof (si);
-
-		ShowWindow (_r_hwnd, SW_HIDE);
-
-		if (CreateProcess (buffer, NULL, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi))
-		{
-			if (_r_hwnd)
-			{
-				DestroyWindow (_r_hwnd);
-			}
-
-			ExitProcess (0);
-		}
-
-		ShowWindow (_r_hwnd, SW_SHOW);
-
-		_r_hmutex = CreateMutex (NULL, FALSE, APP_NAME_SHORT);
-	}
+	return buffer;
 }
 
-BOOL _r_aboutbox (HWND hwnd)
+CString _r_fmt_size64 (DWORDLONG size)
 {
-	CString title = _r_locale (IDS_ABOUT), text = _r_fmt (L"%s %s, %s-bit (Unicode)\r\n%s\r\n\r\n%s\r\n\r\n%s\r\n\r\n", _r_locale (IDS_VERSION), APP_VERSION, APP_MACHINE, APP_COPYRIGHT, _r_locale (IDS_COPYRIGHT), _r_locale (IDS_TRANSLATOR));
+	static const wchar_t *sizes[] = {L"B", L"KB", L"MB", L"GB", L"TB", L"PB"};
 
-	if (_r_system_validversion (6, 0))
+	INT div = 0;
+	SIZE_T rem = 0;
+
+	while (size >= 1000 && div < _countof (sizes))
 	{
-		text.Append (L"<a href=\"" APP_WEBSITE L"/product/" APP_NAME_SHORT L"\">" APP_HOST L"</a>");
-
-		TASKDIALOGCONFIG tdc = {0};
-
-		tdc.cbSize = sizeof (tdc);
-		tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_ENABLE_HYPERLINKS;
-		tdc.dwCommonButtons = TDCBF_CLOSE_BUTTON;
-		tdc.hwndParent = hwnd;
-		tdc.hInstance = GetModuleHandle (NULL);
-		tdc.pszWindowTitle = title;
-		tdc.pszMainInstruction = APP_NAME;
-		tdc.pszContent = text;
-		tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
-		tdc.pfCallback = _r_msg_callback;
-
-		if (IsWindowVisible (_r_hwnd))
-		{
-			tdc.dwFlags |= TDF_POSITION_RELATIVE_TO_WINDOW;
-		}
-
-		PTDI _TaskDialogIndirect = (PTDI)GetProcAddress (GetModuleHandle (L"comctl32.dll"), "TaskDialogIndirect");
-
-		if (_TaskDialogIndirect)
-		{
-			_TaskDialogIndirect (&tdc, NULL, NULL, NULL);
-		}
-
-		DestroyIcon (tdc.hMainIcon);
-	}
-	else
-	{
-		text.Insert (0, APP_NAME L"\r\n\r\n");
-		text.Append (APP_HOST);
-
-		MSGBOXPARAMS mbp = {0};
-
-		mbp.cbSize = sizeof (mbp);
-		mbp.hwndOwner = hwnd;
-		mbp.hInstance = GetModuleHandle (NULL);
-		mbp.dwStyle = MB_OK | MB_USERICON | MB_TOPMOST;
-		mbp.lpszIcon = MAKEINTRESOURCE (IDI_MAIN);
-		mbp.lpszCaption = title;
-		mbp.lpszText = text;
-
-		MessageBoxIndirect (&mbp);
+		rem = (size % 1024);
+		div++;
+		size /= 1024;
 	}
 
-	return TRUE;
+	double size_d = (float)size + (float)rem / 1024.0;
+
+	size_d += 0.001; // round up
+
+	CString buffer;
+	buffer.Format (L"%.2f %s", size_d, sizes[div]);
+
+	return buffer;
 }
 
-INT _r_msg (LPCWSTR text)
-{
-	return _r_msg (0, L"%s", text);
-}
+/*
+	System messages
+*/
 
-INT _r_msg (DWORD style, LPCWSTR format, ...)
+INT _r_msg (HWND hwnd, UINT type, LPCWSTR title, LPCWSTR format, ...)
 {
 	CString buffer;
 
 	INT result = 0;
 
-	va_list args = NULL;
+	va_list args = nullptr;
 	va_start (args, format);
 
 	buffer.FormatV (format, args);
@@ -234,40 +122,40 @@ INT _r_msg (DWORD style, LPCWSTR format, ...)
 
 		tdc.cbSize = sizeof (tdc);
 		tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION;
-		tdc.hwndParent = _r_hwnd;
-		tdc.hInstance = GetModuleHandle (NULL);
-		tdc.pszWindowTitle = APP_NAME;
+		tdc.hwndParent = hwnd;
+		tdc.hInstance = GetModuleHandle (nullptr);
+		tdc.pszWindowTitle = title;
 		tdc.pszContent = buffer;
 		tdc.pfCallback = _r_msg_callback;
 
-		if (IsWindowVisible (_r_hwnd))
+		if (IsWindowVisible (hwnd))
 		{
 			tdc.dwFlags |= TDF_POSITION_RELATIVE_TO_WINDOW;
 		}
 
 		PTDI _TaskDialogIndirect = (PTDI)GetProcAddress (GetModuleHandle (L"comctl32.dll"), "TaskDialogIndirect");
 
-		if ((style & MB_YESNO) == MB_YESNO)
+		if ((type & MB_YESNO) == MB_YESNO)
 		{
 			tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
 		}
 
-		if ((style & MB_ICONHAND) == MB_ICONHAND)
+		if ((type & MB_ICONHAND) == MB_ICONHAND)
 		{
 			tdc.pszMainIcon = TD_ERROR_ICON;
 		}
-		else if ((style & MB_ICONQUESTION) == MB_ICONQUESTION || (style & MB_ICONASTERISK) == MB_ICONASTERISK)
+		else if ((type & MB_ICONQUESTION) == MB_ICONQUESTION || (type & MB_ICONASTERISK) == MB_ICONASTERISK)
 		{
 			tdc.pszMainIcon = TD_INFORMATION_ICON;
 		}
-		else if ((style & MB_ICONEXCLAMATION) == MB_ICONQUESTION)
+		else if ((type & MB_ICONEXCLAMATION) == MB_ICONQUESTION)
 		{
 			tdc.pszMainIcon = TD_WARNING_ICON;
 		}
 
 		if (_TaskDialogIndirect)
 		{
-			_TaskDialogIndirect (&tdc, &result, NULL, NULL);
+			_TaskDialogIndirect (&tdc, &result, nullptr, nullptr);
 		}
 	}
 
@@ -276,10 +164,10 @@ INT _r_msg (DWORD style, LPCWSTR format, ...)
 		MSGBOXPARAMS mbp = {0};
 
 		mbp.cbSize = sizeof (mbp);
-		mbp.hwndOwner = _r_hwnd;
-		mbp.hInstance = GetModuleHandle (NULL);
-		mbp.dwStyle = style | MB_TOPMOST;
-		mbp.lpszCaption = APP_NAME;
+		mbp.hwndOwner = hwnd;
+		mbp.hInstance = GetModuleHandle (nullptr);
+		mbp.dwStyle = type | MB_TOPMOST;
+		mbp.lpszCaption = title;
 		mbp.lpszText = buffer;
 
 		result = MessageBoxIndirect (&mbp);
@@ -300,7 +188,7 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 
 		case TDN_HYPERLINK_CLICKED:
 		{
-			ShellExecute (hwnd, 0, (LPCWSTR)lparam, NULL, NULL, 0);
+			ShellExecute (hwnd, nullptr, (LPCWSTR)lparam, nullptr, nullptr, SW_SHOWDEFAULT);
 			return TRUE;
 		}
 	}
@@ -308,190 +196,15 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 	return FALSE;
 }
 
-VOID _r_autorun_cancer (LPCWSTR name, BOOL remove)
-{
-	HKEY key = NULL;
+/*
+	Clipboard operations
+*/
 
-	if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE, &key) == ERROR_SUCCESS)
-	{
-		if (remove)
-		{
-			RegDeleteValue (key, name);
-		}
-		else
-		{
-			WCHAR buffer[MAX_PATH] = {0};
-
-			GetModuleFileName (NULL, buffer, MAX_PATH);
-			PathQuoteSpaces (buffer);
-
-			StringCchCat (buffer, MAX_PATH, L" ");
-			StringCchCat (buffer, MAX_PATH, L"/minimized");
-
-			RegSetValueEx (key, name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) + 1) * sizeof (WCHAR)));
-		}
-
-		RegCloseKey (key);
-	}
-}
-
-BOOL _r_autorun_is_present (LPCWSTR name)
-{
-	HKEY key = NULL;
-	BOOL result = FALSE;
-
-	if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_READ, &key) == ERROR_SUCCESS)
-	{
-		result = (RegQueryValueEx (key, name, NULL, NULL, NULL, NULL) == ERROR_SUCCESS);
-
-		RegCloseKey (key);
-	}
-
-	return result;
-}
-
-VOID _r_cfg_init ()
-{
-	GetModuleFileName (NULL, _r_cfg_path, MAX_PATH);
-	PathRemoveFileSpec (_r_cfg_path);
-
-	StringCchPrintf (_r_cfg_path, MAX_PATH, L"%s\\%s.ini", _r_cfg_path, APP_NAME_SHORT);
-
-	if (!_r_file_is_exists (_r_cfg_path))
-	{
-		ExpandEnvironmentStrings (L"%APPDATA%\\" APP_AUTHOR L"\\" APP_NAME L"\\" APP_NAME_SHORT L".ini", _r_cfg_path, MAX_PATH);
-	}
-}
-
-BOOL _r_cfg_is_portable ()
-{
-	WCHAR buffer[MAX_PATH] = {0};
-
-	GetModuleFileName (NULL, buffer, MAX_PATH);
-	PathRemoveFileSpec (buffer);
-
-	StringCchPrintf (buffer, MAX_PATH, L"%s\\%s.ini", buffer, APP_NAME_SHORT);
-
-	return _r_file_is_exists (buffer);
-}
-
-VOID _r_cfg_cancer (BOOL makeportable)
-{
-	WCHAR buffer[MAX_PATH] = {0}, path[MAX_PATH] = {0};
-	BOOL result = FALSE;
-
-	if (makeportable != _r_cfg_is_portable ())
-	{
-		if (makeportable)
-		{
-			GetModuleFileName (NULL, path, MAX_PATH);
-			PathRemoveFileSpec (path);
-
-			StringCchPrintf (path, MAX_PATH, L"%s\\%s.ini", path, APP_NAME_SHORT);
-		}
-		else
-		{
-			ExpandEnvironmentStrings (L"%APPDATA%\\" APP_AUTHOR L"\\" APP_NAME L"\\" APP_NAME_SHORT L".ini", path, MAX_PATH);
-		}
-
-		StringCchCopy (buffer, MAX_PATH, path);
-
-		PathRemoveFileSpec (buffer);
-		SHCreateDirectoryEx (NULL, buffer, NULL);
-
-		if (_r_file_is_exists (_r_cfg_path))
-		{
-			result = MoveFileEx (_r_cfg_path, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH | MOVEFILE_COPY_ALLOWED);
-		}
-		else
-		{
-			HANDLE f = CreateFile (path, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
-
-			if (f != INVALID_HANDLE_VALUE)
-			{
-				result = TRUE;
-
-				CloseHandle (f);
-			}
-		}
-
-		if (result)
-		{
-			StringCchCopy (_r_cfg_path, MAX_PATH, path);
-		}
-	}
-}
-
-UINT _r_cfg_read (LPCWSTR key, INT def)
-{
-	if (!wcslen (_r_cfg_path))
-	{
-		_r_cfg_init ();
-	}
-
-	return GetPrivateProfileInt (APP_NAME_SHORT, key, def, _r_cfg_path);
-}
-
-CString _r_cfg_read (LPCWSTR key, LPCWSTR def)
-{
-	if (!wcslen (_r_cfg_path))
-	{
-		_r_cfg_init ();
-	}
-
-	CString buffer;
-	DWORD length = ROUTINE_BUFFER_LENGTH;
-
-	while (GetPrivateProfileString (APP_NAME_SHORT, key, def, buffer.GetBuffer (length), length, _r_cfg_path) == (length - 1))
-	{
-		buffer.ReleaseBuffer ();
-
-		length += ROUTINE_BUFFER_LENGTH;
-	}
-
-	buffer.ReleaseBuffer ();
-
-	return buffer;
-}
-
-BOOL _r_cfg_write (LPCWSTR key, LPCWSTR val)
-{
-	if (!wcslen (_r_cfg_path))
-	{
-		_r_cfg_init ();
-	}
-
-	WCHAR buffer[MAX_PATH] = {0};
-
-	StringCchCopy (buffer, MAX_PATH, _r_cfg_path);
-	PathRemoveFileSpec (buffer);
-
-	if (!_r_file_is_exists (buffer))
-	{
-		SHCreateDirectory (NULL, buffer);
-	}
-
-	return WritePrivateProfileString (APP_NAME_SHORT, key, val, _r_cfg_path);
-}
-
-BOOL _r_cfg_write (LPCWSTR key, DWORD val)
-{
-	if (!wcslen (_r_cfg_path))
-	{
-		_r_cfg_init ();
-	}
-
-	WCHAR buffer[16] = {0};
-	StringCchPrintf (buffer, 16, L"%ld", val);
-
-	return _r_cfg_write (key, buffer);
-}
-
-CString _r_clipboard_get (VOID)
+CString _r_clipboard_get (HWND hwnd)
 {
 	CString buffer;
 
-	if (OpenClipboard (_r_hwnd ? _r_hwnd : NULL))
+	if (OpenClipboard (hwnd))
 	{
 		HGLOBAL h = GetClipboardData (CF_UNICODETEXT);
 
@@ -508,9 +221,9 @@ CString _r_clipboard_get (VOID)
 	return buffer;
 }
 
-VOID _r_clipboard_set (LPCWSTR text, SIZE_T length)
+VOID _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length)
 {
-	if (OpenClipboard (NULL))
+	if (OpenClipboard (hwnd))
 	{
 		if (EmptyClipboard ())
 		{
@@ -529,14 +242,13 @@ VOID _r_clipboard_set (LPCWSTR text, SIZE_T length)
 	}
 }
 
-CString _r_locale (UINT id)
-{
-	CString buffer;
 
-	buffer.LoadStringW (id);
 
-	return buffer;
-}
+
+
+
+
+/*
 
 VOID _r_locale_set (LCID locale)
 {
@@ -573,81 +285,11 @@ BOOL CALLBACK _r_locale_enum (HMODULE, LPCWSTR, LPCWSTR, WORD language, LONG_PTR
 
 	return TRUE;
 }
+*/
 
-UINT WINAPI _r_updatecheckcallback (LPVOID lparam)
-{
-	BOOL result = FALSE;
-	HINTERNET internet = NULL, connect = NULL;
-
-	_r_locale_set (_r_lcid);
-
-	EnableMenuItem (GetMenu (_r_hwnd), IDM_CHECKUPDATES, MF_BYCOMMAND | MF_DISABLED);
-
-	internet = InternetOpen (APP_NAME L"/" APP_VERSION L" (+" APP_WEBSITE L")", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
-
-	if (internet)
-	{
-		connect = InternetOpenUrl (internet, APP_WEBSITE L"/update.php?product=" APP_NAME_SHORT, NULL, 0, INTERNET_FLAG_RESYNCHRONIZE | INTERNET_FLAG_NO_COOKIES, 0);
-
-		if (connect)
-		{
-			DWORD dwStatus = 0, dwStatusSize = sizeof (dwStatus);
-			HttpQueryInfo (connect, HTTP_QUERY_FLAG_NUMBER | HTTP_QUERY_STATUS_CODE, &dwStatus, &dwStatusSize, NULL);
-
-			if (dwStatus == HTTP_STATUS_OK)
-			{
-				DWORD count = 0;
-
-				CHAR buffera[MAX_PATH] = {0};
-				WCHAR bufferw[MAX_PATH] = {0};
-
-				if (InternetReadFile (connect, buffera, MAX_PATH, &count) && count)
-				{
-					MultiByteToWideChar (CP_UTF8, 0, buffera, MAX_PATH, bufferw, MAX_PATH);
-
-					if (_r_versioncompare (APP_VERSION, bufferw) == -1)
-					{
-						if (_r_msg (MB_YESNO | MB_ICONQUESTION, _r_locale (IDS_UPDATE_YES), bufferw) == IDYES)
-						{
-							ShellExecute (_r_hwnd, 0, APP_WEBSITE L"/product/" APP_NAME_SHORT, NULL, NULL, SW_SHOWDEFAULT);
-						}
-
-						result = TRUE;
-					}
-				}
-			}
-
-			_r_cfg_write (L"CheckUpdatesLast", (DWORD)_r_unixtime ());
-		}
-	}
-
-	EnableMenuItem (GetMenu (_r_hwnd), IDM_CHECKUPDATES, MF_BYCOMMAND | MF_ENABLED);
-
-	if (!result && !lparam)
-	{
-		_r_msg (MB_OK | MB_ICONINFORMATION, _r_locale (IDS_UPDATE_NO));
-	}
-
-	InternetCloseHandle (connect);
-	InternetCloseHandle (internet);
-
-	return 0;
-}
-
-BOOL _r_updatecheck (BOOL is_periodical)
-{
-	if (is_periodical)
-	{
-		if (!_r_cfg_read (L"CheckUpdates", 1) || (_r_unixtime () - _r_cfg_read (L"CheckUpdatesLast", 0)) <= (86400 * ROUTINE_UPDATE_PERIOD)) // update period
-		{
-			return FALSE;
-		}
-	}
-
-	_beginthreadex (NULL, 0, &_r_updatecheckcallback, (LPVOID)is_periodical, 0, NULL);
-
-	return TRUE;
-}
+/*
+	Control: listview
+*/
 
 INT _r_listview_addcolumn (HWND hwnd, INT ctrl, LPCWSTR text, INT width, INT subitem, INT fmt)
 {
@@ -802,21 +444,14 @@ CString _r_listview_gettext (HWND hwnd, INT ctrl, INT item, INT subitem)
 
 DWORD _r_listview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle)
 {
-	SetWindowTheme (GetDlgItem (hwnd, ctrl), L"Explorer", NULL);
+	SetWindowTheme (GetDlgItem (hwnd, ctrl), L"Explorer", nullptr);
 
 	return (DWORD)SendDlgItemMessage (hwnd, ctrl, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, (LPARAM)exstyle);
 }
 
-BOOL _r_status_settext (HWND hwnd, INT ctrl, INT part, LPCWSTR text)
-{
-	return (BOOL)SendDlgItemMessage (hwnd, ctrl, SB_SETTEXT, MAKEWPARAM (part, 0), (LPARAM)text);
-}
-
-VOID _r_status_setstyle (HWND hwnd, INT ctrl, INT height)
-{
-	SendDlgItemMessage (hwnd, ctrl, SB_SETMINHEIGHT, (WPARAM)height, NULL);
-	SendDlgItemMessage (hwnd, ctrl, WM_SIZE, 0, NULL);
-}
+/*
+	Control: treeview
+*/
 
 HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT image, LPARAM lparam)
 {
@@ -848,24 +483,42 @@ DWORD _r_treeview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle, INT height)
 		SendDlgItemMessage (hwnd, ctrl, TVM_SETITEMHEIGHT, (WPARAM)height, 0);
 	}
 
-	SetWindowTheme (GetDlgItem (hwnd, ctrl), L"Explorer", NULL);
+	SetWindowTheme (GetDlgItem (hwnd, ctrl), L"Explorer", nullptr);
 
 	return (DWORD)SendDlgItemMessage (hwnd, ctrl, TVM_SETEXTENDEDSTYLE, 0, (LPARAM)exstyle);
 }
 
-BOOL _r_system_adminstate (VOID)
+/*
+	Control: statusbar
+*/
+
+BOOL _r_status_settext (HWND hwnd, INT ctrl, INT part, LPCWSTR text)
+{
+	return (BOOL)SendDlgItemMessage (hwnd, ctrl, SB_SETTEXT, MAKEWPARAM (part, 0), (LPARAM)text);
+}
+
+VOID _r_status_setstyle (HWND hwnd, INT ctrl, INT height)
+{
+	SendDlgItemMessage (hwnd, ctrl, SB_SETMINHEIGHT, (WPARAM)height, NULL);
+	SendDlgItemMessage (hwnd, ctrl, WM_SIZE, 0, NULL);
+}
+
+
+
+
+BOOL _r_system_adminstate ()
 {
 	BOOL result = FALSE;
 	DWORD status = 0, acl_size = 0, ps_size = sizeof (PRIVILEGE_SET);
 
-	HANDLE token = NULL, impersonation_token = NULL;
+	HANDLE token = nullptr, impersonation_token = nullptr;
 
 	PRIVILEGE_SET ps = {0};
 	GENERIC_MAPPING gm = {0};
 
-	PACL acl = NULL;
-	PSID sid = NULL;
-	PSECURITY_DESCRIPTOR sd = NULL;
+	PACL acl = nullptr;
+	PSID sid = nullptr;
+	PSECURITY_DESCRIPTOR sd = nullptr;
 
 	SID_IDENTIFIER_AUTHORITY sia = SECURITY_NT_AUTHORITY;
 
@@ -955,9 +608,9 @@ BOOL _r_system_adminstate (VOID)
 	return result;
 }
 
-BOOL _r_system_uacstate (VOID)
+BOOL _r_system_uacstate ()
 {
-	HANDLE token = NULL;
+	HANDLE token = nullptr;
 	DWORD out_length = 0;
 	TOKEN_ELEVATION_TYPE tet;
 
@@ -981,7 +634,7 @@ BOOL _r_system_uacstate (VOID)
 
 BOOL _r_system_setprivilege (LPCWSTR privilege, BOOL enable)
 {
-	HANDLE token = NULL;
+	HANDLE token = nullptr;
 
 	LUID luid = {0};
 	TOKEN_PRIVILEGES tp = {0};
@@ -990,13 +643,13 @@ BOOL _r_system_setprivilege (LPCWSTR privilege, BOOL enable)
 
 	if (OpenProcessToken (GetCurrentProcess (), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token))
 	{
-		if (LookupPrivilegeValue (NULL, privilege, &luid))
+		if (LookupPrivilegeValue (nullptr, privilege, &luid))
 		{
 			tp.PrivilegeCount = 1;
 			tp.Privileges[0].Luid = luid;
 			tp.Privileges[0].Attributes = enable ? SE_PRIVILEGE_ENABLED : SE_PRIVILEGE_REMOVED;
 
-			if (AdjustTokenPrivileges (token, FALSE, &tp, sizeof (tp), NULL, NULL) && GetLastError () == ERROR_SUCCESS)
+			if (AdjustTokenPrivileges (token, FALSE, &tp, sizeof (tp), nullptr, nullptr) && GetLastError () == ERROR_SUCCESS)
 			{
 				result = TRUE;
 			}
@@ -1079,7 +732,7 @@ VOID _r_windowtotop (HWND hwnd, BOOL enable)
 
 HWND _r_setcontroltip (HWND hwnd, INT ctrl, LPWSTR text)
 {
-	HWND tip = CreateWindowEx (0, TOOLTIPS_CLASS, NULL, WS_POPUP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, NULL, GetModuleHandle (NULL), NULL);
+	HWND tip = CreateWindowEx (0, TOOLTIPS_CLASS, nullptr, WS_POPUP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, GetModuleHandle (nullptr), nullptr);
 
 	TOOLINFO ti = {0};
 
@@ -1118,82 +771,6 @@ DWORD64 _r_file_size (HANDLE h)
 	GetFileSizeEx (h, &size);
 
 	return size.QuadPart;
-}
-
-CStringA _r_fmtA (LPCSTR format, ...)
-{
-	CStringA result;
-
-	va_list args = nullptr;
-	va_start (args, format);
-
-	StringCchVPrintfA (result.GetBuffer (ROUTINE_BUFFER_LENGTH), ROUTINE_BUFFER_LENGTH, format, args);
-	result.ReleaseBuffer ();
-
-	va_end (args);
-
-	return result;
-}
-
-CStringW _r_fmtW (LPCWSTR format, ...)
-{
-	CStringW result;
-
-	va_list args = nullptr;
-	va_start (args, format);
-
-	StringCchVPrintfW (result.GetBuffer (ROUTINE_BUFFER_LENGTH), ROUTINE_BUFFER_LENGTH, format, args);
-	result.ReleaseBuffer ();
-
-	va_end (args);
-
-	return result;
-}
-
-CString _r_fmt_date (LPFILETIME ft, const DWORD flags)
-{
-	CString buffer;
-	DWORD pflags = flags;
-
-	SHFormatDateTime (ft, flags ? &pflags : nullptr, buffer.GetBuffer (ROUTINE_BUFFER_LENGTH), ROUTINE_BUFFER_LENGTH);
-	buffer.ReleaseBuffer ();
-
-	return buffer;
-}
-
-CString _r_fmt_date (__time64_t ut, const DWORD flags)
-{
-	CString buffer;
-	FILETIME ft = {0};
-
-	_r_unixtime_to_filetime (ut, &ft);
-	_r_fmt_date (&ft, flags);
-
-	return buffer;
-}
-
-CString _r_fmt_size64 (DWORDLONG size)
-{
-	static const wchar_t *sizes[] = {L"B", L"KB", L"MB", L"GB", L"TB", L"PB"};
-
-	INT div = 0;
-	SIZE_T rem = 0;
-
-	while (size >= 1000 && div < _countof (sizes))
-	{
-		rem = (size % 1024);
-		div++;
-		size /= 1024;
-	}
-
-	double size_d = (float)size + (float)rem / 1024.0;
-
-	size_d += 0.001; // round up
-
-	CString buffer;
-	buffer.Format (L"%.2f %s", size_d, sizes[div]);
-
-	return buffer;
 }
 
 __time64_t _r_unixtime ()
@@ -1251,7 +828,7 @@ INT _r_versioncompare (LPCWSTR v1, LPCWSTR v2)
 
 	return 0;
 }
-
+/*
 BOOL _r_skipuac_run ()
 {
 	CloseHandle (_r_hmutex);
@@ -1271,7 +848,7 @@ BOOL _r_skipuac_run ()
 		shex.lpVerb = L"runas";
 		shex.nShow = SW_NORMAL;
 
-		GetModuleFileName (NULL, buffer, MAX_PATH);
+		GetModuleFileName (nullptr, buffer, MAX_PATH);
 		shex.lpFile = buffer;
 
 		if (ShellExecuteEx (&shex))
@@ -1280,7 +857,7 @@ BOOL _r_skipuac_run ()
 		}
 	}
 
-	_r_hmutex = CreateMutex (NULL, FALSE, APP_NAME_SHORT);
+	_r_hmutex = CreateMutex (nullptr, FALSE, _r_app_name_short);
 
 	return FALSE;
 }
@@ -1291,20 +868,20 @@ BOOL _r_skipuac_is_present (BOOL checkandrun)
 
 	if (_r_system_validversion (6, 0))
 	{
-		ITaskService* service = NULL;
-		ITaskFolder* folder = NULL;
-		IRegisteredTask* registered_task = NULL;
+		ITaskService* service = nullptr;
+		ITaskFolder* folder = nullptr;
+		IRegisteredTask* registered_task = nullptr;
 
-		CoInitializeEx (NULL, COINIT_MULTITHREADED);
-		CoInitializeSecurity (NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, 0, NULL);
+		CoInitializeEx (nullptr, COINIT_MULTITHREADED);
+		CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr);
 
-		if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, IID_ITaskService, (VOID**)&service)))
+		if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
 		{
 			if (SUCCEEDED (service->Connect (_variant_t (), _variant_t (), _variant_t (), _variant_t ())))
 			{
 				if (SUCCEEDED (service->GetFolder (L"\\", &folder)))
 				{
-					if (SUCCEEDED (folder->GetTask (ROUTINE_TASKSCHD_NAME, &registered_task)))
+					if (SUCCEEDED (folder->GetTask (_r_fmt (ROUTINE_TASKSCHD_NAME, _r_app_name_short).GetBuffer (), &registered_task)))
 					{
 						if (checkandrun)
 						{
@@ -1323,27 +900,28 @@ BOOL _r_skipuac_is_present (BOOL checkandrun)
 
 							variant_t ticker = buffer.Trim ().GetBuffer ();
 
-							IRunningTask* ppRunningTask;
+							IRunningTask* ppRunningTask = nullptr;
 
 							if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_AS_SELF, 0, nullptr, &ppRunningTask)) && ppRunningTask)
 							{
 								TASK_STATE state;
 
-								ppRunningTask->get_State (&state);
+								if (SUCCEEDED (ppRunningTask->get_State (&state)))
+								{
+									if (state == TASK_STATE_QUEUED || state == TASK_STATE_READY)
+									{
+										Sleep (2000);
+										ppRunningTask->get_State (&state);
+									}
 
-								if (state == TASK_STATE_QUEUED || state == TASK_STATE_READY)
-								{
-									Sleep (2000);
-									ppRunningTask->get_State (&state);
-								}
-
-								if (state == TASK_STATE_RUNNING)
-								{
-									result = TRUE;
-								}
-								else if (state == TASK_STATE_UNKNOWN || state == TASK_STATE_DISABLED)
-								{
-									result = FALSE;
+									if (state == TASK_STATE_RUNNING)
+									{
+										result = TRUE;
+									}
+									else if (state == TASK_STATE_UNKNOWN || state == TASK_STATE_DISABLED)
+									{
+										result = FALSE;
+									}
 								}
 
 								ppRunningTask->Release ();
@@ -1375,23 +953,23 @@ BOOL _r_skipuac_cancer (BOOL remove)
 	BOOL result = FALSE;
 	BOOL action_result = FALSE;
 
-	ITaskService* service = NULL;
-	ITaskFolder* folder = NULL;
-	ITaskDefinition* task = NULL;
-	IRegistrationInfo* reginfo = NULL;
-	IPrincipal* principal = NULL;
-	ITaskSettings* settings = NULL;
-	IActionCollection* action_collection = NULL;
-	IAction* action = NULL;
-	IExecAction* exec_action = NULL;
-	IRegisteredTask* registered_task = NULL;
+	ITaskService* service = nullptr;
+	ITaskFolder* folder = nullptr;
+	ITaskDefinition* task = nullptr;
+	IRegistrationInfo* reginfo = nullptr;
+	IPrincipal* principal = nullptr;
+	ITaskSettings* settings = nullptr;
+	IActionCollection* action_collection = nullptr;
+	IAction* action = nullptr;
+	IExecAction* exec_action = nullptr;
+	IRegisteredTask* registered_task = nullptr;
 
 	if (_r_system_validversion (6, 0))
 	{
-		CoInitializeEx (NULL, COINIT_MULTITHREADED);
-		CoInitializeSecurity (NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, 0, NULL);
+		CoInitializeEx (nullptr, COINIT_MULTITHREADED);
+		CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr);
 
-		if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, IID_ITaskService, (VOID**)&service)))
+		if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (VOID**)&service)))
 		{
 			if (SUCCEEDED (service->Connect (_variant_t (), _variant_t (), _variant_t (), _variant_t ())))
 			{
@@ -1399,7 +977,7 @@ BOOL _r_skipuac_cancer (BOOL remove)
 				{
 					if (remove)
 					{
-						result = (folder->DeleteTask (ROUTINE_TASKSCHD_NAME, 0) == S_OK);
+						result = (folder->DeleteTask (_r_fmt (ROUTINE_TASKSCHD_NAME, _r_app_name_short).GetBuffer (), 0) == S_OK);
 					}
 					else
 					{
@@ -1407,7 +985,7 @@ BOOL _r_skipuac_cancer (BOOL remove)
 						{
 							if (SUCCEEDED (task->get_RegistrationInfo (&reginfo)))
 							{
-								reginfo->put_Author (APP_AUTHOR);
+								reginfo->put_Author (_r_app_author);
 								reginfo->Release ();
 							}
 
@@ -1434,7 +1012,7 @@ BOOL _r_skipuac_cancer (BOOL remove)
 									if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (VOID**)&exec_action)))
 									{
 										WCHAR path[MAX_PATH] = {0};
-										GetModuleFileName (NULL, path, MAX_PATH);
+										GetModuleFileName (nullptr, path, MAX_PATH);
 										PathQuoteSpaces (path);
 
 										if (SUCCEEDED (exec_action->put_Path (path)) && SUCCEEDED (exec_action->put_Arguments (L"$(Arg0)")))
@@ -1451,7 +1029,7 @@ BOOL _r_skipuac_cancer (BOOL remove)
 								action_collection->Release ();
 							}
 
-							if (action_result && SUCCEEDED (folder->RegisterTaskDefinition (ROUTINE_TASKSCHD_NAME, task, TASK_CREATE_OR_UPDATE, _variant_t (), _variant_t (), TASK_LOGON_INTERACTIVE_TOKEN, _variant_t (), &registered_task)))
+							if (action_result && SUCCEEDED (folder->RegisterTaskDefinition (_r_fmt (ROUTINE_TASKSCHD_NAME, _r_app_name_short).GetBuffer (), task, TASK_CREATE_OR_UPDATE, _variant_t (), _variant_t (), TASK_LOGON_INTERACTIVE_TOKEN, _variant_t (), &registered_task)))
 							{
 								result = TRUE;
 								registered_task->Release ();
@@ -1473,3 +1051,4 @@ BOOL _r_skipuac_cancer (BOOL remove)
 
 	return result;
 }
+*/
