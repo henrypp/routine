@@ -1,7 +1,7 @@
 // application support
-// © 2013-2015 Henry++
+// Copyright (c) 2013-2015 Henry++
 //
-// lastmod: Oct 3, 2015
+// lastmod: Oct 7, 2015
 
 #pragma once
 
@@ -38,6 +38,12 @@
 #define APPLICATION_TASKSCHD_NAME L"%sSkipUAC"
 #define APPLICATION_UPDATE_PERIOD 2 // update checking period (in days)
 
+#define APPLICATION_LOCALE_DIRECTORY L"i18n"
+#define APPLICATION_LOCALE_SECTION L"i18n"
+
+#define I18N_ID(ptr, id, str) ((ptr)->LocaleString(id, (str) ? (str) : L#id))
+#define I18N_STR(ptr, str) ((ptr)->LocaleString(0, str))
+
 class CApplication
 {
 public:
@@ -66,15 +72,21 @@ public:
 	VOID SetLinks (LPCWSTR website, LPCWSTR github);
 	VOID SetCopyright (LPCWSTR copyright);
 
+	VOID LocaleEnum (HWND hwnd, INT ctrl_id);
+	BOOL LocaleIsExternal ();
 	VOID LocaleSet (LPCWSTR name);
-	CString LocaleString (UINT id);
+	CString LocaleString (UINT id, LPCWSTR name);
+	VOID LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position);
 
 private:
 
 	static INT_PTR CALLBACK AboutWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 	static UINT WINAPI CheckForUpdatesProc (LPVOID lparam);
 
+	CString ReadINI (LPCWSTR section, LPCWSTR key, LPCWSTR def, LPCWSTR path);
+
 	BOOL is_initialized = FALSE;
+	BOOL is_localized = FALSE;
 
 #ifdef _WIN64
 	const DWORD app_architecture = 64;
@@ -89,6 +101,8 @@ private:
 	HINSTANCE app_hinstance = nullptr;
 	HICON app_logo_big = nullptr;
 
+	WCHAR app_directory[MAX_PATH];
+
 	WCHAR app_name[MAX_PATH];
 	WCHAR app_name_short[MAX_PATH];
 	WCHAR app_version[MAX_PATH];
@@ -101,5 +115,5 @@ private:
 	WCHAR app_copyright[MAX_PATH];
 
 	WCHAR app_config_path[MAX_PATH];
-	WCHAR app_locale[MAX_PATH];
+	WCHAR app_locale_path[MAX_PATH];
 };

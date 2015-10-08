@@ -1,7 +1,7 @@
 ﻿// application support
-// © 2013-2015 Henry++
+// Copyright (c) 2013-2015 Henry++
 //
-// lastmod: Oct 3, 2015
+// lastmod: Oct 7, 2015
 
 #include "application.h"
 
@@ -48,22 +48,26 @@ CApplication::CApplication (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, L
 		StringCchCopy (this->app_version, _countof (this->app_version), version);
 		StringCchCopy (this->app_author, _countof (this->app_author), author);
 
-		// configuration
-		GetModuleFileName (nullptr, this->app_config_path, _countof (this->app_config_path));
-		PathRemoveFileSpec (this->app_config_path);
+		// set current directory
+		GetModuleFileName (nullptr, this->app_directory, _countof (this->app_directory));
+		PathRemoveFileSpec (this->app_directory);
 
-		StringCchPrintf (this->app_config_path, _countof (this->app_config_path), L"%s\\%s.ini", this->app_config_path, short_name);
+		// set configuration path
+		StringCchPrintf (this->app_config_path, _countof (this->app_config_path), L"%s\\%s.ini", this->app_directory, this->app_name_short);
 
 		if (!_r_file_is_exists (this->app_config_path))
 		{
-			ExpandEnvironmentStrings (_r_fmt (L"%%APPDATA%%\\%s\\%s\\%s.ini", this->app_author, name, short_name), this->app_config_path, _countof (this->app_config_path));
+			ExpandEnvironmentStrings (_r_fmt (L"%%APPDATA%%\\%s\\%s\\%s.ini", this->app_author, this->app_name, this->app_name_short), this->app_config_path, _countof (this->app_config_path));
 		}
+
+		// load locale
+		this->LocaleSet (this->ConfigGet (L"Language", nullptr));
 
 		// load logo
 		HDC hdc = GetDC (nullptr);
 
-		INT size = MulDiv (48, GetDeviceCaps (hdc, LOGPIXELSY), 72);
-		this->app_logo_big = (HICON)LoadImage (this->app_hinstance, MAKEINTRESOURCE (IDI_MAIN), IMAGE_ICON, size, size, 0);
+		INT size = MulDiv (42, GetDeviceCaps (hdc, LOGPIXELSY), 72);
+		this->app_logo_big = _r_loadicon (this->app_hinstance, MAKEINTRESOURCE (IDI_MAIN), size, size);
 
 		ReleaseDC (nullptr, hdc);
 	}
@@ -130,7 +134,7 @@ VOID CApplication::CheckForUpdates (BOOL is_periodical)
 {
 	if (is_periodical)
 	{
-		if (!this->ConfigGet (L"CheckUpdates", 1) || (_r_unixtime () - this->ConfigGet (L"CheckUpdatesLast", 0)) <= (86400 * APPLICATION_UPDATE_PERIOD))
+		if (!this->ConfigGet (L"CheckUpdates", 1) || (_r_unixtime_now () - this->ConfigGet (L"CheckUpdatesLast", 0)) <= (86400 * APPLICATION_UPDATE_PERIOD))
 		{
 			return;
 		}
@@ -148,19 +152,7 @@ UINT CApplication::ConfigGet (LPCWSTR key, INT def)
 
 CString CApplication::ConfigGet (LPCWSTR key, LPCWSTR def)
 {
-	CString buffer;
-	DWORD length = ROUTINE_BUFFER_LENGTH;
-
-	while (GetPrivateProfileString (this->app_name_short, key, def, buffer.GetBuffer (length), length, this->app_config_path) == (length - 1))
-	{
-		buffer.ReleaseBuffer ();
-
-		length += ROUTINE_BUFFER_LENGTH;
-	}
-
-	buffer.ReleaseBuffer ();
-
-	return buffer;
+	return this->ReadINI (this->app_name_short, key, def, this->app_config_path);
 }
 
 BOOL CApplication::ConfigSet (LPCWSTR key, LPCWSTR val)
@@ -241,6 +233,12 @@ VOID CApplication::Restart ()
 
 	ShowWindow (this->GetHWND (), SW_HIDE); // hide main window
 
+	if (this->app_mutex)
+	{
+		CloseHandle (this->app_mutex);
+		this->app_mutex = nullptr;
+	}
+
 	if (CreateProcess (buffer, nullptr, nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi))
 	{
 		if (this->GetHWND ())
@@ -269,6 +267,92 @@ VOID CApplication::SetLinks (LPCWSTR website, LPCWSTR github)
 	StringCchCopy (this->app_github, _countof (this->app_github), github);
 }
 
+VOID CApplication::LocaleEnum (HWND hwnd, INT ctrl_id)
+{
+	WIN32_FIND_DATA wfd = {0};
+	HANDLE h = FindFirstFile (_r_fmt (L"%s\\" APPLICATION_LOCALE_DIRECTORY L"\\*.ini", this->app_directory), &wfd);
+
+	CString def = this->ConfigGet (L"Language", nullptr);
+
+	if (h != INVALID_HANDLE_VALUE)
+	{
+		INT count = max (0, (INT)SendDlgItemMessage (hwnd, ctrl_id, CB_GETCOUNT, 0, NULL));
+
+		do
+		{
+			LPWSTR fname = wfd.cFileName;
+			PathRemoveExtension (fname);
+
+			SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, count++, (LPARAM)fname);
+
+			if (def.CompareNoCase (fname) == 0)
+			{
+				SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, count - 1, NULL);
+			}
+		}
+		while (FindNextFile (h, &wfd));
+
+		FindClose (h);
+	}
+}
+
+BOOL CApplication::LocaleIsExternal ()
+{
+	return this->is_localized;
+}
+
+VOID CApplication::LocaleSet (LPCWSTR name)
+{
+	this->ConfigSet (L"Language", name);
+
+	if (name)
+	{
+		StringCchPrintf (this->app_locale_path, _countof (this->app_locale_path), L"%s\\" APPLICATION_LOCALE_DIRECTORY L"\\%s.ini", this->app_directory, name);
+		this->is_localized = TRUE;
+	}
+
+	if (!name || (name && !_r_file_is_exists (this->app_locale_path)) || !this->LocaleIsExternal ())
+	{
+		this->app_locale_path[0] = 0;
+		this->is_localized = FALSE;
+	}
+}
+
+CString CApplication::LocaleString (UINT id, LPCWSTR name)
+{
+	CString buffer;
+
+	if (this->LocaleIsExternal ())
+	{
+		buffer = this->ReadINI (APPLICATION_LOCALE_SECTION, name, nullptr, this->app_locale_path);
+
+		if (buffer.IsEmpty ())
+		{
+			buffer = name;
+		}
+	}
+	else
+	{
+		buffer.LoadStringW (this->app_hinstance, id);
+	}
+
+	return buffer;
+}
+
+VOID CApplication::LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position)
+{
+	if (this->LocaleIsExternal () && text)
+	{
+		MENUITEMINFO mif = {0};
+
+		mif.cbSize = sizeof (mif);
+		mif.fMask = MIIM_STRING;
+		mif.dwTypeData = (LPWSTR)text;
+
+		SetMenuItemInfo (menu, item, by_position, &mif);
+	}
+}
+
 INT_PTR CALLBACK CApplication::AboutWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
 	switch (msg)
@@ -281,19 +365,20 @@ INT_PTR CALLBACK CApplication::AboutWindowProc (HWND hwnd, UINT msg, WPARAM wpar
 			_r_windowcenter (hwnd);
 			_r_windowtotop (hwnd, TRUE);
 
+			SetWindowText (hwnd, I18N_ID (this_ptr, IDS_ABOUT, 0));
+
 			// draw icon
 			SendDlgItemMessage (hwnd, IDC_LOGO, STM_SETIMAGE, IMAGE_ICON, (LPARAM)this_ptr->app_logo_big);
 
 			// show information
-			SetDlgItemText (hwnd, IDC_TITLE, _r_fmt (L"%s v%s (%d-bit)", this_ptr->app_name, this_ptr->app_version, this_ptr->app_architecture));
-			SetDlgItemText (hwnd, IDC_COPYRIGHT, this_ptr->app_copyright);
-
 			CString host1 = this_ptr->app_website;
 			CString host2 = this_ptr->app_github;
 
 			host1.Delete (0, host1.Find (L"//", 0) + 2);
 			host2.Delete (0, host2.Find (L"//", 0) + 2);
 
+			SetDlgItemText (hwnd, IDC_TITLE, _r_fmt (L"%s v%s (%d-bit)", this_ptr->app_name, this_ptr->app_version, this_ptr->app_architecture));
+			SetDlgItemText (hwnd, IDC_COPYRIGHT, this_ptr->app_copyright);
 			SetDlgItemText (hwnd, IDC_PANEL, _r_fmt (L"<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", this_ptr->app_website, host1, this_ptr->app_github, host2));
 
 			break;
@@ -398,9 +483,9 @@ UINT WINAPI CApplication::CheckForUpdatesProc (LPVOID lparam)
 						bufferw = CA2W (buffera, CP_UTF8);
 						bufferw = bufferw.Trim (L" \r\n"); // trim whitespaces
 
-						if (_r_versioncompare (this_ptr->app_version, bufferw) == -1)
+						if (_r_string_versioncompare (this_ptr->app_version, bufferw) == -1)
 						{
-							if (_r_msg (this_ptr->GetHWND (), MB_YESNO | MB_ICONQUESTION, this_ptr->app_name, this_ptr->LocaleString (IDS_UPDATE_YES), bufferw) == IDYES)
+							if (_r_msg (this_ptr->GetHWND (), MB_YESNO | MB_ICONQUESTION, this_ptr->app_name, I18N_ID (this_ptr, IDS_UPDATE_YES, 0), bufferw) == IDYES)
 							{
 								ShellExecute (this_ptr->GetHWND (), nullptr, this_ptr->app_website, nullptr, nullptr, SW_SHOWDEFAULT);
 							}
@@ -410,7 +495,7 @@ UINT WINAPI CApplication::CheckForUpdatesProc (LPVOID lparam)
 					}
 				}
 
-				this_ptr->ConfigSet (L"CheckUpdatesLast", (DWORD)_r_unixtime ());
+				this_ptr->ConfigSet (L"CheckUpdatesLast", (DWORD)_r_unixtime_now ());
 			}
 		}
 
@@ -420,7 +505,7 @@ UINT WINAPI CApplication::CheckForUpdatesProc (LPVOID lparam)
 
 		if (!result && !this_ptr->app_cfu_mode)
 		{
-			_r_msg (this_ptr->GetHWND (), MB_OK | MB_ICONINFORMATION, this_ptr->app_name, this_ptr->LocaleString (IDS_UPDATE_NO));
+			_r_msg (this_ptr->GetHWND (), MB_OK | MB_ICONINFORMATION, this_ptr->app_name, I18N_ID (this_ptr, IDS_UPDATE_NO, 0));
 		}
 
 		InternetCloseHandle (connect);
@@ -430,16 +515,19 @@ UINT WINAPI CApplication::CheckForUpdatesProc (LPVOID lparam)
 	return 0;
 }
 
-VOID CApplication::LocaleSet (LPCWSTR name)
-{
-	this->ConfigSet (L"Language", name);
-}
-
-CString CApplication::LocaleString (UINT id)
+CString CApplication::ReadINI (LPCWSTR section, LPCWSTR key, LPCWSTR def, LPCWSTR path)
 {
 	CString buffer;
+	DWORD length = ROUTINE_BUFFER_LENGTH;
 
-	buffer.LoadStringW (id);
+	while (GetPrivateProfileString (section, key, def, buffer.GetBuffer (length), length, path) == (length - 1))
+	{
+		buffer.ReleaseBuffer ();
+
+		length += ROUTINE_BUFFER_LENGTH;
+	}
+
+	buffer.ReleaseBuffer ();
 
 	return buffer;
 }

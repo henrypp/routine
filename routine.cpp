@@ -1,7 +1,7 @@
 ﻿// routine++
-// © 2013-2015 Henry++
+// Copyright (c) 2013-2015 Henry++
 //
-// lastmod: Oct 3, 2015
+// lastmod: Oct 7, 2015
 
 #include "routine.h"
 
@@ -133,7 +133,7 @@ INT _r_msg (HWND hwnd, UINT type, LPCWSTR title, LPCWSTR format, ...)
 			tdc.dwFlags |= TDF_POSITION_RELATIVE_TO_WINDOW;
 		}
 
-		PTDI _TaskDialogIndirect = (PTDI)GetProcAddress (GetModuleHandle (L"comctl32.dll"), "TaskDialogIndirect");
+		TDI _TaskDialogIndirect = (TDI)GetProcAddress (GetModuleHandle (L"comctl32.dll"), "TaskDialogIndirect");
 
 		if ((type & MB_YESNO) == MB_YESNO)
 		{
@@ -476,6 +476,18 @@ HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT image, LPA
 	return (HTREEITEM)SendDlgItemMessage (hwnd, ctrl, TVM_INSERTITEM, 0, (LPARAM)&tvi);
 }
 
+LPARAM _r_treeview_getlparam (HWND hwnd, INT ctrl, HTREEITEM item)
+{
+	TVITEMEX tvi = {0};
+
+	tvi.mask = TVIF_PARAM;
+	tvi.hItem = item;
+
+	SendDlgItemMessage (hwnd, ctrl, TVM_GETITEM, 0, (LPARAM)&tvi);
+
+	return tvi.lParam;
+}
+
 DWORD _r_treeview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle, INT height)
 {
 	if (height)
@@ -773,7 +785,7 @@ DWORD64 _r_file_size (HANDLE h)
 	return size.QuadPart;
 }
 
-__time64_t _r_unixtime ()
+__time64_t _r_unixtime_now ()
 {
 	__time64_t t = 0;
 	_time64 (&t);
@@ -807,14 +819,15 @@ VOID _r_unixtime_to_systemtime (__time64_t t, LPSYSTEMTIME pst)
 	return -1 if v1 < v2
 	*/
 
-INT _r_versioncompare (LPCWSTR v1, LPCWSTR v2)
+INT _r_string_versioncompare (LPCWSTR v1, LPCWSTR v2)
 {
-	INT oct_v1[4] = {0}, oct_v2[4] = {0};
+	INT oct_v1[4] = {0};
+	INT oct_v2[4] = {0};
 
 	swscanf_s (v1, L"%d.%d.%d.%d", &oct_v1[0], &oct_v1[1], &oct_v1[2], &oct_v1[3]);
 	swscanf_s (v2, L"%d.%d.%d.%d", &oct_v2[0], &oct_v2[1], &oct_v2[2], &oct_v2[3]);
 
-	for (INT i = 0; i < 4; i++)
+	for (INT i = 0; i < _countof (oct_v1); i++)
 	{
 		if (oct_v1[i] > oct_v2[i])
 		{
@@ -828,6 +841,29 @@ INT _r_versioncompare (LPCWSTR v1, LPCWSTR v2)
 
 	return 0;
 }
+
+HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT width, INT height)
+{
+	HICON result = nullptr;
+
+	LIWSD _LoadIconWithScaleDown = (LIWSD)GetProcAddress (GetModuleHandle (L"comctl32.dll"), "LoadIconWithScaleDown");
+
+	if (_LoadIconWithScaleDown)
+	{
+		_LoadIconWithScaleDown (h, name, width, height, &result);
+	}
+
+	if (!result)
+	{
+		result = (HICON)LoadImage (h, name, IMAGE_ICON, width, height, 0);
+	}
+
+	return result;
+}
+
+
+
+
 /*
 BOOL _r_skipuac_run ()
 {

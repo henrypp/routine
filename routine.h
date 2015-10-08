@@ -1,7 +1,7 @@
 // routine++
-// © 2013-2015 Henry++
+// Copyright (c) 2013-2015 Henry++
 //
-// lastmod: Oct 3, 2015
+// lastmod: Oct 7, 2015
 
 #pragma once
 
@@ -90,6 +90,7 @@ DWORD _r_listview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle);
 */
 
 HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT image = -1, LPARAM lparam = 0);
+LPARAM _r_treeview_getlparam (HWND hwnd, INT ctrl, HTREEITEM item);
 DWORD _r_treeview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle, INT height);
 
 /*
@@ -115,11 +116,12 @@ BOOL _r_file_is_exists (LPCWSTR path);
 DWORD64 _r_file_size (HANDLE h);
 
 
-__time64_t _r_unixtime ();
+__time64_t _r_unixtime_now ();
 VOID _r_unixtime_to_filetime (__time64_t t, LPFILETIME pft);
 VOID _r_unixtime_to_systemtime (__time64_t t, LPSYSTEMTIME pst);
 
-INT _r_versioncompare (LPCWSTR v1, LPCWSTR v2);
+HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT width, INT height);
+INT _r_string_versioncompare (LPCWSTR v1, LPCWSTR v2);
 
 /*
 BOOL _r_skipuac_run ();
@@ -131,4 +133,5 @@ BOOL _r_skipuac_cancer (BOOL remove);
 	Exported function definitions
 */
 
-typedef VOID (WINAPI *PTDI) (TASKDIALOGCONFIG*, INT*, INT*, BOOL*); // TaskDialogIndirect
+typedef HRESULT (WINAPI *LIWSD) (HINSTANCE, PCWSTR, INT, INT, HICON*); // LoadIconWithScaleDown
+typedef VOID (WINAPI *TDI) (TASKDIALOGCONFIG*, INT*, INT*, BOOL*); // TaskDialogIndirect
