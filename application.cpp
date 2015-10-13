@@ -379,7 +379,8 @@ INT_PTR CALLBACK CApplication::AboutWindowProc (HWND hwnd, UINT msg, WPARAM wpar
 
 			SetDlgItemText (hwnd, IDC_TITLE, _r_fmt (L"%s v%s (%d-bit)", this_ptr->app_name, this_ptr->app_version, this_ptr->app_architecture));
 			SetDlgItemText (hwnd, IDC_COPYRIGHT, this_ptr->app_copyright);
-			SetDlgItemText (hwnd, IDC_PANEL, _r_fmt (L"<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", this_ptr->app_website, host1, this_ptr->app_github, host2));
+			SetDlgItemText (hwnd, IDC_LINKS, _r_fmt (L"<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", this_ptr->app_website, host1, this_ptr->app_github, host2));
+			SetDlgItemText (hwnd, IDC_INFO, I18N_ID (this_ptr, IDS_TRANSLATOR, 0));
 
 			break;
 		}
