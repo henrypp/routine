@@ -1,7 +1,7 @@
 ﻿// application support
 // Copyright (c) 2013-2015 Henry++
 //
-// lastmod: Oct 15, 2015
+// lastmod: Oct 16, 2015
 
 #include "application.h"
 
@@ -276,7 +276,9 @@ VOID CApplication::CreateSettingsWindow (DWORD page_count, DLGPROC proc, SETTING
 	this->app_settings_proc = proc;
 	this->app_settings_save = callback;
 
+#ifdef __RESOURCE_H__
 	DialogBoxParam (nullptr, MAKEINTRESOURCE (IDD_SETTINGS), this->GetHWND (), this->SettingsWindowProc, (LPARAM)this);
+#endif // __RESOURCE_H__
 }
 
 HWND CApplication::GetHWND ()
@@ -388,13 +390,9 @@ CString CApplication::LocaleString (UINT id, LPCWSTR name)
 	if (this->LocaleIsExternal ())
 	{
 		buffer = this->ReadINI (APPLICATION_LOCALE_SECTION, name, nullptr, this->app_locale_path);
-
-		if (buffer.IsEmpty ())
-		{
-			buffer = name;
-		}
 	}
-	else
+
+	if (buffer.IsEmpty ())
 	{
 		buffer.LoadStringW (this->app_hinstance, id);
 	}
@@ -428,7 +426,7 @@ INT_PTR CALLBACK CApplication::AboutWindowProc (HWND hwnd, UINT msg, WPARAM wpar
 			_r_windowcenter (hwnd);
 			_r_windowtotop (hwnd, TRUE);
 
-			SetWindowText (hwnd, I18N_ID (this_ptr, IDS_ABOUT, 0));
+			SetWindowText (hwnd, I18N (this_ptr, IDS_ABOUT, 0));
 
 			// draw icon
 			SendDlgItemMessage (hwnd, IDC_LOGO, STM_SETIMAGE, IMAGE_ICON, (LPARAM)this_ptr->app_logo_big);
@@ -443,7 +441,7 @@ INT_PTR CALLBACK CApplication::AboutWindowProc (HWND hwnd, UINT msg, WPARAM wpar
 			SetDlgItemText (hwnd, IDC_TITLE, _r_fmt (L"%s v%s (%d-bit)", this_ptr->app_name, this_ptr->app_version, this_ptr->app_architecture));
 			SetDlgItemText (hwnd, IDC_COPYRIGHT, this_ptr->app_copyright);
 			SetDlgItemText (hwnd, IDC_LINKS, _r_fmt (L"<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", this_ptr->app_website, host1, this_ptr->app_github, host2));
-			SetDlgItemText (hwnd, IDC_INFO, I18N_ID (this_ptr, IDS_TRANSLATOR, 0));
+			SetDlgItemText (hwnd, IDC_INFO, I18N (this_ptr, IDS_TRANSLATOR, 0));
 
 			break;
 		}
@@ -523,13 +521,12 @@ INT_PTR CALLBACK CApplication::SettingsWindowProc (HWND hwnd, UINT msg, WPARAM w
 			this_ptr = (CApplication*)lparam;
 
 			// localize
-			if (this_ptr->LocaleIsExternal ())
-			{
-				SetWindowText (hwnd, I18N_STR (this_ptr, L"IDS_SETTINGS"));
+#ifdef __RESOURCE_H__
+			SetWindowText (hwnd, I18N (this_ptr, IDS_SETTINGS, 0));
 
-				SetDlgItemText (hwnd, IDC_OK, I18N_STR (this_ptr, L"IDC_OK"));
-				SetDlgItemText (hwnd, IDC_CANCEL, I18N_STR (this_ptr, L"IDC_CANCEL"));
-			}
+			SetDlgItemText (hwnd, IDC_APPLY, I18N (this_ptr, IDS_APPLY, 0));
+			SetDlgItemText (hwnd, IDC_CLOSE, I18N (this_ptr, IDS_CLOSE, 0));
+#endif //  __RESOURCE_H__
 
 			// configure treeview
 			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, GetSystemMetrics (SM_CYSMICON));
@@ -538,7 +535,7 @@ INT_PTR CALLBACK CApplication::SettingsWindowProc (HWND hwnd, UINT msg, WPARAM w
 			{
 				this_ptr->app_settings_hwnd[i] = CreateDialogParam (nullptr, MAKEINTRESOURCE (IDD_SETTINGS_1 + i), hwnd, this_ptr->app_settings_proc, i);
 
-				_r_treeview_additem (hwnd, IDC_NAV, I18N_ID (this_ptr, IDS_SETTINGS_1 + i, _r_fmt (L"IDS_SETTINGS_%d", i + 1)), -1, (LPARAM)i);
+				_r_treeview_additem (hwnd, IDC_NAV, I18N (this_ptr, IDS_SETTINGS_1 + i, _r_fmt (L"IDS_SETTINGS_%d", i + 1)), -1, (LPARAM)i);
 			}
 
 			SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_FIRSTVISIBLE, NULL)); // select 1-st item
@@ -574,7 +571,7 @@ INT_PTR CALLBACK CApplication::SettingsWindowProc (HWND hwnd, UINT msg, WPARAM w
 			switch (LOWORD (wparam))
 			{
 				case IDOK: // process Enter key
-				case IDC_OK:
+				case IDC_APPLY:
 				{
 					BOOL is_restart = FALSE;
 
@@ -597,7 +594,7 @@ INT_PTR CALLBACK CApplication::SettingsWindowProc (HWND hwnd, UINT msg, WPARAM w
 				}
 
 				case IDCANCEL: // process Esc key
-				case IDC_CANCEL:
+				case IDC_CLOSE:
 				{
 					EndDialog (hwnd, 0);
 					this_ptr->app_settings_save (nullptr, (DWORD)-1);
@@ -651,7 +648,7 @@ UINT WINAPI CApplication::CheckForUpdatesProc (LPVOID lparam)
 
 						if (_r_string_versioncompare (this_ptr->app_version, bufferw) == -1)
 						{
-							if (_r_msg (this_ptr->GetHWND (), MB_YESNO | MB_ICONQUESTION, this_ptr->app_name, I18N_ID (this_ptr, IDS_UPDATE_YES, 0), bufferw) == IDYES)
+							if (_r_msg (this_ptr->GetHWND (), MB_YESNO | MB_ICONQUESTION, this_ptr->app_name, I18N (this_ptr, IDS_UPDATE_YES, 0), bufferw) == IDYES)
 							{
 								ShellExecute (nullptr, nullptr, this_ptr->app_website, nullptr, nullptr, SW_SHOWDEFAULT);
 							}
@@ -671,7 +668,7 @@ UINT WINAPI CApplication::CheckForUpdatesProc (LPVOID lparam)
 
 		if (!result && !this_ptr->app_cfu_mode)
 		{
-			_r_msg (this_ptr->GetHWND (), MB_OK | MB_ICONINFORMATION, this_ptr->app_name, I18N_ID (this_ptr, IDS_UPDATE_NO, 0));
+			_r_msg (this_ptr->GetHWND (), MB_OK | MB_ICONINFORMATION, this_ptr->app_name, I18N (this_ptr, IDS_UPDATE_NO, 0));
 		}
 
 		InternetCloseHandle (connect);

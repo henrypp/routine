@@ -1,7 +1,7 @@
 // application support
 // Copyright (c) 2013-2015 Henry++
 //
-// lastmod: Oct 15, 2015
+// lastmod: Oct 16, 2015
 
 #pragma once
 
@@ -30,8 +30,7 @@
 	Localization macroses
 */
 
-#define I18N_ID(ptr, id, str) ((ptr)->LocaleString(id, (str) ? (str) : L#id))
-#define I18N_STR(ptr, str) ((ptr)->LocaleString(0, str))
+#define I18N(ptr, id, str) ((ptr)->LocaleString(id, (str) ? (str) : L#id))
 
 /*
 	Callback function definitions

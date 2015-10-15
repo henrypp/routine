@@ -93,6 +93,24 @@ CString _r_clipboard_get (HWND hwnd);
 VOID _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length);
 
 /*
+	System information
+*/
+
+BOOL _r_system_adminstate ();
+BOOL _r_system_iswow64 ();
+BOOL _r_system_setprivilege (LPCWSTR privilege, BOOL enable);
+BOOL _r_system_uacstate ();
+BOOL _r_system_validversion (DWORD major, DWORD minor);
+
+/*
+	Window management
+*/
+
+VOID _r_windowcenter (HWND hwnd);
+VOID _r_windowtoggle (HWND hwnd, BOOL show);
+VOID _r_windowtotop (HWND hwnd, BOOL enable);
+
+/*
 	Control: listview
 */
 
@@ -119,15 +137,6 @@ DWORD _r_treeview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle, INT height);
 BOOL _r_status_settext (HWND hwnd, INT ctrl, INT part, LPCWSTR text);
 VOID _r_status_setstyle (HWND hwnd, INT ctrl, INT height);
 
-BOOL _r_system_adminstate (VOID);
-BOOL _r_system_uacstate (VOID);
-BOOL _r_system_setprivilege (LPCWSTR privilege, BOOL enable);
-BOOL _r_system_validversion (DWORD major, DWORD minor);
-
-VOID _r_windowcenter (HWND hwnd);
-VOID _r_windowtoggle (HWND hwnd, BOOL show);
-VOID _r_windowtotop (HWND hwnd, BOOL enable);
-
 HWND _r_setcontroltip (HWND hwnd, INT ctrl, LPWSTR text);
 BOOL _r_seteditbaloontip (HWND hwnd, INT ctrl, LPCWSTR title, LPCWSTR text, INT icon);
 
@@ -152,5 +161,6 @@ BOOL _r_skipuac_cancer (BOOL remove);
 	Exported function definitions
 */
 
+typedef BOOL (WINAPI *IW64P) (HANDLE, PBOOL); // IsWow64Process
 typedef HRESULT (WINAPI *LIWSD) (HINSTANCE, PCWSTR, INT, INT, HICON*); // LoadIconWithScaleDown
 typedef VOID (WINAPI *TDI) (TASKDIALOGCONFIG*, INT*, INT*, BOOL*); // TaskDialogIndirect
