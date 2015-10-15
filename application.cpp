@@ -1,7 +1,7 @@
 ﻿// application support
 // Copyright (c) 2013-2015 Henry++
 //
-// lastmod: Oct 7, 2015
+// lastmod: Oct 15, 2015
 
 #include "application.h"
 
@@ -60,13 +60,16 @@ CApplication::CApplication (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, L
 			ExpandEnvironmentStrings (_r_fmt (L"%%APPDATA%%\\%s\\%s\\%s.ini", this->app_author, this->app_name, this->app_name_short), this->app_config_path, _countof (this->app_config_path));
 		}
 
+		// initialize configuration array
+		this->ConfigInit ();
+
 		// load locale
 		this->LocaleSet (this->ConfigGet (L"Language", nullptr));
 
 		// load logo
 		HDC hdc = GetDC (nullptr);
 
-		INT size = MulDiv (42, GetDeviceCaps (hdc, LOGPIXELSY), 72);
+		INT size = MulDiv (64, GetDeviceCaps (hdc, LOGPIXELSY), 72);
 		this->app_logo_big = _r_loadicon (this->app_hinstance, MAKEINTRESOURCE (IDI_MAIN), size, size);
 
 		ReleaseDC (nullptr, hdc);
@@ -145,14 +148,60 @@ VOID CApplication::CheckForUpdates (BOOL is_periodical)
 	_beginthreadex (nullptr, 0, &this->CheckForUpdatesProc, (LPVOID)this, 0, nullptr);
 }
 
-UINT CApplication::ConfigGet (LPCWSTR key, INT def)
+VOID CApplication::ConfigInit ()
 {
-	return GetPrivateProfileInt (this->app_name_short, key, def, this->app_config_path);
+	CString buffer;
+	CString parser;
+
+	DWORD length = ROUTINE_BUFFER_LENGTH;
+	INT delimeter = 0;
+
+	// read whole config file
+	while (GetPrivateProfileSection (this->app_name_short, buffer.GetBuffer (length), length, this->app_config_path) == (length - 1))
+	{
+		buffer.ReleaseBuffer ();
+
+		length += ROUTINE_BUFFER_LENGTH;
+	}
+
+	buffer.ReleaseBuffer ();
+
+	this->app_config_array.clear (); // clear first
+
+	LPWSTR p = buffer.GetBuffer ();
+
+	while (*p)
+	{
+		parser = p;
+		delimeter = parser.Find (L"=");
+
+		this->app_config_array[parser.Mid (0, delimeter)] = parser.Mid (delimeter + 1);
+
+		p += lstrlen (p) + 1; // go next
+	}
+}
+
+DWORD CApplication::ConfigGet (LPCWSTR key, INT def)
+{
+	CString val = this->ConfigGet (key, nullptr);
+
+	if (val.IsEmpty ())
+	{
+		return def;
+	}
+
+	return wcstol (val, nullptr, 10);
 }
 
 CString CApplication::ConfigGet (LPCWSTR key, LPCWSTR def)
 {
-	return this->ReadINI (this->app_name_short, key, def, this->app_config_path);
+	// check key is exists
+	if (this->app_config_array.find (key) == this->app_config_array.end ())
+	{
+		return def;
+	}
+
+	return this->app_config_array[key];
 }
 
 BOOL CApplication::ConfigSet (LPCWSTR key, LPCWSTR val)
@@ -166,6 +215,9 @@ BOOL CApplication::ConfigSet (LPCWSTR key, LPCWSTR val)
 	{
 		SHCreateDirectoryEx (nullptr, buffer, nullptr);
 	}
+
+	// update hash value
+	this->app_config_array[key] = val;
 
 	return WritePrivateProfileString (this->app_name_short, key, val, this->app_config_path);
 }
@@ -214,6 +266,17 @@ BOOL CApplication::CreateMainWindow (DLGPROC proc)
 	this->CheckForUpdates (TRUE);
 
 	return TRUE;
+}
+
+VOID CApplication::CreateSettingsWindow (DWORD page_count, DLGPROC proc, SETTINGS_SAVE_CALLBACK callback)
+{
+	this->app_settings_hwnd.clear (); // clear first
+
+	this->app_settings_count = page_count;
+	this->app_settings_proc = proc;
+	this->app_settings_save = callback;
+
+	DialogBoxParam (nullptr, MAKEINTRESOURCE (IDD_SETTINGS), this->GetHWND (), this->SettingsWindowProc, (LPARAM)this);
 }
 
 HWND CApplication::GetHWND ()
@@ -400,6 +463,7 @@ INT_PTR CALLBACK CApplication::AboutWindowProc (HWND hwnd, UINT msg, WPARAM wpar
 
 		case WM_ENTERSIZEMOVE:
 		case WM_EXITSIZEMOVE:
+		case WM_CAPTURECHANGED:
 		{
 			LONG_PTR exstyle = GetWindowLongPtr (hwnd, GWL_EXSTYLE);
 
@@ -408,7 +472,7 @@ INT_PTR CALLBACK CApplication::AboutWindowProc (HWND hwnd, UINT msg, WPARAM wpar
 				SetWindowLongPtr (hwnd, GWL_EXSTYLE, exstyle | WS_EX_LAYERED);
 			}
 
-			SetLayeredWindowAttributes (hwnd, 0, (msg == WM_ENTERSIZEMOVE) ? 200 : 255, LWA_ALPHA);
+			SetLayeredWindowAttributes (hwnd, 0, (msg == WM_ENTERSIZEMOVE) ? 100 : 255, LWA_ALPHA);
 			SetCursor (LoadCursor (nullptr, (msg == WM_ENTERSIZEMOVE) ? IDC_SIZEALL : IDC_ARROW));
 
 			break;
@@ -421,7 +485,7 @@ INT_PTR CALLBACK CApplication::AboutWindowProc (HWND hwnd, UINT msg, WPARAM wpar
 				case NM_CLICK:
 				case NM_RETURN:
 				{
-					ShellExecute (hwnd, nullptr, PNMLINK (lparam)->item.szUrl, nullptr, nullptr, SW_SHOWNORMAL);
+					ShellExecute (nullptr, nullptr, PNMLINK (lparam)->item.szUrl, nullptr, nullptr, SW_SHOWNORMAL);
 					break;
 				}
 			}
@@ -445,7 +509,108 @@ INT_PTR CALLBACK CApplication::AboutWindowProc (HWND hwnd, UINT msg, WPARAM wpar
 		}
 	}
 
-	return 0;
+	return FALSE;
+}
+
+INT_PTR CALLBACK CApplication::SettingsWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+	static CApplication* this_ptr = nullptr;
+
+	switch (msg)
+	{
+		case WM_INITDIALOG:
+		{
+			this_ptr = (CApplication*)lparam;
+
+			// localize
+			if (this_ptr->LocaleIsExternal ())
+			{
+				SetWindowText (hwnd, I18N_STR (this_ptr, L"IDS_SETTINGS"));
+
+				SetDlgItemText (hwnd, IDC_OK, I18N_STR (this_ptr, L"IDC_OK"));
+				SetDlgItemText (hwnd, IDC_CANCEL, I18N_STR (this_ptr, L"IDC_CANCEL"));
+			}
+
+			// configure treeview
+			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, GetSystemMetrics (SM_CYSMICON));
+
+			for (DWORD i = 0; i < this_ptr->app_settings_count; i++)
+			{
+				this_ptr->app_settings_hwnd[i] = CreateDialogParam (nullptr, MAKEINTRESOURCE (IDD_SETTINGS_1 + i), hwnd, this_ptr->app_settings_proc, i);
+
+				_r_treeview_additem (hwnd, IDC_NAV, I18N_ID (this_ptr, IDS_SETTINGS_1 + i, _r_fmt (L"IDS_SETTINGS_%d", i + 1)), -1, (LPARAM)i);
+			}
+
+			SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_FIRSTVISIBLE, NULL)); // select 1-st item
+
+			break;
+		}
+
+		case WM_NOTIFY:
+		{
+			LPNMHDR lphdr = (LPNMHDR)lparam;
+
+			if (lphdr->idFrom == IDC_NAV)
+			{
+				switch (lphdr->code)
+				{
+					case TVN_SELCHANGED:
+					{
+						LPNMTREEVIEW pnmtv = (LPNMTREEVIEW)lparam;
+
+						ShowWindow (this_ptr->app_settings_hwnd[INT (pnmtv->itemOld.lParam)], SW_HIDE);
+						ShowWindow (this_ptr->app_settings_hwnd[INT (pnmtv->itemNew.lParam)], SW_SHOW);
+
+						break;
+					}
+				}
+			}
+
+			break;
+		}
+
+		case WM_COMMAND:
+		{
+			switch (LOWORD (wparam))
+			{
+				case IDOK: // process Enter key
+				case IDC_OK:
+				{
+					BOOL is_restart = FALSE;
+
+					for (DWORD i = 0; i < this_ptr->app_settings_count; i++)
+					{
+						if (this_ptr->app_settings_save (this_ptr->app_settings_hwnd[i], i))
+						{
+							is_restart = TRUE;
+						}
+					}
+
+					if (is_restart)
+					{
+						this_ptr->Restart ();
+					}
+
+					this_ptr->ConfigInit (); // reload settings
+
+					break;
+				}
+
+				case IDCANCEL: // process Esc key
+				case IDC_CANCEL:
+				{
+					EndDialog (hwnd, 0);
+					this_ptr->app_settings_save (nullptr, (DWORD)-1);
+
+					break;
+				}
+			}
+
+			break;
+		}
+	}
+
+	return FALSE;
 }
 
 UINT WINAPI CApplication::CheckForUpdatesProc (LPVOID lparam)
@@ -488,7 +653,7 @@ UINT WINAPI CApplication::CheckForUpdatesProc (LPVOID lparam)
 						{
 							if (_r_msg (this_ptr->GetHWND (), MB_YESNO | MB_ICONQUESTION, this_ptr->app_name, I18N_ID (this_ptr, IDS_UPDATE_YES, 0), bufferw) == IDYES)
 							{
-								ShellExecute (this_ptr->GetHWND (), nullptr, this_ptr->app_website, nullptr, nullptr, SW_SHOWDEFAULT);
+								ShellExecute (nullptr, nullptr, this_ptr->app_website, nullptr, nullptr, SW_SHOWDEFAULT);
 							}
 
 							result = TRUE;
@@ -496,7 +661,7 @@ UINT WINAPI CApplication::CheckForUpdatesProc (LPVOID lparam)
 					}
 				}
 
-				this_ptr->ConfigSet (L"CheckUpdatesLast", (DWORD)_r_unixtime_now ());
+				this_ptr->ConfigSet (L"CheckUpdatesLast", DWORD (_r_unixtime_now ()));
 			}
 		}
 

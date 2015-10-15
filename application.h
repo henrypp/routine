@@ -1,37 +1,22 @@
 // application support
 // Copyright (c) 2013-2015 Henry++
 //
-// lastmod: Oct 7, 2015
+// lastmod: Oct 15, 2015
 
 #pragma once
 
 #define _WIN32_DCOM
 
-#include <windows.h>
-#include <wininet.h>
-#include <commctrl.h>
-#include <lm.h>
-#include <shlobj.h>
-#include <shlwapi.h>
-#include <uxtheme.h>
-#include <process.h>
-#include <time.h>
-#include <math.h>
-#include <atlstr.h>
-#include <strsafe.h>
-#include <comdef.h>
-#include <wincred.h>
-#include <taskschd.h>
-
 #include "routine.h"
 #include "resource.h"
 
-#pragma comment(lib, "comctl32.lib")
+#include <wininet.h>
+#include <taskschd.h>
+#include <shlobj.h>
+#include <comdef.h>
+
 #pragma comment(lib, "comsupp.lib")
-#pragma comment(lib, "credui.lib")
 #pragma comment(lib, "taskschd.lib")
-#pragma comment(lib, "uxtheme.lib")
-#pragma comment(lib, "version.lib")
 #pragma comment(lib, "wininet.lib")
 
 //#define APPLICATION_NEED_PRIVILEGES // application needs high privileges
@@ -41,8 +26,22 @@
 #define APPLICATION_LOCALE_DIRECTORY L"i18n"
 #define APPLICATION_LOCALE_SECTION L"i18n"
 
+/*
+	Localization macroses
+*/
+
 #define I18N_ID(ptr, id, str) ((ptr)->LocaleString(id, (str) ? (str) : L#id))
 #define I18N_STR(ptr, str) ((ptr)->LocaleString(0, str))
+
+/*
+	Callback function definitions
+*/
+
+typedef BOOL (*SETTINGS_SAVE_CALLBACK) (HWND hwnd, DWORD page_id);
+
+/*
+	Application class
+*/
 
 class CApplication
 {
@@ -56,7 +55,9 @@ public:
 
 	VOID CheckForUpdates (BOOL is_periodical);
 
-	UINT ConfigGet (LPCWSTR key, INT def);
+	VOID ConfigInit ();
+
+	DWORD ConfigGet (LPCWSTR key, INT def);
 	CString ConfigGet (LPCWSTR key, LPCWSTR def);
 
 	BOOL ConfigSet (LPCWSTR key, LPCWSTR val);
@@ -64,6 +65,7 @@ public:
 
 	VOID CreateAboutWindow ();
 	BOOL CreateMainWindow (DLGPROC proc);
+	VOID CreateSettingsWindow (DWORD page_count, DLGPROC page_proc, SETTINGS_SAVE_CALLBACK callback);
 
 	HWND GetHWND ();
 
@@ -81,6 +83,7 @@ public:
 private:
 
 	static INT_PTR CALLBACK AboutWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
+	static INT_PTR CALLBACK SettingsWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 	static UINT WINAPI CheckForUpdatesProc (LPVOID lparam);
 
 	CString ReadINI (LPCWSTR section, LPCWSTR key, LPCWSTR def, LPCWSTR path);
@@ -116,4 +119,12 @@ private:
 
 	WCHAR app_config_path[MAX_PATH];
 	WCHAR app_locale_path[MAX_PATH];
+
+	CStringMap app_config_array;
+
+	DWORD app_settings_count = 0;
+	std::unordered_map<INT, HWND> app_settings_hwnd;
+
+	DLGPROC app_settings_proc;
+	SETTINGS_SAVE_CALLBACK app_settings_save;
 };

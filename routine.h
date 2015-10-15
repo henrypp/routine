@@ -1,40 +1,59 @@
 // routine++
 // Copyright (c) 2013-2015 Henry++
 //
-// lastmod: Oct 7, 2015
+// lastmod: Oct 15, 2015
 
 #pragma once
 
-#define _WIN32_DCOM
-
 #include <windows.h>
-#include <wininet.h>
-#include <commctrl.h>
-#include <lm.h>
-#include <shlobj.h>
-#include <shlwapi.h>
 #include <uxtheme.h>
-#include <process.h>
+#include <unordered_map>
 #include <time.h>
 #include <math.h>
+#include <lm.h>
+#include <commctrl.h>
 #include <atlstr.h>
 #include <strsafe.h>
-#include <comdef.h>
-#include <wincred.h>
-#include <taskschd.h>
 
 #pragma comment(lib, "comctl32.lib")
-#pragma comment(lib, "comsupp.lib")
-#pragma comment(lib, "credui.lib")
-#pragma comment(lib, "taskschd.lib")
 #pragma comment(lib, "uxtheme.lib")
-#pragma comment(lib, "version.lib")
-#pragma comment(lib, "wininet.lib")
 
 #define ROUTINE_BUFFER_LENGTH 4096
 
 #define ROUTINE_PERCENT_OF(val, total) (INT)ceil((double(val) / double(total)) * 100.0)
 #define ROUTINE_PERCENT_VAL(val, total) (double(total) * double(val) / 100.0)
+
+/*
+	CString Map (simple string associative array)
+*/
+
+struct CStringHash
+{
+	size_t operator()(const CString& k) const
+	{
+		ULONG hash = 5381;
+		INT c = 0;
+
+		LPWSTR str = (LPWSTR)k.GetString ();
+
+		while (c = *str++)
+		{
+			hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+		}
+
+		return hash;
+	}
+};
+
+struct CStringEqul
+{
+	BOOL operator()(const CString& lhs, const CString& rhs) const
+	{
+		return lhs == rhs;
+	}
+};
+
+typedef std::unordered_map<CString, CString, CStringHash, CStringEqul> CStringMap;
 
 /*
 	Write debug log to console
