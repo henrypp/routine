@@ -1,7 +1,7 @@
-﻿// routine++
+// routine++
 // Copyright (c) 2013-2015 Henry++
 //
-// lastmod: Oct 15, 2015
+// lastmod: Oct 17, 2015
 
 #include "routine.h"
 
@@ -467,6 +467,32 @@ VOID _r_windowcenter (HWND hwnd)
 	MoveWindow (hwnd, x, y, width, height, FALSE);
 }
 
+BOOL _r_window_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
+{
+	BOOL result = FALSE;
+
+	if (_r_system_validversion (6, 0))
+	{
+		CWMFEX _cwmfex = (CWMFEX)GetProcAddress (GetModuleHandle (L"user32.dll"), "ChangeWindowMessageFilterEx"); // Win7
+
+		if (_cwmfex)
+		{
+			result = _cwmfex (hwnd, msg, action, nullptr);
+		}
+		else
+		{
+			CWMF _cwmf = (CWMF)GetProcAddress (GetModuleHandle (L"user32.dll"), "ChangeWindowMessageFilter"); // Vista
+
+			if (_cwmf)
+			{
+				result = _cwmf (msg, action);
+			}
+		}
+	}
+
+	return result;
+}
+
 VOID _r_windowtoggle (HWND hwnd, BOOL show)
 {
 	if (show || !IsWindowVisible (hwnd))
@@ -838,9 +864,6 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT width, INT height)
 
 	return result;
 }
-
-
-
 
 /*
 BOOL _r_skipuac_run ()

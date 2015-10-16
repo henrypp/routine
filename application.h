@@ -1,7 +1,7 @@
 // application support
 // Copyright (c) 2013-2015 Henry++
 //
-// lastmod: Oct 16, 2015
+// lastmod: Oct 17, 2015
 
 #pragma once
 
@@ -74,7 +74,6 @@ public:
 	VOID SetCopyright (LPCWSTR copyright);
 
 	VOID LocaleEnum (HWND hwnd, INT ctrl_id);
-	BOOL LocaleIsExternal ();
 	VOID LocaleSet (LPCWSTR name);
 	CString LocaleString (UINT id, LPCWSTR name);
 	VOID LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position);
@@ -85,7 +84,7 @@ private:
 	static INT_PTR CALLBACK SettingsWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 	static UINT WINAPI CheckForUpdatesProc (LPVOID lparam);
 
-	CString ReadINI (LPCWSTR section, LPCWSTR key, LPCWSTR def, LPCWSTR path);
+	BOOL ParseINI (LPCWSTR path, LPCWSTR section, CStringMap* map);
 
 	BOOL is_initialized = FALSE;
 	BOOL is_localized = FALSE;
@@ -117,9 +116,9 @@ private:
 	WCHAR app_copyright[MAX_PATH];
 
 	WCHAR app_config_path[MAX_PATH];
-	WCHAR app_locale_path[MAX_PATH];
 
 	CStringMap app_config_array;
+	CStringMap app_locale_array;
 
 	DWORD app_settings_count = 0;
 	std::unordered_map<INT, HWND> app_settings_hwnd;

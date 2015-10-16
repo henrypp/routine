@@ -1,7 +1,7 @@
-﻿// application support
+// application support
 // Copyright (c) 2013-2015 Henry++
 //
-// lastmod: Oct 16, 2015
+// lastmod: Oct 17, 2015
 
 #include "application.h"
 
@@ -28,6 +28,7 @@ CApplication::CApplication (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, L
 		}
 
 		CloseHandle (this->app_mutex);
+		this->app_mutex = nullptr;
 	}
 	else
 	{
@@ -67,12 +68,15 @@ CApplication::CApplication (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, L
 		this->LocaleSet (this->ConfigGet (L"Language", nullptr));
 
 		// load logo
+#ifdef __RESOURCE_H__
 		HDC hdc = GetDC (nullptr);
 
 		INT size = MulDiv (64, GetDeviceCaps (hdc, LOGPIXELSY), 72);
 		this->app_logo_big = _r_loadicon (this->app_hinstance, MAKEINTRESOURCE (IDI_MAIN), size, size);
 
 		ReleaseDC (nullptr, hdc);
+#endif // __RESOURCE_H__
+
 	}
 }
 
@@ -150,35 +154,9 @@ VOID CApplication::CheckForUpdates (BOOL is_periodical)
 
 VOID CApplication::ConfigInit ()
 {
-	CString buffer;
-	CString parser;
+	this->app_config_array.clear (); // reset
 
-	DWORD length = ROUTINE_BUFFER_LENGTH;
-	INT delimeter = 0;
-
-	// read whole config file
-	while (GetPrivateProfileSection (this->app_name_short, buffer.GetBuffer (length), length, this->app_config_path) == (length - 1))
-	{
-		buffer.ReleaseBuffer ();
-
-		length += ROUTINE_BUFFER_LENGTH;
-	}
-
-	buffer.ReleaseBuffer ();
-
-	this->app_config_array.clear (); // clear first
-
-	LPWSTR p = buffer.GetBuffer ();
-
-	while (*p)
-	{
-		parser = p;
-		delimeter = parser.Find (L"=");
-
-		this->app_config_array[parser.Mid (0, delimeter)] = parser.Mid (delimeter + 1);
-
-		p += lstrlen (p) + 1; // go next
-	}
+	this->ParseINI (this->app_config_path, this->app_name_short, &this->app_config_array);
 }
 
 DWORD CApplication::ConfigGet (LPCWSTR key, INT def)
@@ -236,7 +214,7 @@ BOOL CApplication::ConfigSet (LPCWSTR key, DWORD val)
 VOID CApplication::CreateAboutWindow ()
 {
 
-#ifdef __RESOURCE_H__
+#ifdef IDD_ABOUT
 	DialogBoxParam (nullptr, MAKEINTRESOURCE (IDD_ABOUT), this->GetHWND (), this->AboutWindowProc, (LPARAM)this);
 #endif // __RESOURCE_H__
 
@@ -244,28 +222,40 @@ VOID CApplication::CreateAboutWindow ()
 
 BOOL CApplication::CreateMainWindow (DLGPROC proc)
 {
-	// create window
+	BOOL result = FALSE;
 
-#ifdef __RESOURCE_H__
-	if ((this->app_hwnd = CreateDialog (nullptr, MAKEINTRESOURCE (IDD_MAIN), nullptr, proc)) == nullptr)
+	if (this->is_initialized)
 	{
-		return FALSE;
+		// create window
+
+#ifdef IDD_MAIN
+		if ((this->app_hwnd = CreateDialog (nullptr, MAKEINTRESOURCE (IDD_MAIN), nullptr, proc)) == nullptr)
+		{
+			result = FALSE;
+		}
+		else
+		{
+			// set title
+			SetWindowText (this->GetHWND (), this->app_name);
+
+			// set on top
+			_r_windowtotop (this->GetHWND (), this->ConfigGet (L"AlwaysOnTop", 0));
+
+			// set icons
+#ifdef IDI_MAIN
+			SendMessage (this->GetHWND (), WM_SETICON, ICON_SMALL, (LPARAM)LoadImage (this->app_hinstance, MAKEINTRESOURCE (IDI_MAIN), IMAGE_ICON, GetSystemMetrics (SM_CXSMICON), GetSystemMetrics (SM_CYSMICON), 0));
+			SendMessage (this->GetHWND (), WM_SETICON, ICON_BIG, (LPARAM)LoadImage (this->app_hinstance, MAKEINTRESOURCE (IDI_MAIN), IMAGE_ICON, GetSystemMetrics (SM_CXICON), GetSystemMetrics (SM_CYICON), 0));
+#endif // IDI_MAIN
+
+			result = TRUE;
+		}
+#endif // IDD_MAIN
+
+		// check for updates
+		this->CheckForUpdates (TRUE);
 	}
-	else
-	{
-		// set title
-		SetWindowText (this->GetHWND (), this->app_name);
 
-		// set icons
-		SendMessage (this->GetHWND (), WM_SETICON, ICON_SMALL, (LPARAM)LoadImage (this->app_hinstance, MAKEINTRESOURCE (IDI_MAIN), IMAGE_ICON, GetSystemMetrics (SM_CXSMICON), GetSystemMetrics (SM_CYSMICON), 0));
-		SendMessage (this->GetHWND (), WM_SETICON, ICON_BIG, (LPARAM)LoadImage (this->app_hinstance, MAKEINTRESOURCE (IDI_MAIN), IMAGE_ICON, GetSystemMetrics (SM_CXICON), GetSystemMetrics (SM_CYICON), 0));
-	}
-#endif // __RESOURCE_H__
-
-	// check for updates
-	this->CheckForUpdates (TRUE);
-
-	return TRUE;
+	return result;
 }
 
 VOID CApplication::CreateSettingsWindow (DWORD page_count, DLGPROC proc, SETTINGS_SAVE_CALLBACK callback)
@@ -359,27 +349,26 @@ VOID CApplication::LocaleEnum (HWND hwnd, INT ctrl_id)
 
 		FindClose (h);
 	}
-}
-
-BOOL CApplication::LocaleIsExternal ()
-{
-	return this->is_localized;
+	else
+	{
+		EnableWindow (GetDlgItem (hwnd, ctrl_id), FALSE);
+	}
 }
 
 VOID CApplication::LocaleSet (LPCWSTR name)
 {
 	this->ConfigSet (L"Language", name);
 
+	// reset
+	this->app_locale_array.clear ();
+	this->is_localized = FALSE;
+
 	if (name)
 	{
-		StringCchPrintf (this->app_locale_path, _countof (this->app_locale_path), L"%s\\" APPLICATION_LOCALE_DIRECTORY L"\\%s.ini", this->app_directory, name);
-		this->is_localized = TRUE;
-	}
-
-	if (!name || (name && !_r_file_is_exists (this->app_locale_path)) || !this->LocaleIsExternal ())
-	{
-		this->app_locale_path[0] = 0;
-		this->is_localized = FALSE;
+		if (this->ParseINI (_r_fmt (L"%s\\" APPLICATION_LOCALE_DIRECTORY L"\\%s.ini", this->app_directory, name), APPLICATION_LOCALE_SECTION, &this->app_locale_array))
+		{
+			this->is_localized = TRUE;
+		}
 	}
 }
 
@@ -387,9 +376,13 @@ CString CApplication::LocaleString (UINT id, LPCWSTR name)
 {
 	CString buffer;
 
-	if (this->LocaleIsExternal ())
+	if (this->is_localized)
 	{
-		buffer = this->ReadINI (APPLICATION_LOCALE_SECTION, name, nullptr, this->app_locale_path);
+		// check key is exists
+		if (this->app_locale_array.find (name) != this->app_locale_array.end ())
+		{
+			buffer = this->app_locale_array[name];
+		}
 	}
 
 	if (buffer.IsEmpty ())
@@ -402,7 +395,7 @@ CString CApplication::LocaleString (UINT id, LPCWSTR name)
 
 VOID CApplication::LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position)
 {
-	if (this->LocaleIsExternal () && text)
+	if (this->is_localized && text)
 	{
 		MENUITEMINFO mif = {0};
 
@@ -678,19 +671,44 @@ UINT WINAPI CApplication::CheckForUpdatesProc (LPVOID lparam)
 	return 0;
 }
 
-CString CApplication::ReadINI (LPCWSTR section, LPCWSTR key, LPCWSTR def, LPCWSTR path)
+BOOL CApplication::ParseINI (LPCWSTR path, LPCWSTR section, CStringMap* map)
 {
-	CString buffer;
-	DWORD length = ROUTINE_BUFFER_LENGTH;
+	BOOL result = FALSE;
 
-	while (GetPrivateProfileString (section, key, def, buffer.GetBuffer (length), length, path) == (length - 1))
+	if (map && _r_file_is_exists (path))
 	{
+		CString buffer;
+		CString parser;
+
+		DWORD length = ROUTINE_BUFFER_LENGTH;
+		INT delimeter = 0;
+
+		// read whole file
+		while (GetPrivateProfileSection (section, buffer.GetBuffer (length), length, path) == (length - 1))
+		{
+			buffer.ReleaseBuffer ();
+
+			length += ROUTINE_BUFFER_LENGTH;
+		}
+
 		buffer.ReleaseBuffer ();
 
-		length += ROUTINE_BUFFER_LENGTH;
+		LPWSTR ptr = buffer.GetBuffer ();
+
+		map->clear (); // clear first
+
+		while (*ptr)
+		{
+			parser = ptr;
+			delimeter = parser.Find (L"=");
+
+			(*map)[parser.Mid (0, delimeter)] = parser.Mid (delimeter + 1); // set
+
+			ptr += lstrlen (ptr) + 1; // go next
+		}
+
+		result = TRUE;
 	}
 
-	buffer.ReleaseBuffer ();
-
-	return buffer;
+	return result;
 }

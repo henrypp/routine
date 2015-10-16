@@ -1,7 +1,7 @@
 // routine++
 // Copyright (c) 2013-2015 Henry++
 //
-// lastmod: Oct 15, 2015
+// lastmod: Oct 17, 2015
 
 #pragma once
 
@@ -107,6 +107,7 @@ BOOL _r_system_validversion (DWORD major, DWORD minor);
 */
 
 VOID _r_windowcenter (HWND hwnd);
+BOOL _r_window_changemessagefilter (HWND hwnd, UINT msg, DWORD action);
 VOID _r_windowtoggle (HWND hwnd, BOOL show);
 VOID _r_windowtotop (HWND hwnd, BOOL enable);
 
@@ -161,6 +162,8 @@ BOOL _r_skipuac_cancer (BOOL remove);
 	Exported function definitions
 */
 
+typedef BOOL (WINAPI *CWMF) (UINT, DWORD); // ChangeWindowMessageFilter
+typedef BOOL (WINAPI *CWMFEX) (HWND, UINT, DWORD, PCHANGEFILTERSTRUCT); // ChangeWindowMessageFilterEx
 typedef BOOL (WINAPI *IW64P) (HANDLE, PBOOL); // IsWow64Process
 typedef HRESULT (WINAPI *LIWSD) (HINSTANCE, PCWSTR, INT, INT, HICON*); // LoadIconWithScaleDown
 typedef VOID (WINAPI *TDI) (TASKDIALOGCONFIG*, INT*, INT*, BOOL*); // TaskDialogIndirect
