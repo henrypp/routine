@@ -1,7 +1,7 @@
 // routine++
 // Copyright (c) 2013-2015 Henry++
 //
-// lastmod: Oct 17, 2015
+// lastmod: Oct 19, 2015
 
 #include "routine.h"
 
@@ -144,7 +144,7 @@ INT _r_msg (HWND hwnd, UINT type, LPCWSTR title, LPCWSTR format, ...)
 		{
 			tdc.pszMainIcon = TD_WARNING_ICON;
 		}
-		 else if ((type & MB_ICONHAND) != 0)
+		else if ((type & MB_ICONHAND) != 0)
 		{
 			tdc.pszMainIcon = TD_ERROR_ICON;
 		}
@@ -240,6 +240,66 @@ VOID _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length)
 
 		CloseClipboard ();
 	}
+}
+
+/*
+	Filesystem
+*/
+
+BOOL _r_file_is_exists (LPCWSTR path)
+{
+	return (GetFileAttributes (path) != INVALID_FILE_ATTRIBUTES);
+}
+
+DWORD64 _r_file_size (HANDLE h)
+{
+	LARGE_INTEGER size = {0};
+
+	GetFileSizeEx (h, &size);
+
+	return size.QuadPart;
+}
+
+/*
+	Strings
+*/
+
+size_t _r_string_length (LPCWSTR str)
+{
+	size_t result = 0;
+
+	StringCchLength (str, STRSAFE_MAX_CCH, &result);
+
+	return result;
+}
+
+/*
+	return 1 if v1 > v2
+	return 0 if v1 = v2
+	return -1 if v1 < v2
+*/
+
+INT _r_string_versioncompare (LPCWSTR v1, LPCWSTR v2)
+{
+	INT oct_v1[4] = {0};
+	INT oct_v2[4] = {0};
+
+	swscanf_s (v1, L"%d.%d.%d.%d", &oct_v1[0], &oct_v1[1], &oct_v1[2], &oct_v1[3]);
+	swscanf_s (v2, L"%d.%d.%d.%d", &oct_v2[0], &oct_v2[1], &oct_v2[2], &oct_v2[3]);
+
+	for (INT i = 0; i < _countof (oct_v1); i++)
+	{
+		if (oct_v1[i] > oct_v2[i])
+		{
+			return 1;
+		}
+		else if (oct_v1[i] < oct_v2[i])
+		{
+			return -1;
+		}
+	}
+
+	return 0;
 }
 
 /*
@@ -438,6 +498,38 @@ BOOL _r_system_validversion (DWORD major, DWORD minor)
 }
 
 /*
+	Unixtime
+*/
+
+__time64_t _r_unixtime_now ()
+{
+	__time64_t t = 0;
+	_time64 (&t);
+
+	return t;
+}
+
+VOID _r_unixtime_to_filetime (__time64_t t, LPFILETIME pft)
+{
+	if (t)
+	{
+		LONGLONG ll = Int32x32To64 (t, 10000000) + 116444736000000000ui64; // 64 bit value
+
+		pft->dwLowDateTime = (DWORD)ll;
+		pft->dwHighDateTime = (DWORD)(ll >> 32);
+	}
+}
+
+VOID _r_unixtime_to_systemtime (__time64_t t, LPSYSTEMTIME pst)
+{
+	FILETIME ft = {0};
+
+	_r_unixtime_to_filetime (t, &ft);
+
+	FileTimeToSystemTime (&ft, pst);
+}
+
+/*
 	Window management
 */
 
@@ -446,7 +538,7 @@ VOID _r_windowcenter (HWND hwnd)
 	HWND parent = GetParent (hwnd);
 	RECT rc_child = {0}, rc_parent = {0};
 
-	if (!parent || !IsWindowVisible (parent))
+	if (!IsWindow (parent) || !IsWindowVisible (parent))
 	{
 		parent = GetDesktopWindow ();
 	}
@@ -516,6 +608,62 @@ VOID _r_windowtoggle (HWND hwnd, BOOL show)
 VOID _r_windowtotop (HWND hwnd, BOOL enable)
 {
 	SetWindowPos (hwnd, (enable ? HWND_TOPMOST : HWND_NOTOPMOST), 0, 0, 0, 0, SWP_NOOWNERZORDER | SWP_NOMOVE | SWP_NOSIZE);
+}
+
+/*
+	Other
+*/
+
+HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT width, INT height)
+{
+	HICON result = nullptr;
+
+	LIWSD _LoadIconWithScaleDown = (LIWSD)GetProcAddress (GetModuleHandle (L"comctl32.dll"), "LoadIconWithScaleDown");
+
+	if (_LoadIconWithScaleDown)
+	{
+		_LoadIconWithScaleDown (h, name, width, height, &result);
+	}
+
+	if (!result)
+	{
+		result = (HICON)LoadImage (h, name, IMAGE_ICON, width, height, 0);
+	}
+
+	return result;
+}
+
+/*
+	Control: common
+*/
+
+HWND _r_ctrl_settip (HWND hwnd, INT ctrl, LPWSTR text)
+{
+	HWND tip = CreateWindowEx (0, TOOLTIPS_CLASS, nullptr, WS_POPUP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, GetModuleHandle (nullptr), nullptr);
+
+	TOOLINFO ti = {0};
+
+	ti.cbSize = sizeof (TOOLINFO);
+	ti.hwnd = hwnd;
+	ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
+	ti.lpszText = text;
+	ti.uId = (UINT_PTR)GetDlgItem (hwnd, ctrl);
+
+	SendMessage (tip, TTM_ADDTOOL, 0, (LPARAM)&ti);
+
+	return tip;
+}
+
+BOOL _r_ctrl_showbaloontip (HWND hwnd, INT ctrl, LPCWSTR title, LPCWSTR text, INT icon)
+{
+	EDITBALLOONTIP ebt = {0};
+
+	ebt.cbStruct = sizeof (EDITBALLOONTIP);
+	ebt.pszTitle = title;
+	ebt.pszText = text;
+	ebt.ttiIcon = icon;
+
+	return (BOOL)SendDlgItemMessage (hwnd, ctrl, EM_SHOWBALLOONTIP, 0, (LPARAM)&ebt);
 }
 
 /*
@@ -745,347 +893,3 @@ VOID _r_status_setstyle (HWND hwnd, INT ctrl, INT height)
 	SendDlgItemMessage (hwnd, ctrl, SB_SETMINHEIGHT, (WPARAM)height, NULL);
 	SendDlgItemMessage (hwnd, ctrl, WM_SIZE, 0, NULL);
 }
-
-HWND _r_setcontroltip (HWND hwnd, INT ctrl, LPWSTR text)
-{
-	HWND tip = CreateWindowEx (0, TOOLTIPS_CLASS, nullptr, WS_POPUP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, GetModuleHandle (nullptr), nullptr);
-
-	TOOLINFO ti = {0};
-
-	ti.cbSize = sizeof (TOOLINFO);
-	ti.hwnd = hwnd;
-	ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
-	ti.lpszText = text;
-	ti.uId = (UINT_PTR)GetDlgItem (hwnd, ctrl);
-
-	SendMessage (tip, TTM_ADDTOOL, 0, (LPARAM)&ti);
-
-	return tip;
-}
-
-BOOL _r_seteditbaloontip (HWND hwnd, INT ctrl, LPCWSTR title, LPCWSTR text, INT icon)
-{
-	EDITBALLOONTIP ebt = {0};
-
-	ebt.cbStruct = sizeof (EDITBALLOONTIP);
-	ebt.pszTitle = title;
-	ebt.pszText = text;
-	ebt.ttiIcon = icon;
-
-	return (BOOL)SendDlgItemMessage (hwnd, ctrl, EM_SHOWBALLOONTIP, 0, (LPARAM)&ebt);
-}
-
-BOOL _r_file_is_exists (LPCWSTR path)
-{
-	return (GetFileAttributes (path) != INVALID_FILE_ATTRIBUTES);
-}
-
-DWORD64 _r_file_size (HANDLE h)
-{
-	LARGE_INTEGER size = {0};
-
-	GetFileSizeEx (h, &size);
-
-	return size.QuadPart;
-}
-
-__time64_t _r_unixtime_now ()
-{
-	__time64_t t = 0;
-	_time64 (&t);
-
-	return t;
-}
-
-VOID _r_unixtime_to_filetime (__time64_t t, LPFILETIME pft)
-{
-	if (t)
-	{
-		LONGLONG ll = Int32x32To64 (t, 10000000) + 116444736000000000ui64; // 64 bit value
-
-		pft->dwLowDateTime = (DWORD)ll;
-		pft->dwHighDateTime = (DWORD)(ll >> 32);
-	}
-}
-
-VOID _r_unixtime_to_systemtime (__time64_t t, LPSYSTEMTIME pst)
-{
-	FILETIME ft = {0};
-
-	_r_unixtime_to_filetime (t, &ft);
-
-	FileTimeToSystemTime (&ft, pst);
-}
-
-/*
-	return 1 if v1 > v2
-	return 0 if v1 = v2
-	return -1 if v1 < v2
-	*/
-
-INT _r_string_versioncompare (LPCWSTR v1, LPCWSTR v2)
-{
-	INT oct_v1[4] = {0};
-	INT oct_v2[4] = {0};
-
-	swscanf_s (v1, L"%d.%d.%d.%d", &oct_v1[0], &oct_v1[1], &oct_v1[2], &oct_v1[3]);
-	swscanf_s (v2, L"%d.%d.%d.%d", &oct_v2[0], &oct_v2[1], &oct_v2[2], &oct_v2[3]);
-
-	for (INT i = 0; i < _countof (oct_v1); i++)
-	{
-		if (oct_v1[i] > oct_v2[i])
-		{
-			return 1;
-		}
-		else if (oct_v1[i] < oct_v2[i])
-		{
-			return -1;
-		}
-	}
-
-	return 0;
-}
-
-HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT width, INT height)
-{
-	HICON result = nullptr;
-
-	LIWSD _LoadIconWithScaleDown = (LIWSD)GetProcAddress (GetModuleHandle (L"comctl32.dll"), "LoadIconWithScaleDown");
-
-	if (_LoadIconWithScaleDown)
-	{
-		_LoadIconWithScaleDown (h, name, width, height, &result);
-	}
-
-	if (!result)
-	{
-		result = (HICON)LoadImage (h, name, IMAGE_ICON, width, height, 0);
-	}
-
-	return result;
-}
-
-/*
-BOOL _r_skipuac_run ()
-{
-	CloseHandle (_r_hmutex);
-
-	if (_r_skipuac_is_present (TRUE))
-	{
-		return TRUE;
-	}
-	else
-	{
-		WCHAR buffer[MAX_PATH] = {0};
-
-		SHELLEXECUTEINFO shex = {0};
-
-		shex.cbSize = sizeof (shex);
-		shex.fMask = SEE_MASK_UNICODE | SEE_MASK_FLAG_NO_UI;
-		shex.lpVerb = L"runas";
-		shex.nShow = SW_NORMAL;
-
-		GetModuleFileName (nullptr, buffer, MAX_PATH);
-		shex.lpFile = buffer;
-
-		if (ShellExecuteEx (&shex))
-		{
-			return TRUE;
-		}
-	}
-
-	_r_hmutex = CreateMutex (nullptr, FALSE, _r_app_name_short);
-
-	return FALSE;
-}
-
-BOOL _r_skipuac_is_present (BOOL checkandrun)
-{
-	BOOL result = FALSE;
-
-	if (_r_system_validversion (6, 0))
-	{
-		ITaskService* service = nullptr;
-		ITaskFolder* folder = nullptr;
-		IRegisteredTask* registered_task = nullptr;
-
-		CoInitializeEx (nullptr, COINIT_MULTITHREADED);
-		CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr);
-
-		if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
-		{
-			if (SUCCEEDED (service->Connect (_variant_t (), _variant_t (), _variant_t (), _variant_t ())))
-			{
-				if (SUCCEEDED (service->GetFolder (L"\\", &folder)))
-				{
-					if (SUCCEEDED (folder->GetTask (_r_fmt (ROUTINE_TASKSCHD_NAME, _r_app_name_short).GetBuffer (), &registered_task)))
-					{
-						if (checkandrun)
-						{
-							INT numargs = 0;
-							LPWSTR* args = CommandLineToArgvW (GetCommandLine (), &numargs);
-
-							CString buffer;
-
-							for (INT i = 1; i < numargs; i++)
-							{
-								buffer.Append (args[i]);
-								buffer.Append (L" ");
-							}
-
-							LocalFree (args);
-
-							variant_t ticker = buffer.Trim ().GetBuffer ();
-
-							IRunningTask* ppRunningTask = nullptr;
-
-							if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_AS_SELF, 0, nullptr, &ppRunningTask)) && ppRunningTask)
-							{
-								TASK_STATE state;
-
-								if (SUCCEEDED (ppRunningTask->get_State (&state)))
-								{
-									if (state == TASK_STATE_QUEUED || state == TASK_STATE_READY)
-									{
-										Sleep (2000);
-										ppRunningTask->get_State (&state);
-									}
-
-									if (state == TASK_STATE_RUNNING)
-									{
-										result = TRUE;
-									}
-									else if (state == TASK_STATE_UNKNOWN || state == TASK_STATE_DISABLED)
-									{
-										result = FALSE;
-									}
-								}
-
-								ppRunningTask->Release ();
-							}
-						}
-						else
-						{
-							result = TRUE;
-						}
-
-						registered_task->Release ();
-					}
-
-					folder->Release ();
-				}
-			}
-
-			service->Release ();
-		}
-
-		CoUninitialize ();
-	}
-
-	return result;
-}
-
-BOOL _r_skipuac_cancer (BOOL remove)
-{
-	BOOL result = FALSE;
-	BOOL action_result = FALSE;
-
-	ITaskService* service = nullptr;
-	ITaskFolder* folder = nullptr;
-	ITaskDefinition* task = nullptr;
-	IRegistrationInfo* reginfo = nullptr;
-	IPrincipal* principal = nullptr;
-	ITaskSettings* settings = nullptr;
-	IActionCollection* action_collection = nullptr;
-	IAction* action = nullptr;
-	IExecAction* exec_action = nullptr;
-	IRegisteredTask* registered_task = nullptr;
-
-	if (_r_system_validversion (6, 0))
-	{
-		CoInitializeEx (nullptr, COINIT_MULTITHREADED);
-		CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr);
-
-		if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (VOID**)&service)))
-		{
-			if (SUCCEEDED (service->Connect (_variant_t (), _variant_t (), _variant_t (), _variant_t ())))
-			{
-				if (SUCCEEDED (service->GetFolder (L"\\", &folder)))
-				{
-					if (remove)
-					{
-						result = (folder->DeleteTask (_r_fmt (ROUTINE_TASKSCHD_NAME, _r_app_name_short).GetBuffer (), 0) == S_OK);
-					}
-					else
-					{
-						if (SUCCEEDED (service->NewTask (0, &task)))
-						{
-							if (SUCCEEDED (task->get_RegistrationInfo (&reginfo)))
-							{
-								reginfo->put_Author (_r_app_author);
-								reginfo->Release ();
-							}
-
-							if (SUCCEEDED (task->get_Principal (&principal)))
-							{
-								principal->put_RunLevel (TASK_RUNLEVEL_HIGHEST);
-								principal->Release ();
-							}
-
-							if (SUCCEEDED (task->get_Settings (&settings)))
-							{
-								settings->put_StartWhenAvailable (VARIANT_BOOL (FALSE));
-								settings->put_DisallowStartIfOnBatteries (VARIANT_BOOL (FALSE));
-								settings->put_StopIfGoingOnBatteries (VARIANT_BOOL (FALSE));
-								settings->put_MultipleInstances (TASK_INSTANCES_PARALLEL);
-								settings->put_ExecutionTimeLimit (L"PT0S");
-								settings->Release ();
-							}
-
-							if (SUCCEEDED (task->get_Actions (&action_collection)))
-							{
-								if (SUCCEEDED (action_collection->Create (TASK_ACTION_EXEC, &action)))
-								{
-									if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (VOID**)&exec_action)))
-									{
-										WCHAR path[MAX_PATH] = {0};
-										GetModuleFileName (nullptr, path, MAX_PATH);
-										PathQuoteSpaces (path);
-
-										if (SUCCEEDED (exec_action->put_Path (path)) && SUCCEEDED (exec_action->put_Arguments (L"$(Arg0)")))
-										{
-											action_result = TRUE;
-										}
-
-										exec_action->Release ();
-									}
-
-									action->Release ();
-								}
-
-								action_collection->Release ();
-							}
-
-							if (action_result && SUCCEEDED (folder->RegisterTaskDefinition (_r_fmt (ROUTINE_TASKSCHD_NAME, _r_app_name_short).GetBuffer (), task, TASK_CREATE_OR_UPDATE, _variant_t (), _variant_t (), TASK_LOGON_INTERACTIVE_TOKEN, _variant_t (), &registered_task)))
-							{
-								result = TRUE;
-								registered_task->Release ();
-							}
-
-							task->Release ();
-						}
-					}
-
-					folder->Release ();
-				}
-			}
-
-			service->Release ();
-		}
-
-		CoUninitialize ();
-	}
-
-	return result;
-}
-*/

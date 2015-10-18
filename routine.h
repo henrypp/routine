@@ -1,7 +1,5 @@
 // routine++
 // Copyright (c) 2013-2015 Henry++
-//
-// lastmod: Oct 17, 2015
 
 #pragma once
 
@@ -93,6 +91,20 @@ CString _r_clipboard_get (HWND hwnd);
 VOID _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length);
 
 /*
+	Filesystem
+*/
+
+BOOL _r_file_is_exists (LPCWSTR path);
+DWORD64 _r_file_size (HANDLE h);
+
+/*
+	Strings
+*/
+
+size_t _r_string_length (LPCWSTR str);
+INT _r_string_versioncompare (LPCWSTR v1, LPCWSTR v2);
+
+/*
 	System information
 */
 
@@ -103,6 +115,14 @@ BOOL _r_system_uacstate ();
 BOOL _r_system_validversion (DWORD major, DWORD minor);
 
 /*
+	Unixtime
+*/
+
+__time64_t _r_unixtime_now ();
+VOID _r_unixtime_to_filetime (__time64_t t, LPFILETIME pft);
+VOID _r_unixtime_to_systemtime (__time64_t t, LPSYSTEMTIME pst);
+
+/*
 	Window management
 */
 
@@ -110,6 +130,19 @@ VOID _r_windowcenter (HWND hwnd);
 BOOL _r_window_changemessagefilter (HWND hwnd, UINT msg, DWORD action);
 VOID _r_windowtoggle (HWND hwnd, BOOL show);
 VOID _r_windowtotop (HWND hwnd, BOOL enable);
+
+/*
+	Other
+*/
+
+HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT width, INT height);
+
+/*
+	Control: common
+*/
+
+HWND _r_ctrl_settip (HWND hwnd, INT ctrl, LPWSTR text);
+BOOL _r_ctrl_showbaloontip (HWND hwnd, INT ctrl, LPCWSTR title, LPCWSTR text, INT icon);
 
 /*
 	Control: listview
@@ -137,26 +170,6 @@ DWORD _r_treeview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle, INT height);
 
 BOOL _r_status_settext (HWND hwnd, INT ctrl, INT part, LPCWSTR text);
 VOID _r_status_setstyle (HWND hwnd, INT ctrl, INT height);
-
-HWND _r_setcontroltip (HWND hwnd, INT ctrl, LPWSTR text);
-BOOL _r_seteditbaloontip (HWND hwnd, INT ctrl, LPCWSTR title, LPCWSTR text, INT icon);
-
-BOOL _r_file_is_exists (LPCWSTR path);
-DWORD64 _r_file_size (HANDLE h);
-
-
-__time64_t _r_unixtime_now ();
-VOID _r_unixtime_to_filetime (__time64_t t, LPFILETIME pft);
-VOID _r_unixtime_to_systemtime (__time64_t t, LPSYSTEMTIME pst);
-
-HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT width, INT height);
-INT _r_string_versioncompare (LPCWSTR v1, LPCWSTR v2);
-
-/*
-BOOL _r_skipuac_run ();
-BOOL _r_skipuac_is_present (BOOL checkandrun);
-BOOL _r_skipuac_cancer (BOOL remove);
-*/
 
 /*
 	Exported function definitions

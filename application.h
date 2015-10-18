@@ -1,11 +1,7 @@
 // application support
 // Copyright (c) 2013-2015 Henry++
-//
-// lastmod: Oct 17, 2015
 
 #pragma once
-
-#define _WIN32_DCOM
 
 #include "routine.h"
 #include "resource.h"
@@ -20,7 +16,7 @@
 #pragma comment(lib, "wininet.lib")
 
 //#define APPLICATION_NEED_PRIVILEGES // application needs high privileges
-#define APPLICATION_TASKSCHD_NAME L"%sSkipUAC"
+#define APPLICATION_TASKSCHD_NAME L"%sSkipUac"
 #define APPLICATION_UPDATE_PERIOD 2 // update checking period (in days)
 
 #define APPLICATION_LOCALE_DIRECTORY L"i18n"
@@ -77,6 +73,10 @@ public:
 	VOID LocaleSet (LPCWSTR name);
 	CString LocaleString (UINT id, LPCWSTR name);
 	VOID LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position);
+
+	BOOL SkipUacCreate (BOOL is_remove);
+	BOOL SkipUacRun ();
+	BOOL SkipUacIsPresent (BOOL run);
 
 private:
 

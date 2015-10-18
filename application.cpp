@@ -1,7 +1,7 @@
 // application support
 // Copyright (c) 2013-2015 Henry++
 //
-// lastmod: Oct 17, 2015
+// lastmod: Oct 19, 2015
 
 #include "application.h"
 
@@ -32,9 +32,14 @@ CApplication::CApplication (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, L
 	}
 	else
 	{
+		// general information
+		StringCchCopy (this->app_name, _countof (this->app_name), name);
+		StringCchCopy (this->app_name_short, _countof (this->app_name_short), short_name);
+		StringCchCopy (this->app_version, _countof (this->app_version), version);
+		StringCchCopy (this->app_author, _countof (this->app_author), author);
 
 #ifdef APPLICATION_NEED_PRIVILEGES
-		if (_r_system_uacstate () && _r_skipuac_run ())
+		if (_r_system_uacstate () && this->SkipUacRun ())
 		{
 			return;
 		}
@@ -42,12 +47,6 @@ CApplication::CApplication (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, L
 
 		this->is_initialized = TRUE;
 		this->app_hinstance = GetModuleHandle (nullptr);
-
-		// general information
-		StringCchCopy (this->app_name, _countof (this->app_name), name);
-		StringCchCopy (this->app_name_short, _countof (this->app_name_short), short_name);
-		StringCchCopy (this->app_version, _countof (this->app_version), version);
-		StringCchCopy (this->app_author, _countof (this->app_author), author);
 
 		// set current directory
 		GetModuleFileName (nullptr, this->app_directory, _countof (this->app_directory));
@@ -115,7 +114,7 @@ VOID CApplication::AutorunCreate (BOOL is_remove)
 			StringCchCat (buffer, _countof (buffer), L" ");
 			StringCchCat (buffer, _countof (buffer), L"/minimized");
 
-			RegSetValueEx (key, this->app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) + 1) * sizeof (WCHAR)));
+			RegSetValueEx (key, this->app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((_r_string_length (buffer) + 1) * sizeof (WCHAR)));
 		}
 
 		RegCloseKey (key);
@@ -521,6 +520,9 @@ INT_PTR CALLBACK CApplication::SettingsWindowProc (HWND hwnd, UINT msg, WPARAM w
 			SetDlgItemText (hwnd, IDC_CLOSE, I18N (this_ptr, IDS_CLOSE, 0));
 #endif //  __RESOURCE_H__
 
+			// configure window
+			_r_windowcenter (hwnd);
+
 			// configure treeview
 			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, GetSystemMetrics (SM_CYSMICON));
 
@@ -576,6 +578,8 @@ INT_PTR CALLBACK CApplication::SettingsWindowProc (HWND hwnd, UINT msg, WPARAM w
 						}
 					}
 
+					this_ptr->app_settings_save (this_ptr->GetHWND (), (DWORD)-1); // call saved state
+
 					if (is_restart)
 					{
 						this_ptr->Restart ();
@@ -590,7 +594,7 @@ INT_PTR CALLBACK CApplication::SettingsWindowProc (HWND hwnd, UINT msg, WPARAM w
 				case IDC_CLOSE:
 				{
 					EndDialog (hwnd, 0);
-					this_ptr->app_settings_save (nullptr, (DWORD)-1);
+					this_ptr->app_settings_save (nullptr, (DWORD)-1); // call closed state
 
 					break;
 				}
@@ -708,6 +712,244 @@ BOOL CApplication::ParseINI (LPCWSTR path, LPCWSTR section, CStringMap* map)
 		}
 
 		result = TRUE;
+	}
+
+	return result;
+}
+
+BOOL CApplication::SkipUacRun ()
+{
+	if (_r_system_uacstate ())
+	{
+		CloseHandle (this->app_mutex);
+		this->app_mutex = nullptr;
+
+		if (this->SkipUacIsPresent (TRUE))
+		{
+			return TRUE;
+		}
+		else
+		{
+			WCHAR buffer[MAX_PATH] = {0};
+
+			SHELLEXECUTEINFO shex = {0};
+
+			shex.cbSize = sizeof (shex);
+			shex.fMask = SEE_MASK_UNICODE | SEE_MASK_FLAG_NO_UI;
+			shex.lpVerb = L"runas";
+			shex.nShow = SW_NORMAL;
+
+			GetModuleFileName (nullptr, buffer, _countof (buffer));
+			shex.lpFile = buffer;
+
+			if (ShellExecuteEx (&shex))
+			{
+				return TRUE;
+			}
+		}
+
+		this->app_mutex = CreateMutex (nullptr, FALSE, this->app_name_short);
+	}
+	else
+	{
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
+BOOL CApplication::SkipUacIsPresent (BOOL is_run)
+{
+	BOOL result = FALSE;
+
+	CString name = _r_fmt (APPLICATION_TASKSCHD_NAME, this->app_name_short);
+
+	if (_r_system_validversion (6, 0))
+	{
+		ITaskService* service = nullptr;
+		ITaskFolder* folder = nullptr;
+		IRegisteredTask* registered_task = nullptr;
+
+		CoInitializeEx (nullptr, COINIT_MULTITHREADED);
+		CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr);
+
+		if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
+		{
+			if (SUCCEEDED (service->Connect (_variant_t (), _variant_t (), _variant_t (), _variant_t ())))
+			{
+				if (SUCCEEDED (service->GetFolder (L"\\", &folder)))
+				{
+					if (SUCCEEDED (folder->GetTask (name.GetBuffer (), &registered_task)))
+					{
+						if (is_run)
+						{
+							INT numargs = 0;
+							LPWSTR* args = CommandLineToArgvW (GetCommandLine (), &numargs);
+
+							CString buffer;
+
+							for (INT i = 1; i < numargs; i++)
+							{
+								buffer.Append (args[i]);
+								buffer.Append (L" ");
+							}
+
+							LocalFree (args);
+
+							variant_t ticker = buffer.Trim ().GetString ();
+
+							IRunningTask* ppRunningTask = nullptr;
+
+							if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_AS_SELF, 0, nullptr, &ppRunningTask)) && ppRunningTask)
+							{
+								TASK_STATE state;
+								INT count = 10; // try count
+
+								do
+								{
+									ppRunningTask->Refresh ();
+									ppRunningTask->get_State (&state);
+
+									if (state == TASK_STATE_RUNNING || state == TASK_STATE_DISABLED)
+									{
+										if (state == TASK_STATE_RUNNING)
+										{
+											result = TRUE;
+										}
+
+										break;
+									}
+
+									Sleep (15);
+								}
+								while (count--);
+
+								ppRunningTask->Release ();
+							}
+						}
+						else
+						{
+							result = TRUE;
+						}
+
+						registered_task->Release ();
+					}
+
+					folder->Release ();
+				}
+			}
+
+			service->Release ();
+		}
+
+		CoUninitialize ();
+	}
+
+	return result;
+}
+
+BOOL CApplication::SkipUacCreate (BOOL is_remove)
+{
+	BOOL result = FALSE;
+	BOOL action_result = FALSE;
+
+	ITaskService* service = nullptr;
+	ITaskFolder* folder = nullptr;
+	ITaskDefinition* task = nullptr;
+	IRegistrationInfo* reginfo = nullptr;
+	IPrincipal* principal = nullptr;
+	ITaskSettings* settings = nullptr;
+	IActionCollection* action_collection = nullptr;
+	IAction* action = nullptr;
+	IExecAction* exec_action = nullptr;
+	IRegisteredTask* registered_task = nullptr;
+
+	CString name = _r_fmt (APPLICATION_TASKSCHD_NAME, this->app_name_short);
+
+	if (_r_system_validversion (6, 0))
+	{
+		CoInitializeEx (nullptr, COINIT_MULTITHREADED);
+		CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr);
+
+		if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
+		{
+			if (SUCCEEDED (service->Connect (_variant_t (), _variant_t (), _variant_t (), _variant_t ())))
+			{
+				if (SUCCEEDED (service->GetFolder (L"\\", &folder)))
+				{
+					if (is_remove)
+					{
+						result = (folder->DeleteTask (name.GetBuffer (), 0) == S_OK);
+					}
+					else
+					{
+						if (SUCCEEDED (service->NewTask (0, &task)))
+						{
+							if (SUCCEEDED (task->get_RegistrationInfo (&reginfo)))
+							{
+								reginfo->put_Author (this->app_author);
+								reginfo->Release ();
+							}
+
+							if (SUCCEEDED (task->get_Principal (&principal)))
+							{
+								principal->put_RunLevel (TASK_RUNLEVEL_HIGHEST);
+								principal->Release ();
+							}
+
+							if (SUCCEEDED (task->get_Settings (&settings)))
+							{
+								settings->put_StartWhenAvailable (VARIANT_BOOL (FALSE));
+								settings->put_DisallowStartIfOnBatteries (VARIANT_BOOL (FALSE));
+								settings->put_StopIfGoingOnBatteries (VARIANT_BOOL (FALSE));
+								settings->put_MultipleInstances (TASK_INSTANCES_PARALLEL);
+								settings->put_ExecutionTimeLimit (L"PT0S");
+								settings->Release ();
+							}
+
+							if (SUCCEEDED (task->get_Actions (&action_collection)))
+							{
+								if (SUCCEEDED (action_collection->Create (TASK_ACTION_EXEC, &action)))
+								{
+									if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (VOID**)&exec_action)))
+									{
+										WCHAR path[MAX_PATH] = {0};
+
+										GetModuleFileName (nullptr, path, _countof (path));
+										PathQuoteSpaces (path);
+
+										if (SUCCEEDED (exec_action->put_Path (path)) && SUCCEEDED (exec_action->put_Arguments (L"$(Arg0)")))
+										{
+											action_result = TRUE;
+										}
+
+										exec_action->Release ();
+									}
+
+									action->Release ();
+								}
+
+								action_collection->Release ();
+							}
+
+							if (action_result && SUCCEEDED (folder->RegisterTaskDefinition (name.GetBuffer (), task, TASK_CREATE_OR_UPDATE, _variant_t (), _variant_t (), TASK_LOGON_INTERACTIVE_TOKEN, _variant_t (), &registered_task)))
+							{
+								result = TRUE;
+								registered_task->Release ();
+							}
+
+							task->Release ();
+						}
+					}
+
+					folder->Release ();
+				}
+			}
+
+			service->Release ();
+		}
+
+		CoUninitialize ();
 	}
 
 	return result;
