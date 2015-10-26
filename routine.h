@@ -173,6 +173,12 @@ BOOL _r_status_settext (HWND hwnd, INT ctrl, INT part, LPCWSTR text);
 VOID _r_status_setstyle (HWND hwnd, INT ctrl, INT height);
 
 /*
+	Control: trayicon
+*/
+
+VOID _r_tray_balloontip (PNOTIFYICONDATA pnid, DWORD icon, LPCWSTR title, LPCWSTR text);
+
+/*
 	Exported function definitions
 */
 
