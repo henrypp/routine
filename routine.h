@@ -136,6 +136,7 @@ VOID _r_windowtotop (HWND hwnd, BOOL enable);
 */
 
 HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT width, INT height);
+BOOL _r_run (LPCWSTR path);
 
 /*
 	Control: common

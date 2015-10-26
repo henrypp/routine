@@ -167,7 +167,7 @@ DWORD CApplication::ConfigGet (LPCWSTR key, INT def)
 		return def;
 	}
 
-	return wcstol (val, nullptr, 10);
+	return wcstoul (val, nullptr, 10);
 }
 
 CString CApplication::ConfigGet (LPCWSTR key, LPCWSTR def)
@@ -381,6 +381,10 @@ CString CApplication::LocaleString (UINT id, LPCWSTR name)
 		if (this->app_locale_array.find (name) != this->app_locale_array.end ())
 		{
 			buffer = this->app_locale_array[name];
+
+			buffer.Replace (L"\\t", L"\t");
+			buffer.Replace (L"\\r", L"\r");
+			buffer.Replace (L"\\n", L"\n");
 		}
 	}
 

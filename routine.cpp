@@ -633,6 +633,16 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT width, INT height)
 	return result;
 }
 
+BOOL _r_run (LPCWSTR path)
+{
+	STARTUPINFO si = {0};
+	PROCESS_INFORMATION pi = {0};
+
+	si.cb = sizeof (si);
+
+	return CreateProcess (path, nullptr, nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi);
+}
+
 /*
 	Control: common
 */
