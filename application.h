@@ -42,7 +42,7 @@ class CApplication
 {
 public:
 
-	CApplication (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR author);
+	CApplication (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR author, LPCWSTR copyright, LPCWSTR website, LPCWSTR github);
 	~CApplication ();
 
 	VOID AutorunCreate (BOOL is_remove);
@@ -65,9 +65,6 @@ public:
 	HWND GetHWND ();
 
 	VOID Restart ();
-
-	VOID SetLinks (LPCWSTR website, LPCWSTR github);
-	VOID SetCopyright (LPCWSTR copyright);
 
 	VOID LocaleEnum (HWND hwnd, INT ctrl_id);
 	VOID LocaleSet (LPCWSTR name);

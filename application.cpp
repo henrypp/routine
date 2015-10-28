@@ -1,11 +1,11 @@
 // application support
 // Copyright (c) 2013-2015 Henry++
 //
-// lastmod: Oct 19, 2015
+// lastmod: Oct 28, 2015
 
 #include "application.h"
 
-CApplication::CApplication (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR author)
+CApplication::CApplication (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR author, LPCWSTR copyright, LPCWSTR website, LPCWSTR github)
 {
 	// initialize controls
 	INITCOMMONCONTROLSEX icex = {0};
@@ -32,11 +32,21 @@ CApplication::CApplication (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, L
 	}
 	else
 	{
+#ifndef _WIN64
+		if (_r_system_iswow64 ())
+		{
+			_r_msg (nullptr, MB_OK | MB_ICONEXCLAMATION, name, L"WARNING! 32-bit executable may incompatible with 64-bit operating system version!");
+		}
+#endif // _WIN64
+
 		// general information
 		StringCchCopy (this->app_name, _countof (this->app_name), name);
 		StringCchCopy (this->app_name_short, _countof (this->app_name_short), short_name);
 		StringCchCopy (this->app_version, _countof (this->app_version), version);
 		StringCchCopy (this->app_author, _countof (this->app_author), author);
+		StringCchCopy (this->app_copyright, _countof (this->app_copyright), copyright);
+		StringCchCopy (this->app_website, _countof (this->app_website), website);
+		StringCchCopy (this->app_github, _countof (this->app_github), github);
 
 #ifdef APPLICATION_NEED_PRIVILEGES
 		if (_r_system_uacstate () && this->SkipUacRun ())
@@ -67,14 +77,14 @@ CApplication::CApplication (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, L
 		this->LocaleSet (this->ConfigGet (L"Language", nullptr));
 
 		// load logo
-#ifdef __RESOURCE_H__
+#ifdef IDI_MAIN
 		HDC hdc = GetDC (nullptr);
 
 		INT size = MulDiv (64, GetDeviceCaps (hdc, LOGPIXELSY), 72);
 		this->app_logo_big = _r_loadicon (this->app_hinstance, MAKEINTRESOURCE (IDI_MAIN), size, size);
 
 		ReleaseDC (nullptr, hdc);
-#endif // __RESOURCE_H__
+#endif // IDI_MAIN
 
 	}
 }
@@ -308,17 +318,6 @@ VOID CApplication::Restart ()
 
 		this->app_mutex = CreateMutex (nullptr, FALSE, this->app_name_short);
 	}
-}
-
-VOID CApplication::SetCopyright (LPCWSTR copyright)
-{
-	StringCchCopy (this->app_copyright, _countof (this->app_copyright), copyright);
-}
-
-VOID CApplication::SetLinks (LPCWSTR website, LPCWSTR github)
-{
-	StringCchCopy (this->app_website, _countof (this->app_website), website);
-	StringCchCopy (this->app_github, _countof (this->app_github), github);
 }
 
 VOID CApplication::LocaleEnum (HWND hwnd, INT ctrl_id)
