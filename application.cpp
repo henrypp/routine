@@ -533,10 +533,13 @@ INT_PTR CALLBACK CApplication::SettingsWindowProc (HWND hwnd, UINT msg, WPARAM w
 			{
 				this_ptr->app_settings_hwnd[i] = CreateDialogParam (nullptr, MAKEINTRESOURCE (IDD_SETTINGS_1 + i), hwnd, this_ptr->app_settings_proc, i);
 
-				_r_treeview_additem (hwnd, IDC_NAV, I18N (this_ptr, IDS_SETTINGS_1 + i, _r_fmt (L"IDS_SETTINGS_%d", i + 1)), -1, (LPARAM)i);
-			}
+				HTREEITEM item = _r_treeview_additem (hwnd, IDC_NAV, I18N (this_ptr, IDS_SETTINGS_1 + i, _r_fmt (L"IDS_SETTINGS_%d", i + 1)), -1, (LPARAM)i);
 
-			SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_FIRSTVISIBLE, NULL)); // select 1-st item
+				if (this_ptr->ConfigGet (L"SettingsLastPage", 0) == i)
+				{
+					SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)item);
+				}
+			}
 
 			break;
 		}
@@ -555,6 +558,8 @@ INT_PTR CALLBACK CApplication::SettingsWindowProc (HWND hwnd, UINT msg, WPARAM w
 
 						ShowWindow (this_ptr->app_settings_hwnd[INT (pnmtv->itemOld.lParam)], SW_HIDE);
 						ShowWindow (this_ptr->app_settings_hwnd[INT (pnmtv->itemNew.lParam)], SW_SHOW);
+
+						this_ptr->ConfigSet (L"SettingsLastPage", INT (pnmtv->itemNew.lParam));
 
 						break;
 					}
