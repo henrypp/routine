@@ -1,7 +1,5 @@
 // application support
 // Copyright (c) 2013-2015 Henry++
-//
-// lastmod: Oct 28, 2015
 
 #include "application.h"
 
@@ -67,7 +65,12 @@ CApplication::CApplication (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, L
 
 		if (!_r_file_is_exists (this->app_config_path))
 		{
-			ExpandEnvironmentStrings (_r_fmt (L"%%APPDATA%%\\%s\\%s\\%s.ini", this->app_author, this->app_name, this->app_name_short), this->app_config_path, _countof (this->app_config_path));
+			ExpandEnvironmentStrings (_r_fmt (L"%%APPDATA%%\\%s\\%s", this->app_author, this->app_name), this->app_profile_directory, _countof (this->app_profile_directory));
+			StringCchPrintf (this->app_config_path, _countof (this->app_config_path), L"%s\\%s.ini", this->app_profile_directory, this->app_name_short);
+		}
+		else
+		{
+			StringCchCopy (this->app_profile_directory, _countof (this->app_profile_directory), this->app_directory);
 		}
 
 		// initialize configuration array
@@ -278,6 +281,16 @@ VOID CApplication::CreateSettingsWindow (DWORD page_count, DLGPROC proc, SETTING
 #ifdef __RESOURCE_H__
 	DialogBoxParam (nullptr, MAKEINTRESOURCE (IDD_SETTINGS), this->GetHWND (), this->SettingsWindowProc, (LPARAM)this);
 #endif // __RESOURCE_H__
+}
+
+CString CApplication::GetDirectory ()
+{
+	return this->app_directory;
+}
+
+CString CApplication::GetProfileDirectory ()
+{
+	return this->app_profile_directory;
 }
 
 HWND CApplication::GetHWND ()
@@ -680,7 +693,7 @@ UINT WINAPI CApplication::CheckForUpdatesProc (LPVOID lparam)
 		InternetCloseHandle (internet);
 	}
 
-	return 0;
+	return ERROR_SUCCESS;
 }
 
 BOOL CApplication::ParseINI (LPCWSTR path, LPCWSTR section, CStringMap* map)
@@ -828,7 +841,7 @@ BOOL CApplication::SkipUacIsPresent (BOOL is_run)
 										break;
 									}
 
-									Sleep (15);
+									Sleep (500);
 								}
 								while (count--);
 

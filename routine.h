@@ -1,6 +1,8 @@
 // routine++
 // Copyright (c) 2013-2015 Henry++
 
+// lastmod: Nov 17, 2015
+
 #pragma once
 
 #include <windows.h>
@@ -20,6 +22,9 @@
 
 #define ROUTINE_PERCENT_OF(val, total) (INT)ceil((double(val) / double(total)) * 100.0)
 #define ROUTINE_PERCENT_VAL(val, total) (double(total) * double(val) / 100.0)
+
+#define ROUTINE_SPINLOCK(x) while (InterlockedCompareExchange (&(x), 1, 1) == 1)
+#define ROUTINE_SPINUNLOCK(x) (x) = 0
 
 /*
 	CString Map (simple string associative array)
@@ -119,8 +124,8 @@ BOOL _r_system_validversion (DWORD major, DWORD minor);
 */
 
 __time64_t _r_unixtime_now ();
-VOID _r_unixtime_to_filetime (__time64_t t, LPFILETIME pft);
-VOID _r_unixtime_to_systemtime (__time64_t t, LPSYSTEMTIME pst);
+VOID _r_unixtime_to_filetime (__time64_t ut, LPFILETIME pft);
+VOID _r_unixtime_to_systemtime (__time64_t ut, LPSYSTEMTIME pst);
 
 /*
 	Window management

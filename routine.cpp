@@ -1,7 +1,5 @@
 // routine++
 // Copyright (c) 2013-2015 Henry++
-//
-// lastmod: Oct 19, 2015
 
 #include "routine.h"
 
@@ -55,8 +53,9 @@ CString _r_fmt (LPCWSTR format, ...)
 
 CString _r_fmt_date (LPFILETIME ft, const DWORD flags)
 {
-	CString buffer;
 	DWORD pflags = flags;
+
+	CString buffer;
 
 	SHFormatDateTime (ft, &pflags, buffer.GetBuffer (ROUTINE_BUFFER_LENGTH), ROUTINE_BUFFER_LENGTH);
 	buffer.ReleaseBuffer ();
@@ -66,13 +65,11 @@ CString _r_fmt_date (LPFILETIME ft, const DWORD flags)
 
 CString _r_fmt_date (__time64_t ut, const DWORD flags)
 {
-	CString buffer;
 	FILETIME ft = {0};
 
 	_r_unixtime_to_filetime (ut, &ft);
-	_r_fmt_date (&ft, flags);
 
-	return buffer;
+	return _r_fmt_date (&ft, flags);
 }
 
 CString _r_fmt_size64 (DWORDLONG size)
@@ -123,7 +120,7 @@ INT _r_msg (HWND hwnd, UINT type, LPCWSTR title, LPCWSTR format, ...)
 		tdc.cbSize = sizeof (tdc);
 		tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION;
 		tdc.hwndParent = hwnd;
-		tdc.hInstance = GetModuleHandle (nullptr);
+		//tdc.hInstance = GetModuleHandle (nullptr);
 		tdc.pszWindowTitle = title;
 		tdc.pszContent = buffer;
 		tdc.pfCallback = _r_msg_callback;
@@ -165,7 +162,7 @@ INT _r_msg (HWND hwnd, UINT type, LPCWSTR title, LPCWSTR format, ...)
 
 		mbp.cbSize = sizeof (mbp);
 		mbp.hwndOwner = hwnd;
-		mbp.hInstance = GetModuleHandle (nullptr);
+		//mbp.hInstance = GetModuleHandle (nullptr);
 		mbp.dwStyle = type | MB_TOPMOST;
 		mbp.lpszCaption = title;
 		mbp.lpszText = buffer;
@@ -509,22 +506,22 @@ __time64_t _r_unixtime_now ()
 	return t;
 }
 
-VOID _r_unixtime_to_filetime (__time64_t t, LPFILETIME pft)
+VOID _r_unixtime_to_filetime (__time64_t ut, LPFILETIME pft)
 {
-	if (t)
+	if (ut && pft)
 	{
-		LONGLONG ll = Int32x32To64 (t, 10000000) + 116444736000000000ui64; // 64 bit value
+		LONGLONG ll = Int32x32To64 (ut, 10000000) + 116444736000000000ui64; // 64 bit value
 
 		pft->dwLowDateTime = (DWORD)ll;
 		pft->dwHighDateTime = (DWORD)(ll >> 32);
 	}
 }
 
-VOID _r_unixtime_to_systemtime (__time64_t t, LPSYSTEMTIME pst)
+VOID _r_unixtime_to_systemtime (__time64_t ut, LPSYSTEMTIME pst)
 {
 	FILETIME ft = {0};
 
-	_r_unixtime_to_filetime (t, &ft);
+	_r_unixtime_to_filetime (ut, &ft);
 
 	FileTimeToSystemTime (&ft, pst);
 }

@@ -1,6 +1,8 @@
 // application support
 // Copyright (c) 2013-2015 Henry++
 
+// lastmod: Nov 14, 2015
+
 #pragma once
 
 #include "routine.h"
@@ -40,6 +42,7 @@ typedef BOOL (*SETTINGS_SAVE_CALLBACK) (HWND hwnd, DWORD page_id);
 
 class CApplication
 {
+
 public:
 
 	CApplication (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR author, LPCWSTR copyright, LPCWSTR website, LPCWSTR github);
@@ -61,6 +64,9 @@ public:
 	VOID CreateAboutWindow ();
 	BOOL CreateMainWindow (DLGPROC proc);
 	VOID CreateSettingsWindow (DWORD page_count, DLGPROC page_proc, SETTINGS_SAVE_CALLBACK callback);
+
+	CString GetDirectory ();
+	CString GetProfileDirectory ();
 
 	HWND GetHWND ();
 
@@ -100,6 +106,7 @@ private:
 	HICON app_logo_big = nullptr;
 
 	WCHAR app_directory[MAX_PATH];
+	WCHAR app_profile_directory[MAX_PATH];
 
 	WCHAR app_name[MAX_PATH];
 	WCHAR app_name_short[MAX_PATH];
