@@ -738,7 +738,7 @@ INT _r_listview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT item, INT subite
 
 	if (item == -1)
 	{
-		lvi.iItem = (INT)SendDlgItemMessage (hwnd, ctrl, LVM_GETITEMCOUNT, 0, NULL);
+		lvi.iItem = _r_listview_getitemcount (hwnd, ctrl);
 
 		if (subitem)
 		{
@@ -787,6 +787,11 @@ INT _r_listview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT item, INT subite
 	}
 
 	return (INT)SendDlgItemMessage (hwnd, ctrl, (subitem > 0) ? LVM_SETITEM : LVM_INSERTITEM, 0, (LPARAM)&lvi);
+}
+
+INT _r_listview_getitemcount (HWND hwnd, INT ctrl)
+{
+	return (INT)SendDlgItemMessage (hwnd, ctrl, LVM_GETITEMCOUNT, 0, NULL);
 }
 
 LPARAM _r_listview_getlparam (HWND hwnd, INT ctrl, INT item)

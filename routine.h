@@ -1,7 +1,7 @@
 // routine++
 // Copyright (c) 2013-2015 Henry++
 
-// lastmod: Nov 17, 2015
+// lastmod: Nov 25, 2015
 
 #pragma once
 
@@ -32,7 +32,7 @@
 
 struct CStringHash
 {
-	size_t operator()(const CString& k) const
+	ULONG operator()(const CString& k) const
 	{
 		ULONG hash = 5381;
 		INT c = 0;
@@ -48,7 +48,7 @@ struct CStringHash
 	}
 };
 
-struct CStringEqul
+struct CStringEqual
 {
 	BOOL operator()(const CString& lhs, const CString& rhs) const
 	{
@@ -56,7 +56,7 @@ struct CStringEqul
 	}
 };
 
-typedef std::unordered_map<CString, CString, CStringHash, CStringEqul> CStringMap;
+typedef std::unordered_map<CString, CString, CStringHash, CStringEqual> CStringMap;
 
 /*
 	Write debug log to console
@@ -158,6 +158,7 @@ INT _r_listview_addcolumn (HWND hwnd, INT ctrl, LPCWSTR text, INT width, INT sub
 INT _r_listview_addgroup (HWND hwnd, INT ctrl, INT group_id, LPCWSTR text, UINT align = 0, UINT state = 0);
 INT _r_listview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT item, INT subitem, INT image = -1, INT group_id = -1, LPARAM lparam = 0);
 INT _r_listview_getcolumnwidth (HWND hwnd, INT ctrl, INT column);
+INT _r_listview_getitemcount (HWND hwnd, INT ctrl);
 LPARAM _r_listview_getlparam (HWND hwnd, INT ctrl, INT item);
 CString _r_listview_gettext (HWND hwnd, INT ctrl, INT item, INT subitem);
 DWORD _r_listview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle);

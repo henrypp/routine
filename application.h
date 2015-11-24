@@ -1,7 +1,7 @@
 // application support
 // Copyright (c) 2013-2015 Henry++
 
-// lastmod: Nov 14, 2015
+// lastmod: Nov 25, 2015
 
 #pragma once
 
@@ -69,6 +69,7 @@ public:
 	CString GetProfileDirectory ();
 
 	HWND GetHWND ();
+	VOID SetHWND (HWND hwnd);
 
 	VOID Restart ();
 

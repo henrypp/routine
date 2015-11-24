@@ -298,6 +298,11 @@ HWND CApplication::GetHWND ()
 	return this->app_hwnd;
 }
 
+VOID CApplication::SetHWND (HWND hwnd)
+{
+	this->app_hwnd = hwnd;
+}
+
 VOID CApplication::Restart ()
 {
 	WCHAR buffer[MAX_PATH] = {0};
@@ -729,7 +734,7 @@ BOOL CApplication::ParseINI (LPCWSTR path, LPCWSTR section, CStringMap* map)
 
 			(*map)[parser.Mid (0, delimeter)] = parser.Mid (delimeter + 1); // set
 
-			ptr += lstrlen (ptr) + 1; // go next
+			ptr += _r_string_length (ptr) + 1; // go next
 		}
 
 		result = TRUE;
