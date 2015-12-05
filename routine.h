@@ -1,30 +1,38 @@
 // routine++
 // Copyright (c) 2013-2015 Henry++
 
-// lastmod: Nov 25, 2015
+// lastmod: Dec 3, 2015
 
 #pragma once
 
 #include <windows.h>
+#include <commctrl.h>
 #include <uxtheme.h>
-#include <unordered_map>
 #include <time.h>
 #include <math.h>
 #include <lm.h>
-#include <commctrl.h>
 #include <atlstr.h>
 #include <strsafe.h>
+#include <unordered_map>
 
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "uxtheme.lib")
 
-#define ROUTINE_BUFFER_LENGTH 4096
+/*
+	Configuration
+*/
 
-#define ROUTINE_PERCENT_OF(val, total) (INT)ceil((double(val) / double(total)) * 100.0)
-#define ROUTINE_PERCENT_VAL(val, total) (double(total) * double(val) / 100.0)
+#define _R_BUFFER_LENGTH 4096
 
-#define ROUTINE_SPINLOCK(x) while (InterlockedCompareExchange (&(x), 1, 1) == 1)
-#define ROUTINE_SPINUNLOCK(x) (x) = 0
+/*
+	Macroses
+*/
+
+#define _R_PERCENT_OF(val, total) INT(ceil((double(val) / double(total)) * 100.0))
+#define _R_PERCENT_VAL(val, total) INT(double(total) * double(val) / 100.0)
+
+#define _R_SPINLOCK(x) while (InterlockedCompareExchange (&(x), 1, 1) == 1)
+#define _R_SPINUNLOCK(x) (x) = 0
 
 /*
 	CString Map (simple string associative array)
@@ -57,13 +65,14 @@ struct CStringEqual
 };
 
 typedef std::unordered_map<CString, CString, CStringHash, CStringEqual> CStringMap;
+typedef std::unordered_map<CString, CStringMap, CStringHash, CStringEqual> IniMap;
 
 /*
 	Write debug log to console
 */
 
-#define WDEBUG1(a) _r_dbg (__FUNCTIONW__, TEXT(__FILE__), __LINE__, L"%s", a)
-#define WDEBUG2(a, ...) _r_dbg (__FUNCTIONW__, TEXT(__FILE__), __LINE__, a, __VA_ARGS__)
+#define WDBG1(a) _r_dbg (__FUNCTIONW__, TEXT(__FILE__), __LINE__, L"%s", a)
+#define WDBG2(a, ...) _r_dbg (__FUNCTIONW__, TEXT(__FILE__), __LINE__, a, __VA_ARGS__)
 
 VOID _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...);
 
@@ -106,8 +115,9 @@ DWORD64 _r_file_size (HANDLE h);
 	Strings
 */
 
-size_t _r_string_length (LPCWSTR str);
-INT _r_string_versioncompare (LPCWSTR v1, LPCWSTR v2);
+size_t _r_str_length (LPCWSTR str);
+VOID _r_str_split (CString str, LPCWSTR delim, std::vector<CString>* pvc);
+INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2);
 
 /*
 	System information
@@ -117,7 +127,7 @@ BOOL _r_system_adminstate ();
 BOOL _r_system_iswow64 ();
 BOOL _r_system_setprivilege (LPCWSTR privilege, BOOL enable);
 BOOL _r_system_uacstate ();
-BOOL _r_system_validversion (DWORD major, DWORD minor);
+BOOL _r_system_validversion (DWORD major, DWORD minor, DWORD condition = VER_GREATER_EQUAL);
 
 /*
 	Unixtime
@@ -140,8 +150,8 @@ VOID _r_windowtotop (HWND hwnd, BOOL enable);
 	Other
 */
 
-HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT width, INT height);
-BOOL _r_run (LPCWSTR path);
+HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d);
+BOOL _r_run (LPCWSTR path, LPWSTR cmdline);
 
 /*
 	Control: common
@@ -159,6 +169,7 @@ INT _r_listview_addgroup (HWND hwnd, INT ctrl, INT group_id, LPCWSTR text, UINT 
 INT _r_listview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT item, INT subitem, INT image = -1, INT group_id = -1, LPARAM lparam = 0);
 INT _r_listview_getcolumnwidth (HWND hwnd, INT ctrl, INT column);
 INT _r_listview_getitemcount (HWND hwnd, INT ctrl);
+INT _r_listview_getcolumncount (HWND hwnd, INT ctrl);
 LPARAM _r_listview_getlparam (HWND hwnd, INT ctrl, INT item);
 CString _r_listview_gettext (HWND hwnd, INT ctrl, INT item, INT subitem);
 DWORD _r_listview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle);

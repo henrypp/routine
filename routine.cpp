@@ -43,7 +43,7 @@ CString _r_fmt (LPCWSTR format, ...)
 	va_list args = nullptr;
 	va_start (args, format);
 
-	StringCchVPrintf (buffer.GetBuffer (ROUTINE_BUFFER_LENGTH), ROUTINE_BUFFER_LENGTH, format, args);
+	StringCchVPrintf (buffer.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH, format, args);
 	buffer.ReleaseBuffer ();
 
 	va_end (args);
@@ -57,7 +57,7 @@ CString _r_fmt_date (LPFILETIME ft, const DWORD flags)
 
 	CString buffer;
 
-	SHFormatDateTime (ft, &pflags, buffer.GetBuffer (ROUTINE_BUFFER_LENGTH), ROUTINE_BUFFER_LENGTH);
+	SHFormatDateTime (ft, &pflags, buffer.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH);
 	buffer.ReleaseBuffer ();
 
 	return buffer;
@@ -261,7 +261,7 @@ DWORD64 _r_file_size (HANDLE h)
 	Strings
 */
 
-size_t _r_string_length (LPCWSTR str)
+size_t _r_str_length (LPCWSTR str)
 {
 	size_t result = 0;
 
@@ -270,13 +270,31 @@ size_t _r_string_length (LPCWSTR str)
 	return result;
 }
 
+VOID _r_str_split (CString str, LPCWSTR delim, std::vector<CString>* pvc)
+{
+	if (pvc)
+	{
+		INT pos = 0;
+		CString token = str.Tokenize (delim, pos);
+
+		pvc->clear ();
+
+		while (!token.IsEmpty ())
+		{
+			pvc->push_back (token);
+
+			token = str.Tokenize (delim, pos);
+		}
+	}
+}
+
 /*
 	return 1 if v1 > v2
 	return 0 if v1 = v2
 	return -1 if v1 < v2
 */
 
-INT _r_string_versioncompare (LPCWSTR v1, LPCWSTR v2)
+INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2)
 {
 	INT oct_v1[4] = {0};
 	INT oct_v2[4] = {0};
@@ -479,7 +497,8 @@ BOOL _r_system_uacstate ()
 	return FALSE;
 }
 
-BOOL _r_system_validversion (DWORD major, DWORD minor)
+// https://msdn.microsoft.com/en-us/library/windows/desktop/ms725494(v=vs.85).aspx
+BOOL _r_system_validversion (DWORD major, DWORD minor, DWORD condition)
 {
 	OSVERSIONINFOEX osvi = {0};
 	DWORDLONG mask = 0;
@@ -488,8 +507,8 @@ BOOL _r_system_validversion (DWORD major, DWORD minor)
 	osvi.dwMajorVersion = major;
 	osvi.dwMinorVersion = minor;
 
-	VER_SET_CONDITION (mask, VER_MAJORVERSION, VER_GREATER_EQUAL);
-	VER_SET_CONDITION (mask, VER_MINORVERSION, VER_GREATER_EQUAL);
+	VER_SET_CONDITION (mask, VER_MAJORVERSION, condition);
+	VER_SET_CONDITION (mask, VER_MINORVERSION, condition);
 
 	return VerifyVersionInfo (&osvi, VER_MAJORVERSION | VER_MINORVERSION, mask);
 }
@@ -532,10 +551,10 @@ VOID _r_unixtime_to_systemtime (__time64_t ut, LPSYSTEMTIME pst)
 
 VOID _r_windowcenter (HWND hwnd)
 {
-	HWND parent = GetParent (hwnd);
+	HWND parent = GetWindow (hwnd, GW_OWNER);
 	RECT rc_child = {0}, rc_parent = {0};
 
-	if (!IsWindow (parent) || !IsWindowVisible (parent))
+	if (!IsWindowVisible (parent))
 	{
 		parent = GetDesktopWindow ();
 	}
@@ -611,7 +630,7 @@ VOID _r_windowtotop (HWND hwnd, BOOL enable)
 	Other
 */
 
-HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT width, INT height)
+HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d)
 {
 	HICON result = nullptr;
 
@@ -619,25 +638,25 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT width, INT height)
 
 	if (_LoadIconWithScaleDown)
 	{
-		_LoadIconWithScaleDown (h, name, width, height, &result);
+		_LoadIconWithScaleDown (h, name, d, d, &result);
 	}
 
 	if (!result)
 	{
-		result = (HICON)LoadImage (h, name, IMAGE_ICON, width, height, 0);
+		result = (HICON)LoadImage (h, name, IMAGE_ICON, d, d, 0);
 	}
 
 	return result;
 }
 
-BOOL _r_run (LPCWSTR path)
+BOOL _r_run (LPCWSTR path, LPWSTR cmdline)
 {
 	STARTUPINFO si = {0};
 	PROCESS_INFORMATION pi = {0};
 
 	si.cb = sizeof (si);
 
-	return CreateProcess (path, nullptr, nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi);
+	return CreateProcess (path, cmdline, nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi);
 }
 
 /*
@@ -686,13 +705,13 @@ INT _r_listview_addcolumn (HWND hwnd, INT ctrl, LPCWSTR text, INT width, INT sub
 
 	if (width > 100)
 	{
-		width = ROUTINE_PERCENT_OF (width, rc.right);
+		width = _R_PERCENT_OF (width, rc.right);
 	}
 
 	lvc.mask = LVCF_WIDTH | LVCF_TEXT | LVCF_FMT | LVCF_SUBITEM;
 	lvc.pszText = (LPWSTR)text;
 	lvc.fmt = fmt;
-	lvc.cx = (INT)ROUTINE_PERCENT_VAL (width, rc.right);
+	lvc.cx = _R_PERCENT_VAL (width, rc.right);
 	lvc.iSubItem = subitem;
 
 	return (INT)SendDlgItemMessage (hwnd, ctrl, LVM_INSERTCOLUMN, (WPARAM)subitem, (LPARAM)&lvc);
@@ -703,7 +722,7 @@ INT _r_listview_getcolumnwidth (HWND hwnd, INT ctrl, INT column)
 	RECT rc = {0};
 	GetClientRect (GetDlgItem (hwnd, ctrl), &rc);
 
-	return ROUTINE_PERCENT_OF (SendDlgItemMessage (hwnd, ctrl, LVM_GETCOLUMNWIDTH, column, NULL), rc.right);
+	return _R_PERCENT_OF (SendDlgItemMessage (hwnd, ctrl, LVM_GETCOLUMNWIDTH, column, NULL), rc.right);
 }
 
 INT _r_listview_addgroup (HWND hwnd, INT ctrl, INT group_id, LPCWSTR text, UINT align, UINT state)
@@ -789,6 +808,13 @@ INT _r_listview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT item, INT subite
 	return (INT)SendDlgItemMessage (hwnd, ctrl, (subitem > 0) ? LVM_SETITEM : LVM_INSERTITEM, 0, (LPARAM)&lvi);
 }
 
+INT _r_listview_getcolumncount (HWND hwnd, INT ctrl)
+{
+	HWND hdr = (HWND)SendDlgItemMessage (hwnd, ctrl, LVM_GETHEADER, 0, 0);
+
+	return (INT)SendMessage (hdr, HDM_GETITEMCOUNT, 0, 0);
+}
+
 INT _r_listview_getitemcount (HWND hwnd, INT ctrl)
 {
 	return (INT)SendDlgItemMessage (hwnd, ctrl, LVM_GETITEMCOUNT, 0, NULL);
@@ -819,7 +845,7 @@ CString _r_listview_gettext (HWND hwnd, INT ctrl, INT item, INT subitem)
 
 	do
 	{
-		length += ROUTINE_BUFFER_LENGTH;
+		length += _R_BUFFER_LENGTH;
 
 		lvi.pszText = buffer.GetBuffer (length);
 		lvi.cchTextMax = length;
