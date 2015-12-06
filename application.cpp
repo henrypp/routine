@@ -30,15 +30,6 @@ CApplication::CApplication (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, L
 	}
 	else
 	{
-#ifndef _WIN64
-
-		if (_r_system_iswow64 ())
-		{
-			_r_msg (nullptr, MB_OK | MB_ICONEXCLAMATION, name, L"WARNING! 32-bit executable may incompatible with 64-bit operating system version!");
-		}
-
-#endif // _WIN64
-
 		// general information
 		StringCchCopy (this->app_name, _countof (this->app_name), name);
 		StringCchCopy (this->app_name_short, _countof (this->app_name_short), short_name);
@@ -54,6 +45,15 @@ CApplication::CApplication (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, L
 		}
 
 #endif // APPLICATION_NO_UAC
+
+#ifndef _WIN64
+
+		if (_r_system_iswow64 ())
+		{
+			_r_msg (nullptr, MB_OK | MB_ICONEXCLAMATION, name, L"WARNING! 32-bit executable may incompatible with 64-bit operating system version!");
+		}
+
+#endif // _WIN64
 
 		this->is_initialized = TRUE;
 
@@ -153,7 +153,23 @@ BOOL CApplication::AutorunIsPresent ()
 
 	if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_READ, &key) == ERROR_SUCCESS)
 	{
-		result = (RegQueryValueEx (key, this->app_name, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS);
+		WCHAR path1[MAX_PATH] = {0};
+		WCHAR path2[MAX_PATH] = {0};
+
+		DWORD size = MAX_PATH;
+
+		result = (RegQueryValueEx (key, this->app_name, nullptr, nullptr, (LPBYTE)path1, &size) == ERROR_SUCCESS);
+
+		if (result)
+		{
+			PathRemoveArgs (path1);
+			PathUnquoteSpaces (path1);
+
+			GetModuleFileName (this->GetHINSTANCE (), path2, _countof (path2));
+
+			// check path is to current module
+			result = _wcsicmp (path1, path2) == 0;
+		}
 
 		RegCloseKey (key);
 	}
@@ -919,7 +935,7 @@ BOOL CApplication::SkipUacCreate (BOOL is_remove)
 	IExecAction* exec_action = nullptr;
 	IRegisteredTask* registered_task = nullptr;
 
-	CString name = _r_fmt (APPLICATION_TASKSCHD_NAME, this->app_name_short);
+	LPWSTR name = _r_fmt (APPLICATION_TASKSCHD_NAME, this->app_name_short).GetBuffer ();
 
 	if (_r_system_validversion (6, 0))
 	{
@@ -934,7 +950,7 @@ BOOL CApplication::SkipUacCreate (BOOL is_remove)
 				{
 					if (is_remove)
 					{
-						result = (folder->DeleteTask (name.GetBuffer (), 0) == S_OK);
+						result = (folder->DeleteTask (name, 0) == S_OK);
 					}
 					else
 					{
@@ -966,7 +982,7 @@ BOOL CApplication::SkipUacCreate (BOOL is_remove)
 							{
 								if (SUCCEEDED (action_collection->Create (TASK_ACTION_EXEC, &action)))
 								{
-									if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (VOID**)&exec_action)))
+									if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID*)&exec_action)))
 									{
 										WCHAR path[MAX_PATH] = {0};
 
@@ -987,7 +1003,7 @@ BOOL CApplication::SkipUacCreate (BOOL is_remove)
 								action_collection->Release ();
 							}
 
-							if (action_result && SUCCEEDED (folder->RegisterTaskDefinition (name.GetBuffer (), task, TASK_CREATE_OR_UPDATE, _variant_t (), _variant_t (), TASK_LOGON_INTERACTIVE_TOKEN, _variant_t (), &registered_task)))
+							if (action_result && SUCCEEDED (folder->RegisterTaskDefinition (name, task, TASK_CREATE_OR_UPDATE, _variant_t (), _variant_t (), TASK_LOGON_INTERACTIVE_TOKEN, _variant_t (), &registered_task)))
 							{
 								result = TRUE;
 								registered_task->Release ();
@@ -1022,6 +1038,13 @@ BOOL CApplication::SkipUacIsPresent (BOOL is_run)
 		ITaskFolder* folder = nullptr;
 		IRegisteredTask* registered_task = nullptr;
 
+		ITaskDefinition* task = nullptr;
+		IActionCollection* action_collection = nullptr;
+		IAction* action = nullptr;
+		IExecAction* exec_action = nullptr;
+
+		IRunningTask* running_task = nullptr;
+
 		CoInitializeEx (nullptr, COINIT_MULTITHREADED);
 		CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr);
 
@@ -1033,55 +1056,79 @@ BOOL CApplication::SkipUacIsPresent (BOOL is_run)
 				{
 					if (SUCCEEDED (folder->GetTask (name.GetBuffer (), &registered_task)))
 					{
-						if (is_run)
+						if (SUCCEEDED (registered_task->get_Definition (&task)))
 						{
-							INT numargs = 0;
-							LPWSTR* args = CommandLineToArgvW (GetCommandLine (), &numargs);
-
-							CString buffer;
-
-							for (INT i = 1; i < numargs; i++)
+							if (SUCCEEDED (task->get_Actions (&action_collection)))
 							{
-								buffer.Append (args[i]);
-								buffer.Append (L" ");
-							}
-
-							LocalFree (args);
-
-							variant_t ticker = buffer.Trim ().GetString ();
-
-							IRunningTask* ppRunningTask = nullptr;
-
-							if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_AS_SELF, 0, nullptr, &ppRunningTask)) && ppRunningTask)
-							{
-								TASK_STATE state;
-								INT count = 10; // try count
-
-								do
+								if (SUCCEEDED (action_collection->get_Item (1, &action)))
 								{
-									ppRunningTask->Refresh ();
-									ppRunningTask->get_State (&state);
-
-									if (state == TASK_STATE_RUNNING || state == TASK_STATE_DISABLED)
+									if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID*)&exec_action)))
 									{
-										if (state == TASK_STATE_RUNNING)
+										BSTR path1 = nullptr;
+										WCHAR path2[MAX_PATH];;
+
+										exec_action->get_Path (&path1);
+
+										GetModuleFileName (this->GetHINSTANCE (), path2, _countof (path2));
+
+										// check path is to current module
+										if (_wcsicmp (path1, path2) == 0)
 										{
-											result = TRUE;
+											if (is_run)
+											{
+												INT numargs = 0;
+												LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
+												CString args;
+
+												for (INT i = 1; i < numargs; i++)
+												{
+													args.Append (arga[i]);
+													args.Append (L" ");
+												}
+
+												LocalFree (arga);
+
+												variant_t ticker = args.Trim ().GetString ();
+
+												if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_AS_SELF, 0, nullptr, &running_task)) && running_task)
+												{
+													TASK_STATE state;
+													INT count = 5; // try count
+
+													do
+													{
+														Sleep (500);
+
+														running_task->Refresh ();
+														running_task->get_State (&state);
+
+														if (state == TASK_STATE_RUNNING || state == TASK_STATE_DISABLED)
+														{
+															if (state == TASK_STATE_RUNNING) { result = TRUE; }
+															break;
+														}
+													}
+													while (count--);
+
+													running_task->Release ();
+												}
+											}
+											else
+											{
+												result = TRUE;
+											}
 										}
 
-										break;
+										exec_action->Release ();
 									}
 
-									Sleep (500);
+									action->Release ();
 								}
-								while (count--);
 
-								ppRunningTask->Release ();
+								action_collection->Release ();
 							}
-						}
-						else
-						{
-							result = TRUE;
+
+							task->Release ();
 						}
 
 						registered_task->Release ();
