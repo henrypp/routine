@@ -120,7 +120,6 @@ INT _r_msg (HWND hwnd, UINT type, LPCWSTR title, LPCWSTR format, ...)
 		tdc.cbSize = sizeof (tdc);
 		tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION;
 		tdc.hwndParent = hwnd;
-		//tdc.hInstance = GetModuleHandle (nullptr);
 		tdc.pszWindowTitle = title;
 		tdc.pszContent = buffer;
 		tdc.pfCallback = _r_msg_callback;
@@ -162,7 +161,6 @@ INT _r_msg (HWND hwnd, UINT type, LPCWSTR title, LPCWSTR format, ...)
 
 		mbp.cbSize = sizeof (mbp);
 		mbp.hwndOwner = hwnd;
-		//mbp.hInstance = GetModuleHandle (nullptr);
 		mbp.dwStyle = type | MB_TOPMOST;
 		mbp.lpszCaption = title;
 		mbp.lpszText = buffer;
