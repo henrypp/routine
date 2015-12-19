@@ -12,7 +12,6 @@ VOID _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...)
 	CString buffer;
 
 	DWORD dwLE = GetLastError ();
-	DWORD dwTC = GetTickCount ();
 	DWORD dwPID = GetCurrentProcessId ();
 	DWORD dwTID = GetCurrentThreadId ();
 
@@ -29,7 +28,7 @@ VOID _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...)
 		va_end (args);
 	}
 
-	OutputDebugString (_r_fmt (L"[%02d:%02d:%02d] TC=%010d, PID=%04d, TID=%04d, LE=%d (0x%x), FN=%s, FL=%s:%d, T=%s\r\n", lt.wHour, lt.wMinute, lt.wSecond, dwTC, dwPID, dwTID, dwLE, dwLE, function, file, line, buffer.IsEmpty () ? L"<none>" : buffer));
+	OutputDebugString (_r_fmt (L"[%02d:%02d:%02d] PID=%04d, TID=%04d, LE=%d (0x%x), FN=%s, FL=%s:%d, T=%s\r\n", lt.wHour, lt.wMinute, lt.wSecond, dwPID, dwTID, dwLE, dwLE, function, file, line, buffer.IsEmpty () ? L"<none>" : buffer));
 }
 
 /*
@@ -100,7 +99,7 @@ CString _r_fmt_size64 (DWORDLONG size)
 	System messages
 */
 
-INT _r_msg (HWND hwnd, UINT type, LPCWSTR title, LPCWSTR format, ...)
+INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR format, ...)
 {
 	CString buffer;
 
@@ -115,42 +114,33 @@ INT _r_msg (HWND hwnd, UINT type, LPCWSTR title, LPCWSTR format, ...)
 
 	if (_r_system_validversion (6, 0))
 	{
-		TASKDIALOGCONFIG tdc = {0};
-
-		tdc.cbSize = sizeof (tdc);
-		tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION;
-		tdc.hwndParent = hwnd;
-		tdc.pszWindowTitle = title;
-		tdc.pszContent = buffer;
-		tdc.pfCallback = _r_msg_callback;
-
-		if (IsWindowVisible (hwnd))
-		{
-			tdc.dwFlags |= TDF_POSITION_RELATIVE_TO_WINDOW;
-		}
-
 		TDI _TaskDialogIndirect = (TDI)GetProcAddress (GetModuleHandle (L"comctl32.dll"), "TaskDialogIndirect");
-
-		if ((type & MB_YESNO) != 0)
-		{
-			tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
-		}
-
-		if ((type & MB_ICONEXCLAMATION) != 0)
-		{
-			tdc.pszMainIcon = TD_WARNING_ICON;
-		}
-		else if ((type & MB_ICONHAND) != 0)
-		{
-			tdc.pszMainIcon = TD_ERROR_ICON;
-		}
-		else if ((type & MB_ICONQUESTION) != 0 || (type & MB_ICONASTERISK) != 0)
-		{
-			tdc.pszMainIcon = TD_INFORMATION_ICON;
-		}
 
 		if (_TaskDialogIndirect)
 		{
+			TASKDIALOGCONFIG tdc = {0};
+
+			tdc.cbSize = sizeof (TASKDIALOGCONFIG);
+			tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
+			tdc.hwndParent = hwnd;
+			tdc.pszWindowTitle = title;
+			tdc.pszContent = buffer;
+			tdc.pfCallback = _r_msg_callback;
+
+			// flags
+			if (IsWindowVisible (hwnd)) { tdc.dwFlags |= TDF_POSITION_RELATIVE_TO_WINDOW; }
+
+			// buttons
+			if ((flags & MB_TYPEMASK) == MB_YESNO) { tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON; }
+			if ((flags & MB_TYPEMASK) == MB_YESNOCANCEL) { tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON | TDCBF_CANCEL_BUTTON; }
+			else if ((flags & MB_TYPEMASK) == MB_OKCANCEL) { tdc.dwCommonButtons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON; }
+
+			// icons
+			if ((flags & MB_ICONMASK) == MB_ICONASTERISK) { tdc.pszMainIcon = TD_INFORMATION_ICON; }
+			else if ((flags & MB_ICONMASK) == MB_ICONEXCLAMATION) { tdc.pszMainIcon = TD_WARNING_ICON; }
+			else if ((flags & MB_ICONMASK) == MB_ICONQUESTION) { tdc.pszMainIcon = MAKEINTRESOURCE (IDI_QUESTION); }
+			else if ((flags & MB_ICONMASK) == MB_ICONHAND) { tdc.pszMainIcon = TD_ERROR_ICON; }
+
 			_TaskDialogIndirect (&tdc, &result, nullptr, nullptr);
 		}
 	}
@@ -159,9 +149,9 @@ INT _r_msg (HWND hwnd, UINT type, LPCWSTR title, LPCWSTR format, ...)
 	{
 		MSGBOXPARAMS mbp = {0};
 
-		mbp.cbSize = sizeof (mbp);
+		mbp.cbSize = sizeof (MSGBOXPARAMS);
 		mbp.hwndOwner = hwnd;
-		mbp.dwStyle = type | MB_TOPMOST;
+		mbp.dwStyle = flags | MB_TOPMOST;
 		mbp.lpszCaption = title;
 		mbp.lpszText = buffer;
 
@@ -647,14 +637,23 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d)
 	return result;
 }
 
-BOOL _r_run (LPCWSTR path, LPWSTR cmdline)
+BOOL _r_run (LPCWSTR path, LPWSTR cmdline, LPCWSTR cd)
 {
 	STARTUPINFO si = {0};
 	PROCESS_INFORMATION pi = {0};
 
 	si.cb = sizeof (si);
 
-	return CreateProcess (path, cmdline, nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi);
+	return CreateProcess (path, cmdline, nullptr, nullptr, FALSE, 0, nullptr, cd, &si, &pi);
+}
+
+CString _r_normalize_path (LPCWSTR path)
+{
+	WCHAR result[MAX_PATH];
+
+	PathSearchAndQualify (path, result, _countof (result));
+
+	return result;
 }
 
 /*

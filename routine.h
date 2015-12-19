@@ -94,7 +94,7 @@ CString _r_fmt_size64 (DWORDLONG size);
 #define WMSG1(a) _r_msg (nullptr, 0, nullptr, L"%s", a)
 #define WMSG2(a, ...) _r_msg (nullptr, 0, nullptr, a, __VA_ARGS__)
 
-INT _r_msg (HWND hwnd, UINT type, LPCWSTR title, LPCWSTR format, ...);
+INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR format, ...);
 HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR ref);
 
 /*
@@ -151,7 +151,8 @@ VOID _r_windowtotop (HWND hwnd, BOOL enable);
 */
 
 HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d);
-BOOL _r_run (LPCWSTR path, LPWSTR cmdline);
+BOOL _r_run (LPCWSTR path, LPWSTR cmdline, LPCWSTR cd);
+CString _r_normalize_path (LPCWSTR path);
 
 /*
 	Control: common

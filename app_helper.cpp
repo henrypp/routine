@@ -307,7 +307,7 @@ VOID CApp::CreateAboutWindow ()
 	const INT architecture = 32;
 #endif // _WIN64
 
-	HWND hwnd = CreateWindowEx (WS_EX_TOPMOST | WS_EX_DLGMODALFRAME, _APP_ABOUT_CLASS, L"About", WS_CAPTION | WS_SYSMENU | WS_BORDER, CW_USEDEFAULT, CW_USEDEFAULT, this->GetDPI (388), this->GetDPI (124), this->GetHWND (), nullptr, this->GetHINSTANCE (), nullptr);
+	HWND hwnd = CreateWindowEx (WS_EX_TOPMOST | WS_EX_DLGMODALFRAME, _APP_ABOUT_CLASS, L"About", WS_CAPTION | WS_SYSMENU | WS_BORDER, CW_USEDEFAULT, CW_USEDEFAULT, this->GetDPI (388), this->GetDPI (126), this->GetHWND (), nullptr, this->GetHINSTANCE (), nullptr);
 
 	// create controls
 	HWND hctrl = CreateWindowEx (0, WC_STATIC, nullptr, WS_CHILD | WS_VISIBLE | SS_ICON, this->GetDPI (12), this->GetDPI (12), this->GetDPI (64), this->GetDPI (64), hwnd, nullptr, nullptr, nullptr);
@@ -359,8 +359,8 @@ BOOL CApp::CreateMainWindow (DLGPROC proc)
 			_r_windowtotop (this->GetHWND (), this->ConfigGet (L"AlwaysOnTop", 0));
 
 			// set icons
-			SendMessage (this->GetHWND (), WM_SETICON, ICON_SMALL, (LPARAM)_r_loadicon (this->GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), GetSystemMetrics (SM_CXSMICON)));
-			SendMessage (this->GetHWND (), WM_SETICON, ICON_BIG, (LPARAM)_r_loadicon (this->GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), GetSystemMetrics (SM_CXICON)));
+			SetClassLongPtr (this->GetHWND (), GCLP_HICON, (LONG_PTR)_r_loadicon (this->GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), GetSystemMetrics (SM_CXICON)));
+			SetClassLongPtr (this->GetHWND (), GCLP_HICONSM, (LONG_PTR)_r_loadicon (this->GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), GetSystemMetrics (SM_CXSMICON)));
 
 			result = TRUE;
 		}
@@ -444,7 +444,7 @@ VOID CApp::Restart ()
 		this->app_mutex = nullptr;
 	}
 
-	if (_r_run (buffer, nullptr))
+	if (_r_run (buffer, nullptr, nullptr))
 	{
 		if (this->GetHWND ())
 		{
