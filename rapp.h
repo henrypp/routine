@@ -1,7 +1,7 @@
-// application helper library
-// Copyright (c) 2013-2015 Henry++
+// routine++
+// Copyright (c) 2012-2016 Henry++
 
-// lastmod: Dec 13, 2015
+// lastmod: Jan 9, 2016
 
 #pragma once
 
@@ -13,7 +13,7 @@
 #include <shlobj.h>
 #include <comdef.h>
 
-#include "app_config.h"
+#include "rconfig.h"
 
 // libs
 #pragma comment(lib, "comsupp.lib")
@@ -46,7 +46,7 @@ typedef struct
 
 	UINT dlg_id;
 
-	CString title;
+	rstring title;
 
 	APPLICATION_CALLBACK callback;
 } *PAPPLICATION_PAGE, APPLICATION_PAGE;
@@ -57,13 +57,13 @@ typedef struct
 	Application class
 */
 
-class CApp
+class rapp
 {
 
 public:
 
-	CApp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright);
-	~CApp ();
+	rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright);
+	~rapp ();
 
 	VOID AutorunCreate (BOOL is_remove);
 	BOOL AutorunIsPresent ();
@@ -73,7 +73,7 @@ public:
 #endif // _APP_NO_UPDATES
 
 	DWORD ConfigGet (LPCWSTR key, INT def, LPCWSTR name = nullptr);
-	CString ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name = nullptr);
+	rstring ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name = nullptr);
 
 	BOOL ConfigSet (LPCWSTR key, DWORD val, LPCWSTR name = nullptr);
 	BOOL ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name = nullptr);
@@ -89,12 +89,12 @@ public:
 	VOID AddSettingsPage (HINSTANCE h, UINT dlg_id, LPCWSTR title, APPLICATION_CALLBACK callback);
 #endif // _APP_NO_SETTINGS
 
-	CString GetDirectory ();
-	CString GetProfileDirectory ();
+	rstring GetDirectory ();
+	rstring GetProfileDirectory ();
 
-	CString GetUserAgent ();
+	rstring GetUserAgent ();
 
-	INT GetDPI (INT val);
+	INT GetDPI (INT v);
 	HINSTANCE GetHINSTANCE ();
 	HWND GetHWND ();
 
@@ -103,8 +103,7 @@ public:
 	VOID Restart ();
 
 	VOID LocaleEnum (HWND hwnd, INT ctrl_id);
-	VOID LocaleInit (LPCWSTR name);
-	CString LocaleString (HINSTANCE h, UINT id, LPCWSTR name);
+	rstring LocaleString (HINSTANCE h, UINT id, LPCWSTR name);
 	VOID LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position);
 
 #ifdef _APP_NO_UAC
@@ -128,9 +127,10 @@ private:
 	static UINT WINAPI CheckForUpdatesProc (LPVOID lparam);
 #endif // _APP_NO_UPDATES
 
-	BOOL ParseINI (LPCWSTR path, IniMap* map);
+	BOOL ParseINI (LPCWSTR path, rstring::map_two* map);
 
 	VOID ConfigInit ();
+	VOID LocaleInit ();
 
 	DOUBLE dpi_percent = 0.f;
 
@@ -159,8 +159,8 @@ private:
 	WCHAR app_version[MAX_PATH];
 	WCHAR app_copyright[MAX_PATH];
 
-	IniMap app_config_array;
-	IniMap app_locale_array;
+	rstring::map_two app_config_array;
+	rstring::map_two app_locale_array;
 
 #ifndef _APP_NO_SETTINGS
 	std::vector<PAPPLICATION_PAGE> app_settings_pages;

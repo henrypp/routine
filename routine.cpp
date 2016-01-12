@@ -1,5 +1,5 @@
 // routine++
-// Copyright (c) 2013-2015 Henry++
+// Copyright (c) 2012-2016 Henry++
 
 #include "routine.h"
 
@@ -9,7 +9,7 @@
 
 VOID _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...)
 {
-	CString buffer;
+	rstring buffer;
 
 	DWORD dwLE = GetLastError ();
 	DWORD dwPID = GetCurrentProcessId ();
@@ -26,43 +26,46 @@ VOID _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...)
 		buffer.FormatV (format, args);
 
 		va_end (args);
-	}
 
-	OutputDebugString (_r_fmt (L"[%02d:%02d:%02d] PID=%04d, TID=%04d, LE=%d (0x%x), FN=%s, FL=%s:%d, T=%s\r\n", lt.wHour, lt.wMinute, lt.wSecond, dwPID, dwTID, dwLE, dwLE, function, file, line, buffer.IsEmpty () ? L"<none>" : buffer));
+		OutputDebugString (_r_fmt (L"[%02d:%02d:%02d] PID=%04d, TID=%04d, LE=%d (0x%x), FN=%s, FL=%s:%d, T=%s\r\n", lt.wHour, lt.wMinute, lt.wSecond, dwPID, dwTID, dwLE, dwLE, function, file, line, buffer.IsEmpty () ? L"<none>" : buffer));
+	}
+	else
+	{
+		OutputDebugString (L"\r\n");
+	}
 }
 
 /*
 	Format strings, dates, numbers
 */
 
-CString _r_fmt (LPCWSTR format, ...)
+rstring _r_fmt (LPCWSTR format, ...)
 {
-	CString buffer;
+	rstring result;
 
 	va_list args = nullptr;
 	va_start (args, format);
 
-	StringCchVPrintf (buffer.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH, format, args);
-	buffer.ReleaseBuffer ();
+	result.FormatV (format, args);
 
 	va_end (args);
 
-	return buffer;
+	return result;
 }
 
-CString _r_fmt_date (LPFILETIME ft, const DWORD flags)
+rstring _r_fmt_date (LPFILETIME ft, const DWORD flags)
 {
 	DWORD pflags = flags;
 
-	CString buffer;
+	rstring result;
 
-	SHFormatDateTime (ft, &pflags, buffer.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH);
-	buffer.ReleaseBuffer ();
+	SHFormatDateTime (ft, &pflags, result.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH);
+	result.ReleaseBuffer ();
 
-	return buffer;
+	return result;
 }
 
-CString _r_fmt_date (__time64_t ut, const DWORD flags)
+rstring _r_fmt_date (__time64_t ut, const DWORD flags)
 {
 	FILETIME ft = {0};
 
@@ -71,9 +74,11 @@ CString _r_fmt_date (__time64_t ut, const DWORD flags)
 	return _r_fmt_date (&ft, flags);
 }
 
-CString _r_fmt_size64 (DWORDLONG size)
+rstring _r_fmt_size64 (DWORDLONG size)
 {
-	static const wchar_t *sizes[] = {L"B", L"KB", L"MB", L"GB", L"TB", L"PB"};
+	static const WCHAR *sizes[] = {L"B", L"KB", L"MB", L"GB", L"TB", L"PB"};
+
+	rstring result;
 
 	INT div = 0;
 	SIZE_T rem = 0;
@@ -85,14 +90,12 @@ CString _r_fmt_size64 (DWORDLONG size)
 		size /= 1024;
 	}
 
-	double size_d = (float)size + (float)rem / 1024.0;
+	double size_d = double (size) + double (rem) / 1024.0;
 
 	size_d += 0.001; // round up
 
-	CString buffer;
-	buffer.Format (L"%.2f %s", size_d, sizes[div]);
 
-	return buffer;
+	return result.Format (L"%.2f %s", size_d, sizes[div]);
 }
 
 /*
@@ -101,7 +104,7 @@ CString _r_fmt_size64 (DWORDLONG size)
 
 INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR format, ...)
 {
-	CString buffer;
+	rstring buffer;
 
 	INT result = 0;
 
@@ -125,7 +128,7 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR format, ...)
 			tdc.hwndParent = hwnd;
 			tdc.pszWindowTitle = title;
 			tdc.pszContent = buffer;
-			tdc.pfCallback = _r_msg_callback;
+			tdc.pfCallback = &_r_msg_callback;
 
 			// flags
 			if (IsWindowVisible (hwnd)) { tdc.dwFlags |= TDF_POSITION_RELATIVE_TO_WINDOW; }
@@ -134,11 +137,12 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR format, ...)
 			if ((flags & MB_TYPEMASK) == MB_YESNO) { tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON; }
 			if ((flags & MB_TYPEMASK) == MB_YESNOCANCEL) { tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON | TDCBF_CANCEL_BUTTON; }
 			else if ((flags & MB_TYPEMASK) == MB_OKCANCEL) { tdc.dwCommonButtons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON; }
+			else if ((flags & MB_TYPEMASK) == MB_RETRYCANCEL) { tdc.dwCommonButtons = TDCBF_RETRY_BUTTON | TDCBF_CANCEL_BUTTON; }
 
 			// icons
 			if ((flags & MB_ICONMASK) == MB_ICONASTERISK) { tdc.pszMainIcon = TD_INFORMATION_ICON; }
 			else if ((flags & MB_ICONMASK) == MB_ICONEXCLAMATION) { tdc.pszMainIcon = TD_WARNING_ICON; }
-			else if ((flags & MB_ICONMASK) == MB_ICONQUESTION) { tdc.pszMainIcon = MAKEINTRESOURCE (IDI_QUESTION); }
+			else if ((flags & MB_ICONMASK) == MB_ICONQUESTION) { tdc.pszMainIcon = IDI_QUESTION; }
 			else if ((flags & MB_ICONMASK) == MB_ICONHAND) { tdc.pszMainIcon = TD_ERROR_ICON; }
 
 			_TaskDialogIndirect (&tdc, &result, nullptr, nullptr);
@@ -168,12 +172,22 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 		case TDN_CREATED:
 		{
 			_r_windowtotop (hwnd, TRUE);
+
+			return TRUE;
+		}
+
+		case TDN_DIALOG_CONSTRUCTED:
+		{
+			SendMessage (hwnd, WM_SETICON, ICON_SMALL, 0);
+			SendMessage (hwnd, WM_SETICON, ICON_BIG, 0);
+
 			return TRUE;
 		}
 
 		case TDN_HYPERLINK_CLICKED:
 		{
 			ShellExecute (hwnd, nullptr, (LPCWSTR)lparam, nullptr, nullptr, SW_SHOWDEFAULT);
+
 			return TRUE;
 		}
 	}
@@ -185,9 +199,9 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 	Clipboard operations
 */
 
-CString _r_clipboard_get (HWND hwnd)
+rstring _r_clipboard_get (HWND hwnd)
 {
-	CString buffer;
+	rstring result;
 
 	if (OpenClipboard (hwnd))
 	{
@@ -195,7 +209,7 @@ CString _r_clipboard_get (HWND hwnd)
 
 		if (h)
 		{
-			buffer = (LPCWSTR)GlobalLock (h);
+			result = LPCWSTR (GlobalLock (h));
 
 			GlobalUnlock (h);
 		}
@@ -203,7 +217,7 @@ CString _r_clipboard_get (HWND hwnd)
 
 	CloseClipboard ();
 
-	return buffer;
+	return result;
 }
 
 VOID _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length)
@@ -246,35 +260,47 @@ DWORD64 _r_file_size (HANDLE h)
 }
 
 /*
-	Strings
+	Processes
 */
 
-size_t _r_str_length (LPCWSTR str)
+BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 {
-	size_t result = 0;
+	BOOL result = FALSE;
+	DWORD pid[1024] = {0}, cb = 0;
 
-	StringCchLength (str, STRSAFE_MAX_CCH, &result);
+	WCHAR buff[MAX_PATH] = {0};
+
+	_r_system_setprivilege (SE_DEBUG_NAME, TRUE);
+
+	if (EnumProcesses (pid, sizeof (pid), &cb))
+	{
+		for (DWORD i = 0; i < (cb / sizeof (DWORD)); i++)
+		{
+			if (pid[i])
+			{
+				HANDLE h = OpenProcess (PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid[i]);
+
+				if (h)
+				{
+					GetModuleFileNameEx (h, nullptr, buff, _countof (buff));
+					CloseHandle (h);
+
+					if (_wcsnicmp (path, buff, len) == 0)
+					{
+						result = TRUE;
+						break;
+					}
+				}
+			}
+		}
+	}
 
 	return result;
 }
 
-VOID _r_str_split (CString str, LPCWSTR delim, std::vector<CString>* pvc)
-{
-	if (pvc)
-	{
-		INT pos = 0;
-		CString token = str.Tokenize (delim, pos);
-
-		pvc->clear ();
-
-		while (!token.IsEmpty ())
-		{
-			pvc->push_back (token);
-
-			token = str.Tokenize (delim, pos);
-		}
-	}
-}
+/*
+	Strings
+*/
 
 /*
 	return 1 if v1 > v2
@@ -429,7 +455,7 @@ BOOL _r_system_iswow64 ()
 	return result;
 }
 
-BOOL _r_system_setprivilege (LPCWSTR privilege, BOOL enable)
+BOOL _r_system_setprivilege (LPCWSTR privilege, BOOL is_enable)
 {
 	HANDLE token = nullptr;
 
@@ -444,9 +470,9 @@ BOOL _r_system_setprivilege (LPCWSTR privilege, BOOL enable)
 		{
 			tp.PrivilegeCount = 1;
 			tp.Privileges[0].Luid = luid;
-			tp.Privileges[0].Attributes = enable ? SE_PRIVILEGE_ENABLED : SE_PRIVILEGE_REMOVED;
+			tp.Privileges[0].Attributes = is_enable ? SE_PRIVILEGE_ENABLED : SE_PRIVILEGE_REMOVED;
 
-			if (AdjustTokenPrivileges (token, FALSE, &tp, sizeof (tp), nullptr, nullptr) && GetLastError () == ERROR_SUCCESS)
+			if (AdjustTokenPrivileges (token, FALSE, &tp, sizeof (TOKEN_PRIVILEGES), nullptr, nullptr) && GetLastError () == ERROR_SUCCESS)
 			{
 				result = TRUE;
 			}
@@ -466,23 +492,22 @@ BOOL _r_system_uacstate ()
 	HANDLE token = nullptr;
 	DWORD out_length = 0;
 	TOKEN_ELEVATION_TYPE tet;
+	BOOL result = FALSE;
 
-	if (!_r_system_validversion (6, 0))
+	if (_r_system_validversion (6, 0))
 	{
-		return FALSE;
+		if (OpenProcessToken (GetCurrentProcess (), TOKEN_QUERY, &token) && GetTokenInformation (token, TokenElevationType, &tet, sizeof (TOKEN_ELEVATION_TYPE), &out_length) && tet == TokenElevationTypeLimited)
+		{
+			result = TRUE;
+		}
+
+		if (token)
+		{
+			CloseHandle (token);
+		}
 	}
 
-	if (OpenProcessToken (GetCurrentProcess (), TOKEN_QUERY, &token) && GetTokenInformation (token, TokenElevationType, &tet, sizeof (TOKEN_ELEVATION_TYPE), &out_length) && tet == TokenElevationTypeLimited)
-	{
-		return TRUE;
-	}
-
-	if (token)
-	{
-		CloseHandle (token);
-	}
-
-	return FALSE;
+	return result;
 }
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms725494(v=vs.85).aspx
@@ -569,7 +594,7 @@ BOOL _r_window_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 
 	if (_r_system_validversion (6, 0))
 	{
-		CWMFEX _cwmfex = (CWMFEX)GetProcAddress (GetModuleHandle (L"user32.dll"), "ChangeWindowMessageFilterEx"); // Win7
+		CWMFEX _cwmfex = (CWMFEX)GetProcAddress (GetModuleHandle (L"user32.dll"), "ChangeWindowMessageFilterEx"); // win 7
 
 		if (_cwmfex)
 		{
@@ -577,7 +602,7 @@ BOOL _r_window_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 		}
 		else
 		{
-			CWMF _cwmf = (CWMF)GetProcAddress (GetModuleHandle (L"user32.dll"), "ChangeWindowMessageFilter"); // Vista
+			CWMF _cwmf = (CWMF)GetProcAddress (GetModuleHandle (L"user32.dll"), "ChangeWindowMessageFilter"); // vista
 
 			if (_cwmf)
 			{
@@ -597,7 +622,7 @@ VOID _r_windowtoggle (HWND hwnd, BOOL show)
 
 		if (GetLastError () == ERROR_ACCESS_DENIED)
 		{
-			SendMessage (hwnd, WM_SYSCOMMAND, SC_RESTORE, NULL); // uipi fix
+			SendMessage (hwnd, WM_SYSCOMMAND, SC_RESTORE, 0); // uipi fix
 		}
 
 		SetForegroundWindow (hwnd);
@@ -609,9 +634,9 @@ VOID _r_windowtoggle (HWND hwnd, BOOL show)
 	}
 }
 
-VOID _r_windowtotop (HWND hwnd, BOOL enable)
+VOID _r_windowtotop (HWND hwnd, BOOL is_enable)
 {
-	SetWindowPos (hwnd, (enable ? HWND_TOPMOST : HWND_NOTOPMOST), 0, 0, 0, 0, SWP_NOOWNERZORDER | SWP_NOMOVE | SWP_NOSIZE);
+	SetWindowPos (hwnd, (is_enable ? HWND_TOPMOST : HWND_NOTOPMOST), 0, 0, 0, 0, SWP_NOOWNERZORDER | SWP_NOMOVE | SWP_NOSIZE);
 }
 
 /*
@@ -642,16 +667,17 @@ BOOL _r_run (LPCWSTR path, LPWSTR cmdline, LPCWSTR cd)
 	STARTUPINFO si = {0};
 	PROCESS_INFORMATION pi = {0};
 
-	si.cb = sizeof (si);
+	si.cb = sizeof (STARTUPINFO);
 
 	return CreateProcess (path, cmdline, nullptr, nullptr, FALSE, 0, nullptr, cd, &si, &pi);
 }
 
-CString _r_normalize_path (LPCWSTR path)
+rstring _r_normalize_path (LPCWSTR path)
 {
-	WCHAR result[MAX_PATH];
+	rstring result;
 
-	PathSearchAndQualify (path, result, _countof (result));
+	PathSearchAndQualify (path, result.GetBuffer (MAX_PATH), MAX_PATH);
+	result.ReleaseBuffer ();
 
 	return result;
 }
@@ -660,7 +686,36 @@ CString _r_normalize_path (LPCWSTR path)
 	Control: common
 */
 
-HWND _r_ctrl_settip (HWND hwnd, INT ctrl, LPWSTR text)
+VOID _r_ctrl_enable (HWND hwnd, INT ctrl, BOOL is_enable)
+{
+	EnableWindow (GetDlgItem (hwnd, ctrl), is_enable);
+}
+
+rstring _r_ctrl_gettext (HWND hwnd, INT ctrl)
+{
+	size_t length = (size_t)SendDlgItemMessage (hwnd, ctrl, WM_GETTEXTLENGTH, 0, 0) + 1;
+	rstring result;
+
+	GetDlgItemText (hwnd, ctrl, result.GetBuffer (length), length);
+	result.ReleaseBuffer ();
+
+	return result;
+}
+
+VOID _r_ctrl_settext (HWND hwnd, INT ctrl, LPCWSTR str, ...)
+{
+	rstring buffer;
+
+	va_list args = nullptr;
+	va_start (args, str);
+
+	buffer.FormatV (str, args);
+	SetDlgItemText (hwnd, ctrl, buffer);
+
+	va_end (args);
+}
+
+HWND _r_ctrl_settip (HWND hwnd, INT ctrl, LPCWSTR text)
 {
 	HWND tip = CreateWindowEx (0, TOOLTIPS_CLASS, nullptr, WS_POPUP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, GetModuleHandle (nullptr), nullptr);
 
@@ -669,7 +724,7 @@ HWND _r_ctrl_settip (HWND hwnd, INT ctrl, LPWSTR text)
 	ti.cbSize = sizeof (TOOLINFO);
 	ti.hwnd = hwnd;
 	ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
-	ti.lpszText = text;
+	ti.lpszText = (LPWSTR)text;
 	ti.uId = (UINT_PTR)GetDlgItem (hwnd, ctrl);
 
 	SendMessage (tip, TTM_ADDTOOL, 0, (LPARAM)&ti);
@@ -677,7 +732,7 @@ HWND _r_ctrl_settip (HWND hwnd, INT ctrl, LPWSTR text)
 	return tip;
 }
 
-BOOL _r_ctrl_showbaloontip (HWND hwnd, INT ctrl, LPCWSTR title, LPCWSTR text, INT icon)
+BOOL _r_ctrl_showtip (HWND hwnd, INT ctrl, LPCWSTR title, LPCWSTR text, INT icon)
 {
 	EDITBALLOONTIP ebt = {0};
 
@@ -829,12 +884,12 @@ LPARAM _r_listview_getlparam (HWND hwnd, INT ctrl, INT item)
 	return lvi.lParam;
 }
 
-CString _r_listview_gettext (HWND hwnd, INT ctrl, INT item, INT subitem)
+rstring _r_listview_gettext (HWND hwnd, INT ctrl, INT item, INT subitem)
 {
-	CString buffer;
+	rstring result;
 
-	DWORD length = 0;
-	DWORD out_length = 0;
+	size_t length = 0;
+	size_t out_length = 0;
 
 	LVITEM lvi = {0};
 
@@ -844,16 +899,15 @@ CString _r_listview_gettext (HWND hwnd, INT ctrl, INT item, INT subitem)
 	{
 		length += _R_BUFFER_LENGTH;
 
-		lvi.pszText = buffer.GetBuffer (length);
+		lvi.pszText = result.GetBuffer (length);
 		lvi.cchTextMax = length;
 
-		out_length = (DWORD)SendDlgItemMessage (hwnd, ctrl, LVM_GETITEMTEXT, item, (LPARAM)&lvi);
-
-		buffer.ReleaseBuffer ();
+		out_length = (size_t)SendDlgItemMessage (hwnd, ctrl, LVM_GETITEMTEXT, item, (LPARAM)&lvi);
+		result.ReleaseBuffer ();
 	}
 	while (out_length == (length - 1));
 
-	return buffer;
+	return result;
 }
 
 DWORD _r_listview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle)
@@ -933,7 +987,7 @@ VOID _r_status_setstyle (HWND hwnd, INT ctrl, INT height)
 	Control: trayicon
 */
 
-VOID _r_tray_balloontip (PNOTIFYICONDATA pnid, DWORD icon, LPCWSTR title, LPCWSTR text)
+VOID _r_tray_showtip (PNOTIFYICONDATA pnid, DWORD icon, LPCWSTR title, LPCWSTR text)
 {
 	pnid->uFlags = NIF_INFO;
 	pnid->dwInfoFlags = NIIF_RESPECT_QUIET_TIME | NIIF_LARGE_ICON | icon;

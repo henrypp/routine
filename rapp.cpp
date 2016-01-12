@@ -1,9 +1,9 @@
-// application helper library
-// Copyright (c) 2013-2015 Henry++
+// routine++
+// Copyright (c) 2012-2016 Henry++
 
-#include "app_helper.h"
+#include "rapp.h"
 
-CApp::CApp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright)
+rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright)
 {
 	// initialize controls
 	INITCOMMONCONTROLSEX icex = {0};
@@ -79,22 +79,22 @@ CApp::CApp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 		HDC h = GetDC (nullptr);
 
 		// get dpi
-		this->dpi_percent = (DOUBLE)GetDeviceCaps (h, LOGPIXELSX) / 96.0f;
+		this->dpi_percent = DOUBLE (GetDeviceCaps (h, LOGPIXELSX)) / 96.0f;
 
 #ifndef _APP_NO_ABOUT
 
 		// create window class
-		WNDCLASSEX wcx = {0};
-
-		wcx.cbSize = sizeof (WNDCLASSEX);
-		wcx.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
-		wcx.lpfnWndProc = this->AboutWndProc;
-		wcx.hInstance = this->GetHINSTANCE ();
-		wcx.lpszClassName = _APP_ABOUT_CLASS;
-		wcx.hbrBackground = GetSysColorBrush (COLOR_3DFACE);
-
 		if (!GetClassInfoEx (this->GetHINSTANCE (), _APP_ABOUT_CLASS, nullptr))
 		{
+			WNDCLASSEX wcx = {0};
+
+			wcx.cbSize = sizeof (WNDCLASSEX);
+			wcx.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
+			wcx.lpfnWndProc = &this->AboutWndProc;
+			wcx.hInstance = this->GetHINSTANCE ();
+			wcx.lpszClassName = _APP_ABOUT_CLASS;
+			wcx.hbrBackground = GetSysColorBrush (COLOR_3DFACE);
+
 			RegisterClassEx (&wcx);
 		}
 
@@ -106,24 +106,26 @@ CApp::CApp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 		lf.lfPitchAndFamily = FF_DONTCARE;
 		lf.lfWeight = FW_NORMAL;
 		lf.lfHeight = -MulDiv (9, GetDeviceCaps (h, LOGPIXELSY), 72);
+
 		StringCchCopy (lf.lfFaceName, _countof (lf.lfFaceName), L"MS Shell Dlg 2");
 
 		this->app_font = CreateFontIndirect (&lf);
+
+		// get logo
+#ifdef IDI_MAIN
+		this->app_logo = _r_loadicon (this->GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), this->GetDPI (64));
+#endif // IDI_MAIN
 
 #endif // _APP_NO_ABOUT
 
 		ReleaseDC (nullptr, h);
 
-		// get settings
+		// load settings
 		this->ConfigInit ();
-		this->LocaleInit (this->ConfigGet (L"Language", nullptr));
-
-		// get logo
-		this->app_logo = _r_loadicon (this->GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), this->GetDPI (64));
 	}
 }
 
-CApp::~CApp ()
+rapp::~rapp ()
 {
 	if (this->app_mutex)
 	{
@@ -141,7 +143,7 @@ CApp::~CApp ()
 
 	if (this->app_font)
 	{
-		DeleteObject(this->app_font);
+		DeleteObject (this->app_font);
 		this->app_font = nullptr;
 	}
 
@@ -161,7 +163,7 @@ CApp::~CApp ()
 #endif // _APP_NO_SETTINGS
 }
 
-VOID CApp::AutorunCreate (BOOL is_remove)
+VOID rapp::AutorunCreate (BOOL is_remove)
 {
 	HKEY key = nullptr;
 
@@ -181,14 +183,14 @@ VOID CApp::AutorunCreate (BOOL is_remove)
 			StringCchCat (buffer, _countof (buffer), L" ");
 			StringCchCat (buffer, _countof (buffer), L"/minimized");
 
-			RegSetValueEx (key, this->app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((_r_str_length (buffer) + 1) * sizeof (WCHAR)));
+			RegSetValueEx (key, this->app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) + 1) * sizeof (WCHAR)));
 		}
 
 		RegCloseKey (key);
 	}
 }
 
-BOOL CApp::AutorunIsPresent ()
+BOOL rapp::AutorunIsPresent ()
 {
 	HKEY key = nullptr;
 	BOOL result = FALSE;
@@ -221,11 +223,11 @@ BOOL CApp::AutorunIsPresent ()
 
 #ifndef _APP_NO_UPDATES
 
-VOID CApp::CheckForUpdates (BOOL is_periodical)
+VOID rapp::CheckForUpdates (BOOL is_periodical)
 {
 	if (is_periodical)
 	{
-		if (!this->ConfigGet (L"CheckUpdates", 1) || (_r_unixtime_now () - this->ConfigGet (L"CheckUpdatesLast", 0)) <= (86400 * _APP_UPDATE_PERIOD))
+		if (!this->ConfigGet (L"CheckUpdates", 1) || (_r_unixtime_now () - this->ConfigGet (L"CheckUpdatesLast", 0)) <= _APP_UPDATE_PERIOD)
 		{
 			return;
 		}
@@ -238,35 +240,39 @@ VOID CApp::CheckForUpdates (BOOL is_periodical)
 
 #endif // _APP_NO_UPDATES
 
-VOID CApp::ConfigInit ()
+VOID rapp::ConfigInit ()
 {
 	this->app_config_array.clear (); // reset
 
 	this->ParseINI (this->app_config_path, &this->app_config_array);
+
+	this->LocaleInit ();
 }
 
-DWORD CApp::ConfigGet (LPCWSTR key, INT def, LPCWSTR name)
+DWORD rapp::ConfigGet (LPCWSTR key, INT def, LPCWSTR name)
 {
-	return wcstoul (this->ConfigGet (key, _r_fmt (L"%i", def), name), nullptr, 10);
+	return this->ConfigGet (key, _r_fmt (L"%i", def), name).AsInt (10);
 }
 
-CString CApp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
+rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 {
+	rstring result = def;
+
 	if (!name)
 	{
 		name = this->app_name_short;
 	}
 
 	// check key is exists
-	if (this->app_config_array.find (name) == this->app_config_array.end () || this->app_config_array[name].find (key) == this->app_config_array[name].end ())
+	if (this->app_config_array.find (name) != this->app_config_array.end () && this->app_config_array[name].find (key) != this->app_config_array[name].end ())
 	{
-		return def;
+		result = this->app_config_array[name][key];
 	}
 
-	return this->app_config_array[name][key];
+	return result;
 }
 
-BOOL CApp::ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name)
+BOOL rapp::ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name)
 {
 	if (!_r_file_is_exists (this->app_profile_directory))
 	{
@@ -284,7 +290,7 @@ BOOL CApp::ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name)
 	return WritePrivateProfileString (name, key, val, this->app_config_path);
 }
 
-BOOL CApp::ConfigSet (LPCWSTR key, DWORD val, LPCWSTR name)
+BOOL rapp::ConfigSet (LPCWSTR key, DWORD val, LPCWSTR name)
 {
 
 #ifdef _WIN64
@@ -297,7 +303,7 @@ BOOL CApp::ConfigSet (LPCWSTR key, DWORD val, LPCWSTR name)
 
 #ifndef _APP_NO_ABOUT
 
-VOID CApp::CreateAboutWindow ()
+VOID rapp::CreateAboutWindow ()
 {
 	MSG msg = {0};
 
@@ -307,71 +313,91 @@ VOID CApp::CreateAboutWindow ()
 	const INT architecture = 32;
 #endif // _WIN64
 
-	HWND hwnd = CreateWindowEx (WS_EX_TOPMOST | WS_EX_DLGMODALFRAME, _APP_ABOUT_CLASS, L"About", WS_CAPTION | WS_SYSMENU | WS_BORDER, CW_USEDEFAULT, CW_USEDEFAULT, this->GetDPI (388), this->GetDPI (126), this->GetHWND (), nullptr, this->GetHINSTANCE (), nullptr);
+	RECT rc = {0};
 
-	// create controls
-	HWND hctrl = CreateWindowEx (0, WC_STATIC, nullptr, WS_CHILD | WS_VISIBLE | SS_ICON, this->GetDPI (12), this->GetDPI (12), this->GetDPI (64), this->GetDPI (64), hwnd, nullptr, nullptr, nullptr);
-	SendMessage (hctrl, STM_SETIMAGE, IMAGE_ICON, (LPARAM)this->app_logo);
+	rc.right = this->GetDPI (388);
+	rc.bottom = this->GetDPI (126);
 
-	hctrl = CreateWindowEx (0, WC_STATIC, _r_fmt (L"%s v%s (%i-bit)", this->app_name, this->app_version, architecture), WS_CHILD | WS_VISIBLE, this->GetDPI (88), this->GetDPI (14), this->GetDPI (270), this->GetDPI (16), hwnd, nullptr, nullptr, nullptr);
-	SendMessage (hctrl, WM_SETFONT, (WPARAM)this->app_font, TRUE);
+	AdjustWindowRectEx (&rc, WS_SYSMENU | WS_BORDER, FALSE, WS_EX_DLGMODALFRAME);
 
-	hctrl = CreateWindowEx (0, WC_STATIC, this->app_copyright, WS_CHILD | WS_VISIBLE, this->GetDPI (88), this->GetDPI (36), this->GetDPI (270), this->GetDPI (16), hwnd, nullptr, nullptr, nullptr);
-	SendMessage (hctrl, WM_SETFONT, (WPARAM)this->app_font, TRUE);
+	HWND hwnd = CreateWindowEx (WS_EX_TOPMOST | WS_EX_DLGMODALFRAME, _APP_ABOUT_CLASS, I18N (this, IDS_ABOUT, 0), WS_SYSMENU | WS_BORDER, CW_USEDEFAULT, CW_USEDEFAULT, rc.right, rc.bottom, this->GetHWND (), nullptr, this->GetHINSTANCE (), nullptr);
 
-	hctrl = CreateWindowEx (0, WC_LINK, _r_fmt (L"<a href=\"%s\">Website</a> | <a href=\"%s\">GitHub</a> | <a href=\"%s/%s/blob/master/LICENSE\">License agreement</a>", _APP_WEBSITE_URL, _APP_GITHUB_URL, _APP_GITHUB_URL, this->app_name_short), WS_CHILD | WS_VISIBLE, this->GetDPI (88), this->GetDPI (58), this->GetDPI (270), this->GetDPI (16), hwnd, nullptr, nullptr, nullptr);
-	SendMessage (hctrl, WM_SETFONT, (WPARAM)this->app_font, TRUE);
-
-	ShowWindow (hwnd, SW_SHOW);
-	UpdateWindow (hwnd);
-
-	while (GetMessage (&msg, nullptr, 0, 0) > 0)
+	if (hwnd)
 	{
-		if (!IsDialogMessage (hwnd, &msg))
+		HMENU menu = GetSystemMenu (hwnd, FALSE);
+
+		DeleteMenu (menu, SC_RESTORE, MF_BYCOMMAND);
+		DeleteMenu (menu, SC_SIZE, MF_BYCOMMAND);
+		DeleteMenu (menu, SC_MINIMIZE, MF_BYCOMMAND);
+		DeleteMenu (menu, SC_MAXIMIZE, MF_BYCOMMAND);
+		DeleteMenu (menu, 1, MF_BYPOSITION); // divider
+
+		//SetWindowPos (hwnd, nullptr, 0, 0, this->GetDPI (300), this->GetDPI (120), SWP_NOOWNERZORDER | SWP_NOMOVE);
+
+		// create controls
+		HWND hctrl = CreateWindowEx (0, WC_STATIC, nullptr, WS_CHILD | WS_VISIBLE | SS_ICON, this->GetDPI (12), this->GetDPI (12), this->GetDPI (64), this->GetDPI (64), hwnd, nullptr, nullptr, nullptr);
+		SendMessage (hctrl, STM_SETIMAGE, IMAGE_ICON, (LPARAM)this->app_logo);
+
+		hctrl = CreateWindowEx (0, WC_STATIC, _r_fmt (L"%s v%s (%i-bit)", this->app_name, this->app_version, architecture), WS_CHILD | WS_VISIBLE, this->GetDPI (88), this->GetDPI (14), this->GetDPI (270), this->GetDPI (16), hwnd, nullptr, nullptr, nullptr);
+		SendMessage (hctrl, WM_SETFONT, (WPARAM)this->app_font, TRUE);
+
+		hctrl = CreateWindowEx (0, WC_STATIC, this->app_copyright, WS_CHILD | WS_VISIBLE, this->GetDPI (88), this->GetDPI (36), this->GetDPI (270), this->GetDPI (16), hwnd, nullptr, nullptr, nullptr);
+		SendMessage (hctrl, WM_SETFONT, (WPARAM)this->app_font, TRUE);
+
+		hctrl = CreateWindowEx (0, WC_LINK, _r_fmt (L"<a href=\"%s\">Website</a> | <a href=\"%s\">GitHub</a> | <a href=\"%s/%s/blob/master/LICENSE\">License agreement</a>", _APP_WEBSITE_URL, _APP_GITHUB_URL, _APP_GITHUB_URL, this->app_name_short), WS_CHILD | WS_VISIBLE, this->GetDPI (88), this->GetDPI (58), this->GetDPI (270), this->GetDPI (16), hwnd, nullptr, nullptr, nullptr);
+		SendMessage (hctrl, WM_SETFONT, (WPARAM)this->app_font, TRUE);
+
+		ShowWindow (hwnd, SW_SHOW);
+
+		while (GetMessage (&msg, nullptr, 0, 0))
 		{
-			TranslateMessage (&msg);
-			DispatchMessage (&msg);
+			if (!IsDialogMessage (hwnd, &msg))
+			{
+				TranslateMessage (&msg);
+				DispatchMessage (&msg);
+			}
 		}
 	}
 }
 
 #endif // _APP_NO_ABOUT
 
-BOOL CApp::CreateMainWindow (DLGPROC proc)
+BOOL rapp::CreateMainWindow (DLGPROC proc)
 {
 	BOOL result = FALSE;
 
 	if (this->is_initialized)
 	{
 		// create window
+#ifdef IDD_MAIN
 		this->app_hwnd = CreateDialog (nullptr, MAKEINTRESOURCE (IDD_MAIN), nullptr, proc);
+#endif // IDD_MAIN
 
-		if (this->app_hwnd == nullptr)
+		if (!this->app_hwnd)
 		{
 			result = FALSE;
 		}
 		else
 		{
 			// set title
-			SetWindowText (this->GetHWND (), this->app_name);
+			SetWindowText (this->app_hwnd, this->app_name);
 
 			// set on top
-			_r_windowtotop (this->GetHWND (), this->ConfigGet (L"AlwaysOnTop", 0));
+			_r_windowtotop (this->app_hwnd, this->ConfigGet (L"AlwaysOnTop", 0));
 
 			// set icons
-			SetClassLongPtr (this->GetHWND (), GCLP_HICON, (LONG_PTR)_r_loadicon (this->GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), GetSystemMetrics (SM_CXICON)));
-			SetClassLongPtr (this->GetHWND (), GCLP_HICONSM, (LONG_PTR)_r_loadicon (this->GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), GetSystemMetrics (SM_CXSMICON)));
+#ifdef IDI_MAIN
+			SendMessage (this->app_hwnd, WM_SETICON, ICON_SMALL, (LPARAM)_r_loadicon (this->GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), GetSystemMetrics (SM_CXSMICON)));
+			SendMessage (this->app_hwnd, WM_SETICON, ICON_BIG, (LPARAM)_r_loadicon (this->GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), GetSystemMetrics (SM_CXICON)));
+#endif // IDI_MAIN
+
+			// check for updates
+#ifndef _APP_NO_UPDATES
+			this->CheckForUpdates (TRUE);
+#endif // _APP_NO_UPDATES
 
 			result = TRUE;
 		}
-
-		// check for updates
-#ifndef _APP_NO_UPDATES
-
-		this->CheckForUpdates (TRUE);
-
-#endif // _APP_NO_UPDATES
-
 	}
 
 	return result;
@@ -379,12 +405,23 @@ BOOL CApp::CreateMainWindow (DLGPROC proc)
 
 #ifndef _APP_NO_SETTINGS
 
-VOID CApp::CreateSettingsWindow ()
+VOID rapp::CreateSettingsWindow ()
 {
-	DialogBoxParam (nullptr, MAKEINTRESOURCE (IDD_SETTINGS), this->GetHWND (), this->SettingsWndProc, (LPARAM)this);
+	static bool is_opened = false;
+
+	if (!is_opened)
+	{
+		is_opened = true;
+
+#ifdef IDD_SETTINGS
+		DialogBoxParam (nullptr, MAKEINTRESOURCE (IDD_SETTINGS), this->GetHWND (), this->SettingsWndProc, (LPARAM)this);
+#endif // IDD_SETTINGS
+	}
+
+	is_opened = false;
 }
 
-VOID CApp::AddSettingsPage (HINSTANCE h, UINT dlg_id, LPCWSTR title, APPLICATION_CALLBACK callback)
+VOID rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, LPCWSTR title, APPLICATION_CALLBACK callback)
 {
 	PAPPLICATION_PAGE ptr = new APPLICATION_PAGE;
 
@@ -401,37 +438,37 @@ VOID CApp::AddSettingsPage (HINSTANCE h, UINT dlg_id, LPCWSTR title, APPLICATION
 
 #endif // _APP_NO_SETTINGS
 
-CString CApp::GetDirectory ()
+rstring rapp::GetDirectory ()
 {
 	return this->app_directory;
 }
 
-CString CApp::GetProfileDirectory ()
+rstring rapp::GetProfileDirectory ()
 {
 	return this->app_profile_directory;
 }
 
-CString CApp::GetUserAgent ()
+rstring rapp::GetUserAgent ()
 {
 	return _r_fmt (L"%s/%s (+%s)", this->app_name, this->app_version, _APP_WEBSITE_URL);
 }
 
-INT CApp::GetDPI (INT val)
+INT rapp::GetDPI (INT v)
 {
-	return ceil (static_cast<DOUBLE>(val) * this->dpi_percent);
+	return (INT)ceil (static_cast<DOUBLE>(v) * this->dpi_percent);
 }
 
-HINSTANCE CApp::GetHINSTANCE ()
+HINSTANCE rapp::GetHINSTANCE ()
 {
 	return this->app_hinstance;
 }
 
-HWND CApp::GetHWND ()
+HWND rapp::GetHWND ()
 {
 	return this->app_hwnd;
 }
 
-VOID CApp::Restart ()
+VOID rapp::Restart ()
 {
 	WCHAR buffer[MAX_PATH] = {0};
 	GetModuleFileName (nullptr, buffer, _countof (buffer));
@@ -461,23 +498,22 @@ VOID CApp::Restart ()
 	}
 }
 
-VOID CApp::SetHWND (HWND hwnd)
+VOID rapp::SetHWND (HWND hwnd)
 {
 	this->app_hwnd = hwnd;
 }
 
 #ifndef _APP_NO_SETTINGS
 
-VOID CApp::LocaleEnum (HWND hwnd, INT ctrl_id)
+VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id)
 {
 	WIN32_FIND_DATA wfd = {0};
 	HANDLE h = FindFirstFile (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\*.ini", this->app_directory), &wfd);
 
-	CString def = this->ConfigGet (L"Language", nullptr);
-
 	if (h != INVALID_HANDLE_VALUE)
 	{
 		INT count = max (0, (INT)SendDlgItemMessage (hwnd, ctrl_id, CB_GETCOUNT, 0, 0));
+		rstring def = this->ConfigGet (L"Language", nullptr);
 
 		do
 		{
@@ -505,63 +541,57 @@ VOID CApp::LocaleEnum (HWND hwnd, INT ctrl_id)
 
 #endif // _APP_NO_SETTINGS
 
-VOID CApp::LocaleInit (LPCWSTR name)
+VOID rapp::LocaleInit ()
 {
-	if (this->ConfigGet (L"Language", nullptr).CompareNoCase (name) != 0)
-	{
-		this->ConfigSet (L"Language", name);
-	}
+	rstring name = this->ConfigGet (L"Language", nullptr);
 
-	// reset
-	this->app_locale_array.clear ();
+	this->app_locale_array.clear (); // clear
 	this->is_localized = FALSE;
 
-	if (name)
+	if (!name.IsEmpty ())
 	{
-		if (this->ParseINI (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\%s.ini", this->GetDirectory (), name), &this->app_locale_array))
-		{
-			this->is_localized = TRUE;
-		}
+		this->is_localized = this->ParseINI (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\%s.ini", this->GetDirectory (), name), &this->app_locale_array);
 	}
 }
 
-CString CApp::LocaleString (HINSTANCE h, UINT id, LPCWSTR name)
+rstring rapp::LocaleString (HINSTANCE h, UINT uid, LPCWSTR name)
 {
-	CString buffer;
+	rstring result;
 
 	if (this->is_localized)
 	{
 		// check key is exists
 		if (this->app_locale_array[_APP_I18N_SECTION].find (name) != this->app_locale_array[_APP_I18N_SECTION].end ())
 		{
-			buffer = this->app_locale_array[_APP_I18N_SECTION][name];
+			result = this->app_locale_array[_APP_I18N_SECTION][name];
 
-			buffer.Replace (L"\\t", L"\t");
-			buffer.Replace (L"\\r", L"\r");
-			buffer.Replace (L"\\n", L"\n");
+			result.Replace (L"\\t", L"\t");
+			result.Replace (L"\\r", L"\r");
+			result.Replace (L"\\n", L"\n");
 		}
 	}
 
-	if (buffer.IsEmpty ())
+	if (result.IsEmpty ())
 	{
 		if (!h)
 		{
 			h = this->GetHINSTANCE ();
 		}
 
-		buffer.LoadStringW (h, id);
+		LoadString (h, uid, result.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH);
+		result.ReleaseBuffer ();
 	}
 
-	return buffer;
+	return result;
 }
 
-VOID CApp::LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position)
+VOID rapp::LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position)
 {
 	if (this->is_localized && text)
 	{
 		MENUITEMINFO mif = {0};
 
-		mif.cbSize = sizeof (mif);
+		mif.cbSize = sizeof (MENUITEMINFO);
 		mif.fMask = MIIM_STRING;
 		mif.dwTypeData = (LPWSTR)text;
 
@@ -571,7 +601,7 @@ VOID CApp::LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position)
 
 #ifndef _APP_NO_ABOUT
 
-LRESULT CALLBACK CApp::AboutWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+LRESULT CALLBACK rapp::AboutWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
 	static HWND hparent = nullptr;
 
@@ -581,11 +611,11 @@ LRESULT CALLBACK CApp::AboutWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM 
 		{
 			hparent = GetWindow (hwnd, GW_OWNER);
 
-			_r_windowcenter (hwnd);
-
 			EnableWindow (hparent, FALSE);
 
-			return TRUE;
+			_r_windowcenter (hwnd);
+
+			break;
 		}
 
 		case WM_DESTROY:
@@ -598,14 +628,14 @@ LRESULT CALLBACK CApp::AboutWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM 
 
 			PostQuitMessage (0);
 
-			return TRUE;
+			break;
 		}
 
 		case WM_CLOSE:
 		case WM_LBUTTONDBLCLK:
 		{
 			DestroyWindow (hwnd);
-			return TRUE;
+			break;
 		}
 
 		case WM_LBUTTONDOWN:
@@ -620,10 +650,7 @@ LRESULT CALLBACK CApp::AboutWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM 
 		{
 			LONG_PTR exstyle = GetWindowLongPtr (hwnd, GWL_EXSTYLE);
 
-			if ((exstyle & WS_EX_LAYERED) != WS_EX_LAYERED)
-			{
-				SetWindowLongPtr (hwnd, GWL_EXSTYLE, exstyle | WS_EX_LAYERED);
-			}
+			if ((exstyle & WS_EX_LAYERED) == 0) { SetWindowLongPtr (hwnd, GWL_EXSTYLE, exstyle | WS_EX_LAYERED); }
 
 			SetLayeredWindowAttributes (hwnd, 0, (msg == WM_ENTERSIZEMOVE) ? 100 : 255, LWA_ALPHA);
 			SetCursor (LoadCursor (nullptr, (msg == WM_ENTERSIZEMOVE) ? IDC_SIZEALL : IDC_ARROW));
@@ -659,24 +686,29 @@ LRESULT CALLBACK CApp::AboutWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM 
 
 			break;
 		}
+
+		default:
+		{
+			return DefWindowProc (hwnd, msg, wparam, lparam);
+		}
 	}
 
-	return DefWindowProc (hwnd, msg, wparam, lparam);
+	return FALSE;
 }
 
 #endif // _APP_NO_ABOUT
 
 #ifndef _APP_NO_SETTINGS
 
-INT_PTR CALLBACK CApp::SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+INT_PTR CALLBACK rapp::SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
-	static CApp* this_ptr = nullptr;
+	static rapp* this_ptr = nullptr;
 
 	switch (msg)
 	{
 		case WM_INITDIALOG:
 		{
-			this_ptr = (CApp*)lparam;
+			this_ptr = (rapp*)lparam;
 			break;
 		}
 
@@ -690,22 +722,22 @@ INT_PTR CALLBACK CApp::SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LP
 			wmsg.wParam = wparam;
 			wmsg.lParam = lparam;
 
-			return this_ptr->app_settings_pages.at (this_ptr->app_settings_page)->callback (hwnd, APP_CALLBACK_MESSAGE, &wmsg, this_ptr->app_settings_pages.at (this_ptr->app_settings_page));
+			return this_ptr->app_settings_pages.at (this_ptr->app_settings_page)->callback (hwnd, _RM_MESSAGE, &wmsg, this_ptr->app_settings_pages.at (this_ptr->app_settings_page));
 		}
 	}
 
 	return FALSE;
 }
 
-INT_PTR CALLBACK CApp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
-	static CApp* this_ptr = nullptr;
+	static rapp* this_ptr = nullptr;
 
 	switch (msg)
 	{
 		case WM_INITDIALOG:
 		{
-			this_ptr = (CApp*)lparam;
+			this_ptr = (rapp*)lparam;
 
 			// localize
 			SetWindowText (hwnd, I18N (this_ptr, IDS_SETTINGS, 0));
@@ -730,7 +762,7 @@ INT_PTR CALLBACK CApp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)item);
 				}
 
-				this_ptr->app_settings_pages.at (i)->callback (this_ptr->app_settings_pages.at (i)->hwnd, APP_CALLBACK_INITIALIZE, nullptr, this_ptr->app_settings_pages.at (i));
+				this_ptr->app_settings_pages.at (i)->callback (this_ptr->app_settings_pages.at (i)->hwnd, _RM_INITIALIZE, nullptr, this_ptr->app_settings_pages.at (i));
 			}
 
 			break;
@@ -774,21 +806,16 @@ INT_PTR CALLBACK CApp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 					for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 					{
-						if (this_ptr->app_settings_pages.at (i)->callback (this_ptr->app_settings_pages.at (i)->hwnd, APP_CALLBACK_SETTINGS_SAVE, nullptr, this_ptr->app_settings_pages.at (i)))
+						if (this_ptr->app_settings_pages.at (i)->callback (this_ptr->app_settings_pages.at (i)->hwnd, _RM_SETTINGS_SAVE, nullptr, this_ptr->app_settings_pages.at (i)))
 						{
 							is_restart = TRUE;
 						}
 					}
 
-					// call saved state
-					this_ptr->app_settings_pages.at (0)->callback (this_ptr->app_settings_pages.at (0)->hwnd, APP_CALLBACK_SETTINGS_INIT, nullptr, nullptr);
-
-					if (is_restart)
-					{
-						this_ptr->Restart ();
-					}
-
 					this_ptr->ConfigInit (); // reload settings
+					this_ptr->app_settings_pages.at (0)->callback (this_ptr->app_settings_pages.at (0)->hwnd, _RM_SETTINGS_INIT, nullptr, nullptr); // call saved state
+
+					if (is_restart) { this_ptr->Restart (); }
 
 					break;
 				}
@@ -800,7 +827,7 @@ INT_PTR CALLBACK CApp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 					for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 					{
-						this_ptr->app_settings_pages.at (i)->callback (this_ptr->app_settings_pages.at (i)->hwnd, APP_CALLBACK_UNINITIALIZE, nullptr, this_ptr->app_settings_pages.at (i)); // call closed state
+						this_ptr->app_settings_pages.at (i)->callback (this_ptr->app_settings_pages.at (i)->hwnd, _RM_UNINITIALIZE, nullptr, this_ptr->app_settings_pages.at (i)); // call closed state
 					}
 
 					break;
@@ -818,16 +845,18 @@ INT_PTR CALLBACK CApp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 #ifndef _APP_NO_UPDATES
 
-UINT WINAPI CApp::CheckForUpdatesProc (LPVOID lparam)
+UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 {
-	CApp* this_ptr = (CApp*)lparam;
+	rapp* this_ptr = (rapp*)lparam;
 
 	if (this_ptr)
 	{
 		BOOL result = FALSE;
 		HINTERNET internet = nullptr, connect = nullptr;
 
+#ifdef IDM_CHECKUPDATES
 		EnableMenuItem (GetMenu (this_ptr->GetHWND ()), IDM_CHECKUPDATES, MF_BYCOMMAND | MF_DISABLED);
+#endif // IDM_CHECKUPDATES
 
 		internet = InternetOpen (this_ptr->GetUserAgent (), INTERNET_OPEN_TYPE_DIRECT, nullptr, nullptr, 0);
 
@@ -844,23 +873,30 @@ UINT WINAPI CApp::CheckForUpdatesProc (LPVOID lparam)
 				{
 					DWORD out = 0;
 
-					CHAR buffera[MAX_PATH] = {0};
-					CString bufferw;
+					CHAR buffer[_R_BUFFER_LENGTH] = {0};
 
-					if (InternetReadFile (connect, buffera, _countof (buffera), &out) && out)
+					rstring bufferw;
+
+					while (1)
 					{
-						bufferw = CA2W (buffera, CP_UTF8);
-						bufferw = bufferw.Trim (L" \r\n"); // trim whitespaces
-
-						if (_r_str_versioncompare (this_ptr->app_version, bufferw) == -1)
+						if (!InternetReadFile (connect, buffer, _R_BUFFER_LENGTH - 1, &out) || !out)
 						{
-							if (_r_msg (this_ptr->GetHWND (), MB_YESNO | MB_ICONQUESTION, this_ptr->app_name, I18N (this_ptr, IDS_UPDATE_YES, 0), bufferw) == IDYES)
-							{
-								ShellExecute (nullptr, nullptr, _APP_WEBSITE_URL, nullptr, nullptr, SW_SHOWDEFAULT);
-							}
-
-							result = TRUE;
+							break;
 						}
+
+						buffer[out] = 0;
+
+						bufferw.Append (buffer);
+					}
+
+					if (_r_str_versioncompare (this_ptr->app_version, bufferw) == -1)
+					{
+						if (_r_msg (this_ptr->GetHWND (), MB_YESNO | MB_ICONQUESTION, this_ptr->app_name, I18N (this_ptr, IDS_UPDATE_YES, 0), bufferw) == IDYES)
+						{
+							ShellExecute (nullptr, nullptr, _APP_WEBSITE_URL, nullptr, nullptr, SW_SHOWDEFAULT);
+						}
+
+						result = TRUE;
 					}
 				}
 
@@ -868,7 +904,9 @@ UINT WINAPI CApp::CheckForUpdatesProc (LPVOID lparam)
 			}
 		}
 
+#ifdef IDM_CHECKUPDATES
 		EnableMenuItem (GetMenu (this_ptr->GetHWND ()), IDM_CHECKUPDATES, MF_BYCOMMAND | MF_ENABLED);
+#endif // IDM_CHECKUPDATES
 
 		if (!result && !this_ptr->is_update_forced)
 		{
@@ -884,52 +922,66 @@ UINT WINAPI CApp::CheckForUpdatesProc (LPVOID lparam)
 
 #endif // _APP_NO_UPDATES
 
-BOOL CApp::ParseINI (LPCWSTR path, IniMap* map)
+BOOL rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
 {
 	BOOL result = FALSE;
 
 	if (map && _r_file_is_exists (path))
 	{
-		CString sc, vs;
-		CString parser;
+		rstring sc, vs, parser;
 
-		DWORD length = _R_BUFFER_LENGTH;
-		INT delimeter = 0;
+		DWORD length = _R_BUFFER_LENGTH, out_length = 0;
+		size_t delimeter = 0;
 
 		map->clear (); // clear first
 
 		// get sections
-		GetPrivateProfileSectionNames (sc.GetBuffer (1024), 1024, path);
-		sc.ReleaseBuffer ();
+		length = 0;
+
+		do
+		{
+			length += _R_BUFFER_LENGTH;
+
+			out_length = GetPrivateProfileSectionNames (sc.GetBuffer (length), length, path);
+		}
+		while (out_length == (length - 1));
+
+		sc.SetLength (out_length);
 
 		LPWSTR section = sc.GetBuffer ();
-		LPWSTR values = nullptr;
 
 		while (*section)
 		{
 			// get section data
-			while (GetPrivateProfileSection (section, vs.GetBuffer (length), length, path) == (length - 1))
+			length = 0;
+
+			do
 			{
-				vs.ReleaseBuffer ();
-
 				length += _R_BUFFER_LENGTH;
+
+				out_length = GetPrivateProfileSection (section, vs.GetBuffer (length), length, path);
 			}
+			while (out_length == (length - 1));
 
-			vs.ReleaseBuffer ();
+			vs.SetLength (out_length);
 
-			values = vs.GetBuffer ();
+			LPWSTR values = vs.GetBuffer ();
 
 			while (*values)
 			{
 				parser = values;
-				delimeter = parser.Find (L"=");
 
-				(*map)[section][parser.Mid (0, delimeter)] = parser.Mid (delimeter + 1); // set
+				delimeter = parser.Find (L'=');
 
-				values += _r_str_length (values) + 1; // go next data
+				if (delimeter != rstring::npos)
+				{
+					(*map)[section][parser.Mid (0, delimeter)] = parser.Mid (delimeter + 1); // set
+				}
+
+				values += wcslen (values) + 1; // go next item
 			}
 
-			section += _r_str_length (section) + 1; // go next section
+			section += wcslen (section) + 1; // go next section
 		}
 
 		result = TRUE;
@@ -940,7 +992,7 @@ BOOL CApp::ParseINI (LPCWSTR path, IniMap* map)
 
 #ifdef _APP_NO_UAC
 
-BOOL CApp::SkipUacCreate (BOOL is_remove)
+BOOL rapp::SkipUacCreate (BOOL is_remove)
 {
 	BOOL result = FALSE;
 	BOOL action_result = FALSE;
@@ -956,7 +1008,7 @@ BOOL CApp::SkipUacCreate (BOOL is_remove)
 	IExecAction* exec_action = nullptr;
 	IRegisteredTask* registered_task = nullptr;
 
-	CString name;
+	rstring name;
 	name.Format (_APP_TASKSCHD_NAME, this->app_name_short);
 
 	if (_r_system_validversion (6, 0))
@@ -1048,11 +1100,11 @@ BOOL CApp::SkipUacCreate (BOOL is_remove)
 	return result;
 }
 
-BOOL CApp::SkipUacIsPresent (BOOL is_run)
+BOOL rapp::SkipUacIsPresent (BOOL is_run)
 {
 	BOOL result = FALSE;
 
-	CString name;
+	rstring name;
 	name.Format (_APP_TASKSCHD_NAME, this->app_name_short);
 
 	if (_r_system_validversion (6, 0))
@@ -1101,7 +1153,7 @@ BOOL CApp::SkipUacIsPresent (BOOL is_run)
 											{
 												INT numargs = 0;
 												LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
-												CString args;
+												rstring args;
 
 												for (INT i = 1; i < numargs; i++)
 												{
@@ -1111,7 +1163,7 @@ BOOL CApp::SkipUacIsPresent (BOOL is_run)
 
 												LocalFree (arga);
 
-												variant_t ticker = args.Trim ().GetString ();
+												variant_t ticker = args.Trim (L" ");
 
 												if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_AS_SELF, 0, nullptr, &running_task)) && running_task)
 												{
@@ -1170,7 +1222,7 @@ BOOL CApp::SkipUacIsPresent (BOOL is_run)
 	return result;
 }
 
-BOOL CApp::SkipUacRun ()
+BOOL rapp::SkipUacRun ()
 {
 	if (_r_system_uacstate ())
 	{
