@@ -251,9 +251,9 @@ VOID rapp::ConfigInit ()
 	this->LocaleInit ();
 }
 
-DWORD rapp::ConfigGet (LPCWSTR key, INT def, LPCWSTR name)
+LONGLONG rapp::ConfigGet (LPCWSTR key, INT def, LPCWSTR name)
 {
-	return this->ConfigGet (key, _r_fmt (L"%i", def), name).AsInt (10);
+	return this->ConfigGet (key, _r_fmt (L"%d", def), name).AsInt (10);
 }
 
 rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
@@ -751,7 +751,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 			{
-				this_ptr->app_settings_pages.at (i)->hwnd = CreateDialogParam (this_ptr->app_settings_pages.at (i)->h, MAKEINTRESOURCE (this_ptr->app_settings_pages.at (i)->dlg_id), hwnd, this_ptr->SettingsPagesProc, (LPARAM)this_ptr);
+				this_ptr->app_settings_pages.at (i)->hwnd = CreateDialogParam (this_ptr->app_settings_pages.at (i)->h, MAKEINTRESOURCE (this_ptr->app_settings_pages.at (i)->dlg_id), hwnd, &this_ptr->SettingsPagesProc, (LPARAM)this_ptr);
 
 				HTREEITEM item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->app_settings_pages.at (i)->title, -1, (LPARAM)i);
 

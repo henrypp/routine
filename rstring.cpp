@@ -462,7 +462,7 @@ LPWSTR rstring::GetBuffer (size_t newLength)
 
 void rstring::ReleaseBuffer ()
 {
-	size_t length = wcsnlen (data_, GetLength ()) + 1;
+	size_t length = wcsnlen (data_, GetLength ());
 
 	SetLength (length);
 }
