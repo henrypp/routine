@@ -1,7 +1,7 @@
 // rstring
 // A fast, reference counted, copy-on-write string class (c) Espen Harlinn
 
-// lastmod: Jan 9, 2016
+// lastmod: Jan 17, 2016
 
 #pragma once
 
@@ -70,7 +70,7 @@ public:
 
 	rstring& Append (const rstring& str);
 	rstring& Append (LPCWSTR str);
-	rstring Mid (size_t start, size_t length = 0) const;
+	rstring Mid (size_t start, size_t length = npos) const;
 	rstring& Replace (LPCWSTR from, LPCWSTR to);
 	rstring& Trim (LPCWSTR chars);
 

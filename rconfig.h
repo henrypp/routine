@@ -36,6 +36,10 @@
 #	define _APP_WEBSITE_URL L"http://www.henrypp.org"
 #endif // _APP_WEBSITE_URL
 
+#ifndef _APP_DONATION_URL
+#	define _APP_DONATION_URL _APP_WEBSITE_URL L"/donate"
+#endif // _APP_WEBSITE_URL
+
 #ifndef _APP_UPDATE_PERIOD
 #	define _APP_UPDATE_PERIOD 86400 // update checking period (in seconds. 86400 is 1 day.)
 #endif // _APP_UPDATE_PERIOD

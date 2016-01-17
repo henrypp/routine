@@ -1,7 +1,7 @@
 // routine++
 // Copyright (c) 2012-2016 Henry++
 
-// lastmod: Jan 9, 2016
+// lastmod: Jan 17, 2016
 
 #pragma once
 
@@ -65,6 +65,8 @@ public:
 	rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright);
 	~rapp ();
 
+	BOOL Initialize ();
+
 	VOID AutorunCreate (BOOL is_remove);
 	BOOL AutorunIsPresent ();
 
@@ -75,7 +77,7 @@ public:
 	DWORD ConfigGet (LPCWSTR key, INT def, LPCWSTR name = nullptr);
 	rstring ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name = nullptr);
 
-	BOOL ConfigSet (LPCWSTR key, DWORD val, LPCWSTR name = nullptr);
+	BOOL ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name = nullptr);
 	BOOL ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name = nullptr);
 
 #ifndef _APP_NO_ABOUT
@@ -134,7 +136,6 @@ private:
 
 	DOUBLE dpi_percent = 0.f;
 
-	BOOL is_initialized = FALSE;
 	BOOL is_localized = FALSE;
 
 #ifndef _APP_NO_UPDATES

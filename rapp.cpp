@@ -13,116 +13,78 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 
 	InitCommonControlsEx (&icex);
 
-	// check mutex
-	this->app_mutex = CreateMutex (nullptr, FALSE, short_name);
+	// general information
+	StringCchCopy (this->app_name, _countof (this->app_name), name);
+	StringCchCopy (this->app_name_short, _countof (this->app_name_short), short_name);
+	StringCchCopy (this->app_version, _countof (this->app_version), version);
+	StringCchCopy (this->app_copyright, _countof (this->app_copyright), copyright);
 
-	if (GetLastError () == ERROR_ALREADY_EXISTS)
+	// get hinstance
+	this->app_hinstance = GetModuleHandle (nullptr);
+
+	// get current directory
+	GetModuleFileName (nullptr, this->app_directory, _countof (this->app_directory));
+	PathRemoveFileSpec (this->app_directory);
+
+	// get configuration path
+	StringCchPrintf (this->app_config_path, _countof (this->app_config_path), L"%s\\%s.ini", this->app_directory, this->app_name_short);
+
+	if (!_r_file_is_exists (this->app_config_path))
 	{
-		HWND h = FindWindowEx (nullptr, nullptr, nullptr, name);
-
-		if (h)
-		{
-			_r_windowtoggle (h, TRUE);
-		}
-
-		CloseHandle (this->app_mutex);
-		this->app_mutex = nullptr;
+		ExpandEnvironmentStrings (_r_fmt (L"%%APPDATA%%\\%s\\%s", _APP_AUTHOR, this->app_name), this->app_profile_directory, _countof (this->app_profile_directory));
+		StringCchPrintf (this->app_config_path, _countof (this->app_config_path), L"%s\\%s.ini", this->app_profile_directory, this->app_name_short);
 	}
 	else
 	{
-		// general information
-		StringCchCopy (this->app_name, _countof (this->app_name), name);
-		StringCchCopy (this->app_name_short, _countof (this->app_name_short), short_name);
-		StringCchCopy (this->app_version, _countof (this->app_version), version);
-		StringCchCopy (this->app_copyright, _countof (this->app_copyright), copyright);
+		StringCchCopy (this->app_profile_directory, _countof (this->app_profile_directory), this->app_directory);
+	}
 
-#ifdef _APP_NO_UAC
+	HDC h = GetDC (nullptr);
 
-		if (_r_system_uacstate () && this->SkipUacRun ())
-		{
-			return;
-		}
-
-#endif // _APP_NO_UAC
-
-#ifndef _WIN64
-
-		if (_r_system_iswow64 ())
-		{
-			_r_msg (nullptr, MB_OK | MB_ICONEXCLAMATION, name, L"WARNING! 32-bit executable may incompatible with 64-bit operating system version!");
-		}
-
-#endif // _WIN64
-
-		this->is_initialized = TRUE;
-
-		// get hinstance
-		this->app_hinstance = GetModuleHandle (nullptr);
-
-		// get current directory
-		GetModuleFileName (nullptr, this->app_directory, _countof (this->app_directory));
-		PathRemoveFileSpec (this->app_directory);
-
-		// get configuration path
-		StringCchPrintf (this->app_config_path, _countof (this->app_config_path), L"%s\\%s.ini", this->app_directory, this->app_name_short);
-
-		if (!_r_file_is_exists (this->app_config_path))
-		{
-			ExpandEnvironmentStrings (_r_fmt (L"%%APPDATA%%\\%s\\%s", _APP_AUTHOR, this->app_name), this->app_profile_directory, _countof (this->app_profile_directory));
-			StringCchPrintf (this->app_config_path, _countof (this->app_config_path), L"%s\\%s.ini", this->app_profile_directory, this->app_name_short);
-		}
-		else
-		{
-			StringCchCopy (this->app_profile_directory, _countof (this->app_profile_directory), this->app_directory);
-		}
-
-		HDC h = GetDC (nullptr);
-
-		// get dpi
-		this->dpi_percent = DOUBLE (GetDeviceCaps (h, LOGPIXELSX)) / 96.0f;
+	// get dpi
+	this->dpi_percent = DOUBLE (GetDeviceCaps (h, LOGPIXELSX)) / 96.0f;
 
 #ifndef _APP_NO_ABOUT
 
-		// create window class
-		if (!GetClassInfoEx (this->GetHINSTANCE (), _APP_ABOUT_CLASS, nullptr))
-		{
-			WNDCLASSEX wcx = {0};
+	// create window class
+	if (!GetClassInfoEx (this->GetHINSTANCE (), _APP_ABOUT_CLASS, nullptr))
+	{
+		WNDCLASSEX wcx = {0};
 
-			wcx.cbSize = sizeof (WNDCLASSEX);
-			wcx.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
-			wcx.lpfnWndProc = &this->AboutWndProc;
-			wcx.hInstance = this->GetHINSTANCE ();
-			wcx.lpszClassName = _APP_ABOUT_CLASS;
-			wcx.hbrBackground = GetSysColorBrush (COLOR_3DFACE);
+		wcx.cbSize = sizeof (WNDCLASSEX);
+		wcx.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
+		wcx.lpfnWndProc = &this->AboutWndProc;
+		wcx.hInstance = this->GetHINSTANCE ();
+		wcx.lpszClassName = _APP_ABOUT_CLASS;
+		wcx.hbrBackground = GetSysColorBrush (COLOR_3DFACE);
 
-			RegisterClassEx (&wcx);
-		}
+		RegisterClassEx (&wcx);
+	}
 
-		// create dialog font
-		LOGFONT lf = {0};
+	// create dialog font
+	LOGFONT lf = {0};
 
-		lf.lfQuality = CLEARTYPE_QUALITY;
-		lf.lfCharSet = DEFAULT_CHARSET;
-		lf.lfPitchAndFamily = FF_DONTCARE;
-		lf.lfWeight = FW_NORMAL;
-		lf.lfHeight = -MulDiv (9, GetDeviceCaps (h, LOGPIXELSY), 72);
+	lf.lfQuality = CLEARTYPE_QUALITY;
+	lf.lfCharSet = DEFAULT_CHARSET;
+	lf.lfPitchAndFamily = FF_DONTCARE;
+	lf.lfWeight = FW_NORMAL;
+	lf.lfHeight = -MulDiv (9, GetDeviceCaps (h, LOGPIXELSY), 72);
 
-		StringCchCopy (lf.lfFaceName, _countof (lf.lfFaceName), L"MS Shell Dlg 2");
+	StringCchCopy (lf.lfFaceName, _countof (lf.lfFaceName), L"MS Shell Dlg 2");
 
-		this->app_font = CreateFontIndirect (&lf);
+	this->app_font = CreateFontIndirect (&lf);
 
-		// get logo
+	// get logo
 #ifdef IDI_MAIN
-		this->app_logo = _r_loadicon (this->GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), this->GetDPI (64));
+	this->app_logo = _r_loadicon (this->GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), this->GetDPI (64));
 #endif // IDI_MAIN
 
 #endif // _APP_NO_ABOUT
 
-		ReleaseDC (nullptr, h);
+	ReleaseDC (nullptr, h);
 
-		// load settings
-		this->ConfigInit ();
-	}
+	// load settings
+	this->ConfigInit ();
 }
 
 rapp::~rapp ()
@@ -161,6 +123,46 @@ rapp::~rapp ()
 	}
 
 #endif // _APP_NO_SETTINGS
+}
+
+BOOL rapp::Initialize ()
+{
+	// check mutex
+	this->app_mutex = CreateMutex (nullptr, FALSE, this->app_name_short);
+
+	if (GetLastError () == ERROR_ALREADY_EXISTS)
+	{
+		HWND h = FindWindowEx (nullptr, nullptr, nullptr, this->app_name);
+
+		if (h)
+		{
+			_r_windowtoggle (h, TRUE);
+			return FALSE;
+		}
+
+		CloseHandle (this->app_mutex);
+		this->app_mutex = nullptr;
+	}
+
+#ifdef _APP_NO_UAC
+
+	if (_r_system_uacstate () && this->SkipUacRun ())
+	{
+		return FALSE;
+	}
+
+#endif // _APP_NO_UAC
+
+#ifndef _WIN64
+
+	if (_r_system_iswow64 ())
+	{
+		_r_msg (nullptr, MB_OK | MB_ICONEXCLAMATION, this->app_name, L"WARNING! 32-bit executable may incompatible with 64-bit operating system version!");
+	}
+
+#endif // _WIN64
+
+	return TRUE;
 }
 
 VOID rapp::AutorunCreate (BOOL is_remove)
@@ -256,7 +258,7 @@ DWORD rapp::ConfigGet (LPCWSTR key, INT def, LPCWSTR name)
 
 rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 {
-	rstring result = def;
+	rstring result;
 
 	if (!name)
 	{
@@ -267,6 +269,11 @@ rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 	if (this->app_config_array.find (name) != this->app_config_array.end () && this->app_config_array[name].find (key) != this->app_config_array[name].end ())
 	{
 		result = this->app_config_array[name][key];
+	}
+
+	if (result.IsEmpty ())
+	{
+		result = def;
 	}
 
 	return result;
@@ -290,35 +297,28 @@ BOOL rapp::ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name)
 	return WritePrivateProfileString (name, key, val, this->app_config_path);
 }
 
-BOOL rapp::ConfigSet (LPCWSTR key, DWORD val, LPCWSTR name)
+BOOL rapp::ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name)
 {
-
-#ifdef _WIN64
 	return this->ConfigSet (key, _r_fmt (L"%lld", val), name);
-#else
-	return this->ConfigSet (key, _r_fmt (L"%ld", val, name));
-#endif // _WIN64
-
 }
 
 #ifndef _APP_NO_ABOUT
 
 VOID rapp::CreateAboutWindow ()
 {
-	MSG msg = {0};
-
 #ifdef _WIN64
 	const INT architecture = 64;
 #else
 	const INT architecture = 32;
 #endif // _WIN64
 
+	MSG msg = {0};
 	RECT rc = {0};
 
-	rc.right = this->GetDPI (388);
-	rc.bottom = this->GetDPI (126);
+	rc.right = this->GetDPI (374);
+	rc.bottom = this->GetDPI (112);
 
-	AdjustWindowRectEx (&rc, WS_SYSMENU | WS_BORDER, FALSE, WS_EX_DLGMODALFRAME);
+	AdjustWindowRectEx (&rc, WS_SYSMENU | WS_BORDER, FALSE, WS_EX_DLGMODALFRAME | WS_EX_TOPMOST);
 
 	HWND hwnd = CreateWindowEx (WS_EX_TOPMOST | WS_EX_DLGMODALFRAME, _APP_ABOUT_CLASS, I18N (this, IDS_ABOUT, 0), WS_SYSMENU | WS_BORDER, CW_USEDEFAULT, CW_USEDEFAULT, rc.right, rc.bottom, this->GetHWND (), nullptr, this->GetHINSTANCE (), nullptr);
 
@@ -332,13 +332,11 @@ VOID rapp::CreateAboutWindow ()
 		DeleteMenu (menu, SC_MAXIMIZE, MF_BYCOMMAND);
 		DeleteMenu (menu, 1, MF_BYPOSITION); // divider
 
-		//SetWindowPos (hwnd, nullptr, 0, 0, this->GetDPI (300), this->GetDPI (120), SWP_NOOWNERZORDER | SWP_NOMOVE);
-
 		// create controls
 		HWND hctrl = CreateWindowEx (0, WC_STATIC, nullptr, WS_CHILD | WS_VISIBLE | SS_ICON, this->GetDPI (12), this->GetDPI (12), this->GetDPI (64), this->GetDPI (64), hwnd, nullptr, nullptr, nullptr);
 		SendMessage (hctrl, STM_SETIMAGE, IMAGE_ICON, (LPARAM)this->app_logo);
 
-		hctrl = CreateWindowEx (0, WC_STATIC, _r_fmt (L"%s v%s (%i-bit)", this->app_name, this->app_version, architecture), WS_CHILD | WS_VISIBLE, this->GetDPI (88), this->GetDPI (14), this->GetDPI (270), this->GetDPI (16), hwnd, nullptr, nullptr, nullptr);
+		hctrl = CreateWindowEx (0, WC_STATIC, _r_fmt (L"%s %s (%d-bit)", this->app_name, this->app_version, architecture), WS_CHILD | WS_VISIBLE, this->GetDPI (88), this->GetDPI (14), this->GetDPI (270), this->GetDPI (16), hwnd, nullptr, nullptr, nullptr);
 		SendMessage (hctrl, WM_SETFONT, (WPARAM)this->app_font, TRUE);
 
 		hctrl = CreateWindowEx (0, WC_STATIC, this->app_copyright, WS_CHILD | WS_VISIBLE, this->GetDPI (88), this->GetDPI (36), this->GetDPI (270), this->GetDPI (16), hwnd, nullptr, nullptr, nullptr);
@@ -366,7 +364,7 @@ BOOL rapp::CreateMainWindow (DLGPROC proc)
 {
 	BOOL result = FALSE;
 
-	if (this->is_initialized)
+	if (Initialize ())
 	{
 		// create window
 #ifdef IDD_MAIN
@@ -928,48 +926,47 @@ BOOL rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
 
 	if (map && _r_file_is_exists (path))
 	{
-		rstring sc, vs, parser;
+		rstring section_ptr;
+		rstring value_ptr;
 
-		DWORD length = _R_BUFFER_LENGTH, out_length = 0;
+		size_t length = 0, out_length = 0;
 		size_t delimeter = 0;
 
 		map->clear (); // clear first
 
 		// get sections
-		length = 0;
-
 		do
 		{
 			length += _R_BUFFER_LENGTH;
 
-			out_length = GetPrivateProfileSectionNames (sc.GetBuffer (length), length, path);
+			out_length = GetPrivateProfileSectionNames (section_ptr.GetBuffer (length), length, path);
 		}
 		while (out_length == (length - 1));
 
-		sc.SetLength (out_length);
+		section_ptr.SetLength (out_length);
 
-		LPWSTR section = sc.GetBuffer ();
+		LPCWSTR section = section_ptr.GetString ();
 
 		while (*section)
 		{
-			// get section data
+			// get values
 			length = 0;
 
 			do
 			{
 				length += _R_BUFFER_LENGTH;
 
-				out_length = GetPrivateProfileSection (section, vs.GetBuffer (length), length, path);
+				out_length = GetPrivateProfileSection (section, value_ptr.GetBuffer (length), length, path);
 			}
 			while (out_length == (length - 1));
 
-			vs.SetLength (out_length);
+			value_ptr.SetLength (out_length);
 
-			LPWSTR values = vs.GetBuffer ();
+			LPCWSTR value = value_ptr.GetString ();
 
-			while (*values)
+			while (*value)
 			{
-				parser = values;
+				rstring parser = value;
 
 				delimeter = parser.Find (L'=');
 
@@ -978,7 +975,7 @@ BOOL rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
 					(*map)[section][parser.Mid (0, delimeter)] = parser.Mid (delimeter + 1); // set
 				}
 
-				values += wcslen (values) + 1; // go next item
+				value += wcslen (value) + 1; // go next item
 			}
 
 			section += wcslen (section) + 1; // go next section
