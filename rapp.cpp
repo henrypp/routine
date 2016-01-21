@@ -14,47 +14,47 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	InitCommonControlsEx (&icex);
 
 	// general information
-	StringCchCopy (this->app_name, _countof (this->app_name), name);
-	StringCchCopy (this->app_name_short, _countof (this->app_name_short), short_name);
-	StringCchCopy (this->app_version, _countof (this->app_version), version);
-	StringCchCopy (this->app_copyright, _countof (this->app_copyright), copyright);
+	StringCchCopy (app_name, _countof (app_name), name);
+	StringCchCopy (app_name_short, _countof (app_name_short), short_name);
+	StringCchCopy (app_version, _countof (app_version), version);
+	StringCchCopy (app_copyright, _countof (app_copyright), copyright);
 
 	// get hinstance
-	this->app_hinstance = GetModuleHandle (nullptr);
+	app_hinstance = GetModuleHandle (nullptr);
 
 	// get current directory
-	GetModuleFileName (nullptr, this->app_directory, _countof (this->app_directory));
-	PathRemoveFileSpec (this->app_directory);
+	GetModuleFileName (nullptr, app_directory, _countof (app_directory));
+	PathRemoveFileSpec (app_directory);
 
 	// get configuration path
-	StringCchPrintf (this->app_config_path, _countof (this->app_config_path), L"%s\\%s.ini", this->app_directory, this->app_name_short);
+	StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s.ini", app_directory, app_name_short);
 
-	if (!_r_file_is_exists (this->app_config_path))
+	if (!_r_file_is_exists (app_config_path))
 	{
-		ExpandEnvironmentStrings (_r_fmt (L"%%APPDATA%%\\%s\\%s", _APP_AUTHOR, this->app_name), this->app_profile_directory, _countof (this->app_profile_directory));
-		StringCchPrintf (this->app_config_path, _countof (this->app_config_path), L"%s\\%s.ini", this->app_profile_directory, this->app_name_short);
+		ExpandEnvironmentStrings (_r_fmt (L"%%APPDATA%%\\%s\\%s", _APP_AUTHOR, app_name), app_profile_directory, _countof (app_profile_directory));
+		StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s.ini", app_profile_directory, app_name_short);
 	}
 	else
 	{
-		StringCchCopy (this->app_profile_directory, _countof (this->app_profile_directory), this->app_directory);
+		StringCchCopy (app_profile_directory, _countof (app_profile_directory), app_directory);
 	}
 
 	HDC h = GetDC (nullptr);
 
 	// get dpi
-	this->dpi_percent = DOUBLE (GetDeviceCaps (h, LOGPIXELSX)) / 96.0f;
+	dpi_percent = DOUBLE (GetDeviceCaps (h, LOGPIXELSX)) / 96.0f;
 
 #ifndef _APP_NO_ABOUT
 
 	// create window class
-	if (!GetClassInfoEx (this->GetHINSTANCE (), _APP_ABOUT_CLASS, nullptr))
+	if (!GetClassInfoEx (GetHINSTANCE (), _APP_ABOUT_CLASS, nullptr))
 	{
 		WNDCLASSEX wcx = {0};
 
 		wcx.cbSize = sizeof (WNDCLASSEX);
 		wcx.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
-		wcx.lpfnWndProc = &this->AboutWndProc;
-		wcx.hInstance = this->GetHINSTANCE ();
+		wcx.lpfnWndProc = &AboutWndProc;
+		wcx.hInstance = GetHINSTANCE ();
 		wcx.lpszClassName = _APP_ABOUT_CLASS;
 		wcx.hbrBackground = GetSysColorBrush (COLOR_3DFACE);
 
@@ -70,13 +70,13 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	lf.lfWeight = FW_NORMAL;
 	lf.lfHeight = -MulDiv (9, GetDeviceCaps (h, LOGPIXELSY), 72);
 
-	StringCchCopy (lf.lfFaceName, _countof (lf.lfFaceName), L"MS Shell Dlg 2");
+	StringCchCopy (lf.lfFaceName, _countof (lf.lfFaceName), _r_system_validversion (6, 0) ? L"MS Shell Dlg 2" : L"MS Shell Dlg");
 
-	this->app_font = CreateFontIndirect (&lf);
+	app_font = CreateFontIndirect (&lf);
 
 	// get logo
 #ifdef IDI_MAIN
-	this->app_logo = _r_loadicon (this->GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), this->GetDPI (64));
+	app_logo = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), GetDPI (64));
 #endif // IDI_MAIN
 
 #endif // _APP_NO_ABOUT
@@ -84,40 +84,40 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	ReleaseDC (nullptr, h);
 
 	// load settings
-	this->ConfigInit ();
+	ConfigInit ();
 }
 
 rapp::~rapp ()
 {
-	if (this->app_mutex)
+	if (app_mutex)
 	{
-		CloseHandle (this->app_mutex);
-		this->app_mutex = nullptr;
+		CloseHandle (app_mutex);
+		app_mutex = nullptr;
 	}
 
 #ifndef _APP_NO_ABOUT
 
-	if (this->app_logo)
+	if (app_logo)
 	{
-		DestroyIcon (this->app_logo);
-		this->app_logo = nullptr;
+		DestroyIcon (app_logo);
+		app_logo = nullptr;
 	}
 
-	if (this->app_font)
+	if (app_font)
 	{
-		DeleteObject (this->app_font);
-		this->app_font = nullptr;
+		DeleteObject (app_font);
+		app_font = nullptr;
 	}
 
-	UnregisterClass (_APP_ABOUT_CLASS, this->GetHINSTANCE ());
+	UnregisterClass (_APP_ABOUT_CLASS, GetHINSTANCE ());
 
 #endif // _APP_NO_ABOUT
 
 #ifndef _APP_NO_SETTINGS
 
-	for (size_t i = 0; i < this->app_settings_pages.size (); i++)
+	for (size_t i = 0; i < app_settings_pages.size (); i++)
 	{
-		PAPPLICATION_PAGE ptr = this->app_settings_pages.at (i);
+		PAPPLICATION_PAGE ptr = app_settings_pages.at (i);
 
 		delete ptr;
 	}
@@ -128,11 +128,11 @@ rapp::~rapp ()
 BOOL rapp::Initialize ()
 {
 	// check mutex
-	this->app_mutex = CreateMutex (nullptr, FALSE, this->app_name_short);
+	app_mutex = CreateMutex (nullptr, FALSE, app_name_short);
 
 	if (GetLastError () == ERROR_ALREADY_EXISTS)
 	{
-		HWND h = FindWindowEx (nullptr, nullptr, nullptr, this->app_name);
+		HWND h = FindWindowEx (nullptr, nullptr, nullptr, app_name);
 
 		if (h)
 		{
@@ -140,13 +140,13 @@ BOOL rapp::Initialize ()
 			return FALSE;
 		}
 
-		CloseHandle (this->app_mutex);
-		this->app_mutex = nullptr;
+		CloseHandle (app_mutex);
+		app_mutex = nullptr;
 	}
 
 #ifdef _APP_NO_UAC
 
-	if (_r_system_uacstate () && this->SkipUacRun ())
+	if (_r_system_uacstate () && SkipUacRun ())
 	{
 		return FALSE;
 	}
@@ -157,7 +157,7 @@ BOOL rapp::Initialize ()
 
 	if (_r_system_iswow64 ())
 	{
-		_r_msg (nullptr, MB_OK | MB_ICONEXCLAMATION, this->app_name, L"WARNING! 32-bit executable may incompatible with 64-bit operating system version!");
+		_r_msg (nullptr, MB_OK | MB_ICONEXCLAMATION, app_name, L"WARNING! 32-bit executable may incompatible with 64-bit operating system version!");
 	}
 
 #endif // _WIN64
@@ -173,7 +173,7 @@ VOID rapp::AutorunCreate (BOOL is_remove)
 	{
 		if (is_remove)
 		{
-			RegDeleteValue (key, this->app_name);
+			RegDeleteValue (key, app_name);
 		}
 		else
 		{
@@ -185,7 +185,7 @@ VOID rapp::AutorunCreate (BOOL is_remove)
 			StringCchCat (buffer, _countof (buffer), L" ");
 			StringCchCat (buffer, _countof (buffer), L"/minimized");
 
-			RegSetValueEx (key, this->app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) + 1) * sizeof (WCHAR)));
+			RegSetValueEx (key, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) + 1) * sizeof (WCHAR)));
 		}
 
 		RegCloseKey (key);
@@ -204,14 +204,14 @@ BOOL rapp::AutorunIsPresent ()
 
 		DWORD size = MAX_PATH;
 
-		result = (RegQueryValueEx (key, this->app_name, nullptr, nullptr, (LPBYTE)path1, &size) == ERROR_SUCCESS);
+		result = (RegQueryValueEx (key, app_name, nullptr, nullptr, (LPBYTE)path1, &size) == ERROR_SUCCESS);
 
 		if (result)
 		{
 			PathRemoveArgs (path1);
 			PathUnquoteSpaces (path1);
 
-			GetModuleFileName (this->GetHINSTANCE (), path2, _countof (path2));
+			GetModuleFileName (GetHINSTANCE (), path2, _countof (path2));
 
 			// check path is to current module
 			result = _wcsicmp (path1, path2) == 0;
@@ -229,31 +229,31 @@ VOID rapp::CheckForUpdates (BOOL is_periodical)
 {
 	if (is_periodical)
 	{
-		if (!this->ConfigGet (L"CheckUpdates", 1) || (_r_unixtime_now () - this->ConfigGet (L"CheckUpdatesLast", 0)) <= _APP_UPDATE_PERIOD)
+		if (!ConfigGet (L"CheckUpdates", 1) || (_r_unixtime_now () - ConfigGet (L"CheckUpdatesLast", 0)) <= _APP_UPDATE_PERIOD)
 		{
 			return;
 		}
 	}
 
-	this->is_update_forced = is_periodical;
+	is_update_forced = is_periodical;
 
-	_beginthreadex (nullptr, 0, &this->CheckForUpdatesProc, (LPVOID)this, 0, nullptr);
+	_beginthreadex (nullptr, 0, &CheckForUpdatesProc, (LPVOID)this, 0, nullptr);
 }
 
 #endif // _APP_NO_UPDATES
 
 VOID rapp::ConfigInit ()
 {
-	this->app_config_array.clear (); // reset
+	app_config_array.clear (); // reset
 
-	this->ParseINI (this->app_config_path, &this->app_config_array);
+	ParseINI (app_config_path, &app_config_array);
 
-	this->LocaleInit ();
+	LocaleInit ();
 }
 
 LONGLONG rapp::ConfigGet (LPCWSTR key, INT def, LPCWSTR name)
 {
-	return this->ConfigGet (key, _r_fmt (L"%d", def), name).AsInt (10);
+	return ConfigGet (key, _r_fmt (L"%d", def), name).AsInt (10);
 }
 
 rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
@@ -262,13 +262,13 @@ rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 
 	if (!name)
 	{
-		name = this->app_name_short;
+		name = app_name_short;
 	}
 
 	// check key is exists
-	if (this->app_config_array.find (name) != this->app_config_array.end () && this->app_config_array[name].find (key) != this->app_config_array[name].end ())
+	if (app_config_array.find (name) != app_config_array.end () && app_config_array[name].find (key) != app_config_array[name].end ())
 	{
-		result = this->app_config_array[name][key];
+		result = app_config_array[name][key];
 	}
 
 	if (result.IsEmpty ())
@@ -281,25 +281,25 @@ rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 
 BOOL rapp::ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name)
 {
-	if (!_r_file_is_exists (this->app_profile_directory))
+	if (!_r_file_is_exists (app_profile_directory))
 	{
-		SHCreateDirectoryEx (nullptr, this->app_profile_directory, nullptr);
+		SHCreateDirectoryEx (nullptr, app_profile_directory, nullptr);
 	}
 
 	if (!name)
 	{
-		name = this->app_name_short;
+		name = app_name_short;
 	}
 
 	// update hash value
-	this->app_config_array[name][key] = val;
+	app_config_array[name][key] = val;
 
-	return WritePrivateProfileString (name, key, val, this->app_config_path);
+	return WritePrivateProfileString (name, key, val, app_config_path);
 }
 
 BOOL rapp::ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name)
 {
-	return this->ConfigSet (key, _r_fmt (L"%lld", val), name);
+	return ConfigSet (key, _r_fmt (L"%lld", val), name);
 }
 
 #ifndef _APP_NO_ABOUT
@@ -315,12 +315,12 @@ VOID rapp::CreateAboutWindow ()
 	MSG msg = {0};
 	RECT rc = {0};
 
-	rc.right = this->GetDPI (374);
-	rc.bottom = this->GetDPI (112);
+	rc.right = GetDPI (374);
+	rc.bottom = GetDPI (114);
 
 	AdjustWindowRectEx (&rc, WS_SYSMENU | WS_BORDER, FALSE, WS_EX_DLGMODALFRAME | WS_EX_TOPMOST);
 
-	HWND hwnd = CreateWindowEx (WS_EX_TOPMOST | WS_EX_DLGMODALFRAME, _APP_ABOUT_CLASS, I18N (this, IDS_ABOUT, 0), WS_SYSMENU | WS_BORDER, CW_USEDEFAULT, CW_USEDEFAULT, rc.right, rc.bottom, this->GetHWND (), nullptr, this->GetHINSTANCE (), nullptr);
+	HWND hwnd = CreateWindowEx (WS_EX_TOPMOST | WS_EX_DLGMODALFRAME, _APP_ABOUT_CLASS, I18N (this, IDS_ABOUT, 0), WS_SYSMENU | WS_BORDER, CW_USEDEFAULT, CW_USEDEFAULT, rc.right, rc.bottom, GetHWND (), nullptr, GetHINSTANCE (), nullptr);
 
 	if (hwnd)
 	{
@@ -333,21 +333,21 @@ VOID rapp::CreateAboutWindow ()
 		DeleteMenu (menu, 1, MF_BYPOSITION); // divider
 
 		// create controls
-		HWND hctrl = CreateWindowEx (0, WC_STATIC, nullptr, WS_CHILD | WS_VISIBLE | SS_ICON, this->GetDPI (12), this->GetDPI (12), this->GetDPI (64), this->GetDPI (64), hwnd, nullptr, nullptr, nullptr);
-		SendMessage (hctrl, STM_SETIMAGE, IMAGE_ICON, (LPARAM)this->app_logo);
+		HWND hctrl = CreateWindowEx (0, WC_STATIC, nullptr, WS_CHILD | WS_VISIBLE | SS_ICON, GetDPI (12), GetDPI (12), GetDPI (64), GetDPI (64), hwnd, nullptr, nullptr, nullptr);
+		SendMessage (hctrl, STM_SETIMAGE, IMAGE_ICON, (LPARAM)app_logo);
 
-		hctrl = CreateWindowEx (0, WC_STATIC, _r_fmt (L"%s %s (%d-bit)", this->app_name, this->app_version, architecture), WS_CHILD | WS_VISIBLE, this->GetDPI (88), this->GetDPI (14), this->GetDPI (270), this->GetDPI (16), hwnd, nullptr, nullptr, nullptr);
-		SendMessage (hctrl, WM_SETFONT, (WPARAM)this->app_font, TRUE);
+		hctrl = CreateWindowEx (0, WC_STATIC, _r_fmt (L"%s %s (%d-bit)", app_name, app_version, architecture), WS_CHILD | WS_VISIBLE, GetDPI (88), GetDPI (14), GetDPI (270), GetDPI (16), hwnd, nullptr, nullptr, nullptr);
+		SendMessage (hctrl, WM_SETFONT, (WPARAM)app_font, TRUE);
 
-		hctrl = CreateWindowEx (0, WC_STATIC, this->app_copyright, WS_CHILD | WS_VISIBLE, this->GetDPI (88), this->GetDPI (36), this->GetDPI (270), this->GetDPI (16), hwnd, nullptr, nullptr, nullptr);
-		SendMessage (hctrl, WM_SETFONT, (WPARAM)this->app_font, TRUE);
+		hctrl = CreateWindowEx (0, WC_STATIC, app_copyright, WS_CHILD | WS_VISIBLE, GetDPI (88), GetDPI (36), GetDPI (270), GetDPI (16), hwnd, nullptr, nullptr, nullptr);
+		SendMessage (hctrl, WM_SETFONT, (WPARAM)app_font, TRUE);
 
-		hctrl = CreateWindowEx (0, WC_LINK, _r_fmt (L"<a href=\"%s\">Website</a> | <a href=\"%s\">GitHub</a> | <a href=\"%s/%s/blob/master/LICENSE\">License agreement</a>", _APP_WEBSITE_URL, _APP_GITHUB_URL, _APP_GITHUB_URL, this->app_name_short), WS_CHILD | WS_VISIBLE, this->GetDPI (88), this->GetDPI (58), this->GetDPI (270), this->GetDPI (16), hwnd, nullptr, nullptr, nullptr);
-		SendMessage (hctrl, WM_SETFONT, (WPARAM)this->app_font, TRUE);
+		hctrl = CreateWindowEx (0, WC_LINK, _r_fmt (L"<a href=\"%s\">Website</a> | <a href=\"%s\">GitHub</a> | <a href=\"%s/%s/blob/master/LICENSE\">License agreement</a>", _APP_WEBSITE_URL, _APP_GITHUB_URL, _APP_GITHUB_URL, app_name_short), WS_CHILD | WS_VISIBLE, GetDPI (88), GetDPI (58), GetDPI (270), GetDPI (16), hwnd, nullptr, nullptr, nullptr);
+		SendMessage (hctrl, WM_SETFONT, (WPARAM)app_font, TRUE);
 
 		ShowWindow (hwnd, SW_SHOW);
 
-		while (GetMessage (&msg, nullptr, 0, 0))
+		while (GetMessage (&msg, nullptr, 0, 0) > 0)
 		{
 			if (!IsDialogMessage (hwnd, &msg))
 			{
@@ -368,30 +368,30 @@ BOOL rapp::CreateMainWindow (DLGPROC proc)
 	{
 		// create window
 #ifdef IDD_MAIN
-		this->app_hwnd = CreateDialog (nullptr, MAKEINTRESOURCE (IDD_MAIN), nullptr, proc);
+		app_hwnd = CreateDialog (nullptr, MAKEINTRESOURCE (IDD_MAIN), nullptr, proc);
 #endif // IDD_MAIN
 
-		if (!this->app_hwnd)
+		if (!app_hwnd)
 		{
 			result = FALSE;
 		}
 		else
 		{
 			// set title
-			SetWindowText (this->app_hwnd, this->app_name);
+			SetWindowText (app_hwnd, app_name);
 
 			// set on top
-			_r_windowtotop (this->app_hwnd, this->ConfigGet (L"AlwaysOnTop", 0));
+			_r_windowtotop (app_hwnd, ConfigGet (L"AlwaysOnTop", 0) ? TRUE : FALSE);
 
 			// set icons
 #ifdef IDI_MAIN
-			SendMessage (this->app_hwnd, WM_SETICON, ICON_SMALL, (LPARAM)_r_loadicon (this->GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), GetSystemMetrics (SM_CXSMICON)));
-			SendMessage (this->app_hwnd, WM_SETICON, ICON_BIG, (LPARAM)_r_loadicon (this->GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), GetSystemMetrics (SM_CXICON)));
+			SendMessage (app_hwnd, WM_SETICON, ICON_SMALL, (LPARAM)_r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), GetSystemMetrics (SM_CXSMICON)));
+			SendMessage (app_hwnd, WM_SETICON, ICON_BIG, (LPARAM)_r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), GetSystemMetrics (SM_CXICON)));
 #endif // IDI_MAIN
 
 			// check for updates
 #ifndef _APP_NO_UPDATES
-			this->CheckForUpdates (TRUE);
+			CheckForUpdates (TRUE);
 #endif // _APP_NO_UPDATES
 
 			result = TRUE;
@@ -412,7 +412,7 @@ VOID rapp::CreateSettingsWindow ()
 		is_opened = true;
 
 #ifdef IDD_SETTINGS
-		DialogBoxParam (nullptr, MAKEINTRESOURCE (IDD_SETTINGS), this->GetHWND (), this->SettingsWndProc, (LPARAM)this);
+		DialogBoxParam (nullptr, MAKEINTRESOURCE (IDD_SETTINGS), GetHWND (), &SettingsWndProc, (LPARAM)this);
 #endif // IDD_SETTINGS
 	}
 
@@ -430,7 +430,7 @@ VOID rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, LPCWSTR title, APPLICATION
 		ptr->title = title;
 		ptr->callback = callback;
 
-		this->app_settings_pages.push_back (ptr);
+		app_settings_pages.push_back (ptr);
 	}
 }
 
@@ -438,32 +438,32 @@ VOID rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, LPCWSTR title, APPLICATION
 
 rstring rapp::GetDirectory ()
 {
-	return this->app_directory;
+	return app_directory;
 }
 
 rstring rapp::GetProfileDirectory ()
 {
-	return this->app_profile_directory;
+	return app_profile_directory;
 }
 
 rstring rapp::GetUserAgent ()
 {
-	return _r_fmt (L"%s/%s (+%s)", this->app_name, this->app_version, _APP_WEBSITE_URL);
+	return _r_fmt (L"%s/%s (+%s)", app_name, app_version, _APP_WEBSITE_URL);
 }
 
 INT rapp::GetDPI (INT v)
 {
-	return (INT)ceil (static_cast<DOUBLE>(v) * this->dpi_percent);
+	return (INT)ceil (static_cast<DOUBLE>(v) * dpi_percent);
 }
 
 HINSTANCE rapp::GetHINSTANCE ()
 {
-	return this->app_hinstance;
+	return app_hinstance;
 }
 
 HWND rapp::GetHWND ()
 {
-	return this->app_hwnd;
+	return app_hwnd;
 }
 
 VOID rapp::Restart ()
@@ -471,34 +471,34 @@ VOID rapp::Restart ()
 	WCHAR buffer[MAX_PATH] = {0};
 	GetModuleFileName (nullptr, buffer, _countof (buffer));
 
-	ShowWindow (this->GetHWND (), SW_HIDE); // hide main window
+	ShowWindow (GetHWND (), SW_HIDE); // hide main window
 
-	if (this->app_mutex)
+	if (app_mutex)
 	{
-		CloseHandle (this->app_mutex);
-		this->app_mutex = nullptr;
+		CloseHandle (app_mutex);
+		app_mutex = nullptr;
 	}
 
 	if (_r_run (buffer, nullptr, nullptr))
 	{
-		if (this->GetHWND ())
+		if (GetHWND ())
 		{
-			DestroyWindow (this->GetHWND ());
+			DestroyWindow (GetHWND ());
 		}
 
 		ExitProcess (EXIT_SUCCESS);
 	}
 	else
 	{
-		ShowWindow (this->GetHWND (), SW_SHOW);
+		ShowWindow (GetHWND (), SW_SHOW);
 
-		this->app_mutex = CreateMutex (nullptr, FALSE, this->app_name_short);
+		app_mutex = CreateMutex (nullptr, FALSE, app_name_short);
 	}
 }
 
 VOID rapp::SetHWND (HWND hwnd)
 {
-	this->app_hwnd = hwnd;
+	app_hwnd = hwnd;
 }
 
 #ifndef _APP_NO_SETTINGS
@@ -506,12 +506,12 @@ VOID rapp::SetHWND (HWND hwnd)
 VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id)
 {
 	WIN32_FIND_DATA wfd = {0};
-	HANDLE h = FindFirstFile (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\*.ini", this->app_directory), &wfd);
+	HANDLE h = FindFirstFile (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\*.ini", app_directory), &wfd);
 
 	if (h != INVALID_HANDLE_VALUE)
 	{
 		INT count = max (0, (INT)SendDlgItemMessage (hwnd, ctrl_id, CB_GETCOUNT, 0, 0));
-		rstring def = this->ConfigGet (L"Language", nullptr);
+		rstring def = ConfigGet (L"Language", nullptr);
 
 		do
 		{
@@ -541,14 +541,14 @@ VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id)
 
 VOID rapp::LocaleInit ()
 {
-	rstring name = this->ConfigGet (L"Language", nullptr);
+	rstring name = ConfigGet (L"Language", nullptr);
 
-	this->app_locale_array.clear (); // clear
-	this->is_localized = FALSE;
+	app_locale_array.clear (); // clear
+	is_localized = FALSE;
 
 	if (!name.IsEmpty ())
 	{
-		this->is_localized = this->ParseINI (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\%s.ini", this->GetDirectory (), name), &this->app_locale_array);
+		is_localized = ParseINI (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\%s.ini", GetDirectory (), name), &app_locale_array);
 	}
 }
 
@@ -556,12 +556,12 @@ rstring rapp::LocaleString (HINSTANCE h, UINT uid, LPCWSTR name)
 {
 	rstring result;
 
-	if (this->is_localized)
+	if (is_localized)
 	{
 		// check key is exists
-		if (this->app_locale_array[_APP_I18N_SECTION].find (name) != this->app_locale_array[_APP_I18N_SECTION].end ())
+		if (app_locale_array[_APP_I18N_SECTION].find (name) != app_locale_array[_APP_I18N_SECTION].end ())
 		{
-			result = this->app_locale_array[_APP_I18N_SECTION][name];
+			result = app_locale_array[_APP_I18N_SECTION][name];
 
 			result.Replace (L"\\t", L"\t");
 			result.Replace (L"\\r", L"\r");
@@ -573,7 +573,7 @@ rstring rapp::LocaleString (HINSTANCE h, UINT uid, LPCWSTR name)
 	{
 		if (!h)
 		{
-			h = this->GetHINSTANCE ();
+			h = GetHINSTANCE ();
 		}
 
 		LoadString (h, uid, result.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH);
@@ -585,7 +585,7 @@ rstring rapp::LocaleString (HINSTANCE h, UINT uid, LPCWSTR name)
 
 VOID rapp::LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position)
 {
-	if (this->is_localized && text)
+	if (is_localized && text)
 	{
 		MENUITEMINFO mif = {0};
 
@@ -887,6 +887,8 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 						bufferw.Append (buffer);
 					}
 
+					bufferw.Trim (L" \r\n");
+
 					if (_r_str_versioncompare (this_ptr->app_version, bufferw) == -1)
 					{
 						if (_r_msg (this_ptr->GetHWND (), MB_YESNO | MB_ICONQUESTION, this_ptr->app_name, I18N (this_ptr, IDS_UPDATE_YES, 0), bufferw) == IDYES)
@@ -1006,7 +1008,7 @@ BOOL rapp::SkipUacCreate (BOOL is_remove)
 	IRegisteredTask* registered_task = nullptr;
 
 	rstring name;
-	name.Format (_APP_TASKSCHD_NAME, this->app_name_short);
+	name.Format (_APP_TASKSCHD_NAME, app_name_short);
 
 	if (_r_system_validversion (6, 0))
 	{
@@ -1102,7 +1104,7 @@ BOOL rapp::SkipUacIsPresent (BOOL is_run)
 	BOOL result = FALSE;
 
 	rstring name;
-	name.Format (_APP_TASKSCHD_NAME, this->app_name_short);
+	name.Format (_APP_TASKSCHD_NAME, app_name_short);
 
 	if (_r_system_validversion (6, 0))
 	{
@@ -1141,7 +1143,7 @@ BOOL rapp::SkipUacIsPresent (BOOL is_run)
 
 										exec_action->get_Path (&path1);
 
-										GetModuleFileName (this->GetHINSTANCE (), path2, _countof (path2));
+										GetModuleFileName (GetHINSTANCE (), path2, _countof (path2));
 
 										// check path is to current module
 										if (_wcsicmp (path1, path2) == 0)
@@ -1223,10 +1225,10 @@ BOOL rapp::SkipUacRun ()
 {
 	if (_r_system_uacstate ())
 	{
-		CloseHandle (this->app_mutex);
-		this->app_mutex = nullptr;
+		CloseHandle (app_mutex);
+		app_mutex = nullptr;
 
-		if (this->SkipUacIsPresent (TRUE))
+		if (SkipUacIsPresent (TRUE))
 		{
 			return TRUE;
 		}
@@ -1250,7 +1252,7 @@ BOOL rapp::SkipUacRun ()
 			}
 		}
 
-		this->app_mutex = CreateMutex (nullptr, FALSE, this->app_name_short);
+		app_mutex = CreateMutex (nullptr, FALSE, app_name_short);
 	}
 	else
 	{

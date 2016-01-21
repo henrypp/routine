@@ -693,8 +693,9 @@ VOID _r_ctrl_enable (HWND hwnd, INT ctrl, BOOL is_enable)
 
 rstring _r_ctrl_gettext (HWND hwnd, INT ctrl)
 {
-	size_t length = (size_t)SendDlgItemMessage (hwnd, ctrl, WM_GETTEXTLENGTH, 0, 0) + 1;
 	rstring result;
+
+	INT length = (INT)SendDlgItemMessage (hwnd, ctrl, WM_GETTEXTLENGTH, 0, 0) + 1;
 
 	GetDlgItemText (hwnd, ctrl, result.GetBuffer (length), length);
 	result.ReleaseBuffer ();

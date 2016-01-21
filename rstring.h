@@ -62,6 +62,8 @@ public:
 	friend rstring operator+ (const rstring& str1, const rstring& str2);
 	friend rstring operator+ (const rstring& str1, LPCWSTR str2);
 
+	WCHAR& At (size_t index) const;
+
 	DWORD AsInt (INT radix = 10) const;
 	vector AsVector (LPCWSTR delimiters) const;
 
@@ -95,7 +97,10 @@ public:
 	void ReleaseBuffer ();
 
 	size_t Find (WCHAR chr, size_t start_pos = 0) const;
-	size_t ReverseFind (WCHAR chr, size_t start_pos = 0) const;
+	size_t Find (LPCWSTR chars, size_t start_pos = 0) const;
+
+	size_t ReverseFind (WCHAR chr, size_t start_pos = npos) const;
+	size_t ReverseFind (LPCWSTR chars, size_t start_pos = npos) const;
 
 	bool Match (LPCWSTR pattern);
 	bool Match (LPCWSTR str, LPCWSTR pattern);
