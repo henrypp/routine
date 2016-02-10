@@ -1,7 +1,7 @@
 // routine++
 // Copyright (c) 2012-2016 Henry++
 
-// lastmod: Jan 9, 2016
+// lastmod: Jan 29, 2016
 
 #pragma once
 
@@ -113,7 +113,7 @@ VOID _r_windowtotop (HWND hwnd, BOOL is_enable);
 */
 
 HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d);
-BOOL _r_run (LPCWSTR path, LPWSTR cmdline, LPCWSTR cd);
+BOOL _r_run (LPCWSTR cmdline, LPCWSTR cd = nullptr, BOOL is_wait = FALSE);
 rstring _r_normalize_path (LPCWSTR path);
 
 /*
@@ -146,7 +146,7 @@ DWORD _r_listview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle);
 	Control: treeview
 */
 
-HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT image = -1, LPARAM lparam = 0);
+HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl, LPCWSTR text, HTREEITEM parent = nullptr, INT image = -1, LPARAM lparam = 0);
 LPARAM _r_treeview_getlparam (HWND hwnd, INT ctrl, HTREEITEM item);
 DWORD _r_treeview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle, INT height);
 

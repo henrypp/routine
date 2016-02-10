@@ -1,7 +1,7 @@
 // rstring
 // A fast, reference counted, copy-on-write string class (c) Espen Harlinn
 
-// lastmod: Jan 17, 2016
+// lastmod: Jan 29, 2016
 
 #pragma once
 
@@ -137,6 +137,9 @@ private:
 
 	static int _CompareI (Buffer* buffer1, Buffer* buffer2);
 	static int _CompareI (Buffer* buffer1, LPCWSTR buffer2);
+
+	static LPCWSTR wmemichr (LPCWSTR buf, INT chr, size_t cnt);
+	static INT _wmemicmp (LPCWSTR first, LPCWSTR second, size_t count);
 };
 
 #pragma pack(pop)

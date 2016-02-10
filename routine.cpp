@@ -662,14 +662,40 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d)
 	return result;
 }
 
-BOOL _r_run (LPCWSTR path, LPWSTR cmdline, LPCWSTR cd)
+BOOL _r_run (LPCWSTR cmdline, LPCWSTR cd, BOOL is_wait)
 {
 	STARTUPINFO si = {0};
 	PROCESS_INFORMATION pi = {0};
+	HANDLE job = nullptr;
 
-	si.cb = sizeof (STARTUPINFO);
+	si.cb = sizeof (si);
 
-	return CreateProcess (path, cmdline, nullptr, nullptr, FALSE, 0, nullptr, cd, &si, &pi);
+	if (is_wait)
+	{
+		job = CreateJobObject (nullptr, nullptr);
+	}
+
+	rstring _intptr = cmdline;
+
+	BOOL result = CreateProcess (nullptr, _intptr.GetBuffer () , nullptr, nullptr, FALSE, is_wait ? (CREATE_BREAKAWAY_FROM_JOB | CREATE_SUSPENDED) : 0, nullptr, cd, &si, &pi);
+	_intptr.ReleaseBuffer ();
+
+	if (is_wait)
+	{
+		AssignProcessToJobObject (job, pi.hProcess);
+		ResumeThread (pi.hThread);
+		CloseHandle (pi.hThread);
+
+		JOBOBJECT_BASIC_ACCOUNTING_INFORMATION jbai = {0};
+		DWORD out_length = 0;
+
+		while (QueryInformationJobObject (job, JobObjectBasicAccountingInformation, &jbai, sizeof (jbai), &out_length) && jbai.ActiveProcesses);
+
+		CloseHandle (job);
+		CloseHandle (pi.hProcess);
+	}
+
+	return result;
 }
 
 rstring _r_normalize_path (LPCWSTR path)
@@ -922,12 +948,17 @@ DWORD _r_listview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle)
 	Control: treeview
 */
 
-HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT image, LPARAM lparam)
+HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl, LPCWSTR text, HTREEITEM parent, INT image, LPARAM lparam)
 {
 	TVINSERTSTRUCT tvi = {0};
 
 	tvi.itemex.mask = TVIF_TEXT;
 	tvi.itemex.pszText = (LPWSTR)text;
+
+	if (parent)
+	{
+		tvi.hParent = parent;
+	}
 
 	if (image != -1)
 	{

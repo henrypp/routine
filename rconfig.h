@@ -57,10 +57,9 @@
 #define _RM_INITIALIZE 0x1
 #define _RM_UNINITIALIZE 0x2
 
-#define _RM_SETTINGS_SAVE 0x4
-#define _RM_SETTINGS_INIT 0x8
+#define _RM_SETTINGS 0x4
 
-#define _RM_MESSAGE 0x16
+#define _RM_MESSAGE 0x8
 
 /*
 	Macroses

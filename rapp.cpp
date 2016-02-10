@@ -89,6 +89,11 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 
 rapp::~rapp ()
 {
+	if (app_callback)
+	{
+		app_callback (app_hwnd, _RM_UNINITIALIZE, nullptr, nullptr);
+	}
+
 	if (app_mutex)
 	{
 		CloseHandle (app_mutex);
@@ -360,7 +365,7 @@ VOID rapp::CreateAboutWindow ()
 
 #endif // _APP_NO_ABOUT
 
-BOOL rapp::CreateMainWindow (DLGPROC proc)
+BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 {
 	BOOL result = FALSE;
 
@@ -371,12 +376,15 @@ BOOL rapp::CreateMainWindow (DLGPROC proc)
 		app_hwnd = CreateDialog (nullptr, MAKEINTRESOURCE (IDD_MAIN), nullptr, proc);
 #endif // IDD_MAIN
 
-		if (!app_hwnd)
+		if (app_hwnd)
 		{
-			result = FALSE;
-		}
-		else
-		{
+			if (callback)
+			{
+				app_callback = callback;
+
+				app_callback (app_hwnd, _RM_INITIALIZE, nullptr, nullptr);
+			}
+
 			// set title
 			SetWindowText (app_hwnd, app_name);
 
@@ -395,6 +403,10 @@ BOOL rapp::CreateMainWindow (DLGPROC proc)
 #endif // _APP_NO_UPDATES
 
 			result = TRUE;
+		}
+		else
+		{
+			result = FALSE;
 		}
 	}
 
@@ -479,14 +491,14 @@ VOID rapp::Restart ()
 		app_mutex = nullptr;
 	}
 
-	if (_r_run (buffer, nullptr, nullptr))
+	if (_r_run (buffer))
 	{
 		if (GetHWND ())
 		{
 			DestroyWindow (GetHWND ());
 		}
 
-		ExitProcess (EXIT_SUCCESS);
+		//ExitProcess (EXIT_SUCCESS);
 	}
 	else
 	{
@@ -753,7 +765,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			{
 				this_ptr->app_settings_pages.at (i)->hwnd = CreateDialogParam (this_ptr->app_settings_pages.at (i)->h, MAKEINTRESOURCE (this_ptr->app_settings_pages.at (i)->dlg_id), hwnd, &this_ptr->SettingsPagesProc, (LPARAM)this_ptr);
 
-				HTREEITEM item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->app_settings_pages.at (i)->title, -1, (LPARAM)i);
+				HTREEITEM item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->app_settings_pages.at (i)->title, nullptr, -1, (LPARAM)i);
 
 				if (this_ptr->ConfigGet (L"SettingsLastPage", 0) == i)
 				{
@@ -804,14 +816,20 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 					for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 					{
-						if (this_ptr->app_settings_pages.at (i)->callback (this_ptr->app_settings_pages.at (i)->hwnd, _RM_SETTINGS_SAVE, nullptr, this_ptr->app_settings_pages.at (i)))
+						if (this_ptr->app_settings_pages.at (i)->callback (this_ptr->app_settings_pages.at (i)->hwnd, _RM_SETTINGS, nullptr, this_ptr->app_settings_pages.at (i)))
 						{
 							is_restart = TRUE;
 						}
 					}
 
 					this_ptr->ConfigInit (); // reload settings
-					this_ptr->app_settings_pages.at (0)->callback (this_ptr->app_settings_pages.at (0)->hwnd, _RM_SETTINGS_INIT, nullptr, nullptr); // call saved state
+
+					// reinitialization
+					if (this_ptr->app_callback)
+					{
+						this_ptr->app_callback (this_ptr->app_hwnd, _RM_UNINITIALIZE, nullptr, nullptr);
+						this_ptr->app_callback (this_ptr->app_hwnd, _RM_INITIALIZE, nullptr, nullptr);
+					}
 
 					if (is_restart) { this_ptr->Restart (); }
 
@@ -827,6 +845,8 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					{
 						this_ptr->app_settings_pages.at (i)->callback (this_ptr->app_settings_pages.at (i)->hwnd, _RM_UNINITIALIZE, nullptr, this_ptr->app_settings_pages.at (i)); // call closed state
 					}
+
+					_r_windowtotop (this_ptr->GetHWND (), this_ptr->ConfigGet (L"AlwaysOnTop", 0));
 
 					break;
 				}

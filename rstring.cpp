@@ -374,9 +374,7 @@ INT rstring::CompareNoCase (LPCWSTR str) const
 rstring rstring::Mid (size_t start, size_t length) const
 {
 	rstring result;
-
 	size_t clength = GetLength ();
-
 	if (clength)
 	{
 		if ((start == 0) && (length >= clength))
@@ -581,7 +579,7 @@ rstring& rstring::Trim (LPCWSTR chars)
 		start_pos = 0;
 		do
 		{
-			LPCWSTR p = wmemchr (chars, thisBuffer->data[start_pos], chars_len);
+			LPCWSTR p = wmemichr (chars, thisBuffer->data[start_pos], chars_len);
 			if (!p || thisBuffer->length == start_pos)
 			{
 				if (start_pos)
@@ -596,7 +594,7 @@ rstring& rstring::Trim (LPCWSTR chars)
 		end_pos = thisBuffer->length - 1;
 		do
 		{
-			LPCWSTR p = wmemchr (chars, thisBuffer->data[end_pos], chars_len);
+			LPCWSTR p = wmemichr (chars, thisBuffer->data[end_pos], chars_len);
 			if (!p || end_pos == thisBuffer->length)
 			{
 				end_pos++;
@@ -664,41 +662,43 @@ size_t rstring::ReverseFind (WCHAR chars, size_t start_pos) const
 		{
 			start_pos = thisBuffer->length - 1;
 		}
-		for (size_t i = start_pos; i != npos; i--)
+		do
 		{
-			if (towupper (thisBuffer->data[i]) == towupper (chars))
+			if (towupper (thisBuffer->data[start_pos]) == towupper (chars))
 			{
-				return i;
+				return start_pos;
 			}
 		}
+		while (start_pos--);
 	}
-
 	return npos;
 }
 
 size_t rstring::ReverseFind (LPCWSTR chars, size_t start_pos) const
 {
 	Buffer* thisBuffer = toBuffer ();
-	size_t len = wcslen (chars);
-	if (thisBuffer && len)
+	size_t searchStringLength = wcslen (chars);
+	if (thisBuffer && (searchStringLength <= thisBuffer->length))
 	{
-		if (start_pos >= thisBuffer->length)
+		if (start_pos > (thisBuffer->length - searchStringLength))
 		{
-			start_pos = thisBuffer->length - 1;
+			start_pos = thisBuffer->length - searchStringLength;
 		}
-		do
+		if (searchStringLength == 1)
 		{
-			WCHAR c = towupper (thisBuffer->data[start_pos]);
-			for (size_t i = 0; i < len; i++)
+			start_pos = ReverseFind (*chars, start_pos);
+		}
+		else if (searchStringLength)
+		{
+			do
 			{
-				WCHAR sc = towupper (chars[i]);
-				if (c == sc)
+				if (_wmemicmp (&thisBuffer->data[start_pos], chars, searchStringLength) == 0)
 				{
 					return start_pos;
 				}
 			}
+			while (start_pos--);
 		}
-		while (start_pos--);
 	}
 	return npos;
 }
@@ -777,7 +777,7 @@ size_t rstring::allocationByteCount (size_t length)
 			return minBufferByteCount;
 		}
 
-		size_t bytesRequired = (nonTextBufferByteCount+length)*sizeof (wchar_t);
+		size_t bytesRequired = (nonTextBufferByteCount + length)*sizeof (wchar_t);
 
 		size_t remainder = bytesRequired % minBufferByteCount;
 		if (remainder != 0)
@@ -976,6 +976,34 @@ int rstring::_CompareI (Buffer* buffer1, LPCWSTR buffer2)
 	else if (buffer2)
 	{
 		return -1;
+	}
+	return 0;
+}
+
+LPCWSTR rstring::wmemichr (LPCWSTR buf, INT chr, size_t cnt)
+{
+	chr = towupper (chr);
+	while (cnt && (towupper (*buf) != chr))
+	{
+		buf++;
+		cnt--;
+	}
+
+	return cnt ? buf : nullptr;
+}
+
+INT rstring::_wmemicmp (LPCWSTR first, LPCWSTR second, size_t count)
+{
+	while (count)
+	{
+		int result = towupper (*first) - towupper (*second);
+		if (result)
+		{
+			return result;
+		}
+		first++;
+		second++;
+		count--;
 	}
 	return 0;
 }

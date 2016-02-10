@@ -1,7 +1,7 @@
 // routine++
 // Copyright (c) 2012-2016 Henry++
 
-// lastmod: Jan 17, 2016
+// lastmod: Feb 10, 2016
 
 #pragma once
 
@@ -84,7 +84,7 @@ public:
 	VOID CreateAboutWindow ();
 #endif // _APP_NO_ABOUT
 
-	BOOL CreateMainWindow (DLGPROC proc);
+	BOOL CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback);
 
 #ifndef _APP_NO_SETTINGS
 	VOID CreateSettingsWindow ();
@@ -145,6 +145,7 @@ private:
 	HWND app_hwnd = nullptr;
 	HANDLE app_mutex = nullptr;
 	HINSTANCE app_hinstance = nullptr;
+	APPLICATION_CALLBACK app_callback = nullptr;
 
 #ifndef _APP_NO_ABOUT
 	HICON app_logo = nullptr;
