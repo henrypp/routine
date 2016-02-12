@@ -6,6 +6,9 @@
 
 LPWSTR rstring::empty = L"";
 
+#pragma warning(disable: 4309)
+const size_t rstring::npos = MAXDWORD64;
+
 rstring::rstring () : data_ (nullptr)
 {}
 
@@ -44,7 +47,7 @@ rstring::rstring (LPCSTR str) : data_ (nullptr)
 	if (length)
 	{
 		ReallocateUnique (length);
-		MultiByteToWideChar (CP_ACP, 0, str, length, data_, length);
+		MultiByteToWideChar (CP_ACP, 0, str, static_cast<int>(length), data_, static_cast<int>(length));
 	}
 }
 
@@ -330,10 +333,7 @@ rstring&rstring::Append (LPCWSTR str)
 		{
 			size_t offset = str - data_;
 			size_t length = thisBuffer->length - offset;
-
 			size_t oldLength = thisBuffer->length;
-
-
 			thisBuffer = ReallocateUnique (thisBuffer->length + length);
 			str = data_ + offset;
 			wmemmove_s (&thisBuffer->data[oldLength], length, str, length);
@@ -341,10 +341,8 @@ rstring&rstring::Append (LPCWSTR str)
 		else
 		{
 			size_t length = wcslen (str);
-			Buffer* thisBuffer = toBuffer ();
 			size_t oldLength = thisBuffer->length;
-
-			thisBuffer = ReallocateUnique (thisBuffer->length + length);
+			thisBuffer = ReallocateUnique (oldLength + length);
 			wmemmove_s (&thisBuffer->data[oldLength], length, str, length);
 		}
 	}
@@ -394,9 +392,58 @@ rstring rstring::Mid (size_t start, size_t length) const
 	return result;
 }
 
-DWORD rstring::AsInt (INT radix) const
+bool rstring::AsBool () const
 {
 	if (this->IsEmpty ())
+		return false;
+
+	if (this->AsInt () > 0 || this->CompareNoCase (L"true") == 0)
+		return true;
+
+	return false;
+}
+
+INT rstring::AsInt (INT radix) const
+{
+	return static_cast<INT>(AsLong (radix));
+}
+
+LONG rstring::AsLong (INT radix) const
+{
+	if (this->IsEmpty ())
+		return 0;
+
+	return wcstol (GetString (), nullptr, radix);
+}
+
+LONGLONG rstring::AsLonglong (INT radix) const
+{
+	if (this->IsEmpty ())
+		return 0;
+
+	return wcstoll (GetString (), nullptr, radix);
+}
+
+size_t rstring::AsSizeT (INT radix) const
+{
+	if (this->IsEmpty ())
+		return 0;
+
+#ifdef _WIN64
+	return wcstoull (GetString (), nullptr, radix);
+#else
+	return static_cast<size_t>(AsUlong (radix));
+#endif
+}
+
+UINT rstring::AsUint (INT radix) const
+{
+	return static_cast<INT>(AsUlong (radix));
+}
+
+ULONG rstring::AsUlong (INT radix) const
+{
+	if (IsEmpty ())
 		return 0;
 
 	return wcstoul (GetString (), nullptr, radix);
@@ -521,7 +568,7 @@ rstring& rstring::FormatV (LPCWSTR fmt, va_list args)
 {
 	size_t length = _vscwprintf (fmt, args);
 
-	StringCchVPrintf (this->GetBuffer (length), length + 1, fmt, args);
+	StringCchVPrintf (GetBuffer (length), length + 1, fmt, args);
 
 	return *this;
 }
@@ -540,7 +587,7 @@ rstring& rstring::Replace (LPCWSTR from, LPCWSTR to)
 	if (from == nullptr || to == nullptr) return *this;
 	newstr = _wcsdup (GetString ());
 	head = newstr;
-	while ((tok = wcsstr (head, from)))
+	while ((tok = wcsstr (head, from)) != nullptr)
 	{
 		size_t orig_l = wcslen (newstr);
 		oldstr = newstr;
@@ -603,7 +650,7 @@ rstring& rstring::Trim (LPCWSTR chars)
 		}
 		while (end_pos--);
 
-		*this = this->Mid (start_pos, end_pos - start_pos);
+		*this = Mid (start_pos, end_pos - start_pos);
 	}
 	return *this;
 }
@@ -980,7 +1027,7 @@ int rstring::_CompareI (Buffer* buffer1, LPCWSTR buffer2)
 	return 0;
 }
 
-LPCWSTR rstring::wmemichr (LPCWSTR buf, INT chr, size_t cnt)
+LPCWSTR rstring::wmemichr (LPCWSTR buf, wint_t chr, size_t cnt)
 {
 	chr = towupper (chr);
 	while (cnt && (towupper (*buf) != chr))

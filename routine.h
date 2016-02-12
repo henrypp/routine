@@ -1,15 +1,15 @@
 // routine++
 // Copyright (c) 2012-2016 Henry++
 
-// lastmod: Frb 12, 2016
+// lastmod: Feb 12, 2016
 
 #pragma once
 
 #define PSAPI_VERSION 1
 
 #include <windows.h>
-#include <commctrl.h>
 #include <shlwapi.h>
+#include <commctrl.h>
 #include <psapi.h>
 #include <uxtheme.h>
 #include <time.h>
@@ -65,8 +65,9 @@ VOID _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length);
 	Filesystem
 */
 
-BOOL _r_file_is_exists (LPCWSTR path);
-DWORD64 _r_file_size (HANDLE h);
+BOOL _r_fs_exists (LPCWSTR path);
+DWORD64 _r_fs_size (HANDLE h);
+BOOL _r_fs_mkdir (LPCWSTR path);
 
 /*
 	Processes
@@ -91,7 +92,7 @@ BOOL _r_sys_adminstate ();
 
 BOOL _r_sys_setprivilege (LPCWSTR privilege, BOOL is_enable);
 BOOL _r_sys_uacstate ();
-BOOL _r_sys_validversion (DWORD major, DWORD minor, DWORD condition = VER_GREATER_EQUAL);
+BOOL _r_sys_validversion (DWORD major, DWORD minor, BYTE condition = VER_GREATER_EQUAL);
 
 /*
 	Unixtime
@@ -174,3 +175,4 @@ typedef BOOL (WINAPI *CWMFEX) (HWND, UINT, DWORD, PCHANGEFILTERSTRUCT); // Chang
 typedef BOOL (WINAPI *IW64P) (HANDLE, PBOOL); // IsWow64Process
 typedef HRESULT (WINAPI *LIWSD) (HINSTANCE, PCWSTR, INT, INT, HICON*); // LoadIconWithScaleDown
 typedef VOID (WINAPI *TDI) (TASKDIALOGCONFIG*, INT*, INT*, BOOL*); // TaskDialogIndirect
+typedef int (WINAPI *SHCDEX) (HWND, LPCTSTR, const SECURITY_ATTRIBUTES*); // SHCreateDirectoryEx

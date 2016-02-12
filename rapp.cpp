@@ -29,7 +29,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	// get configuration path
 	StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s.ini", app_directory, app_name_short);
 
-	if (!_r_file_is_exists (app_config_path))
+	if (!_r_fs_exists (app_config_path))
 	{
 		ExpandEnvironmentStrings (_r_fmt (L"%%APPDATA%%\\%s\\%s", _APP_AUTHOR, app_name), app_profile_directory, _countof (app_profile_directory));
 		StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s.ini", app_profile_directory, app_name_short);
@@ -224,7 +224,7 @@ VOID rapp::CheckForUpdates (BOOL is_periodical)
 {
 	if (is_periodical)
 	{
-		if (!ConfigGet (L"CheckUpdates", 1) || (_r_unixtime_now () - ConfigGet (L"CheckUpdatesLast", 0)) <= _APP_UPDATE_PERIOD)
+		if (!ConfigGet (L"CheckUpdates", 1).AsBool () || (_r_unixtime_now () - ConfigGet (L"CheckUpdatesLast", 0).AsLonglong ()) <= _APP_UPDATE_PERIOD)
 		{
 			return;
 		}
@@ -245,9 +245,9 @@ VOID rapp::ConfigInit ()
 	LocaleInit ();
 }
 
-LONGLONG rapp::ConfigGet (LPCWSTR key, INT def, LPCWSTR name)
+rstring rapp::ConfigGet (LPCWSTR key, INT def, LPCWSTR name)
 {
-	return ConfigGet (key, _r_fmt (L"%d", def), name).AsInt (10);
+	return ConfigGet (key, _r_fmt (L"%d", def), name);
 }
 
 rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
@@ -275,9 +275,9 @@ rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 
 BOOL rapp::ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name)
 {
-	if (!_r_file_is_exists (app_profile_directory))
+	if (!_r_fs_exists (app_profile_directory))
 	{
-		SHCreateDirectoryEx (nullptr, app_profile_directory, nullptr);
+		_r_fs_mkdir (app_profile_directory);
 	}
 
 	if (!name)
@@ -376,7 +376,7 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 			SetWindowText (app_hwnd, app_name);
 
 			// set on top
-			_r_wnd_top (app_hwnd, ConfigGet (L"AlwaysOnTop", 0) ? TRUE : FALSE);
+			_r_wnd_top (app_hwnd, ConfigGet (L"AlwaysOnTop", 0).AsBool ());
 
 			// set icons
 #ifdef IDI_MAIN
@@ -748,7 +748,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 				HTREEITEM item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->app_settings_pages.at (i)->title, nullptr, -1, (LPARAM)i);
 
-				if (this_ptr->ConfigGet (L"SettingsLastPage", 0) == i)
+				if (this_ptr->ConfigGet (L"SettingsLastPage", 0).AsSizeT () == i)
 				{
 					SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)item);
 				}
@@ -827,7 +827,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 						this_ptr->app_settings_pages.at (i)->callback (this_ptr->app_settings_pages.at (i)->hwnd, _RM_UNINITIALIZE, nullptr, this_ptr->app_settings_pages.at (i)); // call closed state
 					}
 
-					_r_wnd_top (this_ptr->GetHWND (), this_ptr->ConfigGet (L"AlwaysOnTop", 0));
+					_r_wnd_top (this_ptr->GetHWND (), this_ptr->ConfigGet (L"AlwaysOnTop", 0).AsBool ());
 
 					break;
 				}
@@ -924,7 +924,7 @@ BOOL rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
 {
 	BOOL result = FALSE;
 
-	if (map && _r_file_is_exists (path))
+	if (map && _r_fs_exists (path))
 	{
 		rstring section_ptr;
 		rstring value_ptr;
@@ -939,7 +939,7 @@ BOOL rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
 		{
 			length += _R_BUFFER_LENGTH;
 
-			out_length = GetPrivateProfileSectionNames (section_ptr.GetBuffer (length), length, path);
+			out_length = GetPrivateProfileSectionNames (section_ptr.GetBuffer (length), static_cast<DWORD>(length), path);
 		}
 		while (out_length == (length - 1));
 
@@ -956,7 +956,7 @@ BOOL rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
 			{
 				length += _R_BUFFER_LENGTH;
 
-				out_length = GetPrivateProfileSection (section, value_ptr.GetBuffer (length), length, path);
+				out_length = GetPrivateProfileSection (section, value_ptr.GetBuffer (length), static_cast<DWORD>(length), path);
 			}
 			while (out_length == (length - 1));
 

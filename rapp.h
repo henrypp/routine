@@ -10,7 +10,7 @@
 
 #include <wininet.h>
 #include <taskschd.h>
-#include <shlobj.h>
+//#include <shlobj.h>
 #include <comdef.h>
 
 #include "rconfig.h"
@@ -74,7 +74,7 @@ public:
 	VOID CheckForUpdates (BOOL is_periodical);
 #endif // _APP_NO_UPDATES
 
-	LONGLONG ConfigGet (LPCWSTR key, INT def, LPCWSTR name = nullptr);
+	rstring ConfigGet (LPCWSTR key, INT def, LPCWSTR name = nullptr);
 	rstring ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name = nullptr);
 
 	BOOL ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name = nullptr);

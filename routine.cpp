@@ -245,18 +245,36 @@ VOID _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length)
 	Filesystem
 */
 
-BOOL _r_file_is_exists (LPCWSTR path)
+BOOL _r_fs_exists (LPCWSTR path)
 {
 	return (GetFileAttributes (path) != INVALID_FILE_ATTRIBUTES);
 }
 
-DWORD64 _r_file_size (HANDLE h)
+DWORD64 _r_fs_size (HANDLE h)
 {
 	LARGE_INTEGER size = {0};
 
 	GetFileSizeEx (h, &size);
 
 	return size.QuadPart;
+}
+
+BOOL _r_fs_mkdir (LPCWSTR path)
+{
+	BOOL result = FALSE;
+	SHCDEX _SHCreateDirectoryEx = (SHCDEX)GetProcAddress (GetModuleHandle (L"shell32.dll"), "SHCreateDirectoryExW");
+
+	if (_SHCreateDirectoryEx)
+	{
+		result = _SHCreateDirectoryEx (nullptr, path, nullptr) == ERROR_SUCCESS;
+	}
+
+	if (!result)
+	{
+		result = CreateDirectory (path, nullptr);
+	}
+
+	return result;
 }
 
 /*
@@ -513,7 +531,7 @@ BOOL _r_sys_uacstate ()
 }
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms725494(v=vs.85).aspx
-BOOL _r_sys_validversion (DWORD major, DWORD minor, DWORD condition)
+BOOL _r_sys_validversion (DWORD major, DWORD minor, BYTE condition)
 {
 	OSVERSIONINFOEX osvi = {0};
 	DWORDLONG mask = 0;
@@ -679,7 +697,7 @@ BOOL _r_run (LPCWSTR cmdline, LPCWSTR cd, BOOL is_wait)
 
 	rstring _intptr = cmdline;
 
-	BOOL result = CreateProcess (nullptr, _intptr.GetBuffer () , nullptr, nullptr, FALSE, is_wait ? (CREATE_BREAKAWAY_FROM_JOB | CREATE_SUSPENDED) : 0, nullptr, cd, &si, &pi);
+	BOOL result = CreateProcess (nullptr, _intptr.GetBuffer (), nullptr, nullptr, FALSE, is_wait ? (CREATE_BREAKAWAY_FROM_JOB | CREATE_SUSPENDED) : 0, nullptr, cd, &si, &pi);
 	_intptr.ReleaseBuffer ();
 
 	if (is_wait)
@@ -929,7 +947,7 @@ rstring _r_listview_gettext (HWND hwnd, INT ctrl, INT item, INT subitem)
 		length += _R_BUFFER_LENGTH;
 
 		lvi.pszText = result.GetBuffer (length);
-		lvi.cchTextMax = length;
+		lvi.cchTextMax = static_cast<int>(length);
 
 		out_length = (size_t)SendDlgItemMessage (hwnd, ctrl, LVM_GETITEMTEXT, item, (LPARAM)&lvi);
 		result.ReleaseBuffer ();

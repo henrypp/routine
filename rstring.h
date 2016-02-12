@@ -1,7 +1,7 @@
 // rstring
 // A fast, reference counted, copy-on-write string class (c) Espen Harlinn
 
-// lastmod: Jan 29, 2016
+// lastmod: Feb 12, 2016
 
 #pragma once
 
@@ -19,7 +19,7 @@ class rstring
 
 public:
 
-	static const size_t npos = MAXDWORD64;
+	static const size_t npos;
 
 	struct hash { size_t operator() (const rstring& k) const { return k.Hash (); } };
 	struct is_equal { bool operator() (const rstring& lhs, const rstring& rhs) const { return lhs.CompareNoCase (rhs) == 0; } };
@@ -64,7 +64,15 @@ public:
 
 	WCHAR& At (size_t index) const;
 
-	DWORD AsInt (INT radix = 10) const;
+	bool AsBool () const;
+
+	INT AsInt (INT radix = 10) const;
+	LONG AsLong (INT radix = 10) const;
+	LONGLONG AsLonglong (INT radix = 10) const;
+	size_t AsSizeT (INT radix = 10) const;
+	UINT AsUint (INT radix = 10) const;
+	ULONG AsUlong (INT radix = 10) const;
+
 	vector AsVector (LPCWSTR delimiters) const;
 
 	rstring Appended (LPCWSTR str) const;
@@ -138,7 +146,7 @@ private:
 	static int _CompareI (Buffer* buffer1, Buffer* buffer2);
 	static int _CompareI (Buffer* buffer1, LPCWSTR buffer2);
 
-	static LPCWSTR wmemichr (LPCWSTR buf, INT chr, size_t cnt);
+	static LPCWSTR wmemichr (LPCWSTR buf, wint_t chr, size_t cnt);
 	static INT _wmemicmp (LPCWSTR first, LPCWSTR second, size_t count);
 };
 
