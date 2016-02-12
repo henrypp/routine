@@ -5,6 +5,7 @@
 
 #pragma once
 
+#undef PSAPI_VERSION
 #define PSAPI_VERSION 1
 
 #include <windows.h>

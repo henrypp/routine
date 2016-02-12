@@ -1136,9 +1136,10 @@ BOOL rapp::SkipUacIsPresent (BOOL is_run)
 									if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID*)&exec_action)))
 									{
 										BSTR path1 = nullptr;
-										WCHAR path2[MAX_PATH];;
+										WCHAR path2[MAX_PATH] = {0};
 
 										exec_action->get_Path (&path1);
+										PathUnquoteSpaces (path1);
 
 										GetModuleFileName (GetHINSTANCE (), path2, _countof (path2));
 
