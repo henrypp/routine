@@ -171,7 +171,7 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 	{
 		case TDN_CREATED:
 		{
-			_r_wndtotop (hwnd, TRUE);
+			_r_wnd_top (hwnd, TRUE);
 
 			return TRUE;
 		}
@@ -564,7 +564,7 @@ VOID _r_unixtime_to_systemtime (__time64_t ut, LPSYSTEMTIME pst)
 	Window management
 */
 
-VOID _r_wndcenter (HWND hwnd)
+VOID _r_wnd_center (HWND hwnd)
 {
 	HWND parent = GetWindow (hwnd, GW_OWNER);
 	RECT rc_child = {0}, rc_parent = {0};
@@ -616,7 +616,7 @@ BOOL _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 	return result;
 }
 
-VOID _r_wndtoggle (HWND hwnd, BOOL show)
+VOID _r_wnd_toggle (HWND hwnd, BOOL show)
 {
 	if (show || !IsWindowVisible (hwnd))
 	{
@@ -636,7 +636,7 @@ VOID _r_wndtoggle (HWND hwnd, BOOL show)
 	}
 }
 
-VOID _r_wndtotop (HWND hwnd, BOOL is_enable)
+VOID _r_wnd_top (HWND hwnd, BOOL is_enable)
 {
 	SetWindowPos (hwnd, (is_enable ? HWND_TOPMOST : HWND_NOTOPMOST), 0, 0, 0, 0, SWP_NOOWNERZORDER | SWP_NOMOVE | SWP_NOSIZE);
 }

@@ -105,10 +105,10 @@ VOID _r_unixtime_to_systemtime (__time64_t ut, LPSYSTEMTIME pst);
 	Window management
 */
 
-VOID _r_wndcenter (HWND hwnd);
+VOID _r_wnd_center (HWND hwnd);
 BOOL _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action);
-VOID _r_wndtoggle (HWND hwnd, BOOL show);
-VOID _r_wndtotop (HWND hwnd, BOOL is_enable);
+VOID _r_wnd_toggle (HWND hwnd, BOOL show);
+VOID _r_wnd_top (HWND hwnd, BOOL is_enable);
 
 /*
 	Other

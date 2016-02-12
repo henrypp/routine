@@ -136,7 +136,7 @@ BOOL rapp::Initialize ()
 
 		if (h)
 		{
-			_r_wndtoggle (h, TRUE);
+			_r_wnd_toggle (h, TRUE);
 			return FALSE;
 		}
 
@@ -376,7 +376,7 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 			SetWindowText (app_hwnd, app_name);
 
 			// set on top
-			_r_wndtotop (app_hwnd, ConfigGet (L"AlwaysOnTop", 0) ? TRUE : FALSE);
+			_r_wnd_top (app_hwnd, ConfigGet (L"AlwaysOnTop", 0) ? TRUE : FALSE);
 
 			// set icons
 #ifdef IDI_MAIN
@@ -605,7 +605,7 @@ LRESULT CALLBACK rapp::AboutWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM 
 
 			EnableWindow (hparent, FALSE);
 
-			_r_wndcenter (hwnd);
+			_r_wnd_center (hwnd);
 
 			break;
 		}
@@ -737,7 +737,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			SetDlgItemText (hwnd, IDC_CLOSE, I18N (this_ptr, IDS_CLOSE, 0));
 
 			// configure window
-			_r_wndcenter (hwnd);
+			_r_wnd_center (hwnd);
 
 			// configure treeview
 			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, GetSystemMetrics (SM_CYSMICON));
@@ -827,7 +827,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 						this_ptr->app_settings_pages.at (i)->callback (this_ptr->app_settings_pages.at (i)->hwnd, _RM_UNINITIALIZE, nullptr, this_ptr->app_settings_pages.at (i)); // call closed state
 					}
 
-					_r_wndtotop (this_ptr->GetHWND (), this_ptr->ConfigGet (L"AlwaysOnTop", 0));
+					_r_wnd_top (this_ptr->GetHWND (), this_ptr->ConfigGet (L"AlwaysOnTop", 0));
 
 					break;
 				}
