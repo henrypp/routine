@@ -139,6 +139,9 @@ BOOL _r_ctrl_showtip (HWND hwnd, INT ctrl, LPCWSTR title, LPCWSTR text, INT icon
 INT _r_listview_addcolumn (HWND hwnd, INT ctrl, LPCWSTR text, INT width, INT subitem, INT fmt);
 INT _r_listview_addgroup (HWND hwnd, INT ctrl, INT group_id, LPCWSTR text, UINT align = 0, UINT state = 0);
 INT _r_listview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT item, INT subitem, INT image = -1, INT group_id = -1, LPARAM lparam = 0);
+VOID _r_listview_deleteallcolumns (HWND hwnd, INT ctrl);
+VOID _r_listview_deleteallgroups (HWND hwnd, INT ctrl);
+VOID _r_listview_deleteallitems (HWND hwnd, INT ctrl);
 INT _r_listview_getcolumnwidth (HWND hwnd, INT ctrl, INT column);
 INT _r_listview_getitemcount (HWND hwnd, INT ctrl);
 INT _r_listview_getcolumncount (HWND hwnd, INT ctrl);

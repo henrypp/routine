@@ -452,9 +452,7 @@ ULONG rstring::AsUlong (INT radix) const
 rstring::vector rstring::AsVector (LPCWSTR delimiters) const
 {
 	rstring::vector result;
-
 	size_t theSize = GetLength ();
-
 	if (theSize)
 	{
 		LPCWSTR start = data_;
@@ -575,6 +573,9 @@ rstring& rstring::FormatV (LPCWSTR fmt, va_list args)
 
 rstring& rstring::Replace (LPCWSTR from, LPCWSTR to)
 {
+	if (IsEmpty ())
+		return *this;
+
 	LPWSTR tok = nullptr;
 	LPWSTR newstr = nullptr;
 	LPWSTR oldstr = nullptr;

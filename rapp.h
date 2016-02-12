@@ -88,6 +88,7 @@ public:
 #ifndef _APP_NO_SETTINGS
 	VOID CreateSettingsWindow ();
 	VOID AddSettingsPage (HINSTANCE h, UINT dlg_id, LPCWSTR title, APPLICATION_CALLBACK callback);
+	VOID ClearSettingsPage ();
 #endif // _APP_NO_SETTINGS
 
 	rstring GetDirectory () const;
@@ -100,8 +101,6 @@ public:
 	HWND GetHWND () const;
 
 	VOID SetHWND (HWND hwnd);
-
-	VOID Restart ();
 
 	VOID LocaleEnum (HWND hwnd, INT ctrl_id);
 	rstring LocaleString (HINSTANCE h, UINT id, LPCWSTR name);

@@ -116,19 +116,14 @@ rapp::~rapp ()
 #endif // _APP_NO_ABOUT
 
 #ifndef _APP_NO_SETTINGS
-	for (size_t i = 0; i < app_settings_pages.size (); i++)
-	{
-		PAPPLICATION_PAGE ptr = app_settings_pages.at (i);
-
-		delete ptr;
-	}
+	ClearSettingsPage ();
 #endif // _APP_NO_SETTINGS
 }
 
 BOOL rapp::Initialize ()
 {
 	// check mutex
-	if(app_mutex)
+	if (app_mutex)
 		CloseHandle (app_mutex);
 
 	app_mutex = CreateMutex (nullptr, FALSE, app_name_short);
@@ -435,6 +430,18 @@ VOID rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, LPCWSTR title, APPLICATION
 		app_settings_pages.push_back (ptr);
 	}
 }
+
+VOID rapp::ClearSettingsPage ()
+{
+	for (size_t i = 0; i < app_settings_pages.size (); i++)
+	{
+		PAPPLICATION_PAGE ptr = app_settings_pages.at (i);
+
+		delete ptr;
+	}
+
+	app_settings_pages.clear ();
+}
 #endif // _APP_NO_SETTINGS
 
 rstring rapp::GetDirectory () const
@@ -465,36 +472,6 @@ HINSTANCE rapp::GetHINSTANCE () const
 HWND rapp::GetHWND () const
 {
 	return app_hwnd;
-}
-
-VOID rapp::Restart ()
-{
-	WCHAR buffer[MAX_PATH] = {0};
-	GetModuleFileName (nullptr, buffer, _countof (buffer));
-
-	ShowWindow (GetHWND (), SW_HIDE); // hide main window
-
-	if (app_mutex)
-	{
-		CloseHandle (app_mutex);
-		app_mutex = nullptr;
-	}
-
-	if (_r_run (buffer))
-	{
-		if (GetHWND ())
-		{
-			DestroyWindow (GetHWND ());
-		}
-
-		//ExitProcess (EXIT_SUCCESS);
-	}
-	else
-	{
-		ShowWindow (GetHWND (), SW_SHOW);
-
-		app_mutex = CreateMutex (nullptr, FALSE, app_name_short);
-	}
 }
 
 VOID rapp::SetHWND (HWND hwnd)
@@ -584,7 +561,7 @@ rstring rapp::LocaleString (HINSTANCE h, UINT uid, LPCWSTR name)
 
 VOID rapp::LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position) const
 {
-	if (is_localized && text)
+	if (text)
 	{
 		MENUITEMINFO mif = {0};
 
@@ -710,6 +687,8 @@ INT_PTR CALLBACK rapp::SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LP
 		case WM_COMMAND:
 		case WM_CONTEXTMENU:
 		case WM_NOTIFY:
+		case WM_MOUSEMOVE:
+		case WM_LBUTTONUP:
 		{
 			MSG wmsg = {0};
 
@@ -816,7 +795,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 						this_ptr->app_callback (this_ptr->app_hwnd, _RM_INITIALIZE, nullptr, nullptr);
 					}
 
-					if (is_restart) { this_ptr->Restart (); }
+					if (is_restart) { SendMessage (hwnd, WM_CLOSE, 0, 0);}
 
 					break;
 				}

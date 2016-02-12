@@ -714,7 +714,7 @@ BOOL _r_run (LPCWSTR cmdline, LPCWSTR cd, BOOL is_wait)
 		while (QueryInformationJobObject (job, JobObjectBasicAccountingInformation, &jbai, sizeof (jbai), &out_length) && jbai.ActiveProcesses);
 	}
 
-	if(job)
+	if (job)
 		CloseHandle (job);
 
 	if (pi.hThread)
@@ -913,6 +913,26 @@ INT _r_listview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT item, INT subite
 	}
 
 	return (INT)SendDlgItemMessage (hwnd, ctrl, (subitem > 0) ? LVM_SETITEM : LVM_INSERTITEM, 0, (LPARAM)&lvi);
+}
+
+VOID _r_listview_deleteallcolumns (HWND hwnd, INT ctrl)
+{
+	const INT column_count = _r_listview_getcolumncount (hwnd, ctrl); // or how many columns you have
+
+	for (INT i = column_count; i >= 0; i--)
+	{
+		SendDlgItemMessage (hwnd, ctrl, LVM_DELETECOLUMN, i, 0);
+	}
+}
+
+VOID _r_listview_deleteallgroups (HWND hwnd, INT ctrl)
+{
+	SendDlgItemMessage (hwnd, ctrl, LVM_REMOVEALLGROUPS, 0, 0);
+}
+
+VOID _r_listview_deleteallitems (HWND hwnd, INT ctrl)
+{
+	SendDlgItemMessage (hwnd, ctrl, LVM_DELETEALLITEMS, 0, 0);
 }
 
 INT _r_listview_getcolumncount (HWND hwnd, INT ctrl)
