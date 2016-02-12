@@ -115,7 +115,7 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR format, ...)
 
 	va_end (args);
 
-	if (_r_system_validversion (6, 0))
+	if (_r_sys_validversion (6, 0))
 	{
 		TDI _TaskDialogIndirect = (TDI)GetProcAddress (GetModuleHandle (L"comctl32.dll"), "TaskDialogIndirect");
 
@@ -171,7 +171,7 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 	{
 		case TDN_CREATED:
 		{
-			_r_windowtotop (hwnd, TRUE);
+			_r_wndtotop (hwnd, TRUE);
 
 			return TRUE;
 		}
@@ -270,7 +270,7 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 
 	WCHAR buff[MAX_PATH] = {0};
 
-	_r_system_setprivilege (SE_DEBUG_NAME, TRUE);
+	_r_sys_setprivilege (SE_DEBUG_NAME, TRUE);
 
 	if (EnumProcesses (pid, sizeof (pid), &cb))
 	{
@@ -335,7 +335,7 @@ INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2)
 	System information
 */
 
-BOOL _r_system_adminstate ()
+BOOL _r_sys_adminstate ()
 {
 	BOOL result = FALSE;
 	DWORD status = 0, acl_size = 0, ps_size = sizeof (PRIVILEGE_SET);
@@ -437,7 +437,8 @@ BOOL _r_system_adminstate ()
 	return result;
 }
 
-BOOL _r_system_iswow64 ()
+#ifndef _WIN64
+BOOL _r_sys_iswow64 ()
 {
 	BOOL result = FALSE;
 
@@ -445,7 +446,7 @@ BOOL _r_system_iswow64 ()
 	// Use GetModuleHandle to get a handle to the DLL that contains the function
 	// and GetProcAddress to get a pointer to the function if available.
 
-	IW64P _IsWow64Process = (IW64P)GetProcAddress (GetModuleHandle (L"kernel32"), "IsWow64Process");
+	IW64P _IsWow64Process = (IW64P)GetProcAddress (GetModuleHandle (L"kernel32.dll"), "IsWow64Process");
 
 	if (_IsWow64Process)
 	{
@@ -454,8 +455,9 @@ BOOL _r_system_iswow64 ()
 
 	return result;
 }
+#endif // _WIN64
 
-BOOL _r_system_setprivilege (LPCWSTR privilege, BOOL is_enable)
+BOOL _r_sys_setprivilege (LPCWSTR privilege, BOOL is_enable)
 {
 	HANDLE token = nullptr;
 
@@ -487,14 +489,14 @@ BOOL _r_system_setprivilege (LPCWSTR privilege, BOOL is_enable)
 	return result;
 }
 
-BOOL _r_system_uacstate ()
+BOOL _r_sys_uacstate ()
 {
 	HANDLE token = nullptr;
 	DWORD out_length = 0;
 	TOKEN_ELEVATION_TYPE tet;
 	BOOL result = FALSE;
 
-	if (_r_system_validversion (6, 0))
+	if (_r_sys_validversion (6, 0))
 	{
 		if (OpenProcessToken (GetCurrentProcess (), TOKEN_QUERY, &token) && GetTokenInformation (token, TokenElevationType, &tet, sizeof (TOKEN_ELEVATION_TYPE), &out_length) && tet == TokenElevationTypeLimited)
 		{
@@ -511,7 +513,7 @@ BOOL _r_system_uacstate ()
 }
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms725494(v=vs.85).aspx
-BOOL _r_system_validversion (DWORD major, DWORD minor, DWORD condition)
+BOOL _r_sys_validversion (DWORD major, DWORD minor, DWORD condition)
 {
 	OSVERSIONINFOEX osvi = {0};
 	DWORDLONG mask = 0;
@@ -562,7 +564,7 @@ VOID _r_unixtime_to_systemtime (__time64_t ut, LPSYSTEMTIME pst)
 	Window management
 */
 
-VOID _r_windowcenter (HWND hwnd)
+VOID _r_wndcenter (HWND hwnd)
 {
 	HWND parent = GetWindow (hwnd, GW_OWNER);
 	RECT rc_child = {0}, rc_parent = {0};
@@ -588,11 +590,11 @@ VOID _r_windowcenter (HWND hwnd)
 	MoveWindow (hwnd, x, y, width, height, FALSE);
 }
 
-BOOL _r_window_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
+BOOL _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 {
 	BOOL result = FALSE;
 
-	if (_r_system_validversion (6, 0))
+	if (_r_sys_validversion (6, 0))
 	{
 		CWMFEX _cwmfex = (CWMFEX)GetProcAddress (GetModuleHandle (L"user32.dll"), "ChangeWindowMessageFilterEx"); // win 7
 
@@ -614,7 +616,7 @@ BOOL _r_window_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 	return result;
 }
 
-VOID _r_windowtoggle (HWND hwnd, BOOL show)
+VOID _r_wndtoggle (HWND hwnd, BOOL show)
 {
 	if (show || !IsWindowVisible (hwnd))
 	{
@@ -634,7 +636,7 @@ VOID _r_windowtoggle (HWND hwnd, BOOL show)
 	}
 }
 
-VOID _r_windowtotop (HWND hwnd, BOOL is_enable)
+VOID _r_wndtotop (HWND hwnd, BOOL is_enable)
 {
 	SetWindowPos (hwnd, (is_enable ? HWND_TOPMOST : HWND_NOTOPMOST), 0, 0, 0, 0, SWP_NOOWNERZORDER | SWP_NOMOVE | SWP_NOSIZE);
 }

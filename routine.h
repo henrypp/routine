@@ -1,13 +1,11 @@
 // routine++
 // Copyright (c) 2012-2016 Henry++
 
-// lastmod: Jan 29, 2016
+// lastmod: Frb 12, 2016
 
 #pragma once
 
-#ifndef _WIN64
-#	define PSAPI_VERSION 1
-#endif
+#define PSAPI_VERSION 1
 
 #include <windows.h>
 #include <commctrl.h>
@@ -85,11 +83,15 @@ INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2);
 	System information
 */
 
-BOOL _r_system_adminstate ();
-BOOL _r_system_iswow64 ();
-BOOL _r_system_setprivilege (LPCWSTR privilege, BOOL is_enable);
-BOOL _r_system_uacstate ();
-BOOL _r_system_validversion (DWORD major, DWORD minor, DWORD condition = VER_GREATER_EQUAL);
+BOOL _r_sys_adminstate ();
+
+#ifndef _WIN64
+	BOOL _r_sys_iswow64 ();
+#endif // _WIN64
+
+BOOL _r_sys_setprivilege (LPCWSTR privilege, BOOL is_enable);
+BOOL _r_sys_uacstate ();
+BOOL _r_sys_validversion (DWORD major, DWORD minor, DWORD condition = VER_GREATER_EQUAL);
 
 /*
 	Unixtime
@@ -103,10 +105,10 @@ VOID _r_unixtime_to_systemtime (__time64_t ut, LPSYSTEMTIME pst);
 	Window management
 */
 
-VOID _r_windowcenter (HWND hwnd);
-BOOL _r_window_changemessagefilter (HWND hwnd, UINT msg, DWORD action);
-VOID _r_windowtoggle (HWND hwnd, BOOL show);
-VOID _r_windowtotop (HWND hwnd, BOOL is_enable);
+VOID _r_wndcenter (HWND hwnd);
+BOOL _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action);
+VOID _r_wndtoggle (HWND hwnd, BOOL show);
+VOID _r_wndtotop (HWND hwnd, BOOL is_enable);
 
 /*
 	Other

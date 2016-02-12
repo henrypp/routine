@@ -45,7 +45,6 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	dpi_percent = DOUBLE (GetDeviceCaps (h, LOGPIXELSX)) / 96.0f;
 
 #ifndef _APP_NO_ABOUT
-
 	// create window class
 	if (!GetClassInfoEx (GetHINSTANCE (), _APP_ABOUT_CLASS, nullptr))
 	{
@@ -70,7 +69,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	lf.lfWeight = FW_NORMAL;
 	lf.lfHeight = -MulDiv (9, GetDeviceCaps (h, LOGPIXELSY), 72);
 
-	StringCchCopy (lf.lfFaceName, _countof (lf.lfFaceName), _r_system_validversion (6, 0) ? L"MS Shell Dlg 2" : L"MS Shell Dlg");
+	StringCchCopy (lf.lfFaceName, _countof (lf.lfFaceName), _r_sys_validversion (6, 0) ? L"MS Shell Dlg 2" : L"MS Shell Dlg");
 
 	app_font = CreateFontIndirect (&lf);
 
@@ -101,7 +100,6 @@ rapp::~rapp ()
 	}
 
 #ifndef _APP_NO_ABOUT
-
 	if (app_logo)
 	{
 		DestroyIcon (app_logo);
@@ -115,18 +113,15 @@ rapp::~rapp ()
 	}
 
 	UnregisterClass (_APP_ABOUT_CLASS, GetHINSTANCE ());
-
 #endif // _APP_NO_ABOUT
 
 #ifndef _APP_NO_SETTINGS
-
 	for (size_t i = 0; i < app_settings_pages.size (); i++)
 	{
 		PAPPLICATION_PAGE ptr = app_settings_pages.at (i);
 
 		delete ptr;
 	}
-
 #endif // _APP_NO_SETTINGS
 }
 
@@ -141,7 +136,7 @@ BOOL rapp::Initialize ()
 
 		if (h)
 		{
-			_r_windowtoggle (h, TRUE);
+			_r_wndtoggle (h, TRUE);
 			return FALSE;
 		}
 
@@ -150,21 +145,17 @@ BOOL rapp::Initialize ()
 	}
 
 #ifdef _APP_NO_UAC
-
-	if (_r_system_uacstate () && SkipUacRun ())
+	if (_r_sys_uacstate () && SkipUacRun ())
 	{
 		return FALSE;
 	}
-
 #endif // _APP_NO_UAC
 
 #ifndef _WIN64
-
-	if (_r_system_iswow64 ())
+	if (_r_sys_iswow64 ())
 	{
 		_r_msg (nullptr, MB_OK | MB_ICONEXCLAMATION, app_name, L"WARNING! 32-bit executable may incompatible with 64-bit operating system version!");
 	}
-
 #endif // _WIN64
 
 	return TRUE;
@@ -229,7 +220,6 @@ BOOL rapp::AutorunIsPresent ()
 }
 
 #ifndef _APP_NO_UPDATES
-
 VOID rapp::CheckForUpdates (BOOL is_periodical)
 {
 	if (is_periodical)
@@ -244,7 +234,6 @@ VOID rapp::CheckForUpdates (BOOL is_periodical)
 
 	_beginthreadex (nullptr, 0, &CheckForUpdatesProc, (LPVOID)this, 0, nullptr);
 }
-
 #endif // _APP_NO_UPDATES
 
 VOID rapp::ConfigInit ()
@@ -308,7 +297,6 @@ BOOL rapp::ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name)
 }
 
 #ifndef _APP_NO_ABOUT
-
 VOID rapp::CreateAboutWindow ()
 {
 #ifdef _WIN64
@@ -362,7 +350,6 @@ VOID rapp::CreateAboutWindow ()
 		}
 	}
 }
-
 #endif // _APP_NO_ABOUT
 
 BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
@@ -389,7 +376,7 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 			SetWindowText (app_hwnd, app_name);
 
 			// set on top
-			_r_windowtotop (app_hwnd, ConfigGet (L"AlwaysOnTop", 0) ? TRUE : FALSE);
+			_r_wndtotop (app_hwnd, ConfigGet (L"AlwaysOnTop", 0) ? TRUE : FALSE);
 
 			// set icons
 #ifdef IDI_MAIN
@@ -414,7 +401,6 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 }
 
 #ifndef _APP_NO_SETTINGS
-
 VOID rapp::CreateSettingsWindow ()
 {
 	static bool is_opened = false;
@@ -445,7 +431,6 @@ VOID rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, LPCWSTR title, APPLICATION
 		app_settings_pages.push_back (ptr);
 	}
 }
-
 #endif // _APP_NO_SETTINGS
 
 rstring rapp::GetDirectory ()
@@ -514,7 +499,6 @@ VOID rapp::SetHWND (HWND hwnd)
 }
 
 #ifndef _APP_NO_SETTINGS
-
 VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id)
 {
 	WIN32_FIND_DATA wfd = {0};
@@ -548,7 +532,6 @@ VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id)
 		EnableWindow (GetDlgItem (hwnd, ctrl_id), FALSE);
 	}
 }
-
 #endif // _APP_NO_SETTINGS
 
 VOID rapp::LocaleInit ()
@@ -610,7 +593,6 @@ VOID rapp::LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position)
 }
 
 #ifndef _APP_NO_ABOUT
-
 LRESULT CALLBACK rapp::AboutWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
 	static HWND hparent = nullptr;
@@ -623,7 +605,7 @@ LRESULT CALLBACK rapp::AboutWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM 
 
 			EnableWindow (hparent, FALSE);
 
-			_r_windowcenter (hwnd);
+			_r_wndcenter (hwnd);
 
 			break;
 		}
@@ -709,7 +691,6 @@ LRESULT CALLBACK rapp::AboutWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM 
 #endif // _APP_NO_ABOUT
 
 #ifndef _APP_NO_SETTINGS
-
 INT_PTR CALLBACK rapp::SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
 	static rapp* this_ptr = nullptr;
@@ -756,7 +737,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			SetDlgItemText (hwnd, IDC_CLOSE, I18N (this_ptr, IDS_CLOSE, 0));
 
 			// configure window
-			_r_windowcenter (hwnd);
+			_r_wndcenter (hwnd);
 
 			// configure treeview
 			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, GetSystemMetrics (SM_CYSMICON));
@@ -846,7 +827,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 						this_ptr->app_settings_pages.at (i)->callback (this_ptr->app_settings_pages.at (i)->hwnd, _RM_UNINITIALIZE, nullptr, this_ptr->app_settings_pages.at (i)); // call closed state
 					}
 
-					_r_windowtotop (this_ptr->GetHWND (), this_ptr->ConfigGet (L"AlwaysOnTop", 0));
+					_r_wndtotop (this_ptr->GetHWND (), this_ptr->ConfigGet (L"AlwaysOnTop", 0));
 
 					break;
 				}
@@ -858,11 +839,9 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 	return FALSE;
 }
-
 #endif // _APP_NO_SETTINGS
 
 #ifndef _APP_NO_UPDATES
-
 UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 {
 	rapp* this_ptr = (rapp*)lparam;
@@ -939,7 +918,6 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 
 	return ERROR_SUCCESS;
 }
-
 #endif // _APP_NO_UPDATES
 
 BOOL rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
@@ -1010,7 +988,6 @@ BOOL rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
 }
 
 #ifdef _APP_NO_UAC
-
 BOOL rapp::SkipUacCreate (BOOL is_remove)
 {
 	BOOL result = FALSE;
@@ -1030,7 +1007,7 @@ BOOL rapp::SkipUacCreate (BOOL is_remove)
 	rstring name;
 	name.Format (_APP_TASKSCHD_NAME, app_name_short);
 
-	if (_r_system_validversion (6, 0))
+	if (_r_sys_validversion (6, 0))
 	{
 		CoInitializeEx (nullptr, COINIT_MULTITHREADED);
 		CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr);
@@ -1126,7 +1103,7 @@ BOOL rapp::SkipUacIsPresent (BOOL is_run)
 	rstring name;
 	name.Format (_APP_TASKSCHD_NAME, app_name_short);
 
-	if (_r_system_validversion (6, 0))
+	if (_r_sys_validversion (6, 0))
 	{
 		ITaskService* service = nullptr;
 		ITaskFolder* folder = nullptr;
@@ -1243,7 +1220,7 @@ BOOL rapp::SkipUacIsPresent (BOOL is_run)
 
 BOOL rapp::SkipUacRun ()
 {
-	if (_r_system_uacstate ())
+	if (_r_sys_uacstate ())
 	{
 		CloseHandle (app_mutex);
 		app_mutex = nullptr;
@@ -1281,5 +1258,4 @@ BOOL rapp::SkipUacRun ()
 
 	return FALSE;
 }
-
 #endif // _APP_NO_UAC
