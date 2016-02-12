@@ -10,7 +10,6 @@
 
 #include <wininet.h>
 #include <taskschd.h>
-//#include <shlobj.h>
 #include <comdef.h>
 
 #include "rconfig.h"
@@ -91,14 +90,14 @@ public:
 	VOID AddSettingsPage (HINSTANCE h, UINT dlg_id, LPCWSTR title, APPLICATION_CALLBACK callback);
 #endif // _APP_NO_SETTINGS
 
-	rstring GetDirectory ();
-	rstring GetProfileDirectory ();
+	rstring GetDirectory () const;
+	rstring GetProfileDirectory () const;
 
-	rstring GetUserAgent ();
+	rstring GetUserAgent () const;
 
-	INT GetDPI (INT v);
-	HINSTANCE GetHINSTANCE ();
-	HWND GetHWND ();
+	INT GetDPI (INT v) const;
+	HINSTANCE GetHINSTANCE () const;
+	HWND GetHWND () const;
 
 	VOID SetHWND (HWND hwnd);
 
@@ -106,7 +105,7 @@ public:
 
 	VOID LocaleEnum (HWND hwnd, INT ctrl_id);
 	rstring LocaleString (HINSTANCE h, UINT id, LPCWSTR name);
-	VOID LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position);
+	VOID LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position) const;
 
 #ifdef _APP_NO_UAC
 	BOOL SkipUacCreate (BOOL is_remove);

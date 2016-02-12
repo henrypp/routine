@@ -128,6 +128,9 @@ rapp::~rapp ()
 BOOL rapp::Initialize ()
 {
 	// check mutex
+	if(app_mutex)
+		CloseHandle (app_mutex);
+
 	app_mutex = CreateMutex (nullptr, FALSE, app_name_short);
 
 	if (GetLastError () == ERROR_ALREADY_EXISTS)
@@ -196,7 +199,6 @@ BOOL rapp::AutorunIsPresent ()
 	if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_READ, &key) == ERROR_SUCCESS)
 	{
 		WCHAR path1[MAX_PATH] = {0};
-		WCHAR path2[MAX_PATH] = {0};
 
 		DWORD size = MAX_PATH;
 
@@ -204,6 +206,8 @@ BOOL rapp::AutorunIsPresent ()
 
 		if (result)
 		{
+			WCHAR path2[MAX_PATH] = {0};
+
 			PathRemoveArgs (path1);
 			PathUnquoteSpaces (path1);
 
@@ -433,32 +437,32 @@ VOID rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, LPCWSTR title, APPLICATION
 }
 #endif // _APP_NO_SETTINGS
 
-rstring rapp::GetDirectory ()
+rstring rapp::GetDirectory () const
 {
 	return app_directory;
 }
 
-rstring rapp::GetProfileDirectory ()
+rstring rapp::GetProfileDirectory () const
 {
 	return app_profile_directory;
 }
 
-rstring rapp::GetUserAgent ()
+rstring rapp::GetUserAgent () const
 {
 	return _r_fmt (L"%s/%s (+%s)", app_name, app_version, _APP_WEBSITE_URL);
 }
 
-INT rapp::GetDPI (INT v)
+INT rapp::GetDPI (INT v) const
 {
 	return (INT)ceil (static_cast<DOUBLE>(v) * dpi_percent);
 }
 
-HINSTANCE rapp::GetHINSTANCE ()
+HINSTANCE rapp::GetHINSTANCE () const
 {
 	return app_hinstance;
 }
 
-HWND rapp::GetHWND ()
+HWND rapp::GetHWND () const
 {
 	return app_hwnd;
 }
@@ -578,7 +582,7 @@ rstring rapp::LocaleString (HINSTANCE h, UINT uid, LPCWSTR name)
 	return result;
 }
 
-VOID rapp::LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position)
+VOID rapp::LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position) const
 {
 	if (is_localized && text)
 	{
@@ -699,7 +703,7 @@ INT_PTR CALLBACK rapp::SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LP
 	{
 		case WM_INITDIALOG:
 		{
-			this_ptr = (rapp*)lparam;
+			this_ptr = reinterpret_cast<rapp*>(lparam);
 			break;
 		}
 
@@ -728,7 +732,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 	{
 		case WM_INITDIALOG:
 		{
-			this_ptr = (rapp*)lparam;
+			this_ptr = reinterpret_cast<rapp*>(lparam);
 
 			// localize
 			SetWindowText (hwnd, I18N (this_ptr, IDS_SETTINGS, 0));
@@ -844,7 +848,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 #ifndef _APP_NO_UPDATES
 UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 {
-	rapp* this_ptr = (rapp*)lparam;
+	rapp* this_ptr = static_cast<rapp*>(lparam);
 
 	if (this_ptr)
 	{

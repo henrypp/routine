@@ -554,7 +554,7 @@ rstring& rstring::SetLength (size_t newLength)
 
 rstring& rstring::Format (LPCWSTR str, ...)
 {
-	va_list args = nullptr;
+	va_list args;
 	va_start (args, str);
 
 	FormatV (str, args);
@@ -580,13 +580,12 @@ rstring& rstring::Replace (LPCWSTR from, LPCWSTR to)
 	LPWSTR oldstr = nullptr;
 	LPWSTR head = nullptr;
 
-	size_t from_len = wcslen (from);
-	size_t to_len = wcslen (to);
-
 	/* if either substr or replacement is NULL, duplicate string a let caller handle it */
 	if (from == nullptr || to == nullptr) return *this;
 	newstr = _wcsdup (GetString ());
 	head = newstr;
+	size_t from_len = wcslen (from);
+	size_t to_len = wcslen (to);
 	while ((tok = wcsstr (head, from)) != nullptr)
 	{
 		size_t orig_l = wcslen (newstr);
@@ -616,14 +615,13 @@ rstring& rstring::Replace (LPCWSTR from, LPCWSTR to)
 
 rstring& rstring::Trim (LPCWSTR chars)
 {
-	size_t start_pos = 0;
-	size_t end_pos = 0;
-	size_t chars_len = wcslen (chars);
 	Buffer* thisBuffer = toBuffer ();
-	if (thisBuffer && chars && chars_len)
+	if (thisBuffer && chars)
 	{
 		// calculate start position
-		start_pos = 0;
+		size_t chars_len = wcslen (chars);
+		size_t start_pos = 0;
+		size_t end_pos = 0;
 		do
 		{
 			LPCWSTR p = wmemichr (chars, thisBuffer->data[start_pos], chars_len);
@@ -675,9 +673,9 @@ size_t rstring::Find (WCHAR chars, size_t start_pos) const
 size_t rstring::Find (LPCWSTR chars, size_t start_pos) const
 {
 	Buffer* thisBuffer = toBuffer ();
-	size_t len = wcslen (chars);
-	if (thisBuffer && chars && len)
+	if (thisBuffer && chars)
 	{
+		size_t len = wcslen (chars);
 		while (start_pos < thisBuffer->length)
 		{
 			WCHAR c = towupper (thisBuffer->data[start_pos]);

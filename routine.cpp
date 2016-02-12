@@ -20,7 +20,7 @@ VOID _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...)
 
 	if (format)
 	{
-		va_list args = nullptr;
+		va_list args;
 		va_start (args, format);
 
 		buffer.FormatV (format, args);
@@ -43,7 +43,7 @@ rstring _r_fmt (LPCWSTR format, ...)
 {
 	rstring result;
 
-	va_list args = nullptr;
+	va_list args;
 	va_start (args, format);
 
 	result.FormatV (format, args);
@@ -108,7 +108,7 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR format, ...)
 
 	INT result = 0;
 
-	va_list args = nullptr;
+	va_list args;
 	va_start (args, format);
 
 	buffer.FormatV (format, args);
@@ -286,8 +286,6 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 	BOOL result = FALSE;
 	DWORD pid[1024] = {0}, cb = 0;
 
-	WCHAR buff[MAX_PATH] = {0};
-
 	_r_sys_setprivilege (SE_DEBUG_NAME, TRUE);
 
 	if (EnumProcesses (pid, sizeof (pid), &cb))
@@ -300,10 +298,12 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 
 				if (h)
 				{
-					GetModuleFileNameEx (h, nullptr, buff, _countof (buff));
+					WCHAR buffer[MAX_PATH] = {0};
+
+					GetModuleFileNameEx (h, nullptr, buffer, _countof (buffer));
 					CloseHandle (h);
 
-					if (_wcsnicmp (path, buff, len) == 0)
+					if (_wcsnicmp (path, buffer, len) == 0)
 					{
 						result = TRUE;
 						break;
@@ -356,7 +356,7 @@ INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2)
 BOOL _r_sys_adminstate ()
 {
 	BOOL result = FALSE;
-	DWORD status = 0, acl_size = 0, ps_size = sizeof (PRIVILEGE_SET);
+	DWORD status = 0, ps_size = sizeof (PRIVILEGE_SET);
 
 	HANDLE token = nullptr, impersonation_token = nullptr;
 
@@ -396,7 +396,7 @@ BOOL _r_sys_adminstate ()
 			__leave;
 		}
 
-		acl_size = sizeof (ACL) + sizeof (ACCESS_ALLOWED_ACE) + GetLengthSid (sid) - sizeof (DWORD);
+		DWORD acl_size = sizeof (ACL) + sizeof (ACCESS_ALLOWED_ACE) + GetLengthSid (sid) - sizeof (DWORD);
 		acl = (PACL)LocalAlloc (LPTR, acl_size);
 
 		if (!acl || !InitializeAcl (acl, acl_size, ACL_REVISION2) || !AddAccessAllowedAce (acl, ACL_REVISION2, ACCESS_READ | ACCESS_WRITE, sid) || !SetSecurityDescriptorDacl (sd, TRUE, acl, FALSE))
@@ -704,16 +704,24 @@ BOOL _r_run (LPCWSTR cmdline, LPCWSTR cd, BOOL is_wait)
 	{
 		AssignProcessToJobObject (job, pi.hProcess);
 		ResumeThread (pi.hThread);
+
 		CloseHandle (pi.hThread);
+		pi.hThread = nullptr;
 
 		JOBOBJECT_BASIC_ACCOUNTING_INFORMATION jbai = {0};
 		DWORD out_length = 0;
 
 		while (QueryInformationJobObject (job, JobObjectBasicAccountingInformation, &jbai, sizeof (jbai), &out_length) && jbai.ActiveProcesses);
-
-		CloseHandle (job);
-		CloseHandle (pi.hProcess);
 	}
+
+	if(job)
+		CloseHandle (job);
+
+	if (pi.hThread)
+		CloseHandle (pi.hThread);
+
+	if (pi.hProcess)
+		CloseHandle (pi.hProcess);
 
 	return result;
 }
@@ -753,7 +761,7 @@ VOID _r_ctrl_settext (HWND hwnd, INT ctrl, LPCWSTR str, ...)
 {
 	rstring buffer;
 
-	va_list args = nullptr;
+	va_list args;
 	va_start (args, str);
 
 	buffer.FormatV (str, args);
