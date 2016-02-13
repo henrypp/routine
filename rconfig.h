@@ -41,7 +41,7 @@
 #endif // _APP_WEBSITE_URL
 
 #ifndef _APP_UPDATE_PERIOD
-#	define _APP_UPDATE_PERIOD 86400 // update checking period (in seconds. 86400 is 1 day.)
+#	define _APP_UPDATE_PERIOD 172800 // update checking period (in seconds. 86400 is 1 day.)
 #endif // _APP_UPDATE_PERIOD
 
 #define _APP_I18N_DIRECTORY L"i18n"
@@ -57,7 +57,7 @@
 #define _RM_INITIALIZE 0x1
 #define _RM_UNINITIALIZE 0x2
 
-#define _RM_SETTINGS 0x4
+#define _RM_SAVE 0x4
 
 #define _RM_MESSAGE 0x8
 

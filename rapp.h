@@ -45,7 +45,8 @@ typedef struct
 
 	UINT dlg_id;
 
-	rstring title;
+	UINT locale_id;
+	rstring locale_sid;
 
 	APPLICATION_CALLBACK callback;
 } *PAPPLICATION_PAGE, APPLICATION_PAGE;
@@ -87,8 +88,9 @@ public:
 
 #ifndef _APP_NO_SETTINGS
 	VOID CreateSettingsWindow ();
-	VOID AddSettingsPage (HINSTANCE h, UINT dlg_id, LPCWSTR title, APPLICATION_CALLBACK callback);
+	VOID AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback);
 	VOID ClearSettingsPage ();
+	VOID InitSettingsPage (HWND hwnd);
 #endif // _APP_NO_SETTINGS
 
 	rstring GetDirectory () const;

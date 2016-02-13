@@ -242,6 +242,8 @@ VOID rapp::ConfigInit ()
 	ParseINI (app_config_path, &app_config_array);
 
 	LocaleInit ();
+
+	CheckForUpdates (TRUE);
 }
 
 rstring rapp::ConfigGet (LPCWSTR key, INT def, LPCWSTR name)
@@ -416,7 +418,7 @@ VOID rapp::CreateSettingsWindow ()
 	is_opened = false;
 }
 
-VOID rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, LPCWSTR title, APPLICATION_CALLBACK callback)
+VOID rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback)
 {
 	PAPPLICATION_PAGE ptr = new APPLICATION_PAGE;
 
@@ -424,7 +426,8 @@ VOID rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, LPCWSTR title, APPLICATION
 	{
 		ptr->h = h;
 		ptr->dlg_id = dlg_id;
-		ptr->title = title;
+		ptr->locale_id = locale_id;
+		ptr->locale_sid = locale_sid;
 		ptr->callback = callback;
 
 		app_settings_pages.push_back (ptr);
@@ -441,6 +444,44 @@ VOID rapp::ClearSettingsPage ()
 	}
 
 	app_settings_pages.clear ();
+}
+
+VOID rapp::InitSettingsPage (HWND hwnd)
+{
+	// localize
+	SetWindowText (hwnd, I18N (this, IDS_SETTINGS, 0));
+
+	SetDlgItemText (hwnd, IDC_APPLY, I18N (this, IDS_APPLY, 0));
+	SetDlgItemText (hwnd, IDC_CLOSE, I18N (this, IDS_CLOSE, 0));
+
+	HTREEITEM item = (HTREEITEM)SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_ROOT, 0);
+
+	while (item)
+	{
+		TVITEMEX tvi = {0};
+
+		tvi.mask = TVIF_PARAM;
+		tvi.hItem = item;
+
+		SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETITEM, 0, (LPARAM)&tvi);
+
+		PAPPLICATION_PAGE pp = app_settings_pages.at ((size_t)tvi.lParam);
+		rstring text = LocaleString (pp->h, pp->locale_id, pp->locale_sid);
+
+		tvi.mask = TVIF_TEXT;
+		tvi.pszText = text.GetBuffer ();
+
+		SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETITEM, 0, (LPARAM)&tvi);
+
+		text.ReleaseBuffer ();
+
+		item = (HTREEITEM)SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_NEXT, (LPARAM)item);
+	}
+
+	for (size_t i = 0; i < this->app_settings_pages.size (); i++)
+	{
+		this->app_settings_pages.at (i)->callback (this->app_settings_pages.at (i)->hwnd, _RM_INITIALIZE, nullptr, this->app_settings_pages.at (i));
+	}
 }
 #endif // _APP_NO_SETTINGS
 
@@ -487,7 +528,10 @@ VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id)
 
 	if (h != INVALID_HANDLE_VALUE)
 	{
-		INT count = max (0, (INT)SendDlgItemMessage (hwnd, ctrl_id, CB_GETCOUNT, 0, 0));
+		INT count = 0;
+		SendDlgItemMessage (hwnd, ctrl_id, CB_RESETCONTENT, 0, 0);
+		SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, 0, (LPARAM)L"English (default)");
+		SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, 0, 0);
 		rstring def = ConfigGet (L"Language", nullptr);
 
 		do
@@ -495,14 +539,12 @@ VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id)
 			LPWSTR fname = wfd.cFileName;
 			PathRemoveExtension (fname);
 
-			SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, count, (LPARAM)fname);
+			SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, ++count, (LPARAM)fname);
 
 			if (def.CompareNoCase (fname) == 0)
 			{
 				SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, count, 0);
 			}
-
-			count += 1;
 		}
 		while (FindNextFile (h, &wfd));
 
@@ -690,6 +732,17 @@ INT_PTR CALLBACK rapp::SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LP
 		case WM_MOUSEMOVE:
 		case WM_LBUTTONUP:
 		{
+			if (msg == WM_COMMAND)
+			{
+				LONG_PTR style = GetWindowLongPtr (GetDlgItem (hwnd, LOWORD (wparam)), GWL_STYLE);
+
+				if (lparam && ((HIWORD (wparam) == BN_CLICKED && (style & (BS_CHECKBOX | BS_RADIOBUTTON)) != 0) || HIWORD (wparam) == EN_CHANGE || HIWORD (wparam) == CBN_SELENDOK))
+				{
+					_r_ctrl_enable (GetParent (hwnd), IDC_APPLY, TRUE);
+					return FALSE;
+				}
+			}
+
 			MSG wmsg = {0};
 
 			wmsg.message = msg;
@@ -713,12 +766,6 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 		{
 			this_ptr = reinterpret_cast<rapp*>(lparam);
 
-			// localize
-			SetWindowText (hwnd, I18N (this_ptr, IDS_SETTINGS, 0));
-
-			SetDlgItemText (hwnd, IDC_APPLY, I18N (this_ptr, IDS_APPLY, 0));
-			SetDlgItemText (hwnd, IDC_CLOSE, I18N (this_ptr, IDS_CLOSE, 0));
-
 			// configure window
 			_r_wnd_center (hwnd);
 
@@ -729,7 +776,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			{
 				this_ptr->app_settings_pages.at (i)->hwnd = CreateDialogParam (this_ptr->app_settings_pages.at (i)->h, MAKEINTRESOURCE (this_ptr->app_settings_pages.at (i)->dlg_id), hwnd, &this_ptr->SettingsPagesProc, (LPARAM)this_ptr);
 
-				HTREEITEM item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->app_settings_pages.at (i)->title, nullptr, -1, (LPARAM)i);
+				HTREEITEM item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (this_ptr->app_settings_pages.at (i)->h, this_ptr->app_settings_pages.at (i)->locale_id, this_ptr->app_settings_pages.at (i)->locale_sid), nullptr, -1, (LPARAM)i);
 
 				if (this_ptr->ConfigGet (L"SettingsLastPage", 0).AsSizeT () == i)
 				{
@@ -738,6 +785,10 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 				this_ptr->app_settings_pages.at (i)->callback (this_ptr->app_settings_pages.at (i)->hwnd, _RM_INITIALIZE, nullptr, this_ptr->app_settings_pages.at (i));
 			}
+
+			this_ptr->InitSettingsPage (hwnd);
+
+			_r_ctrl_enable (hwnd, IDC_APPLY, FALSE);
 
 			break;
 		}
@@ -778,9 +829,11 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 				{
 					BOOL is_restart = FALSE;
 
+					_r_ctrl_enable (hwnd, IDC_APPLY, FALSE);
+
 					for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 					{
-						if (this_ptr->app_settings_pages.at (i)->callback (this_ptr->app_settings_pages.at (i)->hwnd, _RM_SETTINGS, nullptr, this_ptr->app_settings_pages.at (i)))
+						if (this_ptr->app_settings_pages.at (i)->callback (this_ptr->app_settings_pages.at (i)->hwnd, _RM_SAVE, nullptr, this_ptr->app_settings_pages.at (i)))
 						{
 							is_restart = TRUE;
 						}
@@ -795,7 +848,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 						this_ptr->app_callback (this_ptr->app_hwnd, _RM_INITIALIZE, nullptr, nullptr);
 					}
 
-					if (is_restart) { SendMessage (hwnd, WM_CLOSE, 0, 0);}
+					if (is_restart) { this_ptr->InitSettingsPage (hwnd); }
 
 					break;
 				}
