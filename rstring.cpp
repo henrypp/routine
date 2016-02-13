@@ -458,7 +458,6 @@ rstring::vector rstring::AsVector (LPCWSTR delimiters) const
 		LPCWSTR start = data_;
 		LPCWSTR end = start;
 		LPCWSTR thisEnd = start + theSize;
-
 		while (end < thisEnd)
 		{
 			LPCWSTR ptr = delimiters;
@@ -468,7 +467,9 @@ rstring::vector rstring::AsVector (LPCWSTR delimiters) const
 				{
 					if (start < end)
 					{
-						result.emplace_back (start, size_t (end - start));
+						rstring item_s = start;
+						size_t item_l = end - start;
+						result.emplace_back (item_s.SetLength (item_l).Trim (L" \r\n"), item_l);
 					}
 					start = end + 1;
 					break;
@@ -619,37 +620,29 @@ rstring& rstring::Trim (LPCWSTR chars)
 	Buffer* thisBuffer = toBuffer ();
 	if (thisBuffer && chars)
 	{
-		// calculate start position
 		size_t chars_len = wcslen (chars);
-		size_t start_pos = 0;
-		size_t end_pos = 0;
-		do
+		for (size_t i = 0; i < thisBuffer->length; i++)
 		{
-			LPCWSTR p = wmemichr (chars, thisBuffer->data[start_pos], chars_len);
-			if (!p || thisBuffer->length == start_pos)
+			LPCWSTR res = wmemichr (chars, thisBuffer->data[i], chars_len);
+			if (!res)
 			{
-				if (start_pos)
-					start_pos--;
+				size_t last = thisBuffer->length - 1;
+				do
+				{
+					res = wmemichr (chars, thisBuffer->data[last], chars_len);
+					if (!res)
+					{
+						last++;
+						*this = Mid (i, last - i);
+						break;
+					}
+				}
+				while (last--);
 
-				break;
+				return *this;
 			}
 		}
-		while (start_pos++);
-
-		// calculate end position
-		end_pos = thisBuffer->length - 1;
-		do
-		{
-			LPCWSTR p = wmemichr (chars, thisBuffer->data[end_pos], chars_len);
-			if (!p || end_pos == thisBuffer->length)
-			{
-				end_pos++;
-				break;
-			}
-		}
-		while (end_pos--);
-
-		*this = Mid (start_pos, end_pos - start_pos);
+		Release ();
 	}
 	return *this;
 }
@@ -1034,7 +1027,6 @@ LPCWSTR rstring::wmemichr (LPCWSTR buf, wint_t chr, size_t cnt)
 		buf++;
 		cnt--;
 	}
-
 	return cnt ? buf : nullptr;
 }
 
@@ -1042,7 +1034,7 @@ INT rstring::_wmemicmp (LPCWSTR first, LPCWSTR second, size_t count)
 {
 	while (count)
 	{
-		int result = towupper (*first) - towupper (*second);
+		INT result = towupper (*first) - towupper (*second);
 		if (result)
 		{
 			return result;
