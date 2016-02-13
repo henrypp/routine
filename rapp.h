@@ -39,6 +39,8 @@ typedef BOOL (*APPLICATION_CALLBACK) (HWND hwnd, DWORD msg, LPVOID lpdata1, LPVO
 
 typedef struct
 {
+	BOOL is_initialized;
+
 	HINSTANCE h;
 
 	HWND hwnd;
@@ -46,7 +48,7 @@ typedef struct
 	UINT dlg_id;
 
 	UINT locale_id;
-	rstring locale_sid;
+	WCHAR locale_sid[64];
 
 	APPLICATION_CALLBACK callback;
 } *PAPPLICATION_PAGE, APPLICATION_PAGE;
