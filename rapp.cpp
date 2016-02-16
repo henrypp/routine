@@ -434,7 +434,7 @@ VOID rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR lo
 
 		ptr->hwnd = nullptr;
 		ptr->is_initialized = FALSE;
-		
+
 		app_settings_pages.push_back (ptr);
 	}
 }
@@ -535,15 +535,16 @@ VOID rapp::SetHWND (HWND hwnd)
 #ifndef _APP_NO_SETTINGS
 VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id)
 {
+	SendDlgItemMessage (hwnd, ctrl_id, CB_RESETCONTENT, 0, 0);
+	SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, 0, (LPARAM)L"English (default)");
+	SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, 0, 0);
+
 	WIN32_FIND_DATA wfd = {0};
 	HANDLE h = FindFirstFile (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\*.ini", app_directory), &wfd);
 
 	if (h != INVALID_HANDLE_VALUE)
 	{
 		INT count = 0;
-		SendDlgItemMessage (hwnd, ctrl_id, CB_RESETCONTENT, 0, 0);
-		SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, 0, (LPARAM)L"English (default)");
-		SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, 0, 0);
 		rstring def = ConfigGet (L"Language", nullptr);
 
 		do
@@ -553,7 +554,7 @@ VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id)
 
 			SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, ++count, (LPARAM)fname);
 
-			if (def.CompareNoCase (fname) == 0)
+			if (!def.IsEmpty () && def.CompareNoCase (fname) == 0)
 			{
 				SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, count, 0);
 			}
@@ -744,31 +745,34 @@ INT_PTR CALLBACK rapp::SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LP
 		case WM_MOUSEMOVE:
 		case WM_LBUTTONUP:
 		{
+			BOOL result = FALSE;
+
+			MSG wmsg = {0};
+
+			wmsg.message = msg;
+			wmsg.wParam = wparam;
+			wmsg.lParam = lparam;
+
+			PAPPLICATION_PAGE ptr = this_ptr->app_settings_pages.at (this_ptr->app_settings_page);
+
+			result = ptr->callback (hwnd, _RM_MESSAGE, &wmsg, ptr);
+
 			if (msg == WM_COMMAND)
 			{
 				BOOL is_button = (GetWindowLongPtr (GetDlgItem (hwnd, LOWORD (wparam)), GWL_STYLE) & (BS_CHECKBOX | BS_RADIOBUTTON)) != 0;
 
-				if (lparam && ((HIWORD (wparam) == BN_CLICKED && is_button) || HIWORD (wparam) == EN_CHANGE || HIWORD (wparam) == CBN_SELENDOK))
+				if (lparam && ((HIWORD (wparam) == BN_CLICKED && is_button) || (HIWORD (wparam) == EN_CHANGE || HIWORD (wparam) == CBN_SELENDOK)))
 				{
 					_r_ctrl_enable (GetParent (hwnd), IDC_APPLY, TRUE);
 				}
 			}
 			else if (msg == WM_NOTIFY)
 			{
-				if (LPNMHDR(lparam)->code == UDN_DELTAPOS)
+				if (LPNMHDR (lparam)->code == UDN_DELTAPOS || (LPNMHDR (lparam)->code == LVN_ITEMCHANGED && (LPNMLISTVIEW (lparam)->uNewState == 8192 || LPNMLISTVIEW (lparam)->uNewState == 8192)) || (LPNMHDR (lparam)->code == LVN_DELETEITEM) || (LPNMHDR (lparam)->code == LVN_ENDLABELEDIT && result))
 				{
 					_r_ctrl_enable (GetParent (hwnd), IDC_APPLY, TRUE);
 				}
 			}
-
-			MSG wmsg = {0};
-			PAPPLICATION_PAGE ptr = this_ptr->app_settings_pages.at (this_ptr->app_settings_page);
-
-			wmsg.message = msg;
-			wmsg.wParam = wparam;
-			wmsg.lParam = lparam;
-
-			return ptr->callback (hwnd, _RM_MESSAGE, &wmsg, ptr);
 		}
 	}
 

@@ -408,6 +408,14 @@ INT rstring::AsInt (INT radix) const
 	return static_cast<INT>(AsLong (radix));
 }
 
+DOUBLE rstring::AsDouble () const
+{
+	if (this->IsEmpty ())
+		return 0;
+
+	return wcstod (GetString (), nullptr);
+}
+
 LONG rstring::AsLong (INT radix) const
 {
 	if (this->IsEmpty ())
@@ -447,6 +455,14 @@ ULONG rstring::AsUlong (INT radix) const
 		return 0;
 
 	return wcstoul (GetString (), nullptr, radix);
+}
+
+ULONGLONG rstring::AsUlonglong (INT radix) const
+{
+	if (IsEmpty ())
+		return 0;
+
+	return wcstoull (GetString (), nullptr, radix);
 }
 
 rstring::vector rstring::AsVector (LPCWSTR delimiters) const

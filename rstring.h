@@ -67,11 +67,13 @@ public:
 	bool AsBool () const;
 
 	INT AsInt (INT radix = 10) const;
+	DOUBLE AsDouble () const;
 	LONG AsLong (INT radix = 10) const;
 	LONGLONG AsLonglong (INT radix = 10) const;
 	size_t AsSizeT (INT radix = 10) const;
 	UINT AsUint (INT radix = 10) const;
 	ULONG AsUlong (INT radix = 10) const;
+	ULONGLONG AsUlonglong (INT radix = 10) const;
 
 	vector AsVector (LPCWSTR delimiters) const;
 

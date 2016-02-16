@@ -553,6 +553,7 @@ BOOL _r_sys_validversion (DWORD major, DWORD minor, BYTE condition)
 __time64_t _r_unixtime_now ()
 {
 	__time64_t t = 0;
+
 	_time64 (&t);
 
 	return t;
@@ -562,10 +563,10 @@ VOID _r_unixtime_to_filetime (__time64_t ut, LPFILETIME pft)
 {
 	if (ut && pft)
 	{
-		LONGLONG ll = Int32x32To64 (ut, 10000000) + 116444736000000000ui64; // 64 bit value
+		LONGLONG ll = ut * 10000000ULL + 116444736000000000; // 64 bit value
 
 		pft->dwLowDateTime = (DWORD)ll;
-		pft->dwHighDateTime = (DWORD)(ll >> 32);
+		pft->dwHighDateTime = ll >> 32;
 	}
 }
 
@@ -576,6 +577,28 @@ VOID _r_unixtime_to_systemtime (__time64_t ut, LPSYSTEMTIME pst)
 	_r_unixtime_to_filetime (ut, &ft);
 
 	FileTimeToSystemTime (&ft, pst);
+}
+
+__time64_t _r_unixtime_from_filetime (LPFILETIME pft)
+{
+	ULARGE_INTEGER ull = {0};
+
+	if (pft)
+	{
+		ull.LowPart = pft->dwLowDateTime;
+		ull.HighPart = pft->dwHighDateTime;
+	}
+
+	return ull.QuadPart / 10000000ULL - 11644473600ULL;
+}
+
+__time64_t _r_unixtime_from_systemtime (LPSYSTEMTIME pst)
+{
+	FILETIME ft = {0};
+
+	SystemTimeToFileTime (pst, &ft);
+
+	return _r_unixtime_from_filetime (&ft);
 }
 
 /*

@@ -102,6 +102,8 @@ BOOL _r_sys_validversion (DWORD major, DWORD minor, BYTE condition = VER_GREATER
 __time64_t _r_unixtime_now ();
 VOID _r_unixtime_to_filetime (__time64_t ut, LPFILETIME pft);
 VOID _r_unixtime_to_systemtime (__time64_t ut, LPSYSTEMTIME pst);
+__time64_t _r_unixtime_from_filetime (LPSYSTEMTIME pst);
+__time64_t _r_unixtime_from_systemtime (LPSYSTEMTIME pst);
 
 /*
 	Window management
