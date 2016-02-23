@@ -98,6 +98,7 @@ public:
 
 	rstring& Clear ();
 	bool IsEmpty () const;
+	bool IsNumeric () const;
 
 	LPWSTR GetBuffer (size_t newLength = 0);
 	LPCWSTR GetString () const;

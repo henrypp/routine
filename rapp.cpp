@@ -451,49 +451,62 @@ VOID rapp::ClearSettingsPage ()
 	app_settings_pages.clear ();
 }
 
-VOID rapp::InitSettingsPage (HWND hwnd)
+VOID rapp::InitSettingsPage (HWND hwnd, BOOL is_restart)
 {
-	// localize window
-	SetWindowText (hwnd, I18N (this, IDS_SETTINGS, 0));
-
-	SetDlgItemText (hwnd, IDC_APPLY, I18N (this, IDS_APPLY, 0));
-	SetDlgItemText (hwnd, IDC_CLOSE, I18N (this, IDS_CLOSE, 0));
-
-	_r_ctrl_enable (hwnd, IDC_APPLY, FALSE);
-
-	// localize treeview
-	HTREEITEM item = (HTREEITEM)SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_ROOT, 0);
-
-	while (item)
+	if (is_restart)
 	{
-		TVITEMEX tvi = {0};
+		// localize window
+		SetWindowText (hwnd, I18N (this, IDS_SETTINGS, 0));
 
-		tvi.mask = TVIF_PARAM | TVIF_STATE;
-		tvi.hItem = item;
+		SetDlgItemText (hwnd, IDC_APPLY, I18N (this, IDS_APPLY, 0));
+		SetDlgItemText (hwnd, IDC_CLOSE, I18N (this, IDS_CLOSE, 0));
 
-		SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETITEM, 0, (LPARAM)&tvi);
+		// localize treeview
+		HTREEITEM item = (HTREEITEM)SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_ROOT, 0);
 
-		PAPPLICATION_PAGE ptr = app_settings_pages.at (size_t (tvi.lParam));
-
-		if (ptr)
+		while (item)
 		{
-			if ((tvi.state & TVIS_SELECTED) != 0)
+			TVITEMEX tvi = {0};
+
+			tvi.mask = TVIF_PARAM;
+			tvi.hItem = item;
+
+			SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETITEM, 0, (LPARAM)&tvi);
+
+			PAPPLICATION_PAGE ptr = app_settings_pages.at (size_t (tvi.lParam));
+
+			if (ptr)
 			{
-				ptr->callback (ptr->hwnd, _RM_INITIALIZE, nullptr, ptr);
+				rstring text = LocaleString (ptr->h, ptr->locale_id, ptr->locale_sid);
+
+				tvi.mask = TVIF_TEXT;
+				tvi.pszText = text.GetBuffer ();
+
+				SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETITEM, 0, (LPARAM)&tvi);
+
+				text.Clear ();
 			}
 
-			rstring text = LocaleString (ptr->h, ptr->locale_id, ptr->locale_sid);
-
-			tvi.mask = TVIF_TEXT;
-			tvi.pszText = text.GetBuffer ();
-
-			SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETITEM, 0, (LPARAM)&tvi);
-
-			text.Clear ();
+			item = (HTREEITEM)SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_NEXT, (LPARAM)item);
 		}
-
-		item = (HTREEITEM)SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_NEXT, (LPARAM)item);
 	}
+
+	for (size_t i = 0; i < app_settings_pages.size (); i++)
+	{
+		PAPPLICATION_PAGE ptr = app_settings_pages.at (i);
+
+		if (i == app_settings_page)
+		{
+			ptr->is_initialized = TRUE;
+			ptr->callback (ptr->hwnd, _RM_INITIALIZE, nullptr, ptr);
+		}
+		else
+		{
+			ptr->is_initialized = FALSE;
+		}
+	}
+
+	_r_ctrl_enable (hwnd, IDC_APPLY, FALSE);
 }
 #endif // _APP_NO_SETTINGS
 
@@ -799,7 +812,6 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			{
 				PAPPLICATION_PAGE ptr = this_ptr->app_settings_pages.at (i);
 
-				ptr->is_initialized = FALSE;
 				ptr->hwnd = CreateDialogParam (ptr->h, MAKEINTRESOURCE (ptr->dlg_id), hwnd, &this_ptr->SettingsPagesProc, (LPARAM)this_ptr);
 
 				HTREEITEM item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr->h, ptr->locale_id, ptr->locale_sid), nullptr, -1, (LPARAM)i);
@@ -810,7 +822,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 				}
 			}
 
-			this_ptr->InitSettingsPage (hwnd);
+			this_ptr->InitSettingsPage (hwnd, TRUE);
 
 			break;
 		}
@@ -880,7 +892,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 						this_ptr->app_callback (this_ptr->app_hwnd, _RM_INITIALIZE, nullptr, nullptr);
 					}
 
-					if (is_restart) { this_ptr->InitSettingsPage (hwnd); }
+					this_ptr->InitSettingsPage (hwnd, is_restart);
 
 					break;
 				}
@@ -967,7 +979,7 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 					}
 				}
 
-				this_ptr->ConfigSet (L"CheckUpdatesLast", DWORD (_r_unixtime_now ()));
+				this_ptr->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
 			}
 		}
 
@@ -1286,19 +1298,22 @@ BOOL rapp::SkipUacIsPresent (BOOL is_run)
 
 	return result;
 }
+#endif // _APP_NO_UAC
 
 BOOL rapp::SkipUacRun ()
 {
+	BOOL result = FALSE;
+
 	if (_r_sys_uacstate ())
 	{
 		CloseHandle (app_mutex);
 		app_mutex = nullptr;
 
-		if (SkipUacIsPresent (TRUE))
-		{
-			return TRUE;
-		}
-		else
+#ifdef _APP_NO_UAC
+		result = SkipUacIsPresent (TRUE);
+#endif // _APP_NO_UAC
+
+		if (!result)
 		{
 			WCHAR buffer[MAX_PATH] = {0};
 
@@ -1313,18 +1328,17 @@ BOOL rapp::SkipUacRun ()
 			shex.lpFile = buffer;
 
 			if (ShellExecuteEx (&shex))
-			{
-				return TRUE;
-			}
+				result = TRUE;
 		}
 
-		app_mutex = CreateMutex (nullptr, FALSE, app_name_short);
+		if (!result)
+			app_mutex = CreateMutex (nullptr, FALSE, app_name_short);
 	}
 	else
 	{
-		return TRUE;
+		result = TRUE;
 	}
 
-	return FALSE;
+	return result;
 }
-#endif // _APP_NO_UAC
+

@@ -123,7 +123,7 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR format, ...)
 		{
 			TASKDIALOGCONFIG tdc = {0};
 
-			tdc.cbSize = sizeof (TASKDIALOGCONFIG);
+			tdc.cbSize = sizeof (tdc);
 			tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
 			tdc.hwndParent = hwnd;
 			tdc.pszWindowTitle = title;
@@ -142,7 +142,7 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR format, ...)
 			// icons
 			if ((flags & MB_ICONMASK) == MB_ICONASTERISK) { tdc.pszMainIcon = TD_INFORMATION_ICON; }
 			else if ((flags & MB_ICONMASK) == MB_ICONEXCLAMATION) { tdc.pszMainIcon = TD_WARNING_ICON; }
-			else if ((flags & MB_ICONMASK) == MB_ICONQUESTION) { tdc.pszMainIcon = IDI_QUESTION; }
+			else if ((flags & MB_ICONMASK) == MB_ICONQUESTION) { tdc.pszMainIcon = TD_INFORMATION_ICON; }
 			else if ((flags & MB_ICONMASK) == MB_ICONHAND) { tdc.pszMainIcon = TD_ERROR_ICON; }
 
 			_TaskDialogIndirect (&tdc, &result, nullptr, nullptr);
@@ -550,13 +550,13 @@ BOOL _r_sys_validversion (DWORD major, DWORD minor, BYTE condition)
 	Unixtime
 */
 
-__time64_t _r_unixtime_now ()
+__time64_t _r_unixtime_now (BOOL is_local)
 {
-	__time64_t t = 0;
+	SYSTEMTIME st = {0};
 
-	_time64 (&t);
+	(is_local ? GetLocalTime : GetSystemTime)(&st);
 
-	return t;
+	return _r_unixtime_from_systemtime (&st);
 }
 
 VOID _r_unixtime_to_filetime (__time64_t ut, LPFILETIME pft)

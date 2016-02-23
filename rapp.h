@@ -1,7 +1,7 @@
 // routine++
 // Copyright (c) 2012-2016 Henry++
 
-// lastmod: Feb 12, 2016
+// lastmod: Feb 17, 2016
 
 #pragma once
 
@@ -92,7 +92,7 @@ public:
 	VOID CreateSettingsWindow ();
 	VOID AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback);
 	VOID ClearSettingsPage ();
-	VOID InitSettingsPage (HWND hwnd);
+	VOID InitSettingsPage (HWND hwnd, BOOL is_restart);
 #endif // _APP_NO_SETTINGS
 
 	rstring GetDirectory () const;
@@ -112,9 +112,9 @@ public:
 
 #ifdef _APP_NO_UAC
 	BOOL SkipUacCreate (BOOL is_remove);
-	BOOL SkipUacRun ();
 	BOOL SkipUacIsPresent (BOOL run);
 #endif // _APP_NO_UAC
+	BOOL SkipUacRun ();
 
 private:
 

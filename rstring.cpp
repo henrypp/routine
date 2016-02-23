@@ -513,6 +513,20 @@ bool rstring::IsEmpty () const
 	return GetLength () == 0;
 }
 
+bool rstring::IsNumeric () const
+{
+	if (IsEmpty ())
+		return false;
+
+	for (size_t i = 0; i < GetLength (); i++)
+	{
+		if (iswdigit (data_[i]) == 0)
+			return false;
+	}
+
+	return true;
+}
+
 LPWSTR rstring::GetBuffer (size_t newLength)
 {
 	EnsureUnique ();

@@ -1,7 +1,7 @@
 // routine++
 // Copyright (c) 2012-2016 Henry++
 
-// lastmod: Feb 12, 2016
+// lastmod: Feb 23, 2016
 
 #pragma once
 
@@ -99,10 +99,10 @@ BOOL _r_sys_validversion (DWORD major, DWORD minor, BYTE condition = VER_GREATER
 	Unixtime
 */
 
-__time64_t _r_unixtime_now ();
+__time64_t _r_unixtime_now (BOOL is_local = TRUE);
 VOID _r_unixtime_to_filetime (__time64_t ut, LPFILETIME pft);
 VOID _r_unixtime_to_systemtime (__time64_t ut, LPSYSTEMTIME pst);
-__time64_t _r_unixtime_from_filetime (LPSYSTEMTIME pst);
+__time64_t _r_unixtime_from_filetime (LPFILETIME pft);
 __time64_t _r_unixtime_from_systemtime (LPSYSTEMTIME pst);
 
 /*
