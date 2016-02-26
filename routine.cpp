@@ -940,7 +940,7 @@ INT _r_listview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT item, INT subite
 
 VOID _r_listview_deleteallcolumns (HWND hwnd, INT ctrl)
 {
-	const INT column_count = _r_listview_getcolumncount (hwnd, ctrl); // or how many columns you have
+	const INT column_count = _r_listview_getcolumncount (hwnd, ctrl);
 
 	for (INT i = column_count; i >= 0; i--)
 	{

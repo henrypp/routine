@@ -368,12 +368,6 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 
 		if (app_hwnd)
 		{
-			if (callback)
-			{
-				app_callback = callback;
-				app_callback (app_hwnd, _RM_INITIALIZE, nullptr, nullptr);
-			}
-
 			// set title
 			SetWindowText (app_hwnd, app_name);
 
@@ -390,6 +384,13 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 #ifndef _APP_NO_UPDATES
 			CheckForUpdates (TRUE);
 #endif // _APP_NO_UPDATES
+
+			// initialization callback
+			if (callback)
+			{
+				app_callback = callback;
+				app_callback (app_hwnd, _RM_INITIALIZE, nullptr, nullptr);
+			}
 
 			result = TRUE;
 		}
