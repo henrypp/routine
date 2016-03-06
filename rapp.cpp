@@ -1126,7 +1126,7 @@ BOOL rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
 
 				if (delimeter != rstring::npos)
 				{
-					(*map)[section][parser.Mid (0, delimeter)] = parser.Mid (delimeter + 1); // set
+					(*map)[section][parser.Middle (0, delimeter)] = parser.Middle (delimeter + 1); // set
 				}
 
 				value += wcslen (value) + 1; // go next item

@@ -89,14 +89,16 @@ public:
 
 	vector AsVector (LPCWSTR delimiters) const;
 
+	rstring& Append (const rstring& str);
+	rstring& Append (LPCWSTR str);
+	rstring& Mid (size_t start, size_t length = npos);
+	rstring& Replace (LPCWSTR from, LPCWSTR to);
+	rstring& Trim (LPCWSTR chars);
+
 	rstring Appended (LPCWSTR str) const;
 	rstring Appended (const rstring& other) const;
 
-	rstring& Append (const rstring& str);
-	rstring& Append (LPCWSTR str);
-	rstring Mid (size_t start, size_t length = npos) const;
-	rstring& Replace (LPCWSTR from, LPCWSTR to);
-	rstring& Trim (LPCWSTR chars);
+	rstring Middle (size_t start, size_t length = npos) const;
 
 	rstring& Format (LPCWSTR fmt, ...);
 	rstring& FormatV (LPCWSTR fmt, va_list args);

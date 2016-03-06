@@ -411,27 +411,39 @@ INT rstring::CompareNoCase (LPCWSTR str) const
 	return _CompareI (toBuffer (), str);
 }
 
-rstring rstring::Mid (size_t start, size_t length) const
+rstring& rstring::Mid (size_t start, size_t length)
 {
-	rstring result;
-	size_t clength = GetLength ();
-	if (clength)
+	Buffer* thisBuffer = toBuffer ();
+	if (thisBuffer)
 	{
-		if ((start == 0) && (length >= clength))
+		if ((start == 0) && (length >= thisBuffer->length))
 		{
-			return GetString ();
+			return *this;
 		}
-		if (start >= clength)
+		if (start >= thisBuffer->length)
 		{
-			return empty;
+			Release ();
+			return *this;
 		}
-		if (length > (clength - start))
+		if (length > (thisBuffer->length - start))
 		{
-			length = clength - start;
+			length = thisBuffer->length - start;
 		}
-		memmove (result.GetBuffer (length), &data_[start], (length * sizeof (WCHAR)));
+
+		thisBuffer = EnsureUnique ();
+
+		memmove (thisBuffer->data, &thisBuffer->data[start], (length*sizeof (wchar_t)));
+
+		ReallocateUnique (length);
 	}
-	return result;
+	return *this;
+}
+
+rstring rstring::Middle (size_t start, size_t length) const
+{
+	auto tmp = *this;
+	tmp.Mid (start, length);
+	return tmp;
 }
 
 bool rstring::AsBool () const
@@ -705,7 +717,7 @@ rstring& rstring::Trim (LPCWSTR chars)
 					if (!res)
 					{
 						last++;
-						*this = Mid (i, last - i);
+						Mid (i, last - i);
 						break;
 					}
 				}
