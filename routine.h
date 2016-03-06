@@ -1,8 +1,6 @@
 // routine++
 // Copyright (c) 2012-2016 Henry++
 
-// lastmod: Feb 23, 2016
-
 #pragma once
 
 #undef PSAPI_VERSION
@@ -165,12 +163,6 @@ DWORD _r_treeview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle, INT height);
 
 BOOL _r_status_settext (HWND hwnd, INT ctrl, INT part, LPCWSTR text);
 VOID _r_status_setstyle (HWND hwnd, INT ctrl, INT height);
-
-/*
-	Control: trayicon
-*/
-
-VOID _r_tray_showtip (PNOTIFYICONDATA pnid, DWORD icon, LPCWSTR title, LPCWSTR text);
 
 /*
 	Exported function definitions

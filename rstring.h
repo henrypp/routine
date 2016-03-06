@@ -1,7 +1,7 @@
 // rstring
+//
 // A fast, reference counted, copy-on-write string class (c) Espen Harlinn
-
-// lastmod: Feb 12, 2016
+// http://www.codeproject.com/Articles/498251/A-Cplusplus-String-class
 
 #pragma once
 
@@ -48,6 +48,18 @@ public:
 
 	bool operator== (LPCWSTR str) const;
 	bool operator!= (LPCWSTR str) const;
+
+	bool operator<= (const rstring& str) const;
+	bool operator>= (const rstring& str) const;
+
+	bool operator<= (LPCWSTR str) const;
+	bool operator>= (LPCWSTR str) const;
+
+	bool operator< (const rstring& str) const;
+	bool operator> (const rstring& str) const;
+
+	bool operator< (LPCWSTR str) const;
+	bool operator> (LPCWSTR str) const;
 
 	WCHAR operator[] (const size_t index) const;
 	WCHAR& operator[] (const size_t index);

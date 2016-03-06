@@ -18,7 +18,8 @@
 //#define _APP_NO_ABOUT // cut about window methods
 //#define _APP_NO_SETTINGS // cut settings window methods
 //#define _APP_NO_UPDATES // cut update checking methods
-//#define _APP_NO_UAC // enable skip uac methods
+//#define _APP_HAVE_SKIPUAC // enable skip uac feature
+//#define _APP_HAVE_TRAY // enable tray icon feature
 
 /*
 	Definitions

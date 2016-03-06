@@ -142,12 +142,12 @@ BOOL rapp::Initialize ()
 		app_mutex = nullptr;
 	}
 
-#ifdef _APP_NO_UAC
+#ifdef _APP_HAVE_SKIPUAC
 	if (_r_sys_uacstate () && SkipUacRun ())
 	{
 		return FALSE;
 	}
-#endif // _APP_NO_UAC
+#endif // _APP_HAVE_SKIPUAC
 
 #ifndef _WIN64
 	if (_r_sys_iswow64 ())
@@ -402,6 +402,79 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 
 	return result;
 }
+
+#ifdef _APP_HAVE_TRAY
+BOOL rapp::TrayCreate (UINT id, UINT code, HICON h)
+{
+	BOOL result = FALSE;
+
+	nid.cbSize = _r_sys_validversion (6, 0) ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
+	nid.uVersion = _r_sys_validversion (6, 0) ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION;
+	nid.hWnd = app_hwnd;
+	nid.uID = id;
+	nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_SHOWTIP | NIF_TIP;
+	nid.uCallbackMessage = code;
+	nid.hIcon = h;
+	StringCchCopy (nid.szTip, _countof (nid.szTip), app_name);
+
+	result = Shell_NotifyIcon (NIM_ADD, &nid);
+	Shell_NotifyIcon (NIM_SETVERSION, &nid);
+
+	return result;
+}
+
+BOOL rapp::TrayDestroy (UINT id)
+{
+	nid.uID = id;
+
+	if (nid.hIcon)
+	{
+		DestroyIcon (nid.hIcon);
+		nid.hIcon = nullptr;
+	}
+
+	return Shell_NotifyIcon (NIM_DELETE, &nid);
+}
+
+BOOL rapp::TrayPopup (UINT id, DWORD icon, LPCWSTR title, LPCWSTR text)
+{
+	BOOL result = FALSE;
+
+	nid.uID = id;
+	nid.uFlags = NIF_INFO;
+	nid.dwInfoFlags = NIIF_RESPECT_QUIET_TIME | NIIF_LARGE_ICON | icon;
+
+	StringCchCopy (nid.szInfoTitle, _countof (nid.szInfoTitle), title);
+	StringCchCopy (nid.szInfo, _countof (nid.szInfo), text);
+
+	result = Shell_NotifyIcon (NIM_MODIFY, &nid);
+
+	nid.szInfo[0] = nid.szInfoTitle[0] = 0; // clear
+
+	return result;
+}
+
+BOOL rapp::TraySetInfo (UINT id, HICON h, LPCWSTR tooltip)
+{
+	nid.uID = id;
+	nid.uFlags = NIF_SHOWTIP | NIF_TIP;
+	StringCchCopy (nid.szTip, _countof (nid.szTip), tooltip);
+
+	if (h)
+	{
+		if (nid.hIcon)
+		{
+			DestroyIcon (nid.hIcon);
+			nid.hIcon = nullptr;
+		}
+
+		nid.uFlags |= NIF_ICON;
+		nid.hIcon = h;
+	}
+
+	return Shell_NotifyIcon (NIM_MODIFY, &nid);
+}
+#endif // _APP_HAVE_TRAY
 
 #ifndef _APP_NO_SETTINGS
 VOID rapp::CreateSettingsWindow ()
@@ -1068,7 +1141,7 @@ BOOL rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
 	return result;
 }
 
-#ifdef _APP_NO_UAC
+#ifdef _APP_HAVE_SKIPUAC
 BOOL rapp::SkipUacCreate (BOOL is_remove)
 {
 	BOOL result = FALSE;
@@ -1299,7 +1372,7 @@ BOOL rapp::SkipUacIsPresent (BOOL is_run)
 
 	return result;
 }
-#endif // _APP_NO_UAC
+#endif // _APP_HAVE_SKIPUAC
 
 BOOL rapp::SkipUacRun ()
 {
@@ -1310,9 +1383,9 @@ BOOL rapp::SkipUacRun ()
 		CloseHandle (app_mutex);
 		app_mutex = nullptr;
 
-#ifdef _APP_NO_UAC
+#ifdef _APP_HAVE_SKIPUAC
 		result = SkipUacIsPresent (TRUE);
-#endif // _APP_NO_UAC
+#endif // _APP_HAVE_SKIPUAC
 
 		if (!result)
 		{

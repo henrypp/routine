@@ -1,5 +1,7 @@
 // rstring
+//
 // A fast, reference counted, copy-on-write string class (c) Espen Harlinn
+// http://www.codeproject.com/Articles/498251/A-Cplusplus-String-class
 
 #include "rstring.h"
 #include "routine.h"
@@ -103,7 +105,7 @@ rstring::~rstring ()
 
 rstring::operator LPCWSTR () const
 {
-	return this->GetString ();
+	return GetString ();
 }
 
 rstring::operator bool () const
@@ -113,22 +115,62 @@ rstring::operator bool () const
 
 bool rstring::operator== (const rstring& str) const
 {
-	return this->Compare (str) == 0;
+	return Compare (str) == 0;
 }
 
 bool rstring::operator!= (const rstring& str) const
 {
-	return this->Compare (str) != 0;
+	return Compare (str) != 0;
 }
 
 bool rstring::operator== (LPCWSTR str) const
 {
-	return this->Compare (str) == 0;
+	return Compare (str) == 0;
 }
 
 bool rstring::operator!= (LPCWSTR str) const
 {
-	return this->Compare (str) != 0;
+	return Compare (str) != 0;
+}
+
+bool rstring::operator<= (const rstring& str) const
+{
+	return Compare (str) <= 0;
+}
+
+bool rstring::operator>= (const rstring& str) const
+{
+	return Compare (str) >= 0;
+}
+
+bool rstring::operator<= (LPCWSTR str) const
+{
+	return Compare (str) <= 0;
+}
+
+bool rstring::operator>= (LPCWSTR str) const
+{
+	return Compare (str) >= 0;
+}
+
+bool rstring::operator< (const rstring& str) const
+{
+	return Compare (str) < 0;
+}
+
+bool rstring::operator> (const rstring& str) const
+{
+	return Compare (str) > 0;
+}
+
+bool rstring::operator< (LPCWSTR str) const
+{
+	return Compare (str) < 0;
+}
+
+bool rstring::operator> (LPCWSTR str) const
+{
+	return Compare (str) > 0;
 }
 
 WCHAR rstring::operator[] (const size_t index) const
@@ -185,12 +227,12 @@ rstring& rstring::operator= (rstring&& other)
 
 rstring& rstring::operator+= (const rstring& other)
 {
-	return this->Append (other);
+	return Append (other);
 }
 
 rstring& rstring::operator+= (LPCWSTR str)
 {
-	return this->Append (str);
+	return Append (str);
 }
 
 rstring operator+ (const rstring& str1, const rstring& str2)
@@ -394,10 +436,10 @@ rstring rstring::Mid (size_t start, size_t length) const
 
 bool rstring::AsBool () const
 {
-	if (this->IsEmpty ())
+	if (IsEmpty ())
 		return false;
 
-	if (this->AsInt () > 0 || this->CompareNoCase (L"true") == 0)
+	if (AsInt () > 0 || CompareNoCase (L"true") == 0)
 		return true;
 
 	return false;
@@ -410,7 +452,7 @@ INT rstring::AsInt (INT radix) const
 
 DOUBLE rstring::AsDouble () const
 {
-	if (this->IsEmpty ())
+	if (IsEmpty ())
 		return 0;
 
 	return wcstod (GetString (), nullptr);
@@ -418,7 +460,7 @@ DOUBLE rstring::AsDouble () const
 
 LONG rstring::AsLong (INT radix) const
 {
-	if (this->IsEmpty ())
+	if (IsEmpty ())
 		return 0;
 
 	return wcstol (GetString (), nullptr, radix);
@@ -426,7 +468,7 @@ LONG rstring::AsLong (INT radix) const
 
 LONGLONG rstring::AsLonglong (INT radix) const
 {
-	if (this->IsEmpty ())
+	if (IsEmpty ())
 		return 0;
 
 	return wcstoll (GetString (), nullptr, radix);
@@ -434,7 +476,7 @@ LONGLONG rstring::AsLonglong (INT radix) const
 
 size_t rstring::AsSizeT (INT radix) const
 {
-	if (this->IsEmpty ())
+	if (IsEmpty ())
 		return 0;
 
 #ifdef _WIN64

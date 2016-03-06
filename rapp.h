@@ -1,8 +1,6 @@
 // routine++
 // Copyright (c) 2012-2016 Henry++
 
-// lastmod: Feb 17, 2016
-
 #pragma once
 
 #include "routine.h"
@@ -88,6 +86,13 @@ public:
 
 	BOOL CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback);
 
+#ifdef _APP_HAVE_TRAY
+	BOOL TrayCreate (UINT id, UINT code, HICON h);
+	BOOL TrayDestroy (UINT id);
+	BOOL TrayPopup (UINT id, DWORD icon, LPCWSTR title, LPCWSTR text);
+	BOOL TraySetInfo (UINT id, HICON h, LPCWSTR tooltip);
+#endif // _APP_HAVE_TRAY
+
 #ifndef _APP_NO_SETTINGS
 	VOID CreateSettingsWindow ();
 	VOID AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback);
@@ -110,10 +115,10 @@ public:
 	rstring LocaleString (HINSTANCE h, UINT id, LPCWSTR name);
 	VOID LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position) const;
 
-#ifdef _APP_NO_UAC
+#ifdef _APP_HAVE_SKIPUAC
 	BOOL SkipUacCreate (BOOL is_remove);
 	BOOL SkipUacIsPresent (BOOL run);
-#endif // _APP_NO_UAC
+#endif // _APP_HAVE_SKIPUAC
 	BOOL SkipUacRun ();
 
 private:
@@ -139,6 +144,10 @@ private:
 	DOUBLE dpi_percent = 0.f;
 
 	BOOL is_localized = FALSE;
+
+#ifdef _APP_HAVE_TRAY
+	NOTIFYICONDATA nid = {0};
+#endif // _APP_HAVE_TRAY
 
 #ifndef _APP_NO_UPDATES
 	BOOL is_update_forced = FALSE;

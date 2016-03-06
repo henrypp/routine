@@ -1085,20 +1085,3 @@ VOID _r_status_setstyle (HWND hwnd, INT ctrl, INT height)
 	SendDlgItemMessage (hwnd, ctrl, SB_SETMINHEIGHT, (WPARAM)height, NULL);
 	SendDlgItemMessage (hwnd, ctrl, WM_SIZE, 0, NULL);
 }
-
-/*
-	Control: trayicon
-*/
-
-VOID _r_tray_showtip (PNOTIFYICONDATA pnid, DWORD icon, LPCWSTR title, LPCWSTR text)
-{
-	pnid->uFlags = NIF_INFO;
-	pnid->dwInfoFlags = NIIF_RESPECT_QUIET_TIME | NIIF_LARGE_ICON | icon;
-
-	StringCchCopy (pnid->szInfoTitle, _countof (pnid->szInfoTitle), title);
-	StringCchCopy (pnid->szInfo, _countof (pnid->szInfo), text);
-
-	Shell_NotifyIcon (NIM_MODIFY, pnid);
-
-	pnid->szInfo[0] = pnid->szInfoTitle[0] = 0; // clear
-}
