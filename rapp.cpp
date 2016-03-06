@@ -93,6 +93,10 @@ rapp::~rapp ()
 		app_callback (app_hwnd, _RM_UNINITIALIZE, nullptr, nullptr);
 	}
 
+#ifdef _APP_HAVE_TRAY
+	TrayDestroy ();
+#endif // _APP_HAVE_TRAY
+
 	if (app_mutex)
 	{
 		CloseHandle (app_mutex);
@@ -423,10 +427,8 @@ BOOL rapp::TrayCreate (UINT id, UINT code, HICON h)
 	return result;
 }
 
-BOOL rapp::TrayDestroy (UINT id)
+BOOL rapp::TrayDestroy ()
 {
-	nid.uID = id;
-
 	if (nid.hIcon)
 	{
 		DestroyIcon (nid.hIcon);
@@ -436,11 +438,10 @@ BOOL rapp::TrayDestroy (UINT id)
 	return Shell_NotifyIcon (NIM_DELETE, &nid);
 }
 
-BOOL rapp::TrayPopup (UINT id, DWORD icon, LPCWSTR title, LPCWSTR text)
+BOOL rapp::TrayPopup (DWORD icon, LPCWSTR title, LPCWSTR text)
 {
 	BOOL result = FALSE;
 
-	nid.uID = id;
 	nid.uFlags = NIF_INFO;
 	nid.dwInfoFlags = NIIF_RESPECT_QUIET_TIME | NIIF_LARGE_ICON | icon;
 
@@ -454,9 +455,8 @@ BOOL rapp::TrayPopup (UINT id, DWORD icon, LPCWSTR title, LPCWSTR text)
 	return result;
 }
 
-BOOL rapp::TraySetInfo (UINT id, HICON h, LPCWSTR tooltip)
+BOOL rapp::TraySetInfo (HICON h, LPCWSTR tooltip)
 {
-	nid.uID = id;
 	nid.uFlags = NIF_SHOWTIP | NIF_TIP;
 	StringCchCopy (nid.szTip, _countof (nid.szTip), tooltip);
 

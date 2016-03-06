@@ -88,9 +88,9 @@ public:
 
 #ifdef _APP_HAVE_TRAY
 	BOOL TrayCreate (UINT id, UINT code, HICON h);
-	BOOL TrayDestroy (UINT id);
-	BOOL TrayPopup (UINT id, DWORD icon, LPCWSTR title, LPCWSTR text);
-	BOOL TraySetInfo (UINT id, HICON h, LPCWSTR tooltip);
+	BOOL TrayDestroy ();
+	BOOL TrayPopup (DWORD icon, LPCWSTR title, LPCWSTR text);
+	BOOL TraySetInfo (HICON h, LPCWSTR tooltip);
 #endif // _APP_HAVE_TRAY
 
 #ifndef _APP_NO_SETTINGS
