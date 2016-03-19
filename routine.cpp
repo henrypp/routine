@@ -848,19 +848,21 @@ VOID _r_ctrl_settext (HWND hwnd, INT ctrl, LPCWSTR str, ...)
 
 HWND _r_ctrl_settip (HWND hwnd, INT ctrl, LPCWSTR text)
 {
-	HWND tip = CreateWindowEx (0, TOOLTIPS_CLASS, nullptr, WS_POPUP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, GetModuleHandle (nullptr), nullptr);
+	HWND h = CreateWindowEx (0, TOOLTIPS_CLASS, nullptr, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP | TTS_BALLOON, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, GetModuleHandle (nullptr), nullptr);
 
 	TOOLINFO ti = {0};
 
-	ti.cbSize = sizeof (TOOLINFO);
+	ti.cbSize = sizeof (ti);
 	ti.hwnd = hwnd;
+	ti.hinst = GetModuleHandle (nullptr);
 	ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
 	ti.lpszText = (LPWSTR)text;
 	ti.uId = (UINT_PTR)GetDlgItem (hwnd, ctrl);
 
-	SendMessage (tip, TTM_ADDTOOL, 0, (LPARAM)&ti);
+	SendMessage (h, TTM_ACTIVATE, TRUE, 0);
+	SendMessage (h, TTM_ADDTOOL, 0, (LPARAM)&ti);
 
-	return tip;
+	return h;
 }
 
 BOOL _r_ctrl_showtip (HWND hwnd, INT ctrl, LPCWSTR title, LPCWSTR text, INT icon)
