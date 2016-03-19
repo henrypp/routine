@@ -67,8 +67,10 @@ public:
 
 	BOOL Initialize ();
 
+#ifdef _APP_HAVE_AUTORUN
 	VOID AutorunCreate (BOOL is_remove);
 	BOOL AutorunIsPresent ();
+#endif // _APP_HAVE_AUTORUN
 
 #ifndef _APP_NO_UPDATES
 	VOID CheckForUpdates (BOOL is_periodical);

@@ -163,6 +163,7 @@ BOOL rapp::Initialize ()
 	return TRUE;
 }
 
+#ifdef _APP_HAVE_AUTORUN
 VOID rapp::AutorunCreate (BOOL is_remove)
 {
 	HKEY key = nullptr;
@@ -221,6 +222,7 @@ BOOL rapp::AutorunIsPresent ()
 
 	return result;
 }
+#endif // _APP_HAVE_AUTORUN
 
 #ifndef _APP_NO_UPDATES
 VOID rapp::CheckForUpdates (BOOL is_periodical)
@@ -1126,7 +1128,7 @@ BOOL rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
 
 				if (delimeter != rstring::npos)
 				{
-					(*map)[section][parser.Middle (0, delimeter)] = parser.Middle (delimeter + 1); // set
+					(*map)[section][parser.Midded (0, delimeter)] = parser.Midded (delimeter + 1); // set
 				}
 
 				value += wcslen (value) + 1; // go next item

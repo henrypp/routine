@@ -131,19 +131,46 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR format, ...)
 			tdc.pfCallback = &_r_msg_callback;
 
 			// flags
-			if (IsWindowVisible (hwnd)) { tdc.dwFlags |= TDF_POSITION_RELATIVE_TO_WINDOW; }
+			if (IsWindowVisible (hwnd))
+			{
+				tdc.dwFlags |= TDF_POSITION_RELATIVE_TO_WINDOW;
+			}
 
 			// buttons
-			if ((flags & MB_TYPEMASK) == MB_YESNO) { tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON; }
-			if ((flags & MB_TYPEMASK) == MB_YESNOCANCEL) { tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON | TDCBF_CANCEL_BUTTON; }
-			else if ((flags & MB_TYPEMASK) == MB_OKCANCEL) { tdc.dwCommonButtons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON; }
-			else if ((flags & MB_TYPEMASK) == MB_RETRYCANCEL) { tdc.dwCommonButtons = TDCBF_RETRY_BUTTON | TDCBF_CANCEL_BUTTON; }
+			if ((flags & MB_TYPEMASK) == MB_YESNO)
+			{
+				tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
+			}
+			if ((flags & MB_TYPEMASK) == MB_YESNOCANCEL)
+			{
+				tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON | TDCBF_CANCEL_BUTTON;
+			}
+			else if ((flags & MB_TYPEMASK) == MB_OKCANCEL)
+			{
+				tdc.dwCommonButtons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
+			}
+			else if ((flags & MB_TYPEMASK) == MB_RETRYCANCEL)
+			{
+				tdc.dwCommonButtons = TDCBF_RETRY_BUTTON | TDCBF_CANCEL_BUTTON;
+			}
 
 			// icons
-			if ((flags & MB_ICONMASK) == MB_ICONASTERISK) { tdc.pszMainIcon = TD_INFORMATION_ICON; }
-			else if ((flags & MB_ICONMASK) == MB_ICONEXCLAMATION) { tdc.pszMainIcon = TD_WARNING_ICON; }
-			else if ((flags & MB_ICONMASK) == MB_ICONQUESTION) { tdc.pszMainIcon = TD_INFORMATION_ICON; }
-			else if ((flags & MB_ICONMASK) == MB_ICONHAND) { tdc.pszMainIcon = TD_ERROR_ICON; }
+			if ((flags & MB_ICONMASK) == MB_ICONASTERISK)
+			{
+				tdc.pszMainIcon = TD_INFORMATION_ICON;
+			}
+			else if ((flags & MB_ICONMASK) == MB_ICONEXCLAMATION)
+			{
+				tdc.pszMainIcon = TD_WARNING_ICON;
+			}
+			else if ((flags & MB_ICONMASK) == MB_ICONQUESTION)
+			{
+				tdc.pszMainIcon = TD_INFORMATION_ICON;
+			}
+			else if ((flags & MB_ICONMASK) == MB_ICONHAND)
+			{
+				tdc.pszMainIcon = TD_ERROR_ICON;
+			}
 
 			_TaskDialogIndirect (&tdc, &result, nullptr, nullptr);
 		}
@@ -248,6 +275,32 @@ VOID _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length)
 BOOL _r_fs_exists (LPCWSTR path)
 {
 	return (GetFileAttributes (path) != INVALID_FILE_ATTRIBUTES);
+}
+
+BOOL _r_fs_readfile (HANDLE h, rstring* result)
+{
+	if (h != INVALID_HANDLE_VALUE)
+	{
+		HANDLE fm = CreateFileMapping (h, nullptr, PAGE_READONLY, 0, 0, nullptr);
+
+		if (fm)
+		{
+			LPSTR buffer = (LPSTR)MapViewOfFile (fm, FILE_MAP_READ, 0, 0, 0);
+
+			if (buffer)
+			{
+				(*result) = buffer;
+
+				UnmapViewOfFile (buffer);
+			}
+
+			CloseHandle (fm);
+
+			return TRUE;
+		}
+	}
+
+	return FALSE;
 }
 
 DWORD64 _r_fs_size (HANDLE h)
@@ -1000,12 +1053,23 @@ rstring _r_listview_gettext (HWND hwnd, INT ctrl, INT item, INT subitem)
 		lvi.pszText = result.GetBuffer (length);
 		lvi.cchTextMax = static_cast<int>(length);
 
-		out_length = (size_t)SendDlgItemMessage (hwnd, ctrl, LVM_GETITEMTEXT, item, (LPARAM)&lvi);
+		out_length = static_cast<size_t>(SendDlgItemMessage (hwnd, ctrl, LVM_GETITEMTEXT, item, (LPARAM)&lvi));
 		result.ReleaseBuffer ();
 	}
 	while (out_length == (length - 1));
 
 	return result;
+}
+
+BOOL _r_listview_setlparam (HWND hwnd, INT ctrl, INT item, LPARAM param)
+{
+	LVITEM lvi = {0};
+
+	lvi.mask = LVIF_PARAM;
+	lvi.iItem = item;
+	lvi.lParam = param;
+
+	return static_cast<BOOL>(SendDlgItemMessage (hwnd, ctrl, LVM_SETITEM, 0, (LPARAM)&lvi));
 }
 
 DWORD _r_listview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle)

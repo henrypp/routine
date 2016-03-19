@@ -24,7 +24,7 @@ public:
 	struct hash { size_t operator() (const rstring& k) const { return k.Hash (); } };
 	struct is_equal { bool operator() (const rstring& lhs, const rstring& rhs) const { return lhs.CompareNoCase (rhs) == 0; } };
 
-	typedef std::vector<rstring> vector;
+	typedef std::vector<rstring> rvector;
 
 	typedef std::unordered_map<rstring, rstring, rstring::hash, rstring::is_equal> map_one;
 	typedef std::unordered_map<rstring, rstring::map_one, rstring::hash, rstring::is_equal> map_two;
@@ -77,7 +77,6 @@ public:
 	WCHAR& At (size_t index) const;
 
 	bool AsBool () const;
-
 	INT AsInt (INT radix = 10) const;
 	DOUBLE AsDouble () const;
 	LONG AsLong (INT radix = 10) const;
@@ -86,22 +85,26 @@ public:
 	UINT AsUint (INT radix = 10) const;
 	ULONG AsUlong (INT radix = 10) const;
 	ULONGLONG AsUlonglong (INT radix = 10) const;
+	rvector AsVector (LPCWSTR delimiters) const;
 
-	vector AsVector (LPCWSTR delimiters) const;
+	bool IsEmpty () const;
+	bool IsNumeric () const;
 
 	rstring& Append (const rstring& str);
 	rstring& Append (LPCWSTR str);
+	rstring& Insert (LPCWSTR text, size_t pos);
 	rstring& Mid (size_t start, size_t length = npos);
+	rstring& Remove (size_t start, size_t length = npos);
 	rstring& Replace (LPCWSTR from, LPCWSTR to);
 	rstring& Trim (LPCWSTR chars);
+
+	rstring& Format (LPCWSTR fmt, ...);
+	rstring& FormatV (LPCWSTR fmt, va_list args);
 
 	rstring Appended (LPCWSTR str) const;
 	rstring Appended (const rstring& other) const;
 
-	rstring Middle (size_t start, size_t length = npos) const;
-
-	rstring& Format (LPCWSTR fmt, ...);
-	rstring& FormatV (LPCWSTR fmt, va_list args);
+	rstring Midded (size_t start, size_t length = npos) const;
 
 	INT Compare (const rstring& other) const;
 	INT Compare (LPCWSTR str) const;
@@ -110,16 +113,13 @@ public:
 
 	size_t Hash () const;
 
-	rstring& Clear ();
-	bool IsEmpty () const;
-	bool IsNumeric () const;
-
 	LPWSTR GetBuffer (size_t newLength = 0);
-	LPCWSTR GetString () const;
 	size_t GetLength () const;
+	LPCWSTR GetString () const;
 
-	rstring& SetLength (size_t newLength);
+	rstring& Clear ();
 	void ReleaseBuffer ();
+	rstring& SetLength (size_t newLength);
 
 	size_t Find (WCHAR chr, size_t start_pos = 0) const;
 	size_t Find (LPCWSTR chars, size_t start_pos = 0) const;

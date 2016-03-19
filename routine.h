@@ -65,8 +65,9 @@ VOID _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length);
 */
 
 BOOL _r_fs_exists (LPCWSTR path);
-DWORD64 _r_fs_size (HANDLE h);
 BOOL _r_fs_mkdir (LPCWSTR path);
+BOOL _r_fs_readfile (HANDLE h, rstring* result);
+DWORD64 _r_fs_size (HANDLE h);
 
 /*
 	Processes
@@ -148,6 +149,7 @@ INT _r_listview_getcolumncount (HWND hwnd, INT ctrl);
 LPARAM _r_listview_getlparam (HWND hwnd, INT ctrl, INT item);
 rstring _r_listview_gettext (HWND hwnd, INT ctrl, INT item, INT subitem);
 DWORD _r_listview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle);
+BOOL _r_listview_setlparam (HWND hwnd, INT ctrl, INT item, LPARAM param);
 
 /*
 	Control: treeview
