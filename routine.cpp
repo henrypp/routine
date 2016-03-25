@@ -802,11 +802,19 @@ BOOL _r_run (LPCWSTR cmdline, LPCWSTR cd, BOOL is_wait)
 	return result;
 }
 
-rstring _r_normalize_path (LPCWSTR path)
+rstring _r_normalize_path (rstring path)
 {
 	rstring result;
 
-	PathSearchAndQualify (path, result.GetBuffer (MAX_PATH), MAX_PATH);
+	if (path.Find (L'%') != rstring::npos)
+	{
+		ExpandEnvironmentStrings (path, result.GetBuffer (MAX_PATH), MAX_PATH);
+	}
+	else
+	{
+		PathSearchAndQualify (path, result.GetBuffer (MAX_PATH), MAX_PATH);
+	}
+
 	result.ReleaseBuffer ();
 
 	return result;

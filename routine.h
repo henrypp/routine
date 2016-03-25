@@ -119,7 +119,7 @@ VOID _r_wnd_top (HWND hwnd, BOOL is_enable);
 
 HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d);
 BOOL _r_run (LPCWSTR cmdline, LPCWSTR cd = nullptr, BOOL is_wait = FALSE);
-rstring _r_normalize_path (LPCWSTR path);
+rstring _r_normalize_path (rstring path);
 
 /*
 	Control: common
