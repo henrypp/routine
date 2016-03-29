@@ -254,12 +254,12 @@ VOID rapp::ConfigInit ()
 #endif // _APP_NO_UPDATES
 }
 
-rstring rapp::ConfigGet (LPCWSTR key, INT def, LPCWSTR name)
+rstring rapp::ConfigGet (LPCWSTR key, INT def, LPCWSTR name) const
 {
 	return ConfigGet (key, _r_fmt (L"%d", def), name);
 }
 
-rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
+rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name) const
 {
 	rstring result;
 
@@ -269,9 +269,9 @@ rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 	}
 
 	// check key is exists
-	if (app_config_array.find (name) != app_config_array.end () && app_config_array[name].find (key) != app_config_array[name].end ())
+	if (app_config_array.find (name) != app_config_array.end () && app_config_array.at (name).find (key) != app_config_array.at (name).end ())
 	{
-		result = app_config_array[name][key];
+		result = app_config_array.at (name).at (key);
 	}
 
 	if (result.IsEmpty ())
@@ -598,7 +598,7 @@ rstring rapp::GetProfileDirectory () const
 
 rstring rapp::GetUserAgent () const
 {
-	return _r_fmt (L"%s/%s (+%s)", app_name, app_version, _APP_WEBSITE_URL);
+	return ConfigGet (L"UserAgent", _r_fmt (L"%s/%s (+%s)", app_name, app_version, _APP_WEBSITE_URL));
 }
 
 INT rapp::GetDPI (INT v) const
@@ -767,7 +767,10 @@ LRESULT CALLBACK rapp::AboutWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM 
 		{
 			LONG_PTR exstyle = GetWindowLongPtr (hwnd, GWL_EXSTYLE);
 
-			if ((exstyle & WS_EX_LAYERED) == 0) { SetWindowLongPtr (hwnd, GWL_EXSTYLE, exstyle | WS_EX_LAYERED); }
+			if ((exstyle & WS_EX_LAYERED) == 0)
+			{
+				SetWindowLongPtr (hwnd, GWL_EXSTYLE, exstyle | WS_EX_LAYERED);
+			}
 
 			SetLayeredWindowAttributes (hwnd, 0, (msg == WM_ENTERSIZEMOVE) ? 100 : 255, LWA_ALPHA);
 			SetCursor (LoadCursor (nullptr, (msg == WM_ENTERSIZEMOVE) ? IDC_SIZEALL : IDC_ARROW));
@@ -1332,7 +1335,10 @@ BOOL rapp::SkipUacIsPresent (BOOL is_run)
 
 														if (state == TASK_STATE_RUNNING || state == TASK_STATE_DISABLED)
 														{
-															if (state == TASK_STATE_RUNNING) { result = TRUE; }
+															if (state == TASK_STATE_RUNNING)
+															{
+																result = TRUE;
+															}
 															break;
 														}
 													}
