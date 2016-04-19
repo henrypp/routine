@@ -29,6 +29,7 @@
 
 #define WDBG1(a) _r_dbg (__FUNCTIONW__, TEXT(__FILE__), __LINE__, L"%s", a)
 #define WDBG2(a, ...) _r_dbg (__FUNCTIONW__, TEXT(__FILE__), __LINE__, a, __VA_ARGS__)
+#define WDBG(a, ...) _r_dbg (nullptr, nullptr, 0, a, __VA_ARGS__)
 
 VOID _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...);
 
@@ -66,6 +67,7 @@ VOID _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length);
 
 BOOL _r_fs_exists (LPCWSTR path);
 BOOL _r_fs_mkdir (LPCWSTR path);
+BOOL _r_fs_rmdir (LPCWSTR path);
 BOOL _r_fs_readfile (HANDLE h, rstring* result);
 DWORD64 _r_fs_size (HANDLE h);
 

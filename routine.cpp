@@ -27,7 +27,14 @@ VOID _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...)
 
 		va_end (args);
 
-		OutputDebugString (_r_fmt (L"[%02d:%02d:%02d] PID=%04d, TID=%04d, LE=%d (0x%x), FN=%s, FL=%s:%d, T=%s\r\n", lt.wHour, lt.wMinute, lt.wSecond, dwPID, dwTID, dwLE, dwLE, function, file, line, buffer.IsEmpty () ? L"<none>" : buffer));
+		if (function)
+		{
+			OutputDebugString (_r_fmt (L"[%02d:%02d:%02d] PID=%04d, TID=%04d, LE=%d (0x%x), FN=%s, FL=%s:%d, T=%s\r\n", lt.wHour, lt.wMinute, lt.wSecond, dwPID, dwTID, dwLE, dwLE, function, file, line, buffer.IsEmpty () ? L"<none>" : buffer));
+		}
+		else
+		{
+			OutputDebugString (buffer);
+		}
 	}
 	else
 	{
@@ -328,6 +335,42 @@ BOOL _r_fs_mkdir (LPCWSTR path)
 	}
 
 	return result;
+}
+
+BOOL _r_fs_rmdir (LPCWSTR path)
+{
+	WIN32_FIND_DATA wfd = {0};
+
+	HANDLE h = FindFirstFile (_r_fmt (L"%s\\*.*", path), &wfd);
+
+	if (h != INVALID_HANDLE_VALUE)
+	{
+		do
+		{
+			if ((wfd.cFileName[0] == '.' && !wfd.cFileName[1]) || (wfd.cFileName[0] == '.' && wfd.cFileName[1] == '.' && !wfd.cFileName[2]))
+				continue;
+
+			rstring r;
+			r.Format (L"%s\\%s", path, wfd.cFileName);
+
+			if (wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+			{
+				_r_fs_rmdir (r);
+			}
+			else
+			{
+				SetFileAttributes (r, FILE_ATTRIBUTE_NORMAL);
+				DeleteFile (r);
+			}
+		}
+		while (FindNextFile (h, &wfd) == TRUE);
+
+		FindClose (h);
+	}
+
+	RemoveDirectory (path);
+
+	return 0;
 }
 
 /*

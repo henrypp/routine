@@ -447,8 +447,11 @@ BOOL rapp::TrayPopup (DWORD icon, LPCWSTR title, LPCWSTR text)
 	nid.uFlags = NIF_INFO;
 	nid.dwInfoFlags = NIIF_RESPECT_QUIET_TIME | NIIF_LARGE_ICON | icon;
 
-	StringCchCopy (nid.szInfoTitle, _countof (nid.szInfoTitle), title);
-	StringCchCopy (nid.szInfo, _countof (nid.szInfo), text);
+	if(title)
+		StringCchCopy (nid.szInfoTitle, _countof (nid.szInfoTitle), title);
+
+	if(text)
+		StringCchCopy (nid.szInfo, _countof (nid.szInfo), text);
 
 	result = Shell_NotifyIcon (NIM_MODIFY, &nid);
 
