@@ -1017,7 +1017,7 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 		EnableMenuItem (GetMenu (this_ptr->GetHWND ()), IDM_CHECKUPDATES, MF_BYCOMMAND | MF_DISABLED);
 #endif // IDM_CHECKUPDATES
 
-		internet = InternetOpen (this_ptr->GetUserAgent (), INTERNET_OPEN_TYPE_DIRECT, nullptr, nullptr, 0);
+		internet = InternetOpen (this_ptr->GetUserAgent (), INTERNET_OPEN_TYPE_PRECONFIG, nullptr, nullptr, 0);
 
 		if (internet)
 		{
