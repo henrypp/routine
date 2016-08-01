@@ -42,6 +42,21 @@ VOID _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...)
 	}
 }
 
+rstring _r_dbg_error (DWORD errcode)
+{
+	HLOCAL buffer = nullptr;
+	rstring result;
+
+	if (FormatMessage (FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, errcode, MAKELANGID (LANG_ENGLISH, SUBLANG_DEFAULT), (LPWSTR)&buffer, 0, nullptr))
+	{
+		result = (LPCWSTR)buffer;
+	}
+
+	LocalFree (buffer);
+
+	return result;
+}
+
 /*
 	Format strings, dates, numbers
 */
@@ -571,6 +586,20 @@ BOOL _r_sys_iswow64 ()
 }
 #endif // _WIN64
 
+BOOL _r_sys_securitydescriptor (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURITY_DESCRIPTOR sd)
+{
+	if (!sa || !InitializeSecurityDescriptor (sd, SECURITY_DESCRIPTOR_REVISION) || !SetSecurityDescriptorDacl (sd, TRUE, nullptr, FALSE))
+	{
+		return FALSE;
+	}
+
+	sa->nLength = length;
+	sa->lpSecurityDescriptor = sd;
+	sa->bInheritHandle = TRUE;
+
+	return TRUE;
+}
+
 BOOL _r_sys_setprivilege (LPCWSTR privilege, BOOL is_enable)
 {
 	HANDLE token = nullptr;
@@ -851,11 +880,11 @@ rstring _r_normalize_path (rstring path)
 
 	if (path.Find (L'%') != rstring::npos)
 	{
-		ExpandEnvironmentStrings (path, result.GetBuffer (MAX_PATH), MAX_PATH);
+		ExpandEnvironmentStrings (path, result.GetBuffer (1024), 1024);
 	}
 	else
 	{
-		PathSearchAndQualify (path, result.GetBuffer (MAX_PATH), MAX_PATH);
+		PathSearchAndQualify (path, result.GetBuffer (1024), 1024);
 	}
 
 	result.ReleaseBuffer ();
@@ -1130,6 +1159,38 @@ DWORD _r_listview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle)
 	SetWindowTheme (GetDlgItem (hwnd, ctrl), L"Explorer", nullptr);
 
 	return (DWORD)SendDlgItemMessage (hwnd, ctrl, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, (LPARAM)exstyle);
+}
+
+BOOL _r_listview_setcolumnsortindex (HWND hwnd, INT ctrl, INT column, INT arrow)
+{
+	HWND header = (HWND)SendDlgItemMessage (hwnd, ctrl, LVM_GETHEADER, 0, 0);
+
+	if (header)
+	{
+		HDITEM hitem = {0};
+
+		hitem.mask = HDI_FORMAT;
+
+		if (Header_GetItem (header, column, &hitem))
+		{
+			if (arrow == 1)
+			{
+				hitem.fmt = (hitem.fmt & ~HDF_SORTDOWN) | HDF_SORTUP;
+			}
+			else if (arrow == -1)
+			{
+				hitem.fmt = (hitem.fmt & ~HDF_SORTUP) | HDF_SORTDOWN;
+			}
+			else
+			{
+				hitem.fmt = hitem.fmt & ~(HDF_SORTDOWN | HDF_SORTUP);
+			}
+
+			return Header_SetItem (header, column, &hitem);
+		}
+	}
+
+	return FALSE;
 }
 
 /*

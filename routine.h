@@ -24,6 +24,12 @@
 #pragma comment(lib, "uxtheme.lib")
 
 /*
+	Color shader
+*/
+
+#define _R_COLOR_SHADE(c, percent) RGB ((BYTE)((float)GetRValue (c) * percent / 100.0), (BYTE)((float)GetGValue (c) * percent / 100.0), (BYTE)((float)GetBValue (c) * percent / 100.0))
+
+/*
 	Write debug log to console
 */
 
@@ -32,6 +38,7 @@
 #define WDBG(a, ...) _r_dbg (nullptr, nullptr, 0, a, __VA_ARGS__)
 
 VOID _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...);
+rstring _r_dbg_error (DWORD errcode = GetLastError ());
 
 /*
 	Format strings, dates, numbers
@@ -89,9 +96,10 @@ INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2);
 BOOL _r_sys_adminstate ();
 
 #ifndef _WIN64
-	BOOL _r_sys_iswow64 ();
+BOOL _r_sys_iswow64 ();
 #endif // _WIN64
 
+BOOL _r_sys_securitydescriptor (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURITY_DESCRIPTOR sd);
 BOOL _r_sys_setprivilege (LPCWSTR privilege, BOOL is_enable);
 BOOL _r_sys_uacstate ();
 BOOL _r_sys_validversion (DWORD major, DWORD minor, BYTE condition = VER_GREATER_EQUAL);
@@ -152,6 +160,7 @@ LPARAM _r_listview_getlparam (HWND hwnd, INT ctrl, INT item);
 rstring _r_listview_gettext (HWND hwnd, INT ctrl, INT item, INT subitem);
 DWORD _r_listview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle);
 BOOL _r_listview_setlparam (HWND hwnd, INT ctrl, INT item, LPARAM param);
+BOOL _r_listview_setcolumnsortindex (HWND hwnd, INT ctrl, INT column, INT arrow);
 
 /*
 	Control: treeview

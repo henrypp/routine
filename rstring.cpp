@@ -199,7 +199,7 @@ rstring& rstring::operator= (LPCWSTR str)
 
 			EnsureUnique ();
 			str = data_ + offset;
-			memmove (data_, str, length*sizeof (WCHAR));
+			memmove (data_, str, length * sizeof (WCHAR));
 			ReallocateUnique (length);
 		}
 		else
@@ -473,7 +473,7 @@ rstring& rstring::Insert (LPCWSTR text, size_t pos)
 					size_t oldLength = thisBuffer->length;
 					thisBuffer = ReallocateUnique (oldLength + textLength);
 					memmove (&thisBuffer->data[pos + textLength], &thisBuffer->data[pos], (oldLength - pos) * sizeof (WCHAR));
-					memmove (&thisBuffer->data[pos], s.GetBuffer (), textLength* sizeof (WCHAR));
+					memmove (&thisBuffer->data[pos], s.GetBuffer (), textLength * sizeof (WCHAR));
 					s.Release ();
 				}
 				else
@@ -481,7 +481,7 @@ rstring& rstring::Insert (LPCWSTR text, size_t pos)
 					size_t oldLength = thisBuffer->length;
 					thisBuffer = ReallocateUnique (oldLength + textLength);
 					memmove (&thisBuffer->data[pos + textLength], &thisBuffer->data[pos], (oldLength - pos) * sizeof (WCHAR));
-					memcpy (&thisBuffer->data[pos], text, textLength* sizeof (WCHAR));
+					memcpy (&thisBuffer->data[pos], text, textLength * sizeof (WCHAR));
 				}
 			}
 		}
@@ -515,7 +515,7 @@ rstring& rstring::Mid (size_t start, size_t length)
 
 		thisBuffer = EnsureUnique ();
 
-		memmove (thisBuffer->data, &thisBuffer->data[start], (length*sizeof (WCHAR)));
+		memmove (thisBuffer->data, &thisBuffer->data[start], (length * sizeof (WCHAR)));
 
 		ReallocateUnique (length);
 	}
@@ -541,7 +541,7 @@ rstring& rstring::Remove (size_t start, size_t length)
 			{
 				thisBuffer = EnsureUnique ();
 
-				memmove (&thisBuffer->data[start], &thisBuffer->data[start + length], (thisBuffer->length - (start + length))*sizeof (WCHAR));
+				memmove (&thisBuffer->data[start], &thisBuffer->data[start + length], (thisBuffer->length - (start + length)) * sizeof (WCHAR));
 
 				ReallocateUnique (thisBuffer->length - length);
 			}
@@ -722,40 +722,10 @@ size_t rstring::Hash () const
 
 	for (size_t i = 0; i < theBuffer->length; i++)
 	{
-		hash = hash ^ (At (i)); /* xor  the low 8 bits */
+		hash = hash ^ (tolower (At (i))); /* xor  the low 8 bits */
 		hash = hash * FNVMultiple; /* multiply by the magic number */
 	}
 	return hash;
-
-	/*
-	size_t result = 0;
-	if (data_)
-	{
-		auto theBuffer = toBuffer ();
-		switch (theBuffer->length)
-		{
-			case 0:
-				break;
-			case 1:
-				result = *(unsigned char*)theBuffer->data;
-				break;
-			case 2:
-			case 3:
-				result = *(unsigned short*)theBuffer->data;
-				break;
-			case 4:
-			case 5:
-			case 6:
-			case 7:
-				result = *(unsigned int*)theBuffer->data;
-				break;
-			default:
-				result = *(size_t*)theBuffer->data;
-				break;
-		}
-
-	}
-	return result;*/
 }
 
 LPWSTR rstring::GetBuffer (size_t newLength)
@@ -920,21 +890,33 @@ bool rstring::Match (LPCWSTR pattern)
 bool rstring::Match (LPCWSTR str, LPCWSTR pattern)
 {
 	// If we reach at the end of both strings, we are done
-	if (*pattern == 0 && *str == 0) { return TRUE; }
+	if (*pattern == 0 && *str == 0)
+	{
+		return TRUE;
+	}
 
 	// Make sure that the characters after '*' are present
 	// in second string. This function assumes that the first
 	// string will not contain two consecutive '*'
-	if (*pattern == L'*' && *(pattern + 1) != 0 && *str == 0) { return FALSE; }
+	if (*pattern == L'*' && *(pattern + 1) != 0 && *str == 0)
+	{
+		return FALSE;
+	}
 
 	// If the first string contains '?', or current characters
 	// of both strings match
-	if (*pattern == L'?' || towlower (*str) == towlower (*pattern)) { return Match (str + 1, pattern + 1); }
+	if (*pattern == L'?' || towlower (*str) == towlower (*pattern))
+	{
+		return Match (str + 1, pattern + 1);
+	}
 
 	// If there is *, then there are two possibilities
 	// a) We consider current character of second string
 	// b) We ignore current character of second string.
-	if (*pattern == L'*') { return Match (str + 1, pattern) || Match (str, pattern + 1); }
+	if (*pattern == L'*')
+	{
+		return Match (str + 1, pattern) || Match (str, pattern + 1);
+	}
 
 	return FALSE;
 }
@@ -986,7 +968,7 @@ size_t rstring::allocationByteCount (size_t length)
 			return minBufferByteCount;
 		}
 
-		size_t bytesRequired = (nonTextBufferByteCount + length)*sizeof (WCHAR);
+		size_t bytesRequired = (nonTextBufferByteCount + length) * sizeof (WCHAR);
 
 		size_t remainder = bytesRequired % minBufferByteCount;
 		if (remainder != 0)
@@ -1025,7 +1007,7 @@ rstring::Buffer* rstring::EnsureUnique ()
 			Buffer* newBuffer = (Buffer*)new char[byteCount];
 			newBuffer->referenceCount = 1;
 			newBuffer->length = buffer->length;
-			memcpy (newBuffer->data, buffer->data, buffer->length*sizeof (WCHAR));
+			memcpy (newBuffer->data, buffer->data, buffer->length * sizeof (WCHAR));
 			newBuffer->data[buffer->length] = 0;
 			Release ();
 			data_ = newBuffer->data;
@@ -1055,7 +1037,7 @@ rstring::Buffer* rstring::ReallocateUnique (size_t length)
 				newBuffer->referenceCount = 1;
 				newBuffer->length = length;
 				size_t copyCount = min (buffer->length, length) + 2;
-				memcpy (newBuffer->data, buffer->data, copyCount*sizeof (WCHAR));
+				memcpy (newBuffer->data, buffer->data, copyCount * sizeof (WCHAR));
 				newBuffer->data[length] = 0;
 				Release ();
 				data_ = newBuffer->data;

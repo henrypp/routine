@@ -51,10 +51,11 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 		WNDCLASSEX wcx = {0};
 
 		wcx.cbSize = sizeof (WNDCLASSEX);
-		wcx.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
+		wcx.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS | CS_DROPSHADOW;
 		wcx.lpfnWndProc = &AboutWndProc;
 		wcx.hInstance = GetHINSTANCE ();
 		wcx.lpszClassName = _APP_ABOUT_CLASS;
+		wcx.hCursor = LoadCursor (nullptr, IDC_ARROW);
 		wcx.hbrBackground = GetSysColorBrush (COLOR_3DFACE);
 
 		RegisterClassEx (&wcx);
@@ -370,6 +371,8 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 		// create window
 #ifdef IDD_MAIN
 		app_hwnd = CreateDialog (nullptr, MAKEINTRESOURCE (IDD_MAIN), nullptr, proc);
+#else
+		UNREFERENCED_PARAMETER (proc);
 #endif // IDD_MAIN
 
 		if (app_hwnd)
