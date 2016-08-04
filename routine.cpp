@@ -410,7 +410,6 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 				if (h)
 				{
 					WCHAR buffer[MAX_PATH] = {0};
-
 					GetModuleFileNameEx (h, nullptr, buffer, _countof (buffer));
 					CloseHandle (h);
 

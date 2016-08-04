@@ -722,7 +722,7 @@ size_t rstring::Hash () const
 
 	for (size_t i = 0; i < theBuffer->length; i++)
 	{
-		hash = hash ^ (tolower (At (i))); /* xor  the low 8 bits */
+		hash = hash ^ (towupper (At (i))); /* xor  the low 8 bits */
 		hash = hash * FNVMultiple; /* multiply by the magic number */
 	}
 	return hash;
