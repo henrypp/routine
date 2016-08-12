@@ -62,21 +62,15 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	}
 
 	// create dialog font
-	LOGFONT lf = {0};
+	NONCLIENTMETRICS ncm = {0};
+	ncm.cbSize = sizeof (NONCLIENTMETRICS);
+	SystemParametersInfo (SPI_GETNONCLIENTMETRICS, sizeof (NONCLIENTMETRICS), &ncm, SPIF_SENDCHANGE);
 
-	lf.lfQuality = CLEARTYPE_QUALITY;
-	lf.lfCharSet = DEFAULT_CHARSET;
-	lf.lfPitchAndFamily = FF_DONTCARE;
-	lf.lfWeight = FW_NORMAL;
-	lf.lfHeight = -MulDiv (9, GetDeviceCaps (h, LOGPIXELSY), 72);
-
-	StringCchCopy (lf.lfFaceName, _countof (lf.lfFaceName), _r_sys_validversion (6, 0) ? L"MS Shell Dlg 2" : L"MS Shell Dlg");
-
-	app_font = CreateFontIndirect (&lf);
+	app_font = CreateFontIndirect (&ncm.lfMessageFont);
 
 	// get logo
 #ifdef IDI_MAIN
-	app_logo = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), GetDPI (64));
+	app_logo = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), GetDPI (52));
 #endif // IDI_MAIN
 
 #endif // _APP_NO_ABOUT
@@ -321,7 +315,7 @@ VOID rapp::CreateAboutWindow ()
 	rc.right = GetDPI (374);
 	rc.bottom = GetDPI (114);
 
-	AdjustWindowRectEx (&rc, WS_SYSMENU | WS_BORDER, FALSE, WS_EX_DLGMODALFRAME | WS_EX_TOPMOST);
+	AdjustWindowRectEx (&rc, WS_SYSMENU | WS_BORDER, FALSE, WS_EX_TOPMOST | WS_EX_DLGMODALFRAME);
 
 	HWND hwnd = CreateWindowEx (WS_EX_TOPMOST | WS_EX_DLGMODALFRAME, _APP_ABOUT_CLASS, I18N (this, IDS_ABOUT, 0), WS_SYSMENU | WS_BORDER, CW_USEDEFAULT, CW_USEDEFAULT, rc.right, rc.bottom, GetHWND (), nullptr, GetHINSTANCE (), nullptr);
 
@@ -336,7 +330,7 @@ VOID rapp::CreateAboutWindow ()
 		DeleteMenu (menu, 1, MF_BYPOSITION); // divider
 
 		// create controls
-		HWND hctrl = CreateWindowEx (0, WC_STATIC, nullptr, WS_CHILD | WS_VISIBLE | SS_ICON, GetDPI (12), GetDPI (12), GetDPI (64), GetDPI (64), hwnd, nullptr, nullptr, nullptr);
+		HWND hctrl = CreateWindowEx (0, WC_STATIC, nullptr, WS_CHILD | WS_VISIBLE | SS_ICON | SS_CENTER | SS_CENTERIMAGE, GetDPI (12), GetDPI (12), GetDPI (64), GetDPI (64), hwnd, nullptr, nullptr, nullptr);
 		SendMessage (hctrl, STM_SETIMAGE, IMAGE_ICON, (LPARAM)app_logo);
 
 		hctrl = CreateWindowEx (0, WC_STATIC, _r_fmt (L"%s %s (%d-bit)", app_name, app_version, architecture), WS_CHILD | WS_VISIBLE, GetDPI (88), GetDPI (14), GetDPI (270), GetDPI (16), hwnd, nullptr, nullptr, nullptr);
@@ -368,6 +362,9 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 
 	if (Initialize ())
 	{
+		if (ConfigGet (L"ClassicUI", 0).AsBool ())
+			SetThemeAppProperties (1);
+
 		// create window
 #ifdef IDD_MAIN
 		app_hwnd = CreateDialog (nullptr, MAKEINTRESOURCE (IDD_MAIN), nullptr, proc);
