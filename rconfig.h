@@ -71,4 +71,4 @@
 #define _R_PERCENT_VAL(v, t) INT(double(t) * double(v) / 100.0)
 
 #define _R_SPINLOCK(x) (InterlockedCompareExchange (&(x), 1, 0) != 0)
-#define _R_SPINUNLOCK(x) ((x) = 0)
+#define _R_SPINUNLOCK(x) (InterlockedExchange(&(x), 0))
