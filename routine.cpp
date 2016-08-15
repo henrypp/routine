@@ -895,12 +895,12 @@ rstring _r_normalize_path (rstring path)
 	Control: common
 */
 
-VOID _r_ctrl_enable (HWND hwnd, INT ctrl, BOOL is_enable)
+VOID _r_ctrl_enable (HWND hwnd, UINT ctrl, BOOL is_enable)
 {
 	EnableWindow (GetDlgItem (hwnd, ctrl), is_enable);
 }
 
-rstring _r_ctrl_gettext (HWND hwnd, INT ctrl)
+rstring _r_ctrl_gettext (HWND hwnd, UINT ctrl)
 {
 	rstring result;
 
@@ -912,7 +912,7 @@ rstring _r_ctrl_gettext (HWND hwnd, INT ctrl)
 	return result;
 }
 
-VOID _r_ctrl_settext (HWND hwnd, INT ctrl, LPCWSTR str, ...)
+VOID _r_ctrl_settext (HWND hwnd, UINT ctrl, LPCWSTR str, ...)
 {
 	rstring buffer;
 
@@ -925,7 +925,7 @@ VOID _r_ctrl_settext (HWND hwnd, INT ctrl, LPCWSTR str, ...)
 	va_end (args);
 }
 
-HWND _r_ctrl_settip (HWND hwnd, INT ctrl, LPCWSTR text)
+HWND _r_ctrl_settip (HWND hwnd, UINT ctrl, LPCWSTR text)
 {
 	HWND h = CreateWindowEx (0, TOOLTIPS_CLASS, nullptr, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP | TTS_BALLOON, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, GetModuleHandle (nullptr), nullptr);
 
@@ -944,7 +944,7 @@ HWND _r_ctrl_settip (HWND hwnd, INT ctrl, LPCWSTR text)
 	return h;
 }
 
-BOOL _r_ctrl_showtip (HWND hwnd, INT ctrl, LPCWSTR title, LPCWSTR text, INT icon)
+BOOL _r_ctrl_showtip (HWND hwnd, UINT ctrl, LPCWSTR title, LPCWSTR text, INT icon)
 {
 	EDITBALLOONTIP ebt = {0};
 
@@ -960,7 +960,7 @@ BOOL _r_ctrl_showtip (HWND hwnd, INT ctrl, LPCWSTR title, LPCWSTR text, INT icon
 	Control: listview
 */
 
-INT _r_listview_addcolumn (HWND hwnd, INT ctrl, LPCWSTR text, INT width, INT subitem, INT fmt)
+INT _r_listview_addcolumn (HWND hwnd, UINT ctrl, LPCWSTR text, UINT width, size_t subitem, INT fmt)
 {
 	LVCOLUMN lvc = {0};
 
@@ -976,12 +976,12 @@ INT _r_listview_addcolumn (HWND hwnd, INT ctrl, LPCWSTR text, INT width, INT sub
 	lvc.pszText = (LPWSTR)text;
 	lvc.fmt = fmt;
 	lvc.cx = _R_PERCENT_VAL (width, rc.right);
-	lvc.iSubItem = subitem;
+	lvc.iSubItem = static_cast<INT>(subitem);
 
 	return (INT)SendDlgItemMessage (hwnd, ctrl, LVM_INSERTCOLUMN, (WPARAM)subitem, (LPARAM)&lvc);
 }
 
-INT _r_listview_getcolumnwidth (HWND hwnd, INT ctrl, INT column)
+INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl, INT column)
 {
 	RECT rc = {0};
 	GetClientRect (GetDlgItem (hwnd, ctrl), &rc);
@@ -989,14 +989,14 @@ INT _r_listview_getcolumnwidth (HWND hwnd, INT ctrl, INT column)
 	return _R_PERCENT_OF (SendDlgItemMessage (hwnd, ctrl, LVM_GETCOLUMNWIDTH, column, NULL), rc.right);
 }
 
-INT _r_listview_addgroup (HWND hwnd, INT ctrl, INT group_id, LPCWSTR text, UINT align, UINT state)
+INT _r_listview_addgroup (HWND hwnd, UINT ctrl, size_t group_id, LPCWSTR text, UINT align, UINT state)
 {
 	LVGROUP lvg = {0};
 
 	lvg.cbSize = sizeof (LVGROUP);
 	lvg.mask = LVGF_HEADER | LVGF_GROUPID;
 	lvg.pszHeader = (LPWSTR)text;
-	lvg.iGroupId = group_id;
+	lvg.iGroupId = static_cast<INT>(group_id);
 
 	if (align)
 	{
@@ -1015,13 +1015,13 @@ INT _r_listview_addgroup (HWND hwnd, INT ctrl, INT group_id, LPCWSTR text, UINT 
 	return (INT)SendDlgItemMessage (hwnd, ctrl, LVM_INSERTGROUP, (WPARAM)-1, (LPARAM)&lvg);
 }
 
-INT _r_listview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT item, INT subitem, INT image, INT group_id, LPARAM lparam)
+INT _r_listview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t subitem, size_t image, size_t group_id, LPARAM lparam)
 {
 	LVITEM lvi = {0};
 
-	if (item == -1)
+	if (item == LAST_VALUE)
 	{
-		lvi.iItem = _r_listview_getitemcount (hwnd, ctrl);
+		lvi.iItem = static_cast<INT>(_r_listview_getitemcount (hwnd, ctrl));
 
 		if (subitem)
 		{
@@ -1030,10 +1030,10 @@ INT _r_listview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT item, INT subite
 	}
 	else
 	{
-		lvi.iItem = item;
+		lvi.iItem = static_cast<INT>(item);
 	}
 
-	lvi.iSubItem = subitem;
+	lvi.iSubItem = static_cast<INT>(subitem);
 
 	if (text)
 	{
@@ -1041,16 +1041,16 @@ INT _r_listview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT item, INT subite
 		lvi.pszText = (LPWSTR)text;
 	}
 
-	if (image != -1)
+	if (image != LAST_VALUE)
 	{
 		lvi.mask |= LVIF_IMAGE;
-		lvi.iImage = image;
+		lvi.iImage = static_cast<INT>(image);
 	}
 
-	if (group_id != -1)
+	if (group_id != LAST_VALUE)
 	{
 		lvi.mask |= LVIF_GROUPID;
-		lvi.iGroupId = group_id;
+		lvi.iGroupId = static_cast<INT>(group_id);
 	}
 
 	if (lparam && !subitem)
@@ -1063,7 +1063,7 @@ INT _r_listview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT item, INT subite
 		LVITEM lvi_param = {0};
 
 		lvi_param.mask = LVIF_PARAM;
-		lvi_param.iItem = item;
+		lvi_param.iItem = static_cast<INT>(item);
 		lvi_param.lParam = lparam;
 
 		SendDlgItemMessage (hwnd, ctrl, LVM_SETITEM, 0, (LPARAM)&lvi_param);
@@ -1072,12 +1072,12 @@ INT _r_listview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT item, INT subite
 	return (INT)SendDlgItemMessage (hwnd, ctrl, (subitem > 0) ? LVM_SETITEM : LVM_INSERTITEM, 0, (LPARAM)&lvi);
 }
 
-BOOL _r_listview_getcheckstate (HWND hwnd, INT ctrl, INT item)
+BOOL _r_listview_getcheckstate (HWND hwnd, UINT ctrl, size_t item)
 {
 	return (((UINT)SendDlgItemMessage (hwnd, ctrl, LVM_GETITEMSTATE, item, LVIS_STATEIMAGEMASK)) >> 12) - 1;
 }
 
-BOOL _r_listview_setcheckstate (HWND hwnd, INT ctrl, INT item, BOOL state)
+BOOL _r_listview_setcheckstate (HWND hwnd, UINT ctrl, size_t item, BOOL state)
 {
 	LVITEM lvi = {0};
 
@@ -1087,7 +1087,7 @@ BOOL _r_listview_setcheckstate (HWND hwnd, INT ctrl, INT item, BOOL state)
 	return (BOOL)SendDlgItemMessage (hwnd, ctrl, LVM_SETITEMSTATE, item, (LPARAM)&lvi);
 }
 
-VOID _r_listview_deleteallcolumns (HWND hwnd, INT ctrl)
+VOID _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl)
 {
 	const INT column_count = _r_listview_getcolumncount (hwnd, ctrl);
 
@@ -1097,41 +1097,41 @@ VOID _r_listview_deleteallcolumns (HWND hwnd, INT ctrl)
 	}
 }
 
-VOID _r_listview_deleteallgroups (HWND hwnd, INT ctrl)
+VOID _r_listview_deleteallgroups (HWND hwnd, UINT ctrl)
 {
 	SendDlgItemMessage (hwnd, ctrl, LVM_REMOVEALLGROUPS, 0, 0);
 }
 
-VOID _r_listview_deleteallitems (HWND hwnd, INT ctrl)
+VOID _r_listview_deleteallitems (HWND hwnd, UINT ctrl)
 {
 	SendDlgItemMessage (hwnd, ctrl, LVM_DELETEALLITEMS, 0, 0);
 }
 
-INT _r_listview_getcolumncount (HWND hwnd, INT ctrl)
+INT _r_listview_getcolumncount (HWND hwnd, UINT ctrl)
 {
 	HWND hdr = (HWND)SendDlgItemMessage (hwnd, ctrl, LVM_GETHEADER, 0, 0);
 
 	return (INT)SendMessage (hdr, HDM_GETITEMCOUNT, 0, 0);
 }
 
-INT _r_listview_getitemcount (HWND hwnd, INT ctrl)
+size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl)
 {
-	return (INT)SendDlgItemMessage (hwnd, ctrl, LVM_GETITEMCOUNT, 0, NULL);
+	return (size_t)SendDlgItemMessage (hwnd, ctrl, LVM_GETITEMCOUNT, 0, NULL);
 }
 
-LPARAM _r_listview_getlparam (HWND hwnd, INT ctrl, INT item)
+LPARAM _r_listview_getlparam (HWND hwnd, UINT ctrl, size_t item)
 {
 	LVITEM lvi = {0};
 
 	lvi.mask = LVIF_PARAM;
-	lvi.iItem = item;
+	lvi.iItem = (INT)item;
 
 	SendDlgItemMessage (hwnd, ctrl, LVM_GETITEM, 0, (LPARAM)&lvi);
 
 	return lvi.lParam;
 }
 
-rstring _r_listview_gettext (HWND hwnd, INT ctrl, INT item, INT subitem)
+rstring _r_listview_gettext (HWND hwnd, UINT ctrl, UINT item, UINT subitem)
 {
 	rstring result;
 
@@ -1157,7 +1157,7 @@ rstring _r_listview_gettext (HWND hwnd, INT ctrl, INT item, INT subitem)
 	return result;
 }
 
-BOOL _r_listview_setlparam (HWND hwnd, INT ctrl, INT item, LPARAM param)
+BOOL _r_listview_setlparam (HWND hwnd, UINT ctrl, UINT item, LPARAM param)
 {
 	LVITEM lvi = {0};
 
@@ -1168,14 +1168,14 @@ BOOL _r_listview_setlparam (HWND hwnd, INT ctrl, INT item, LPARAM param)
 	return static_cast<BOOL>(SendDlgItemMessage (hwnd, ctrl, LVM_SETITEM, 0, (LPARAM)&lvi));
 }
 
-DWORD _r_listview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle)
+DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle)
 {
 	SetWindowTheme (GetDlgItem (hwnd, ctrl), L"Explorer", nullptr);
 
 	return (DWORD)SendDlgItemMessage (hwnd, ctrl, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, (LPARAM)exstyle);
 }
 
-BOOL _r_listview_setcolumnsortindex (HWND hwnd, INT ctrl, INT column, INT arrow)
+BOOL _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl, INT column, INT arrow)
 {
 	HWND header = (HWND)SendDlgItemMessage (hwnd, ctrl, LVM_GETHEADER, 0, 0);
 
@@ -1211,7 +1211,7 @@ BOOL _r_listview_setcolumnsortindex (HWND hwnd, INT ctrl, INT column, INT arrow)
 	Control: treeview
 */
 
-HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl, LPCWSTR text, HTREEITEM parent, INT image, LPARAM lparam)
+HTREEITEM _r_treeview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, HTREEITEM parent, INT image, LPARAM lparam)
 {
 	TVINSERTSTRUCT tvi = {0};
 
@@ -1239,7 +1239,7 @@ HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl, LPCWSTR text, HTREEITEM pare
 	return (HTREEITEM)SendDlgItemMessage (hwnd, ctrl, TVM_INSERTITEM, 0, (LPARAM)&tvi);
 }
 
-LPARAM _r_treeview_getlparam (HWND hwnd, INT ctrl, HTREEITEM item)
+LPARAM _r_treeview_getlparam (HWND hwnd, UINT ctrl, HTREEITEM item)
 {
 	TVITEMEX tvi = {0};
 
@@ -1251,7 +1251,7 @@ LPARAM _r_treeview_getlparam (HWND hwnd, INT ctrl, HTREEITEM item)
 	return tvi.lParam;
 }
 
-DWORD _r_treeview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle, INT height)
+DWORD _r_treeview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle, INT height)
 {
 	if (height)
 	{
@@ -1267,12 +1267,12 @@ DWORD _r_treeview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle, INT height)
 	Control: statusbar
 */
 
-BOOL _r_status_settext (HWND hwnd, INT ctrl, INT part, LPCWSTR text)
+BOOL _r_status_settext (HWND hwnd, UINT ctrl, INT part, LPCWSTR text)
 {
 	return (BOOL)SendDlgItemMessage (hwnd, ctrl, SB_SETTEXT, MAKEWPARAM (part, 0), (LPARAM)text);
 }
 
-VOID _r_status_setstyle (HWND hwnd, INT ctrl, INT height)
+VOID _r_status_setstyle (HWND hwnd, UINT ctrl, INT height)
 {
 	SendDlgItemMessage (hwnd, ctrl, SB_SETMINHEIGHT, (WPARAM)height, NULL);
 	SendDlgItemMessage (hwnd, ctrl, WM_SIZE, 0, NULL);

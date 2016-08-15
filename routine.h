@@ -135,49 +135,49 @@ rstring _r_normalize_path (rstring path);
 	Control: common
 */
 
-VOID _r_ctrl_enable (HWND hwnd, INT ctrl, BOOL is_enable);
+VOID _r_ctrl_enable (HWND hwnd, UINT ctrl, BOOL is_enable);
 
-rstring _r_ctrl_gettext (HWND hwnd, INT ctrl);
-VOID _r_ctrl_settext (HWND hwnd, INT ctrl, LPCWSTR str, ...);
+rstring _r_ctrl_gettext (HWND hwnd, UINT ctrl);
+VOID _r_ctrl_settext (HWND hwnd, UINT ctrl, LPCWSTR str, ...);
 
-HWND _r_ctrl_settip (HWND hwnd, INT ctrl, LPCWSTR text);
-BOOL _r_ctrl_showtip (HWND hwnd, INT ctrl, LPCWSTR title, LPCWSTR text, INT icon);
+HWND _r_ctrl_settip (HWND hwnd, UINT ctrl, LPCWSTR text);
+BOOL _r_ctrl_showtip (HWND hwnd, UINT ctrl, LPCWSTR title, LPCWSTR text, INT icon);
 
 /*
 	Control: listview
 */
 
-BOOL _r_listview_getcheckstate (HWND hwnd, INT ctrl, INT item);
-BOOL _r_listview_setcheckstate (HWND hwnd, INT ctrl, INT item, BOOL state);
-INT _r_listview_addcolumn (HWND hwnd, INT ctrl, LPCWSTR text, INT width, INT subitem, INT fmt);
-INT _r_listview_addgroup (HWND hwnd, INT ctrl, INT group_id, LPCWSTR text, UINT align = 0, UINT state = 0);
-INT _r_listview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT item, INT subitem, INT image = -1, INT group_id = -1, LPARAM lparam = 0);
-VOID _r_listview_deleteallcolumns (HWND hwnd, INT ctrl);
-VOID _r_listview_deleteallgroups (HWND hwnd, INT ctrl);
-VOID _r_listview_deleteallitems (HWND hwnd, INT ctrl);
-INT _r_listview_getcolumnwidth (HWND hwnd, INT ctrl, INT column);
-INT _r_listview_getitemcount (HWND hwnd, INT ctrl);
-INT _r_listview_getcolumncount (HWND hwnd, INT ctrl);
-LPARAM _r_listview_getlparam (HWND hwnd, INT ctrl, INT item);
-rstring _r_listview_gettext (HWND hwnd, INT ctrl, INT item, INT subitem);
-DWORD _r_listview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle);
-BOOL _r_listview_setlparam (HWND hwnd, INT ctrl, INT item, LPARAM param);
-BOOL _r_listview_setcolumnsortindex (HWND hwnd, INT ctrl, INT column, INT arrow);
+BOOL _r_listview_getcheckstate (HWND hwnd, UINT ctrl, size_t item);
+BOOL _r_listview_setcheckstate (HWND hwnd, UINT ctrl, size_t item, BOOL state);
+INT _r_listview_addcolumn (HWND hwnd, UINT ctrl, LPCWSTR text, UINT width, size_t subitem, INT fmt);
+INT _r_listview_addgroup (HWND hwnd, UINT ctrl, size_t group_id, LPCWSTR text, UINT align = 0, UINT state = 0);
+INT _r_listview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t subitem, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
+VOID _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl);
+VOID _r_listview_deleteallgroups (HWND hwnd, UINT ctrl);
+VOID _r_listview_deleteallitems (HWND hwnd, UINT ctrl);
+INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl, INT column);
+size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl);
+INT _r_listview_getcolumncount (HWND hwnd, UINT ctrl);
+LPARAM _r_listview_getlparam (HWND hwnd, UINT ctrl, size_t item);
+rstring _r_listview_gettext (HWND hwnd, UINT ctrl, UINT item, UINT subitem);
+DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle);
+BOOL _r_listview_setlparam (HWND hwnd, UINT ctrl, UINT item, LPARAM param);
+BOOL _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl, INT column, INT arrow);
 
 /*
 	Control: treeview
 */
 
-HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl, LPCWSTR text, HTREEITEM parent = nullptr, INT image = -1, LPARAM lparam = 0);
-LPARAM _r_treeview_getlparam (HWND hwnd, INT ctrl, HTREEITEM item);
-DWORD _r_treeview_setstyle (HWND hwnd, INT ctrl, DWORD exstyle, INT height);
+HTREEITEM _r_treeview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, HTREEITEM parent = nullptr, INT image = -1, LPARAM lparam = 0);
+LPARAM _r_treeview_getlparam (HWND hwnd, UINT ctrl, HTREEITEM item);
+DWORD _r_treeview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle, INT height);
 
 /*
 	Control: statusbar
 */
 
-BOOL _r_status_settext (HWND hwnd, INT ctrl, INT part, LPCWSTR text);
-VOID _r_status_setstyle (HWND hwnd, INT ctrl, INT height);
+BOOL _r_status_settext (HWND hwnd, UINT ctrl, INT part, LPCWSTR text);
+VOID _r_status_setstyle (HWND hwnd, UINT ctrl, INT height);
 
 /*
 	Exported function definitions

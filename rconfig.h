@@ -13,6 +13,8 @@
 	Configuration
 */
 
+#define LAST_VALUE (size_t(-1))
+
 #define _R_BUFFER_LENGTH 8192
 
 //#define _APP_NO_ABOUT // cut about window methods
@@ -56,12 +58,10 @@
 	Callback message codes
 */
 
-#define _RM_INITIALIZE 0x1
-#define _RM_UNINITIALIZE 0x2
-
-#define _RM_SAVE 0x4
-
-#define _RM_MESSAGE 0x8
+#define _RM_INITIALIZE 0x01
+#define _RM_UNINITIALIZE 0x02
+#define _RM_SAVE 0x04
+#define _RM_MESSAGE 0x08
 
 /*
 	Macroses
