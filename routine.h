@@ -147,6 +147,8 @@ BOOL _r_ctrl_showtip (HWND hwnd, INT ctrl, LPCWSTR title, LPCWSTR text, INT icon
 	Control: listview
 */
 
+BOOL _r_listview_getcheckstate (HWND hwnd, INT ctrl, INT item);
+BOOL _r_listview_setcheckstate (HWND hwnd, INT ctrl, INT item, BOOL state);
 INT _r_listview_addcolumn (HWND hwnd, INT ctrl, LPCWSTR text, INT width, INT subitem, INT fmt);
 INT _r_listview_addgroup (HWND hwnd, INT ctrl, INT group_id, LPCWSTR text, UINT align = 0, UINT state = 0);
 INT _r_listview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT item, INT subitem, INT image = -1, INT group_id = -1, LPARAM lparam = 0);

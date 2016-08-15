@@ -1072,6 +1072,21 @@ INT _r_listview_additem (HWND hwnd, INT ctrl, LPCWSTR text, INT item, INT subite
 	return (INT)SendDlgItemMessage (hwnd, ctrl, (subitem > 0) ? LVM_SETITEM : LVM_INSERTITEM, 0, (LPARAM)&lvi);
 }
 
+BOOL _r_listview_getcheckstate (HWND hwnd, INT ctrl, INT item)
+{
+	return (((UINT)SendDlgItemMessage (hwnd, ctrl, LVM_GETITEMSTATE, item, LVIS_STATEIMAGEMASK)) >> 12) - 1;
+}
+
+BOOL _r_listview_setcheckstate (HWND hwnd, INT ctrl, INT item, BOOL state)
+{
+	LVITEM lvi = {0};
+
+	lvi.stateMask = LVIS_STATEIMAGEMASK;
+	lvi.state = INDEXTOSTATEIMAGEMASK (state ? 2 : 1);
+
+	return (BOOL)SendDlgItemMessage (hwnd, ctrl, LVM_SETITEMSTATE, item, (LPARAM)&lvi);
+}
+
 VOID _r_listview_deleteallcolumns (HWND hwnd, INT ctrl)
 {
 	const INT column_count = _r_listview_getcolumncount (hwnd, ctrl);
