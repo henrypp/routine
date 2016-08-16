@@ -447,10 +447,10 @@ BOOL rapp::TrayPopup (DWORD icon, LPCWSTR title, LPCWSTR text)
 	nid.uFlags = NIF_INFO;
 	nid.dwInfoFlags = NIIF_RESPECT_QUIET_TIME | NIIF_LARGE_ICON | icon;
 
-	if(title)
+	if (title)
 		StringCchCopy (nid.szInfoTitle, _countof (nid.szInfoTitle), title);
 
-	if(text)
+	if (text)
 		StringCchCopy (nid.szInfo, _countof (nid.szInfo), text);
 
 	result = Shell_NotifyIcon (NIM_MODIFY, &nid);
@@ -574,15 +574,8 @@ VOID rapp::InitSettingsPage (HWND hwnd, BOOL is_restart)
 	{
 		PAPPLICATION_PAGE ptr = app_settings_pages.at (i);
 
-		if (i == app_settings_page)
-		{
-			ptr->is_initialized = TRUE;
-			ptr->callback (ptr->hwnd, _RM_INITIALIZE, nullptr, ptr);
-		}
-		else
-		{
-			ptr->is_initialized = FALSE;
-		}
+		ptr->is_initialized = TRUE;
+		ptr->callback (ptr->hwnd, _RM_INITIALIZE, nullptr, ptr);
 	}
 
 	_r_ctrl_enable (hwnd, IDC_APPLY, FALSE);
