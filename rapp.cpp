@@ -880,7 +880,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 				if (ptr->dlg_id)
 					ptr->hwnd = CreateDialogParam (ptr->h, MAKEINTRESOURCE (ptr->dlg_id), hwnd, &this_ptr->SettingsPagesProc, (LPARAM)this_ptr);
 
-				ptr->item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr->h, ptr->locale_id, ptr->locale_sid), ptr->group_id == LAST_VALUE ? nullptr : this_ptr->app_settings_pages.at (ptr->group_id)->item, -1, (LPARAM)i);
+				ptr->item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr->h, ptr->locale_id, ptr->locale_sid), ptr->group_id == LAST_VALUE ? nullptr : this_ptr->app_settings_pages.at (ptr->group_id)->item, LAST_VALUE, (LPARAM)i);
 
 				if (this_ptr->ConfigGet (L"SettingsLastPage", 0).AsSizeT () == i)
 					SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)ptr->item);
