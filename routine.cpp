@@ -1114,8 +1114,22 @@ INT _r_listview_getcolumncount (HWND hwnd, UINT ctrl)
 	return (INT)SendMessage (hdr, HDM_GETITEMCOUNT, 0, 0);
 }
 
-size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl)
+size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl, BOOL list_checked)
 {
+	if (list_checked)
+	{
+		INT item = -1;
+		size_t count = 0;
+
+		while ((item = (INT)SendDlgItemMessage (hwnd, ctrl, LVM_GETNEXTITEM, item, LVNI_ALL)) != -1)
+		{
+			if (_r_listview_getcheckstate (hwnd, ctrl, item))
+				++count;
+		}
+
+		return count;
+	}
+
 	return (size_t)SendDlgItemMessage (hwnd, ctrl, LVM_GETITEMCOUNT, 0, NULL);
 }
 
@@ -1131,7 +1145,7 @@ LPARAM _r_listview_getlparam (HWND hwnd, UINT ctrl, size_t item)
 	return lvi.lParam;
 }
 
-rstring _r_listview_gettext (HWND hwnd, UINT ctrl, UINT item, UINT subitem)
+rstring _r_listview_gettext (HWND hwnd, UINT ctrl, size_t item, size_t subitem)
 {
 	rstring result;
 
@@ -1140,7 +1154,7 @@ rstring _r_listview_gettext (HWND hwnd, UINT ctrl, UINT item, UINT subitem)
 
 	LVITEM lvi = {0};
 
-	lvi.iSubItem = subitem;
+	lvi.iSubItem = static_cast<int>(subitem);
 
 	do
 	{
@@ -1211,23 +1225,23 @@ BOOL _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl, INT column, INT arrow
 	Control: treeview
 */
 
-HTREEITEM _r_treeview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, HTREEITEM parent, INT image, LPARAM lparam)
+HTREEITEM _r_treeview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, HTREEITEM parent, size_t image, LPARAM lparam)
 {
 	TVINSERTSTRUCT tvi = {0};
 
-	tvi.itemex.mask = TVIF_TEXT;
+	tvi.itemex.mask = TVIF_TEXT | TVIF_STATE;
 	tvi.itemex.pszText = (LPWSTR)text;
-
+	tvi.itemex.state = TVIS_EXPANDED;
+	tvi.itemex.stateMask = TVIS_EXPANDED;
+	
 	if (parent)
-	{
 		tvi.hParent = parent;
-	}
 
-	if (image != -1)
+	if (image != LAST_VALUE)
 	{
 		tvi.itemex.mask |= (TVIF_IMAGE | TVIF_SELECTEDIMAGE);
-		tvi.itemex.iImage = image;
-		tvi.itemex.iSelectedImage = image;
+		tvi.itemex.iImage = static_cast<INT>(image);
+		tvi.itemex.iSelectedImage = static_cast<INT>(image);
 	}
 
 	if (lparam)

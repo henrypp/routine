@@ -156,10 +156,10 @@ VOID _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl);
 VOID _r_listview_deleteallgroups (HWND hwnd, UINT ctrl);
 VOID _r_listview_deleteallitems (HWND hwnd, UINT ctrl);
 INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl, INT column);
-size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl);
+size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl, BOOL list_checked = FALSE);
 INT _r_listview_getcolumncount (HWND hwnd, UINT ctrl);
 LPARAM _r_listview_getlparam (HWND hwnd, UINT ctrl, size_t item);
-rstring _r_listview_gettext (HWND hwnd, UINT ctrl, UINT item, UINT subitem);
+rstring _r_listview_gettext (HWND hwnd, UINT ctrl, size_t item, size_t subitem);
 DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle);
 BOOL _r_listview_setlparam (HWND hwnd, UINT ctrl, UINT item, LPARAM param);
 BOOL _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl, INT column, INT arrow);
@@ -168,7 +168,7 @@ BOOL _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl, INT column, INT arrow
 	Control: treeview
 */
 
-HTREEITEM _r_treeview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, HTREEITEM parent = nullptr, INT image = -1, LPARAM lparam = 0);
+HTREEITEM _r_treeview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, HTREEITEM parent = nullptr, size_t image = LAST_VALUE, LPARAM lparam = 0);
 LPARAM _r_treeview_getlparam (HWND hwnd, UINT ctrl, HTREEITEM item);
 DWORD _r_treeview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle, INT height);
 

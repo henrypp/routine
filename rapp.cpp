@@ -498,24 +498,29 @@ VOID rapp::CreateSettingsWindow ()
 	is_opened = false;
 }
 
-VOID rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback)
+size_t rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback, size_t group_id, LPARAM lparam)
 {
 	PAPPLICATION_PAGE ptr = new APPLICATION_PAGE;
 
 	if (ptr)
 	{
+		ptr->hwnd = nullptr;
+
 		ptr->h = h;
+		ptr->group_id = group_id;
 		ptr->dlg_id = dlg_id;
 		ptr->callback = callback;
+		ptr->lparam = lparam;
 
 		ptr->locale_id = locale_id;
 		StringCchCopy (ptr->locale_sid, _countof (ptr->locale_sid), locale_sid);
 
-		ptr->hwnd = nullptr;
-		ptr->is_initialized = FALSE;
-
 		app_settings_pages.push_back (ptr);
+
+		return app_settings_pages.size () - 1;
 	}
+
+	return LAST_VALUE;
 }
 
 VOID rapp::ClearSettingsPage ()
@@ -541,41 +546,28 @@ VOID rapp::InitSettingsPage (HWND hwnd, BOOL is_restart)
 		SetDlgItemText (hwnd, IDC_CLOSE, I18N (this, IDS_CLOSE, 0));
 
 		// localize treeview
-		HTREEITEM item = (HTREEITEM)SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_ROOT, 0);
-
-		while (item)
+		for (size_t i = 0; i < app_settings_pages.size (); i++)
 		{
+			PAPPLICATION_PAGE ptr = app_settings_pages.at (i);
+
 			TVITEMEX tvi = {0};
 
 			tvi.mask = TVIF_PARAM;
-			tvi.hItem = item;
+			tvi.hItem = ptr->item;
 
 			SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETITEM, 0, (LPARAM)&tvi);
 
-			PAPPLICATION_PAGE ptr = app_settings_pages.at (size_t (tvi.lParam));
+			rstring text = LocaleString (ptr->h, ptr->locale_id, ptr->locale_sid);
 
-			if (ptr)
-			{
-				rstring text = LocaleString (ptr->h, ptr->locale_id, ptr->locale_sid);
+			tvi.mask = TVIF_TEXT;
+			tvi.pszText = text.GetBuffer ();
 
-				tvi.mask = TVIF_TEXT;
-				tvi.pszText = text.GetBuffer ();
+			SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETITEM, 0, (LPARAM)&tvi);
 
-				SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETITEM, 0, (LPARAM)&tvi);
+			text.Clear ();
 
-				text.Clear ();
-			}
-
-			item = (HTREEITEM)SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_NEXT, (LPARAM)item);
+			ptr->callback (ptr->hwnd, _RM_INITIALIZE, nullptr, ptr);
 		}
-	}
-
-	for (size_t i = 0; i < app_settings_pages.size (); i++)
-	{
-		PAPPLICATION_PAGE ptr = app_settings_pages.at (i);
-
-		ptr->is_initialized = TRUE;
-		ptr->callback (ptr->hwnd, _RM_INITIALIZE, nullptr, ptr);
 	}
 
 	_r_ctrl_enable (hwnd, IDC_APPLY, FALSE);
@@ -841,7 +833,7 @@ INT_PTR CALLBACK rapp::SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LP
 			wmsg.wParam = wparam;
 			wmsg.lParam = lparam;
 
-			PAPPLICATION_PAGE ptr = this_ptr->app_settings_pages.at (this_ptr->app_settings_page);
+			PAPPLICATION_PAGE ptr = this_ptr->app_settings_pages.at (this_ptr->ConfigGet (L"SettingsLastPage", 0).AsSizeT ());
 
 			result = ptr->callback (hwnd, _RM_MESSAGE, &wmsg, ptr);
 
@@ -850,17 +842,15 @@ INT_PTR CALLBACK rapp::SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LP
 				BOOL is_button = (GetWindowLongPtr (GetDlgItem (hwnd, LOWORD (wparam)), GWL_STYLE) & (BS_CHECKBOX | BS_RADIOBUTTON)) != 0;
 
 				if (lparam && ((HIWORD (wparam) == BN_CLICKED && is_button) || (HIWORD (wparam) == EN_CHANGE || HIWORD (wparam) == CBN_SELENDOK)))
-				{
 					_r_ctrl_enable (GetParent (hwnd), IDC_APPLY, TRUE);
-				}
 			}
 			else if (msg == WM_NOTIFY)
 			{
 				if (LPNMHDR (lparam)->code == UDN_DELTAPOS || (LPNMHDR (lparam)->code == LVN_ITEMCHANGED && (LPNMLISTVIEW (lparam)->uNewState == 8192 || LPNMLISTVIEW (lparam)->uNewState == 4096)) || (LPNMHDR (lparam)->code == LVN_DELETEITEM) || (LPNMHDR (lparam)->code == LVN_ENDLABELEDIT && result))
-				{
 					_r_ctrl_enable (GetParent (hwnd), IDC_APPLY, TRUE);
-				}
 			}
+
+			return result;
 		}
 	}
 
@@ -887,14 +877,13 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			{
 				PAPPLICATION_PAGE ptr = this_ptr->app_settings_pages.at (i);
 
-				ptr->hwnd = CreateDialogParam (ptr->h, MAKEINTRESOURCE (ptr->dlg_id), hwnd, &this_ptr->SettingsPagesProc, (LPARAM)this_ptr);
+				if (ptr->dlg_id)
+					ptr->hwnd = CreateDialogParam (ptr->h, MAKEINTRESOURCE (ptr->dlg_id), hwnd, &this_ptr->SettingsPagesProc, (LPARAM)this_ptr);
 
-				HTREEITEM item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr->h, ptr->locale_id, ptr->locale_sid), nullptr, -1, (LPARAM)i);
+				ptr->item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr->h, ptr->locale_id, ptr->locale_sid), ptr->group_id == LAST_VALUE ? nullptr : this_ptr->app_settings_pages.at (ptr->group_id)->item, -1, (LPARAM)i);
 
 				if (this_ptr->ConfigGet (L"SettingsLastPage", 0).AsSizeT () == i)
-				{
-					SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)item);
-				}
+					SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)ptr->item);
 			}
 
 			this_ptr->InitSettingsPage (hwnd, TRUE);
@@ -910,24 +899,42 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			{
 				switch (lphdr->code)
 				{
+					case TVN_SELCHANGING:
+					{
+						LPNMTREEVIEW pnmtv = (LPNMTREEVIEW)lparam;
+
+						PAPPLICATION_PAGE ptr1 = this_ptr->app_settings_pages.at (size_t (pnmtv->itemNew.lParam));
+
+						if (!ptr1->dlg_id)
+						{
+							SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)this_ptr->app_settings_pages.at (size_t (pnmtv->itemNew.lParam) + 1)->item);
+							return TRUE;
+						}
+
+						break;
+					}
+
 					case TVN_SELCHANGED:
 					{
 						LPNMTREEVIEW pnmtv = (LPNMTREEVIEW)lparam;
 
-						this_ptr->app_settings_page = size_t (pnmtv->itemNew.lParam);
+						size_t old_id = size_t (pnmtv->itemOld.lParam);
+						size_t new_id = size_t (pnmtv->itemNew.lParam);
 
-						PAPPLICATION_PAGE ptr = this_ptr->app_settings_pages.at (this_ptr->app_settings_page);
+						if (this_ptr->app_settings_pages.at (old_id)->hwnd)
+							ShowWindow (this_ptr->app_settings_pages.at (old_id)->hwnd, SW_HIDE);
 
-						if (ptr && !ptr->is_initialized)
-						{
-							ptr->callback (ptr->hwnd, _RM_INITIALIZE, nullptr, ptr);
-							ptr->is_initialized = TRUE;
-						}
+						//if (!this_ptr->app_settings_pages.at (new_id)->hwnd)
+						//{
+						//	SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)this_ptr->app_settings_pages.at (new_id + 1)->item);
+						//	return TRUE;
+						//}
 
-						ShowWindow (this_ptr->app_settings_pages.at (size_t (pnmtv->itemOld.lParam))->hwnd, SW_HIDE);
-						ShowWindow (ptr->hwnd, SW_SHOW);
+						//ShowWindow (this_ptr->app_settings_pages.at (old_id)->hwnd, SW_HIDE);
+						if (this_ptr->app_settings_pages.at (new_id)->hwnd)
+							ShowWindow (this_ptr->app_settings_pages.at (new_id)->hwnd, SW_SHOW);
 
-						this_ptr->ConfigSet (L"SettingsLastPage", this_ptr->app_settings_page);
+						this_ptr->ConfigSet (L"SettingsLastPage", new_id);
 
 						break;
 					}
@@ -952,10 +959,8 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					{
 						PAPPLICATION_PAGE ptr = this_ptr->app_settings_pages.at (i);
 
-						if (ptr->is_initialized && ptr->callback (ptr->hwnd, _RM_SAVE, nullptr, ptr))
-						{
+						if (ptr->hwnd && ptr->callback (ptr->hwnd, _RM_SAVE, nullptr, ptr))
 							is_restart = TRUE;
-						}
 					}
 
 					this_ptr->ConfigInit (); // reload settings
@@ -978,9 +983,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					EndDialog (hwnd, 0);
 
 					for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
-					{
 						this_ptr->app_settings_pages.at (i)->callback (this_ptr->app_settings_pages.at (i)->hwnd, _RM_UNINITIALIZE, nullptr, this_ptr->app_settings_pages.at (i)); // call closed state
-					}
 
 					_r_wnd_top (this_ptr->GetHWND (), this_ptr->ConfigGet (L"AlwaysOnTop", 0).AsBool ());
 
@@ -1051,12 +1054,12 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 						}
 
 						result = TRUE;
-					}
 				}
+			}
 
 				this_ptr->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
-			}
 		}
+	}
 
 #ifdef IDM_CHECKUPDATES
 		EnableMenuItem (GetMenu (this_ptr->GetHWND ()), IDM_CHECKUPDATES, MF_BYCOMMAND | MF_ENABLED);
@@ -1069,7 +1072,7 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 
 		InternetCloseHandle (connect);
 		InternetCloseHandle (internet);
-	}
+}
 
 	return ERROR_SUCCESS;
 }

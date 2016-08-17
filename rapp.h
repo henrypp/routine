@@ -37,18 +37,18 @@ typedef BOOL (*APPLICATION_CALLBACK) (HWND hwnd, DWORD msg, LPVOID lpdata1, LPVO
 
 typedef struct
 {
-	BOOL is_initialized;
+	HINSTANCE h = nullptr;
+	HTREEITEM item = nullptr;
+	HWND hwnd = nullptr;
 
-	HINSTANCE h;
+	size_t group_id = 0;
+	UINT dlg_id = 0;
 
-	HWND hwnd;
-
-	UINT dlg_id;
-
-	UINT locale_id;
-	WCHAR locale_sid[64];
+	UINT locale_id = 0;
+	WCHAR locale_sid[64] = {0};
 
 	APPLICATION_CALLBACK callback;
+	LPARAM lparam = 0;
 } *PAPPLICATION_PAGE, APPLICATION_PAGE;
 
 #endif // _APP_NO_SETTINGS
@@ -97,7 +97,7 @@ public:
 
 #ifndef _APP_NO_SETTINGS
 	VOID CreateSettingsWindow ();
-	VOID AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback);
+	size_t AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
 	VOID ClearSettingsPage ();
 	VOID InitSettingsPage (HWND hwnd, BOOL is_restart);
 #endif // _APP_NO_SETTINGS
@@ -179,6 +179,5 @@ private:
 
 #ifndef _APP_NO_SETTINGS
 	std::vector<PAPPLICATION_PAGE> app_settings_pages;
-	size_t app_settings_page = 0;
 #endif // _APP_NO_SETTINGS
 };
