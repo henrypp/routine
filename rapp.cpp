@@ -455,15 +455,23 @@ BOOL rapp::TrayPopup (DWORD icon, LPCWSTR title, LPCWSTR text)
 
 	result = Shell_NotifyIcon (NIM_MODIFY, &nid);
 
-	nid.szInfo[0] = nid.szInfoTitle[0] = 0; // clear
+	nid.uFlags = nid.dwInfoFlags = nid.szInfo[0] = nid.szInfoTitle[0] = 0; // clear
 
 	return result;
 }
 
 BOOL rapp::TraySetInfo (HICON h, LPCWSTR tooltip)
 {
-	nid.uFlags = NIF_SHOWTIP | NIF_TIP;
-	StringCchCopy (nid.szTip, _countof (nid.szTip), tooltip);
+	if (!tooltip && !h)
+		return FALSE;
+
+	nid.uFlags = 0;
+
+	if (tooltip)
+	{
+		nid.uFlags |= (NIF_SHOWTIP | NIF_TIP);
+		StringCchCopy (nid.szTip, _countof (nid.szTip), tooltip);
+	}
 
 	if (h)
 	{
@@ -566,7 +574,18 @@ VOID rapp::InitSettingsPage (HWND hwnd, BOOL is_restart)
 
 			text.Clear ();
 
-			ptr->callback (ptr->hwnd, _RM_INITIALIZE, nullptr, ptr);
+			if (ptr->dlg_id)
+				ptr->callback (ptr->hwnd, _RM_INITIALIZE, nullptr, ptr);
+		}
+	}
+	else
+	{
+		for (size_t i = 0; i < app_settings_pages.size (); i++)
+		{
+			PAPPLICATION_PAGE ptr = app_settings_pages.at (i);
+
+			if (ptr->dlg_id)
+				ptr->callback (ptr->hwnd, _RM_INITIALIZE, nullptr, ptr);
 		}
 	}
 
@@ -1054,12 +1073,12 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 						}
 
 						result = TRUE;
+					}
 				}
-			}
 
 				this_ptr->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
+			}
 		}
-	}
 
 #ifdef IDM_CHECKUPDATES
 		EnableMenuItem (GetMenu (this_ptr->GetHWND ()), IDM_CHECKUPDATES, MF_BYCOMMAND | MF_ENABLED);
@@ -1072,7 +1091,7 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 
 		InternetCloseHandle (connect);
 		InternetCloseHandle (internet);
-}
+	}
 
 	return ERROR_SUCCESS;
 }
