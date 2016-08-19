@@ -152,6 +152,7 @@ BOOL _r_listview_setcheckstate (HWND hwnd, UINT ctrl, size_t item, BOOL state);
 INT _r_listview_addcolumn (HWND hwnd, UINT ctrl, LPCWSTR text, UINT width, size_t subitem, INT fmt);
 INT _r_listview_addgroup (HWND hwnd, UINT ctrl, size_t group_id, LPCWSTR text, UINT align = 0, UINT state = 0);
 INT _r_listview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t subitem, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
+INT _r_listview_setitem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t subitem, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
 VOID _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl);
 VOID _r_listview_deleteallgroups (HWND hwnd, UINT ctrl);
 VOID _r_listview_deleteallitems (HWND hwnd, UINT ctrl);

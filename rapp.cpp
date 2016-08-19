@@ -356,6 +356,21 @@ VOID rapp::CreateAboutWindow ()
 }
 #endif // _APP_NO_ABOUT
 
+VOID rapp::SetIcon (UINT icon_id)
+{
+	if (app_icon_1)
+		DestroyIcon (app_icon_1);
+
+	if (app_icon_2)
+		DestroyIcon (app_icon_2);
+
+	app_icon_1 = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (icon_id), GetSystemMetrics (SM_CXSMICON));
+	app_icon_2 = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (icon_id), GetSystemMetrics (SM_CXICON));
+
+	SendMessage (app_hwnd, WM_SETICON, ICON_SMALL, (LPARAM)app_icon_1);
+	SendMessage (app_hwnd, WM_SETICON, ICON_BIG, (LPARAM)app_icon_2);
+}
+
 BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 {
 	BOOL result = FALSE;
@@ -382,8 +397,7 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 
 			// set icons
 #ifdef IDI_MAIN
-			SendMessage (app_hwnd, WM_SETICON, ICON_SMALL, (LPARAM)_r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), GetSystemMetrics (SM_CXSMICON)));
-			SendMessage (app_hwnd, WM_SETICON, ICON_BIG, (LPARAM)_r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), GetSystemMetrics (SM_CXICON)));
+			SetIcon (IDI_MAIN);
 #endif // IDI_MAIN
 
 			// check for updates

@@ -112,6 +112,7 @@ public:
 	HWND GetHWND () const;
 
 	VOID SetHWND (HWND hwnd);
+	VOID SetIcon (UINT icon_id);
 
 	VOID LocaleEnum (HWND hwnd, INT ctrl_id);
 	rstring LocaleString (HINSTANCE h, UINT id, LPCWSTR name);
@@ -164,6 +165,9 @@ private:
 	HICON app_logo = nullptr;
 	HFONT app_font = nullptr;
 #endif // _APP_NO_ABOUT
+
+	HICON app_icon_1 = nullptr;
+	HICON app_icon_2 = nullptr;
 
 	WCHAR app_directory[MAX_PATH];
 	WCHAR app_profile_directory[MAX_PATH];
