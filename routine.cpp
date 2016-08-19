@@ -1026,7 +1026,12 @@ INT _r_listview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t
 	}
 
 	if (subitem)
+	{
+		if (lparam)
+			_r_listview_setitem (hwnd, ctrl, nullptr, item, 0, LAST_VALUE, LAST_VALUE, lparam);
+
 		return _r_listview_setitem (hwnd, ctrl, text, item, subitem);
+	}
 
 	WCHAR buffer[MAX_PATH] = {0};
 
@@ -1059,10 +1064,6 @@ INT _r_listview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t
 	{
 		lvi.mask |= LVIF_PARAM;
 		lvi.lParam = lparam;
-	}
-	else if (lparam && subitem)
-	{
-		_r_listview_setitem (hwnd, ctrl, nullptr, item, 0);
 	}
 
 	return (INT)SendDlgItemMessage (hwnd, ctrl, LVM_INSERTITEM, 0, (LPARAM)&lvi);
