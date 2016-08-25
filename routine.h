@@ -120,6 +120,7 @@ __time64_t _r_unixtime_from_systemtime (LPSYSTEMTIME pst);
 
 VOID _r_wnd_center (HWND hwnd);
 BOOL _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action);
+VOID _r_wnd_fillrect (HDC dc, LPRECT rc, COLORREF clr);
 VOID _r_wnd_toggle (HWND hwnd, BOOL show);
 VOID _r_wnd_top (HWND hwnd, BOOL is_enable);
 

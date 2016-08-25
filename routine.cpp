@@ -781,6 +781,17 @@ BOOL _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 	return result;
 }
 
+/*
+	Optimized version of WinAPI function "FillRect"
+*/
+
+VOID _r_wnd_fillrect (HDC dc, LPRECT rc, COLORREF clr)
+{
+	COLORREF clr_prev = SetBkColor (dc, clr);
+	ExtTextOut (dc, 0, 0, ETO_OPAQUE, rc, nullptr, 0, nullptr);
+	SetBkColor (dc, clr_prev);
+}
+
 VOID _r_wnd_toggle (HWND hwnd, BOOL show)
 {
 	if (show || !IsWindowVisible (hwnd))

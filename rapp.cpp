@@ -566,12 +566,15 @@ VOID rapp::InitSettingsPage (HWND hwnd, BOOL is_restart)
 
 		SetDlgItemText (hwnd, IDC_APPLY, I18N (this, IDS_APPLY, 0));
 		SetDlgItemText (hwnd, IDC_CLOSE, I18N (this, IDS_CLOSE, 0));
+	}
 
-		// localize treeview
-		for (size_t i = 0; i < app_settings_pages.size (); i++)
+	// localize treeview
+	for (size_t i = 0; i < app_settings_pages.size (); i++)
+	{
+		PAPPLICATION_PAGE ptr = app_settings_pages.at (i);
+
+		if (is_restart)
 		{
-			PAPPLICATION_PAGE ptr = app_settings_pages.at (i);
-
 			TVITEMEX tvi = {0};
 
 			tvi.mask = TVIF_PARAM;
@@ -587,20 +590,10 @@ VOID rapp::InitSettingsPage (HWND hwnd, BOOL is_restart)
 			SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETITEM, 0, (LPARAM)&tvi);
 
 			text.Clear ();
-
-			if (ptr->dlg_id)
-				ptr->callback (ptr->hwnd, _RM_INITIALIZE, nullptr, ptr);
 		}
-	}
-	else
-	{
-		for (size_t i = 0; i < app_settings_pages.size (); i++)
-		{
-			PAPPLICATION_PAGE ptr = app_settings_pages.at (i);
 
-			if (ptr->dlg_id)
-				ptr->callback (ptr->hwnd, _RM_INITIALIZE, nullptr, ptr);
-		}
+		if (ptr->dlg_id)
+			ptr->callback (ptr->hwnd, _RM_INITIALIZE, nullptr, ptr);
 	}
 
 	_r_ctrl_enable (hwnd, IDC_APPLY, FALSE);
@@ -992,8 +985,11 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					{
 						PAPPLICATION_PAGE ptr = this_ptr->app_settings_pages.at (i);
 
-						if (ptr->hwnd && ptr->callback (ptr->hwnd, _RM_SAVE, nullptr, ptr))
-							is_restart = TRUE;
+						if (ptr->dlg_id)
+						{
+							if (ptr->callback (ptr->hwnd, _RM_SAVE, nullptr, ptr))
+								is_restart = TRUE;
+						}
 					}
 
 					this_ptr->ConfigInit (); // reload settings
