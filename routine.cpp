@@ -124,7 +124,7 @@ rstring _r_fmt_size64 (DWORDLONG size)
 	System messages
 */
 
-INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR format, ...)
+INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format, ...)
 {
 	rstring buffer;
 
@@ -146,24 +146,27 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR format, ...)
 			TASKDIALOGCONFIG tdc = {0};
 
 			tdc.cbSize = sizeof (tdc);
-			tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
+			tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
 			tdc.hwndParent = hwnd;
 			tdc.pszWindowTitle = title;
+			tdc.pszMainInstruction = main;
 			tdc.pszContent = buffer;
 			tdc.pfCallback = &_r_msg_callback;
 
-			// flags
-			if (IsWindowVisible (hwnd))
+			if ((flags & MB_ICONMASK) == MB_USERICON)
 			{
-				tdc.dwFlags |= TDF_POSITION_RELATIVE_TO_WINDOW;
+				tdc.hInstance = GetModuleHandle (nullptr);
+				tdc.pszMainIcon = MAKEINTRESOURCE (100);
 			}
+
+			tdc.pfCallback = &_r_msg_callback;
 
 			// buttons
 			if ((flags & MB_TYPEMASK) == MB_YESNO)
 			{
 				tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
 			}
-			if ((flags & MB_TYPEMASK) == MB_YESNOCANCEL)
+			else if ((flags & MB_TYPEMASK) == MB_YESNOCANCEL)
 			{
 				tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON | TDCBF_CANCEL_BUTTON;
 			}
@@ -174,6 +177,10 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR format, ...)
 			else if ((flags & MB_TYPEMASK) == MB_RETRYCANCEL)
 			{
 				tdc.dwCommonButtons = TDCBF_RETRY_BUTTON | TDCBF_CANCEL_BUTTON;
+			}
+			else
+			{
+				tdc.dwCommonButtons = TDCBF_CLOSE_BUTTON;
 			}
 
 			// icons
@@ -202,7 +209,13 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR format, ...)
 	{
 		MSGBOXPARAMS mbp = {0};
 
-		mbp.cbSize = sizeof (MSGBOXPARAMS);
+		if (main)
+		{
+			buffer.Insert (L"\r\n\r\n", 0);
+			buffer.Insert (main, 0);
+		}
+
+		mbp.cbSize = sizeof (mbp);
 		mbp.hwndOwner = hwnd;
 		mbp.dwStyle = flags | MB_TOPMOST;
 		mbp.lpszCaption = title;
@@ -221,6 +234,7 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 		case TDN_CREATED:
 		{
 			_r_wnd_top (hwnd, TRUE);
+			_r_wnd_center (hwnd);
 
 			return TRUE;
 		}
@@ -582,7 +596,7 @@ BOOL _r_sys_iswow64 ()
 	}
 
 	return result;
-}
+	}
 #endif // _WIN64
 
 BOOL _r_sys_securitydescriptor (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURITY_DESCRIPTOR sd)
@@ -815,6 +829,18 @@ VOID _r_wnd_toggle (HWND hwnd, BOOL show)
 VOID _r_wnd_top (HWND hwnd, BOOL is_enable)
 {
 	SetWindowPos (hwnd, (is_enable ? HWND_TOPMOST : HWND_NOTOPMOST), 0, 0, 0, 0, SWP_NOOWNERZORDER | SWP_NOMOVE | SWP_NOSIZE);
+}
+
+VOID _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT index)
+{
+	if (ctrl_id)
+		hwnd = GetDlgItem (hwnd, ctrl_id);
+
+	LONG_PTR style = (GetWindowLongPtr (hwnd, index) & ~stateMask) | mask;
+
+	SetWindowLongPtr (hwnd, index, style);
+
+	SetWindowPos (hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE);
 }
 
 /*
@@ -1231,9 +1257,18 @@ BOOL _r_listview_setlparam (HWND hwnd, UINT ctrl, UINT item, LPARAM param)
 	return static_cast<BOOL>(SendDlgItemMessage (hwnd, ctrl, LVM_SETITEM, 0, (LPARAM)&lvi));
 }
 
+VOID _r_listview_resizeonecolumn (HWND hwnd, UINT ctrl_id)
+{
+	RECT rc = {0};
+	GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
+
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETCOLUMNWIDTH, 0, (rc.right - rc.left));
+}
+
 DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle)
 {
 	SetWindowTheme (GetDlgItem (hwnd, ctrl), L"Explorer", nullptr);
+	_r_wnd_top ((HWND)SendDlgItemMessage (hwnd, ctrl, LVM_GETTOOLTIPS, 0, 0), TRUE); // listview-tooltip-HACK!!!
 
 	return (DWORD)SendDlgItemMessage (hwnd, ctrl, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, (LPARAM)exstyle);
 }

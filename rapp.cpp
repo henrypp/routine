@@ -44,37 +44,6 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	// get dpi
 	dpi_percent = DOUBLE (GetDeviceCaps (h, LOGPIXELSX)) / 96.0f;
 
-#ifndef _APP_NO_ABOUT
-	// create window class
-	if (!GetClassInfoEx (GetHINSTANCE (), _APP_ABOUT_CLASS, nullptr))
-	{
-		WNDCLASSEX wcx = {0};
-
-		wcx.cbSize = sizeof (WNDCLASSEX);
-		wcx.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS | CS_DROPSHADOW;
-		wcx.lpfnWndProc = &AboutWndProc;
-		wcx.hInstance = GetHINSTANCE ();
-		wcx.lpszClassName = _APP_ABOUT_CLASS;
-		wcx.hCursor = LoadCursor (nullptr, IDC_ARROW);
-		wcx.hbrBackground = GetSysColorBrush (COLOR_3DFACE);
-
-		RegisterClassEx (&wcx);
-	}
-
-	// create dialog font
-	NONCLIENTMETRICS ncm = {0};
-	ncm.cbSize = sizeof (NONCLIENTMETRICS);
-	SystemParametersInfo (SPI_GETNONCLIENTMETRICS, sizeof (NONCLIENTMETRICS), &ncm, SPIF_SENDCHANGE);
-
-	app_font = CreateFontIndirect (&ncm.lfMessageFont);
-
-	// get logo
-#ifdef IDI_MAIN
-	app_logo = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (IDI_MAIN), GetDPI (52));
-#endif // IDI_MAIN
-
-#endif // _APP_NO_ABOUT
-
 	ReleaseDC (nullptr, h);
 
 	// load settings
@@ -97,22 +66,6 @@ rapp::~rapp ()
 		CloseHandle (app_mutex);
 		app_mutex = nullptr;
 	}
-
-#ifndef _APP_NO_ABOUT
-	if (app_logo)
-	{
-		DestroyIcon (app_logo);
-		app_logo = nullptr;
-	}
-
-	if (app_font)
-	{
-		DeleteObject (app_font);
-		app_font = nullptr;
-	}
-
-	UnregisterClass (_APP_ABOUT_CLASS, GetHINSTANCE ());
-#endif // _APP_NO_ABOUT
 
 #ifndef _APP_NO_SETTINGS
 	ClearSettingsPage ();
@@ -151,9 +104,11 @@ BOOL rapp::Initialize ()
 #ifndef _WIN64
 	if (_r_sys_iswow64 ())
 	{
-		_r_msg (nullptr, MB_OK | MB_ICONEXCLAMATION, app_name, L"WARNING! 32-bit executable may incompatible with 64-bit operating system version!");
+		_r_msg (nullptr, MB_OK | MB_ICONEXCLAMATION, app_name, nullptr, L"WARNING! 32-bit executable may incompatible with 64-bit operating system version!");
 	}
 #endif // _WIN64
+
+	is_vistaorlater = _r_sys_validversion (6, 0);
 
 	return TRUE;
 }
@@ -303,58 +258,31 @@ BOOL rapp::ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name)
 #ifndef _APP_NO_ABOUT
 VOID rapp::CreateAboutWindow ()
 {
+
+	if (!is_about_opened)
+	{
+		is_about_opened = TRUE;
+
 #ifdef _WIN64
-	const INT architecture = 64;
+		const unsigned architecture = 64;
 #else
-	const INT architecture = 32;
+		const unsigned architecture = 32;
 #endif // _WIN64
 
-	MSG msg = {0};
-	RECT rc = {0};
+		if (IsVistaOrLater ())
+			_r_msg (GetHWND (), MB_OK | MB_USERICON, L"About", app_name, L"Version %s, %d-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", app_version, architecture, app_copyright, _APP_WEBSITE_URL, _APP_WEBSITE_URL + 7, _APP_GITHUB_URL, _APP_GITHUB_URL + 8);
+		else
+			_r_msg (GetHWND (), MB_OK | MB_USERICON, L"About", app_name, L"Version %s, %d-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + 7, _APP_GITHUB_URL + 8);
 
-	rc.right = GetDPI (374);
-	rc.bottom = GetDPI (114);
-
-	AdjustWindowRectEx (&rc, WS_SYSMENU | WS_BORDER, FALSE, WS_EX_TOPMOST | WS_EX_DLGMODALFRAME);
-
-	HWND hwnd = CreateWindowEx (WS_EX_TOPMOST | WS_EX_DLGMODALFRAME, _APP_ABOUT_CLASS, I18N (this, IDS_ABOUT, 0), WS_SYSMENU | WS_BORDER, CW_USEDEFAULT, CW_USEDEFAULT, rc.right, rc.bottom, GetHWND (), nullptr, GetHINSTANCE (), nullptr);
-
-	if (hwnd)
-	{
-		HMENU menu = GetSystemMenu (hwnd, FALSE);
-
-		DeleteMenu (menu, SC_RESTORE, MF_BYCOMMAND);
-		DeleteMenu (menu, SC_SIZE, MF_BYCOMMAND);
-		DeleteMenu (menu, SC_MINIMIZE, MF_BYCOMMAND);
-		DeleteMenu (menu, SC_MAXIMIZE, MF_BYCOMMAND);
-		DeleteMenu (menu, 1, MF_BYPOSITION); // divider
-
-		// create controls
-		HWND hctrl = CreateWindowEx (0, WC_STATIC, nullptr, WS_CHILD | WS_VISIBLE | SS_ICON | SS_CENTER | SS_CENTERIMAGE, GetDPI (12), GetDPI (12), GetDPI (64), GetDPI (64), hwnd, nullptr, nullptr, nullptr);
-		SendMessage (hctrl, STM_SETIMAGE, IMAGE_ICON, (LPARAM)app_logo);
-
-		hctrl = CreateWindowEx (0, WC_STATIC, _r_fmt (L"%s %s (%d-bit)", app_name, app_version, architecture), WS_CHILD | WS_VISIBLE, GetDPI (88), GetDPI (14), GetDPI (270), GetDPI (16), hwnd, nullptr, nullptr, nullptr);
-		SendMessage (hctrl, WM_SETFONT, (WPARAM)app_font, TRUE);
-
-		hctrl = CreateWindowEx (0, WC_STATIC, app_copyright, WS_CHILD | WS_VISIBLE, GetDPI (88), GetDPI (36), GetDPI (270), GetDPI (16), hwnd, nullptr, nullptr, nullptr);
-		SendMessage (hctrl, WM_SETFONT, (WPARAM)app_font, TRUE);
-
-		hctrl = CreateWindowEx (0, WC_LINK, _r_fmt (L"<a href=\"%s\">Website</a> | <a href=\"%s\">GitHub</a> | <a href=\"%s/%s/blob/master/LICENSE\">License agreement</a>", _APP_WEBSITE_URL, _APP_GITHUB_URL, _APP_GITHUB_URL, app_name_short), WS_CHILD | WS_VISIBLE, GetDPI (88), GetDPI (58), GetDPI (270), GetDPI (16), hwnd, nullptr, nullptr, nullptr);
-		SendMessage (hctrl, WM_SETFONT, (WPARAM)app_font, TRUE);
-
-		ShowWindow (hwnd, SW_SHOW);
-
-		while (GetMessage (&msg, nullptr, 0, 0) > 0)
-		{
-			if (!IsDialogMessage (hwnd, &msg))
-			{
-				TranslateMessage (&msg);
-				DispatchMessage (&msg);
-			}
-		}
+		is_about_opened = FALSE;
 	}
 }
 #endif // _APP_NO_ABOUT
+
+BOOL rapp::IsVistaOrLater ()
+{
+	return is_vistaorlater;
+}
 
 VOID rapp::SetIcon (UINT icon_id)
 {
@@ -377,8 +305,13 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 
 	if (Initialize ())
 	{
-		if (ConfigGet (L"ClassicUI", 0).AsBool ())
-			SetThemeAppProperties (1);
+		if (ConfigGet (L"ClassicUI", 0).AsBool () || !IsThemeActive ())
+		{
+			is_classic = TRUE;
+
+			if (ConfigGet (L"ClassicUI", 0).AsBool ())
+				SetThemeAppProperties (1);
+		}
 
 		// create window
 #ifdef IDD_MAIN
@@ -428,8 +361,8 @@ BOOL rapp::TrayCreate (UINT id, UINT code, HICON h)
 {
 	BOOL result = FALSE;
 
-	nid.cbSize = _r_sys_validversion (6, 0) ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
-	nid.uVersion = _r_sys_validversion (6, 0) ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION;
+	nid.cbSize = IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
+	nid.uVersion = IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION;
 	nid.hWnd = app_hwnd;
 	nid.uID = id;
 	nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_SHOWTIP | NIF_TIP;
@@ -469,16 +402,13 @@ BOOL rapp::TrayPopup (DWORD icon, LPCWSTR title, LPCWSTR text)
 
 	result = Shell_NotifyIcon (NIM_MODIFY, &nid);
 
-	nid.uFlags = nid.dwInfoFlags = nid.szInfo[0] = nid.szInfoTitle[0] = 0; // clear
+	nid.szInfo[0] = nid.szInfoTitle[0] = 0; // clear
 
 	return result;
 }
 
 BOOL rapp::TraySetInfo (HICON h, LPCWSTR tooltip)
 {
-	if (!tooltip && !h)
-		return FALSE;
-
 	nid.uFlags = 0;
 
 	if (tooltip)
@@ -567,6 +497,10 @@ VOID rapp::InitSettingsPage (HWND hwnd, BOOL is_restart)
 		SetDlgItemText (hwnd, IDC_APPLY, I18N (this, IDS_APPLY, 0));
 		SetDlgItemText (hwnd, IDC_CLOSE, I18N (this, IDS_CLOSE, 0));
 	}
+
+	// apply classic ui for button
+	_r_wnd_addstyle (hwnd, IDC_APPLY, is_classic ? WS_EX_STATICEDGE : 0, WS_EX_STATICEDGE, GWL_EXSTYLE);
+	_r_wnd_addstyle (hwnd, IDC_CLOSE, is_classic ? WS_EX_STATICEDGE : 0, WS_EX_STATICEDGE, GWL_EXSTYLE);
 
 	// localize treeview
 	for (size_t i = 0; i < app_settings_pages.size (); i++)
@@ -730,107 +664,6 @@ VOID rapp::LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position) co
 		SetMenuItemInfo (menu, item, by_position, &mif);
 	}
 }
-
-#ifndef _APP_NO_ABOUT
-LRESULT CALLBACK rapp::AboutWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
-{
-	static HWND hparent = nullptr;
-
-	switch (msg)
-	{
-		case WM_CREATE:
-		{
-			hparent = GetWindow (hwnd, GW_OWNER);
-
-			EnableWindow (hparent, FALSE);
-
-			_r_wnd_center (hwnd);
-
-			break;
-		}
-
-		case WM_DESTROY:
-		{
-			if (!GetWindow (hparent, GW_ENABLEDPOPUP))
-			{
-				EnableWindow (hparent, TRUE);
-				SetActiveWindow (hparent);
-			}
-
-			PostQuitMessage (0);
-
-			break;
-		}
-
-		case WM_CLOSE:
-		case WM_LBUTTONDBLCLK:
-		{
-			DestroyWindow (hwnd);
-			break;
-		}
-
-		case WM_LBUTTONDOWN:
-		{
-			SendMessage (hwnd, WM_SYSCOMMAND, SC_MOVE | HTCAPTION, 0);
-			break;
-		}
-
-		case WM_ENTERSIZEMOVE:
-		case WM_EXITSIZEMOVE:
-		case WM_CAPTURECHANGED:
-		{
-			LONG_PTR exstyle = GetWindowLongPtr (hwnd, GWL_EXSTYLE);
-
-			if ((exstyle & WS_EX_LAYERED) == 0)
-			{
-				SetWindowLongPtr (hwnd, GWL_EXSTYLE, exstyle | WS_EX_LAYERED);
-			}
-
-			SetLayeredWindowAttributes (hwnd, 0, (msg == WM_ENTERSIZEMOVE) ? 100 : 255, LWA_ALPHA);
-			SetCursor (LoadCursor (nullptr, (msg == WM_ENTERSIZEMOVE) ? IDC_SIZEALL : IDC_ARROW));
-
-			break;
-		}
-
-		case WM_NOTIFY:
-		{
-			switch (LPNMHDR (lparam)->code)
-			{
-				case NM_CLICK:
-				case NM_RETURN:
-				{
-					ShellExecute (hwnd, nullptr, PNMLINK (lparam)->item.szUrl, nullptr, nullptr, SW_SHOWNORMAL);
-					break;
-				}
-			}
-
-			break;
-		}
-
-		case WM_COMMAND:
-		{
-			switch (LOWORD (wparam))
-			{
-				case IDCANCEL: // process Esc key
-				{
-					DestroyWindow (hwnd);
-					break;
-				}
-			}
-
-			break;
-		}
-
-		default:
-		{
-			return DefWindowProc (hwnd, msg, wparam, lparam);
-		}
-	}
-
-	return FALSE;
-}
-
-#endif // _APP_NO_ABOUT
 
 #ifndef _APP_NO_SETTINGS
 INT_PTR CALLBACK rapp::SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
@@ -1077,7 +910,7 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 
 					if (_r_str_versioncompare (this_ptr->app_version, bufferw) == -1)
 					{
-						if (_r_msg (this_ptr->GetHWND (), MB_YESNO | MB_ICONQUESTION, this_ptr->app_name, I18N (this_ptr, IDS_UPDATE_YES, 0), bufferw) == IDYES)
+						if (_r_msg (this_ptr->GetHWND (), MB_YESNO | MB_ICONQUESTION, this_ptr->app_name, nullptr, I18N (this_ptr, IDS_UPDATE_YES, 0), bufferw) == IDYES)
 						{
 							ShellExecute (nullptr, nullptr, _APP_WEBSITE_URL, nullptr, nullptr, SW_SHOWDEFAULT);
 						}
@@ -1096,7 +929,7 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 
 		if (!result && !this_ptr->is_update_forced)
 		{
-			_r_msg (this_ptr->GetHWND (), MB_OK | MB_ICONINFORMATION, this_ptr->app_name, I18N (this_ptr, IDS_UPDATE_NO, 0));
+			_r_msg (this_ptr->GetHWND (), MB_OK | MB_ICONINFORMATION, this_ptr->app_name, nullptr, I18N (this_ptr, IDS_UPDATE_NO, 0));
 		}
 
 		InternetCloseHandle (connect);
@@ -1194,7 +1027,7 @@ BOOL rapp::SkipUacCreate (BOOL is_remove)
 	rstring name;
 	name.Format (_APP_TASKSCHD_NAME, app_name_short);
 
-	if (_r_sys_validversion (6, 0))
+	if (IsVistaOrLater ())
 	{
 		CoInitializeEx (nullptr, COINIT_MULTITHREADED);
 		CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr);
@@ -1290,7 +1123,7 @@ BOOL rapp::SkipUacIsPresent (BOOL is_run)
 	rstring name;
 	name.Format (_APP_TASKSCHD_NAME, app_name_short);
 
-	if (_r_sys_validversion (6, 0))
+	if (IsVistaOrLater ())
 	{
 		ITaskService* service = nullptr;
 		ITaskFolder* folder = nullptr;

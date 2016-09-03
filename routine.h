@@ -55,10 +55,10 @@ rstring _r_fmt_size64 (DWORDLONG size);
 	System messages
 */
 
-#define WMSG1(a) _r_msg (nullptr, 0, nullptr, L"%s", a)
-#define WMSG2(a, ...) _r_msg (nullptr, 0, nullptr, a, __VA_ARGS__)
+#define WMSG1(a) _r_msg (nullptr, 0, nullptr, nullptr, L"%s", a)
+#define WMSG2(a, ...) _r_msg (nullptr, 0, nullptr, nullptr, a, __VA_ARGS__)
 
-INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR format, ...);
+INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format, ...);
 HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR ref);
 
 /*
@@ -123,6 +123,7 @@ BOOL _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action);
 VOID _r_wnd_fillrect (HDC dc, LPRECT rc, COLORREF clr);
 VOID _r_wnd_toggle (HWND hwnd, BOOL show);
 VOID _r_wnd_top (HWND hwnd, BOOL is_enable);
+VOID _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT index);
 
 /*
 	Other
@@ -148,6 +149,7 @@ BOOL _r_ctrl_showtip (HWND hwnd, UINT ctrl, LPCWSTR title, LPCWSTR text, INT ico
 	Control: listview
 */
 
+VOID _r_listview_resizeonecolumn (HWND hwnd, UINT ctrl_id);
 BOOL _r_listview_getcheckstate (HWND hwnd, UINT ctrl, size_t item);
 BOOL _r_listview_setcheckstate (HWND hwnd, UINT ctrl, size_t item, BOOL state);
 INT _r_listview_addcolumn (HWND hwnd, UINT ctrl, LPCWSTR text, UINT width, size_t subitem, INT fmt);

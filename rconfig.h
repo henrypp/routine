@@ -51,7 +51,6 @@
 #define _APP_I18N_DIRECTORY L"i18n"
 #define _APP_I18N_SECTION L"i18n"
 
-#define _APP_ABOUT_CLASS L"AboutWND"
 #define _APP_TASKSCHD_NAME L"%sSkipUac"
 
 /*

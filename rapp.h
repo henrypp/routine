@@ -114,6 +114,8 @@ public:
 	VOID SetHWND (HWND hwnd);
 	VOID SetIcon (UINT icon_id);
 
+	BOOL IsVistaOrLater ();
+
 	VOID LocaleEnum (HWND hwnd, INT ctrl_id);
 	rstring LocaleString (HINSTANCE h, UINT id, LPCWSTR name);
 	VOID LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position) const;
@@ -125,10 +127,6 @@ public:
 	BOOL SkipUacRun ();
 
 private:
-
-#ifndef _APP_NO_ABOUT
-	static LRESULT CALLBACK AboutWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
-#endif // _APP_NO_ABOUT
 
 #ifndef _APP_NO_SETTINGS
 	static INT_PTR CALLBACK SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
@@ -147,6 +145,8 @@ private:
 	DOUBLE dpi_percent = 0.f;
 
 	BOOL is_localized = FALSE;
+	BOOL is_classic = FALSE;
+	BOOL is_vistaorlater = FALSE;
 
 #ifdef _APP_HAVE_TRAY
 	NOTIFYICONDATA nid = {0};
@@ -156,15 +156,14 @@ private:
 	BOOL is_update_forced = FALSE;
 #endif // _APP_NO_UPDATES
 
+#ifndef _APP_NO_ABOUT
+	BOOL is_about_opened = FALSE;
+#endif // _APP_NO_ABOUT
+
 	HWND app_hwnd = nullptr;
 	HANDLE app_mutex = nullptr;
 	HINSTANCE app_hinstance = nullptr;
 	APPLICATION_CALLBACK app_callback = nullptr;
-
-#ifndef _APP_NO_ABOUT
-	HICON app_logo = nullptr;
-	HFONT app_font = nullptr;
-#endif // _APP_NO_ABOUT
 
 	HICON app_icon_1 = nullptr;
 	HICON app_icon_2 = nullptr;
