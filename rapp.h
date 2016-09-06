@@ -115,8 +115,10 @@ public:
 	VOID SetIcon (UINT icon_id);
 
 	BOOL IsVistaOrLater ();
+	BOOL IsClassicUI ();
 
-	VOID LocaleEnum (HWND hwnd, INT ctrl_id);
+	VOID LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id);
+	VOID LocaleEnum (HWND hwnd, INT ctrl_id, BOOL is_menu, const UINT id_start);
 	rstring LocaleString (HINSTANCE h, UINT id, LPCWSTR name);
 	VOID LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position) const;
 

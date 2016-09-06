@@ -270,9 +270,9 @@ VOID rapp::CreateAboutWindow ()
 #endif // _WIN64
 
 		if (IsVistaOrLater ())
-			_r_msg (GetHWND (), MB_OK | MB_USERICON, L"About", app_name, L"Version %s, %d-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", app_version, architecture, app_copyright, _APP_WEBSITE_URL, _APP_WEBSITE_URL + 7, _APP_GITHUB_URL, _APP_GITHUB_URL + 8);
+			_r_msg (GetHWND (), MB_OK | MB_USERICON, I18N (this, IDS_ABOUT, 0), app_name, L"Version %s, %d-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", app_version, architecture, app_copyright, _APP_WEBSITE_URL, _APP_WEBSITE_URL + 7, _APP_GITHUB_URL, _APP_GITHUB_URL + 8);
 		else
-			_r_msg (GetHWND (), MB_OK | MB_USERICON, L"About", app_name, L"Version %s, %d-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + 7, _APP_GITHUB_URL + 8);
+			_r_msg (GetHWND (), MB_OK | MB_USERICON, I18N (this, IDS_ABOUT, 0), app_name, L"Version %s, %d-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + 7, _APP_GITHUB_URL + 8);
 
 		is_about_opened = FALSE;
 	}
@@ -282,6 +282,11 @@ VOID rapp::CreateAboutWindow ()
 BOOL rapp::IsVistaOrLater ()
 {
 	return is_vistaorlater;
+}
+
+BOOL rapp::IsClassicUI ()
+{
+	return is_classic;
 }
 
 VOID rapp::SetIcon (UINT icon_id)
@@ -343,6 +348,7 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 			{
 				app_callback = callback;
 				app_callback (app_hwnd, _RM_INITIALIZE, nullptr, nullptr);
+				app_callback (app_hwnd, _RM_LOCALIZE, nullptr, nullptr);
 			}
 
 			result = TRUE;
@@ -487,9 +493,9 @@ VOID rapp::ClearSettingsPage ()
 	app_settings_pages.clear ();
 }
 
-VOID rapp::InitSettingsPage (HWND hwnd, BOOL is_restart)
+VOID rapp::InitSettingsPage (HWND hwnd, BOOL is_newlocale)
 {
-	if (is_restart)
+	if (is_newlocale)
 	{
 		// localize window
 		SetWindowText (hwnd, I18N (this, IDS_SETTINGS, 0));
@@ -498,16 +504,16 @@ VOID rapp::InitSettingsPage (HWND hwnd, BOOL is_restart)
 		SetDlgItemText (hwnd, IDC_CLOSE, I18N (this, IDS_CLOSE, 0));
 	}
 
-	// apply classic ui for button
+	// apply classic ui for buttons
 	_r_wnd_addstyle (hwnd, IDC_APPLY, is_classic ? WS_EX_STATICEDGE : 0, WS_EX_STATICEDGE, GWL_EXSTYLE);
 	_r_wnd_addstyle (hwnd, IDC_CLOSE, is_classic ? WS_EX_STATICEDGE : 0, WS_EX_STATICEDGE, GWL_EXSTYLE);
 
-	// localize treeview
+	// initialize treeview
 	for (size_t i = 0; i < app_settings_pages.size (); i++)
 	{
 		PAPPLICATION_PAGE ptr = app_settings_pages.at (i);
 
-		if (is_restart)
+		if (is_newlocale)
 		{
 			TVITEMEX tvi = {0};
 
@@ -569,12 +575,54 @@ VOID rapp::SetHWND (HWND hwnd)
 	app_hwnd = hwnd;
 }
 
-#ifndef _APP_NO_SETTINGS
-VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id)
+VOID rapp::LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id)
 {
-	SendDlgItemMessage (hwnd, ctrl_id, CB_RESETCONTENT, 0, 0);
-	SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, 0, (LPARAM)L"English (default)");
-	SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, 0, 0);
+	if (selected_id == default_id)
+	{
+		ConfigSet (L"Language", nullptr);
+	}
+	else
+	{
+		WCHAR buffer[MAX_PATH] = {0};
+
+		GetMenuString (hmenu, selected_id, buffer, _countof (buffer), MF_BYCOMMAND);
+
+		ConfigSet (L"Language", buffer);
+	}
+
+	LocaleInit ();
+
+	if (app_callback)
+		app_callback (GetHWND (), _RM_LOCALIZE, nullptr, nullptr);
+}
+
+VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id, BOOL is_menu, const UINT id_start)
+{
+	HMENU hmenu = nullptr;
+
+	if (is_menu)
+	{
+		hmenu = GetSubMenu ((HMENU)hwnd, ctrl_id);
+
+		// clear menu
+		for (UINT i = 0;; i++)
+		{
+			if (!DeleteMenu (hmenu, id_start + i, MF_BYCOMMAND))
+			{
+				DeleteMenu (hmenu, 0, MF_BYPOSITION); // delete separator
+				break;
+			}
+		}
+
+		AppendMenu (hmenu, MF_STRING, id_start, _APP_LANGUAGE_DEFAULT);
+		CheckMenuRadioItem (hmenu, id_start, id_start, id_start, MF_BYCOMMAND);
+	}
+	else
+	{
+		SendDlgItemMessage (hwnd, ctrl_id, CB_RESETCONTENT, 0, 0);
+		SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, 0, (LPARAM)_APP_LANGUAGE_DEFAULT);
+		SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, 0, 0);
+	}
 
 	WIN32_FIND_DATA wfd = {0};
 	HANDLE h = FindFirstFile (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\*.ini", app_directory), &wfd);
@@ -584,16 +632,31 @@ VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id)
 		INT count = 0;
 		rstring def = ConfigGet (L"Language", nullptr);
 
+		if (is_menu)
+			AppendMenu (hmenu, MF_SEPARATOR, 0, nullptr);
+
 		do
 		{
 			LPWSTR fname = wfd.cFileName;
 			PathRemoveExtension (fname);
 
-			SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, ++count, (LPARAM)fname);
-
-			if (!def.IsEmpty () && def.CompareNoCase (fname) == 0)
+			if (is_menu)
 			{
-				SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, count, 0);
+				AppendMenu (hmenu, MF_STRING, (++count + id_start), fname);
+
+				if (!def.IsEmpty () && def.CompareNoCase (fname) == 0)
+				{
+					CheckMenuRadioItem (hmenu, id_start, id_start + count, id_start + count, MF_BYCOMMAND);
+				}
+			}
+			else
+			{
+				SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, ++count, (LPARAM)fname);
+
+				if (!def.IsEmpty () && def.CompareNoCase (fname) == 0)
+				{
+					SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, count, 0);
+				}
 			}
 		}
 		while (FindNextFile (h, &wfd));
@@ -602,10 +665,16 @@ VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id)
 	}
 	else
 	{
-		EnableWindow (GetDlgItem (hwnd, ctrl_id), FALSE);
+		if (is_menu)
+		{
+			EnableMenuItem ((HMENU)hwnd, ctrl_id, MF_BYPOSITION | MF_DISABLED);
+		}
+		else
+		{
+			EnableWindow (GetDlgItem (hwnd, ctrl_id), FALSE);
+		}
 	}
 }
-#endif // _APP_NO_SETTINGS
 
 VOID rapp::LocaleInit ()
 {
@@ -655,11 +724,13 @@ VOID rapp::LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position) co
 {
 	if (text)
 	{
+		rstring ptr = text;
+
 		MENUITEMINFO mif = {0};
 
 		mif.cbSize = sizeof (MENUITEMINFO);
 		mif.fMask = MIIM_STRING;
-		mif.dwTypeData = (LPWSTR)text;
+		mif.dwTypeData = ptr.GetBuffer ();
 
 		SetMenuItemInfo (menu, item, by_position, &mif);
 	}
@@ -783,13 +854,6 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 						if (this_ptr->app_settings_pages.at (old_id)->hwnd)
 							ShowWindow (this_ptr->app_settings_pages.at (old_id)->hwnd, SW_HIDE);
 
-						//if (!this_ptr->app_settings_pages.at (new_id)->hwnd)
-						//{
-						//	SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)this_ptr->app_settings_pages.at (new_id + 1)->item);
-						//	return TRUE;
-						//}
-
-						//ShowWindow (this_ptr->app_settings_pages.at (old_id)->hwnd, SW_HIDE);
 						if (this_ptr->app_settings_pages.at (new_id)->hwnd)
 							ShowWindow (this_ptr->app_settings_pages.at (new_id)->hwnd, SW_SHOW);
 
@@ -810,7 +874,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 				case IDOK: // process Enter key
 				case IDC_APPLY:
 				{
-					BOOL is_restart = FALSE;
+					BOOL is_newlocale = FALSE;
 
 					_r_ctrl_enable (hwnd, IDC_APPLY, FALSE);
 
@@ -821,20 +885,23 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 						if (ptr->dlg_id)
 						{
 							if (ptr->callback (ptr->hwnd, _RM_SAVE, nullptr, ptr))
-								is_restart = TRUE;
+								is_newlocale = TRUE;
 						}
 					}
 
-					this_ptr->ConfigInit (); // reload settings
+					this_ptr->ConfigInit (); // re-read settings
 
 					// reinitialization
 					if (this_ptr->app_callback)
 					{
 						this_ptr->app_callback (this_ptr->app_hwnd, _RM_UNINITIALIZE, nullptr, nullptr);
 						this_ptr->app_callback (this_ptr->app_hwnd, _RM_INITIALIZE, nullptr, nullptr);
+
+						if (is_newlocale)
+							this_ptr->app_callback (this_ptr->app_hwnd, _RM_LOCALIZE, nullptr, nullptr);
 					}
 
-					this_ptr->InitSettingsPage (hwnd, is_restart);
+					this_ptr->InitSettingsPage (hwnd, is_newlocale);
 
 					break;
 				}

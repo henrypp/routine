@@ -221,6 +221,12 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 		mbp.lpszCaption = title;
 		mbp.lpszText = buffer;
 
+		if ((flags & MB_ICONMASK) == MB_USERICON)
+		{
+			mbp.hInstance = GetModuleHandle (nullptr);
+			mbp.lpszIcon = MAKEINTRESOURCE (100);
+		}
+
 		result = MessageBoxIndirect (&mbp);
 	}
 

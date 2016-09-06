@@ -41,7 +41,7 @@
 #endif // _APP_WEBSITE_URL
 
 #ifndef _APP_DONATION_URL
-#	define _APP_DONATION_URL _APP_WEBSITE_URL L"/donate"
+#	define _APP_DONATION_URL _APP_WEBSITE_URL L"/donate?from=" APP_NAME_SHORT
 #endif // _APP_WEBSITE_URL
 
 #ifndef _APP_UPDATE_PERIOD
@@ -52,6 +52,7 @@
 #define _APP_I18N_SECTION L"i18n"
 
 #define _APP_TASKSCHD_NAME L"%sSkipUac"
+#define _APP_LANGUAGE_DEFAULT L"English (default)"
 
 /*
 	Callback message codes
@@ -61,6 +62,7 @@
 #define _RM_UNINITIALIZE 0x02
 #define _RM_SAVE 0x04
 #define _RM_MESSAGE 0x08
+#define _RM_LOCALIZE 0x10
 
 /*
 	Macroses
