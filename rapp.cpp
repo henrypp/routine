@@ -505,8 +505,8 @@ VOID rapp::InitSettingsPage (HWND hwnd, BOOL is_newlocale)
 	}
 
 	// apply classic ui for buttons
-	_r_wnd_addstyle (hwnd, IDC_APPLY, is_classic ? WS_EX_STATICEDGE : 0, WS_EX_STATICEDGE, GWL_EXSTYLE);
-	_r_wnd_addstyle (hwnd, IDC_CLOSE, is_classic ? WS_EX_STATICEDGE : 0, WS_EX_STATICEDGE, GWL_EXSTYLE);
+	_r_wnd_addstyle (hwnd, IDC_APPLY, IsClassicUI () ? WS_EX_STATICEDGE : 0, WS_EX_STATICEDGE, GWL_EXSTYLE);
+	_r_wnd_addstyle (hwnd, IDC_CLOSE, IsClassicUI () ? WS_EX_STATICEDGE : 0, WS_EX_STATICEDGE, GWL_EXSTYLE);
 
 	// initialize treeview
 	for (size_t i = 0; i < app_settings_pages.size (); i++)
@@ -629,7 +629,7 @@ VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id, BOOL is_menu, const UINT id_start
 
 	if (h != INVALID_HANDLE_VALUE)
 	{
-		INT count = 0;
+		app_locale_count = 0;
 		rstring def = ConfigGet (L"Language", nullptr);
 
 		if (is_menu)
@@ -642,20 +642,20 @@ VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id, BOOL is_menu, const UINT id_start
 
 			if (is_menu)
 			{
-				AppendMenu (hmenu, MF_STRING, (++count + id_start), fname);
+				AppendMenu (hmenu, MF_STRING, (++app_locale_count + id_start), fname);
 
 				if (!def.IsEmpty () && def.CompareNoCase (fname) == 0)
 				{
-					CheckMenuRadioItem (hmenu, id_start, id_start + count, id_start + count, MF_BYCOMMAND);
+					CheckMenuRadioItem (hmenu, id_start, id_start + app_locale_count, id_start + app_locale_count, MF_BYCOMMAND);
 				}
 			}
 			else
 			{
-				SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, ++count, (LPARAM)fname);
+				SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, ++app_locale_count, (LPARAM)fname);
 
 				if (!def.IsEmpty () && def.CompareNoCase (fname) == 0)
 				{
-					SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, count, 0);
+					SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, app_locale_count, 0);
 				}
 			}
 		}
@@ -674,6 +674,11 @@ VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id, BOOL is_menu, const UINT id_start
 			EnableWindow (GetDlgItem (hwnd, ctrl_id), FALSE);
 		}
 	}
+}
+
+UINT rapp::LocaleGetCount ()
+{
+	return app_locale_count;
 }
 
 VOID rapp::LocaleInit ()

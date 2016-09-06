@@ -119,6 +119,7 @@ public:
 
 	VOID LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id);
 	VOID LocaleEnum (HWND hwnd, INT ctrl_id, BOOL is_menu, const UINT id_start);
+	UINT LocaleGetCount ();
 	rstring LocaleString (HINSTANCE h, UINT id, LPCWSTR name);
 	VOID LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position) const;
 
@@ -181,6 +182,8 @@ private:
 
 	rstring::map_two app_config_array;
 	rstring::map_two app_locale_array;
+
+	UINT app_locale_count = 0;
 
 #ifndef _APP_NO_SETTINGS
 	std::vector<PAPPLICATION_PAGE> app_settings_pages;
