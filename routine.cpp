@@ -970,13 +970,14 @@ VOID _r_ctrl_settext (HWND hwnd, UINT ctrl, LPCWSTR str, ...)
 
 HWND _r_ctrl_settip (HWND hwnd, UINT ctrl, LPCWSTR text)
 {
-	HWND h = CreateWindowEx (0, TOOLTIPS_CLASS, nullptr, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP | TTS_BALLOON, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, GetModuleHandle (nullptr), nullptr);
+	HINSTANCE hinst = GetModuleHandle (nullptr);
+	HWND h = CreateWindowEx (0, TOOLTIPS_CLASS, nullptr, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, hinst, nullptr);
 
 	TOOLINFO ti = {0};
 
 	ti.cbSize = sizeof (ti);
 	ti.hwnd = hwnd;
-	ti.hinst = GetModuleHandle (nullptr);
+	ti.hinst = hinst;
 	ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
 	ti.lpszText = (LPWSTR)text;
 	ti.uId = (UINT_PTR)GetDlgItem (hwnd, ctrl);
