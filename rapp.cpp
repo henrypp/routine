@@ -3,6 +3,10 @@
 
 #include "rapp.h"
 
+#ifdef _APP_HAVE_TRAY
+CONST UINT WM_TASKBARCREATED = RegisterWindowMessage (L"TaskbarCreated");
+#endif // _APP_HAVE_TRAY
+
 rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright)
 {
 	// initialize controls
@@ -53,13 +57,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 rapp::~rapp ()
 {
 	if (app_callback)
-	{
 		app_callback (app_hwnd, _RM_UNINITIALIZE, nullptr, nullptr);
-	}
-
-#ifdef _APP_HAVE_TRAY
-	TrayDestroy ();
-#endif // _APP_HAVE_TRAY
 
 	if (app_mutex)
 	{
@@ -304,6 +302,42 @@ VOID rapp::SetIcon (UINT icon_id)
 	SendMessage (app_hwnd, WM_SETICON, ICON_BIG, (LPARAM)app_icon_2);
 }
 
+LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+	static rapp* this_ptr = (rapp*)GetWindowLongPtr (hwnd, GWLP_USERDATA);
+
+#ifdef _APP_HAVE_TRAY
+	if (msg == WM_TASKBARCREATED)
+	{
+		if (this_ptr->app_callback)
+		{
+			this_ptr->app_callback (hwnd, _RM_UNINITIALIZE, nullptr, nullptr);
+			this_ptr->app_callback (hwnd, _RM_INITIALIZE, nullptr, nullptr);
+		}
+
+		return FALSE;
+	}
+#endif // _APP_HAVE_TRAY
+
+	switch (msg)
+	{
+		case WM_THEMECHANGED:
+		{
+			this_ptr->is_classic = !IsThemeActive ();
+
+			return FALSE;
+		}
+
+		case WM_QUERYENDSESSION:
+		{
+			SetWindowLongPtr (hwnd, DWLP_MSGRESULT, TRUE);
+			return TRUE;
+		}
+	}
+
+	return CallWindowProc (this_ptr->app_wndproc, hwnd, msg, wparam, lparam);
+}
+
 BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 {
 	BOOL result = FALSE;
@@ -321,6 +355,18 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 		// create window
 #ifdef IDD_MAIN
 		app_hwnd = CreateDialog (nullptr, MAKEINTRESOURCE (IDD_MAIN), nullptr, proc);
+
+		// enable messages bypass uipi
+#ifdef _APP_HAVE_TRAY
+		_r_wnd_changemessagefilter (app_hwnd, WM_TASKBARCREATED, MSGFLT_ALLOW);
+#endif // _APP_HAVE_TRAY
+
+		_r_wnd_changemessagefilter (app_hwnd, WM_DROPFILES, MSGFLT_ALLOW);
+		_r_wnd_changemessagefilter (app_hwnd, WM_COPYDATA, MSGFLT_ALLOW);
+		_r_wnd_changemessagefilter (app_hwnd, 0x0049, MSGFLT_ALLOW); // WM_COPYGLOBALDATA
+
+		SetWindowLongPtr (app_hwnd, GWLP_USERDATA, (LONG_PTR)this);
+		app_wndproc = (WNDPROC)SetWindowLongPtr (app_hwnd, GWLP_WNDPROC, (LONG_PTR)this->MainWindowProc);
 #else
 		UNREFERENCED_PARAMETER (proc);
 #endif // IDD_MAIN
@@ -382,8 +428,11 @@ BOOL rapp::TrayCreate (UINT id, UINT code, HICON h)
 	return result;
 }
 
-BOOL rapp::TrayDestroy ()
+BOOL rapp::TrayDestroy (UINT id)
 {
+	nid.cbSize = IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
+	nid.uID = id;
+
 	if (nid.hIcon)
 	{
 		DestroyIcon (nid.hIcon);
@@ -399,6 +448,10 @@ BOOL rapp::TrayPopup (DWORD icon, LPCWSTR title, LPCWSTR text)
 
 	nid.uFlags = NIF_INFO;
 	nid.dwInfoFlags = NIIF_RESPECT_QUIET_TIME | NIIF_LARGE_ICON | icon;
+
+	// tooltip-visibility fix
+	if (nid.szTip[0])
+		nid.uFlags |= (NIF_SHOWTIP | NIF_TIP);
 
 	if (title)
 		StringCchCopy (nid.szInfoTitle, _countof (nid.szInfoTitle), title);
@@ -966,7 +1019,7 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 
 					rstring bufferw;
 
-					while (1)
+					while (TRUE)
 					{
 						if (!InternetReadFile (connect, buffer, _R_BUFFER_LENGTH - 1, &out) || !out)
 						{

@@ -90,7 +90,7 @@ public:
 
 #ifdef _APP_HAVE_TRAY
 	BOOL TrayCreate (UINT id, UINT code, HICON h);
-	BOOL TrayDestroy ();
+	BOOL TrayDestroy (UINT id);
 	BOOL TrayPopup (DWORD icon, LPCWSTR title, LPCWSTR text);
 	BOOL TraySetInfo (HICON h, LPCWSTR tooltip);
 #endif // _APP_HAVE_TRAY
@@ -140,6 +140,8 @@ private:
 	static UINT WINAPI CheckForUpdatesProc (LPVOID lparam);
 #endif // _APP_NO_UPDATES
 
+	static LRESULT CALLBACK MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
+
 	BOOL ParseINI (LPCWSTR path, rstring::map_two* map);
 
 	VOID ConfigInit ();
@@ -163,6 +165,7 @@ private:
 	BOOL is_about_opened = FALSE;
 #endif // _APP_NO_ABOUT
 
+	WNDPROC app_wndproc = nullptr;
 	HWND app_hwnd = nullptr;
 	HANDLE app_mutex = nullptr;
 	HINSTANCE app_hinstance = nullptr;
