@@ -323,7 +323,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 	{
 		case WM_THEMECHANGED:
 		{
-			this_ptr->is_classic = !IsThemeActive ();
+			this_ptr->is_classic = !IsThemeActive () || this_ptr->ConfigGet (L"ClassicUI", 0).AsBool ();
 
 			return FALSE;
 		}
