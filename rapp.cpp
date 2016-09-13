@@ -57,7 +57,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 rapp::~rapp ()
 {
 	if (app_callback)
-		app_callback (app_hwnd, _RM_UNINITIALIZE, nullptr, nullptr);
+		app_callback (GetHWND (), _RM_UNINITIALIZE, nullptr, nullptr);
 
 	if (app_mutex)
 	{
@@ -298,8 +298,8 @@ VOID rapp::SetIcon (UINT icon_id)
 	app_icon_1 = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (icon_id), GetSystemMetrics (SM_CXSMICON));
 	app_icon_2 = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (icon_id), GetSystemMetrics (SM_CXICON));
 
-	SendMessage (app_hwnd, WM_SETICON, ICON_SMALL, (LPARAM)app_icon_1);
-	SendMessage (app_hwnd, WM_SETICON, ICON_BIG, (LPARAM)app_icon_2);
+	SendMessage (GetHWND (), WM_SETICON, ICON_SMALL, (LPARAM)app_icon_1);
+	SendMessage (GetHWND (), WM_SETICON, ICON_BIG, (LPARAM)app_icon_2);
 }
 
 LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
@@ -324,6 +324,9 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		case WM_THEMECHANGED:
 		{
 			this_ptr->is_classic = !IsThemeActive () || this_ptr->ConfigGet (L"ClassicUI", 0).AsBool ();
+
+			if (this_ptr->app_callback)
+				this_ptr->app_callback (this_ptr->GetHWND (), _RM_LOCALIZE, nullptr, nullptr);
 
 			return FALSE;
 		}
@@ -355,18 +358,6 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 		// create window
 #ifdef IDD_MAIN
 		app_hwnd = CreateDialog (nullptr, MAKEINTRESOURCE (IDD_MAIN), nullptr, proc);
-
-		// enable messages bypass uipi
-#ifdef _APP_HAVE_TRAY
-		_r_wnd_changemessagefilter (app_hwnd, WM_TASKBARCREATED, MSGFLT_ALLOW);
-#endif // _APP_HAVE_TRAY
-
-		_r_wnd_changemessagefilter (app_hwnd, WM_DROPFILES, MSGFLT_ALLOW);
-		_r_wnd_changemessagefilter (app_hwnd, WM_COPYDATA, MSGFLT_ALLOW);
-		_r_wnd_changemessagefilter (app_hwnd, 0x0049, MSGFLT_ALLOW); // WM_COPYGLOBALDATA
-
-		SetWindowLongPtr (app_hwnd, GWLP_USERDATA, (LONG_PTR)this);
-		app_wndproc = (WNDPROC)SetWindowLongPtr (app_hwnd, GWLP_WNDPROC, (LONG_PTR)this->MainWindowProc);
 #else
 		UNREFERENCED_PARAMETER (proc);
 #endif // IDD_MAIN
@@ -374,28 +365,44 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 		if (app_hwnd)
 		{
 			// set title
-			SetWindowText (app_hwnd, app_name);
+			SetWindowText (GetHWND (), app_name);
 
 			// set on top
-			_r_wnd_top (app_hwnd, ConfigGet (L"AlwaysOnTop", 0).AsBool ());
+			_r_wnd_top (GetHWND (), ConfigGet (L"AlwaysOnTop", 0).AsBool ());
+
+			// enable messages bypass uipi
+#ifdef _APP_HAVE_TRAY
+			_r_wnd_changemessagefilter (GetHWND (), WM_TASKBARCREATED, MSGFLT_ALLOW);
+#endif // _APP_HAVE_TRAY
+
+			_r_wnd_changemessagefilter (GetHWND (), WM_DROPFILES, MSGFLT_ALLOW);
+			_r_wnd_changemessagefilter (GetHWND (), WM_COPYDATA, MSGFLT_ALLOW);
+			_r_wnd_changemessagefilter (GetHWND (), 0x0049, MSGFLT_ALLOW); // WM_COPYGLOBALDATA
+
+			// subclass window
+			SetWindowLongPtr (GetHWND (), GWLP_USERDATA, (LONG_PTR)this);
+			app_wndproc = (WNDPROC)SetWindowLongPtr (GetHWND (), GWLP_WNDPROC, (LONG_PTR)this->MainWindowProc);
 
 			// set icons
 #ifdef IDI_MAIN
 			SetIcon (IDI_MAIN);
 #endif // IDI_MAIN
 
-			// check for updates
-#ifndef _APP_NO_UPDATES
-			CheckForUpdates (TRUE);
-#endif // _APP_NO_UPDATES
-
 			// initialization callback
 			if (callback)
 			{
 				app_callback = callback;
-				app_callback (app_hwnd, _RM_INITIALIZE, nullptr, nullptr);
-				app_callback (app_hwnd, _RM_LOCALIZE, nullptr, nullptr);
+
+				app_callback (GetHWND (), _RM_INITIALIZE, nullptr, nullptr);
+				app_callback (GetHWND (), _RM_LOCALIZE, nullptr, nullptr);
+
+				DrawMenuBar (GetHWND ()); // redraw menu
 			}
+
+			// check for updates
+#ifndef _APP_NO_UPDATES
+			CheckForUpdates (TRUE);
+#endif // _APP_NO_UPDATES
 
 			result = TRUE;
 		}
@@ -415,7 +422,7 @@ BOOL rapp::TrayCreate (UINT id, UINT code, HICON h)
 
 	nid.cbSize = IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
 	nid.uVersion = IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION;
-	nid.hWnd = app_hwnd;
+	nid.hWnd = GetHWND ();
 	nid.uID = id;
 	nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_SHOWTIP | NIF_TIP;
 	nid.uCallbackMessage = code;
@@ -623,11 +630,6 @@ HWND rapp::GetHWND () const
 	return app_hwnd;
 }
 
-VOID rapp::SetHWND (HWND hwnd)
-{
-	app_hwnd = hwnd;
-}
-
 VOID rapp::LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id)
 {
 	if (selected_id == default_id)
@@ -646,7 +648,11 @@ VOID rapp::LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id)
 	LocaleInit ();
 
 	if (app_callback)
+	{
 		app_callback (GetHWND (), _RM_LOCALIZE, nullptr, nullptr);
+
+		DrawMenuBar (GetHWND ()); // redraw menu
+	}
 }
 
 VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id, BOOL is_menu, const UINT id_start)
@@ -698,18 +704,14 @@ VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id, BOOL is_menu, const UINT id_start
 				AppendMenu (hmenu, MF_STRING, (++app_locale_count + id_start), fname);
 
 				if (!def.IsEmpty () && def.CompareNoCase (fname) == 0)
-				{
 					CheckMenuRadioItem (hmenu, id_start, id_start + app_locale_count, id_start + app_locale_count, MF_BYCOMMAND);
-				}
 			}
 			else
 			{
 				SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, ++app_locale_count, (LPARAM)fname);
 
 				if (!def.IsEmpty () && def.CompareNoCase (fname) == 0)
-				{
 					SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, app_locale_count, 0);
-				}
 			}
 		}
 		while (FindNextFile (h, &wfd));
@@ -742,9 +744,7 @@ VOID rapp::LocaleInit ()
 	is_localized = FALSE;
 
 	if (!name.IsEmpty ())
-	{
 		is_localized = ParseINI (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\%s.ini", GetDirectory (), name), &app_locale_array);
-	}
 }
 
 rstring rapp::LocaleString (HINSTANCE h, UINT uid, LPCWSTR name)
@@ -952,11 +952,15 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					// reinitialization
 					if (this_ptr->app_callback)
 					{
-						this_ptr->app_callback (this_ptr->app_hwnd, _RM_UNINITIALIZE, nullptr, nullptr);
-						this_ptr->app_callback (this_ptr->app_hwnd, _RM_INITIALIZE, nullptr, nullptr);
+						this_ptr->app_callback (this_ptr->GetHWND (), _RM_UNINITIALIZE, nullptr, nullptr);
+						this_ptr->app_callback (this_ptr->GetHWND (), _RM_INITIALIZE, nullptr, nullptr);
 
 						if (is_newlocale)
-							this_ptr->app_callback (this_ptr->app_hwnd, _RM_LOCALIZE, nullptr, nullptr);
+						{
+							this_ptr->app_callback (this_ptr->GetHWND (), _RM_LOCALIZE, nullptr, nullptr);
+
+							DrawMenuBar (this_ptr->GetHWND ()); // redraw menu
+						}
 					}
 
 					this_ptr->InitSettingsPage (hwnd, is_newlocale);
@@ -968,9 +972,6 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 				case IDC_CLOSE:
 				{
 					EndDialog (hwnd, 0);
-
-					for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
-						this_ptr->app_settings_pages.at (i)->callback (this_ptr->app_settings_pages.at (i)->hwnd, _RM_UNINITIALIZE, nullptr, this_ptr->app_settings_pages.at (i)); // call closed state
 
 					_r_wnd_top (this_ptr->GetHWND (), this_ptr->ConfigGet (L"AlwaysOnTop", 0).AsBool ());
 
@@ -1409,4 +1410,3 @@ BOOL rapp::SkipUacRun ()
 
 	return result;
 }
-

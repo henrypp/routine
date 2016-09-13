@@ -111,7 +111,6 @@ public:
 	HINSTANCE GetHINSTANCE () const;
 	HWND GetHWND () const;
 
-	VOID SetHWND (HWND hwnd);
 	VOID SetIcon (UINT icon_id);
 
 	BOOL IsVistaOrLater ();
