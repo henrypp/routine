@@ -9,36 +9,33 @@
 
 VOID _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...)
 {
-	rstring buffer;
-
 	DWORD dwLE = GetLastError ();
+	DWORD dwTC = GetTickCount ();
 	DWORD dwPID = GetCurrentProcessId ();
 	DWORD dwTID = GetCurrentThreadId ();
 
-	SYSTEMTIME lt = {0};
-	GetLocalTime (&lt);
-
-	if (format)
+	if (!format)
+	{
+		OutputDebugString (L"\r\n");
+	}
+	else
 	{
 		va_list args;
 		va_start (args, format);
 
+		rstring buffer;
 		buffer.FormatV (format, args);
 
 		va_end (args);
 
 		if (function)
 		{
-			OutputDebugString (_r_fmt (L"[%02d:%02d:%02d] PID=%04d, TID=%04d, LE=%d (0x%x), FN=%s, FL=%s:%d, T=%s\r\n", lt.wHour, lt.wMinute, lt.wSecond, dwPID, dwTID, dwLE, dwLE, function, file, line, buffer.IsEmpty () ? L"<none>" : buffer));
+			OutputDebugString (_r_fmt (L"TC=%08d, PID=%04d, TID=%04d, LE=0x%.8lx, FN=%s, FL=%s:%d, T=%s\r\n", dwTC, dwPID, dwTID, dwLE, function, file, line, buffer.IsEmpty () ? L"<none>" : buffer));
 		}
 		else
 		{
 			OutputDebugString (buffer);
 		}
-	}
-	else
-	{
-		OutputDebugString (L"\r\n");
 	}
 }
 
@@ -50,7 +47,9 @@ rstring _r_dbg_error (DWORD errcode)
 	if (FormatMessage (FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, errcode, MAKELANGID (LANG_ENGLISH, SUBLANG_DEFAULT), (LPWSTR)&buffer, 0, nullptr))
 	{
 		result = (LPCWSTR)buffer;
+		result.Trim (L"\r\n");
 	}
+
 
 	LocalFree (buffer);
 
@@ -504,43 +503,31 @@ BOOL _r_sys_adminstate ()
 		if (!OpenThreadToken (GetCurrentThread (), TOKEN_DUPLICATE | TOKEN_QUERY, TRUE, &token))
 		{
 			if (GetLastError () != ERROR_NO_TOKEN || !OpenProcessToken (GetCurrentProcess (), TOKEN_DUPLICATE | TOKEN_QUERY, &token))
-			{
 				__leave;
-			}
 		}
 
 		if (!DuplicateToken (token, SecurityImpersonation, &impersonation_token))
-		{
 			__leave;
-		}
 
 		if (!AllocateAndInitializeSid (&sia, 2, SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &sid))
-		{
 			__leave;
-		}
 
 		sd = LocalAlloc (LPTR, SECURITY_DESCRIPTOR_MIN_LENGTH);
 
 		if (!sd || !InitializeSecurityDescriptor (sd, SECURITY_DESCRIPTOR_REVISION))
-		{
 			__leave;
-		}
 
 		DWORD acl_size = sizeof (ACL) + sizeof (ACCESS_ALLOWED_ACE) + GetLengthSid (sid) - sizeof (DWORD);
 		acl = (PACL)LocalAlloc (LPTR, acl_size);
 
 		if (!acl || !InitializeAcl (acl, acl_size, ACL_REVISION2) || !AddAccessAllowedAce (acl, ACL_REVISION2, ACCESS_READ | ACCESS_WRITE, sid) || !SetSecurityDescriptorDacl (sd, TRUE, acl, FALSE))
-		{
 			__leave;
-		}
 
 		SetSecurityDescriptorGroup (sd, sid, FALSE);
 		SetSecurityDescriptorOwner (sd, sid, FALSE);
 
 		if (!IsValidSecurityDescriptor (sd))
-		{
 			__leave;
-		}
 
 		gm.GenericRead = ACCESS_READ;
 		gm.GenericWrite = ACCESS_WRITE;
@@ -557,29 +544,19 @@ BOOL _r_sys_adminstate ()
 	__finally
 	{
 		if (acl)
-		{
 			LocalFree (acl);
-		}
 
 		if (sd)
-		{
 			LocalFree (sd);
-		}
 
 		if (sid)
-		{
 			FreeSid (sid);
-		}
 
 		if (impersonation_token)
-		{
 			CloseHandle (impersonation_token);
-		}
 
 		if (token)
-		{
 			CloseHandle (token);
-		}
 	}
 
 	return result;
@@ -602,7 +579,7 @@ BOOL _r_sys_iswow64 ()
 	}
 
 	return result;
-	}
+}
 #endif // _WIN64
 
 BOOL _r_sys_securitydescriptor (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURITY_DESCRIPTOR sd)
