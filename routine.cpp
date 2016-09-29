@@ -160,6 +160,12 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 
 			tdc.pfCallback = &_r_msg_callback;
 
+			// default buttons
+			if ((flags & MB_DEFMASK) == MB_DEFBUTTON2)
+			{
+				tdc.nDefaultButton = IDNO;
+			}
+
 			// buttons
 			if ((flags & MB_TYPEMASK) == MB_YESNO)
 			{
@@ -179,7 +185,7 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 			}
 			else
 			{
-				tdc.dwCommonButtons = TDCBF_CLOSE_BUTTON;
+				tdc.dwCommonButtons = TDCBF_OK_BUTTON;
 			}
 
 			// icons
@@ -579,7 +585,7 @@ BOOL _r_sys_iswow64 ()
 	}
 
 	return result;
-}
+	}
 #endif // _WIN64
 
 BOOL _r_sys_securitydescriptor (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURITY_DESCRIPTOR sd)
