@@ -706,7 +706,7 @@ VOID _r_unixtime_to_systemtime (__time64_t ut, LPSYSTEMTIME pst)
 	FileTimeToSystemTime (&ft, pst);
 }
 
-__time64_t _r_unixtime_from_filetime (LPFILETIME pft)
+__time64_t _r_unixtime_from_filetime (const FILETIME* pft)
 {
 	ULARGE_INTEGER ull = {0};
 
@@ -719,7 +719,7 @@ __time64_t _r_unixtime_from_filetime (LPFILETIME pft)
 	return ull.QuadPart / 10000000ULL - 11644473600ULL;
 }
 
-__time64_t _r_unixtime_from_systemtime (LPSYSTEMTIME pst)
+__time64_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst)
 {
 	FILETIME ft = {0};
 

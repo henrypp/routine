@@ -876,6 +876,8 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			this_ptr->InitSettingsPage (hwnd, TRUE);
 
+			SetFocus (nullptr);
+
 			break;
 		}
 
