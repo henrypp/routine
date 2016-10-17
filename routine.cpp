@@ -930,7 +930,12 @@ rstring _r_ctrl_gettext (HWND hwnd, UINT ctrl)
 {
 	rstring result;
 
-	INT length = (INT)SendDlgItemMessage (hwnd, ctrl, WM_GETTEXTLENGTH, 0, 0) + 1;
+	INT length = (INT)SendDlgItemMessage (hwnd, ctrl, WM_GETTEXTLENGTH, 0, 0);
+
+	if (!length)
+		return L"";
+
+	length += 1;
 
 	GetDlgItemText (hwnd, ctrl, result.GetBuffer (length), length);
 	result.ReleaseBuffer ();

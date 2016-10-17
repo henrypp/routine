@@ -92,6 +92,8 @@ BOOL rapp::Initialize ()
 		app_mutex = nullptr;
 	}
 
+	is_vistaorlater = _r_sys_validversion (6, 0);
+
 #ifdef _APP_HAVE_SKIPUAC
 	if (_r_sys_uacstate () && SkipUacRun ())
 	{
@@ -105,8 +107,6 @@ BOOL rapp::Initialize ()
 		_r_msg (nullptr, MB_OK | MB_ICONEXCLAMATION, app_name, nullptr, L"WARNING! 32-bit executable may incompatible with 64-bit operating system version!");
 	}
 #endif // _WIN64
-
-	is_vistaorlater = _r_sys_validversion (6, 0);
 
 	return TRUE;
 }
@@ -876,8 +876,6 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			this_ptr->InitSettingsPage (hwnd, TRUE);
 
-			SetFocus (nullptr);
-
 			break;
 		}
 
@@ -889,21 +887,6 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			{
 				switch (lphdr->code)
 				{
-					case TVN_SELCHANGING:
-					{
-						LPNMTREEVIEW pnmtv = (LPNMTREEVIEW)lparam;
-
-						PAPPLICATION_PAGE ptr1 = this_ptr->app_settings_pages.at (size_t (pnmtv->itemNew.lParam));
-
-						if (!ptr1->dlg_id)
-						{
-							SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)this_ptr->app_settings_pages.at (size_t (pnmtv->itemNew.lParam) + 1)->item);
-							return TRUE;
-						}
-
-						break;
-					}
-
 					case TVN_SELCHANGED:
 					{
 						LPNMTREEVIEW pnmtv = (LPNMTREEVIEW)lparam;
@@ -915,7 +898,10 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 							ShowWindow (this_ptr->app_settings_pages.at (old_id)->hwnd, SW_HIDE);
 
 						if (this_ptr->app_settings_pages.at (new_id)->hwnd)
+						{
 							ShowWindow (this_ptr->app_settings_pages.at (new_id)->hwnd, SW_SHOW);
+							SetFocus (this_ptr->app_settings_pages.at (new_id)->hwnd);
+						}
 
 						this_ptr->ConfigSet (L"SettingsLastPage", new_id);
 
@@ -934,9 +920,13 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 				case IDOK: // process Enter key
 				case IDC_APPLY:
 				{
-					BOOL is_newlocale = FALSE;
+					// if not enabled - nothing is changed!
+					if (!IsWindowEnabled (GetDlgItem (hwnd, IDC_APPLY)))
+						return FALSE;
 
-					_r_ctrl_enable (hwnd, IDC_APPLY, FALSE);
+					HWND hfocus = GetFocus ();
+
+					BOOL is_newlocale = FALSE;
 
 					for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 					{
@@ -966,6 +956,8 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					}
 
 					this_ptr->InitSettingsPage (hwnd, is_newlocale);
+
+					SetFocus (hfocus);
 
 					break;
 				}
