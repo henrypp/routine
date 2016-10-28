@@ -35,7 +35,8 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 
 	if (!_r_fs_exists (app_config_path))
 	{
-		ExpandEnvironmentStrings (_r_fmt (L"%%APPDATA%%\\%s\\%s", _APP_AUTHOR, app_name), app_profile_directory, _countof (app_profile_directory));
+		ExpandEnvironmentStrings (L"%APPDATA%\\" _APP_AUTHOR L"\\", app_profile_directory, _countof (app_profile_directory));
+		StringCchCat (app_profile_directory, _countof (app_profile_directory), app_name);
 		StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s.ini", app_profile_directory, app_name_short);
 	}
 	else
@@ -545,7 +546,7 @@ VOID rapp::ClearSettingsPage ()
 {
 	for (size_t i = 0; i < app_settings_pages.size (); i++)
 	{
-		PAPPLICATION_PAGE ptr = app_settings_pages.at (i);
+		PAPPLICATION_PAGE const ptr = app_settings_pages.at (i);
 
 		delete ptr;
 	}
@@ -571,7 +572,7 @@ VOID rapp::InitSettingsPage (HWND hwnd, BOOL is_newlocale)
 	// initialize treeview
 	for (size_t i = 0; i < app_settings_pages.size (); i++)
 	{
-		PAPPLICATION_PAGE ptr = app_settings_pages.at (i);
+		PAPPLICATION_PAGE const ptr = app_settings_pages.at (i);
 
 		if (is_newlocale)
 		{
@@ -592,7 +593,7 @@ VOID rapp::InitSettingsPage (HWND hwnd, BOOL is_newlocale)
 			text.Clear ();
 		}
 
-		if (ptr->dlg_id)
+		if (ptr->dlg_id && ptr->callback)
 			ptr->callback (ptr->hwnd, _RM_INITIALIZE, nullptr, ptr);
 	}
 
@@ -821,7 +822,10 @@ INT_PTR CALLBACK rapp::SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LP
 			wmsg.wParam = wparam;
 			wmsg.lParam = lparam;
 
-			PAPPLICATION_PAGE ptr = this_ptr->app_settings_pages.at (this_ptr->ConfigGet (L"SettingsLastPage", 0).AsSizeT ());
+			PAPPLICATION_PAGE const ptr = this_ptr->app_settings_pages.at (this_ptr->ConfigGet (L"SettingsLastPage", 0).AsSizeT ());
+
+			if (!ptr->callback)
+				break;
 
 			result = ptr->callback (hwnd, _RM_MESSAGE, &wmsg, ptr);
 
@@ -879,6 +883,23 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			break;
 		}
 
+		case WM_DESTROY:
+		{
+			for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
+			{
+				PAPPLICATION_PAGE const ptr = this_ptr->app_settings_pages.at (i);
+
+				// send close message to settings callback
+				if (!ptr->h && ptr->callback)
+				{
+					ptr->callback (ptr->hwnd, _RM_UNINITIALIZE, nullptr, ptr);
+					break;
+				}
+			}
+
+			break;
+		}
+
 		case WM_NOTIFY:
 		{
 			LPNMHDR lphdr = (LPNMHDR)lparam;
@@ -930,9 +951,9 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 					for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 					{
-						PAPPLICATION_PAGE ptr = this_ptr->app_settings_pages.at (i);
+						PAPPLICATION_PAGE const ptr = this_ptr->app_settings_pages.at (i);
 
-						if (ptr->dlg_id)
+						if (ptr->dlg_id && ptr->callback)
 						{
 							if (ptr->callback (ptr->hwnd, _RM_SAVE, nullptr, ptr))
 								is_newlocale = TRUE;
