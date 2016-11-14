@@ -31,18 +31,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	PathRemoveFileSpec (app_directory);
 
 	// get configuration path
-	StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s.ini", app_directory, app_name_short);
-
-	if (!_r_fs_exists (app_config_path))
-	{
-		ExpandEnvironmentStrings (L"%APPDATA%\\" _APP_AUTHOR L"\\", app_profile_directory, _countof (app_profile_directory));
-		StringCchCat (app_profile_directory, _countof (app_profile_directory), app_name);
-		StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s.ini", app_profile_directory, app_name_short);
-	}
-	else
-	{
-		StringCchCopy (app_profile_directory, _countof (app_profile_directory), app_directory);
-	}
+	StringCchCopy (app_config_path, _countof (app_config_path), GetProfileDirectory (_r_fmt (L"%s.ini", app_name_short)));
 
 	HDC h = GetDC (nullptr);
 
@@ -81,33 +70,20 @@ BOOL rapp::Initialize ()
 
 	if (GetLastError () == ERROR_ALREADY_EXISTS)
 	{
-		HWND h = FindWindowEx (nullptr, nullptr, nullptr, app_name);
-
-		if (h)
-		{
-			_r_wnd_toggle (h, TRUE);
-			return FALSE;
-		}
+		ActivateWindow ();
 
 		CloseHandle (app_mutex);
 		app_mutex = nullptr;
+
+		return FALSE;
 	}
 
 	is_vistaorlater = _r_sys_validversion (6, 0);
 
 #ifdef _APP_HAVE_SKIPUAC
 	if (_r_sys_uacstate () && SkipUacRun ())
-	{
 		return FALSE;
-	}
 #endif // _APP_HAVE_SKIPUAC
-
-#ifndef _WIN64
-	if (_r_sys_iswow64 ())
-	{
-		_r_msg (nullptr, MB_OK | MB_ICONEXCLAMATION, app_name, nullptr, L"WARNING! 32-bit executable may incompatible with 64-bit operating system version!");
-	}
-#endif // _WIN64
 
 	return TRUE;
 }
@@ -138,6 +114,48 @@ VOID rapp::AutorunCreate (BOOL is_remove)
 
 		RegCloseKey (key);
 	}
+}
+
+BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
+{
+	// compare by window title
+	WCHAR title[MAX_PATH] = {0};
+	SendMessageTimeout (hwnd, WM_GETTEXT, _countof (title), (LPARAM)title, SMTO_ABORTIFHUNG, 1000, nullptr);
+
+	if (_wcsnicmp (title, (LPCWSTR)lparam, _countof (title)) != 0)
+		return TRUE;
+
+	// compare by process name
+	DWORD pid = 0;
+	GetWindowThreadProcessId (hwnd, &pid);
+
+	WCHAR my_path[MAX_PATH] = {0};
+	GetModuleFileName (nullptr, my_path, _countof (my_path));
+
+	HANDLE h = OpenProcess (PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+
+	if (h)
+	{
+		WCHAR path[MAX_PATH] = {0};
+		DWORD size = _countof (path);
+
+		if (QueryFullProcessImageName (h, 0, path, &size))
+		{
+			if (_wcsnicmp (my_path, path, _countof (my_path)) == 0)
+			{
+				_r_wnd_toggle (hwnd, TRUE);
+
+				return FALSE;
+			}
+		}
+	}
+
+	return TRUE;
+}
+
+VOID rapp::ActivateWindow ()
+{
+	EnumWindows (&ActivateWindowCallback, (LPARAM)app_name);
 }
 
 BOOL rapp::AutorunIsPresent ()
@@ -233,9 +251,9 @@ rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name) const
 
 BOOL rapp::ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name)
 {
-	if (!_r_fs_exists (app_profile_directory))
+	if (!_r_fs_exists (GetProfileDirectory (nullptr)))
 	{
-		_r_fs_mkdir (app_profile_directory);
+		_r_fs_mkdir (GetProfileDirectory (nullptr));
 	}
 
 	if (!name)
@@ -601,14 +619,35 @@ VOID rapp::InitSettingsPage (HWND hwnd, BOOL is_newlocale)
 }
 #endif // _APP_NO_SETTINGS
 
-rstring rapp::GetDirectory () const
+rstring rapp::GetProfileDirectory (LPCWSTR filename) const
 {
-	return app_directory;
-}
+	if (!filename)
+		return app_directory;
 
-rstring rapp::GetProfileDirectory () const
-{
-	return app_profile_directory;
+	WCHAR buffer[MAX_PATH] = {0};
+	StringCchPrintf (buffer, _countof (buffer), L"%s\\%s", app_directory, filename);
+
+	if (!_r_fs_exists (buffer))
+	{
+		WCHAR tmp[MAX_PATH] = {0};
+
+		StringCchCopy (tmp, _countof (tmp), L"%APPDATA%\\" _APP_AUTHOR L"\\");
+		StringCchCat (tmp, _countof (tmp), app_name);
+
+		ExpandEnvironmentStrings (tmp, buffer, _countof (buffer));
+	}
+	else
+	{
+		StringCchCopy (buffer, _countof (buffer), app_directory);
+	}
+
+	if (filename)
+	{
+		StringCchCat (buffer, _countof (buffer), L"\\");
+		StringCchCat (buffer, _countof (buffer), filename);
+	}
+
+	return buffer;
 }
 
 rstring rapp::GetUserAgent () const
@@ -685,7 +724,7 @@ VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id, BOOL is_menu, const UINT id_start
 	}
 
 	WIN32_FIND_DATA wfd = {0};
-	HANDLE h = FindFirstFile (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\*.ini", app_directory), &wfd);
+	HANDLE h = FindFirstFile (_r_fmt (L"%s\\*.ini", GetProfileDirectory (_APP_I18N_DIRECTORY)), &wfd);
 
 	if (h != INVALID_HANDLE_VALUE)
 	{
@@ -745,7 +784,7 @@ VOID rapp::LocaleInit ()
 	is_localized = FALSE;
 
 	if (!name.IsEmpty ())
-		is_localized = ParseINI (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\%s.ini", GetDirectory (), name), &app_locale_array);
+		is_localized = ParseINI (_r_fmt (L"%s\\%s.ini", GetProfileDirectory (_APP_I18N_DIRECTORY), name), &app_locale_array);
 }
 
 rstring rapp::LocaleString (HINSTANCE h, UINT uid, LPCWSTR name)

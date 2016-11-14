@@ -585,7 +585,7 @@ BOOL _r_sys_iswow64 ()
 	}
 
 	return result;
-	}
+}
 #endif // _WIN64
 
 BOOL _r_sys_securitydescriptor (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURITY_DESCRIPTOR sd)
@@ -802,9 +802,7 @@ VOID _r_wnd_toggle (HWND hwnd, BOOL show)
 		ShowWindow (hwnd, SW_SHOW);
 
 		if (GetLastError () == ERROR_ACCESS_DENIED)
-		{
 			SendMessage (hwnd, WM_SYSCOMMAND, SC_RESTORE, 0); // uipi fix
-		}
 
 		SetForegroundWindow (hwnd);
 		SwitchToThisWindow (hwnd, TRUE);
@@ -1265,6 +1263,8 @@ DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle)
 	SetWindowTheme (GetDlgItem (hwnd, ctrl), L"Explorer", nullptr);
 	_r_wnd_top ((HWND)SendDlgItemMessage (hwnd, ctrl, LVM_GETTOOLTIPS, 0, 0), TRUE); // listview-tooltip-HACK!!!
 
+	SendDlgItemMessage (hwnd, ctrl, LVM_SETUNICODEFORMAT, TRUE, 0);
+
 	return (DWORD)SendDlgItemMessage (hwnd, ctrl, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, (LPARAM)exstyle);
 }
 
@@ -1367,6 +1367,6 @@ BOOL _r_status_settext (HWND hwnd, UINT ctrl, INT part, LPCWSTR text)
 
 VOID _r_status_setstyle (HWND hwnd, UINT ctrl, INT height)
 {
-	SendDlgItemMessage (hwnd, ctrl, SB_SETMINHEIGHT, (WPARAM)height, NULL);
-	SendDlgItemMessage (hwnd, ctrl, WM_SIZE, 0, NULL);
+	SendDlgItemMessage (hwnd, ctrl, SB_SETMINHEIGHT, (WPARAM)height, 0);
+	SendDlgItemMessage (hwnd, ctrl, WM_SIZE, 0, 0);
 }
