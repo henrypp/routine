@@ -105,7 +105,7 @@ public:
 	VOID InitSettingsPage (HWND hwnd, BOOL is_restart);
 #endif // _APP_NO_SETTINGS
 
-	rstring GetProfileDirectory (LPCWSTR filename) const;
+	rstring GetProfileDirectory () const;
 
 	rstring GetUserAgent () const;
 
@@ -176,6 +176,7 @@ private:
 	HICON app_icon_2 = nullptr;
 
 	WCHAR app_directory[MAX_PATH];
+	WCHAR app_profile_directory[MAX_PATH];
 	WCHAR app_config_path[MAX_PATH];
 
 	WCHAR app_name[MAX_PATH];

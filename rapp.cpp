@@ -31,7 +31,18 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	PathRemoveFileSpec (app_directory);
 
 	// get configuration path
-	StringCchCopy (app_config_path, _countof (app_config_path), GetProfileDirectory (_r_fmt (L"%s.ini", app_name_short)));
+	StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s.ini", app_directory, app_name_short);
+
+	if (!_r_fs_exists (app_config_path))
+	{
+		ExpandEnvironmentStrings (L"%APPDATA%\\" _APP_AUTHOR L"\\", app_profile_directory, _countof (app_profile_directory));
+		StringCchCat (app_profile_directory, _countof (app_profile_directory), app_name);
+		StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s.ini", app_profile_directory, app_name_short);
+	}
+	else
+	{
+		StringCchCopy (app_profile_directory, _countof (app_profile_directory), app_directory);
+	}
 
 	HDC h = GetDC (nullptr);
 
@@ -251,9 +262,9 @@ rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name) const
 
 BOOL rapp::ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name)
 {
-	if (!_r_fs_exists (GetProfileDirectory (nullptr)))
+	if (!_r_fs_exists (app_profile_directory))
 	{
-		_r_fs_mkdir (GetProfileDirectory (nullptr));
+		_r_fs_mkdir (app_profile_directory);
 	}
 
 	if (!name)
@@ -372,7 +383,7 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 
 			if (ConfigGet (L"ClassicUI", 0).AsBool ())
 				SetThemeAppProperties (1);
-		}
+	}
 
 		// create window
 #ifdef IDD_MAIN
@@ -429,7 +440,7 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 		{
 			result = FALSE;
 		}
-	}
+}
 
 	return result;
 }
@@ -619,35 +630,9 @@ VOID rapp::InitSettingsPage (HWND hwnd, BOOL is_newlocale)
 }
 #endif // _APP_NO_SETTINGS
 
-rstring rapp::GetProfileDirectory (LPCWSTR filename) const
+rstring rapp::GetProfileDirectory () const
 {
-	if (!filename)
-		return app_directory;
-
-	WCHAR buffer[MAX_PATH] = {0};
-	StringCchPrintf (buffer, _countof (buffer), L"%s\\%s", app_directory, filename);
-
-	if (!_r_fs_exists (buffer))
-	{
-		WCHAR tmp[MAX_PATH] = {0};
-
-		StringCchCopy (tmp, _countof (tmp), L"%APPDATA%\\" _APP_AUTHOR L"\\");
-		StringCchCat (tmp, _countof (tmp), app_name);
-
-		ExpandEnvironmentStrings (tmp, buffer, _countof (buffer));
-	}
-	else
-	{
-		StringCchCopy (buffer, _countof (buffer), app_directory);
-	}
-
-	if (filename)
-	{
-		StringCchCat (buffer, _countof (buffer), L"\\");
-		StringCchCat (buffer, _countof (buffer), filename);
-	}
-
-	return buffer;
+	return app_profile_directory;
 }
 
 rstring rapp::GetUserAgent () const
@@ -724,7 +709,7 @@ VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id, BOOL is_menu, const UINT id_start
 	}
 
 	WIN32_FIND_DATA wfd = {0};
-	HANDLE h = FindFirstFile (_r_fmt (L"%s\\*.ini", GetProfileDirectory (_APP_I18N_DIRECTORY)), &wfd);
+	HANDLE h = FindFirstFile (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\*.ini", app_directory), &wfd);
 
 	if (h != INVALID_HANDLE_VALUE)
 	{
@@ -784,7 +769,7 @@ VOID rapp::LocaleInit ()
 	is_localized = FALSE;
 
 	if (!name.IsEmpty ())
-		is_localized = ParseINI (_r_fmt (L"%s\\%s.ini", GetProfileDirectory (_APP_I18N_DIRECTORY), name), &app_locale_array);
+		is_localized = ParseINI (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\%s.ini", app_directory, name), &app_locale_array);
 }
 
 rstring rapp::LocaleString (HINSTANCE h, UINT uid, LPCWSTR name)
