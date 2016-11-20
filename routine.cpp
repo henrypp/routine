@@ -897,18 +897,32 @@ BOOL _r_run (LPCWSTR cmdline, LPCWSTR cd, BOOL is_wait)
 	return result;
 }
 
-rstring _r_normalize_path (rstring path)
+rstring _r_path_expand (rstring path)
 {
 	rstring result;
 
 	if (path.Find (L'%') != rstring::npos)
 	{
-		ExpandEnvironmentStrings (path, result.GetBuffer (1024), 1024);
+		if (!ExpandEnvironmentStrings (path, result.GetBuffer (4096), 4096))
+			result = path;
 	}
 	else
 	{
-		PathSearchAndQualify (path, result.GetBuffer (1024), 1024);
+		if (!PathSearchAndQualify (path, result.GetBuffer (4096), 4096))
+			result = path;
 	}
+
+	result.ReleaseBuffer ();
+
+	return result;
+}
+
+rstring _r_path_unexpand (rstring path)
+{
+	rstring result;
+
+	if (!PathUnExpandEnvStrings (path, result.GetBuffer (4096), 4096))
+		result = path;
 
 	result.ReleaseBuffer ();
 

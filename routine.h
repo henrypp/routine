@@ -131,7 +131,8 @@ VOID _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT in
 
 HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d);
 BOOL _r_run (LPCWSTR cmdline, LPCWSTR cd = nullptr, BOOL is_wait = FALSE);
-rstring _r_normalize_path (rstring path);
+rstring _r_path_expand (rstring path);
+rstring _r_path_unexpand (rstring path);
 
 /*
 	Control: common
