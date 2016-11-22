@@ -105,6 +105,7 @@ public:
 	VOID InitSettingsPage (HWND hwnd, BOOL is_restart);
 #endif // _APP_NO_SETTINGS
 
+	rstring GetDirectory () const;
 	rstring GetProfileDirectory () const;
 
 	rstring GetUserAgent () const;

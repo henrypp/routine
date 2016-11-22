@@ -31,7 +31,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	PathRemoveFileSpec (app_directory);
 
 	// get configuration path
-	StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s.ini", app_directory, app_name_short);
+	StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s.ini", GetDirectory (), app_name_short);
 
 	if (!_r_fs_exists (app_config_path))
 	{
@@ -41,7 +41,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	}
 	else
 	{
-		StringCchCopy (app_profile_directory, _countof (app_profile_directory), app_directory);
+		StringCchCopy (app_profile_directory, _countof (app_profile_directory), GetDirectory ());
 	}
 
 	HDC h = GetDC (nullptr);
@@ -99,34 +99,6 @@ BOOL rapp::Initialize ()
 	return TRUE;
 }
 
-#ifdef _APP_HAVE_AUTORUN
-VOID rapp::AutorunCreate (BOOL is_remove)
-{
-	HKEY key = nullptr;
-
-	if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE | KEY_READ, &key) == ERROR_SUCCESS)
-	{
-		if (is_remove)
-		{
-			RegDeleteValue (key, app_name);
-		}
-		else
-		{
-			WCHAR buffer[MAX_PATH] = {0};
-
-			GetModuleFileName (nullptr, buffer, _countof (buffer));
-			PathQuoteSpaces (buffer);
-
-			StringCchCat (buffer, _countof (buffer), L" ");
-			StringCchCat (buffer, _countof (buffer), L"/minimized");
-
-			RegSetValueEx (key, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) + 1) * sizeof (WCHAR)));
-		}
-
-		RegCloseKey (key);
-	}
-}
-
 BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 {
 	// compare by window title
@@ -167,6 +139,34 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 VOID rapp::ActivateWindow ()
 {
 	EnumWindows (&ActivateWindowCallback, (LPARAM)app_name);
+}
+
+#ifdef _APP_HAVE_AUTORUN
+VOID rapp::AutorunCreate (BOOL is_remove)
+{
+	HKEY key = nullptr;
+
+	if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE | KEY_READ, &key) == ERROR_SUCCESS)
+	{
+		if (is_remove)
+		{
+			RegDeleteValue (key, app_name);
+		}
+		else
+		{
+			WCHAR buffer[MAX_PATH] = {0};
+
+			GetModuleFileName (nullptr, buffer, _countof (buffer));
+			PathQuoteSpaces (buffer);
+
+			StringCchCat (buffer, _countof (buffer), L" ");
+			StringCchCat (buffer, _countof (buffer), L"/minimized");
+
+			RegSetValueEx (key, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) + 1) * sizeof (WCHAR)));
+		}
+
+		RegCloseKey (key);
+	}
 }
 
 BOOL rapp::AutorunIsPresent ()
@@ -383,7 +383,7 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 
 			if (ConfigGet (L"ClassicUI", 0).AsBool ())
 				SetThemeAppProperties (1);
-	}
+		}
 
 		// create window
 #ifdef IDD_MAIN
@@ -440,7 +440,7 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 		{
 			result = FALSE;
 		}
-}
+	}
 
 	return result;
 }
@@ -630,6 +630,11 @@ VOID rapp::InitSettingsPage (HWND hwnd, BOOL is_newlocale)
 }
 #endif // _APP_NO_SETTINGS
 
+rstring rapp::GetDirectory () const
+{
+	return app_directory;
+}
+
 rstring rapp::GetProfileDirectory () const
 {
 	return app_profile_directory;
@@ -709,7 +714,7 @@ VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id, BOOL is_menu, const UINT id_start
 	}
 
 	WIN32_FIND_DATA wfd = {0};
-	HANDLE h = FindFirstFile (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\*.ini", app_directory), &wfd);
+	HANDLE h = FindFirstFile (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\*.ini", GetDirectory ()), &wfd);
 
 	if (h != INVALID_HANDLE_VALUE)
 	{
@@ -769,7 +774,7 @@ VOID rapp::LocaleInit ()
 	is_localized = FALSE;
 
 	if (!name.IsEmpty ())
-		is_localized = ParseINI (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\%s.ini", app_directory, name), &app_locale_array);
+		is_localized = ParseINI (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\%s.ini", GetDirectory (), name), &app_locale_array);
 }
 
 rstring rapp::LocaleString (HINSTANCE h, UINT uid, LPCWSTR name)
