@@ -78,16 +78,13 @@ rapp::~rapp ()
 	if (app_callback)
 		app_callback (GetHWND (), _RM_UNINITIALIZE, nullptr, nullptr);
 
-	if (app_mutex)
-	{
-		CloseHandle (app_mutex);
-		app_mutex = nullptr;
-	}
 
 #ifndef _APP_NO_SETTINGS
 	ClearSettingsPage ();
 #endif // _APP_NO_SETTINGS
-	}
+
+	UninitializeMutex ();
+}
 
 BOOL rapp::InitializeMutex ()
 {
@@ -438,6 +435,17 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 		return FALSE;
 #endif // _APP_HAVE_SKIPUAC
 
+	// check arguments
+	INT numargs = 0;
+	LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
+
+	if(callback && arga && numargs > 1)
+	{
+		callback (nullptr, _RM_ARGUMENTS, nullptr, nullptr);
+	}
+
+	LocalFree (arga);
+
 	if (CheckMutex (TRUE))
 		return FALSE;
 
@@ -508,14 +516,14 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 #endif // _APP_NO_UPDATES
 
 		result = TRUE;
-		}
+	}
 	else
 	{
 		result = FALSE;
 	}
 
 	return result;
-	}
+}
 
 #ifdef _APP_HAVE_TRAY
 BOOL rapp::TrayCreate (HWND hwnd, UINT uid, UINT code, HICON h)
@@ -731,7 +739,7 @@ VOID rapp::AddSettingsItem (LPCWSTR name, LPCWSTR def_value, CfgType type, UINT 
 		StringCchCopy (ptr->locale_sid, _countof (ptr->locale_sid), locale_sid);
 
 		app_configs[name] = ptr;
-}
+	}
 }
 #endif // _APP_HAVE_SIMPLE_SETTINGS
 
@@ -1567,7 +1575,7 @@ BOOL rapp::RunAsAdmin ()
 					InitializeMutex ();
 			}
 		}
-	}
+}
 
 	return result;
 }
