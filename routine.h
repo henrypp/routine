@@ -46,8 +46,8 @@ rstring _r_dbg_error (DWORD errcode = GetLastError ());
 
 rstring _r_fmt (LPCWSTR format, ...);
 
-rstring _r_fmt_date (LPFILETIME ft, const DWORD flags = FDTF_DEFAULT); // see SHFormatDateTime flags definition
-rstring _r_fmt_date (__time64_t ut, const DWORD flags = FDTF_DEFAULT);
+rstring _r_fmt_date (const LPFILETIME ft, const DWORD flags = FDTF_DEFAULT); // see SHFormatDateTime flags definition
+rstring _r_fmt_date (const __time64_t ut, const DWORD flags = FDTF_DEFAULT);
 
 rstring _r_fmt_size64 (DWORDLONG size);
 
@@ -72,10 +72,11 @@ VOID _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length);
 	Filesystem
 */
 
+INT _r_fs_delete (LPCWSTR path, BOOL allowundo);
 BOOL _r_fs_exists (LPCWSTR path);
 BOOL _r_fs_mkdir (LPCWSTR path);
 BOOL _r_fs_rmdir (LPCWSTR path);
-BOOL _r_fs_readfile (HANDLE h, rstring* result);
+BOOL _r_fs_readfile (HANDLE h, LPVOID result, DWORD64 size);
 DWORD64 _r_fs_size (HANDLE h);
 
 /*
@@ -103,14 +104,15 @@ BOOL _r_sys_securitydescriptor (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURIT
 BOOL _r_sys_setprivilege (LPCWSTR privilege, BOOL is_enable);
 BOOL _r_sys_uacstate ();
 BOOL _r_sys_validversion (DWORD major, DWORD minor, BYTE condition = VER_GREATER_EQUAL);
+VOID _r_sleep (DWORD milliseconds);
 
 /*
 	Unixtime
 */
 
 __time64_t _r_unixtime_now (BOOL is_local = TRUE);
-VOID _r_unixtime_to_filetime (__time64_t ut, LPFILETIME pft);
-VOID _r_unixtime_to_systemtime (__time64_t ut, LPSYSTEMTIME pst);
+VOID _r_unixtime_to_filetime (__time64_t ut, const LPFILETIME pft);
+VOID _r_unixtime_to_systemtime (__time64_t ut, const LPSYSTEMTIME pst);
 __time64_t _r_unixtime_from_filetime (const FILETIME* pft);
 __time64_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst);
 
@@ -133,6 +135,7 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d);
 BOOL _r_run (LPCWSTR cmdline, LPCWSTR cd = nullptr, BOOL is_wait = FALSE);
 rstring _r_path_expand (rstring path);
 rstring _r_path_unexpand (rstring path);
+size_t _r_rnd (size_t start, size_t end);
 
 /*
 	Control: common
@@ -150,24 +153,30 @@ BOOL _r_ctrl_showtip (HWND hwnd, UINT ctrl, LPCWSTR title, LPCWSTR text, INT ico
 	Control: listview
 */
 
-VOID _r_listview_resizeonecolumn (HWND hwnd, UINT ctrl_id);
-BOOL _r_listview_getcheckstate (HWND hwnd, UINT ctrl, size_t item);
-BOOL _r_listview_setcheckstate (HWND hwnd, UINT ctrl, size_t item, BOOL state);
 INT _r_listview_addcolumn (HWND hwnd, UINT ctrl, LPCWSTR text, UINT width, size_t subitem, INT fmt);
 INT _r_listview_addgroup (HWND hwnd, UINT ctrl, size_t group_id, LPCWSTR text, UINT align = 0, UINT state = 0);
 INT _r_listview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t subitem, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
-INT _r_listview_setitem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t subitem, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
+
 VOID _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl);
 VOID _r_listview_deleteallgroups (HWND hwnd, UINT ctrl);
 VOID _r_listview_deleteallitems (HWND hwnd, UINT ctrl);
+
+BOOL _r_listview_getcheckstate (HWND hwnd, UINT ctrl, size_t item);
 INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl, INT column);
 size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl, BOOL list_checked = FALSE);
 INT _r_listview_getcolumncount (HWND hwnd, UINT ctrl);
 LPARAM _r_listview_getlparam (HWND hwnd, UINT ctrl, size_t item);
 rstring _r_listview_gettext (HWND hwnd, UINT ctrl, size_t item, size_t subitem);
-DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle);
-BOOL _r_listview_setlparam (HWND hwnd, UINT ctrl, UINT item, LPARAM param);
+
+BOOL _r_listview_setcheckstate (HWND hwnd, UINT ctrl, size_t item, BOOL state);
 BOOL _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl, INT column, INT arrow);
+BOOL _r_listview_setgroup (HWND hwnd, UINT ctrl, UINT item, size_t group_id);
+INT _r_listview_setitem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t subitem, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
+BOOL _r_listview_setlparam (HWND hwnd, UINT ctrl, UINT item, LPARAM param);
+DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle);
+
+VOID _r_listview_resizeonecolumn (HWND hwnd, UINT ctrl_id);
+
 
 /*
 	Control: treeview

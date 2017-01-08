@@ -1,5 +1,5 @@
 // routine++
-// Copyright (c) 2012-2016 Henry++
+// Copyright (c) 2012-2017 Henry++
 
 #include "rapp.h"
 
@@ -9,6 +9,20 @@ CONST UINT WM_TASKBARCREATED = RegisterWindowMessage (L"TaskbarCreated");
 
 rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright)
 {
+	// initialize security descriptors
+	SecureZeroMemory (&sd, sizeof (sd));
+	SecureZeroMemory (&sa, sizeof (sa));
+
+	if (InitializeSecurityDescriptor (&sd, SECURITY_DESCRIPTOR_REVISION))
+	{
+		if (SetSecurityDescriptorDacl (&sd, TRUE, nullptr, FALSE))
+		{
+			sa.nLength = sizeof (sa);
+			sa.lpSecurityDescriptor = &sd;
+			sa.bInheritHandle = TRUE;
+		}
+	}
+
 	// initialize controls
 	INITCOMMONCONTROLSEX icex = {0};
 
@@ -16,6 +30,10 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	icex.dwICC = ICC_WIN95_CLASSES | ICC_STANDARD_CLASSES;
 
 	InitCommonControlsEx (&icex);
+
+	// store system information
+	is_vistaorlater = _r_sys_validversion (6, 0);
+	is_admin = _r_sys_adminstate ();
 
 	// general information
 	StringCchCopy (app_name, _countof (app_name), name);
@@ -69,61 +87,72 @@ rapp::~rapp ()
 #ifndef _APP_NO_SETTINGS
 	ClearSettingsPage ();
 #endif // _APP_NO_SETTINGS
-}
-
-BOOL rapp::Initialize ()
-{
-	// check mutex
-	if (app_mutex)
-		CloseHandle (app_mutex);
-
-	app_mutex = CreateMutex (nullptr, FALSE, app_name_short);
-
-	if (GetLastError () == ERROR_ALREADY_EXISTS)
-	{
-		ActivateWindow ();
-
-		CloseHandle (app_mutex);
-		app_mutex = nullptr;
-
-		return FALSE;
 	}
 
-	is_vistaorlater = _r_sys_validversion (6, 0);
+BOOL rapp::InitializeMutex ()
+{
+	UninitializeMutex ();
 
-#ifdef _APP_HAVE_SKIPUAC
-	if (_r_sys_uacstate () && SkipUacRun ())
-		return FALSE;
-#endif // _APP_HAVE_SKIPUAC
+	app_mutex = CreateMutex (&sa, FALSE, app_name_short);
 
 	return TRUE;
 }
 
-BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
+BOOL rapp::UninitializeMutex ()
 {
-	// compare by window title
-	WCHAR title[MAX_PATH] = {0};
-	SendMessageTimeout (hwnd, WM_GETTEXT, _countof (title), (LPARAM)title, SMTO_ABORTIFHUNG, 1000, nullptr);
+	if (app_mutex)
+	{
+		CloseHandle (app_mutex);
 
-	if (_wcsnicmp (title, (LPCWSTR)lparam, _countof (title)) != 0)
+		app_mutex = nullptr;
+
 		return TRUE;
+	}
 
+	return FALSE;
+}
+
+BOOL rapp::CheckMutex (BOOL activate_window)
+{
+	BOOL result = FALSE;
+
+	HANDLE h = CreateMutex (&sa, FALSE, app_name_short);
+
+	if (GetLastError () == ERROR_ALREADY_EXISTS)
+	{
+		result = TRUE;
+
+		if (activate_window)
+			EnumWindows (&ActivateWindowCallback, 0);
+	}
+
+	if (h)
+		CloseHandle (h);
+
+	return result;
+}
+
+BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM)
+{
 	// compare by process name
 	DWORD pid = 0;
 	GetWindowThreadProcessId (hwnd, &pid);
 
-	WCHAR my_path[MAX_PATH] = {0};
+	WCHAR my_path[512] = {0};
 	GetModuleFileName (nullptr, my_path, _countof (my_path));
+	StringCchCopy (my_path, _countof (my_path), PathFindFileName (my_path));
 
 	HANDLE h = OpenProcess (PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
 
 	if (h)
 	{
-		WCHAR path[MAX_PATH] = {0};
+		WCHAR path[512] = {0};
 		DWORD size = _countof (path);
 
 		if (QueryFullProcessImageName (h, 0, path, &size))
 		{
+			StringCchCopy (path, _countof (path), PathFindFileName (path));
+
 			if (_wcsnicmp (my_path, path, _countof (my_path)) == 0)
 			{
 				_r_wnd_toggle (hwnd, TRUE);
@@ -131,14 +160,11 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 				return FALSE;
 			}
 		}
+
+		CloseHandle (h);
 	}
 
 	return TRUE;
-}
-
-VOID rapp::ActivateWindow ()
-{
-	EnumWindows (&ActivateWindowCallback, (LPARAM)app_name);
 }
 
 #ifdef _APP_HAVE_AUTORUN
@@ -207,10 +233,8 @@ VOID rapp::CheckForUpdates (BOOL is_periodical)
 {
 	if (is_periodical)
 	{
-		if (!ConfigGet (L"CheckUpdates", 1).AsBool () || (_r_unixtime_now () - ConfigGet (L"CheckUpdatesLast", 0).AsLonglong ()) <= _APP_UPDATE_PERIOD)
-		{
+		if (!ConfigGet (L"CheckUpdates", TRUE).AsBool () || (_r_unixtime_now () - ConfigGet (L"CheckUpdatesLast", 0).AsLonglong ()) <= _APP_UPDATE_PERIOD)
 			return;
-		}
 	}
 
 	is_update_forced = is_periodical;
@@ -307,14 +331,19 @@ VOID rapp::CreateAboutWindow ()
 }
 #endif // _APP_NO_ABOUT
 
-BOOL rapp::IsVistaOrLater ()
+BOOL rapp::IsAdmin ()
 {
-	return is_vistaorlater;
+	return is_admin;
 }
 
 BOOL rapp::IsClassicUI ()
 {
 	return is_classic;
+}
+
+BOOL rapp::IsVistaOrLater ()
+{
+	return is_vistaorlater;
 }
 
 VOID rapp::SetIcon (UINT icon_id)
@@ -353,12 +382,38 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 	{
 		case WM_THEMECHANGED:
 		{
-			this_ptr->is_classic = !IsThemeActive () || this_ptr->ConfigGet (L"ClassicUI", 0).AsBool ();
+			this_ptr->is_classic = !IsThemeActive () || this_ptr->ConfigGet (L"ClassicUI", FALSE).AsBool ();
 
 			if (this_ptr->app_callback)
 				this_ptr->app_callback (this_ptr->GetHWND (), _RM_LOCALIZE, nullptr, nullptr);
 
-			return FALSE;
+			break;
+		}
+
+		case WM_SIZE:
+		{
+#ifdef _APP_HAVE_TRAY
+			if (wparam == SIZE_MINIMIZED)
+			{
+				_r_wnd_toggle (hwnd, FALSE);
+				return TRUE;
+			}
+#endif // _APP_HAVE_TRAY
+
+			break;
+		}
+
+		case WM_SYSCOMMAND:
+		{
+#ifdef _APP_HAVE_TRAY
+			if (wparam == SC_CLOSE)
+			{
+				_r_wnd_toggle (hwnd, FALSE);
+				return TRUE;
+			}
+#endif // _APP_HAVE_TRAY
+
+			break;
 		}
 
 		case WM_QUERYENDSESSION:
@@ -368,6 +423,9 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		}
 	}
 
+	if (!this_ptr->app_wndproc) // check (required!)
+		return FALSE;
+
 	return CallWindowProc (this_ptr->app_wndproc, hwnd, msg, wparam, lparam);
 }
 
@@ -375,85 +433,99 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 {
 	BOOL result = FALSE;
 
-	if (Initialize ())
+#ifdef _APP_HAVE_SKIPUAC
+	if (RunAsAdmin ())
+		return FALSE;
+#endif // _APP_HAVE_SKIPUAC
+
+	if (CheckMutex (TRUE))
+		return FALSE;
+
+	InitializeMutex ();
+
+	if (ConfigGet (L"ClassicUI", FALSE).AsBool () || !IsThemeActive ())
 	{
-		if (ConfigGet (L"ClassicUI", 0).AsBool () || !IsThemeActive ())
-		{
-			is_classic = TRUE;
+		is_classic = TRUE;
 
-			if (ConfigGet (L"ClassicUI", 0).AsBool ())
-				SetThemeAppProperties (1);
-		}
+		if (ConfigGet (L"ClassicUI", FALSE).AsBool ())
+			SetThemeAppProperties (1);
+	}
 
-		// create window
+	// create window
 #ifdef IDD_MAIN
-		app_hwnd = CreateDialog (nullptr, MAKEINTRESOURCE (IDD_MAIN), nullptr, proc);
+	app_hwnd = CreateDialog (nullptr, MAKEINTRESOURCE (IDD_MAIN), nullptr, proc);
 #else
-		UNREFERENCED_PARAMETER (proc);
+	UNREFERENCED_PARAMETER (proc);
 #endif // IDD_MAIN
 
-		if (app_hwnd)
-		{
-			// set title
-			SetWindowText (GetHWND (), app_name);
+	if (app_hwnd)
+	{
+		// set on top
+		_r_wnd_top (GetHWND (), ConfigGet (L"AlwaysOnTop", FALSE).AsBool ());
 
-			// set on top
-			_r_wnd_top (GetHWND (), ConfigGet (L"AlwaysOnTop", 0).AsBool ());
-
-			// enable messages bypass uipi
+		// show window
+#ifndef _APP_STARTMINIMIZED
 #ifdef _APP_HAVE_TRAY
-			_r_wnd_changemessagefilter (GetHWND (), WM_TASKBARCREATED, MSGFLT_ALLOW);
+		if (!wcsstr (GetCommandLine (), L"/minimized") && !ConfigGet (L"StartMinimized", FALSE).AsBool ())
+			_r_wnd_toggle (GetHWND (), TRUE);
+#else
+		_r_wnd_toggle (GetHWND (), TRUE);
+#endif // _APP_HAVE_TRAY
+#endif // _APP_STARTMINIMIZED
+
+		// enable messages bypass uipi
+#ifdef _APP_HAVE_TRAY
+		_r_wnd_changemessagefilter (GetHWND (), WM_TASKBARCREATED, MSGFLT_ALLOW);
 #endif // _APP_HAVE_TRAY
 
-			_r_wnd_changemessagefilter (GetHWND (), WM_DROPFILES, MSGFLT_ALLOW);
-			_r_wnd_changemessagefilter (GetHWND (), WM_COPYDATA, MSGFLT_ALLOW);
-			_r_wnd_changemessagefilter (GetHWND (), 0x0049, MSGFLT_ALLOW); // WM_COPYGLOBALDATA
+		_r_wnd_changemessagefilter (GetHWND (), WM_DROPFILES, MSGFLT_ALLOW);
+		_r_wnd_changemessagefilter (GetHWND (), WM_COPYDATA, MSGFLT_ALLOW);
+		_r_wnd_changemessagefilter (GetHWND (), 0x0049, MSGFLT_ALLOW); // WM_COPYGLOBALDATA
 
-			// subclass window
-			SetWindowLongPtr (GetHWND (), GWLP_USERDATA, (LONG_PTR)this);
-			app_wndproc = (WNDPROC)SetWindowLongPtr (GetHWND (), GWLP_WNDPROC, (LONG_PTR)this->MainWindowProc);
+		// subclass window
+		SetWindowLongPtr (GetHWND (), GWLP_USERDATA, (LONG_PTR)this);
+		app_wndproc = (WNDPROC)SetWindowLongPtr (GetHWND (), DWLP_DLGPROC, (LONG_PTR)MainWindowProc);
 
-			// set icons
+		// set icons
 #ifdef IDI_MAIN
-			SetIcon (IDI_MAIN);
+		SetIcon (IDI_MAIN);
 #endif // IDI_MAIN
 
-			// initialization callback
-			if (callback)
-			{
-				app_callback = callback;
+		// initialization callback
+		if (callback)
+		{
+			app_callback = callback;
 
-				app_callback (GetHWND (), _RM_INITIALIZE, nullptr, nullptr);
-				app_callback (GetHWND (), _RM_LOCALIZE, nullptr, nullptr);
+			app_callback (GetHWND (), _RM_INITIALIZE, nullptr, nullptr);
+			app_callback (GetHWND (), _RM_LOCALIZE, nullptr, nullptr);
 
-				DrawMenuBar (GetHWND ()); // redraw menu
-			}
+			DrawMenuBar (GetHWND ()); // redraw menu
+		}
 
-			// check for updates
+		// check for updates
 #ifndef _APP_NO_UPDATES
-			CheckForUpdates (TRUE);
+		CheckForUpdates (TRUE);
 #endif // _APP_NO_UPDATES
 
-			result = TRUE;
+		result = TRUE;
 		}
-		else
-		{
-			result = FALSE;
-		}
+	else
+	{
+		result = FALSE;
 	}
 
 	return result;
-}
+	}
 
 #ifdef _APP_HAVE_TRAY
-BOOL rapp::TrayCreate (UINT id, UINT code, HICON h)
+BOOL rapp::TrayCreate (HWND hwnd, UINT uid, UINT code, HICON h)
 {
 	BOOL result = FALSE;
 
 	nid.cbSize = IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
 	nid.uVersion = IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION;
-	nid.hWnd = GetHWND ();
-	nid.uID = id;
+	nid.hWnd = hwnd;
+	nid.uID = uid;
 	nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_SHOWTIP | NIF_TIP;
 	nid.uCallbackMessage = code;
 	nid.hIcon = h;
@@ -465,10 +537,10 @@ BOOL rapp::TrayCreate (UINT id, UINT code, HICON h)
 	return result;
 }
 
-BOOL rapp::TrayDestroy (UINT id)
+BOOL rapp::TrayDestroy (UINT uid)
 {
 	nid.cbSize = IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
-	nid.uID = id;
+	nid.uID = uid;
 
 	if (nid.hIcon)
 	{
@@ -548,7 +620,7 @@ VOID rapp::CreateSettingsWindow ()
 
 size_t rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback, size_t group_id, LPARAM lparam)
 {
-	PAPPLICATION_PAGE ptr = new APPLICATION_PAGE;
+	PAPP_SETTINGS_PAGE ptr = new APP_SETTINGS_PAGE;
 
 	if (ptr)
 	{
@@ -575,12 +647,24 @@ VOID rapp::ClearSettingsPage ()
 {
 	for (size_t i = 0; i < app_settings_pages.size (); i++)
 	{
-		PAPPLICATION_PAGE const ptr = app_settings_pages.at (i);
+		PAPP_SETTINGS_PAGE const ptr = app_settings_pages.at (i);
 
 		delete ptr;
 	}
 
 	app_settings_pages.clear ();
+
+#ifdef _APP_HAVE_SIMPLE_SETTINGS
+	for (auto const& p : app_configs)
+	{
+		PAPP_SETTINGS_CONFIG const ptr = p.second;
+
+		delete ptr;
+	}
+
+	app_configs.clear ();
+
+#endif // _APP_HAVE_SIMPLE_SETTINGS
 }
 
 VOID rapp::InitSettingsPage (HWND hwnd, BOOL is_newlocale)
@@ -601,7 +685,7 @@ VOID rapp::InitSettingsPage (HWND hwnd, BOOL is_newlocale)
 	// initialize treeview
 	for (size_t i = 0; i < app_settings_pages.size (); i++)
 	{
-		PAPPLICATION_PAGE const ptr = app_settings_pages.at (i);
+		PAPP_SETTINGS_PAGE const ptr = app_settings_pages.at (i);
 
 		if (is_newlocale)
 		{
@@ -629,6 +713,27 @@ VOID rapp::InitSettingsPage (HWND hwnd, BOOL is_newlocale)
 	_r_ctrl_enable (hwnd, IDC_APPLY, FALSE);
 }
 #endif // _APP_NO_SETTINGS
+
+#ifdef _APP_HAVE_SIMPLE_SETTINGS
+VOID rapp::AddSettingsItem (LPCWSTR name, LPCWSTR def_value, CfgType type, UINT locale_id, LPCWSTR locale_sid)
+{
+	if (app_configs.find (name) != app_configs.end ())
+		return;
+
+	PAPP_SETTINGS_CONFIG ptr = new APP_SETTINGS_CONFIG;
+
+	if (ptr)
+	{
+		ptr->type = type;
+		StringCchCopy (ptr->def_value, _countof (ptr->def_value), def_value);
+
+		ptr->locale_id = locale_id;
+		StringCchCopy (ptr->locale_sid, _countof (ptr->locale_sid), locale_sid);
+
+		app_configs[name] = ptr;
+}
+}
+#endif // _APP_HAVE_SIMPLE_SETTINGS
 
 rstring rapp::GetDirectory () const
 {
@@ -781,28 +886,35 @@ rstring rapp::LocaleString (HINSTANCE h, UINT uid, LPCWSTR name)
 {
 	rstring result;
 
-	if (is_localized)
+	if (!uid)
 	{
-		// check key is exists
-		if (app_locale_array[_APP_I18N_SECTION].find (name) != app_locale_array[_APP_I18N_SECTION].end ())
-		{
-			result = app_locale_array[_APP_I18N_SECTION][name];
-
-			result.Replace (L"\\t", L"\t");
-			result.Replace (L"\\r", L"\r");
-			result.Replace (L"\\n", L"\n");
-		}
+		result = name;
 	}
-
-	if (result.IsEmpty ())
+	else
 	{
-		if (!h)
+		if (is_localized)
 		{
-			h = GetHINSTANCE ();
+			// check key is exists
+			if (app_locale_array[_APP_I18N_SECTION].find (name) != app_locale_array[_APP_I18N_SECTION].end ())
+			{
+				result = app_locale_array[_APP_I18N_SECTION][name];
+
+				result.Replace (L"\\t", L"\t");
+				result.Replace (L"\\r", L"\r");
+				result.Replace (L"\\n", L"\n");
+			}
 		}
 
-		LoadString (h, uid, result.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH);
-		result.ReleaseBuffer ();
+		if (result.IsEmpty ())
+		{
+			if (!h)
+			{
+				h = GetHINSTANCE ();
+			}
+
+			LoadString (h, uid, result.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH);
+			result.ReleaseBuffer ();
+		}
 	}
 
 	return result;
@@ -851,7 +963,7 @@ INT_PTR CALLBACK rapp::SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LP
 			wmsg.wParam = wparam;
 			wmsg.lParam = lparam;
 
-			PAPPLICATION_PAGE const ptr = this_ptr->app_settings_pages.at (this_ptr->ConfigGet (L"SettingsLastPage", 0).AsSizeT ());
+			PAPP_SETTINGS_PAGE const ptr = this_ptr->app_settings_pages.at (this_ptr->ConfigGet (L"SettingsLastPage", 0).AsSizeT ());
 
 			if (!ptr->callback)
 				break;
@@ -896,7 +1008,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 			{
-				PAPPLICATION_PAGE ptr = this_ptr->app_settings_pages.at (i);
+				PAPP_SETTINGS_PAGE ptr = this_ptr->app_settings_pages.at (i);
 
 				if (ptr->dlg_id)
 					ptr->hwnd = CreateDialogParam (ptr->h, MAKEINTRESOURCE (ptr->dlg_id), hwnd, &this_ptr->SettingsPagesProc, (LPARAM)this_ptr);
@@ -907,6 +1019,13 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)ptr->item);
 			}
 
+#ifdef _APP_HAVE_SIMPLE_SETTINGS
+			for (auto const &p : this_ptr->app_configs)
+			{
+				_r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (nullptr, p.second->locale_id, p.second->locale_sid), this_ptr->app_settings_pages.at (0)->item, LAST_VALUE, 0);
+			}
+#endif // _APP_HAVE_SIMPLE_SETTINGS
+
 			this_ptr->InitSettingsPage (hwnd, TRUE);
 
 			break;
@@ -916,7 +1035,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 		{
 			for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 			{
-				PAPPLICATION_PAGE const ptr = this_ptr->app_settings_pages.at (i);
+				PAPP_SETTINGS_PAGE const ptr = this_ptr->app_settings_pages.at (i);
 
 				// send close message to settings callback
 				if (!ptr->h && ptr->callback)
@@ -980,7 +1099,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 					for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 					{
-						PAPPLICATION_PAGE const ptr = this_ptr->app_settings_pages.at (i);
+						PAPP_SETTINGS_PAGE const ptr = this_ptr->app_settings_pages.at (i);
 
 						if (ptr->dlg_id && ptr->callback)
 						{
@@ -1017,7 +1136,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 				{
 					EndDialog (hwnd, 0);
 
-					_r_wnd_top (this_ptr->GetHWND (), this_ptr->ConfigGet (L"AlwaysOnTop", 0).AsBool ());
+					_r_wnd_top (this_ptr->GetHWND (), this_ptr->ConfigGet (L"AlwaysOnTop", FALSE).AsBool ());
 
 					break;
 				}
@@ -1107,7 +1226,7 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 	}
 
 	return ERROR_SUCCESS;
-}
+	}
 #endif // _APP_NO_UPDATES
 
 BOOL rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
@@ -1413,43 +1532,41 @@ BOOL rapp::SkipUacIsPresent (BOOL is_run)
 }
 #endif // _APP_HAVE_SKIPUAC
 
-BOOL rapp::SkipUacRun ()
+BOOL rapp::RunAsAdmin ()
 {
 	BOOL result = FALSE;
 
 	if (_r_sys_uacstate ())
 	{
-		CloseHandle (app_mutex);
-		app_mutex = nullptr;
-
 #ifdef _APP_HAVE_SKIPUAC
 		result = SkipUacIsPresent (TRUE);
 #endif // _APP_HAVE_SKIPUAC
 
 		if (!result)
 		{
-			WCHAR buffer[MAX_PATH] = {0};
+			BOOL is_mutexdestroyed = UninitializeMutex ();
 
+			WCHAR buffer[MAX_PATH] = {0};
 			SHELLEXECUTEINFO shex = {0};
 
 			shex.cbSize = sizeof (shex);
 			shex.fMask = SEE_MASK_UNICODE | SEE_MASK_FLAG_NO_UI;
 			shex.lpVerb = L"runas";
 			shex.nShow = SW_NORMAL;
-
-			GetModuleFileName (nullptr, buffer, _countof (buffer));
 			shex.lpFile = buffer;
 
-			if (ShellExecuteEx (&shex))
-				result = TRUE;
-		}
+			GetModuleFileName (nullptr, buffer, _countof (buffer));
 
-		if (!result)
-			app_mutex = CreateMutex (nullptr, FALSE, app_name_short);
-	}
-	else
-	{
-		result = TRUE;
+			if (ShellExecuteEx (&shex))
+			{
+				result = TRUE;
+			}
+			else
+			{
+				if (is_mutexdestroyed)
+					InitializeMutex ();
+			}
+		}
 	}
 
 	return result;

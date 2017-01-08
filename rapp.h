@@ -1,5 +1,5 @@
 // routine++
-// Copyright (c) 2012-2016 Henry++
+// Copyright (c) 2012-2017 Henry++
 
 #pragma once
 
@@ -49,9 +49,29 @@ typedef struct
 
 	APPLICATION_CALLBACK callback;
 	LPARAM lparam = 0;
-} *PAPPLICATION_PAGE, APPLICATION_PAGE;
+} *PAPP_SETTINGS_PAGE, APP_SETTINGS_PAGE;
 
 #endif // _APP_NO_SETTINGS
+
+#ifdef _APP_HAVE_SIMPLE_SETTINGS
+enum CfgType
+{
+	Boolean,
+	Integer,
+	Long,
+	String,
+};
+
+typedef struct
+{
+	CfgType type;
+
+	WCHAR def_value[128] = {0};
+
+	UINT locale_id = 0;
+	WCHAR locale_sid[64] = {0};
+} *PAPP_SETTINGS_CONFIG, APP_SETTINGS_CONFIG;
+#endif // _APP_HAVE_SIMPLE_SETTINGS
 
 /*
 	Application class
@@ -65,10 +85,10 @@ public:
 	rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright);
 	~rapp ();
 
-	BOOL Initialize ();
+	BOOL InitializeMutex ();
+	BOOL UninitializeMutex ();
 
-	static BOOL CALLBACK ActivateWindowCallback (HWND hwnd, LPARAM lparam);
-	VOID ActivateWindow ();
+	BOOL CheckMutex (BOOL activate_window);
 
 #ifdef _APP_HAVE_AUTORUN
 	VOID AutorunCreate (BOOL is_remove);
@@ -92,8 +112,8 @@ public:
 	BOOL CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback);
 
 #ifdef _APP_HAVE_TRAY
-	BOOL TrayCreate (UINT id, UINT code, HICON h);
-	BOOL TrayDestroy (UINT id);
+	BOOL TrayCreate (HWND hwnd, UINT uid, UINT code, HICON h);
+	BOOL TrayDestroy (UINT uid);
 	BOOL TrayPopup (DWORD icon, LPCWSTR title, LPCWSTR text);
 	BOOL TraySetInfo (HICON h, LPCWSTR tooltip);
 #endif // _APP_HAVE_TRAY
@@ -104,6 +124,10 @@ public:
 	VOID ClearSettingsPage ();
 	VOID InitSettingsPage (HWND hwnd, BOOL is_restart);
 #endif // _APP_NO_SETTINGS
+
+#ifdef _APP_HAVE_SIMPLE_SETTINGS
+	VOID AddSettingsItem (LPCWSTR name, LPCWSTR def_value, CfgType type, UINT locale_id, LPCWSTR locale_sid);
+#endif // _APP_HAVE_SIMPLE_SETTINGS
 
 	rstring GetDirectory () const;
 	rstring GetProfileDirectory () const;
@@ -116,8 +140,9 @@ public:
 
 	VOID SetIcon (UINT icon_id);
 
-	BOOL IsVistaOrLater ();
+	BOOL IsAdmin ();
 	BOOL IsClassicUI ();
+	BOOL IsVistaOrLater ();
 
 	VOID LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id);
 	VOID LocaleEnum (HWND hwnd, INT ctrl_id, BOOL is_menu, const UINT id_start);
@@ -129,7 +154,7 @@ public:
 	BOOL SkipUacCreate (BOOL is_remove);
 	BOOL SkipUacIsPresent (BOOL run);
 #endif // _APP_HAVE_SKIPUAC
-	BOOL SkipUacRun ();
+	BOOL RunAsAdmin ();
 
 private:
 
@@ -143,17 +168,22 @@ private:
 #endif // _APP_NO_UPDATES
 
 	static LRESULT CALLBACK MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
+	static BOOL CALLBACK ActivateWindowCallback (HWND hwnd, LPARAM lparam);
 
 	BOOL ParseINI (LPCWSTR path, rstring::map_two* map);
 
 	VOID ConfigInit ();
 	VOID LocaleInit ();
 
+	SECURITY_ATTRIBUTES sa;
+	SECURITY_DESCRIPTOR sd;
+
 	DOUBLE dpi_percent = 0.f;
 
 	BOOL is_localized = FALSE;
 	BOOL is_classic = FALSE;
 	BOOL is_vistaorlater = FALSE;
+	BOOL is_admin = FALSE;
 
 #ifdef _APP_HAVE_TRAY
 	NOTIFYICONDATA nid = {0};
@@ -188,9 +218,14 @@ private:
 	rstring::map_two app_config_array;
 	rstring::map_two app_locale_array;
 
+#ifdef _APP_HAVE_SIMPLE_SETTINGS
+	std::unordered_map<rstring, PAPP_SETTINGS_CONFIG, rstring::hash, rstring::is_equal> app_configs;
+#endif // _APP_HAVE_SIMPLE_SETTINGS
+
 	UINT app_locale_count = 0;
 
 #ifndef _APP_NO_SETTINGS
-	std::vector<PAPPLICATION_PAGE> app_settings_pages;
+	std::vector<PAPP_SETTINGS_PAGE> app_settings_pages;
+	rstring::map_two app_settings;
 #endif // _APP_NO_SETTINGS
 };

@@ -1,9 +1,7 @@
 // routine++
-// Copyright (c) 2012-2016 Henry++
+// Copyright (c) 2012-2017 Henry++
 
 #pragma once
-
-#define STRSAFE_NO_CB_FUNCTIONS
 
 #include <windows.h>
 #include <math.h>
@@ -23,6 +21,8 @@
 //#define _APP_HAVE_AUTORUN // enable autorun feature
 //#define _APP_HAVE_SKIPUAC // enable skip uac feature
 //#define _APP_HAVE_TRAY // enable tray icon feature
+//#define _APP_HAVE_SIMPLE_SETTINGS // simple settints feature
+//#define _APP_STARTMINIMIZED // start with no window
 
 /*
 	Definitions

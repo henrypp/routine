@@ -882,12 +882,12 @@ size_t rstring::ReverseFind (LPCWSTR chars, size_t start_pos) const
 	return npos;
 }
 
-bool rstring::Match (LPCWSTR pattern)
+bool rstring::Match (LPCWSTR pattern) const
 {
 	return Match (data_, pattern);
 }
 
-bool rstring::Match (LPCWSTR str, LPCWSTR pattern)
+bool rstring::Match (LPCWSTR str, LPCWSTR pattern) const
 {
 	// If we reach at the end of both strings, we are done
 	if (*pattern == 0 && *str == 0)
