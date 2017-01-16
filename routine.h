@@ -78,6 +78,7 @@ BOOL _r_fs_mkdir (LPCWSTR path);
 BOOL _r_fs_rmdir (LPCWSTR path);
 BOOL _r_fs_readfile (HANDLE h, LPVOID result, DWORD64 size);
 DWORD64 _r_fs_size (HANDLE h);
+BOOL _r_fs_ren (LPCWSTR path_from, LPCWSTR path_to);
 
 /*
 	Processes
@@ -132,7 +133,7 @@ VOID _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT in
 */
 
 HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d);
-BOOL _r_run (LPCWSTR cmdline, LPCWSTR cd = nullptr, BOOL is_wait = FALSE);
+BOOL _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd = nullptr, BOOL is_wait = FALSE);
 rstring _r_path_expand (rstring path);
 rstring _r_path_unexpand (rstring path);
 size_t _r_rnd (size_t start, size_t end);

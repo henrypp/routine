@@ -112,10 +112,11 @@ public:
 	BOOL CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback);
 
 #ifdef _APP_HAVE_TRAY
-	BOOL TrayCreate (HWND hwnd, UINT uid, UINT code, HICON h);
+	BOOL TrayCreate (HWND hwnd, UINT uid, UINT code, HICON h, BOOL is_hidden);
 	BOOL TrayDestroy (UINT uid);
 	BOOL TrayPopup (DWORD icon, LPCWSTR title, LPCWSTR text);
 	BOOL TraySetInfo (HICON h, LPCWSTR tooltip);
+	BOOL TrayToggle (DWORD uid, BOOL is_show);
 #endif // _APP_HAVE_TRAY
 
 #ifndef _APP_NO_SETTINGS

@@ -439,7 +439,7 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 	INT numargs = 0;
 	LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
 
-	if(callback && arga && numargs > 1)
+	if (callback && numargs > 1)
 	{
 		callback (nullptr, _RM_ARGUMENTS, nullptr, nullptr);
 	}
@@ -526,7 +526,7 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 }
 
 #ifdef _APP_HAVE_TRAY
-BOOL rapp::TrayCreate (HWND hwnd, UINT uid, UINT code, HICON h)
+BOOL rapp::TrayCreate (HWND hwnd, UINT uid, UINT code, HICON h, BOOL is_hidden)
 {
 	BOOL result = FALSE;
 
@@ -538,6 +538,13 @@ BOOL rapp::TrayCreate (HWND hwnd, UINT uid, UINT code, HICON h)
 	nid.uCallbackMessage = code;
 	nid.hIcon = h;
 	StringCchCopy (nid.szTip, _countof (nid.szTip), app_name);
+
+	if (is_hidden)
+	{
+		nid.uFlags |= NIF_STATE;
+		nid.dwState = NIS_HIDDEN;
+		nid.dwStateMask = NIS_HIDDEN;
+	}
 
 	result = Shell_NotifyIcon (NIM_ADD, &nid);
 	Shell_NotifyIcon (NIM_SETVERSION, &nid);
@@ -604,6 +611,17 @@ BOOL rapp::TraySetInfo (HICON h, LPCWSTR tooltip)
 		nid.uFlags |= NIF_ICON;
 		nid.hIcon = h;
 	}
+
+	return Shell_NotifyIcon (NIM_MODIFY, &nid);
+}
+
+BOOL rapp::TrayToggle (DWORD uid, BOOL is_show)
+{
+	nid.uID = uid;
+	nid.uFlags = NIF_STATE;
+
+	nid.dwState = is_show ? 0 : NIS_HIDDEN;
+	nid.dwStateMask = NIS_HIDDEN;
 
 	return Shell_NotifyIcon (NIM_MODIFY, &nid);
 }
@@ -1234,7 +1252,7 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 	}
 
 	return ERROR_SUCCESS;
-	}
+}
 #endif // _APP_NO_UPDATES
 
 BOOL rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
@@ -1575,7 +1593,7 @@ BOOL rapp::RunAsAdmin ()
 					InitializeMutex ();
 			}
 		}
-}
+	}
 
 	return result;
 }

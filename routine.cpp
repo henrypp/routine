@@ -438,6 +438,11 @@ BOOL _r_fs_rmdir (LPCWSTR path)
 	return 0;
 }
 
+BOOL _r_fs_ren (LPCWSTR path_from, LPCWSTR path_to)
+{
+	return MoveFileEx (path_from, path_to, 0);
+}
+
 /*
 	Processes
 */
@@ -457,7 +462,7 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 
 				if (h)
 				{
-					WCHAR buffer[MAX_PATH] = {0};
+					WCHAR buffer[512] = {0};
 					DWORD size = _countof (buffer);
 
 					if (QueryFullProcessImageName (h, 0, buffer, &size))
@@ -890,7 +895,7 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d)
 	return result;
 }
 
-BOOL _r_run (LPCWSTR cmdline, LPCWSTR cd, BOOL is_wait)
+BOOL _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, BOOL is_wait)
 {
 	STARTUPINFO si = {0};
 	PROCESS_INFORMATION pi = {0};
@@ -899,14 +904,11 @@ BOOL _r_run (LPCWSTR cmdline, LPCWSTR cd, BOOL is_wait)
 	si.cb = sizeof (si);
 
 	if (is_wait)
-	{
 		job = CreateJobObject (nullptr, nullptr);
-	}
 
-	rstring _intptr = cmdline;
-
-	BOOL result = CreateProcess (nullptr, _intptr.GetBuffer (), nullptr, nullptr, FALSE, is_wait ? (CREATE_BREAKAWAY_FROM_JOB | CREATE_SUSPENDED) : 0, nullptr, cd, &si, &pi);
-	_intptr.ReleaseBuffer ();
+	rstring _intptr = cmdline ? cmdline : filename;
+	BOOL result = CreateProcess (filename, _intptr.GetBuffer (), nullptr, nullptr, FALSE, is_wait ? (CREATE_BREAKAWAY_FROM_JOB | CREATE_SUSPENDED) : 0, nullptr, cd, &si, &pi);
+	_intptr.Clear ();
 
 	if (is_wait)
 	{
