@@ -45,7 +45,7 @@
 #endif // _APP_WEBSITE_URL
 
 #ifndef _APP_UPDATE_PERIOD
-#	define _APP_UPDATE_PERIOD 172800 // update checking period (in seconds. 86400 is 1 day.)
+#	define _APP_UPDATE_PERIOD (86400 * 2) // update checking period (in seconds. 86400 is 1 day.)
 #endif // _APP_UPDATE_PERIOD
 
 #define _APP_I18N_DIRECTORY L"i18n"
@@ -64,13 +64,3 @@
 #define _RM_MESSAGE 0x08
 #define _RM_LOCALIZE 0x10
 #define _RM_ARGUMENTS 0x20
-
-/*
-	Macroses
-*/
-
-#define _R_PERCENT_OF(v, t) INT(ceil((double(v) / double(t)) * 100.0))
-#define _R_PERCENT_VAL(v, t) INT(double(t) * double(v) / 100.0)
-
-#define _R_SPINLOCK(x) (InterlockedCompareExchange (&(x), 1, 0) != 0)
-#define _R_SPINUNLOCK(x) (InterlockedExchange(&(x), 0))

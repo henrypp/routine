@@ -120,6 +120,38 @@ rstring _r_fmt_size64 (DWORDLONG size)
 }
 
 /*
+	Spinlocks
+*/
+
+VOID _r_spinlock (volatile LONG* m_ref)
+{
+	if (!m_ref)
+		return;
+
+	LONG ref = 0, newRef = 0, icxref = 0;
+
+	while (newRef == 1 && ref != 0xFFFF)
+	{
+		do
+		{
+			ref = *m_ref;
+
+			newRef = (0xFFFF == ref) ? 1 : ++ref;
+			icxref = InterlockedCompareExchange (m_ref, newRef, ref);
+		}
+		while (icxref != ref);
+	}
+}
+
+VOID _r_spinunlock (volatile LONG* m_ref)
+{
+	if (!m_ref)
+		return;
+
+	InterlockedExchange (m_ref, 0);
+}
+
+/*
 	System messages
 */
 
@@ -444,6 +476,68 @@ BOOL _r_fs_ren (LPCWSTR path_from, LPCWSTR path_to)
 }
 
 /*
+	Paths
+*/
+
+rstring _r_path_expand (rstring path)
+{
+	rstring result;
+
+	if (path.Find (L'%') != rstring::npos)
+	{
+		if (!ExpandEnvironmentStrings (path, result.GetBuffer (4096), 4096))
+			result = path;
+	}
+	else
+	{
+		if (!PathSearchAndQualify (path, result.GetBuffer (4096), 4096))
+			result = path;
+	}
+
+	result.ReleaseBuffer ();
+
+	return result;
+}
+
+rstring _r_path_unexpand (rstring path)
+{
+	rstring result;
+
+	if (!PathUnExpandEnvStrings (path, result.GetBuffer (4096), 4096))
+		result = path;
+
+	result.ReleaseBuffer ();
+
+	return result;
+}
+
+rstring _r_path_compact (rstring path, UINT length)
+{
+	rstring result;
+
+	PathCompactPathEx (result.GetBuffer (length), path, length, 0);
+	result.ReleaseBuffer ();
+
+	return result;
+}
+
+rstring _r_path_extractdir (rstring path)
+{
+	rstring buffer = path;
+	const size_t pos = buffer.ReverseFind (L"\\/");
+
+	buffer.Mid (0, pos);
+	buffer.Trim (L"\\/");
+
+	return buffer;
+}
+
+rstring _r_path_extractfile (rstring path)
+{
+	return PathFindFileName (path);
+}
+
+/*
 	Processes
 */
 
@@ -486,6 +580,26 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 /*
 	Strings
 */
+
+size_t _r_str_hash (LPCWSTR text)
+{
+	static const size_t InitialFNV = 2166136261U;
+	static const size_t FNVMultiple = 16777619;
+
+	size_t hash = InitialFNV;
+	const size_t length = wcslen (text);
+
+	if (!length)
+		return 0;
+
+	for (size_t i = 0; i < length; i++)
+	{
+		hash = hash ^ (towupper (text[i])); /* xor the low 8 bits */
+		hash = hash * FNVMultiple; /* multiply by the magic number */
+	}
+
+	return hash;
+}
 
 /*
 	return 1 if v1 > v2
@@ -617,7 +731,7 @@ BOOL _r_sys_iswow64 ()
 	}
 
 	return result;
-}
+	}
 #endif // _WIN64
 
 BOOL _r_sys_securitydescriptor (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURITY_DESCRIPTOR sd)
@@ -707,6 +821,9 @@ BOOL _r_sys_validversion (DWORD major, DWORD minor, BYTE condition)
 
 VOID _r_sleep (DWORD milliseconds)
 {
+	if (!milliseconds || milliseconds == INFINITE)
+		return;
+
 	static HANDLE evt = CreateEvent (nullptr, FALSE, FALSE, nullptr);
 
 	WaitForSingleObjectEx (evt, milliseconds, FALSE);
@@ -932,38 +1049,6 @@ BOOL _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, BOOL is_wait)
 
 	if (pi.hProcess)
 		CloseHandle (pi.hProcess);
-
-	return result;
-}
-
-rstring _r_path_expand (rstring path)
-{
-	rstring result;
-
-	if (path.Find (L'%') != rstring::npos)
-	{
-		if (!ExpandEnvironmentStrings (path, result.GetBuffer (4096), 4096))
-			result = path;
-	}
-	else
-	{
-		if (!PathSearchAndQualify (path, result.GetBuffer (4096), 4096))
-			result = path;
-	}
-
-	result.ReleaseBuffer ();
-
-	return result;
-}
-
-rstring _r_path_unexpand (rstring path)
-{
-	rstring result;
-
-	if (!PathUnExpandEnvStrings (path, result.GetBuffer (4096), 4096))
-		result = path;
-
-	result.ReleaseBuffer ();
 
 	return result;
 }
@@ -1358,6 +1443,7 @@ BOOL _r_listview_setgroup (HWND hwnd, UINT ctrl, UINT item, size_t group_id)
 DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle)
 {
 	SetWindowTheme (GetDlgItem (hwnd, ctrl), L"Explorer", nullptr);
+
 	_r_wnd_top ((HWND)SendDlgItemMessage (hwnd, ctrl, LVM_GETTOOLTIPS, 0, 0), TRUE); // listview-tooltip-HACK!!!
 
 	SendDlgItemMessage (hwnd, ctrl, LVM_SETUNICODEFORMAT, TRUE, 0);

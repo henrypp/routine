@@ -711,21 +711,10 @@ INT rstring::CompareNoCase (LPCWSTR str) const
 
 size_t rstring::Hash () const
 {
-	static const size_t InitialFNV = 2166136261U;
-	static const size_t FNVMultiple = 16777619;
-
-	size_t hash = InitialFNV;
-	auto theBuffer = toBuffer ();
-
-	if (!theBuffer->length)
+	if (!GetLength ())
 		return 0;
 
-	for (size_t i = 0; i < theBuffer->length; i++)
-	{
-		hash = hash ^ (towupper (At (i))); /* xor the low 8 bits */
-		hash = hash * FNVMultiple; /* multiply by the magic number */
-	}
-	return hash;
+	return _r_str_hash (GetString ());
 }
 
 LPWSTR rstring::GetBuffer (size_t newLength)
@@ -859,9 +848,9 @@ size_t rstring::ReverseFind (LPCWSTR chars, size_t start_pos) const
 	size_t searchStringLength = wcslen (chars);
 	if (thisBuffer && (searchStringLength <= thisBuffer->length))
 	{
-		if (start_pos > (thisBuffer->length - searchStringLength))
+		if (start_pos >= thisBuffer->length)
 		{
-			start_pos = thisBuffer->length - searchStringLength;
+			start_pos = thisBuffer->length - 1;
 		}
 		if (searchStringLength == 1)
 		{
@@ -871,7 +860,7 @@ size_t rstring::ReverseFind (LPCWSTR chars, size_t start_pos) const
 		{
 			do
 			{
-				if (_wmemicmp (&thisBuffer->data[start_pos], chars, searchStringLength) == 0)
+				if (_wmemicmp (&thisBuffer->data[start_pos], chars, searchStringLength))
 				{
 					return start_pos;
 				}
@@ -1182,18 +1171,15 @@ LPCWSTR rstring::wmemichr (LPCWSTR buf, wint_t chr, size_t cnt)
 	return cnt ? buf : nullptr;
 }
 
-INT rstring::_wmemicmp (LPCWSTR first, LPCWSTR second, size_t count)
+BOOL rstring::_wmemicmp (LPCWSTR first, LPCWSTR second, size_t count)
 {
 	while (count)
 	{
-		INT result = towupper (*first) - towupper (*second);
-		if (result)
-		{
-			return result;
-		}
+		if (towupper (*first) == (*second))
+			return TRUE;
 		first++;
 		second++;
 		count--;
 	}
-	return 0;
+	return FALSE;
 }

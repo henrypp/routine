@@ -44,8 +44,9 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	// get hinstance
 	app_hinstance = GetModuleHandle (nullptr);
 
-	// get current directory
-	GetModuleFileName (nullptr, app_directory, _countof (app_directory));
+	// get path
+	GetModuleFileName (nullptr, app_binary, _countof (app_binary));
+	StringCchCopy (app_directory, _countof (app_directory), app_binary);
 	PathRemoveFileSpec (app_directory);
 
 	// get configuration path
@@ -53,7 +54,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 
 	if (!_r_fs_exists (app_config_path))
 	{
-		ExpandEnvironmentStrings (L"%APPDATA%\\" _APP_AUTHOR L"\\", app_profile_directory, _countof (app_profile_directory));
+		StringCchCopy (app_profile_directory, _countof (app_profile_directory), _r_path_expand (L"%APPDATA%\\" _APP_AUTHOR L"\\"));
 		StringCchCat (app_profile_directory, _countof (app_profile_directory), app_name);
 		StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s.ini", app_profile_directory, app_name_short);
 	}
@@ -63,13 +64,9 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	}
 
 	HDC h = GetDC (nullptr);
-
-	// get dpi
 	dpi_percent = DOUBLE (GetDeviceCaps (h, LOGPIXELSX)) / 96.0f;
-
 	ReleaseDC (nullptr, h);
 
-	// load settings
 	ConfigInit ();
 }
 
@@ -120,7 +117,9 @@ BOOL rapp::CheckMutex (BOOL activate_window)
 		result = TRUE;
 
 		if (activate_window)
-			EnumWindows (&ActivateWindowCallback, 0);
+		{
+			EnumWindows (&ActivateWindowCallback, (LPARAM)this);
+		}
 	}
 
 	if (h)
@@ -129,28 +128,38 @@ BOOL rapp::CheckMutex (BOOL activate_window)
 	return result;
 }
 
-BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM)
+BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 {
-	// compare by process name
+	if (!lparam)
+		return FALSE;
+
 	DWORD pid = 0;
 	GetWindowThreadProcessId (hwnd, &pid);
 
-	WCHAR my_path[512] = {0};
-	GetModuleFileName (nullptr, my_path, _countof (my_path));
-	StringCchCopy (my_path, _countof (my_path), PathFindFileName (my_path));
+	if (GetCurrentProcessId () == pid)
+		return TRUE;
+
+	WCHAR title[128] = {0};
+	GetWindowText (hwnd, title, _countof (title));
+
+	rapp* ptr = (rapp*)lparam;
+
+	if (lparam && _wcsnicmp (title, ptr->app_name_short, wcslen (ptr->app_name_short)) != 0)
+		return TRUE;
 
 	HANDLE h = OpenProcess (PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
 
 	if (h)
 	{
-		WCHAR path[512] = {0};
+		WCHAR path[MAX_PATH] = {0};
 		DWORD size = _countof (path);
 
 		if (QueryFullProcessImageName (h, 0, path, &size))
 		{
-			StringCchCopy (path, _countof (path), PathFindFileName (path));
+			WCHAR my_name[128] = {0};
+			StringCchCopy (my_name, _countof (my_name), _r_path_extractfile (ptr->GetBinaryPath ()));
 
-			if (_wcsnicmp (my_path, path, _countof (my_path)) == 0)
+			if (_wcsnicmp (my_name, _r_path_extractfile (path), _countof (my_name)) == 0)
 			{
 				_r_wnd_toggle (hwnd, TRUE);
 
@@ -178,8 +187,8 @@ VOID rapp::AutorunCreate (BOOL is_remove)
 		else
 		{
 			WCHAR buffer[MAX_PATH] = {0};
+			StringCchCopy (buffer, _countof (buffer), GetBinaryPath ());
 
-			GetModuleFileName (nullptr, buffer, _countof (buffer));
 			PathQuoteSpaces (buffer);
 
 			StringCchCat (buffer, _countof (buffer), L" ");
@@ -199,23 +208,19 @@ BOOL rapp::AutorunIsPresent ()
 
 	if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_READ, &key) == ERROR_SUCCESS)
 	{
-		WCHAR path1[MAX_PATH] = {0};
+		WCHAR path[MAX_PATH] = {0};
 
 		DWORD size = MAX_PATH;
 
-		result = (RegQueryValueEx (key, app_name, nullptr, nullptr, (LPBYTE)path1, &size) == ERROR_SUCCESS);
+		result = (RegQueryValueEx (key, app_name, nullptr, nullptr, (LPBYTE)path, &size) == ERROR_SUCCESS);
 
 		if (result)
 		{
-			WCHAR path2[MAX_PATH] = {0};
-
-			PathRemoveArgs (path1);
-			PathUnquoteSpaces (path1);
-
-			GetModuleFileName (GetHINSTANCE (), path2, _countof (path2));
+			PathRemoveArgs (path);
+			PathUnquoteSpaces (path);
 
 			// check path is to current module
-			result = _wcsicmp (path1, path2) == 0;
+			result = _wcsicmp (path, GetBinaryPath ()) == 0;
 		}
 
 		RegCloseKey (key);
@@ -430,24 +435,27 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 {
 	BOOL result = FALSE;
 
-#ifdef _APP_HAVE_SKIPUAC
-	if (RunAsAdmin ())
-		return FALSE;
-#endif // _APP_HAVE_SKIPUAC
-
 	// check arguments
 	INT numargs = 0;
 	LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
 
-	if (callback && numargs > 1)
+	if (arga)
 	{
-		callback (nullptr, _RM_ARGUMENTS, nullptr, nullptr);
-	}
+		if (callback && numargs > 1)
+		{
+			callback (nullptr, _RM_ARGUMENTS, nullptr, nullptr);
+		}
 
-	LocalFree (arga);
+		LocalFree (arga);
+	}
 
 	if (CheckMutex (TRUE))
 		return FALSE;
+
+#ifdef _APP_HAVE_SKIPUAC
+	if (RunAsAdmin ())
+		return FALSE;
+#endif // _APP_HAVE_SKIPUAC
 
 	InitializeMutex ();
 
@@ -760,6 +768,11 @@ VOID rapp::AddSettingsItem (LPCWSTR name, LPCWSTR def_value, CfgType type, UINT 
 	}
 }
 #endif // _APP_HAVE_SIMPLE_SETTINGS
+
+rstring rapp::GetBinaryPath () const
+{
+	return app_binary;
+}
 
 rstring rapp::GetDirectory () const
 {
@@ -1390,9 +1403,7 @@ BOOL rapp::SkipUacCreate (BOOL is_remove)
 									if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID*)&exec_action)))
 									{
 										WCHAR path[MAX_PATH] = {0};
-
-										GetModuleFileName (nullptr, path, _countof (path));
-										PathQuoteSpaces (path);
+										StringCchCopy (path, _countof (path), GetBinaryPath ());
 
 										if (SUCCEEDED (exec_action->put_Path (path)) && SUCCEEDED (exec_action->put_Arguments (L"$(Arg0)")))
 										{
@@ -1470,16 +1481,14 @@ BOOL rapp::SkipUacIsPresent (BOOL is_run)
 								{
 									if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID*)&exec_action)))
 									{
-										BSTR path1 = nullptr;
-										WCHAR path2[MAX_PATH] = {0};
+										BSTR path = nullptr;
 
-										exec_action->get_Path (&path1);
-										PathUnquoteSpaces (path1);
+										exec_action->get_Path (&path);
 
-										GetModuleFileName (GetHINSTANCE (), path2, _countof (path2));
+										PathUnquoteSpaces (path);
 
 										// check path is to current module
-										if (_wcsicmp (path1, path2) == 0)
+										if (_wcsicmp (path, GetBinaryPath ()) == 0)
 										{
 											if (is_run)
 											{
@@ -1512,9 +1521,8 @@ BOOL rapp::SkipUacIsPresent (BOOL is_run)
 														if (state == TASK_STATE_RUNNING || state == TASK_STATE_DISABLED)
 														{
 															if (state == TASK_STATE_RUNNING)
-															{
 																result = TRUE;
-															}
+
 															break;
 														}
 													}
@@ -1572,16 +1580,13 @@ BOOL rapp::RunAsAdmin ()
 		{
 			BOOL is_mutexdestroyed = UninitializeMutex ();
 
-			WCHAR buffer[MAX_PATH] = {0};
 			SHELLEXECUTEINFO shex = {0};
 
 			shex.cbSize = sizeof (shex);
 			shex.fMask = SEE_MASK_UNICODE | SEE_MASK_FLAG_NO_UI;
 			shex.lpVerb = L"runas";
 			shex.nShow = SW_NORMAL;
-			shex.lpFile = buffer;
-
-			GetModuleFileName (nullptr, buffer, _countof (buffer));
+			shex.lpFile = GetBinaryPath ();
 
 			if (ShellExecuteEx (&shex))
 			{

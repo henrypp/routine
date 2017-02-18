@@ -24,10 +24,16 @@
 #pragma comment(lib, "uxtheme.lib")
 
 /*
-	Color shader
+	Macroses
 */
 
-#define _R_COLOR_SHADE(c, percent) RGB ((BYTE)((float)GetRValue (c) * percent / 100.0), (BYTE)((float)GetGValue (c) * percent / 100.0), (BYTE)((float)GetBValue (c) * percent / 100.0))
+#define _R_COLOR_SHADE(clr, percent) RGB ((BYTE)((float)GetRValue (clr) * percent / 100.0), (BYTE)((float)GetGValue (clr) * percent / 100.0), (BYTE)((float)GetBValue (clr) * percent / 100.0))
+
+#define _R_PERCENT_OF(val, total) INT(ceil((double(val) / double(total)) * 100.0))
+#define _R_PERCENT_VAL(val, total) INT(double(total) * double(val) / 100.0)
+
+#define _R_SPINLOCK(x) _r_spinlock(&x)
+#define _R_SPINUNLOCK(x) _r_spinunlock(&x)
 
 /*
 	Write debug log to console
@@ -50,6 +56,13 @@ rstring _r_fmt_date (const LPFILETIME ft, const DWORD flags = FDTF_DEFAULT); // 
 rstring _r_fmt_date (const __time64_t ut, const DWORD flags = FDTF_DEFAULT);
 
 rstring _r_fmt_size64 (DWORDLONG size);
+
+/*
+	Spinlocks
+*/
+
+VOID _r_spinlock (volatile LONG* m_ref);
+VOID _r_spinunlock (volatile LONG* m_ref);
 
 /*
 	System messages
@@ -81,6 +94,16 @@ DWORD64 _r_fs_size (HANDLE h);
 BOOL _r_fs_ren (LPCWSTR path_from, LPCWSTR path_to);
 
 /*
+	Paths
+*/
+
+rstring _r_path_expand (rstring path);
+rstring _r_path_unexpand (rstring path);
+rstring _r_path_compact (rstring path, UINT length);
+rstring _r_path_extractdir (rstring path);
+rstring _r_path_extractfile (rstring path);
+
+/*
 	Processes
 */
 
@@ -89,6 +112,7 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len);
 /*
 	Strings
 */
+size_t _r_str_hash (LPCWSTR text);
 INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2);
 
 /*
@@ -134,8 +158,6 @@ VOID _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT in
 
 HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d);
 BOOL _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd = nullptr, BOOL is_wait = FALSE);
-rstring _r_path_expand (rstring path);
-rstring _r_path_unexpand (rstring path);
 size_t _r_rnd (size_t start, size_t end);
 
 /*

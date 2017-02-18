@@ -130,6 +130,7 @@ public:
 	VOID AddSettingsItem (LPCWSTR name, LPCWSTR def_value, CfgType type, UINT locale_id, LPCWSTR locale_sid);
 #endif // _APP_HAVE_SIMPLE_SETTINGS
 
+	rstring GetBinaryPath () const;
 	rstring GetDirectory () const;
 	rstring GetProfileDirectory () const;
 
@@ -207,6 +208,7 @@ private:
 	HICON app_icon_1 = nullptr;
 	HICON app_icon_2 = nullptr;
 
+	WCHAR app_binary[MAX_PATH];
 	WCHAR app_directory[MAX_PATH];
 	WCHAR app_profile_directory[MAX_PATH];
 	WCHAR app_config_path[MAX_PATH];

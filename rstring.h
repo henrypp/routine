@@ -164,7 +164,7 @@ private:
 	static int _CompareI (Buffer* buffer1, LPCWSTR buffer2);
 
 	static LPCWSTR wmemichr (LPCWSTR buf, wint_t chr, size_t cnt);
-	static INT _wmemicmp (LPCWSTR first, LPCWSTR second, size_t count);
+	static BOOL _wmemicmp (LPCWSTR first, LPCWSTR second, size_t count);
 };
 
 #pragma pack(pop)
