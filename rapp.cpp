@@ -578,8 +578,8 @@ BOOL rapp::TrayPopup (DWORD icon, LPCWSTR title, LPCWSTR text)
 {
 	BOOL result = FALSE;
 
-	nid.uFlags = NIF_INFO;
-	nid.dwInfoFlags = NIIF_RESPECT_QUIET_TIME | NIIF_LARGE_ICON | icon;
+	nid.uFlags = NIF_INFO | NIF_REALTIME;
+	nid.dwInfoFlags = NIIF_LARGE_ICON | icon;
 
 	// tooltip-visibility fix
 	if (nid.szTip[0])

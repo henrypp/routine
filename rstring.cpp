@@ -8,8 +8,10 @@
 
 LPWSTR rstring::empty = L"";
 
+#pragma warning(push)
 #pragma warning(disable: 4309)
 const size_t rstring::npos = MAXDWORD64;
+#pragma warning(pop)
 
 rstring::rstring () : data_ (nullptr)
 {}
