@@ -135,7 +135,7 @@ VOID _r_sleep (DWORD milliseconds);
 	Unixtime
 */
 
-__time64_t _r_unixtime_now (BOOL is_local = TRUE);
+__time64_t _r_unixtime_now ();
 VOID _r_unixtime_to_filetime (__time64_t ut, const LPFILETIME pft);
 VOID _r_unixtime_to_systemtime (__time64_t ut, const LPSYSTEMTIME pst);
 __time64_t _r_unixtime_from_filetime (const FILETIME* pft);

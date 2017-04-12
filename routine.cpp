@@ -481,6 +481,9 @@ BOOL _r_fs_ren (LPCWSTR path_from, LPCWSTR path_to)
 
 rstring _r_path_expand (rstring path)
 {
+	if (path.Find (L'\\') == rstring::npos)
+		return path;
+
 	rstring result;
 
 	if (path.Find (L'%') != rstring::npos)
@@ -501,6 +504,9 @@ rstring _r_path_expand (rstring path)
 
 rstring _r_path_unexpand (rstring path)
 {
+	if (path.Find (L'\\') == rstring::npos)
+		return path;
+
 	rstring result;
 
 	if (!PathUnExpandEnvStrings (path, result.GetBuffer (4096), 4096))
@@ -833,14 +839,11 @@ VOID _r_sleep (DWORD milliseconds)
 	Unixtime
 */
 
-__time64_t _r_unixtime_now (BOOL is_local)
+__time64_t _r_unixtime_now ()
 {
 	SYSTEMTIME st = {0};
 
-	if (is_local)
-		GetLocalTime (&st);
-	else
-		GetSystemTime (&st);
+	GetSystemTime (&st);
 
 	return _r_unixtime_from_systemtime (&st);
 }
