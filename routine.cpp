@@ -1345,18 +1345,14 @@ rstring _r_listview_gettext (HWND hwnd, UINT ctrl, size_t item, size_t subitem)
 	return result;
 }
 
-
 BOOL _r_listview_setcheckstate (HWND hwnd, UINT ctrl, size_t item, BOOL state)
 {
 	LVITEM lvi = {0};
 
-	if (item == LAST_VALUE)
-		item = static_cast<INT>(_r_listview_getitemcount (hwnd, ctrl)) - 1;
-
 	lvi.stateMask = LVIS_STATEIMAGEMASK;
 	lvi.state = INDEXTOSTATEIMAGEMASK (state ? 2 : 1);
 
-	return (BOOL)SendDlgItemMessage (hwnd, ctrl, LVM_SETITEMSTATE, item, (LPARAM)&lvi);
+	return (BOOL)SendDlgItemMessage (hwnd, ctrl, LVM_SETITEMSTATE, (item == LAST_VALUE) ? -1 : item, (LPARAM)&lvi);
 }
 
 BOOL _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl, INT column, INT arrow)
