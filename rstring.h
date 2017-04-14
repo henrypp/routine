@@ -105,6 +105,7 @@ public:
 	rstring Appended (const rstring& other) const;
 
 	rstring Midded (size_t start, size_t length = npos) const;
+	rstring Replaced (LPCWSTR from, LPCWSTR to) const;
 
 	INT Compare (const rstring& other) const;
 	INT Compare (LPCWSTR str) const;

@@ -455,6 +455,12 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 #ifdef _APP_HAVE_SKIPUAC
 	if (RunAsAdmin ())
 		return FALSE;
+
+#ifdef _APP_NO_GUEST
+	if (!IsAdmin ())
+		return FALSE;
+#endif // _APP_NO_GUEST
+
 #endif // _APP_HAVE_SKIPUAC
 
 	InitializeMutex ();

@@ -810,19 +810,27 @@ BOOL _r_sys_uacstate ()
 }
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms725494(v=vs.85).aspx
-BOOL _r_sys_validversion (DWORD major, DWORD minor, BYTE condition)
+BOOL _r_sys_validversion (DWORD major, DWORD minor, DWORD build, BYTE condition)
 {
 	OSVERSIONINFOEX osvi = {0};
 	DWORDLONG mask = 0;
+	DWORD type_mask = VER_MAJORVERSION | VER_MINORVERSION;
 
-	osvi.dwOSVersionInfoSize = sizeof (OSVERSIONINFOEX);
+	osvi.dwOSVersionInfoSize = sizeof (osvi);
 	osvi.dwMajorVersion = major;
 	osvi.dwMinorVersion = minor;
+	osvi.dwBuildNumber = build;
 
 	VER_SET_CONDITION (mask, VER_MAJORVERSION, condition);
 	VER_SET_CONDITION (mask, VER_MINORVERSION, condition);
 
-	return VerifyVersionInfo (&osvi, VER_MAJORVERSION | VER_MINORVERSION, mask);
+	if (build)
+	{
+		VER_SET_CONDITION (mask, VER_BUILDNUMBER, condition);
+		type_mask |= VER_BUILDNUMBER;
+	}
+
+	return VerifyVersionInfo (&osvi, type_mask, mask);
 }
 
 VOID _r_sleep (DWORD milliseconds)

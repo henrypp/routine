@@ -691,6 +691,13 @@ rstring rstring::Midded (size_t start, size_t length) const
 	return tmp;
 }
 
+rstring rstring::Replaced (LPCWSTR from, LPCWSTR to) const
+{
+	auto tmp = *this;
+	tmp.Replace (from, to);
+	return tmp;
+}
+
 INT rstring::Compare (const rstring& str) const
 {
 	return _Compare (toBuffer (), str.toBuffer ());
