@@ -184,11 +184,8 @@ VOID rapp::AutorunEnable (BOOL is_enable)
 		{
 			WCHAR buffer[MAX_PATH] = {0};
 			StringCchCopy (buffer, _countof (buffer), GetBinaryPath ());
-
 			PathQuoteSpaces (buffer);
-
-			StringCchCat (buffer, _countof (buffer), L" ");
-			StringCchCat (buffer, _countof (buffer), L"/minimized");
+			StringCchCat (buffer, _countof (buffer), L" /minimized");
 
 			RegSetValueEx (key, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) + 1) * sizeof (WCHAR)));
 		}
@@ -374,6 +371,17 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		case WM_DESTROY:
 		{
 #ifdef _APP_HAVE_SIZING
+			RECT rc = {0};
+			GetWindowRect (hwnd, &rc);
+
+			if (!IsZoomed (hwnd))
+			{
+				this_ptr->ConfigSet (L"WindowPosX", rc.left);
+				this_ptr->ConfigSet (L"WindowPosY", rc.top);
+				this_ptr->ConfigSet (L"WindowPosWidth", rc.right - rc.left);
+				this_ptr->ConfigSet (L"WindowPosHeight", rc.bottom - rc.top);
+			}
+
 			this_ptr->ConfigSet (L"IsWindowZoomed", IsZoomed (hwnd));
 #endif // _APP_HAVE_SIZING
 
@@ -394,20 +402,6 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 
 		case WM_SIZE:
 		{
-#ifdef _APP_HAVE_SIZING
-
-			if (wparam != SIZE_MAXIMIZED && wparam != SIZE_MINIMIZED)
-			{
-				RECT rc = {0};
-				GetWindowRect (hwnd, &rc);
-
-				this_ptr->ConfigSet (L"WindowPosX", rc.left);
-				this_ptr->ConfigSet (L"WindowPosY", rc.top);
-				this_ptr->ConfigSet (L"WindowPosWidth", rc.right - rc.left);
-				this_ptr->ConfigSet (L"WindowPosHeight", rc.bottom - rc.top);
-			}
-#endif // _APP_HAVE_SIZING
-
 #ifdef _APP_HAVE_TRAY
 			if (wparam == SIZE_MINIMIZED)
 			{
@@ -421,6 +415,19 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 
 		case WM_SYSCOMMAND:
 		{
+#ifdef _APP_HAVE_SIZING
+			if (wparam == SC_RESTORE)
+			{
+				RECT rc = {0};
+				GetWindowRect (hwnd, &rc);
+
+				this_ptr->ConfigSet (L"WindowPosX", rc.left);
+				this_ptr->ConfigSet (L"WindowPosY", rc.top);
+				this_ptr->ConfigSet (L"WindowPosWidth", rc.right - rc.left);
+				this_ptr->ConfigSet (L"WindowPosHeight", rc.bottom - rc.top);
+			}
+#endif // _APP_HAVE_SIZING
+
 #ifdef _APP_HAVE_TRAY
 			if (wparam == SC_CLOSE)
 			{
@@ -475,6 +482,10 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 		return FALSE;
 #endif // _APP_NO_GUEST
 
+#endif // _APP_HAVE_SKIPUAC
+
+#ifdef _APP_HAVE_SKIPUAC
+	SkipUacEnable (ConfigGet (L"SkipUacIsEnabled", FALSE).AsBool ());
 #endif // _APP_HAVE_SKIPUAC
 
 	InitializeMutex ();
@@ -1427,7 +1438,7 @@ BOOL rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
 }
 
 #ifdef _APP_HAVE_SKIPUAC
-BOOL rapp::SkipUacCreate (BOOL is_remove)
+BOOL rapp::SkipUacEnable (BOOL is_enable)
 {
 	BOOL result = FALSE;
 	BOOL action_result = FALSE;
@@ -1457,11 +1468,7 @@ BOOL rapp::SkipUacCreate (BOOL is_remove)
 			{
 				if (SUCCEEDED (service->GetFolder (L"\\", &folder)))
 				{
-					if (is_remove)
-					{
-						result = (folder->DeleteTask (name.GetBuffer (), 0) == S_OK);
-					}
-					else
+					if (is_enable)
 					{
 						if (SUCCEEDED (service->NewTask (0, &task)))
 						{
@@ -1479,11 +1486,13 @@ BOOL rapp::SkipUacCreate (BOOL is_remove)
 
 							if (SUCCEEDED (task->get_Settings (&settings)))
 							{
+								settings->put_AllowHardTerminate (VARIANT_BOOL (FALSE));
 								settings->put_StartWhenAvailable (VARIANT_BOOL (FALSE));
 								settings->put_DisallowStartIfOnBatteries (VARIANT_BOOL (FALSE));
 								settings->put_StopIfGoingOnBatteries (VARIANT_BOOL (FALSE));
 								settings->put_MultipleInstances (TASK_INSTANCES_PARALLEL);
 								settings->put_ExecutionTimeLimit (L"PT0S");
+
 								settings->Release ();
 							}
 
@@ -1519,6 +1528,10 @@ BOOL rapp::SkipUacCreate (BOOL is_remove)
 							task->Release ();
 						}
 					}
+					else
+					{
+						result = (folder->DeleteTask (name.GetBuffer (), 0) == S_OK);
+					}
 
 					folder->Release ();
 				}
@@ -1528,12 +1541,24 @@ BOOL rapp::SkipUacCreate (BOOL is_remove)
 		}
 
 		CoUninitialize ();
+
+		ConfigSet (L"SkipUacIsEnabled", is_enable);
 	}
 
 	return result;
 }
 
-BOOL rapp::SkipUacIsPresent (BOOL is_run)
+BOOL rapp::SkipUacIsEnabled ()
+{
+	if (IsVistaOrLater ())
+	{
+		return ConfigGet (L"SkipUacIsEnabled", FALSE).AsBool ();
+	}
+
+	return FALSE;
+}
+
+BOOL rapp::SkipUacRun ()
 {
 	BOOL result = FALSE;
 
@@ -1581,11 +1606,12 @@ BOOL rapp::SkipUacIsPresent (BOOL is_run)
 										// check path is to current module
 										if (_wcsicmp (path, GetBinaryPath ()) == 0)
 										{
-											if (is_run)
+											rstring args;
+
+											// get arguments
 											{
 												INT numargs = 0;
 												LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
-												rstring args;
 
 												for (INT i = 1; i < numargs; i++)
 												{
@@ -1595,36 +1621,34 @@ BOOL rapp::SkipUacIsPresent (BOOL is_run)
 
 												LocalFree (arga);
 
-												variant_t ticker = args.Trim (L" ");
-
-												if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_AS_SELF, 0, nullptr, &running_task)) && running_task)
-												{
-													TASK_STATE state;
-													INT count = 5; // try count
-
-													do
-													{
-														Sleep (500);
-
-														running_task->Refresh ();
-														running_task->get_State (&state);
-
-														if (state == TASK_STATE_RUNNING || state == TASK_STATE_DISABLED)
-														{
-															if (state == TASK_STATE_RUNNING)
-																result = TRUE;
-
-															break;
-														}
-													}
-													while (count--);
-
-													running_task->Release ();
-												}
+												args.Trim (L" ");
 											}
-											else
+
+											variant_t ticker = args;
+
+											if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_AS_SELF, 0, nullptr, &running_task)) && running_task)
 											{
-												result = TRUE;
+												TASK_STATE state;
+												INT count = 5; // try count
+
+												do
+												{
+													_r_sleep (500);
+
+													running_task->Refresh ();
+													running_task->get_State (&state);
+
+													if (state == TASK_STATE_RUNNING || state == TASK_STATE_DISABLED)
+													{
+														if (state == TASK_STATE_RUNNING)
+															result = TRUE;
+
+														break;
+													}
+												}
+												while (count--);
+
+												running_task->Release ();
 											}
 										}
 
@@ -1664,7 +1688,7 @@ BOOL rapp::RunAsAdmin ()
 	if (_r_sys_uacstate ())
 	{
 #ifdef _APP_HAVE_SKIPUAC
-		result = SkipUacIsPresent (TRUE);
+		result = SkipUacRun ();
 #endif // _APP_HAVE_SKIPUAC
 
 		if (!result)

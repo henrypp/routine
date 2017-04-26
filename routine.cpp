@@ -1028,37 +1028,22 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d)
 	return result;
 }
 
-BOOL _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, BOOL is_wait)
+BOOL _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 {
 	STARTUPINFO si = {0};
 	PROCESS_INFORMATION pi = {0};
-	HANDLE job = nullptr;
 
 	si.cb = sizeof (si);
 
-	if (is_wait)
-		job = CreateJobObject (nullptr, nullptr);
-
-	rstring _intptr = cmdline ? cmdline : filename;
-	BOOL result = CreateProcess (filename, _intptr.GetBuffer (), nullptr, nullptr, FALSE, is_wait ? (CREATE_BREAKAWAY_FROM_JOB | CREATE_SUSPENDED) : 0, nullptr, cd, &si, &pi);
-	_intptr.Clear ();
-
-	if (is_wait)
+	if (sw != SW_SHOWDEFAULT)
 	{
-		AssignProcessToJobObject (job, pi.hProcess);
-		ResumeThread (pi.hThread);
-
-		CloseHandle (pi.hThread);
-		pi.hThread = nullptr;
-
-		JOBOBJECT_BASIC_ACCOUNTING_INFORMATION jbai = {0};
-		DWORD out_length = 0;
-
-		while (QueryInformationJobObject (job, JobObjectBasicAccountingInformation, &jbai, sizeof (jbai), &out_length) && jbai.ActiveProcesses);
+		si.dwFlags = STARTF_USESHOWWINDOW;
+		si.wShowWindow = sw;
 	}
 
-	if (job)
-		CloseHandle (job);
+	rstring _intptr = cmdline ? cmdline : filename;
+	BOOL result = CreateProcess (filename, _intptr.GetBuffer (), nullptr, nullptr, FALSE, 0, nullptr, cd, &si, &pi);
+	_intptr.Clear ();
 
 	if (pi.hThread)
 		CloseHandle (pi.hThread);

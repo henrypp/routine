@@ -157,7 +157,7 @@ VOID _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT in
 */
 
 HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d);
-BOOL _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd = nullptr, BOOL is_wait = FALSE);
+BOOL _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd = nullptr, WORD sw = SW_SHOWDEFAULT);
 size_t _r_rnd (size_t start, size_t end);
 
 /*

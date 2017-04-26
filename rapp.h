@@ -91,7 +91,7 @@ public:
 	BOOL CheckMutex (BOOL activate_window);
 
 #ifdef _APP_HAVE_AUTORUN
-	VOID AutorunEnable (BOOL is_remove);
+	VOID AutorunEnable (BOOL is_enable);
 	BOOL AutorunIsEnabled ();
 #endif // _APP_HAVE_AUTORUN
 
@@ -153,8 +153,9 @@ public:
 	VOID LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position) const;
 
 #ifdef _APP_HAVE_SKIPUAC
-	BOOL SkipUacCreate (BOOL is_remove);
-	BOOL SkipUacIsPresent (BOOL run);
+	BOOL SkipUacEnable (BOOL is_enable);
+	BOOL SkipUacIsEnabled ();
+	BOOL SkipUacRun ();
 #endif // _APP_HAVE_SKIPUAC
 	BOOL RunAsAdmin ();
 
