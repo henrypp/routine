@@ -91,8 +91,8 @@ public:
 	BOOL CheckMutex (BOOL activate_window);
 
 #ifdef _APP_HAVE_AUTORUN
-	VOID AutorunCreate (BOOL is_remove);
-	BOOL AutorunIsPresent ();
+	VOID AutorunEnable (BOOL is_remove);
+	BOOL AutorunIsEnabled ();
 #endif // _APP_HAVE_AUTORUN
 
 #ifndef _APP_NO_UPDATES
@@ -220,6 +220,11 @@ private:
 
 	rstring::map_two app_config_array;
 	rstring::map_two app_locale_array;
+
+#ifdef _APP_HAVE_SIZING
+	INT max_width = 0;
+	INT max_height = 0;
+#endif // _APP_HAVE_SIZING
 
 #ifdef _APP_HAVE_SIMPLE_SETTINGS
 	std::unordered_map<rstring, PAPP_SETTINGS_CONFIG, rstring::hash, rstring::is_equal> app_configs;

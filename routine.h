@@ -85,7 +85,7 @@ VOID _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length);
 	Filesystem
 */
 
-INT _r_fs_delete (LPCWSTR path, BOOL allowundo);
+BOOL _r_fs_delete (LPCWSTR path, BOOL allowundo);
 BOOL _r_fs_exists (LPCWSTR path);
 BOOL _r_fs_mkdir (LPCWSTR path);
 BOOL _r_fs_rmdir (LPCWSTR path);

@@ -363,18 +363,26 @@ VOID _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length)
 	Filesystem
 */
 
-INT _r_fs_delete (LPCWSTR path, BOOL allowundo)
+BOOL _r_fs_delete (LPCWSTR path, BOOL allowundo)
 {
-	SHFILEOPSTRUCT op = {0};
-
-	op.wFunc = FO_DELETE;
-	op.pFrom = path;
-	op.fFlags = FOF_NOERRORUI | FOF_NO_UI | FOF_SILENT;
+	BOOL result = FALSE;
 
 	if (allowundo)
-		op.fFlags |= FOF_ALLOWUNDO;
+	{
+		SHFILEOPSTRUCT op = {0};
 
-	return SHFileOperation (&op);
+		op.wFunc = FO_DELETE;
+		op.pFrom = path;
+		op.fFlags = FOF_NO_UI | FOF_ALLOWUNDO;
+
+		result = (SHFileOperation (&op) == ERROR_SUCCESS);
+	}
+	else
+	{
+		result = DeleteFile (path);
+	}
+
+	return result;
 }
 
 BOOL _r_fs_exists (LPCWSTR path)
@@ -737,7 +745,7 @@ BOOL _r_sys_iswow64 ()
 	}
 
 	return result;
-	}
+}
 #endif // _WIN64
 
 BOOL _r_sys_securitydescriptor (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURITY_DESCRIPTOR sd)
@@ -776,10 +784,7 @@ BOOL _r_sys_setprivilege (LPCWSTR privilege, BOOL is_enable)
 				result = TRUE;
 			}
 		}
-	}
 
-	if (token)
-	{
 		CloseHandle (token);
 	}
 
@@ -997,7 +1002,7 @@ VOID _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT in
 
 	SetWindowLongPtr (hwnd, index, style);
 
-	SetWindowPos (hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE);
+	SetWindowPos (hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOMOVE | SWP_NOSIZE);
 }
 
 /*

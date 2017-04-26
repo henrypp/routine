@@ -174,17 +174,13 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 }
 
 #ifdef _APP_HAVE_AUTORUN
-VOID rapp::AutorunCreate (BOOL is_remove)
+VOID rapp::AutorunEnable (BOOL is_enable)
 {
 	HKEY key = nullptr;
 
 	if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE | KEY_READ, &key) == ERROR_SUCCESS)
 	{
-		if (is_remove)
-		{
-			RegDeleteValue (key, app_name);
-		}
-		else
+		if (is_enable)
 		{
 			WCHAR buffer[MAX_PATH] = {0};
 			StringCchCopy (buffer, _countof (buffer), GetBinaryPath ());
@@ -196,37 +192,20 @@ VOID rapp::AutorunCreate (BOOL is_remove)
 
 			RegSetValueEx (key, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) + 1) * sizeof (WCHAR)));
 		}
+		else
+		{
+			RegDeleteValue (key, app_name);
+		}
+
+		ConfigSet (L"AutorunIsEnabled", is_enable);
 
 		RegCloseKey (key);
 	}
 }
 
-BOOL rapp::AutorunIsPresent ()
+BOOL rapp::AutorunIsEnabled ()
 {
-	HKEY key = nullptr;
-	BOOL result = FALSE;
-
-	if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_READ, &key) == ERROR_SUCCESS)
-	{
-		WCHAR path[MAX_PATH] = {0};
-
-		DWORD size = MAX_PATH;
-
-		result = (RegQueryValueEx (key, app_name, nullptr, nullptr, (LPBYTE)path, &size) == ERROR_SUCCESS);
-
-		if (result)
-		{
-			PathRemoveArgs (path);
-			PathUnquoteSpaces (path);
-
-			// check path is to current module
-			result = _wcsicmp (path, GetBinaryPath ()) == 0;
-		}
-
-		RegCloseKey (key);
-	}
-
-	return result;
+	return ConfigGet (L"AutorunIsEnabled", FALSE).AsBool ();
 }
 #endif // _APP_HAVE_AUTORUN
 
@@ -392,8 +371,43 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			break;
 		}
 
+		case WM_DESTROY:
+		{
+#ifdef _APP_HAVE_SIZING
+			this_ptr->ConfigSet (L"IsWindowZoomed", IsZoomed (hwnd));
+#endif // _APP_HAVE_SIZING
+
+			break;
+		}
+
+#ifdef _APP_HAVE_SIZING
+		case WM_GETMINMAXINFO:
+		{
+			LPMINMAXINFO lpmmi = (LPMINMAXINFO)lparam;
+
+			lpmmi->ptMinTrackSize.x = this_ptr->max_width;
+			lpmmi->ptMinTrackSize.y = this_ptr->max_height;
+
+			break;
+		}
+#endif // _APP_HAVE_SIZING
+
 		case WM_SIZE:
 		{
+#ifdef _APP_HAVE_SIZING
+
+			if (wparam != SIZE_MAXIMIZED && wparam != SIZE_MINIMIZED)
+			{
+				RECT rc = {0};
+				GetWindowRect (hwnd, &rc);
+
+				this_ptr->ConfigSet (L"WindowPosX", rc.left);
+				this_ptr->ConfigSet (L"WindowPosY", rc.top);
+				this_ptr->ConfigSet (L"WindowPosWidth", rc.right - rc.left);
+				this_ptr->ConfigSet (L"WindowPosHeight", rc.bottom - rc.top);
+			}
+#endif // _APP_HAVE_SIZING
+
 #ifdef _APP_HAVE_TRAY
 			if (wparam == SIZE_MINIMIZED)
 			{
@@ -482,18 +496,89 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 
 	if (app_hwnd)
 	{
-		// set on top
+		// remove focus
+		SetFocus (nullptr);
+
+		// set autorun state
+#ifdef _APP_HAVE_AUTORUN
+		AutorunEnable (AutorunIsEnabled ());
+#endif // _APP_HAVE_AUTORUN
+
+		// set window on top
 		_r_wnd_top (GetHWND (), ConfigGet (L"AlwaysOnTop", FALSE).AsBool ());
 
-		// show window
-#ifndef _APP_STARTMINIMIZED
-#ifdef _APP_HAVE_TRAY
-		if (!wcsstr (GetCommandLine (), L"/minimized") && !ConfigGet (L"StartMinimized", FALSE).AsBool ())
-			_r_wnd_toggle (GetHWND (), TRUE);
+		// set minmax info
+#ifdef _APP_HAVE_SIZING
+		{
+			RECT rc = {0};
+
+			if (GetWindowRect (GetHWND (), &rc))
+			{
+				max_width = (rc.right - rc.left);
+				max_height = (rc.bottom - rc.top);
+			}
+
+			if (GetClientRect (GetHWND (), &rc))
+			{
+				SendMessage (GetHWND (), WM_SIZE, 0, MAKELPARAM ((rc.right - rc.left), (rc.bottom - rc.top)));
+			}
+		}
+#endif // _APP_HAVE_SIZING
+
+		// set window pos
+#ifdef _APP_HAVE_SIZING
+		{
+			const INT xpos = ConfigGet (L"WindowPosX", 0).AsInt ();
+			const INT ypos = ConfigGet (L"WindowPosY", 0).AsInt ();
+			const INT width = ConfigGet (L"WindowPosWidth", 0).AsInt ();
+			const INT height = ConfigGet (L"WindowPosHeight", 0).AsInt ();
+
+			DWORD flags = SWP_NOOWNERZORDER | SWP_NOZORDER;
+
+			if (!xpos && !ypos)
+				flags |= SWP_NOMOVE;
+
+			if (!width && !height)
+				flags |= SWP_NOSIZE;
+
+			SetWindowPos (GetHWND (), nullptr, xpos, ypos, width, height, flags);
+		}
+#endif // _APP_HAVE_SIZING
+
+		{
+			BOOL is_minimized = FALSE;
+
+			// show window
+#ifdef _APP_STARTMINIMIZED
+			is_minimized = TRUE;
 #else
-		_r_wnd_toggle (GetHWND (), TRUE);
+#ifdef _APP_HAVE_TRAY
+			if (wcsstr (GetCommandLine (), L"/minimized") || ConfigGet (L"StartMinimized", FALSE).AsBool ())
+				is_minimized = TRUE;
 #endif // _APP_HAVE_TRAY
 #endif // _APP_STARTMINIMIZED
+
+			if (!is_minimized)
+			{
+				INT code = SW_SHOW;
+
+#ifdef _APP_HAVE_SIZING
+				if (ConfigGet (L"IsWindowZoomed", FALSE).AsBool ())
+					code = SW_SHOWMAXIMIZED;
+#endif // _APP_HAVE_SIZING
+
+				ShowWindow (GetHWND (), code);
+			}
+			else
+			{
+#ifdef _APP_HAVE_SIZING
+				//if (ConfigGet (L"IsWindowZoomed", FALSE).AsBool ())
+				{
+					//ShowWindow (GetHWND (), SW_SHOWMAXIMIZED);
+				}
+#endif // _APP_HAVE_SIZING
+			}
+		}
 
 		// enable messages bypass uipi
 #ifdef _APP_HAVE_TRAY
@@ -506,7 +591,7 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 
 		// subclass window
 		SetWindowLongPtr (GetHWND (), GWLP_USERDATA, (LONG_PTR)this);
-		app_wndproc = (WNDPROC)SetWindowLongPtr (GetHWND (), DWLP_DLGPROC, (LONG_PTR)MainWindowProc);
+		app_wndproc = (WNDPROC)SetWindowLongPtr (GetHWND (), DWLP_DLGPROC, (LONG_PTR)&MainWindowProc);
 
 		// set icons
 #ifdef IDI_MAIN
