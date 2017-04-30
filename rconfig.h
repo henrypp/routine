@@ -19,6 +19,7 @@
 //#define _APP_NO_GUEST // cut "guest" mode, running without admin rights; see _APP_HAVE_SKIPUAC
 //#define _APP_NO_SETTINGS // cut settings window methods
 //#define _APP_NO_UPDATES // cut update checking methods
+//#define _APP_NO_WINXP // cut windows xp support
 //#define _APP_HAVE_AUTORUN // enable autorun feature
 //#define _APP_HAVE_SKIPUAC // enable skip uac feature
 //#define _APP_HAVE_TRAY // enable tray icon feature

@@ -1,10 +1,12 @@
 // routine++
-// Copyright (c) 2012-2016 Henry++
+// Copyright (c) 2012-2017 Henry++
 
 #pragma once
 
+#ifndef _APP_NO_WINXP
 #undef PSAPI_VERSION
 #define PSAPI_VERSION 1
+#endif // _APP_NO_WINXP
 
 #include <windows.h>
 #include <shlwapi.h>
@@ -102,11 +104,13 @@ rstring _r_path_unexpand (rstring path);
 rstring _r_path_compact (rstring path, UINT length);
 rstring _r_path_extractdir (rstring path);
 rstring _r_path_extractfile (rstring path);
+rstring _r_path_dospathfromnt (LPCWSTR path);
 
 /*
 	Processes
 */
 
+BOOL _r_process_getpath (HANDLE h, LPWSTR path, DWORD length);
 BOOL _r_process_is_exists (LPCWSTR path, const size_t len);
 
 /*
@@ -226,3 +230,4 @@ typedef BOOL (WINAPI *IW64P) (HANDLE, PBOOL); // IsWow64Process
 typedef HRESULT (WINAPI *LIWSD) (HINSTANCE, PCWSTR, INT, INT, HICON*); // LoadIconWithScaleDown
 typedef VOID (WINAPI *TDI) (TASKDIALOGCONFIG*, INT*, INT*, BOOL*); // TaskDialogIndirect
 typedef int (WINAPI *SHCDEX) (HWND, LPCTSTR, const SECURITY_ATTRIBUTES*); // SHCreateDirectoryEx
+typedef BOOL (WINAPI *QFPIN) (HANDLE, DWORD, LPWSTR, PDWORD); // QueryFullProcessImageName

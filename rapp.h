@@ -142,9 +142,9 @@ public:
 
 	VOID SetIcon (UINT icon_id);
 
-	BOOL IsAdmin ();
-	BOOL IsClassicUI ();
-	BOOL IsVistaOrLater ();
+	BOOL IsAdmin () const;
+	BOOL IsClassicUI () const;
+	BOOL IsVistaOrLater () const;
 
 	VOID LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id);
 	VOID LocaleEnum (HWND hwnd, INT ctrl_id, BOOL is_menu, const UINT id_start);
@@ -194,6 +194,7 @@ private:
 
 #ifndef _APP_NO_UPDATES
 	BOOL is_update_forced = FALSE;
+	volatile LONG update_lock = 0;
 #endif // _APP_NO_UPDATES
 
 #ifndef _APP_NO_ABOUT

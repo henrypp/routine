@@ -247,6 +247,7 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 		}
 	}
 
+#ifndef _APP_NO_WINXP
 	if (!result)
 	{
 		MSGBOXPARAMS mbp = {0};
@@ -278,6 +279,7 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 
 		result = MessageBoxIndirect (&mbp);
 	}
+#endif // _APP_NO_WINXP
 
 	return result;
 }
@@ -455,17 +457,17 @@ BOOL _r_fs_rmdir (LPCWSTR path)
 			if ((wfd.cFileName[0] == '.' && !wfd.cFileName[1]) || (wfd.cFileName[0] == '.' && wfd.cFileName[1] == '.' && !wfd.cFileName[2]))
 				continue;
 
-			rstring r;
-			r.Format (L"%s\\%s", path, wfd.cFileName);
+			rstring full_path;
+			full_path.Format (L"%s\\%s", path, wfd.cFileName);
 
 			if (wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
 			{
-				_r_fs_rmdir (r);
+				_r_fs_rmdir (full_path);
 			}
 			else
 			{
-				SetFileAttributes (r, FILE_ATTRIBUTE_NORMAL);
-				DeleteFile (r);
+				SetFileAttributes (full_path, FILE_ATTRIBUTE_NORMAL);
+				DeleteFile (full_path);
 			}
 		}
 		while (FindNextFile (h, &wfd) == TRUE);
@@ -551,14 +553,122 @@ rstring _r_path_extractfile (rstring path)
 	return PathFindFileName (path);
 }
 
+// Author: Elmue
+// http://stackoverflow.com/questions/65170/how-to-get-name-associated-with-open-handle/18792477#18792477
+//
+// converts
+// "\Device\HarddiskVolume3"                                -> "E:"
+// "\Device\HarddiskVolume3\Temp"                           -> "E:\Temp"
+// "\Device\HarddiskVolume3\Temp\transparent.jpeg"          -> "E:\Temp\transparent.jpeg"
+// "\Device\Harddisk1\DP(1)0-0+6\foto.jpg"                  -> "I:\foto.jpg"
+// "\Device\TrueCryptVolumeP\Data\Passwords.txt"            -> "P:\Data\Passwords.txt"
+// "\Device\Floppy0\Autoexec.bat"                           -> "A:\Autoexec.bat"
+// "\Device\CdRom1\VIDEO_TS\VTS_01_0.VOB"                   -> "H:\VIDEO_TS\VTS_01_0.VOB"
+// "\Device\Serial1"                                        -> "COM1"
+// "\Device\USBSER000"                                      -> "COM4"
+// "\Device\Mup\ComputerName\C$\Boot.ini"                   -> "\\ComputerName\C$\Boot.ini"
+// "\Device\LanmanRedirector\ComputerName\C$\Boot.ini"      -> "\\ComputerName\C$\Boot.ini"
+// "\Device\LanmanRedirector\ComputerName\Shares\Dance.m3u" -> "\\ComputerName\Shares\Dance.m3u"
+// returns an error for any other device type
+
+rstring _r_path_dospathfromnt (LPCWSTR path)
+{
+	rstring result = path;
+
+	if (_wcsnicmp (path, L"\\Device\\Mup\\", 12) == 0) // Win7
+	{
+		result = L"\\\\";
+		result.Append (path + 12);
+	}
+	else if (_wcsnicmp (path, L"\\Device\\LanmanRedirector\\", 25) == 0) // WinXP
+	{
+		result = L"\\\\";
+		result.Append (path + 25);
+	}
+	else
+	{
+		WCHAR drives[128] = {0};
+
+		if (GetLogicalDriveStrings (_countof (drives), drives))
+		{
+			LPWSTR drv = drives;
+
+			while (drv[0])
+			{
+				LPWSTR drv_next = drv + wcslen (drv) + 1;
+
+				drv[2] = 0; // the backslash is not allowed for QueryDosDevice()
+
+				WCHAR u16_NtVolume[1024] = {0};
+				u16_NtVolume[0] = 0;
+
+				// may return multiple strings!
+				// returns very weird strings for network shares
+				if (QueryDosDevice (drv, u16_NtVolume, sizeof (u16_NtVolume) / sizeof (WCHAR)))
+				{
+					size_t s32_Len = wcslen (u16_NtVolume);
+					if (s32_Len > 0 && _wcsnicmp (path, u16_NtVolume, s32_Len) == 0)
+					{
+						result = drv;
+						result.Append (path + s32_Len);
+
+						break;
+					}
+				}
+
+				drv = drv_next;
+			}
+		}
+	}
+
+	return result;
+}
+
 /*
 	Processes
 */
+
+BOOL _r_process_getpath (HANDLE h, LPWSTR path, DWORD length)
+{
+	BOOL result = FALSE;
+
+	if (path)
+	{
+		QFPIN _QueryFullProcessImageName = (QFPIN)GetProcAddress (GetModuleHandle (L"kernel32.dll"), "QueryFullProcessImageNameW");
+
+		if (_QueryFullProcessImageName)
+		{
+			if (_QueryFullProcessImageName (h, 0, path, &length)) // vista and later
+				result = TRUE;
+		}
+#ifndef _APP_NO_WINXP
+		else
+		{
+			WCHAR buffer[1024] = {0};
+
+			if (GetProcessImageFileName (h, buffer, _countof (buffer))) // winxp
+			{
+				StringCchCopy (path, length, _r_path_dospathfromnt (buffer));
+				result = TRUE;
+			}
+		}
+#endif //_APP_NO_WINXP
+	}
+
+	return result;
+}
 
 BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 {
 	BOOL result = FALSE;
 	DWORD pid[1024] = {0}, cb = 0;
+
+	DWORD access_rights = PROCESS_QUERY_LIMITED_INFORMATION; // vista and later
+
+#ifndef _APP_NO_WINXP
+	if (!_r_sys_validversion (6, 0))
+		access_rights = PROCESS_QUERY_INFORMATION; // winxp
+#endif //_APP_NO_WINXP
 
 	if (EnumProcesses (pid, sizeof (pid), &cb))
 	{
@@ -566,14 +676,13 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 		{
 			if (pid[i])
 			{
-				HANDLE h = OpenProcess (PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid[i]);
+				HANDLE h = OpenProcess (access_rights, FALSE, pid[i]);
 
 				if (h)
 				{
-					WCHAR buffer[512] = {0};
-					DWORD size = _countof (buffer);
+					WCHAR buffer[1024] = {0};
 
-					if (QueryFullProcessImageName (h, 0, buffer, &size))
+					if (_r_process_getpath (h, buffer, _countof (buffer)))
 					{
 						if (_wcsnicmp (path, buffer, len) == 0)
 							result = TRUE;
@@ -939,19 +1048,19 @@ BOOL _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 
 	if (_r_sys_validversion (6, 0))
 	{
-		CWMFEX _cwmfex = (CWMFEX)GetProcAddress (GetModuleHandle (L"user32.dll"), "ChangeWindowMessageFilterEx"); // win 7
+		CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (GetModuleHandle (L"user32.dll"), "ChangeWindowMessageFilterEx"); // win7 and later
 
-		if (_cwmfex)
+		if (_ChangeWindowMessageFilterEx)
 		{
-			result = _cwmfex (hwnd, msg, action, nullptr);
+			result = _ChangeWindowMessageFilterEx (hwnd, msg, action, nullptr);
 		}
 		else
 		{
-			CWMF _cwmf = (CWMF)GetProcAddress (GetModuleHandle (L"user32.dll"), "ChangeWindowMessageFilter"); // vista
+			CWMF _ChangeWindowMessageFilter = (CWMF)GetProcAddress (GetModuleHandle (L"user32.dll"), "ChangeWindowMessageFilter"); // vista
 
-			if (_cwmf)
+			if (_ChangeWindowMessageFilter)
 			{
-				result = _cwmf (msg, action);
+				result = _ChangeWindowMessageFilter (msg, action);
 			}
 		}
 	}
@@ -1020,10 +1129,12 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d)
 		_LoadIconWithScaleDown (h, name, d, d, &result);
 	}
 
+#ifndef _APP_NO_WINXP
 	if (!result)
 	{
 		result = (HICON)LoadImage (h, name, IMAGE_ICON, d, d, 0);
 	}
+#endif // _APP_NO_WINXP
 
 	return result;
 }

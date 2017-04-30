@@ -142,26 +142,31 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 	WCHAR title[128] = {0};
 	GetWindowText (hwnd, title, _countof (title));
 
-	rapp* ptr = (rapp*)lparam;
+	rapp const* ptr = (rapp*)lparam;
 
-	if (lparam && _wcsnicmp (title, ptr->app_name_short, wcslen (ptr->app_name_short)) != 0)
+	if (ptr && _wcsnicmp (title, ptr->app_name, wcslen (ptr->app_name)) != 0)
 		return TRUE;
 
-	HANDLE h = OpenProcess (PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+	DWORD access_rights = PROCESS_QUERY_LIMITED_INFORMATION; // vista and later
+
+#ifndef _APP_NO_WINXP
+	if (ptr && !ptr->IsVistaOrLater ())
+		access_rights = PROCESS_QUERY_INFORMATION; // winxp
+#endif // _APP_NO_WINXP
+
+	HANDLE h = OpenProcess (access_rights, FALSE, pid);
 
 	if (h)
 	{
-		WCHAR path[MAX_PATH] = {0};
-		DWORD size = _countof (path);
+		WCHAR fname[1024] = {0};
 
-		if (QueryFullProcessImageName (h, 0, path, &size))
+		if (_r_process_getpath (h, fname, _countof (fname)))
 		{
-			WCHAR my_name[128] = {0};
-			StringCchCopy (my_name, _countof (my_name), _r_path_extractfile (ptr->GetBinaryPath ()));
-
-			if (_wcsnicmp (my_name, _r_path_extractfile (path), _countof (my_name)) == 0)
+			if (ptr && _wcsnicmp (_r_path_extractfile (fname), ptr->app_name_short, wcslen (ptr->app_name_short)) == 0)
 			{
 				_r_wnd_toggle (hwnd, TRUE);
+
+				CloseHandle (h);
 
 				return FALSE;
 			}
@@ -209,6 +214,9 @@ BOOL rapp::AutorunIsEnabled ()
 #ifndef _APP_NO_UPDATES
 VOID rapp::CheckForUpdates (BOOL is_periodical)
 {
+	if (update_lock)
+		return;
+
 	if (is_periodical)
 	{
 		if (!ConfigGet (L"CheckUpdates", TRUE).AsBool () || (_r_unixtime_now () - ConfigGet (L"CheckUpdatesLast", 0).AsLonglong ()) <= _APP_UPDATE_PERIOD)
@@ -218,6 +226,8 @@ VOID rapp::CheckForUpdates (BOOL is_periodical)
 	is_update_forced = is_periodical;
 
 	_beginthreadex (nullptr, 0, &CheckForUpdatesProc, (LPVOID)this, 0, nullptr);
+
+	update_lock = TRUE;
 }
 #endif // _APP_NO_UPDATES
 
@@ -229,6 +239,7 @@ VOID rapp::ConfigInit ()
 
 	LocaleInit ();
 
+	// check for updates
 #ifndef _APP_NO_UPDATES
 	CheckForUpdates (TRUE);
 #endif // _APP_NO_UPDATES
@@ -309,17 +320,17 @@ VOID rapp::CreateAboutWindow ()
 }
 #endif // _APP_NO_ABOUT
 
-BOOL rapp::IsAdmin ()
+BOOL rapp::IsAdmin () const
 {
 	return is_admin;
 }
 
-BOOL rapp::IsClassicUI ()
+BOOL rapp::IsClassicUI () const
 {
 	return is_classic;
 }
 
-BOOL rapp::IsVistaOrLater ()
+BOOL rapp::IsVistaOrLater () const
 {
 	return is_vistaorlater;
 }
@@ -544,18 +555,19 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 			const INT width = ConfigGet (L"WindowPosWidth", 0).AsInt ();
 			const INT height = ConfigGet (L"WindowPosHeight", 0).AsInt ();
 
-			DWORD flags = SWP_NOOWNERZORDER | SWP_NOZORDER;
+			DWORD flags = SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOACTIVATE;
 
-			if (!xpos && !ypos)
+			if (xpos <= 0 || ypos <= 0)
 				flags |= SWP_NOMOVE;
 
-			if (!width && !height)
+			if (width <= 0 || height <= 0)
 				flags |= SWP_NOSIZE;
 
 			SetWindowPos (GetHWND (), nullptr, xpos, ypos, width, height, flags);
 		}
 #endif // _APP_HAVE_SIZING
 
+#ifdef _APP_HAVE_TRAY
 		{
 			BOOL is_minimized = FALSE;
 
@@ -563,10 +575,8 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 #ifdef _APP_STARTMINIMIZED
 			is_minimized = TRUE;
 #else
-#ifdef _APP_HAVE_TRAY
 			if (wcsstr (GetCommandLine (), L"/minimized") || ConfigGet (L"StartMinimized", FALSE).AsBool ())
 				is_minimized = TRUE;
-#endif // _APP_HAVE_TRAY
 #endif // _APP_STARTMINIMIZED
 
 			if (!is_minimized)
@@ -590,6 +600,7 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 #endif // _APP_HAVE_SIZING
 			}
 		}
+#endif // _APP_HAVE_TRAY
 
 		// enable messages bypass uipi
 #ifdef _APP_HAVE_TRAY
@@ -619,11 +630,6 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 
 			DrawMenuBar (GetHWND ()); // redraw menu
 		}
-
-		// check for updates
-#ifndef _APP_NO_UPDATES
-		CheckForUpdates (TRUE);
-#endif // _APP_NO_UPDATES
 
 		result = TRUE;
 	}
@@ -1234,8 +1240,6 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					if (!IsWindowEnabled (GetDlgItem (hwnd, IDC_APPLY)))
 						return FALSE;
 
-					HWND hfocus = GetFocus ();
-
 					BOOL is_newlocale = FALSE;
 
 					for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
@@ -1267,8 +1271,6 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 					this_ptr->InitSettingsPage (hwnd, is_newlocale);
 
-					SetFocus (hfocus);
-
 					break;
 				}
 
@@ -1295,6 +1297,8 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 {
 	rapp* this_ptr = static_cast<rapp*>(lparam);
+
+	this_ptr->update_lock = TRUE;
 
 	if (this_ptr)
 	{
@@ -1365,6 +1369,8 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 		InternetCloseHandle (connect);
 		InternetCloseHandle (internet);
 	}
+
+	this_ptr->update_lock = FALSE;
 
 	return ERROR_SUCCESS;
 }
