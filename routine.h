@@ -129,7 +129,7 @@ BOOL _r_sys_adminstate ();
 BOOL _r_sys_iswow64 ();
 #endif // _WIN64
 
-BOOL _r_sys_securitydescriptor (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURITY_DESCRIPTOR sd);
+BOOL _r_sys_setsecurityattributes (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURITY_DESCRIPTOR sd);
 BOOL _r_sys_setprivilege (LPCWSTR privilege, BOOL is_enable);
 BOOL _r_sys_uacstate ();
 BOOL _r_sys_validversion (DWORD major, DWORD minor, DWORD build = 0, BYTE condition = VER_GREATER_EQUAL);

@@ -9,19 +9,11 @@ CONST UINT WM_TASKBARCREATED = RegisterWindowMessage (L"TaskbarCreated");
 
 rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright)
 {
-	// initialize security descriptors
+	// initialize security attributes
 	SecureZeroMemory (&sd, sizeof (sd));
 	SecureZeroMemory (&sa, sizeof (sa));
-
-	if (InitializeSecurityDescriptor (&sd, SECURITY_DESCRIPTOR_REVISION))
-	{
-		if (SetSecurityDescriptorDacl (&sd, TRUE, nullptr, FALSE))
-		{
-			sa.nLength = sizeof (sa);
-			sa.lpSecurityDescriptor = &sd;
-			sa.bInheritHandle = TRUE;
-		}
-	}
+	
+	_r_sys_setsecurityattributes (&sa, sizeof (sa), &sd);
 
 	// initialize controls
 	INITCOMMONCONTROLSEX icex = {0};
@@ -475,7 +467,8 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 	{
 		if (callback && numargs > 1)
 		{
-			callback (nullptr, _RM_ARGUMENTS, nullptr, nullptr);
+			if (callback (nullptr, _RM_ARGUMENTS, nullptr, nullptr))
+				return FALSE;
 		}
 
 		LocalFree (arga);

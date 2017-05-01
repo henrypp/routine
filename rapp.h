@@ -105,6 +105,8 @@ public:
 	BOOL ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name = nullptr);
 	BOOL ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name = nullptr);
 
+	VOID ConfigInit ();
+
 #ifndef _APP_NO_ABOUT
 	VOID CreateAboutWindow ();
 #endif // _APP_NO_ABOUT
@@ -175,7 +177,6 @@ private:
 
 	BOOL ParseINI (LPCWSTR path, rstring::map_two* map);
 
-	VOID ConfigInit ();
 	VOID LocaleInit ();
 
 	SECURITY_ATTRIBUTES sa;

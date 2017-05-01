@@ -857,7 +857,7 @@ BOOL _r_sys_iswow64 ()
 }
 #endif // _WIN64
 
-BOOL _r_sys_securitydescriptor (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURITY_DESCRIPTOR sd)
+BOOL _r_sys_setsecurityattributes (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURITY_DESCRIPTOR sd)
 {
 	if (!sa || !InitializeSecurityDescriptor (sd, SECURITY_DESCRIPTOR_REVISION) || !SetSecurityDescriptorDacl (sd, TRUE, nullptr, FALSE))
 	{
