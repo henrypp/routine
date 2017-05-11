@@ -67,7 +67,6 @@ rapp::~rapp ()
 	if (app_callback)
 		app_callback (GetHWND (), _RM_UNINITIALIZE, nullptr, nullptr);
 
-
 #ifndef _APP_NO_SETTINGS
 	ClearSettingsPage ();
 #endif // _APP_NO_SETTINGS
@@ -533,8 +532,18 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 
 	if (app_hwnd)
 	{
-		// remove focus
-		SetFocus (nullptr);
+		// enable messages bypass uipi
+#ifdef _APP_HAVE_TRAY
+		_r_wnd_changemessagefilter (GetHWND (), WM_TASKBARCREATED, MSGFLT_ALLOW);
+#endif // _APP_HAVE_TRAY
+
+		_r_wnd_changemessagefilter (GetHWND (), WM_DROPFILES, MSGFLT_ALLOW);
+		_r_wnd_changemessagefilter (GetHWND (), WM_COPYDATA, MSGFLT_ALLOW);
+		_r_wnd_changemessagefilter (GetHWND (), 0x0049, MSGFLT_ALLOW); // WM_COPYGLOBALDATA
+
+																	   // subclass window
+		SetWindowLongPtr (GetHWND (), GWLP_USERDATA, (LONG_PTR)this);
+		app_wndproc = (WNDPROC)SetWindowLongPtr (GetHWND (), DWLP_DLGPROC, (LONG_PTR)&MainWindowProc);
 
 		// set autorun state
 #ifdef _APP_HAVE_AUTORUN
@@ -590,7 +599,6 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 			is_minimized = TRUE;
 #else
 #ifdef _APP_HAVE_TRAY
-
 			if (wcsstr (GetCommandLine (), L"/minimized") || ConfigGet (L"StartMinimized", FALSE).AsBool ())
 				is_minimized = TRUE;
 #endif // _APP_HAVE_TRAY
@@ -622,23 +630,13 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 			}
 		}
 
-		// enable messages bypass uipi
-#ifdef _APP_HAVE_TRAY
-		_r_wnd_changemessagefilter (GetHWND (), WM_TASKBARCREATED, MSGFLT_ALLOW);
-#endif // _APP_HAVE_TRAY
-
-		_r_wnd_changemessagefilter (GetHWND (), WM_DROPFILES, MSGFLT_ALLOW);
-		_r_wnd_changemessagefilter (GetHWND (), WM_COPYDATA, MSGFLT_ALLOW);
-		_r_wnd_changemessagefilter (GetHWND (), 0x0049, MSGFLT_ALLOW); // WM_COPYGLOBALDATA
-
-		// subclass window
-		SetWindowLongPtr (GetHWND (), GWLP_USERDATA, (LONG_PTR)this);
-		app_wndproc = (WNDPROC)SetWindowLongPtr (GetHWND (), DWLP_DLGPROC, (LONG_PTR)&MainWindowProc);
-
 		// set icons
 #ifdef IDI_MAIN
 		SetIcon (IDI_MAIN);
 #endif // IDI_MAIN
+
+		// remove focus
+		SetFocus (nullptr);
 
 		// initialization callback
 		if (callback)
