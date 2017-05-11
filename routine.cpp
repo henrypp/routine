@@ -1307,17 +1307,17 @@ VOID _r_ctrl_enable (HWND hwnd, UINT ctrl, BOOL is_enable)
 
 rstring _r_ctrl_gettext (HWND hwnd, UINT ctrl)
 {
-	rstring result;
+	rstring result = L"";
 
 	INT length = (INT)SendDlgItemMessage (hwnd, ctrl, WM_GETTEXTLENGTH, 0, 0);
 
-	if (!length)
-		return L"";
+	if (length)
+	{
+		length += 1;
 
-	length += 1;
-
-	GetDlgItemText (hwnd, ctrl, result.GetBuffer (length), length);
-	result.ReleaseBuffer ();
+		GetDlgItemText (hwnd, ctrl, result.GetBuffer (length), length);
+		result.ReleaseBuffer ();
+	}
 
 	return result;
 }
