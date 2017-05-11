@@ -1115,6 +1115,130 @@ VOID _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT in
 }
 
 /*
+	Inernet access (WinHTTP)
+*/
+
+HINTERNET _r_inet_createsession (LPCWSTR useragent)
+{
+	HINTERNET h = nullptr;
+
+	DWORD flags = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
+
+	const BOOL is_win81 = _r_sys_validversion (6, 3);
+
+	if (is_win81)
+		flags = WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY;
+
+	h = WinHttpOpen (useragent, flags, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+
+	if (!h)
+		return nullptr;
+
+	// enable compression feature (win81 and above)
+	if (is_win81)
+	{
+		ULONG httpFlags = WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE;
+
+		WinHttpSetOption (h, WINHTTP_OPTION_DECOMPRESSION, &httpFlags, sizeof (httpFlags));
+	}
+
+	return h;
+}
+
+BOOL _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* prequest)
+{
+	URL_COMPONENTS urlcomp = {0};
+
+	WCHAR host[MAX_PATH] = {0};
+	WCHAR url_path[MAX_PATH] = {0};
+
+	urlcomp.dwStructSize = sizeof (urlcomp);
+
+	urlcomp.lpszHostName = host;
+	urlcomp.dwHostNameLength = _countof (host);
+
+	urlcomp.lpszUrlPath = url_path;
+	urlcomp.dwUrlPathLength = _countof (url_path);
+
+	HINTERNET hconnect = nullptr;
+	HINTERNET hrequest = nullptr;
+
+	if (WinHttpCrackUrl (url, DWORD (wcslen (url)), ICU_ESCAPE, &urlcomp))
+	{
+		hconnect = WinHttpConnect (h, urlcomp.lpszHostName, urlcomp.nPort, 0);
+
+		if (hconnect)
+		{
+			DWORD flags = WINHTTP_FLAG_REFRESH;
+
+			if (urlcomp.nScheme == INTERNET_SCHEME_HTTPS)
+				flags |= WINHTTP_FLAG_SECURE;
+
+			hrequest = WinHttpOpenRequest (hconnect, nullptr, urlcomp.lpszUrlPath, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
+
+			if (hrequest)
+			{
+				// disable keep-alive & redirection feature (win7 and above)
+				if (_r_sys_validversion (6, 1))
+				{
+					ULONG option = WINHTTP_DISABLE_REDIRECTS;
+					WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &option, sizeof (ULONG));
+
+					option = WINHTTP_DISABLE_KEEP_ALIVE;
+					WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &option, sizeof (ULONG));
+				}
+
+				if (WinHttpSendRequest (hrequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH, 0))
+				{
+					if (WinHttpReceiveResponse (hrequest, nullptr))
+					{
+						if (pconnect)
+							*pconnect = hconnect;
+
+						if (prequest)
+							*prequest = hrequest;
+
+						return TRUE;
+					}
+
+				}
+			}
+		}
+	}
+
+	if (hconnect)
+		_r_inet_close (hconnect);
+
+	if (hrequest)
+		_r_inet_close (hrequest);
+
+	return FALSE;
+}
+
+BOOL _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD total_length)
+{
+	DWORD returnLength = 0;
+
+	if (!WinHttpReadData (hrequest, buffer, length, &returnLength))
+		return FALSE;
+
+	if (returnLength == 0)
+		return FALSE;
+
+	buffer[returnLength] = 0;
+
+	if (total_length)
+		*total_length += returnLength;
+
+	return TRUE;
+}
+
+BOOL _r_inet_close (HINTERNET h)
+{
+	return WinHttpCloseHandle (h);
+}
+
+/*
 	Other
 */
 

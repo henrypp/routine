@@ -47,6 +47,10 @@
 #	define _APP_DONATION_URL _APP_WEBSITE_URL L"/donate?from=" APP_NAME_SHORT
 #endif // _APP_WEBSITE_URL
 
+#ifndef _APP_UPDATE_URL
+#	define _APP_UPDATE_URL _APP_GITHUB_URL L"/%s/releases/latest"
+#endif // _APP_UPDATE_URL
+
 #ifndef _APP_UPDATE_PERIOD
 #	define _APP_UPDATE_PERIOD (86400 * 2) // update checking period (in seconds. 86400 is 1 day.)
 #endif // _APP_UPDATE_PERIOD

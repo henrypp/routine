@@ -16,6 +16,7 @@
 #include <time.h>
 #include <lm.h>
 #include <process.h>
+#include <winhttp.h>
 
 #include "rconfig.h"
 #include "rstring.h"
@@ -24,6 +25,7 @@
 #pragma comment(lib, "psapi.lib")
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "uxtheme.lib")
+#pragma comment(lib, "winhttp.lib")
 
 /*
 	Macroses
@@ -157,6 +159,15 @@ VOID _r_wnd_top (HWND hwnd, BOOL is_enable);
 VOID _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT index);
 
 /*
+	Inernet access (WinHTTP)
+*/
+
+HINTERNET _r_inet_createsession (LPCWSTR useragent);
+BOOL _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* prequest);
+BOOL _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD total_length);
+BOOL _r_inet_close (HINTERNET h);
+
+/*
 	Other
 */
 
@@ -204,7 +215,6 @@ DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle);
 
 VOID _r_listview_resizeonecolumn (HWND hwnd, UINT ctrl_id);
 
-
 /*
 	Control: treeview
 */
@@ -231,3 +241,4 @@ typedef HRESULT (WINAPI *LIWSD) (HINSTANCE, PCWSTR, INT, INT, HICON*); // LoadIc
 typedef VOID (WINAPI *TDI) (TASKDIALOGCONFIG*, INT*, INT*, BOOL*); // TaskDialogIndirect
 typedef int (WINAPI *SHCDEX) (HWND, LPCTSTR, const SECURITY_ATTRIBUTES*); // SHCreateDirectoryEx
 typedef BOOL (WINAPI *QFPIN) (HANDLE, DWORD, LPWSTR, PDWORD); // QueryFullProcessImageName
+typedef BOOL (WINAPI *MFACS) (PCWSTR, PDWORD, PDWORD); // MapFileAndCheckSumW

@@ -6,16 +6,14 @@
 #include "routine.h"
 #include "resource.h"
 
-#include <wininet.h>
-#include <taskschd.h>
 #include <comdef.h>
+#include <taskschd.h>
 
 #include "rconfig.h"
 
 // libs
 #pragma comment(lib, "comsupp.lib")
 #pragma comment(lib, "taskschd.lib")
-#pragma comment(lib, "wininet.lib")
 
 /*
 	Localization macros
@@ -51,8 +49,6 @@ typedef struct
 	LPARAM lparam = 0;
 } *PAPP_SETTINGS_PAGE, APP_SETTINGS_PAGE;
 
-#endif // _APP_NO_SETTINGS
-
 #ifdef _APP_HAVE_SIMPLE_SETTINGS
 enum CfgType
 {
@@ -72,6 +68,8 @@ typedef struct
 	WCHAR locale_sid[64] = {0};
 } *PAPP_SETTINGS_CONFIG, APP_SETTINGS_CONFIG;
 #endif // _APP_HAVE_SIMPLE_SETTINGS
+
+#endif // _APP_NO_SETTINGS
 
 /*
 	Application class
@@ -126,11 +124,12 @@ public:
 	size_t AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
 	VOID ClearSettingsPage ();
 	VOID InitSettingsPage (HWND hwnd, BOOL is_restart);
-#endif // _APP_NO_SETTINGS
 
 #ifdef _APP_HAVE_SIMPLE_SETTINGS
 	VOID AddSettingsItem (LPCWSTR name, LPCWSTR def_value, CfgType type, UINT locale_id, LPCWSTR locale_sid);
 #endif // _APP_HAVE_SIMPLE_SETTINGS
+
+#endif // _APP_NO_SETTINGS
 
 	rstring GetBinaryPath () const;
 	rstring GetDirectory () const;
@@ -159,6 +158,7 @@ public:
 	BOOL SkipUacIsEnabled ();
 	BOOL SkipUacRun ();
 #endif // _APP_HAVE_SKIPUAC
+
 	BOOL RunAsAdmin ();
 
 private:
@@ -229,14 +229,15 @@ private:
 	INT max_height = 0;
 #endif // _APP_HAVE_SIZING
 
-#ifdef _APP_HAVE_SIMPLE_SETTINGS
-	std::unordered_map<rstring, PAPP_SETTINGS_CONFIG, rstring::hash, rstring::is_equal> app_configs;
-#endif // _APP_HAVE_SIMPLE_SETTINGS
-
 	UINT app_locale_count = 0;
 
 #ifndef _APP_NO_SETTINGS
 	std::vector<PAPP_SETTINGS_PAGE> app_settings_pages;
 	rstring::map_two app_settings;
+
+#ifdef _APP_HAVE_SIMPLE_SETTINGS
+	std::unordered_map<rstring, PAPP_SETTINGS_CONFIG, rstring::hash, rstring::is_equal> app_configs;
+#endif // _APP_HAVE_SIMPLE_SETTINGS
+
 #endif // _APP_NO_SETTINGS
 };

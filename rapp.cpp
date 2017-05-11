@@ -12,7 +12,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	// initialize security attributes
 	SecureZeroMemory (&sd, sizeof (sd));
 	SecureZeroMemory (&sa, sizeof (sa));
-	
+
 	_r_sys_setsecurityattributes (&sa, sizeof (sa), &sd);
 
 	// initialize controls
@@ -459,6 +459,28 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 {
 	BOOL result = FALSE;
 
+	// check checksum
+	{
+		HINSTANCE h = LoadLibrary (L"imagehlp.dll");
+
+		if (h)
+		{
+			MFACS _MapFileAndCheckSumW = (MFACS)GetProcAddress (h, "MapFileAndCheckSumW");
+
+			if (_MapFileAndCheckSumW)
+			{
+				DWORD dwFileChecksum = 0, dwRealChecksum = 0;
+
+				_MapFileAndCheckSumW (GetBinaryPath (), &dwFileChecksum, &dwRealChecksum);
+
+				if (dwRealChecksum != dwFileChecksum)
+					return FALSE;
+			}
+
+			FreeLibrary (h);
+		}
+	}
+
 	// check arguments
 	INT numargs = 0;
 	LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
@@ -560,7 +582,6 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 		}
 #endif // _APP_HAVE_SIZING
 
-#ifdef _APP_HAVE_TRAY
 		{
 			BOOL is_minimized = FALSE;
 
@@ -568,8 +589,11 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 #ifdef _APP_STARTMINIMIZED
 			is_minimized = TRUE;
 #else
+#ifdef _APP_HAVE_TRAY
+
 			if (wcsstr (GetCommandLine (), L"/minimized") || ConfigGet (L"StartMinimized", FALSE).AsBool ())
 				is_minimized = TRUE;
+#endif // _APP_HAVE_TRAY
 #endif // _APP_STARTMINIMIZED
 
 			if (!is_minimized)
@@ -585,6 +609,10 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 			}
 			else
 			{
+#ifndef _APP_HAVE_TRAY
+				ShowWindow (GetHWND (), SW_SHOWMINIMIZED);
+#endif // _APP_HAVE_TRAY
+
 #ifdef _APP_HAVE_SIZING
 				//if (ConfigGet (L"IsWindowZoomed", FALSE).AsBool ())
 				{
@@ -593,7 +621,6 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 #endif // _APP_HAVE_SIZING
 			}
 		}
-#endif // _APP_HAVE_TRAY
 
 		// enable messages bypass uipi
 #ifdef _APP_HAVE_TRAY
@@ -997,7 +1024,7 @@ VOID rapp::LocaleEnum (HWND hwnd, INT ctrl_id, BOOL is_menu, const UINT id_start
 	{
 		if (is_menu)
 		{
-			EnableMenuItem ((HMENU)hwnd, ctrl_id, MF_BYPOSITION | MF_DISABLED);
+			EnableMenuItem ((HMENU)hwnd, ctrl_id, MF_BYPOSITION | MF_DISABLED | MF_GRAYED);
 		}
 		else
 		{
@@ -1296,58 +1323,50 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 	if (this_ptr)
 	{
 		BOOL result = FALSE;
-		HINTERNET internet = nullptr, connect = nullptr;
+
+		HINTERNET hconnect = nullptr;
+		HINTERNET hrequest = nullptr;
 
 #ifdef IDM_CHECKUPDATES
-		EnableMenuItem (GetMenu (this_ptr->GetHWND ()), IDM_CHECKUPDATES, MF_BYCOMMAND | MF_DISABLED);
+		EnableMenuItem (GetMenu (this_ptr->GetHWND ()), IDM_CHECKUPDATES, MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
 #endif // IDM_CHECKUPDATES
 
-		internet = InternetOpen (this_ptr->GetUserAgent (), INTERNET_OPEN_TYPE_PRECONFIG, nullptr, nullptr, 0);
+		HINTERNET hsession = _r_inet_createsession (this_ptr->GetUserAgent ());
 
-		if (internet)
+		if (hsession)
 		{
-			connect = InternetOpenUrl (internet, _r_fmt (L"%s/update.php?product=%s", _APP_WEBSITE_URL, this_ptr->app_name_short), nullptr, 0, INTERNET_FLAG_RESYNCHRONIZE | INTERNET_FLAG_NO_COOKIES, 0);
-
-			if (connect)
+			if (_r_inet_openurl (hsession, _r_fmt (L"%s/update.php?product=%s", _APP_WEBSITE_URL, this_ptr->app_name_short), &hconnect, &hrequest))
 			{
-				DWORD dwStatus = 0, dwStatusSize = sizeof (dwStatus);
-				HttpQueryInfo (connect, HTTP_QUERY_FLAG_NUMBER | HTTP_QUERY_STATUS_CODE, &dwStatus, &dwStatusSize, nullptr);
+				LPSTR buffera = new CHAR[1024];
+				rstring bufferw;
+				DWORD total_length = 0;
 
-				if (dwStatus == HTTP_STATUS_OK)
+				while (TRUE)
 				{
-					DWORD out = 0;
+					if (!_r_inet_readrequest (hrequest, buffera, 1024 - 1, &total_length))
+						break;
 
-					CHAR buffer[_R_BUFFER_LENGTH] = {0};
+					bufferw.Append (buffera);
+				}
 
-					rstring bufferw;
+				delete[] buffera;
 
-					while (TRUE)
+				bufferw.Trim (L" \r\n");
+
+				if (_r_str_versioncompare (this_ptr->app_version, bufferw) == -1)
+				{
+					if (_r_msg (this_ptr->GetHWND (), MB_YESNO | MB_ICONQUESTION, this_ptr->app_name, nullptr, I18N (this_ptr, IDS_UPDATE_YES, 0), bufferw) == IDYES)
 					{
-						if (!InternetReadFile (connect, buffer, _R_BUFFER_LENGTH - 1, &out) || !out)
-						{
-							break;
-						}
-
-						buffer[out] = 0;
-
-						bufferw.Append (buffer);
+						ShellExecute (nullptr, nullptr, _r_fmt (_APP_UPDATE_URL, this_ptr->app_name_short), nullptr, nullptr, SW_SHOWDEFAULT);
 					}
 
-					bufferw.Trim (L" \r\n");
-
-					if (_r_str_versioncompare (this_ptr->app_version, bufferw) == -1)
-					{
-						if (_r_msg (this_ptr->GetHWND (), MB_YESNO | MB_ICONQUESTION, this_ptr->app_name, nullptr, I18N (this_ptr, IDS_UPDATE_YES, 0), bufferw) == IDYES)
-						{
-							ShellExecute (nullptr, nullptr, _APP_WEBSITE_URL, nullptr, nullptr, SW_SHOWDEFAULT);
-						}
-
-						result = TRUE;
-					}
+					result = TRUE;
 				}
 
 				this_ptr->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
 			}
+
+			_r_inet_close (hsession);
 		}
 
 #ifdef IDM_CHECKUPDATES
@@ -1359,8 +1378,11 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 			_r_msg (this_ptr->GetHWND (), MB_OK | MB_ICONINFORMATION, this_ptr->app_name, nullptr, I18N (this_ptr, IDS_UPDATE_NO, 0));
 		}
 
-		InternetCloseHandle (connect);
-		InternetCloseHandle (internet);
+		if (hconnect)
+			_r_inet_close (hconnect);
+
+		if (hrequest)
+			_r_inet_close (hrequest);
 	}
 
 	this_ptr->update_lock = FALSE;
