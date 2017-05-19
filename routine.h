@@ -89,13 +89,14 @@ VOID _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length);
 	Filesystem
 */
 
-BOOL _r_fs_delete (LPCWSTR path, BOOL allowundo);
+BOOL _r_fs_delete (LPCWSTR path, BOOL allowundo = FALSE);
 BOOL _r_fs_exists (LPCWSTR path);
 BOOL _r_fs_mkdir (LPCWSTR path);
 BOOL _r_fs_rmdir (LPCWSTR path);
 BOOL _r_fs_readfile (HANDLE h, LPVOID result, DWORD64 size);
 DWORD64 _r_fs_size (HANDLE h);
-BOOL _r_fs_ren (LPCWSTR path_from, LPCWSTR path_to);
+BOOL _r_fs_move (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
+BOOL _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
 
 /*
 	Paths
@@ -163,8 +164,8 @@ VOID _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT in
 */
 
 HINTERNET _r_inet_createsession (LPCWSTR useragent);
-BOOL _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* prequest);
-BOOL _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD total_length);
+BOOL _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* prequest, PDWORD contentlength);
+BOOL _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD written);
 BOOL _r_inet_close (HINTERNET h);
 
 /*

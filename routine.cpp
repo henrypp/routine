@@ -480,9 +480,14 @@ BOOL _r_fs_rmdir (LPCWSTR path)
 	return 0;
 }
 
-BOOL _r_fs_ren (LPCWSTR path_from, LPCWSTR path_to)
+BOOL _r_fs_move (LPCWSTR path_from, LPCWSTR path_to, DWORD flags)
 {
-	return MoveFileEx (path_from, path_to, 0);
+	return MoveFileEx (path_from, path_to, flags);
+}
+
+BOOL _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags)
+{
+	return CopyFileEx (path_from, path_to, nullptr, nullptr, nullptr, flags);
 }
 
 /*
@@ -888,7 +893,7 @@ BOOL _r_sys_setprivilege (LPCWSTR privilege, BOOL is_enable)
 			tp.Privileges[0].Luid = luid;
 			tp.Privileges[0].Attributes = is_enable ? SE_PRIVILEGE_ENABLED : SE_PRIVILEGE_REMOVED;
 
-			if (AdjustTokenPrivileges (token, FALSE, &tp, sizeof (TOKEN_PRIVILEGES), nullptr, nullptr) && GetLastError () == ERROR_SUCCESS)
+			if (AdjustTokenPrivileges (token, FALSE, &tp, sizeof (tp), nullptr, nullptr) && GetLastError () == ERROR_SUCCESS)
 			{
 				result = TRUE;
 			}
@@ -1145,7 +1150,7 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent)
 	return h;
 }
 
-BOOL _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* prequest)
+BOOL _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* prequest, PDWORD contentlength)
 {
 	URL_COMPONENTS urlcomp = {0};
 
@@ -1178,13 +1183,10 @@ BOOL _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* 
 
 			if (hrequest)
 			{
-				// disable keep-alive & redirection feature (win7 and above)
+				// disable keep-alive (win7 and above)
 				if (_r_sys_validversion (6, 1))
 				{
-					ULONG option = WINHTTP_DISABLE_REDIRECTS;
-					WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &option, sizeof (ULONG));
-
-					option = WINHTTP_DISABLE_KEEP_ALIVE;
+					ULONG option = WINHTTP_DISABLE_KEEP_ALIVE;
 					WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &option, sizeof (ULONG));
 				}
 
@@ -1192,6 +1194,17 @@ BOOL _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* 
 				{
 					if (WinHttpReceiveResponse (hrequest, nullptr))
 					{
+						if (contentlength)
+						{
+							DWORD queryLength = 0;
+							DWORD length = sizeof (queryLength);
+
+							if (WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, nullptr, &queryLength, &length, nullptr))
+							{
+								*contentlength = queryLength;
+							}
+						}
+
 						if (pconnect)
 							*pconnect = hconnect;
 
@@ -1215,20 +1228,23 @@ BOOL _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* 
 	return FALSE;
 }
 
-BOOL _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD total_length)
+BOOL _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD written)
 {
-	DWORD returnLength = 0;
+	DWORD written_ow = 0;
 
-	if (!WinHttpReadData (hrequest, buffer, length, &returnLength))
+	if (written)
+		*written = 0;
+
+	if (!WinHttpReadData (hrequest, buffer, length, &written_ow))
 		return FALSE;
 
-	if (returnLength == 0)
+	if (!written_ow)
 		return FALSE;
 
-	buffer[returnLength] = 0;
+	buffer[written_ow] = 0;
 
-	if (total_length)
-		*total_length += returnLength;
+	if (written)
+		*written = written_ow;
 
 	return TRUE;
 }

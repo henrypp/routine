@@ -120,7 +120,7 @@ public:
 #endif // _APP_HAVE_TRAY
 
 #ifndef _APP_NO_SETTINGS
-	VOID CreateSettingsWindow ();
+	VOID CreateSettingsWindow (size_t dlg_id = LAST_VALUE);
 	size_t AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
 	VOID ClearSettingsPage ();
 	VOID InitSettingsPage (HWND hwnd, BOOL is_restart);
@@ -234,6 +234,7 @@ private:
 #ifndef _APP_NO_SETTINGS
 	std::vector<PAPP_SETTINGS_PAGE> app_settings_pages;
 	rstring::map_two app_settings;
+	size_t settings_page = 0;
 
 #ifdef _APP_HAVE_SIMPLE_SETTINGS
 	std::unordered_map<rstring, PAPP_SETTINGS_CONFIG, rstring::hash, rstring::is_equal> app_configs;

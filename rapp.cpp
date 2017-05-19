@@ -762,13 +762,16 @@ BOOL rapp::TrayToggle (DWORD uid, BOOL is_show)
 #endif // _APP_HAVE_TRAY
 
 #ifndef _APP_NO_SETTINGS
-VOID rapp::CreateSettingsWindow ()
+VOID rapp::CreateSettingsWindow (size_t dlg_id)
 {
 	static bool is_opened = false;
 
 	if (!is_opened)
 	{
 		is_opened = true;
+
+		if (dlg_id != LAST_VALUE)
+			ConfigSet (L"SettingsLastPage", dlg_id);
 
 #ifdef IDD_SETTINGS
 		DialogBoxParam (nullptr, MAKEINTRESOURCE (IDD_SETTINGS), GetHWND (), &SettingsWndProc, (LPARAM)this);
@@ -1128,7 +1131,7 @@ INT_PTR CALLBACK rapp::SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LP
 			wmsg.wParam = wparam;
 			wmsg.lParam = lparam;
 
-			PAPP_SETTINGS_PAGE const ptr = this_ptr->app_settings_pages.at (this_ptr->ConfigGet (L"SettingsLastPage", 0).AsSizeT ());
+			PAPP_SETTINGS_PAGE const ptr = this_ptr->app_settings_pages.at (min (this_ptr->settings_page, this_ptr->app_settings_pages.size () - 1));
 
 			if (!ptr->callback)
 				break;
@@ -1171,6 +1174,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			// configure treeview
 			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, GetSystemMetrics (SM_CYSMICON));
 
+#ifndef _APP_HAVE_SIMPLE_SETTINGS
 			for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 			{
 				PAPP_SETTINGS_PAGE ptr = this_ptr->app_settings_pages.at (i);
@@ -1178,13 +1182,12 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 				if (ptr->dlg_id)
 					ptr->hwnd = CreateDialogParam (ptr->h, MAKEINTRESOURCE (ptr->dlg_id), hwnd, &this_ptr->SettingsPagesProc, (LPARAM)this_ptr);
 
-				ptr->item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr->h, ptr->locale_id, ptr->locale_sid), ptr->group_id == LAST_VALUE ? nullptr : this_ptr->app_settings_pages.at (ptr->group_id)->item, LAST_VALUE, (LPARAM)i);
+				ptr->item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr->h, ptr->locale_id, ptr->locale_sid), ((ptr->group_id == LAST_VALUE) ? nullptr : this_ptr->app_settings_pages.at (ptr->group_id)->item), LAST_VALUE, (LPARAM)i);
 
-				if (this_ptr->ConfigGet (L"SettingsLastPage", 0).AsSizeT () == i)
+				if (this_ptr->ConfigGet (L"SettingsLastPage", 0).AsSizeT () == ptr->dlg_id)
 					SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)ptr->item);
 			}
-
-#ifdef _APP_HAVE_SIMPLE_SETTINGS
+#else
 			for (auto const &p : this_ptr->app_configs)
 			{
 				_r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (nullptr, p.second->locale_id, p.second->locale_sid), this_ptr->app_settings_pages.at (0)->item, LAST_VALUE, 0);
@@ -1237,7 +1240,9 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 							SetFocus (this_ptr->app_settings_pages.at (new_id)->hwnd);
 						}
 
-						this_ptr->ConfigSet (L"SettingsLastPage", new_id);
+						this_ptr->settings_page = new_id;
+
+						this_ptr->ConfigSet (L"SettingsLastPage", this_ptr->app_settings_pages.at (new_id)->dlg_id);
 
 						break;
 					}
@@ -1333,7 +1338,7 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 
 		if (hsession)
 		{
-			if (_r_inet_openurl (hsession, _r_fmt (L"%s/update.php?product=%s", _APP_WEBSITE_URL, this_ptr->app_name_short), &hconnect, &hrequest))
+			if (_r_inet_openurl (hsession, _r_fmt (L"%s/update.php?product=%s", _APP_WEBSITE_URL, this_ptr->app_name_short), &hconnect, &hrequest, nullptr))
 			{
 				LPSTR buffera = new CHAR[1024];
 				rstring bufferw;
@@ -1362,6 +1367,12 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 				}
 
 				this_ptr->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
+
+				if (hrequest)
+					_r_inet_close (hrequest);
+
+				if (hconnect)
+					_r_inet_close (hconnect);
 			}
 
 			_r_inet_close (hsession);
@@ -1375,12 +1386,6 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 		{
 			_r_msg (this_ptr->GetHWND (), MB_OK | MB_ICONINFORMATION, this_ptr->app_name, nullptr, I18N (this_ptr, IDS_UPDATE_NO, 0));
 		}
-
-		if (hconnect)
-			_r_inet_close (hconnect);
-
-		if (hrequest)
-			_r_inet_close (hrequest);
 	}
 
 	this_ptr->update_lock = FALSE;
@@ -1478,7 +1483,7 @@ BOOL rapp::SkipUacEnable (BOOL is_enable)
 
 	if (IsVistaOrLater ())
 	{
-		CoInitializeEx (nullptr, COINIT_MULTITHREADED);
+		CoInitializeEx (nullptr, COINIT_MULTITHREADED | COINIT_SPEED_OVER_MEMORY);
 		CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr);
 
 		if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
@@ -1597,7 +1602,7 @@ BOOL rapp::SkipUacRun ()
 
 		IRunningTask* running_task = nullptr;
 
-		CoInitializeEx (nullptr, COINIT_MULTITHREADED);
+		CoInitializeEx (nullptr, COINIT_MULTITHREADED | COINIT_SPEED_OVER_MEMORY);
 		CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr);
 
 		if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
