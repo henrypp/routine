@@ -9,20 +9,6 @@ CONST UINT WM_TASKBARCREATED = RegisterWindowMessage (L"TaskbarCreated");
 
 rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright)
 {
-	// initialize security attributes
-	SecureZeroMemory (&sd, sizeof (sd));
-	SecureZeroMemory (&sa, sizeof (sa));
-
-	_r_sys_setsecurityattributes (&sa, sizeof (sa), &sd);
-
-	// initialize controls
-	INITCOMMONCONTROLSEX icex = {0};
-
-	icex.dwSize = sizeof (icex);
-	icex.dwICC = ICC_WIN95_CLASSES | ICC_STANDARD_CLASSES;
-
-	InitCommonControlsEx (&icex);
-
 	// store system information
 	is_vistaorlater = _r_sys_validversion (6, 0);
 	is_admin = _r_sys_adminstate ();
@@ -33,11 +19,16 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	StringCchCopy (app_version, _countof (app_version), version);
 	StringCchCopy (app_copyright, _countof (app_copyright), copyright);
 
+	// get dpi scale
+	HDC h = GetDC (nullptr);
+	dpi_percent = DOUBLE (GetDeviceCaps (h, LOGPIXELSX)) / 96.0f;
+	ReleaseDC (nullptr, h);
+
 	// get hinstance
 	app_hinstance = GetModuleHandle (nullptr);
 
-	// get path
-	GetModuleFileName (nullptr, app_binary, _countof (app_binary));
+	// get paths
+	GetModuleFileName (GetHINSTANCE (), app_binary, _countof (app_binary));
 	StringCchCopy (app_directory, _countof (app_directory), app_binary);
 	PathRemoveFileSpec (app_directory);
 
@@ -55,10 +46,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 		StringCchCopy (app_profile_directory, _countof (app_profile_directory), GetDirectory ());
 	}
 
-	HDC h = GetDC (nullptr);
-	dpi_percent = DOUBLE (GetDeviceCaps (h, LOGPIXELSX)) / 96.0f;
-	ReleaseDC (nullptr, h);
-
+	// read config
 	ConfigInit ();
 }
 
@@ -108,9 +96,7 @@ BOOL rapp::CheckMutex (BOOL activate_window)
 		result = TRUE;
 
 		if (activate_window)
-		{
 			EnumWindows (&ActivateWindowCallback, (LPARAM)this);
-		}
 	}
 
 	if (h)
@@ -480,19 +466,37 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 		}
 	}
 
-	// check arguments
-	INT numargs = 0;
-	LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
+	// initialize security attributes
+	SecureZeroMemory (&sd, sizeof (sd));
+	SecureZeroMemory (&sa, sizeof (sa));
 
-	if (arga)
+	_r_sys_setsecurityattributes (&sa, sizeof (sa), &sd);
+
+	// initialize controls
 	{
-		if (callback && numargs > 1)
-		{
-			if (callback (nullptr, _RM_ARGUMENTS, nullptr, nullptr))
-				return FALSE;
-		}
+		INITCOMMONCONTROLSEX icex = {0};
 
-		LocalFree (arga);
+		icex.dwSize = sizeof (icex);
+		icex.dwICC = ICC_WIN95_CLASSES | ICC_STANDARD_CLASSES;
+
+		InitCommonControlsEx (&icex);
+	}
+
+	// check arguments
+	{
+		INT numargs = 0;
+		LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
+
+		if (arga)
+		{
+			if (callback && numargs > 1)
+			{
+				if (callback (nullptr, _RM_ARGUMENTS, nullptr, nullptr))
+					return FALSE;
+			}
+
+			LocalFree (arga);
+		}
 	}
 
 	if (CheckMutex (TRUE))
@@ -504,7 +508,10 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 
 #ifdef _APP_NO_GUEST
 	if (!IsAdmin ())
+	{
+		_r_msg (nullptr, MB_OK | MB_ICONSTOP, app_name, L"Application required administrative privileges.", nullptr);
 		return FALSE;
+	}
 #endif // _APP_NO_GUEST
 
 #endif // _APP_HAVE_SKIPUAC
@@ -1478,12 +1485,12 @@ BOOL rapp::SkipUacEnable (BOOL is_enable)
 	IExecAction* exec_action = nullptr;
 	IRegisteredTask* registered_task = nullptr;
 
-	rstring name;
-	name.Format (_APP_TASKSCHD_NAME, app_name_short);
-
 	if (IsVistaOrLater ())
 	{
-		CoInitializeEx (nullptr, COINIT_MULTITHREADED | COINIT_SPEED_OVER_MEMORY);
+		rstring name;
+		name.Format (_APP_TASKSCHD_NAME, app_name_short);
+
+		CoInitializeEx (nullptr, COINIT_MULTITHREADED);
 		CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr);
 
 		if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
@@ -1586,23 +1593,23 @@ BOOL rapp::SkipUacRun ()
 {
 	BOOL result = FALSE;
 
-	rstring name;
-	name.Format (_APP_TASKSCHD_NAME, app_name_short);
+	ITaskService* service = nullptr;
+	ITaskFolder* folder = nullptr;
+	IRegisteredTask* registered_task = nullptr;
+
+	ITaskDefinition* task = nullptr;
+	IActionCollection* action_collection = nullptr;
+	IAction* action = nullptr;
+	IExecAction* exec_action = nullptr;
+
+	IRunningTask* running_task = nullptr;
 
 	if (IsVistaOrLater ())
 	{
-		ITaskService* service = nullptr;
-		ITaskFolder* folder = nullptr;
-		IRegisteredTask* registered_task = nullptr;
+		rstring name;
+		name.Format (_APP_TASKSCHD_NAME, app_name_short);
 
-		ITaskDefinition* task = nullptr;
-		IActionCollection* action_collection = nullptr;
-		IAction* action = nullptr;
-		IExecAction* exec_action = nullptr;
-
-		IRunningTask* running_task = nullptr;
-
-		CoInitializeEx (nullptr, COINIT_MULTITHREADED | COINIT_SPEED_OVER_MEMORY);
+		CoInitializeEx (nullptr, COINIT_MULTITHREADED);
 		CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr);
 
 		if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
@@ -1719,13 +1726,19 @@ BOOL rapp::RunAsAdmin ()
 		{
 			BOOL is_mutexdestroyed = UninitializeMutex ();
 
+			CoInitialize (nullptr);
+
 			SHELLEXECUTEINFO shex = {0};
 
+			WCHAR path[MAX_PATH] = {0};
+			StringCchCopy (path, _countof (path), GetBinaryPath ());
+
 			shex.cbSize = sizeof (shex);
-			shex.fMask = SEE_MASK_UNICODE | SEE_MASK_FLAG_NO_UI;
+			shex.fMask = SEE_MASK_UNICODE | SEE_MASK_NOZONECHECKS;
 			shex.lpVerb = L"runas";
 			shex.nShow = SW_NORMAL;
-			shex.lpFile = GetBinaryPath ();
+			shex.lpFile = path;
+			shex.lpDirectory = GetDirectory ();
 
 			if (ShellExecuteEx (&shex))
 			{
@@ -1736,6 +1749,8 @@ BOOL rapp::RunAsAdmin ()
 				if (is_mutexdestroyed)
 					InitializeMutex ();
 			}
+
+			CoUninitialize ();
 		}
 	}
 

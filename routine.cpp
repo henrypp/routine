@@ -592,7 +592,7 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 	}
 	else
 	{
-		WCHAR drives[128] = {0};
+		WCHAR drives[256] = {0};
 
 		if (GetLogicalDriveStrings (_countof (drives), drives))
 		{
@@ -609,9 +609,10 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 
 				// may return multiple strings!
 				// returns very weird strings for network shares
-				if (QueryDosDevice (drv, u16_NtVolume, sizeof (u16_NtVolume) / sizeof (WCHAR)))
+				if (QueryDosDevice (drv, u16_NtVolume, _countof (u16_NtVolume)))
 				{
-					size_t s32_Len = wcslen (u16_NtVolume);
+					const size_t s32_Len = wcslen (u16_NtVolume);
+
 					if (s32_Len > 0 && _wcsnicmp (path, u16_NtVolume, s32_Len) == 0)
 					{
 						result = drv;
@@ -1273,7 +1274,7 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d)
 	if (!result)
 	{
 		result = (HICON)LoadImage (h, name, IMAGE_ICON, d, d, 0);
-	}
+}
 #endif // _APP_NO_WINXP
 
 	return result;

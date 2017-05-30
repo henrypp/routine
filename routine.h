@@ -72,8 +72,7 @@ VOID _r_spinunlock (volatile LONG* m_ref);
 	System messages
 */
 
-#define WMSG1(a) _r_msg (nullptr, 0, nullptr, nullptr, L"%s", a)
-#define WMSG2(a, ...) _r_msg (nullptr, 0, nullptr, nullptr, a, __VA_ARGS__)
+#define WMSG(a, ...) _r_msg (nullptr, 0, nullptr, nullptr, a, __VA_ARGS__)
 
 INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format, ...);
 HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR ref);
