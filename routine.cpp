@@ -39,19 +39,57 @@ VOID _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...)
 	}
 }
 
-rstring _r_dbg_error (DWORD errcode)
+VOID _r_dbg_write (LPCWSTR appname, LPCWSTR appversion, LPCWSTR fn, DWORD result, LPCWSTR desc)
 {
-	HLOCAL buffer = nullptr;
-	rstring result;
+	rstring path = _r_dbg_getpath (appname);
 
-	if (FormatMessage (FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, errcode, MAKELANGID (LANG_ENGLISH, SUBLANG_DEFAULT), (LPWSTR)&buffer, 0, nullptr))
+	HANDLE h = CreateFile (path, GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH, nullptr);
+
+	if (h != INVALID_HANDLE_VALUE)
 	{
-		result = (LPCWSTR)buffer;
-		result.Trim (L"\r\n");
+		if (GetLastError () != ERROR_ALREADY_EXISTS)
+		{
+			DWORD written = 0;
+			static const BYTE bom[] = {0xFF, 0xFE};
+
+			WriteFile (h, bom, sizeof (bom), &written, nullptr); // write utf-16 le byte order mask
+		}
+		else
+		{
+			SetFilePointer (h, 0, nullptr, FILE_END);
+		}
+
+		DWORD written = 0;
+
+		rstring buffer;
+		rstring write_buffer;
+
+		buffer.Format (_R_DEBUG_FORMAT, fn, result, desc ? desc : L"<empty>");
+		write_buffer.Format (L"[%s] %s [%s]\r\n", _r_fmt_date (_r_unixtime_now (), FDTF_SHORTDATE | FDTF_LONGTIME), buffer, appversion);
+
+		WriteFile (h, write_buffer.GetString (), DWORD (write_buffer.GetLength () * sizeof (WCHAR)), &written, nullptr);
+
+		CloseHandle (h);
+	}
+}
+
+rstring _r_dbg_getpath (LPCWSTR appname)
+{
+	WCHAR result[MAX_PATH] = {0};
+
+	if (_r_sys_uacstate ())
+	{
+		GetTempPath (_countof (result), result);
+	}
+	else
+	{
+		GetModuleFileName (GetModuleHandle (nullptr), result, _countof (result));
+		PathRemoveFileSpec (result);
 	}
 
-
-	LocalFree (buffer);
+	StringCchCat (result, _countof (result), L"\\");
+	StringCchCat (result, _countof (result), appname);
+	StringCchCat (result, _countof (result), L".log");
 
 	return result;
 }
@@ -1425,7 +1463,7 @@ INT _r_listview_addgroup (HWND hwnd, UINT ctrl, LPCWSTR text, size_t group_id, U
 	lvg.mask = LVGF_HEADER | LVGF_GROUPID | LVGF_DESCRIPTIONTOP | LVGF_TITLEIMAGE;
 	lvg.pszHeader = (LPWSTR)text;
 	lvg.pszDescriptionTop = L"Description TOP";
-	lvg.cchDescriptionTop =15;
+	lvg.cchDescriptionTop = 15;
 	lvg.iGroupId = static_cast<INT>(group_id);
 	lvg.iTitleImage = 1;
 
@@ -1597,7 +1635,7 @@ VOID _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR tex
 	if (text)
 	{
 		WCHAR buffer[MAX_PATH] = {0};
-		StringCchCopy (buffer, _countof(buffer), text);
+		StringCchCopy (buffer, _countof (buffer), text);
 
 		lvc.mask |= LVCF_TEXT;
 		lvc.pszText = buffer;
@@ -1605,7 +1643,7 @@ VOID _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR tex
 
 	if (width)
 	{
-		lvc.mask |=LVCF_WIDTH;
+		lvc.mask |= LVCF_WIDTH;
 		lvc.cx = width;
 	}
 

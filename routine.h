@@ -39,6 +39,8 @@
 #define _R_SPINLOCK(x) _r_spinlock(&x)
 #define _R_SPINUNLOCK(x) _r_spinunlock(&x)
 
+#define _R_DEBUG_FORMAT L"%s() failed with error code 0x%.8lx (%s)"
+
 /*
 	Write debug log to console
 */
@@ -48,7 +50,9 @@
 #define WDBG(a, ...) _r_dbg (nullptr, nullptr, 0, a, __VA_ARGS__)
 
 VOID _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...);
-rstring _r_dbg_error (DWORD errcode = GetLastError ());
+
+VOID _r_dbg_write (LPCWSTR appname, LPCWSTR appversion, LPCWSTR fn, DWORD result, LPCWSTR desc);
+rstring _r_dbg_getpath (LPCWSTR appname);
 
 /*
 	Format strings, dates, numbers
