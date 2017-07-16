@@ -4,7 +4,7 @@
 #pragma once
 
 #include "routine.hpp"
-#include "resource.h"
+#include "resource.hpp"
 
 #include <comdef.h>
 #include <taskschd.h>
