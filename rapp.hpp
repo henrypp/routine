@@ -3,13 +3,13 @@
 
 #pragma once
 
-#include "routine.h"
+#include "routine.hpp"
 #include "resource.h"
 
 #include <comdef.h>
 #include <taskschd.h>
 
-#include "rconfig.h"
+#include "rconfig.hpp"
 
 // libs
 #pragma comment(lib, "comsupp.lib")

@@ -10,7 +10,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "rconfig.h"
+#include "rconfig.hpp"
 
 #pragma pack(push, 8)
 

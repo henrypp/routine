@@ -1,7 +1,7 @@
 // routine++
 // Copyright (c) 2012-2017 Henry++
 
-#include "routine.h"
+#include "routine.hpp"
 
 /*
 	Write debug log to console
@@ -218,7 +218,7 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 			TASKDIALOGCONFIG tdc = {0};
 
 			tdc.cbSize = sizeof (tdc);
-			tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
+			tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
 			tdc.hwndParent = hwnd;
 			tdc.pfCallback = &_r_msg_callback;
 			tdc.pszWindowTitle = title;
@@ -328,7 +328,6 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 	{
 		case TDN_CREATED:
 		{
-			_r_wnd_top (hwnd, TRUE);
 			_r_wnd_center (hwnd);
 
 			return TRUE;
@@ -695,9 +694,9 @@ BOOL _r_process_getpath (HANDLE h, LPWSTR path, DWORD length)
 				StringCchCopy (path, length, _r_path_dospathfromnt (buffer));
 				result = TRUE;
 			}
-		}
-#endif //_APP_NO_WINXP
 	}
+#endif //_APP_NO_WINXP
+}
 
 	return result;
 }
@@ -1083,7 +1082,7 @@ VOID _r_wnd_center (HWND hwnd)
 	if (x + width > screen_width) x = screen_width - width;
 	if (y + height > screen_height) y = screen_height - height;
 
-	MoveWindow (hwnd, x, y, width, height, FALSE);
+	SetWindowPos (hwnd, nullptr, x, y, width, height, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
 }
 
 BOOL _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)

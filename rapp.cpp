@@ -1,7 +1,7 @@
 // routine++
 // Copyright (c) 2012-2017 Henry++
 
-#include "rapp.h"
+#include "rapp.hpp"
 
 #ifdef _APP_HAVE_TRAY
 CONST UINT WM_TASKBARCREATED = RegisterWindowMessage (L"TaskbarCreated");

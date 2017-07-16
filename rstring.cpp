@@ -3,8 +3,8 @@
 // A fast, reference counted, copy-on-write string class (c) Espen Harlinn
 // http://www.codeproject.com/Articles/498251/A-Cplusplus-String-class
 
-#include "rstring.h"
-#include "routine.h"
+#include "rstring.hpp"
+#include "routine.hpp"
 
 LPWSTR rstring::empty = L"";
 
