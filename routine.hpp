@@ -31,6 +31,9 @@
 	Macroses
 */
 
+#define _R_BYTESIZE_KB (1024)
+#define _R_BYTESIZE_MB (1024 * _R_BYTESIZE_KB)
+
 #define _R_COLOR_SHADE(clr, percent) RGB ((BYTE)((float)GetRValue (clr) * percent / 100.0), (BYTE)((float)GetGValue (clr) * percent / 100.0), (BYTE)((float)GetBValue (clr) * percent / 100.0))
 
 #define _R_PERCENT_OF(val, total) INT(ceil((double(val) / double(total)) * 100.0))

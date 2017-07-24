@@ -359,17 +359,6 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		case WM_DESTROY:
 		{
 #ifdef _APP_HAVE_SIZING
-			RECT rc = {0};
-			GetWindowRect (hwnd, &rc);
-
-			if (!IsZoomed (hwnd))
-			{
-				this_ptr->ConfigSet (L"WindowPosX", rc.left);
-				this_ptr->ConfigSet (L"WindowPosY", rc.top);
-				this_ptr->ConfigSet (L"WindowPosWidth", rc.right - rc.left);
-				this_ptr->ConfigSet (L"WindowPosHeight", rc.bottom - rc.top);
-			}
-
 			this_ptr->ConfigSet (L"IsWindowZoomed", IsZoomed (hwnd));
 #endif // _APP_HAVE_SIZING
 
@@ -383,6 +372,21 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 
 			lpmmi->ptMinTrackSize.x = this_ptr->max_width;
 			lpmmi->ptMinTrackSize.y = this_ptr->max_height;
+
+			break;
+		}
+#endif // _APP_HAVE_SIZING
+
+#ifdef _APP_HAVE_SIZING
+		case WM_EXITSIZEMOVE:
+		{
+			RECT rc = {0};
+			GetWindowRect (hwnd, &rc);
+
+			this_ptr->ConfigSet (L"WindowPosX", rc.left);
+			this_ptr->ConfigSet (L"WindowPosY", rc.top);
+			this_ptr->ConfigSet (L"WindowPosWidth", rc.right - rc.left);
+			this_ptr->ConfigSet (L"WindowPosHeight", rc.bottom - rc.top);
 
 			break;
 		}
@@ -403,19 +407,6 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 
 		case WM_SYSCOMMAND:
 		{
-#ifdef _APP_HAVE_SIZING
-			if (wparam == SC_RESTORE)
-			{
-				RECT rc = {0};
-				GetWindowRect (hwnd, &rc);
-
-				this_ptr->ConfigSet (L"WindowPosX", rc.left);
-				this_ptr->ConfigSet (L"WindowPosY", rc.top);
-				this_ptr->ConfigSet (L"WindowPosWidth", rc.right - rc.left);
-				this_ptr->ConfigSet (L"WindowPosHeight", rc.bottom - rc.top);
-			}
-#endif // _APP_HAVE_SIZING
-
 #ifdef _APP_HAVE_TRAY
 			if (wparam == SC_CLOSE)
 			{
@@ -509,7 +500,7 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 #ifdef _APP_NO_GUEST
 	if (!IsAdmin ())
 	{
-		_r_msg (nullptr, MB_OK | MB_ICONSTOP, app_name, L"Application required administrative privileges.", nullptr);
+		_r_msg (nullptr, MB_OK | MB_ICONSTOP, app_name, L"Application required administrative privileges!", nullptr);
 		return FALSE;
 	}
 #endif // _APP_NO_GUEST
@@ -560,11 +551,12 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 		// set window on top
 		_r_wnd_top (GetHWND (), ConfigGet (L"AlwaysOnTop", FALSE).AsBool ());
 
-		// set minmax info
+		// restore window position
 #ifdef _APP_HAVE_SIZING
 		{
 			RECT rc = {0};
 
+			// set minmax info
 			if (GetWindowRect (GetHWND (), &rc))
 			{
 				max_width = (rc.right - rc.left);
@@ -575,38 +567,32 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 			{
 				SendMessage (GetHWND (), WM_SIZE, 0, MAKELPARAM ((rc.right - rc.left), (rc.bottom - rc.top)));
 			}
-		}
-#endif // _APP_HAVE_SIZING
 
-		// set window pos
-#ifdef _APP_HAVE_SIZING
-		{
+			// restore window position
 			const INT xpos = ConfigGet (L"WindowPosX", 0).AsInt ();
 			const INT ypos = ConfigGet (L"WindowPosY", 0).AsInt ();
 			const INT width = ConfigGet (L"WindowPosWidth", 0).AsInt ();
 			const INT height = ConfigGet (L"WindowPosHeight", 0).AsInt ();
 
-			DWORD flags = SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOACTIVATE;
+			DWORD flags = SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSENDCHANGING | SWP_FRAMECHANGED;
 
-			if (xpos <= 0 || ypos <= 0)
+			if (!xpos && !ypos)
 				flags |= SWP_NOMOVE;
 
-			if (width <= 0 || height <= 0)
-				flags |= SWP_NOSIZE;
-
-			SetWindowPos (GetHWND (), nullptr, xpos, ypos, width, height, flags);
+			SetWindowPos (GetHWND (), nullptr, xpos, ypos, max (width, max_width), max (height, max_height), flags);
 		}
 #endif // _APP_HAVE_SIZING
 
 		{
 			BOOL is_minimized = FALSE;
 
-			// show window
+			// show window minimized
 #ifdef _APP_STARTMINIMIZED
 			is_minimized = TRUE;
 #else
 #ifdef _APP_HAVE_TRAY
-			if (wcsstr (GetCommandLine (), L"/minimized") || ConfigGet (L"StartMinimized", FALSE).AsBool ())
+			// if window have tray - check arguments
+			if (wcsstr (GetCommandLine (), L"/minimized"))
 				is_minimized = TRUE;
 #endif // _APP_HAVE_TRAY
 #endif // _APP_STARTMINIMIZED
@@ -627,13 +613,6 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 #ifndef _APP_HAVE_TRAY
 				ShowWindow (GetHWND (), SW_SHOWMINIMIZED);
 #endif // _APP_HAVE_TRAY
-
-#ifdef _APP_HAVE_SIZING
-				//if (ConfigGet (L"IsWindowZoomed", FALSE).AsBool ())
-				{
-					//ShowWindow (GetHWND (), SW_SHOWMAXIMIZED);
-				}
-#endif // _APP_HAVE_SIZING
 			}
 		}
 
@@ -790,7 +769,7 @@ VOID rapp::CreateSettingsWindow (size_t dlg_id)
 
 size_t rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback, size_t group_id, LPARAM lparam)
 {
-	PAPP_SETTINGS_PAGE ptr = new APP_SETTINGS_PAGE;
+	PAPP_SETTINGS_PAGE ptr = (PAPP_SETTINGS_PAGE)malloc (sizeof (APP_SETTINGS_PAGE));
 
 	if (ptr)
 	{
@@ -815,25 +794,24 @@ size_t rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR 
 
 VOID rapp::ClearSettingsPage ()
 {
+#ifndef _APP_HAVE_SIMPLE_SETTINGS
 	for (size_t i = 0; i < app_settings_pages.size (); i++)
 	{
 		PAPP_SETTINGS_PAGE const ptr = app_settings_pages.at (i);
 
-		delete ptr;
+		free (ptr);
 	}
 
 	app_settings_pages.clear ();
-
-#ifdef _APP_HAVE_SIMPLE_SETTINGS
+#else // _APP_HAVE_SIMPLE_SETTINGS
 	for (auto const& p : app_configs)
 	{
 		PAPP_SETTINGS_CONFIG const ptr = p.second;
 
-		delete ptr;
+		free (ptr);
 	}
 
 	app_configs.clear ();
-
 #endif // _APP_HAVE_SIMPLE_SETTINGS
 }
 
@@ -890,7 +868,7 @@ VOID rapp::AddSettingsItem (LPCWSTR name, LPCWSTR def_value, CfgType type, UINT 
 	if (app_configs.find (name) != app_configs.end ())
 		return;
 
-	PAPP_SETTINGS_CONFIG ptr = new APP_SETTINGS_CONFIG;
+	PAPP_SETTINGS_CONFIG ptr = (PAPP_SETTINGS_CONFIG)malloc (sizeof (APP_SETTINGS_CONFIG));
 
 	if (ptr)
 	{
@@ -1194,7 +1172,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 				if (this_ptr->ConfigGet (L"SettingsLastPage", 0).AsSizeT () == ptr->dlg_id)
 					SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)ptr->item);
 			}
-#else
+#else // _APP_HAVE_SIMPLE_SETTINGS
 			for (auto const &p : this_ptr->app_configs)
 			{
 				_r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (nullptr, p.second->locale_id, p.second->locale_sid), this_ptr->app_settings_pages.at (0)->item, LAST_VALUE, 0);
@@ -1235,8 +1213,8 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					{
 						LPNMTREEVIEW pnmtv = (LPNMTREEVIEW)lparam;
 
-						size_t old_id = size_t (pnmtv->itemOld.lParam);
-						size_t new_id = size_t (pnmtv->itemNew.lParam);
+						const size_t old_id = size_t (pnmtv->itemOld.lParam);
+						const size_t new_id = size_t (pnmtv->itemNew.lParam);
 
 						if (this_ptr->app_settings_pages.at (old_id)->hwnd)
 							ShowWindow (this_ptr->app_settings_pages.at (old_id)->hwnd, SW_HIDE);
@@ -1347,19 +1325,19 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 		{
 			if (_r_inet_openurl (hsession, _r_fmt (L"%s/update.php?product=%s", _APP_WEBSITE_URL, this_ptr->app_name_short), &hconnect, &hrequest, nullptr))
 			{
-				LPSTR buffera = new CHAR[1024];
+				LPSTR buffera = (LPSTR)malloc (_R_BYTESIZE_KB);
 				rstring bufferw;
 				DWORD total_length = 0;
 
 				while (TRUE)
 				{
-					if (!_r_inet_readrequest (hrequest, buffera, 1024 - 1, &total_length))
+					if (!_r_inet_readrequest (hrequest, buffera, _R_BYTESIZE_KB - 1, &total_length))
 						break;
 
 					bufferw.Append (buffera);
 				}
 
-				delete[] buffera;
+				free (buffera);
 
 				bufferw.Trim (L" \r\n");
 

@@ -43,7 +43,7 @@ typedef struct
 	UINT dlg_id = 0;
 
 	UINT locale_id = 0;
-	WCHAR locale_sid[64] = {0};
+	WCHAR locale_sid[32] = {0};
 
 	APPLICATION_CALLBACK callback;
 	LPARAM lparam = 0;
