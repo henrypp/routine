@@ -641,7 +641,7 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 
 				drv[2] = 0; // the backslash is not allowed for QueryDosDevice()
 
-				WCHAR u16_NtVolume[1024] = {0};
+				WCHAR u16_NtVolume[_R_BYTESIZE_KB] = {0};
 				u16_NtVolume[0] = 0;
 
 				// may return multiple strings!
@@ -687,7 +687,7 @@ BOOL _r_process_getpath (HANDLE h, LPWSTR path, DWORD length)
 #ifndef _APP_NO_WINXP
 		else
 		{
-			WCHAR buffer[1024] = {0};
+			WCHAR buffer[_R_BYTESIZE_KB] = {0};
 
 			if (GetProcessImageFileName (h, buffer, _countof (buffer))) // winxp
 			{
@@ -704,7 +704,7 @@ BOOL _r_process_getpath (HANDLE h, LPWSTR path, DWORD length)
 BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 {
 	BOOL result = FALSE;
-	DWORD pid[1024] = {0}, cb = 0;
+	DWORD pid[_R_BYTESIZE_KB] = {0}, cb = 0;
 
 	DWORD access_rights = PROCESS_QUERY_LIMITED_INFORMATION; // vista and later
 
@@ -723,7 +723,7 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 
 				if (h)
 				{
-					WCHAR buffer[1024] = {0};
+					WCHAR buffer[_R_BYTESIZE_KB] = {0};
 
 					if (_r_process_getpath (h, buffer, _countof (buffer)))
 					{
@@ -1017,7 +1017,7 @@ VOID _r_unixtime_to_filetime (__time64_t ut, const LPFILETIME pft)
 {
 	if (ut && pft)
 	{
-		__time64_t ll = ut * 10000000ULL + 116444736000000000; // 64 bit value
+		__time64_t ll = ut * 10000000ULL + 116444736000000000; // 64-bit value
 
 		pft->dwLowDateTime = (DWORD)ll;
 		pft->dwHighDateTime = ll >> 32;
@@ -1459,12 +1459,9 @@ INT _r_listview_addgroup (HWND hwnd, UINT ctrl, LPCWSTR text, size_t group_id, U
 	LVGROUP lvg = {0};
 
 	lvg.cbSize = sizeof (lvg);
-	lvg.mask = LVGF_HEADER | LVGF_GROUPID | LVGF_DESCRIPTIONTOP | LVGF_TITLEIMAGE;
+	lvg.mask = LVGF_HEADER | LVGF_GROUPID;
 	lvg.pszHeader = (LPWSTR)text;
-	lvg.pszDescriptionTop = L"Description TOP";
-	lvg.cchDescriptionTop = 15;
 	lvg.iGroupId = static_cast<INT>(group_id);
-	lvg.iTitleImage = 1;
 
 	if (align)
 	{

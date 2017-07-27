@@ -135,7 +135,7 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 
 	if (h)
 	{
-		WCHAR fname[1024] = {0};
+		WCHAR fname[MAX_PATH] = {0};
 
 		if (_r_process_getpath (h, fname, _countof (fname)))
 		{

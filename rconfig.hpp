@@ -52,7 +52,7 @@
 #endif // _APP_UPDATE_URL
 
 #ifndef _APP_UPDATE_PERIOD
-#	define _APP_UPDATE_PERIOD (86400 * 2) // update checking period (in seconds. 86400 is 1 day.)
+#	define _APP_UPDATE_PERIOD _R_SECONDSCLOCK_DAY (2) // update checking period (sec.)
 #endif // _APP_UPDATE_PERIOD
 
 #define _APP_I18N_DIRECTORY L"i18n"

@@ -28,11 +28,20 @@
 #pragma comment(lib, "winhttp.lib")
 
 /*
-	Macroses
+	Unit conversion
 */
 
 #define _R_BYTESIZE_KB (1024)
 #define _R_BYTESIZE_MB (1024 * _R_BYTESIZE_KB)
+
+#define _R_SECONDSCLOCK_MSEC (1000)
+#define _R_SECONDSCLOCK_MIN(minutes)(60 * (minutes))
+#define _R_SECONDSCLOCK_HOUR(hours)((_R_SECONDSCLOCK_MIN (1) * 60) * (hours))
+#define _R_SECONDSCLOCK_DAY(days)((_R_SECONDSCLOCK_HOUR (1) * 24) * (days))
+
+/*
+	Macroses
+*/
 
 #define _R_COLOR_SHADE(clr, percent) RGB ((BYTE)((float)GetRValue (clr) * percent / 100.0), (BYTE)((float)GetGValue (clr) * percent / 100.0), (BYTE)((float)GetBValue (clr) * percent / 100.0))
 
