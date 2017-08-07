@@ -26,6 +26,7 @@
 //#define _APP_HAVE_SIMPLE_SETTINGS // simple settints feature
 //#define _APP_HAVE_SIZING // window is resizable
 //#define _APP_STARTMINIMIZED // start with no window
+//#define _APP_BETA // app has beta status
 
 /*
 	Definitions

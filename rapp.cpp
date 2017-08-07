@@ -189,7 +189,7 @@ BOOL rapp::AutorunIsEnabled ()
 #endif // _APP_HAVE_AUTORUN
 
 #ifndef _APP_NO_UPDATES
-VOID rapp::CheckForUpdates (BOOL is_periodical)
+VOID rapp::CheckForUpdates (bool is_periodical)
 {
 	if (update_lock)
 		return;
@@ -204,7 +204,7 @@ VOID rapp::CheckForUpdates (BOOL is_periodical)
 
 	_beginthreadex (nullptr, 0, &CheckForUpdatesProc, (LPVOID)this, 0, nullptr);
 
-	update_lock = TRUE;
+	update_lock = true;
 }
 #endif // _APP_NO_UPDATES
 
@@ -1306,14 +1306,11 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 {
 	rapp* this_ptr = static_cast<rapp*>(lparam);
 
-	this_ptr->update_lock = TRUE;
-
 	if (this_ptr)
 	{
 		BOOL result = FALSE;
 
-		HINTERNET hconnect = nullptr;
-		HINTERNET hrequest = nullptr;
+		this_ptr->update_lock = true;
 
 #ifdef IDM_CHECKUPDATES
 		EnableMenuItem (GetMenu (this_ptr->GetHWND ()), IDM_CHECKUPDATES, MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
@@ -1323,25 +1320,34 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 
 		if (hsession)
 		{
-			if (_r_inet_openurl (hsession, _r_fmt (L"%s/update.php?product=%s", _APP_WEBSITE_URL, this_ptr->app_name_short), &hconnect, &hrequest, nullptr))
+			HINTERNET hconnect = nullptr;
+			HINTERNET hrequest = nullptr;
+
+#ifdef _APP_BETA
+			const BOOL is_beta = TRUE;
+#else
+			const BOOL is_beta = this_ptr->ConfigGet (L"CheckUpdatesForBeta", FALSE).AsBool ();
+#endif
+
+			if (_r_inet_openurl (hsession, _r_fmt (L"%s/update.php?product=%s&is_beta=%d", _APP_WEBSITE_URL, this_ptr->app_name_short, is_beta), &hconnect, &hrequest, nullptr))
 			{
-				LPSTR buffera = (LPSTR)malloc (_R_BYTESIZE_KB);
+				CHAR buffera[128] = {0};
 				rstring bufferw;
 				DWORD total_length = 0;
 
 				while (TRUE)
 				{
-					if (!_r_inet_readrequest (hrequest, buffera, _R_BYTESIZE_KB - 1, &total_length))
+					if (!_r_inet_readrequest (hrequest, buffera, _countof (buffera) - 1, &total_length))
 						break;
 
 					bufferw.Append (buffera);
 				}
 
-				free (buffera);
-
 				bufferw.Trim (L" \r\n");
 
-				if (_r_str_versioncompare (this_ptr->app_version, bufferw) == -1)
+				this_ptr->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
+
+				if (!bufferw.IsEmpty () && _r_str_versioncompare (this_ptr->app_version, bufferw) == -1)
 				{
 					if (_r_msg (this_ptr->GetHWND (), MB_YESNO | MB_ICONQUESTION, this_ptr->app_name, nullptr, I18N (this_ptr, IDS_UPDATE_YES, 0), bufferw) == IDYES)
 					{
@@ -1350,8 +1356,6 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 
 					result = TRUE;
 				}
-
-				this_ptr->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
 
 				if (hrequest)
 					_r_inet_close (hrequest);
@@ -1371,9 +1375,9 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 		{
 			_r_msg (this_ptr->GetHWND (), MB_OK | MB_ICONINFORMATION, this_ptr->app_name, nullptr, I18N (this_ptr, IDS_UPDATE_NO, 0));
 		}
-	}
 
-	this_ptr->update_lock = FALSE;
+		this_ptr->update_lock = false;
+	}
 
 	return ERROR_SUCCESS;
 }

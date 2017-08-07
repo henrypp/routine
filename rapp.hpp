@@ -94,7 +94,7 @@ public:
 #endif // _APP_HAVE_AUTORUN
 
 #ifndef _APP_NO_UPDATES
-	VOID CheckForUpdates (BOOL is_periodical);
+	VOID CheckForUpdates (bool is_periodical);
 #endif // _APP_NO_UPDATES
 
 	rstring ConfigGet (LPCWSTR key, INT def, LPCWSTR name = nullptr) const;
@@ -194,8 +194,8 @@ private:
 #endif // _APP_HAVE_TRAY
 
 #ifndef _APP_NO_UPDATES
-	BOOL is_update_forced = FALSE;
-	volatile LONG update_lock = 0;
+	bool is_update_forced = false;
+	bool update_lock = false;
 #endif // _APP_NO_UPDATES
 
 #ifndef _APP_NO_ABOUT
