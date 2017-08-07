@@ -589,13 +589,13 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 			// show window minimized
 #ifdef _APP_STARTMINIMIZED
 			is_minimized = TRUE;
-#else
+#endif // _APP_STARTMINIMIZED
+
 #ifdef _APP_HAVE_TRAY
 			// if window have tray - check arguments
-			if (wcsstr (GetCommandLine (), L"/minimized"))
+			if (!is_minimized && wcsstr (GetCommandLine (), L"/minimized"))
 				is_minimized = TRUE;
 #endif // _APP_HAVE_TRAY
-#endif // _APP_STARTMINIMIZED
 
 			if (!is_minimized)
 			{
@@ -1702,7 +1702,7 @@ BOOL rapp::RunAsAdmin ()
 
 		if (!result)
 		{
-			BOOL is_mutexdestroyed = UninitializeMutex ();
+			const BOOL is_mutexdestroyed = UninitializeMutex ();
 
 			CoInitialize (nullptr);
 
@@ -1711,11 +1711,15 @@ BOOL rapp::RunAsAdmin ()
 			WCHAR path[MAX_PATH] = {0};
 			StringCchCopy (path, _countof (path), GetBinaryPath ());
 
+			WCHAR args[MAX_PATH] = {0};
+			StringCchCopy (args, _countof (args), GetCommandLine ());
+
 			shex.cbSize = sizeof (shex);
 			shex.fMask = SEE_MASK_UNICODE | SEE_MASK_NOZONECHECKS;
 			shex.lpVerb = L"runas";
 			shex.nShow = SW_NORMAL;
 			shex.lpFile = path;
+			shex.lpParameters = args;
 			shex.lpDirectory = GetDirectory ();
 
 			if (ShellExecuteEx (&shex))
