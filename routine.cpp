@@ -161,32 +161,88 @@ rstring _r_fmt_size64 (DWORDLONG size)
 	Spinlocks
 */
 
-VOID _r_spinlock (volatile LONG* m_ref)
+bool _r_spinislocked (volatile LONG* plock)
 {
-	if (!m_ref)
-		return;
+	if (!plock)
+		return false;
 
-	LONG ref = 0, newRef = 0, icxref = 0;
-
-	while (newRef == 1 && ref != 0xFFFF)
-	{
-		do
-		{
-			ref = *m_ref;
-
-			newRef = (0xFFFF == ref) ? 1 : ++ref;
-			icxref = InterlockedCompareExchange (m_ref, newRef, ref);
-		}
-		while (icxref != ref);
-	}
+	return ((*plock == _R_COMPARE) ? false : true);
 }
 
-VOID _r_spinunlock (volatile LONG* m_ref)
+bool _r_spinlock (volatile LONG* plock)
 {
-	if (!m_ref)
-		return;
+	if (!plock)
+		return false;
 
-	InterlockedExchange (m_ref, 0);
+	UINT m_iterations = 0;
+
+	SYSTEM_INFO sysinfo = {0};
+	GetSystemInfo (&sysinfo);
+
+	while (true)
+	{
+		// A thread alreading owning the lock shouldn't be allowed to wait to acquire the lock - reentrant safe
+		if ((DWORD)*plock == GetCurrentThreadId ())
+			break;
+
+		/*
+			Spinning in a loop of interlockedxxx calls can reduce the available memory bandwidth and slow
+			down the rest of the system. Interlocked calls are expensive in their use of the system memory
+			bus. It is better to see if the 'dest' value is what it is expected and then retry interlockedxx.
+		*/
+
+		if (InterlockedCompareExchange (plock, _R_EXCHANGE, _R_COMPARE) == 0)
+		{
+			// assign CurrentThreadId to dest to make it re-entrant safe
+			*plock = GetCurrentThreadId ();
+
+			break; // lock acquired
+		}
+
+		// spin wait to acquire 
+		while (*plock != _R_COMPARE)
+		{
+			if ((m_iterations >= _R_YIELD_ITERATION))
+			{
+				if (m_iterations + _R_YIELD_ITERATION >= _R_MAX_ITERATION)
+					Sleep (0);
+
+				if (m_iterations >= _R_YIELD_ITERATION && m_iterations < _R_MAX_ITERATION)
+				{
+					m_iterations = 0;
+					SwitchToThread ();
+				}
+			}
+
+			// Yield processor on multi-processor but if on single processor then give other thread the CPU
+			m_iterations++;
+
+			if (sysinfo.dwNumberOfProcessors > 1)
+			{
+				YieldProcessor (/*no op*/);
+			}
+			else
+			{
+				SwitchToThread ();
+			}
+		}
+	}
+
+	return true;
+}
+
+bool _r_spinunlock (volatile LONG* plock)
+{
+	if (!plock)
+		return false;
+
+	if ((DWORD)*plock != GetCurrentThreadId ())
+		throw std::runtime_error ("Unexpected thread-id in release");
+
+	// lock released
+	InterlockedCompareExchange (plock, _R_COMPARE, GetCurrentThreadId ());
+
+	return true;
 }
 
 /*
@@ -331,7 +387,7 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 			_r_wnd_center (hwnd);
 
 			return TRUE;
-		}
+			}
 
 		case TDN_DIALOG_CONSTRUCTED:
 		{
@@ -347,10 +403,10 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 
 			return TRUE;
 		}
-	}
+		}
 
 	return FALSE;
-}
+	}
 
 /*
 	Clipboard operations
@@ -694,9 +750,9 @@ BOOL _r_process_getpath (HANDLE h, LPWSTR path, DWORD length)
 				StringCchCopy (path, length, _r_path_dospathfromnt (buffer));
 				result = TRUE;
 			}
-	}
+		}
 #endif //_APP_NO_WINXP
-}
+	}
 
 	return result;
 }
@@ -735,10 +791,10 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 
 					if (result)
 						break;
-				}
 			}
 		}
 	}
+}
 
 	return result;
 }
@@ -912,7 +968,7 @@ BOOL _r_sys_setsecurityattributes (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECU
 	sa->bInheritHandle = TRUE;
 
 	return TRUE;
-}
+	}
 
 BOOL _r_sys_setprivilege (LPCWSTR privilege, BOOL is_enable)
 {
@@ -995,9 +1051,7 @@ VOID _r_sleep (DWORD milliseconds)
 	if (!milliseconds || milliseconds == INFINITE)
 		return;
 
-	static HANDLE evt = CreateEvent (nullptr, FALSE, FALSE, nullptr);
-
-	WaitForSingleObjectEx (evt, milliseconds, FALSE);
+	WaitForSingleObjectEx (GetCurrentThread (), milliseconds, FALSE);
 }
 
 /*
@@ -1328,7 +1382,7 @@ BOOL _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 	{
 		si.dwFlags = STARTF_USESHOWWINDOW;
 		si.wShowWindow = sw;
-	}
+}
 
 	rstring _intptr = cmdline ? cmdline : filename;
 	BOOL result = CreateProcess (filename, _intptr.GetBuffer (), nullptr, nullptr, FALSE, 0, nullptr, cd, &si, &pi);
@@ -1389,24 +1443,29 @@ VOID _r_ctrl_settext (HWND hwnd, UINT ctrl, LPCWSTR str, ...)
 	va_end (args);
 }
 
-HWND _r_ctrl_settip (HWND hwnd, UINT ctrl, LPCWSTR text)
+BOOL _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text)
 {
-	HINSTANCE hinst = GetModuleHandle (nullptr);
-	HWND h = CreateWindowEx (0, TOOLTIPS_CLASS, nullptr, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, hinst, nullptr);
+	const HINSTANCE hinst = GetModuleHandle (nullptr);
+	const HWND htip = CreateWindowEx (0, TOOLTIPS_CLASS, nullptr, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, hinst, nullptr);
 
-	TOOLINFO ti = {0};
+	if (htip)
+	{
+		TOOLINFO ti = {0};
 
-	ti.cbSize = sizeof (ti);
-	ti.hwnd = hwnd;
-	ti.hinst = hinst;
-	ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
-	ti.lpszText = (LPWSTR)text;
-	ti.uId = (UINT_PTR)GetDlgItem (hwnd, ctrl);
+		ti.cbSize = sizeof (ti);
+		ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
+		ti.hwnd = hwnd;
+		ti.hinst = hinst;
+		ti.uId = (UINT_PTR)GetDlgItem (hwnd, ctrl_id);
+		ti.lpszText = text;
 
-	SendMessage (h, TTM_ACTIVATE, TRUE, 0);
-	SendMessage (h, TTM_ADDTOOL, 0, (LPARAM)&ti);
+		SendMessage (htip, TTM_ACTIVATE, TRUE, 0);
+		SendMessage (htip, TTM_ADDTOOL, 0, (LPARAM)&ti);
 
-	return h;
+		return TRUE;
+	}
+
+	return FALSE;
 }
 
 BOOL _r_ctrl_showtip (HWND hwnd, UINT ctrl, LPCWSTR title, LPCWSTR text, INT icon)

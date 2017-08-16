@@ -40,7 +40,7 @@
 #define _R_SECONDSCLOCK_DAY(days)((_R_SECONDSCLOCK_HOUR (1) * 24) * (days))
 
 /*
-	Macroses
+	Helper macroses
 */
 
 #define _R_COLOR_SHADE(clr, percent) RGB ((BYTE)((float)GetRValue (clr) * percent / 100.0), (BYTE)((float)GetGValue (clr) * percent / 100.0), (BYTE)((float)GetBValue (clr) * percent / 100.0))
@@ -48,18 +48,15 @@
 #define _R_PERCENT_OF(val, total) INT(ceil((double(val) / double(total)) * 100.0))
 #define _R_PERCENT_VAL(val, total) INT(double(total) * double(val) / 100.0)
 
-#define _R_SPINLOCK(x) _r_spinlock(&x)
-#define _R_SPINUNLOCK(x) _r_spinunlock(&x)
-
-#define _R_DEBUG_FORMAT L"%s() failed with error code 0x%.8lx (%s)"
-
 /*
-	Write debug log to console
+	Debug logging
 */
 
 #define WDBG1(a) _r_dbg (__FUNCTIONW__, TEXT(__FILE__), __LINE__, L"%s", a)
 #define WDBG2(a, ...) _r_dbg (__FUNCTIONW__, TEXT(__FILE__), __LINE__, a, __VA_ARGS__)
 #define WDBG(a, ...) _r_dbg (nullptr, nullptr, 0, a, __VA_ARGS__)
+
+#define _R_DEBUG_FORMAT L"%s() failed with error code 0x%.8lx (%s)"
 
 VOID _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...);
 
@@ -78,11 +75,23 @@ rstring _r_fmt_date (const __time64_t ut, const DWORD flags = FDTF_DEFAULT);
 rstring _r_fmt_size64 (DWORDLONG size);
 
 /*
-	Spinlocks
+	Spinlock
+
+	Author: sameer_87
+	https://www.codeproject.com/Articles/184046/Spin-Lock-in-C
 */
 
-VOID _r_spinlock (volatile LONG* m_ref);
-VOID _r_spinunlock (volatile LONG* m_ref);
+#define _R_YIELD_ITERATION 30 // yeild after 30 iterations
+#define _R_MAX_ITERATION 40
+#define _R_EXCHANGE 100
+#define _R_COMPARE 0
+
+#define _R_SPINLOCK(x) _r_spinlock(&x)
+#define _R_SPINUNLOCK(x) _r_spinunlock(&x)
+
+bool _r_spinislocked (volatile LONG* plock);
+bool _r_spinlock (volatile LONG* plock);
+bool _r_spinunlock (volatile LONG* plock);
 
 /*
 	System messages
@@ -200,7 +209,7 @@ VOID _r_ctrl_enable (HWND hwnd, UINT ctrl, BOOL is_enable);
 rstring _r_ctrl_gettext (HWND hwnd, UINT ctrl);
 VOID _r_ctrl_settext (HWND hwnd, UINT ctrl, LPCWSTR str, ...);
 
-HWND _r_ctrl_settip (HWND hwnd, UINT ctrl, LPCWSTR text);
+BOOL _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text);
 BOOL _r_ctrl_showtip (HWND hwnd, UINT ctrl, LPCWSTR title, LPCWSTR text, INT icon);
 
 /*

@@ -19,6 +19,10 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	StringCchCopy (app_version, _countof (app_version), version);
 	StringCchCopy (app_copyright, _countof (app_copyright), copyright);
 
+#ifdef _APP_BETA
+	StringCchCat (app_version, _countof (app_version), L" Beta");
+#endif // _APP_BETA
+
 	// get dpi scale
 	HDC h = GetDC (nullptr);
 	dpi_percent = DOUBLE (GetDeviceCaps (h, LOGPIXELSX)) / 96.0f;
@@ -539,7 +543,7 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 		_r_wnd_changemessagefilter (GetHWND (), WM_COPYDATA, MSGFLT_ALLOW);
 		_r_wnd_changemessagefilter (GetHWND (), 0x0049, MSGFLT_ALLOW); // WM_COPYGLOBALDATA
 
-																	   // subclass window
+		// subclass window
 		SetWindowLongPtr (GetHWND (), GWLP_USERDATA, (LONG_PTR)this);
 		app_wndproc = (WNDPROC)SetWindowLongPtr (GetHWND (), DWLP_DLGPROC, (LONG_PTR)&MainWindowProc);
 
