@@ -41,7 +41,7 @@
 #endif // _APP_GITHUB_URL
 
 #ifndef _APP_WEBSITE_URL
-#	define _APP_WEBSITE_URL L"http://www.henrypp.org"
+#	define _APP_WEBSITE_URL L"https://www.henrypp.org"
 #endif // _APP_WEBSITE_URL
 
 #ifndef _APP_DONATION_URL

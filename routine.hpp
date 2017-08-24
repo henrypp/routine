@@ -238,7 +238,7 @@ INT _r_listview_setitem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t
 BOOL _r_listview_setitemcheck (HWND hwnd, UINT ctrl, size_t item, BOOL state);
 BOOL _r_listview_setitemgroup (HWND hwnd, UINT ctrl, size_t item, size_t group_id);
 BOOL _r_listview_setitemlparam (HWND hwnd, UINT ctrl, UINT item, LPARAM param);
-BOOL _r_listview_setgroup (HWND hwnd, UINT ctrl, size_t group_id, LPCWSTR text);
+BOOL _r_listview_setgroup (HWND hwnd, UINT ctrl, size_t group_id, LPCWSTR header, LPCWSTR footer);
 
 /*
 	Control: treeview

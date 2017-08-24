@@ -276,18 +276,13 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 			tdc.cbSize = sizeof (tdc);
 			tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
 			tdc.hwndParent = hwnd;
+			tdc.hInstance = GetModuleHandle (nullptr);
 			tdc.pfCallback = &_r_msg_callback;
 			tdc.pszWindowTitle = title;
 			tdc.pszMainInstruction = main;
 
 			if (!buffer.IsEmpty ())
 				tdc.pszContent = buffer;
-
-			if ((flags & MB_ICONMASK) == MB_USERICON)
-			{
-				tdc.hInstance = GetModuleHandle (nullptr);
-				tdc.pszMainIcon = MAKEINTRESOURCE (100);
-			}
 
 			tdc.pfCallback = &_r_msg_callback;
 
@@ -320,7 +315,11 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 			}
 
 			// icons
-			if ((flags & MB_ICONMASK) == MB_ICONASTERISK)
+			if ((flags & MB_ICONMASK) == MB_USERICON)
+			{
+				tdc.pszMainIcon = MAKEINTRESOURCE (100);
+			}
+			else if ((flags & MB_ICONMASK) == MB_ICONASTERISK)
 			{
 				tdc.pszMainIcon = TD_INFORMATION_ICON;
 			}
@@ -335,6 +334,11 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 			else if ((flags & MB_ICONMASK) == MB_ICONHAND)
 			{
 				tdc.pszMainIcon = TD_ERROR_ICON;
+			}
+
+			if ((flags & MB_TOPMOST) != 0)
+			{
+				tdc.lpCallbackData = 1; // always on top
 			}
 
 			_TaskDialogIndirect (&tdc, &result, nullptr, nullptr);
@@ -361,13 +365,13 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 
 		mbp.cbSize = sizeof (mbp);
 		mbp.hwndOwner = hwnd;
-		mbp.dwStyle = flags | MB_TOPMOST;
+		mbp.hInstance = GetModuleHandle (nullptr);
+		mbp.dwStyle = flags;
 		mbp.lpszCaption = title;
 		mbp.lpszText = buffer;
 
 		if ((flags & MB_ICONMASK) == MB_USERICON)
 		{
-			mbp.hInstance = GetModuleHandle (nullptr);
 			mbp.lpszIcon = MAKEINTRESOURCE (100);
 		}
 
@@ -378,7 +382,7 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 	return result;
 }
 
-HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LONG_PTR)
+HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LONG_PTR lpdata)
 {
 	switch (msg)
 	{
@@ -386,8 +390,11 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 		{
 			_r_wnd_center (hwnd);
 
+			if (lpdata)
+				_r_wnd_top (hwnd, TRUE);
+
 			return TRUE;
-			}
+		}
 
 		case TDN_DIALOG_CONSTRUCTED:
 		{
@@ -403,10 +410,10 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 
 			return TRUE;
 		}
-		}
+	}
 
 	return FALSE;
-	}
+}
 
 /*
 	Clipboard operations
@@ -791,10 +798,10 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 
 					if (result)
 						break;
+				}
 			}
 		}
 	}
-}
 
 	return result;
 }
@@ -968,7 +975,7 @@ BOOL _r_sys_setsecurityattributes (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECU
 	sa->bInheritHandle = TRUE;
 
 	return TRUE;
-	}
+}
 
 BOOL _r_sys_setprivilege (LPCWSTR privilege, BOOL is_enable)
 {
@@ -1382,7 +1389,7 @@ BOOL _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 	{
 		si.dwFlags = STARTF_USESHOWWINDOW;
 		si.wShowWindow = sw;
-}
+	}
 
 	rstring _intptr = cmdline ? cmdline : filename;
 	BOOL result = CreateProcess (filename, _intptr.GetBuffer (), nullptr, nullptr, FALSE, 0, nullptr, cd, &si, &pi);
@@ -1808,16 +1815,31 @@ BOOL _r_listview_setitemlparam (HWND hwnd, UINT ctrl, UINT item, LPARAM param)
 	return static_cast<BOOL>(SendDlgItemMessage (hwnd, ctrl, LVM_SETITEM, 0, (LPARAM)&lvi));
 }
 
-BOOL _r_listview_setgroup (HWND hwnd, UINT ctrl, size_t group_id, LPCWSTR text)
+BOOL _r_listview_setgroup (HWND hwnd, UINT ctrl, size_t group_id, LPCWSTR header, LPCWSTR subtitle)
 {
+	if (!header && !subtitle)
+		return FALSE;
+
 	LVGROUP lvg = {0};
 
-	WCHAR buffer[MAX_PATH] = {0};
-	StringCchCopy (buffer, _countof (buffer), text);
+	WCHAR hdr[MAX_PATH] = {0};
+	WCHAR sttl[MAX_PATH] = {0};
 
 	lvg.cbSize = sizeof (lvg);
-	lvg.mask = LVGF_HEADER;
-	lvg.pszHeader = buffer;
+
+	if (header)
+	{
+		lvg.mask |= LVGF_HEADER;
+		lvg.pszHeader = hdr;
+		StringCchCopy (hdr, _countof (hdr), header);
+	}
+
+	if (subtitle)
+	{
+		lvg.mask |= LVGF_SUBTITLE;
+		lvg.pszSubtitle = sttl;
+		StringCchCopy (sttl, _countof (sttl), subtitle);
+	}
 
 	return (BOOL)SendDlgItemMessage (hwnd, ctrl, LVM_SETGROUPINFO, group_id, (LPARAM)&lvg);
 }
