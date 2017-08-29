@@ -131,6 +131,8 @@ public:
 	bool Match (LPCWSTR pattern) const;
 	bool Match (LPCWSTR str, LPCWSTR pattern) const;
 
+	rstring& ToLower ();
+
 private:
 
 	LPWSTR data_ = nullptr;

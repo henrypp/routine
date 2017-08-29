@@ -267,82 +267,77 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 
 	if (_r_sys_validversion (6, 0))
 	{
-		TDI _TaskDialogIndirect = (TDI)GetProcAddress (GetModuleHandle (L"comctl32.dll"), "TaskDialogIndirect");
+		TASKDIALOGCONFIG tdc = {0};
 
-		if (_TaskDialogIndirect)
+		tdc.cbSize = sizeof (tdc);
+		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
+		tdc.hwndParent = hwnd;
+		tdc.hInstance = GetModuleHandle (nullptr);
+		tdc.pfCallback = &_r_msg_callback;
+		tdc.pszWindowTitle = title;
+		tdc.pszMainInstruction = main;
+
+		if (!buffer.IsEmpty ())
+			tdc.pszContent = buffer;
+
+		tdc.pfCallback = &_r_msg_callback;
+
+		// default buttons
+		if ((flags & MB_DEFMASK) == MB_DEFBUTTON2)
 		{
-			TASKDIALOGCONFIG tdc = {0};
-
-			tdc.cbSize = sizeof (tdc);
-			tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
-			tdc.hwndParent = hwnd;
-			tdc.hInstance = GetModuleHandle (nullptr);
-			tdc.pfCallback = &_r_msg_callback;
-			tdc.pszWindowTitle = title;
-			tdc.pszMainInstruction = main;
-
-			if (!buffer.IsEmpty ())
-				tdc.pszContent = buffer;
-
-			tdc.pfCallback = &_r_msg_callback;
-
-			// default buttons
-			if ((flags & MB_DEFMASK) == MB_DEFBUTTON2)
-			{
-				tdc.nDefaultButton = IDNO;
-			}
-
-			// buttons
-			if ((flags & MB_TYPEMASK) == MB_YESNO)
-			{
-				tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
-			}
-			else if ((flags & MB_TYPEMASK) == MB_YESNOCANCEL)
-			{
-				tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON | TDCBF_CANCEL_BUTTON;
-			}
-			else if ((flags & MB_TYPEMASK) == MB_OKCANCEL)
-			{
-				tdc.dwCommonButtons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
-			}
-			else if ((flags & MB_TYPEMASK) == MB_RETRYCANCEL)
-			{
-				tdc.dwCommonButtons = TDCBF_RETRY_BUTTON | TDCBF_CANCEL_BUTTON;
-			}
-			else
-			{
-				tdc.dwCommonButtons = TDCBF_OK_BUTTON;
-			}
-
-			// icons
-			if ((flags & MB_ICONMASK) == MB_USERICON)
-			{
-				tdc.pszMainIcon = MAKEINTRESOURCE (100);
-			}
-			else if ((flags & MB_ICONMASK) == MB_ICONASTERISK)
-			{
-				tdc.pszMainIcon = TD_INFORMATION_ICON;
-			}
-			else if ((flags & MB_ICONMASK) == MB_ICONEXCLAMATION)
-			{
-				tdc.pszMainIcon = TD_WARNING_ICON;
-			}
-			else if ((flags & MB_ICONMASK) == MB_ICONQUESTION)
-			{
-				tdc.pszMainIcon = TD_INFORMATION_ICON;
-			}
-			else if ((flags & MB_ICONMASK) == MB_ICONHAND)
-			{
-				tdc.pszMainIcon = TD_ERROR_ICON;
-			}
-
-			if ((flags & MB_TOPMOST) != 0)
-			{
-				tdc.lpCallbackData = 1; // always on top
-			}
-
-			_TaskDialogIndirect (&tdc, &result, nullptr, nullptr);
+			tdc.nDefaultButton = IDNO;
 		}
+
+		// buttons
+		if ((flags & MB_TYPEMASK) == MB_YESNO)
+		{
+			tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
+		}
+		else if ((flags & MB_TYPEMASK) == MB_YESNOCANCEL)
+		{
+			tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON | TDCBF_CANCEL_BUTTON;
+		}
+		else if ((flags & MB_TYPEMASK) == MB_OKCANCEL)
+		{
+			tdc.dwCommonButtons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
+		}
+		else if ((flags & MB_TYPEMASK) == MB_RETRYCANCEL)
+		{
+			tdc.dwCommonButtons = TDCBF_RETRY_BUTTON | TDCBF_CANCEL_BUTTON;
+		}
+		else
+		{
+			tdc.dwCommonButtons = TDCBF_OK_BUTTON;
+		}
+
+		// icons
+		if ((flags & MB_ICONMASK) == MB_USERICON)
+		{
+			tdc.pszMainIcon = MAKEINTRESOURCE (100);
+		}
+		else if ((flags & MB_ICONMASK) == MB_ICONASTERISK)
+		{
+			tdc.pszMainIcon = TD_INFORMATION_ICON;
+		}
+		else if ((flags & MB_ICONMASK) == MB_ICONEXCLAMATION)
+		{
+			tdc.pszMainIcon = TD_WARNING_ICON;
+		}
+		else if ((flags & MB_ICONMASK) == MB_ICONQUESTION)
+		{
+			tdc.pszMainIcon = TD_INFORMATION_ICON;
+		}
+		else if ((flags & MB_ICONMASK) == MB_ICONHAND)
+		{
+			tdc.pszMainIcon = TD_ERROR_ICON;
+		}
+
+		if ((flags & MB_TOPMOST) != 0)
+		{
+			tdc.lpCallbackData = 1; // always on top
+		}
+
+		_r_msg2 (&tdc, &result, nullptr, nullptr);
 	}
 
 #ifndef _APP_NO_WINXP
@@ -380,6 +375,24 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 #endif // _APP_NO_WINXP
 
 	return result;
+}
+
+bool _r_msg2 (const TASKDIALOGCONFIG* ptd, INT* pbutton, INT* pradiobutton, BOOL* pcheckbox)
+{
+#ifndef _APP_NO_WINXP
+	TDI _TaskDialogIndirect = (TDI)GetProcAddress (GetModuleHandle (L"comctl32.dll"), "TaskDialogIndirect");
+
+	if (_TaskDialogIndirect)
+	{
+		return _TaskDialogIndirect (ptd, pbutton, pradiobutton, pcheckbox) == S_OK;
+	}
+
+	return false;
+#else
+
+	return TaskDialogIndirect (ptd, pbutton, pradiobutton, pcheckbox) == S_OK;
+
+#endif // _APP_NO_WINXP
 }
 
 HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LONG_PTR lpdata)

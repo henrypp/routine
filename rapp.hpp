@@ -109,6 +109,10 @@ public:
 	VOID CreateAboutWindow ();
 #endif // _APP_NO_ABOUT
 
+#ifndef _APP_NO_DONATE
+	VOID CreateDonateWindow ();
+#endif // _APP_NO_DONATE
+
 	BOOL CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback);
 
 #ifdef _APP_HAVE_TRAY

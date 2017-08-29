@@ -13,8 +13,9 @@ LPWSTR rstring::empty = L"";
 const size_t rstring::npos = MAXDWORD64;
 #pragma warning(pop)
 
-rstring::rstring () : data_ (nullptr)
-{}
+rstring::rstring (): data_ (nullptr)
+{
+}
 
 rstring::rstring (const rstring& other) : data_ (nullptr)
 {
@@ -26,13 +27,13 @@ rstring::rstring (const rstring& other) : data_ (nullptr)
 	}
 }
 
-rstring::rstring (rstring&& other) : data_ (nullptr)
+rstring::rstring (rstring&& other): data_ (nullptr)
 {
 	data_ = other.data_;
 	other.data_ = nullptr;
 }
 
-rstring::rstring (LPCWSTR str) : data_ (nullptr)
+rstring::rstring (LPCWSTR str): data_ (nullptr)
 {
 	if (str)
 	{
@@ -45,7 +46,7 @@ rstring::rstring (LPCWSTR str) : data_ (nullptr)
 	}
 }
 
-rstring::rstring (LPCSTR str) : data_ (nullptr)
+rstring::rstring (LPCSTR str): data_ (nullptr)
 {
 	size_t length = strlen (str);
 	if (length)
@@ -55,7 +56,7 @@ rstring::rstring (LPCSTR str) : data_ (nullptr)
 	}
 }
 
-rstring::rstring (LPCWSTR str1, size_t length1, LPCWSTR str2, size_t length2) : data_ (nullptr)
+rstring::rstring (LPCWSTR str1, size_t length1, LPCWSTR str2, size_t length2): data_ (nullptr)
 {
 	size_t totalLength = length1 + length2;
 	if (totalLength)
@@ -81,7 +82,7 @@ rstring::rstring (LPCWSTR str1, size_t length1, LPCWSTR str2, size_t length2) : 
 	}
 }
 
-rstring::rstring (LPCWSTR str, size_t length) : data_ (nullptr)
+rstring::rstring (LPCWSTR str, size_t length): data_ (nullptr)
 {
 	if (length)
 	{
@@ -689,6 +690,19 @@ rstring rstring::Midded (size_t start, size_t length) const
 	auto tmp = *this;
 	tmp.Mid (start, length);
 	return tmp;
+}
+
+rstring& rstring::ToLower ()
+{
+	Buffer* thisBuffer = toBuffer ();
+	if (thisBuffer)
+	{
+		for (size_t i = 0; i < thisBuffer->length; i++)
+		{
+			thisBuffer->data[i] = towlower (thisBuffer->data[i]);
+		}
+	}
+	return *this;
 }
 
 rstring rstring::Replaced (LPCWSTR from, LPCWSTR to) const

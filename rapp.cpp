@@ -36,8 +36,39 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	StringCchCopy (app_directory, _countof (app_directory), app_binary);
 	PathRemoveFileSpec (app_directory);
 
+	// parse command line
+	INT numargs = 0;
+	LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
+
+	if (arga && numargs > 1)
+	{
+		for (INT i = 1; i < numargs; i++)
+		{
+			if (_wcsnicmp (arga[i], L"/ini", 3) == 0 && (i + 1) < numargs)
+			{
+				LPWSTR ptr = arga[i + 1];
+
+				PathUnquoteSpaces (ptr);
+
+				StringCchCopy (app_config_path, _countof (app_config_path), _r_path_expand (ptr));
+
+				if (PathGetDriveNumber (app_config_path) == -1)
+					StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s", GetDirectory (), _r_path_expand (ptr));
+
+				if (!_r_fs_exists (app_config_path))
+				{
+					HANDLE hfile = CreateFile (app_config_path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+
+					if (hfile != INVALID_HANDLE_VALUE)
+						CloseHandle (hfile);
+				}
+			}
+		}
+	}
+
 	// get configuration path
-	StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s.ini", GetDirectory (), app_name_short);
+	if (!app_config_path[0] || !_r_fs_exists (app_config_path))
+		StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s.ini", GetDirectory (), app_name_short);
 
 	if (!_r_fs_exists (app_config_path))
 	{
@@ -47,7 +78,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	}
 	else
 	{
-		StringCchCopy (app_profile_directory, _countof (app_profile_directory), GetDirectory ());
+		StringCchCopy (app_profile_directory, _countof (app_profile_directory), _r_path_extractdir (app_config_path));
 	}
 
 	// read config
@@ -280,7 +311,6 @@ BOOL rapp::ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name)
 #ifndef _APP_NO_ABOUT
 VOID rapp::CreateAboutWindow ()
 {
-
 	if (!is_about_opened)
 	{
 		is_about_opened = TRUE;
@@ -292,14 +322,71 @@ VOID rapp::CreateAboutWindow ()
 #endif // _WIN64
 
 		if (IsVistaOrLater ())
-			_r_msg (GetHWND (), MB_OK | MB_USERICON | MB_TOPMOST, I18N (this, IDS_ABOUT, 0), app_name, L"Version %s, %d-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", app_version, architecture, app_copyright, _APP_WEBSITE_URL, _APP_WEBSITE_URL + 7, _APP_GITHUB_URL, _APP_GITHUB_URL + 8);
+			_r_msg (GetHWND (), MB_OK | MB_USERICON | MB_TOPMOST, I18N (this, IDS_ABOUT, 0), app_name, L"Version %s, %d-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", app_version, architecture, app_copyright, _APP_WEBSITE_URL, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL, _APP_GITHUB_URL + +rstring (_APP_GITHUB_URL).Find (L':') + 3);
 		else
-			_r_msg (GetHWND (), MB_OK | MB_USERICON | MB_TOPMOST, I18N (this, IDS_ABOUT, 0), app_name, L"Version %s, %d-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + 7, _APP_GITHUB_URL + 8);
+			_r_msg (GetHWND (), MB_OK | MB_USERICON | MB_TOPMOST, I18N (this, IDS_ABOUT, 0), app_name, L"Version %s, %d-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL + +rstring (_APP_GITHUB_URL).Find (L':') + 3);
 
 		is_about_opened = FALSE;
 	}
 }
 #endif // _APP_NO_ABOUT
+
+#ifndef _APP_NO_DONATE
+VOID rapp::CreateDonateWindow ()
+{
+	if (IsVistaOrLater ())
+	{
+		TASKDIALOGCONFIG tdc = {0};
+		TASKDIALOG_BUTTON buttons[2] = {0};
+
+		INT result = 0;
+		BOOL is_flagchecked = FALSE;
+
+		WCHAR title[64] = {0};
+		StringCchCopy (title, _countof (title), I18N (this, IDS_DONATE, 0));
+
+		WCHAR main[128] = {0};
+		StringCchCopy (main, _countof (main), I18N (this, IDS_DONATE_TITLE, 0));
+
+		WCHAR checkbox[64] = {0};
+		StringCchCopy (checkbox, _countof (checkbox), I18N (this, IDS_SHOWATSTARTUP_CHK, 0));
+
+		tdc.cbSize = sizeof (tdc);
+		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_USE_COMMAND_LINKS;
+		tdc.hwndParent = GetHWND ();
+		tdc.pfCallback = &_r_msg_callback;
+		tdc.pszWindowTitle = title;
+		tdc.pszMainInstruction = main;
+		tdc.pszVerificationText = checkbox;
+
+		tdc.cButtons = _countof (buttons);
+		tdc.pButtons = buttons;
+
+		buttons[0].nButtonID = 100;
+		buttons[0].pszButtonText = _APP_DONATE_BTC;
+
+		buttons[1].nButtonID = 101;
+		buttons[1].pszButtonText = _APP_DONATE_PAYPAL;
+
+		if (ConfigGet (L"IsShowDonateAtStartup", TRUE).AsBool ())
+			tdc.dwFlags |= TDF_VERIFICATION_FLAG_CHECKED;
+
+		if (_r_msg2 (&tdc, &result, nullptr, &is_flagchecked))
+		{
+			ConfigSet (L"IsShowDonateAtStartup", is_flagchecked);
+
+			if (result == 100)
+				ShellExecute (GetHWND (), nullptr, _APP_DONATE_BTC_URL, nullptr, nullptr, SW_SHOWDEFAULT);
+			else if (result == 101)
+				ShellExecute (GetHWND (), nullptr, _APP_DONATE_PAYPAL_URL, nullptr, nullptr, SW_SHOWDEFAULT);
+		}
+	}
+	else
+	{
+		ShellExecute (GetHWND (), nullptr, _r_fmt (_APP_DONATE_URL, app_name_short), nullptr, nullptr, SW_SHOWDEFAULT);
+	}
+}
+#endif // _APP_NO_DONATE
 
 BOOL rapp::IsAdmin () const
 {
@@ -638,6 +725,9 @@ BOOL rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 
 			DrawMenuBar (GetHWND ()); // redraw menu
 		}
+
+		if (IsVistaOrLater () && ConfigGet (L"IsShowDonateAtStartup", TRUE).AsBool ())
+			CreateDonateWindow ();
 
 		result = TRUE;
 	}
@@ -1173,10 +1263,10 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 				ptr->item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr->h, ptr->locale_id, ptr->locale_sid), ((ptr->group_id == LAST_VALUE) ? nullptr : this_ptr->app_settings_pages.at (ptr->group_id)->item), LAST_VALUE, (LPARAM)i);
 
-				if (this_ptr->ConfigGet (L"SettingsLastPage", 0).AsSizeT () == ptr->dlg_id)
+				if (this_ptr->ConfigGet (L"SettingsLastPage", this_ptr->app_settings_pages.at (0)->dlg_id).AsSizeT () == ptr->dlg_id)
 					SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)ptr->item);
 			}
-#else // _APP_HAVE_SIMPLE_SETTINGS
+#else
 			for (auto const &p : this_ptr->app_configs)
 			{
 				_r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (nullptr, p.second->locale_id, p.second->locale_sid), this_ptr->app_settings_pages.at (0)->item, LAST_VALUE, 0);
