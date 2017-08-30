@@ -7,7 +7,7 @@
 	Write debug log to console
 */
 
-VOID _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...)
+void _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...)
 {
 	const DWORD dwLE = GetLastError ();
 	const DWORD dwTC = GetTickCount ();
@@ -39,7 +39,7 @@ VOID _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...)
 	}
 }
 
-VOID _r_dbg_write (LPCWSTR appname, LPCWSTR appversion, LPCWSTR fn, DWORD result, LPCWSTR desc)
+void _r_dbg_write (LPCWSTR appname, LPCWSTR appversion, LPCWSTR fn, DWORD result, LPCWSTR desc)
 {
 	rstring path = _r_dbg_getpath (appname);
 
@@ -191,7 +191,7 @@ bool _r_spinlock (volatile LONG* plock)
 			bus. It is better to see if the 'dest' value is what it is expected and then retry interlockedxx.
 		*/
 
-		if (InterlockedCompareExchange (plock, _R_EXCHANGE, _R_COMPARE) == 0)
+		if (InterlockedCompareExchange (plock, _R_EXCHANGE, _R_COMPARE) == _R_COMPARE)
 		{
 			// assign CurrentThreadId to dest to make it re-entrant safe
 			*plock = GetCurrentThreadId ();
@@ -199,7 +199,7 @@ bool _r_spinlock (volatile LONG* plock)
 			break; // lock acquired
 		}
 
-		// spin wait to acquire 
+		// spin wait to acquire
 		while (*plock != _R_COMPARE)
 		{
 			if ((m_iterations >= _R_YIELD_ITERATION))
@@ -404,7 +404,7 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 			_r_wnd_center (hwnd);
 
 			if (lpdata)
-				_r_wnd_top (hwnd, TRUE);
+				_r_wnd_top (hwnd, true);
 
 			return TRUE;
 		}
@@ -453,7 +453,7 @@ rstring _r_clipboard_get (HWND hwnd)
 	return result;
 }
 
-VOID _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length)
+void _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length)
 {
 	if (OpenClipboard (hwnd))
 	{
@@ -478,9 +478,9 @@ VOID _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length)
 	Filesystem
 */
 
-BOOL _r_fs_delete (LPCWSTR path, BOOL allowundo)
+bool _r_fs_delete (LPCWSTR path, bool allowundo)
 {
-	BOOL result = FALSE;
+	bool result = false;
 
 	if (allowundo)
 	{
@@ -494,18 +494,19 @@ BOOL _r_fs_delete (LPCWSTR path, BOOL allowundo)
 	}
 	else
 	{
-		result = DeleteFile (path);
+		if (DeleteFile (path))
+			result = true;
 	}
 
 	return result;
 }
 
-BOOL _r_fs_exists (LPCWSTR path)
+bool _r_fs_exists (LPCWSTR path)
 {
 	return (GetFileAttributes (path) != INVALID_FILE_ATTRIBUTES);
 }
 
-BOOL _r_fs_readfile (HANDLE h, LPVOID result, DWORD64 size)
+bool _r_fs_readfile (HANDLE h, LPVOID result, DWORD64 size)
 {
 	if (h != INVALID_HANDLE_VALUE)
 	{
@@ -523,11 +524,11 @@ BOOL _r_fs_readfile (HANDLE h, LPVOID result, DWORD64 size)
 
 			CloseHandle (fm);
 
-			return TRUE;
+			return true;
 		}
 	}
 
-	return FALSE;
+	return false;
 }
 
 DWORD64 _r_fs_size (HANDLE h)
@@ -539,9 +540,10 @@ DWORD64 _r_fs_size (HANDLE h)
 	return size.QuadPart;
 }
 
-BOOL _r_fs_mkdir (LPCWSTR path)
+bool _r_fs_mkdir (LPCWSTR path)
 {
-	BOOL result = FALSE;
+	bool result = false;
+
 	SHCDEX _SHCreateDirectoryEx = (SHCDEX)GetProcAddress (GetModuleHandle (L"shell32.dll"), "SHCreateDirectoryExW");
 
 	if (_SHCreateDirectoryEx)
@@ -551,13 +553,14 @@ BOOL _r_fs_mkdir (LPCWSTR path)
 
 	if (!result)
 	{
-		result = CreateDirectory (path, nullptr);
+		if (CreateDirectory (path, nullptr))
+			result = true;
 	}
 
 	return result;
 }
 
-BOOL _r_fs_rmdir (LPCWSTR path)
+void _r_fs_rmdir (LPCWSTR path)
 {
 	WIN32_FIND_DATA wfd = {0};
 
@@ -583,24 +586,28 @@ BOOL _r_fs_rmdir (LPCWSTR path)
 				DeleteFile (full_path);
 			}
 		}
-		while (FindNextFile (h, &wfd) == TRUE);
+		while (FindNextFile (h, &wfd));
 
 		FindClose (h);
 	}
 
 	RemoveDirectory (path);
-
-	return 0;
 }
 
-BOOL _r_fs_move (LPCWSTR path_from, LPCWSTR path_to, DWORD flags)
+bool _r_fs_move (LPCWSTR path_from, LPCWSTR path_to, DWORD flags)
 {
-	return MoveFileEx (path_from, path_to, flags);
+	if (MoveFileEx (path_from, path_to, flags))
+		return true;
+
+	return false;
 }
 
-BOOL _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags)
+bool _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags)
 {
-	return CopyFileEx (path_from, path_to, nullptr, nullptr, nullptr, flags);
+	if (CopyFileEx (path_from, path_to, nullptr, nullptr, nullptr, flags))
+		return true;
+
+	return false;
 }
 
 /*
@@ -876,7 +883,7 @@ INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2)
 	System information
 */
 
-BOOL _r_sys_adminstate ()
+bool _r_sys_adminstate ()
 {
 	BOOL result = FALSE;
 	DWORD status = 0, ps_size = sizeof (PRIVILEGE_SET);
@@ -953,11 +960,11 @@ BOOL _r_sys_adminstate ()
 			CloseHandle (token);
 	}
 
-	return result;
+	return result ? true : false;
 }
 
 #ifndef _WIN64
-BOOL _r_sys_iswow64 ()
+bool _r_sys_iswow64 ()
 {
 	BOOL result = FALSE;
 
@@ -972,32 +979,33 @@ BOOL _r_sys_iswow64 ()
 		_IsWow64Process (GetCurrentProcess (), &result);
 	}
 
-	return result;
+	if (result)
+		return true;
+
+	return false;
 }
 #endif // _WIN64
 
-BOOL _r_sys_setsecurityattributes (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURITY_DESCRIPTOR sd)
+bool _r_sys_setsecurityattributes (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURITY_DESCRIPTOR sd)
 {
 	if (!sa || !InitializeSecurityDescriptor (sd, SECURITY_DESCRIPTOR_REVISION) || !SetSecurityDescriptorDacl (sd, TRUE, nullptr, FALSE))
-	{
-		return FALSE;
-	}
+		return false;
 
 	sa->nLength = length;
 	sa->lpSecurityDescriptor = sd;
 	sa->bInheritHandle = TRUE;
 
-	return TRUE;
+	return true;
 }
 
-BOOL _r_sys_setprivilege (LPCWSTR privilege, BOOL is_enable)
+bool _r_sys_setprivilege (LPCWSTR privilege, bool is_enable)
 {
 	HANDLE token = nullptr;
 
 	LUID luid = {0};
 	TOKEN_PRIVILEGES tp = {0};
 
-	BOOL result = FALSE;
+	bool result = false;
 
 	if (OpenProcessToken (GetCurrentProcess (), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token))
 	{
@@ -1009,7 +1017,7 @@ BOOL _r_sys_setprivilege (LPCWSTR privilege, BOOL is_enable)
 
 			if (AdjustTokenPrivileges (token, FALSE, &tp, sizeof (tp), nullptr, nullptr) && GetLastError () == ERROR_SUCCESS)
 			{
-				result = TRUE;
+				result = true;
 			}
 		}
 
@@ -1019,18 +1027,18 @@ BOOL _r_sys_setprivilege (LPCWSTR privilege, BOOL is_enable)
 	return result;
 }
 
-BOOL _r_sys_uacstate ()
+bool _r_sys_uacstate ()
 {
 	HANDLE token = nullptr;
 	DWORD out_length = 0;
 	TOKEN_ELEVATION_TYPE tet;
-	BOOL result = FALSE;
+	bool result = false;
 
 	if (_r_sys_validversion (6, 0))
 	{
 		if (OpenProcessToken (GetCurrentProcess (), TOKEN_QUERY, &token) && GetTokenInformation (token, TokenElevationType, &tet, sizeof (tet), &out_length) && tet == TokenElevationTypeLimited)
 		{
-			result = TRUE;
+			result = true;
 		}
 
 		if (token)
@@ -1043,7 +1051,7 @@ BOOL _r_sys_uacstate ()
 }
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms725494(v=vs.85).aspx
-BOOL _r_sys_validversion (DWORD major, DWORD minor, DWORD build, BYTE condition)
+bool _r_sys_validversion (DWORD major, DWORD minor, DWORD build, BYTE condition)
 {
 	OSVERSIONINFOEX osvi = {0};
 	DWORDLONG mask = 0;
@@ -1063,10 +1071,13 @@ BOOL _r_sys_validversion (DWORD major, DWORD minor, DWORD build, BYTE condition)
 		type_mask |= VER_BUILDNUMBER;
 	}
 
-	return VerifyVersionInfo (&osvi, type_mask, mask);
+	if (VerifyVersionInfo (&osvi, type_mask, mask))
+		return true;
+
+	return false;
 }
 
-VOID _r_sleep (DWORD milliseconds)
+void _r_sleep (DWORD milliseconds)
 {
 	if (!milliseconds || milliseconds == INFINITE)
 		return;
@@ -1087,7 +1098,7 @@ __time64_t _r_unixtime_now ()
 	return _r_unixtime_from_systemtime (&st);
 }
 
-VOID _r_unixtime_to_filetime (__time64_t ut, const LPFILETIME pft)
+void _r_unixtime_to_filetime (__time64_t ut, const LPFILETIME pft)
 {
 	if (ut && pft)
 	{
@@ -1098,7 +1109,7 @@ VOID _r_unixtime_to_filetime (__time64_t ut, const LPFILETIME pft)
 	}
 }
 
-VOID _r_unixtime_to_systemtime (__time64_t ut, const LPSYSTEMTIME pst)
+void _r_unixtime_to_systemtime (__time64_t ut, const LPSYSTEMTIME pst)
 {
 	FILETIME ft = {0};
 
@@ -1133,7 +1144,7 @@ __time64_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst)
 	Window management
 */
 
-VOID _r_wnd_center (HWND hwnd)
+void _r_wnd_center (HWND hwnd)
 {
 	HWND parent = GetWindow (hwnd, GW_OWNER);
 	RECT rc_child = {0}, rc_parent = {0};
@@ -1159,17 +1170,15 @@ VOID _r_wnd_center (HWND hwnd)
 	SetWindowPos (hwnd, nullptr, x, y, width, height, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
 }
 
-BOOL _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
+void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 {
-	BOOL result = FALSE;
-
 	if (_r_sys_validversion (6, 0))
 	{
 		CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (GetModuleHandle (L"user32.dll"), "ChangeWindowMessageFilterEx"); // win7 and later
 
 		if (_ChangeWindowMessageFilterEx)
 		{
-			result = _ChangeWindowMessageFilterEx (hwnd, msg, action, nullptr);
+			_ChangeWindowMessageFilterEx (hwnd, msg, action, nullptr);
 		}
 		else
 		{
@@ -1177,26 +1186,24 @@ BOOL _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 
 			if (_ChangeWindowMessageFilter)
 			{
-				result = _ChangeWindowMessageFilter (msg, action);
+				_ChangeWindowMessageFilter (msg, action);
 			}
 		}
 	}
-
-	return result;
 }
 
 /*
 	Optimized version of WinAPI function "FillRect"
 */
 
-VOID _r_wnd_fillrect (HDC dc, LPRECT rc, COLORREF clr)
+void _r_wnd_fillrect (HDC dc, LPRECT rc, COLORREF clr)
 {
 	COLORREF clr_prev = SetBkColor (dc, clr);
 	ExtTextOut (dc, 0, 0, ETO_OPAQUE, rc, nullptr, 0, nullptr);
 	SetBkColor (dc, clr_prev);
 }
 
-VOID _r_wnd_toggle (HWND hwnd, BOOL show)
+void _r_wnd_toggle (HWND hwnd, bool show)
 {
 	if (show || !IsWindowVisible (hwnd))
 	{
@@ -1214,12 +1221,12 @@ VOID _r_wnd_toggle (HWND hwnd, BOOL show)
 	}
 }
 
-VOID _r_wnd_top (HWND hwnd, BOOL is_enable)
+void _r_wnd_top (HWND hwnd, bool is_enable)
 {
 	SetWindowPos (hwnd, (is_enable ? HWND_TOPMOST : HWND_NOTOPMOST), 0, 0, 0, 0, SWP_NOOWNERZORDER | SWP_NOMOVE | SWP_NOSIZE);
 }
 
-VOID _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT index)
+void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT index)
 {
 	if (ctrl_id)
 		hwnd = GetDlgItem (hwnd, ctrl_id);
@@ -1241,7 +1248,7 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent)
 
 	DWORD flags = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
 
-	const BOOL is_win81 = _r_sys_validversion (6, 3);
+	const bool is_win81 = _r_sys_validversion (6, 3);
 
 	if (is_win81)
 		flags = WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY;
@@ -1262,7 +1269,7 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent)
 	return h;
 }
 
-BOOL _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* prequest, PDWORD contentlength)
+bool _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* prequest, PDWORD contentlength)
 {
 	URL_COMPONENTS urlcomp = {0};
 
@@ -1323,7 +1330,7 @@ BOOL _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* 
 						if (prequest)
 							*prequest = hrequest;
 
-						return TRUE;
+						return true;
 					}
 
 				}
@@ -1337,10 +1344,10 @@ BOOL _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* 
 	if (hrequest)
 		_r_inet_close (hrequest);
 
-	return FALSE;
+	return false;
 }
 
-BOOL _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD written)
+bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD written)
 {
 	DWORD written_ow = 0;
 
@@ -1348,22 +1355,22 @@ BOOL _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD
 		*written = 0;
 
 	if (!WinHttpReadData (hrequest, buffer, length, &written_ow))
-		return FALSE;
+		return false;
 
 	if (!written_ow)
-		return FALSE;
+		return false;
 
 	buffer[written_ow] = 0;
 
 	if (written)
 		*written = written_ow;
 
-	return TRUE;
+	return true;
 }
 
-BOOL _r_inet_close (HINTERNET h)
+void _r_inet_close (HINTERNET h)
 {
-	return WinHttpCloseHandle (h);
+	WinHttpCloseHandle (h);
 }
 
 /*
@@ -1391,11 +1398,11 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d)
 	return result;
 }
 
-BOOL _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
+bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 {
 	STARTUPINFO si = {0};
 	PROCESS_INFORMATION pi = {0};
-
+	bool result = false;
 	si.cb = sizeof (si);
 
 	if (sw != SW_SHOWDEFAULT)
@@ -1405,7 +1412,10 @@ BOOL _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 	}
 
 	rstring _intptr = cmdline ? cmdline : filename;
-	BOOL result = CreateProcess (filename, _intptr.GetBuffer (), nullptr, nullptr, FALSE, 0, nullptr, cd, &si, &pi);
+
+	if (CreateProcess (filename, _intptr.GetBuffer (), nullptr, nullptr, FALSE, 0, nullptr, cd, &si, &pi))
+		result = true;
+
 	_intptr.Clear ();
 
 	if (pi.hThread)
@@ -1428,7 +1438,7 @@ size_t _r_rnd (size_t start, size_t end)
 	Control: common
 */
 
-VOID _r_ctrl_enable (HWND hwnd, UINT ctrl, BOOL is_enable)
+void _r_ctrl_enable (HWND hwnd, UINT ctrl, bool is_enable)
 {
 	EnableWindow (GetDlgItem (hwnd, ctrl), is_enable);
 }
@@ -1450,7 +1460,7 @@ rstring _r_ctrl_gettext (HWND hwnd, UINT ctrl)
 	return result;
 }
 
-VOID _r_ctrl_settext (HWND hwnd, UINT ctrl, LPCWSTR str, ...)
+void _r_ctrl_settext (HWND hwnd, UINT ctrl, LPCWSTR str, ...)
 {
 	rstring buffer;
 
@@ -1463,7 +1473,7 @@ VOID _r_ctrl_settext (HWND hwnd, UINT ctrl, LPCWSTR str, ...)
 	va_end (args);
 }
 
-BOOL _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text)
+bool _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text)
 {
 	const HINSTANCE hinst = GetModuleHandle (nullptr);
 	const HWND htip = CreateWindowEx (0, TOOLTIPS_CLASS, nullptr, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, hinst, nullptr);
@@ -1482,13 +1492,13 @@ BOOL _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text)
 		SendMessage (htip, TTM_ACTIVATE, TRUE, 0);
 		SendMessage (htip, TTM_ADDTOOL, 0, (LPARAM)&ti);
 
-		return TRUE;
+		return true;
 	}
 
-	return FALSE;
+	return false;
 }
 
-BOOL _r_ctrl_showtip (HWND hwnd, UINT ctrl, LPCWSTR title, LPCWSTR text, INT icon)
+bool _r_ctrl_showtip (HWND hwnd, UINT ctrl, LPCWSTR title, LPCWSTR text, INT icon)
 {
 	EDITBALLOONTIP ebt = {0};
 
@@ -1497,7 +1507,7 @@ BOOL _r_ctrl_showtip (HWND hwnd, UINT ctrl, LPCWSTR title, LPCWSTR text, INT ico
 	ebt.pszText = text;
 	ebt.ttiIcon = icon;
 
-	return (BOOL)SendDlgItemMessage (hwnd, ctrl, EM_SHOWBALLOONTIP, 0, (LPARAM)&ebt);
+	return SendDlgItemMessage (hwnd, ctrl, EM_SHOWBALLOONTIP, 0, (LPARAM)&ebt) ? true : false;
 }
 
 /*
@@ -1613,12 +1623,12 @@ INT _r_listview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t
 	return (INT)SendDlgItemMessage (hwnd, ctrl, LVM_INSERTITEM, 0, (LPARAM)&lvi);
 }
 
-BOOL _r_listview_getcheckstate (HWND hwnd, UINT ctrl, size_t item)
+bool _r_listview_getcheckstate (HWND hwnd, UINT ctrl, size_t item)
 {
-	return (((UINT)SendDlgItemMessage (hwnd, ctrl, LVM_GETITEMSTATE, item, LVIS_STATEIMAGEMASK)) >> 12) - 1;
+	return (((SendDlgItemMessage (hwnd, ctrl, LVM_GETITEMSTATE, item, LVIS_STATEIMAGEMASK)) >> 12) - 1) ? true : false;
 }
 
-VOID _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl)
+void _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl)
 {
 	const INT column_count = _r_listview_getcolumncount (hwnd, ctrl);
 
@@ -1628,13 +1638,13 @@ VOID _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl)
 	}
 }
 
-VOID _r_listview_deleteallgroups (HWND hwnd, UINT ctrl)
+void _r_listview_deleteallgroups (HWND hwnd, UINT ctrl)
 {
 	SendDlgItemMessage (hwnd, ctrl, LVM_REMOVEALLGROUPS, 0, 0);
 	SendDlgItemMessage (hwnd, ctrl, LVM_ENABLEGROUPVIEW, FALSE, 0);
 }
 
-VOID _r_listview_deleteallitems (HWND hwnd, UINT ctrl)
+void _r_listview_deleteallitems (HWND hwnd, UINT ctrl)
 {
 	SendDlgItemMessage (hwnd, ctrl, LVM_DELETEALLITEMS, 0, 0);
 }
@@ -1646,7 +1656,7 @@ INT _r_listview_getcolumncount (HWND hwnd, UINT ctrl)
 	return (INT)SendMessage (hdr, HDM_GETITEMCOUNT, 0, 0);
 }
 
-size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl, BOOL list_checked)
+size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl, bool list_checked)
 {
 	if (list_checked)
 	{
@@ -1703,7 +1713,7 @@ rstring _r_listview_getitemtext (HWND hwnd, UINT ctrl, size_t item, size_t subit
 	return result;
 }
 
-VOID _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR text, INT width)
+void _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR text, INT width)
 {
 	LVCOLUMN lvc = {0};
 
@@ -1726,7 +1736,7 @@ VOID _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR tex
 		SendDlgItemMessage (hwnd, ctrl_id, LVM_SETCOLUMN, column_id, (LPARAM)&lvc);
 }
 
-BOOL _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl, INT column_id, INT arrow)
+void _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl, INT column_id, INT arrow)
 {
 	HWND header = (HWND)SendDlgItemMessage (hwnd, ctrl, LVM_GETHEADER, 0, 0);
 
@@ -1751,11 +1761,9 @@ BOOL _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl, INT column_id, INT ar
 				hitem.fmt = hitem.fmt & ~(HDF_SORTDOWN | HDF_SORTUP);
 			}
 
-			return Header_SetItem (header, column_id, &hitem);
+			Header_SetItem (header, column_id, &hitem);
 		}
 	}
-
-	return FALSE;
 }
 
 INT _r_listview_setitem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t subitem, size_t image, size_t group_id, LPARAM lparam)
@@ -1796,17 +1804,17 @@ INT _r_listview_setitem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t
 	return (INT)SendDlgItemMessage (hwnd, ctrl, LVM_SETITEM, 0, (LPARAM)&lvi);
 }
 
-BOOL _r_listview_setitemcheck (HWND hwnd, UINT ctrl, size_t item, BOOL state)
+void _r_listview_setitemcheck (HWND hwnd, UINT ctrl, size_t item, bool state)
 {
 	LVITEM lvi = {0};
 
 	lvi.stateMask = LVIS_STATEIMAGEMASK;
 	lvi.state = INDEXTOSTATEIMAGEMASK (state ? 2 : 1);
 
-	return (BOOL)SendDlgItemMessage (hwnd, ctrl, LVM_SETITEMSTATE, (item == LAST_VALUE) ? -1 : item, (LPARAM)&lvi);
+	SendDlgItemMessage (hwnd, ctrl, LVM_SETITEMSTATE, (item == LAST_VALUE) ? -1 : item, (LPARAM)&lvi);
 }
 
-BOOL _r_listview_setitemgroup (HWND hwnd, UINT ctrl, size_t item, size_t group_id)
+void _r_listview_setitemgroup (HWND hwnd, UINT ctrl, size_t item, size_t group_id)
 {
 	LVITEM lvi = {0};
 
@@ -1814,10 +1822,10 @@ BOOL _r_listview_setitemgroup (HWND hwnd, UINT ctrl, size_t item, size_t group_i
 	lvi.iItem = static_cast<INT>(item);
 	lvi.iGroupId = static_cast<INT>(group_id);
 
-	return (BOOL)SendDlgItemMessage (hwnd, ctrl, LVM_SETITEM, 0, (LPARAM)&lvi);
+	SendDlgItemMessage (hwnd, ctrl, LVM_SETITEM, 0, (LPARAM)&lvi);
 }
 
-BOOL _r_listview_setitemlparam (HWND hwnd, UINT ctrl, UINT item, LPARAM param)
+void _r_listview_setitemlparam (HWND hwnd, UINT ctrl, UINT item, LPARAM param)
 {
 	LVITEM lvi = {0};
 
@@ -1825,13 +1833,13 @@ BOOL _r_listview_setitemlparam (HWND hwnd, UINT ctrl, UINT item, LPARAM param)
 	lvi.iItem = item;
 	lvi.lParam = param;
 
-	return static_cast<BOOL>(SendDlgItemMessage (hwnd, ctrl, LVM_SETITEM, 0, (LPARAM)&lvi));
+	SendDlgItemMessage (hwnd, ctrl, LVM_SETITEM, 0, (LPARAM)&lvi);
 }
 
-BOOL _r_listview_setgroup (HWND hwnd, UINT ctrl, size_t group_id, LPCWSTR header, LPCWSTR subtitle)
+void _r_listview_setgroup (HWND hwnd, UINT ctrl, size_t group_id, LPCWSTR header, LPCWSTR subtitle)
 {
 	if (!header && !subtitle)
-		return FALSE;
+		return;
 
 	LVGROUP lvg = {0};
 
@@ -1854,14 +1862,14 @@ BOOL _r_listview_setgroup (HWND hwnd, UINT ctrl, size_t group_id, LPCWSTR header
 		StringCchCopy (sttl, _countof (sttl), subtitle);
 	}
 
-	return (BOOL)SendDlgItemMessage (hwnd, ctrl, LVM_SETGROUPINFO, group_id, (LPARAM)&lvg);
+	SendDlgItemMessage (hwnd, ctrl, LVM_SETGROUPINFO, group_id, (LPARAM)&lvg);
 }
 
 DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle)
 {
 	SetWindowTheme (GetDlgItem (hwnd, ctrl), L"Explorer", nullptr);
 
-	_r_wnd_top ((HWND)SendDlgItemMessage (hwnd, ctrl, LVM_GETTOOLTIPS, 0, 0), TRUE); // listview-tooltip-HACK!!!
+	_r_wnd_top ((HWND)SendDlgItemMessage (hwnd, ctrl, LVM_GETTOOLTIPS, 0, 0), true); // listview-tooltip-HACK!!!
 
 	SendDlgItemMessage (hwnd, ctrl, LVM_SETUNICODEFORMAT, TRUE, 0);
 
@@ -1928,12 +1936,12 @@ DWORD _r_treeview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle, INT height)
 	Control: statusbar
 */
 
-BOOL _r_status_settext (HWND hwnd, UINT ctrl, INT part, LPCWSTR text)
+void _r_status_settext (HWND hwnd, UINT ctrl, INT part, LPCWSTR text)
 {
-	return (BOOL)SendDlgItemMessage (hwnd, ctrl, SB_SETTEXT, MAKEWPARAM (part, 0), (LPARAM)text);
+	SendDlgItemMessage (hwnd, ctrl, SB_SETTEXT, MAKEWPARAM (part, 0), (LPARAM)text);
 }
 
-VOID _r_status_setstyle (HWND hwnd, UINT ctrl, INT height)
+void _r_status_setstyle (HWND hwnd, UINT ctrl, INT height)
 {
 	SendDlgItemMessage (hwnd, ctrl, SB_SETMINHEIGHT, (WPARAM)height, 0);
 	SendDlgItemMessage (hwnd, ctrl, WM_SIZE, 0, 0);

@@ -83,54 +83,56 @@ public:
 	rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright);
 	~rapp ();
 
-	BOOL InitializeMutex ();
-	BOOL UninitializeMutex ();
+	bool InitializeMutex ();
+	bool UninitializeMutex ();
 
-	BOOL CheckMutex (BOOL activate_window);
+	bool CheckMutex (bool activate_window);
 
 #ifdef _APP_HAVE_AUTORUN
-	VOID AutorunEnable (BOOL is_enable);
-	BOOL AutorunIsEnabled ();
+	void AutorunEnable (bool is_enable);
+	bool AutorunIsEnabled ();
 #endif // _APP_HAVE_AUTORUN
 
 #ifndef _APP_NO_UPDATES
-	VOID CheckForUpdates (bool is_periodical);
+	void CheckForUpdates (bool is_periodical);
 #endif // _APP_NO_UPDATES
 
 	rstring ConfigGet (LPCWSTR key, INT def, LPCWSTR name = nullptr) const;
 	rstring ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name = nullptr) const;
 
-	BOOL ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name = nullptr);
-	BOOL ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name = nullptr);
+	bool ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name = nullptr);
+	bool ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name = nullptr);
+	bool ConfigSet (LPCWSTR key, DWORD val, LPCWSTR name = nullptr);
+	bool ConfigSet (LPCWSTR key, bool val, LPCWSTR name = nullptr);
 
-	VOID ConfigInit ();
+	void ConfigInit ();
 
 #ifndef _APP_NO_ABOUT
-	VOID CreateAboutWindow ();
+	void CreateAboutWindow ();
 #endif // _APP_NO_ABOUT
 
 #ifndef _APP_NO_DONATE
-	VOID CreateDonateWindow ();
+	void CreateDonateWindow ();
 #endif // _APP_NO_DONATE
 
-	BOOL CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback);
+	bool CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback);
 
 #ifdef _APP_HAVE_TRAY
-	BOOL TrayCreate (HWND hwnd, UINT uid, UINT code, HICON h, BOOL is_hidden);
-	BOOL TrayDestroy (UINT uid);
-	BOOL TrayPopup (DWORD icon, LPCWSTR title, LPCWSTR text);
-	BOOL TraySetInfo (HICON h, LPCWSTR tooltip);
-	BOOL TrayToggle (DWORD uid, BOOL is_show);
+	bool TrayCreate (HWND hwnd, UINT uid, UINT code, HICON h, bool is_hidden);
+	bool TrayDestroy (UINT uid);
+	bool TrayPopup (DWORD icon, LPCWSTR title, LPCWSTR text);
+	bool TraySetInfo (HICON h, LPCWSTR tooltip);
+	bool TrayToggle (DWORD uid, bool is_show);
 #endif // _APP_HAVE_TRAY
 
 #ifndef _APP_NO_SETTINGS
-	VOID CreateSettingsWindow (size_t dlg_id = LAST_VALUE);
+	void CreateSettingsWindow (size_t dlg_id = LAST_VALUE);
 	size_t AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
-	VOID ClearSettingsPage ();
-	VOID InitSettingsPage (HWND hwnd, BOOL is_restart);
+	void ClearSettingsPage ();
+	void InitSettingsPage (HWND hwnd, bool is_restart);
 
 #ifdef _APP_HAVE_SIMPLE_SETTINGS
-	VOID AddSettingsItem (LPCWSTR name, LPCWSTR def_value, CfgType type, UINT locale_id, LPCWSTR locale_sid);
+	void AddSettingsItem (LPCWSTR name, LPCWSTR def_value, CfgType type, UINT locale_id, LPCWSTR locale_sid);
 #endif // _APP_HAVE_SIMPLE_SETTINGS
 
 #endif // _APP_NO_SETTINGS
@@ -145,25 +147,25 @@ public:
 	HINSTANCE GetHINSTANCE () const;
 	HWND GetHWND () const;
 
-	VOID SetIcon (UINT icon_id);
+	void SetIcon (UINT icon_id);
 
-	BOOL IsAdmin () const;
-	BOOL IsClassicUI () const;
-	BOOL IsVistaOrLater () const;
+	bool IsAdmin () const;
+	bool IsClassicUI () const;
+	bool IsVistaOrLater () const;
 
-	VOID LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id);
-	VOID LocaleEnum (HWND hwnd, INT ctrl_id, BOOL is_menu, const UINT id_start);
+	void LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id);
+	void LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, const UINT id_start);
 	UINT LocaleGetCount ();
 	rstring LocaleString (HINSTANCE h, UINT id, LPCWSTR name);
-	VOID LocaleMenu (HMENU menu, LPCWSTR text, UINT item, BOOL by_position) const;
+	void LocaleMenu (HMENU menu, LPCWSTR text, UINT item, bool by_position) const;
 
 #ifdef _APP_HAVE_SKIPUAC
-	BOOL SkipUacEnable (BOOL is_enable);
-	BOOL SkipUacIsEnabled ();
-	BOOL SkipUacRun ();
+	bool SkipUacEnable (bool is_enable);
+	bool SkipUacIsEnabled ();
+	bool SkipUacRun ();
 #endif // _APP_HAVE_SKIPUAC
 
-	BOOL RunAsAdmin ();
+	bool RunAsAdmin ();
 
 private:
 
@@ -179,19 +181,19 @@ private:
 	static LRESULT CALLBACK MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 	static BOOL CALLBACK ActivateWindowCallback (HWND hwnd, LPARAM lparam);
 
-	BOOL ParseINI (LPCWSTR path, rstring::map_two* map);
+	bool ParseINI (LPCWSTR path, rstring::map_two* map);
 
-	VOID LocaleInit ();
+	void LocaleInit ();
 
 	SECURITY_ATTRIBUTES sa;
 	SECURITY_DESCRIPTOR sd;
 
 	DOUBLE dpi_percent = 0.f;
 
-	BOOL is_localized = FALSE;
-	BOOL is_classic = FALSE;
-	BOOL is_vistaorlater = FALSE;
-	BOOL is_admin = FALSE;
+	bool is_localized = false;
+	bool is_classic = false;
+	bool is_vistaorlater = false;
+	bool is_admin = false;
 
 #ifdef _APP_HAVE_TRAY
 	NOTIFYICONDATA nid = {0};
@@ -203,7 +205,7 @@ private:
 #endif // _APP_NO_UPDATES
 
 #ifndef _APP_NO_ABOUT
-	BOOL is_about_opened = FALSE;
+	bool is_about_opened = false;
 #endif // _APP_NO_ABOUT
 
 	WNDPROC app_wndproc = nullptr;

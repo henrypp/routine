@@ -48,15 +48,15 @@
 #	define _APP_DONATE_URL _APP_WEBSITE_URL L"/donate?from=%s"
 #endif // _APP_DONATE_URL
 
-#ifndef _APP_DONATE_BTC_URL
-#	define _APP_DONATE_BTC L"blockchain.info (BTC)"
-#	define _APP_DONATE_BTC_URL L"https://blockchain.info/address/1LrRTXPsvHcQWCNZotA9RcwjsGcRghG96c"
-#endif // _APP_DONATE_BTC_URL
+#ifndef _APP_DONATE_URL_BTC
+#	define _APP_DONATE_TXT_BTC L"blockchain.info (BTC)"
+#	define _APP_DONATE_URL_BTC L"https://blockchain.info/address/1LrRTXPsvHcQWCNZotA9RcwjsGcRghG96c"
+#endif // _APP_DONATE_URL_BTC
 
-#ifndef _APP_DONATE_PAYPAL_URL
-#	define _APP_DONATE_PAYPAL L"paypal.me (USD)"
-#	define _APP_DONATE_PAYPAL_URL L"https://www.paypal.me/henrypp/15"
-#endif // _APP_DONATE_PAYPAL_URL
+#ifndef _APP_DONATE_URL_PAYPAL
+#	define _APP_DONATE_TXT_PAYPAL L"paypal.me (USD)"
+#	define _APP_DONATE_URL_PAYPAL L"https://www.paypal.me/henrypp/15"
+#endif // _APP_DONATE_URL_PAYPAL
 
 #ifndef _APP_UPDATE_URL
 #	define _APP_UPDATE_URL _APP_GITHUB_URL L"/%s/releases/latest"

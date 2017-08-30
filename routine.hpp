@@ -58,9 +58,9 @@
 
 #define _R_DEBUG_FORMAT L"%s() failed with error code 0x%.8lx (%s)"
 
-VOID _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...);
+void _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...);
 
-VOID _r_dbg_write (LPCWSTR appname, LPCWSTR appversion, LPCWSTR fn, DWORD result, LPCWSTR desc);
+void _r_dbg_write (LPCWSTR appname, LPCWSTR appversion, LPCWSTR fn, DWORD result, LPCWSTR desc);
 rstring _r_dbg_getpath (LPCWSTR appname);
 
 /*
@@ -108,20 +108,20 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
 */
 
 rstring _r_clipboard_get (HWND hwnd);
-VOID _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length);
+void _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length);
 
 /*
 	Filesystem
 */
 
-BOOL _r_fs_delete (LPCWSTR path, BOOL allowundo = FALSE);
-BOOL _r_fs_exists (LPCWSTR path);
-BOOL _r_fs_mkdir (LPCWSTR path);
-BOOL _r_fs_rmdir (LPCWSTR path);
-BOOL _r_fs_readfile (HANDLE h, LPVOID result, DWORD64 size);
+bool _r_fs_delete (LPCWSTR path, bool allowundo = false);
+bool _r_fs_exists (LPCWSTR path);
+bool _r_fs_mkdir (LPCWSTR path);
+void _r_fs_rmdir (LPCWSTR path);
+bool _r_fs_readfile (HANDLE h, LPVOID result, DWORD64 size);
 DWORD64 _r_fs_size (HANDLE h);
-BOOL _r_fs_move (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
-BOOL _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
+bool _r_fs_move (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
+bool _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
 
 /*
 	Paths
@@ -151,25 +151,25 @@ INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2);
 	System information
 */
 
-BOOL _r_sys_adminstate ();
+bool _r_sys_adminstate ();
 
 #ifndef _WIN64
-BOOL _r_sys_iswow64 ();
+bool _r_sys_iswow64 ();
 #endif // _WIN64
 
-BOOL _r_sys_setsecurityattributes (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURITY_DESCRIPTOR sd);
-BOOL _r_sys_setprivilege (LPCWSTR privilege, BOOL is_enable);
-BOOL _r_sys_uacstate ();
-BOOL _r_sys_validversion (DWORD major, DWORD minor, DWORD build = 0, BYTE condition = VER_GREATER_EQUAL);
-VOID _r_sleep (DWORD milliseconds);
+bool _r_sys_setsecurityattributes (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURITY_DESCRIPTOR sd);
+bool _r_sys_setprivilege (LPCWSTR privilege, bool is_enable);
+bool _r_sys_uacstate ();
+bool _r_sys_validversion (DWORD major, DWORD minor, DWORD build = 0, BYTE condition = VER_GREATER_EQUAL);
+void _r_sleep (DWORD milliseconds);
 
 /*
 	Unixtime
 */
 
 __time64_t _r_unixtime_now ();
-VOID _r_unixtime_to_filetime (__time64_t ut, const LPFILETIME pft);
-VOID _r_unixtime_to_systemtime (__time64_t ut, const LPSYSTEMTIME pst);
+void _r_unixtime_to_filetime (__time64_t ut, const LPFILETIME pft);
+void _r_unixtime_to_systemtime (__time64_t ut, const LPSYSTEMTIME pst);
 __time64_t _r_unixtime_from_filetime (const FILETIME* pft);
 __time64_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst);
 
@@ -177,41 +177,41 @@ __time64_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst);
 	Window management
 */
 
-VOID _r_wnd_center (HWND hwnd);
-BOOL _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action);
-VOID _r_wnd_fillrect (HDC dc, LPRECT rc, COLORREF clr);
-VOID _r_wnd_toggle (HWND hwnd, BOOL show);
-VOID _r_wnd_top (HWND hwnd, BOOL is_enable);
-VOID _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT index);
+void _r_wnd_center (HWND hwnd);
+void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action);
+void _r_wnd_fillrect (HDC dc, LPRECT rc, COLORREF clr);
+void _r_wnd_toggle (HWND hwnd, bool show);
+void _r_wnd_top (HWND hwnd, bool is_enable);
+void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT index);
 
 /*
 	Inernet access (WinHTTP)
 */
 
 HINTERNET _r_inet_createsession (LPCWSTR useragent);
-BOOL _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* prequest, PDWORD contentlength);
-BOOL _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD written);
-BOOL _r_inet_close (HINTERNET h);
+bool _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* prequest, PDWORD contentlength);
+bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD written);
+void _r_inet_close (HINTERNET h);
 
 /*
 	Other
 */
 
 HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d);
-BOOL _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd = nullptr, WORD sw = SW_SHOWDEFAULT);
+bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd = nullptr, WORD sw = SW_SHOWDEFAULT);
 size_t _r_rnd (size_t start, size_t end);
 
 /*
 	Control: common
 */
 
-VOID _r_ctrl_enable (HWND hwnd, UINT ctrl, BOOL is_enable);
+void _r_ctrl_enable (HWND hwnd, UINT ctrl, bool is_enable);
 
 rstring _r_ctrl_gettext (HWND hwnd, UINT ctrl);
-VOID _r_ctrl_settext (HWND hwnd, UINT ctrl, LPCWSTR str, ...);
+void _r_ctrl_settext (HWND hwnd, UINT ctrl, LPCWSTR str, ...);
 
-BOOL _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text);
-BOOL _r_ctrl_showtip (HWND hwnd, UINT ctrl, LPCWSTR title, LPCWSTR text, INT icon);
+bool _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text);
+bool _r_ctrl_showtip (HWND hwnd, UINT ctrl, LPCWSTR title, LPCWSTR text, INT icon);
 
 /*
 	Control: listview
@@ -221,25 +221,25 @@ INT _r_listview_addcolumn (HWND hwnd, UINT ctrl, LPCWSTR text, UINT width, size_
 INT _r_listview_addgroup (HWND hwnd, UINT ctrl, LPCWSTR text, size_t group_id, UINT align = 0, UINT state = 0);
 INT _r_listview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t subitem, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
 
-VOID _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl);
-VOID _r_listview_deleteallgroups (HWND hwnd, UINT ctrl);
-VOID _r_listview_deleteallitems (HWND hwnd, UINT ctrl);
+void _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl);
+void _r_listview_deleteallgroups (HWND hwnd, UINT ctrl);
+void _r_listview_deleteallitems (HWND hwnd, UINT ctrl);
 
-BOOL _r_listview_getcheckstate (HWND hwnd, UINT ctrl, size_t item);
+bool _r_listview_getcheckstate (HWND hwnd, UINT ctrl, size_t item);
 INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl, INT column);
-size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl, BOOL list_checked = FALSE);
+size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl, bool list_checked = false);
 INT _r_listview_getcolumncount (HWND hwnd, UINT ctrl);
 LPARAM _r_listview_getitemlparam (HWND hwnd, UINT ctrl, size_t item);
 rstring _r_listview_getitemtext (HWND hwnd, UINT ctrl, size_t item, size_t subitem);
 
 DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle);
-VOID _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR text, INT width);
-BOOL _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl, INT column_id, INT arrow);
+void _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR text, INT width);
+void _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl, INT column_id, INT arrow);
 INT _r_listview_setitem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t subitem, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
-BOOL _r_listview_setitemcheck (HWND hwnd, UINT ctrl, size_t item, BOOL state);
-BOOL _r_listview_setitemgroup (HWND hwnd, UINT ctrl, size_t item, size_t group_id);
-BOOL _r_listview_setitemlparam (HWND hwnd, UINT ctrl, UINT item, LPARAM param);
-BOOL _r_listview_setgroup (HWND hwnd, UINT ctrl, size_t group_id, LPCWSTR header, LPCWSTR footer);
+void _r_listview_setitemcheck (HWND hwnd, UINT ctrl, size_t item, bool state);
+void _r_listview_setitemgroup (HWND hwnd, UINT ctrl, size_t item, size_t group_id);
+void _r_listview_setitemlparam (HWND hwnd, UINT ctrl, UINT item, LPARAM param);
+void _r_listview_setgroup (HWND hwnd, UINT ctrl, size_t group_id, LPCWSTR header, LPCWSTR footer);
 
 /*
 	Control: treeview
@@ -253,8 +253,8 @@ DWORD _r_treeview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle, INT height);
 	Control: statusbar
 */
 
-BOOL _r_status_settext (HWND hwnd, UINT ctrl, INT part, LPCWSTR text);
-VOID _r_status_setstyle (HWND hwnd, UINT ctrl, INT height);
+void _r_status_settext (HWND hwnd, UINT ctrl, INT part, LPCWSTR text);
+void _r_status_setstyle (HWND hwnd, UINT ctrl, INT height);
 
 /*
 	Exported function definitions
