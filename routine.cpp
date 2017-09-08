@@ -1304,7 +1304,8 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINT
 
 			if (hrequest)
 			{
-				// disable "keep-alive" feature
+				// disable "keep-alive" feature (win7 and above)
+				if (_r_sys_validversion (6, 1))
 				{
 					DWORD option = WINHTTP_DISABLE_KEEP_ALIVE;
 					WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &option, sizeof (option));
@@ -1437,11 +1438,11 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d)
 	if (!result)
 	{
 		result = (HICON)LoadImage (h, name, IMAGE_ICON, d, d, 0);
-}
+	}
 #endif // _APP_NO_WINXP
 
 	return result;
-	}
+}
 
 bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 {
