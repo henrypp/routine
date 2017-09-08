@@ -227,6 +227,8 @@ private:
 	WCHAR app_version[MAX_PATH];
 	WCHAR app_copyright[MAX_PATH];
 
+	WCHAR default_locale[LOCALE_NAME_MAX_LENGTH];
+
 	rstring::map_two app_config_array;
 	rstring::map_two app_locale_array;
 

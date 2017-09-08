@@ -9,6 +9,12 @@ CONST UINT WM_TASKBARCREATED = RegisterWindowMessage (L"TaskbarCreated");
 
 rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright)
 {
+	// initialize security attributes
+	SecureZeroMemory (&sd, sizeof (sd));
+	SecureZeroMemory (&sa, sizeof (sa));
+
+	_r_sys_setsecurityattributes (&sa, sizeof (sa), &sd);
+
 	// store system information
 	is_vistaorlater = _r_sys_validversion (6, 0);
 	is_admin = _r_sys_adminstate ();
@@ -80,6 +86,9 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	{
 		StringCchCopy (app_profile_directory, _countof (app_profile_directory), _r_path_extractdir (app_config_path));
 	}
+
+	// get default system locale
+	GetLocaleInfo (LOCALE_SYSTEM_DEFAULT, _r_sys_validversion (6, 1) ? LOCALE_SENGLISHLANGUAGENAME : LOCALE_SENGLANGUAGE, default_locale, _countof (default_locale));
 
 	// read config
 	ConfigInit ();
@@ -566,12 +575,6 @@ bool rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 		}
 	}
 
-	// initialize security attributes
-	SecureZeroMemory (&sd, sizeof (sd));
-	SecureZeroMemory (&sa, sizeof (sa));
-
-	_r_sys_setsecurityattributes (&sa, sizeof (sa), &sd);
-
 	// initialize controls
 	{
 		INITCOMMONCONTROLSEX icex = {0};
@@ -616,10 +619,6 @@ bool rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 
 #endif // _APP_HAVE_SKIPUAC
 
-#ifdef _APP_HAVE_SKIPUAC
-	SkipUacEnable (ConfigGet (L"SkipUacIsEnabled", false).AsBool ());
-#endif // _APP_HAVE_SKIPUAC
-
 	InitializeMutex ();
 
 	if (ConfigGet (L"ClassicUI", false).AsBool () || !IsThemeActive ())
@@ -652,10 +651,15 @@ bool rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 		SetWindowLongPtr (GetHWND (), GWLP_USERDATA, (LONG_PTR)this);
 		app_wndproc = (WNDPROC)SetWindowLongPtr (GetHWND (), DWLP_DLGPROC, (LONG_PTR)&MainWindowProc);
 
-		// set autorun state
+		// update autorun settings
 #ifdef _APP_HAVE_AUTORUN
 		AutorunEnable (AutorunIsEnabled ());
 #endif // _APP_HAVE_AUTORUN
+
+		// update uac settings
+#ifdef _APP_HAVE_SKIPUAC
+		SkipUacEnable (ConfigGet (L"SkipUacIsEnabled", false).AsBool ());
+#endif // _APP_HAVE_SKIPUAC
 
 		// set window on top
 		_r_wnd_top (GetHWND (), ConfigGet (L"AlwaysOnTop", false).AsBool ());
@@ -1046,12 +1050,11 @@ void rapp::LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id)
 {
 	if (selected_id == default_id)
 	{
-		ConfigSet (L"Language", nullptr);
+		ConfigSet (L"Language", L"-1");
 	}
 	else
 	{
-		WCHAR buffer[MAX_PATH] = {0};
-
+		WCHAR buffer[LOCALE_NAME_MAX_LENGTH] = {0};
 		GetMenuString (hmenu, selected_id, buffer, _countof (buffer), MF_BYCOMMAND);
 
 		ConfigSet (L"Language", buffer);
@@ -1101,7 +1104,7 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, const UINT id_start
 	if (h != INVALID_HANDLE_VALUE)
 	{
 		app_locale_count = 0;
-		rstring def = ConfigGet (L"Language", nullptr);
+		rstring def = ConfigGet (L"Language", default_locale);
 
 		if (is_menu)
 			AppendMenu (hmenu, MF_SEPARATOR, 0, nullptr);
@@ -1150,12 +1153,12 @@ UINT rapp::LocaleGetCount ()
 
 void rapp::LocaleInit ()
 {
-	rstring name = ConfigGet (L"Language", nullptr);
+	rstring name = ConfigGet (L"Language", default_locale);
 
 	app_locale_array.clear (); // clear
 	is_localized = false;
 
-	if (!name.IsEmpty ())
+	if (!name.IsEmpty () && name.AsInt () != -1)
 		is_localized = ParseINI (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\%s.ini", GetDirectory (), name), &app_locale_array);
 }
 
@@ -1370,7 +1373,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 				{
 					// if not enabled - nothing is changed!
 					if (!IsWindowEnabled (GetDlgItem (hwnd, IDC_APPLY)))
-						return FALSE;
+						break;
 
 					bool is_newlocale = false;
 
@@ -1378,7 +1381,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					{
 						PAPP_SETTINGS_PAGE const ptr = this_ptr->app_settings_pages.at (i);
 
-						if (ptr->dlg_id && ptr->callback)
+						if (ptr->dlg_id && ptr->hwnd && ptr->callback)
 						{
 							if (ptr->callback (ptr->hwnd, _RM_SAVE, nullptr, ptr))
 								is_newlocale = true;
@@ -1409,9 +1412,9 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 				case IDCANCEL: // process Esc key
 				case IDC_CLOSE:
 				{
-					EndDialog (hwnd, 0);
-
 					_r_wnd_top (this_ptr->GetHWND (), this_ptr->ConfigGet (L"AlwaysOnTop", false).AsBool ());
+
+					EndDialog (hwnd, 0);
 
 					break;
 				}
@@ -1480,13 +1483,13 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 
 					result = true;
 				}
-
-				if (hrequest)
-					_r_inet_close (hrequest);
-
-				if (hconnect)
-					_r_inet_close (hconnect);
 			}
+
+			if (hrequest)
+				_r_inet_close (hrequest);
+
+			if (hconnect)
+				_r_inet_close (hconnect);
 
 			_r_inet_close (hsession);
 		}

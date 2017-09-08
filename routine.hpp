@@ -189,9 +189,9 @@ void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT in
 */
 
 HINTERNET _r_inet_createsession (LPCWSTR useragent);
-bool _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* prequest, PDWORD contentlength);
-bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD written);
-void _r_inet_close (HINTERNET h);
+bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINTERNET* prequest, PDWORD ptotallength);
+bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD ptotallength);
+void _r_inet_close (HINTERNET hinet);
 
 /*
 	Other

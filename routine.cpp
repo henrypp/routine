@@ -406,7 +406,7 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 			if (lpdata)
 				_r_wnd_top (hwnd, true);
 
-			return TRUE;
+			break;
 		}
 
 		case TDN_DIALOG_CONSTRUCTED:
@@ -414,14 +414,14 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 			SendMessage (hwnd, WM_SETICON, ICON_SMALL, 0);
 			SendMessage (hwnd, WM_SETICON, ICON_BIG, 0);
 
-			return TRUE;
+			break;
 		}
 
 		case TDN_HYPERLINK_CLICKED:
 		{
 			ShellExecute (hwnd, nullptr, (LPCWSTR)lparam, nullptr, nullptr, SW_SHOWDEFAULT);
 
-			return TRUE;
+			break;
 		}
 	}
 
@@ -1244,7 +1244,7 @@ void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT in
 
 HINTERNET _r_inet_createsession (LPCWSTR useragent)
 {
-	HINTERNET h = nullptr;
+	HINTERNET hsession = nullptr;
 
 	DWORD flags = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
 
@@ -1253,24 +1253,26 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent)
 	if (is_win81)
 		flags = WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY;
 
-	h = WinHttpOpen (useragent, flags, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+	hsession = WinHttpOpen (useragent, flags, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
 
-	if (!h)
+	if (!hsession)
 		return nullptr;
 
 	// enable compression feature (win81 and above)
 	if (is_win81)
 	{
-		ULONG httpFlags = WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE;
-
-		WinHttpSetOption (h, WINHTTP_OPTION_DECOMPRESSION, &httpFlags, sizeof (httpFlags));
+		DWORD option = WINHTTP_DECOMPRESSION_FLAG_ALL;
+		WinHttpSetOption (hsession, WINHTTP_OPTION_DECOMPRESSION, &option, sizeof (option));
 	}
 
-	return h;
+	return hsession;
 }
 
-bool _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* prequest, PDWORD contentlength)
+bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINTERNET* prequest, PDWORD ptotallength)
 {
+	if (!hsession)
+		return false;
+
 	URL_COMPONENTS urlcomp = {0};
 
 	WCHAR host[MAX_PATH] = {0};
@@ -1289,7 +1291,7 @@ bool _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* 
 
 	if (WinHttpCrackUrl (url, DWORD (wcslen (url)), ICU_ESCAPE, &urlcomp))
 	{
-		hconnect = WinHttpConnect (h, urlcomp.lpszHostName, urlcomp.nPort, 0);
+		hconnect = WinHttpConnect (hsession, host, urlcomp.nPort, 0);
 
 		if (hconnect)
 		{
@@ -1298,42 +1300,88 @@ bool _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* 
 			if (urlcomp.nScheme == INTERNET_SCHEME_HTTPS)
 				flags |= WINHTTP_FLAG_SECURE;
 
-			hrequest = WinHttpOpenRequest (hconnect, nullptr, urlcomp.lpszUrlPath, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
+			hrequest = WinHttpOpenRequest (hconnect, nullptr, url_path, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
 
 			if (hrequest)
 			{
-				// disable keep-alive (win7 and above)
-				if (_r_sys_validversion (6, 1))
+				// disable "keep-alive" feature
 				{
-					ULONG option = WINHTTP_DISABLE_KEEP_ALIVE;
-					WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &option, sizeof (ULONG));
+					DWORD option = WINHTTP_DISABLE_KEEP_ALIVE;
+					WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &option, sizeof (option));
 				}
 
-				if (WinHttpSendRequest (hrequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH, 0))
-				{
-					if (WinHttpReceiveResponse (hrequest, nullptr))
-					{
-						if (contentlength)
-						{
-							DWORD queryLength = 0;
-							DWORD length = sizeof (queryLength);
+				UINT retry_count = 0;
 
-							if (WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, nullptr, &queryLength, &length, nullptr))
+				do
+				{
+					if (WinHttpSendRequest (hrequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH, 0))
+					{
+						if (WinHttpReceiveResponse (hrequest, nullptr))
+						{
+							if (ptotallength)
 							{
-								*contentlength = queryLength;
+								DWORD length = sizeof (DWORD);
+								WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, nullptr, ptotallength, &length, nullptr);
+							}
+
+							if (pconnect)
+								*pconnect = hconnect;
+
+							if (prequest)
+								*prequest = hrequest;
+
+							return true;
+						}
+					}
+					else
+					{
+						const DWORD err = GetLastError ();
+
+						if (err == ERROR_WINHTTP_CONNECTION_ERROR || err == ERROR_WINHTTP_SECURE_FAILURE)
+						{
+							DWORD old_option = 0;
+							DWORD old_length = 0;
+							DWORD new_option = 0;
+							DWORD flag = 0;
+							HINTERNET hinet = hrequest;
+
+							if (err == ERROR_WINHTTP_CONNECTION_ERROR)
+							{
+								// allow tls 1.2 secure protocol
+								flag = WINHTTP_OPTION_SECURE_PROTOCOLS;
+								new_option = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
+								hinet = hsession;
+							}
+							else if (err == ERROR_WINHTTP_SECURE_FAILURE)
+							{
+								// allow unknown certificates
+								flag = WINHTTP_OPTION_SECURITY_FLAGS;
+								new_option = SECURITY_FLAG_IGNORE_CERT_CN_INVALID | SECURITY_FLAG_IGNORE_CERT_DATE_INVALID | SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE;
+							}
+
+							if (new_option)
+							{
+								if (WinHttpQueryOption (hinet, flag, &old_option, &old_length))
+									new_option |= old_option;
+
+								if (new_option != old_option)
+								{
+									if (!WinHttpSetOption (hinet, flag, &new_option, sizeof (new_option)))
+										break;
+								}
+								else
+								{
+									break;
+								}
 							}
 						}
-
-						if (pconnect)
-							*pconnect = hconnect;
-
-						if (prequest)
-							*prequest = hrequest;
-
-						return true;
+						else
+						{
+							break;
+						}
 					}
-
 				}
+				while (retry_count++ < 3);
 			}
 		}
 	}
@@ -1347,30 +1395,27 @@ bool _r_inet_openurl (HINTERNET h, LPCWSTR url, HINTERNET* pconnect, HINTERNET* 
 	return false;
 }
 
-bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD written)
+bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD ptotallength)
 {
-	DWORD written_ow = 0;
+	DWORD written = 0;
 
-	if (written)
-		*written = 0;
-
-	if (!WinHttpReadData (hrequest, buffer, length, &written_ow))
+	if (!WinHttpReadData (hrequest, buffer, length, &written))
 		return false;
 
-	if (!written_ow)
+	if (!written)
 		return false;
 
-	buffer[written_ow] = 0;
+	buffer[written] = 0;
 
-	if (written)
-		*written = written_ow;
+	if (ptotallength)
+		*ptotallength += written;
 
 	return true;
 }
 
-void _r_inet_close (HINTERNET h)
+void _r_inet_close (HINTERNET hinet)
 {
-	WinHttpCloseHandle (h);
+	WinHttpCloseHandle (hinet);
 }
 
 /*
@@ -1392,11 +1437,11 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d)
 	if (!result)
 	{
 		result = (HICON)LoadImage (h, name, IMAGE_ICON, d, d, 0);
-	}
+}
 #endif // _APP_NO_WINXP
 
 	return result;
-}
+	}
 
 bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 {
