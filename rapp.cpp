@@ -1050,7 +1050,7 @@ void rapp::LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id)
 {
 	if (selected_id == default_id)
 	{
-		ConfigSet (L"Language", L"-1");
+		ConfigSet (L"Language", _APP_LANGUAGE_DEFAULT);
 	}
 	else
 	{
@@ -1104,7 +1104,13 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, const UINT id_start
 	if (h != INVALID_HANDLE_VALUE)
 	{
 		app_locale_count = 0;
-		rstring def = ConfigGet (L"Language", default_locale);
+
+		rstring name = ConfigGet (L"Language", nullptr);
+
+		if (name.IsEmpty ())
+			name = default_locale;
+		else if (name.CompareNoCase (_APP_LANGUAGE_DEFAULT) == 0)
+			name = L"";
 
 		if (is_menu)
 			AppendMenu (hmenu, MF_SEPARATOR, 0, nullptr);
@@ -1118,14 +1124,14 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, const UINT id_start
 			{
 				AppendMenu (hmenu, MF_STRING, (++app_locale_count + id_start), fname);
 
-				if (!def.IsEmpty () && def.CompareNoCase (fname) == 0)
+				if (!name.IsEmpty () && name.CompareNoCase (fname) == 0)
 					CheckMenuRadioItem (hmenu, id_start, id_start + app_locale_count, id_start + app_locale_count, MF_BYCOMMAND);
 			}
 			else
 			{
 				SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, ++app_locale_count, (LPARAM)fname);
 
-				if (!def.IsEmpty () && def.CompareNoCase (fname) == 0)
+				if (!name.IsEmpty () && name.CompareNoCase (fname) == 0)
 					SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, app_locale_count, 0);
 			}
 		}
@@ -1153,13 +1159,30 @@ UINT rapp::LocaleGetCount ()
 
 void rapp::LocaleInit ()
 {
-	rstring name = ConfigGet (L"Language", default_locale);
+	rstring name = ConfigGet (L"Language", nullptr);
+
+	if (name.IsEmpty ())
+		name = default_locale;
+	else if (name.CompareNoCase (_APP_LANGUAGE_DEFAULT) == 0)
+		name = L"";
 
 	app_locale_array.clear (); // clear
 	is_localized = false;
 
-	if (!name.IsEmpty () && name.AsInt () != -1)
+	if (!name.IsEmpty ())
+	{
 		is_localized = ParseINI (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\%s.ini", GetDirectory (), name), &app_locale_array);
+
+		if (is_localized)
+		{
+			for (auto &p : app_locale_array[_APP_I18N_SECTION])
+			{
+				p.second.Replace (L"\\t", L"\t");
+				p.second.Replace (L"\\r", L"\r");
+				p.second.Replace (L"\\n", L"\n");
+			}
+		}
+	}
 }
 
 rstring rapp::LocaleString (HINSTANCE h, UINT uid, LPCWSTR name)
@@ -1176,21 +1199,13 @@ rstring rapp::LocaleString (HINSTANCE h, UINT uid, LPCWSTR name)
 		{
 			// check key is exists
 			if (app_locale_array[_APP_I18N_SECTION].find (name) != app_locale_array[_APP_I18N_SECTION].end ())
-			{
 				result = app_locale_array[_APP_I18N_SECTION][name];
-
-				result.Replace (L"\\t", L"\t");
-				result.Replace (L"\\r", L"\r");
-				result.Replace (L"\\n", L"\n");
-			}
 		}
 
 		if (result.IsEmpty ())
 		{
 			if (!h)
-			{
 				h = GetHINSTANCE ();
-			}
 
 			LoadString (h, uid, result.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH);
 			result.ReleaseBuffer ();
@@ -1204,15 +1219,16 @@ void rapp::LocaleMenu (HMENU menu, LPCWSTR text, UINT item, bool by_position) co
 {
 	if (text)
 	{
-		rstring ptr = text;
+		WCHAR buffer[128] = {0};
+		StringCchCopy (buffer, _countof (buffer), text);
 
-		MENUITEMINFO mif = {0};
+		MENUITEMINFO mi = {0};
 
-		mif.cbSize = sizeof (MENUITEMINFO);
-		mif.fMask = MIIM_STRING;
-		mif.dwTypeData = ptr.GetBuffer ();
+		mi.cbSize = sizeof (mi);
+		mi.fMask = MIIM_STRING;
+		mi.dwTypeData = buffer;
 
-		SetMenuItemInfo (menu, item, by_position, &mif);
+		SetMenuItemInfo (menu, item, by_position, &mi);
 	}
 }
 
