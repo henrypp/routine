@@ -700,7 +700,22 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 {
 	rstring result = path;
 
-	if (_wcsnicmp (path, L"\\Device\\Mup\\", 12) == 0) // Win7
+	if (_wcsnicmp (path, L"\\Device\\Serial", 14) == 0 || _wcsnicmp (path, L"\\Device\\UsbSer", 14) == 0)  // "Serial1" & "USBSER000"
+	{
+		HKEY hkey = nullptr;
+
+		if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, L"Hardware\\DeviceMap\\SerialComm", 0, KEY_QUERY_VALUE, &hkey) == ERROR_SUCCESS)
+		{
+			WCHAR buffer[64] = {0};
+			DWORD size = (sizeof (buffer) * sizeof (WCHAR));
+
+			if (RegQueryValueEx (hkey, path, 0, nullptr, (LPBYTE)buffer, &size) == ERROR_SUCCESS)
+				result = buffer;
+
+			RegCloseKey (hkey);
+		}
+	}
+	else if (_wcsnicmp (path, L"\\Device\\Mup\\", 12) == 0) // Win7
 	{
 		result = L"\\\\";
 		result.Append (path + 12);
@@ -724,19 +739,18 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 
 				drv[2] = 0; // the backslash is not allowed for QueryDosDevice()
 
-				WCHAR u16_NtVolume[_R_BYTESIZE_KB] = {0};
-				u16_NtVolume[0] = 0;
+				WCHAR volume[_R_BYTESIZE_KB] = {0};
 
 				// may return multiple strings!
 				// returns very weird strings for network shares
-				if (QueryDosDevice (drv, u16_NtVolume, _countof (u16_NtVolume)))
+				if (QueryDosDevice (drv, volume, _countof (volume)))
 				{
-					const size_t s32_Len = wcslen (u16_NtVolume);
+					const size_t length = wcslen (volume);
 
-					if (s32_Len > 0 && _wcsnicmp (path, u16_NtVolume, s32_Len) == 0)
+					if (length && _wcsnicmp (path, volume, length) == 0)
 					{
 						result = drv;
-						result.Append (path + s32_Len);
+						result.Append (path + length);
 
 						break;
 					}
@@ -832,18 +846,18 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 
 size_t _r_str_hash (LPCWSTR text)
 {
+	if (!text)
+		return 0;
+
 	static const size_t InitialFNV = 2166136261U;
 	static const size_t FNVMultiple = 16777619;
 
 	size_t hash = InitialFNV;
 	const size_t length = wcslen (text);
 
-	if (!length)
-		return 0;
-
 	for (size_t i = 0; i < length; i++)
 	{
-		hash = hash ^ (towupper (text[i])); /* xor the low 8 bits */
+		hash = hash ^ (towlower (text[i])); /* xor the low 8 bits */
 		hash = hash * FNVMultiple; /* multiply by the magic number */
 	}
 
@@ -1141,6 +1155,35 @@ __time64_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst)
 }
 
 /*
+	Optimized version of WinAPI function "FillRect"
+*/
+
+void _r_dc_fillrect (HDC dc, LPRECT rc, COLORREF clr)
+{
+	COLORREF clr_prev = SetBkColor (dc, clr);
+	ExtTextOut (dc, 0, 0, ETO_OPAQUE, rc, nullptr, 0, nullptr);
+	SetBkColor (dc, clr_prev);
+}
+
+int _r_dc_fontsizetoheight (INT size)
+{
+	HDC hdc = GetDC (nullptr);
+	int result = -MulDiv (size, GetDeviceCaps (hdc, LOGPIXELSY), 72);
+	ReleaseDC (nullptr, hdc);
+
+	return result;
+}
+
+int _r_dc_fontheighttosize (INT size)
+{
+	HDC hdc = GetDC (nullptr);
+	int result = MulDiv (-size, 72, GetDeviceCaps (hdc, LOGPIXELSY));
+	ReleaseDC (nullptr, hdc);
+
+	return result;
+}
+
+/*
 	Window management
 */
 
@@ -1190,17 +1233,6 @@ void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 			}
 		}
 	}
-}
-
-/*
-	Optimized version of WinAPI function "FillRect"
-*/
-
-void _r_wnd_fillrect (HDC dc, LPRECT rc, COLORREF clr)
-{
-	COLORREF clr_prev = SetBkColor (dc, clr);
-	ExtTextOut (dc, 0, 0, ETO_OPAQUE, rc, nullptr, 0, nullptr);
-	SetBkColor (dc, clr_prev);
 }
 
 void _r_wnd_toggle (HWND hwnd, bool show)
@@ -1484,29 +1516,29 @@ size_t _r_rnd (size_t start, size_t end)
 	Control: common
 */
 
-void _r_ctrl_enable (HWND hwnd, UINT ctrl, bool is_enable)
+void _r_ctrl_enable (HWND hwnd, UINT ctrl_id, bool is_enable)
 {
-	EnableWindow (GetDlgItem (hwnd, ctrl), is_enable);
+	EnableWindow (GetDlgItem (hwnd, ctrl_id), is_enable);
 }
 
-rstring _r_ctrl_gettext (HWND hwnd, UINT ctrl)
+rstring _r_ctrl_gettext (HWND hwnd, UINT ctrl_id)
 {
 	rstring result = L"";
 
-	INT length = (INT)SendDlgItemMessage (hwnd, ctrl, WM_GETTEXTLENGTH, 0, 0);
+	INT length = (INT)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXTLENGTH, 0, 0);
 
 	if (length)
 	{
 		length += 1;
 
-		GetDlgItemText (hwnd, ctrl, result.GetBuffer (length), length);
+		GetDlgItemText (hwnd, ctrl_id, result.GetBuffer (length), length);
 		result.ReleaseBuffer ();
 	}
 
 	return result;
 }
 
-void _r_ctrl_settext (HWND hwnd, UINT ctrl, LPCWSTR str, ...)
+void _r_ctrl_settext (HWND hwnd, UINT ctrl_id, LPCWSTR str, ...)
 {
 	rstring buffer;
 
@@ -1514,7 +1546,7 @@ void _r_ctrl_settext (HWND hwnd, UINT ctrl, LPCWSTR str, ...)
 	va_start (args, str);
 
 	buffer.FormatV (str, args);
-	SetDlgItemText (hwnd, ctrl, buffer);
+	SetDlgItemText (hwnd, ctrl_id, buffer);
 
 	va_end (args);
 }
@@ -1544,28 +1576,28 @@ bool _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text)
 	return false;
 }
 
-bool _r_ctrl_showtip (HWND hwnd, UINT ctrl, LPCWSTR title, LPCWSTR text, INT icon)
+bool _r_ctrl_showtip (HWND hwnd, UINT ctrl_id, LPCWSTR title, LPCWSTR text, INT icon)
 {
 	EDITBALLOONTIP ebt = {0};
 
-	ebt.cbStruct = sizeof (EDITBALLOONTIP);
+	ebt.cbStruct = sizeof (ebt);
 	ebt.pszTitle = title;
 	ebt.pszText = text;
 	ebt.ttiIcon = icon;
 
-	return SendDlgItemMessage (hwnd, ctrl, EM_SHOWBALLOONTIP, 0, (LPARAM)&ebt) ? true : false;
+	return SendDlgItemMessage (hwnd, ctrl_id, EM_SHOWBALLOONTIP, 0, (LPARAM)&ebt) ? true : false;
 }
 
 /*
 	Control: listview
 */
 
-INT _r_listview_addcolumn (HWND hwnd, UINT ctrl, LPCWSTR text, UINT width, size_t subitem, INT fmt)
+INT _r_listview_addcolumn (HWND hwnd, UINT ctrl_id, LPCWSTR text, UINT width, size_t subitem, INT fmt)
 {
 	LVCOLUMN lvc = {0};
 
 	RECT rc = {0};
-	GetClientRect (GetDlgItem (hwnd, ctrl), &rc);
+	GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
 
 	if (width > 100)
 	{
@@ -1578,18 +1610,18 @@ INT _r_listview_addcolumn (HWND hwnd, UINT ctrl, LPCWSTR text, UINT width, size_
 	lvc.cx = _R_PERCENT_VAL (width, rc.right);
 	lvc.iSubItem = static_cast<INT>(subitem);
 
-	return (INT)SendDlgItemMessage (hwnd, ctrl, LVM_INSERTCOLUMN, (WPARAM)subitem, (LPARAM)&lvc);
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTCOLUMN, (WPARAM)subitem, (LPARAM)&lvc);
 }
 
-INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl, INT column)
+INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl_id, INT column)
 {
 	RECT rc = {0};
-	GetClientRect (GetDlgItem (hwnd, ctrl), &rc);
+	GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
 
-	return _R_PERCENT_OF (SendDlgItemMessage (hwnd, ctrl, LVM_GETCOLUMNWIDTH, column, NULL), rc.right);
+	return _R_PERCENT_OF (SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMNWIDTH, column, NULL), rc.right);
 }
 
-INT _r_listview_addgroup (HWND hwnd, UINT ctrl, LPCWSTR text, size_t group_id, UINT align, UINT state)
+INT _r_listview_addgroup (HWND hwnd, UINT ctrl_id, LPCWSTR text, size_t group_id, UINT align, UINT state)
 {
 	LVGROUP lvg = {0};
 
@@ -1610,16 +1642,16 @@ INT _r_listview_addgroup (HWND hwnd, UINT ctrl, LPCWSTR text, size_t group_id, U
 		lvg.state = state;
 	}
 
-	SendDlgItemMessage (hwnd, ctrl, LVM_ENABLEGROUPVIEW, TRUE, 0);
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_ENABLEGROUPVIEW, TRUE, 0);
 
-	return (INT)SendDlgItemMessage (hwnd, ctrl, LVM_INSERTGROUP, (WPARAM)-1, (LPARAM)&lvg);
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTGROUP, (WPARAM)-1, (LPARAM)&lvg);
 }
 
-INT _r_listview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t subitem, size_t image, size_t group_id, LPARAM lparam)
+INT _r_listview_additem (HWND hwnd, UINT ctrl_id, LPCWSTR text, size_t item, size_t subitem, size_t image, size_t group_id, LPARAM lparam)
 {
 	if (item == LAST_VALUE)
 	{
-		item = static_cast<INT>(_r_listview_getitemcount (hwnd, ctrl));
+		item = static_cast<INT>(_r_listview_getitemcount (hwnd, ctrl_id));
 
 		if (subitem)
 			item -= 1;
@@ -1628,9 +1660,9 @@ INT _r_listview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t
 	if (subitem)
 	{
 		if (lparam)
-			_r_listview_setitem (hwnd, ctrl, nullptr, item, 0, LAST_VALUE, LAST_VALUE, lparam);
+			_r_listview_setitem (hwnd, ctrl_id, nullptr, item, 0, LAST_VALUE, LAST_VALUE, lparam);
 
-		return _r_listview_setitem (hwnd, ctrl, text, item, subitem);
+		return _r_listview_setitem (hwnd, ctrl_id, text, item, subitem);
 	}
 
 	WCHAR buffer[MAX_PATH] = {0};
@@ -1666,74 +1698,69 @@ INT _r_listview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t
 		lvi.lParam = lparam;
 	}
 
-	return (INT)SendDlgItemMessage (hwnd, ctrl, LVM_INSERTITEM, 0, (LPARAM)&lvi);
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTITEM, 0, (LPARAM)&lvi);
 }
 
-bool _r_listview_getcheckstate (HWND hwnd, UINT ctrl, size_t item)
+void _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl_id)
 {
-	return (((SendDlgItemMessage (hwnd, ctrl, LVM_GETITEMSTATE, item, LVIS_STATEIMAGEMASK)) >> 12) - 1) ? true : false;
-}
-
-void _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl)
-{
-	const INT column_count = _r_listview_getcolumncount (hwnd, ctrl);
+	const INT column_count = _r_listview_getcolumncount (hwnd, ctrl_id);
 
 	for (INT i = column_count; i >= 0; i--)
 	{
-		SendDlgItemMessage (hwnd, ctrl, LVM_DELETECOLUMN, i, 0);
+		SendDlgItemMessage (hwnd, ctrl_id, LVM_DELETECOLUMN, i, 0);
 	}
 }
 
-void _r_listview_deleteallgroups (HWND hwnd, UINT ctrl)
+void _r_listview_deleteallgroups (HWND hwnd, UINT ctrl_id)
 {
-	SendDlgItemMessage (hwnd, ctrl, LVM_REMOVEALLGROUPS, 0, 0);
-	SendDlgItemMessage (hwnd, ctrl, LVM_ENABLEGROUPVIEW, FALSE, 0);
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_REMOVEALLGROUPS, 0, 0);
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_ENABLEGROUPVIEW, FALSE, 0);
 }
 
-void _r_listview_deleteallitems (HWND hwnd, UINT ctrl)
+void _r_listview_deleteallitems (HWND hwnd, UINT ctrl_id)
 {
-	SendDlgItemMessage (hwnd, ctrl, LVM_DELETEALLITEMS, 0, 0);
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_DELETEALLITEMS, 0, 0);
 }
 
-INT _r_listview_getcolumncount (HWND hwnd, UINT ctrl)
+INT _r_listview_getcolumncount (HWND hwnd, UINT ctrl_id)
 {
-	HWND hdr = (HWND)SendDlgItemMessage (hwnd, ctrl, LVM_GETHEADER, 0, 0);
+	HWND hdr = (HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETHEADER, 0, 0);
 
 	return (INT)SendMessage (hdr, HDM_GETITEMCOUNT, 0, 0);
 }
 
-size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl, bool list_checked)
+size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl_id, bool list_checked)
 {
 	if (list_checked)
 	{
 		INT item = -1;
 		size_t count = 0;
 
-		while ((item = (INT)SendDlgItemMessage (hwnd, ctrl, LVM_GETNEXTITEM, item, LVNI_ALL)) != -1)
+		while ((item = (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETNEXTITEM, item, LVNI_ALL)) != -1)
 		{
-			if (_r_listview_getcheckstate (hwnd, ctrl, item))
+			if (_r_listview_isitemchecked (hwnd, ctrl_id, item))
 				++count;
 		}
 
 		return count;
 	}
 
-	return (size_t)SendDlgItemMessage (hwnd, ctrl, LVM_GETITEMCOUNT, 0, NULL);
+	return (size_t)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMCOUNT, 0, NULL);
 }
 
-LPARAM _r_listview_getitemlparam (HWND hwnd, UINT ctrl, size_t item)
+LPARAM _r_listview_getitemlparam (HWND hwnd, UINT ctrl_id, size_t item)
 {
 	LVITEM lvi = {0};
 
 	lvi.mask = LVIF_PARAM;
 	lvi.iItem = (INT)item;
 
-	SendDlgItemMessage (hwnd, ctrl, LVM_GETITEM, 0, (LPARAM)&lvi);
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEM, 0, (LPARAM)&lvi);
 
 	return lvi.lParam;
 }
 
-rstring _r_listview_getitemtext (HWND hwnd, UINT ctrl, size_t item, size_t subitem)
+rstring _r_listview_getitemtext (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem)
 {
 	rstring result;
 
@@ -1751,12 +1778,33 @@ rstring _r_listview_getitemtext (HWND hwnd, UINT ctrl, size_t item, size_t subit
 		lvi.pszText = result.GetBuffer (length);
 		lvi.cchTextMax = static_cast<int>(length);
 
-		out_length = static_cast<size_t>(SendDlgItemMessage (hwnd, ctrl, LVM_GETITEMTEXT, item, (LPARAM)&lvi));
+		out_length = static_cast<size_t>(SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMTEXT, item, (LPARAM)&lvi));
 		result.ReleaseBuffer ();
 	}
 	while (out_length == (length - 1));
 
 	return result;
+}
+
+bool _r_listview_isitemchecked (HWND hwnd, UINT ctrl_id, size_t item)
+{
+	return (((SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMSTATE, item, LVIS_STATEIMAGEMASK)) >> 12) - 1) ? true : false;
+}
+
+bool _r_listview_isitemvisible (HWND hwnd, UINT ctrl_id, size_t item)
+{
+	return (SendDlgItemMessage (hwnd, ctrl_id, LVM_ISITEMVISIBLE, item, 0)) ? true : false;
+}
+
+void _r_listview_redraw (HWND hwnd, UINT ctrl_id)
+{
+	const size_t count = _r_listview_getitemcount (hwnd, ctrl_id);
+
+	for (size_t i = 0; i < count; i++)
+	{
+		if (_r_listview_isitemvisible (hwnd, ctrl_id, i))
+			SendDlgItemMessage (hwnd, ctrl_id, LVM_REDRAWITEMS, i, i);
+	}
 }
 
 void _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR text, INT width)
@@ -1782,9 +1830,9 @@ void _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR tex
 		SendDlgItemMessage (hwnd, ctrl_id, LVM_SETCOLUMN, column_id, (LPARAM)&lvc);
 }
 
-void _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl, INT column_id, INT arrow)
+void _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl_id, INT column_id, INT arrow)
 {
-	HWND header = (HWND)SendDlgItemMessage (hwnd, ctrl, LVM_GETHEADER, 0, 0);
+	HWND header = (HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETHEADER, 0, 0);
 
 	if (header)
 	{
@@ -1812,7 +1860,7 @@ void _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl, INT column_id, INT ar
 	}
 }
 
-INT _r_listview_setitem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t subitem, size_t image, size_t group_id, LPARAM lparam)
+INT _r_listview_setitem (HWND hwnd, UINT ctrl_id, LPCWSTR text, size_t item, size_t subitem, size_t image, size_t group_id, LPARAM lparam)
 {
 	WCHAR buffer[MAX_PATH] = {0};
 
@@ -1847,20 +1895,20 @@ INT _r_listview_setitem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t
 		lvi.lParam = lparam;
 	}
 
-	return (INT)SendDlgItemMessage (hwnd, ctrl, LVM_SETITEM, 0, (LPARAM)&lvi);
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEM, 0, (LPARAM)&lvi);
 }
 
-void _r_listview_setitemcheck (HWND hwnd, UINT ctrl, size_t item, bool state)
+void _r_listview_setitemcheck (HWND hwnd, UINT ctrl_id, size_t item, bool state)
 {
 	LVITEM lvi = {0};
 
 	lvi.stateMask = LVIS_STATEIMAGEMASK;
 	lvi.state = INDEXTOSTATEIMAGEMASK (state ? 2 : 1);
 
-	SendDlgItemMessage (hwnd, ctrl, LVM_SETITEMSTATE, (item == LAST_VALUE) ? -1 : item, (LPARAM)&lvi);
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEMSTATE, (item == LAST_VALUE) ? -1 : item, (LPARAM)&lvi);
 }
 
-void _r_listview_setitemgroup (HWND hwnd, UINT ctrl, size_t item, size_t group_id)
+void _r_listview_setitemgroup (HWND hwnd, UINT ctrl_id, size_t item, size_t group_id)
 {
 	LVITEM lvi = {0};
 
@@ -1868,10 +1916,10 @@ void _r_listview_setitemgroup (HWND hwnd, UINT ctrl, size_t item, size_t group_i
 	lvi.iItem = static_cast<INT>(item);
 	lvi.iGroupId = static_cast<INT>(group_id);
 
-	SendDlgItemMessage (hwnd, ctrl, LVM_SETITEM, 0, (LPARAM)&lvi);
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEM, 0, (LPARAM)&lvi);
 }
 
-void _r_listview_setitemlparam (HWND hwnd, UINT ctrl, UINT item, LPARAM param)
+void _r_listview_setitemlparam (HWND hwnd, UINT ctrl_id, UINT item, LPARAM param)
 {
 	LVITEM lvi = {0};
 
@@ -1879,10 +1927,10 @@ void _r_listview_setitemlparam (HWND hwnd, UINT ctrl, UINT item, LPARAM param)
 	lvi.iItem = item;
 	lvi.lParam = param;
 
-	SendDlgItemMessage (hwnd, ctrl, LVM_SETITEM, 0, (LPARAM)&lvi);
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEM, 0, (LPARAM)&lvi);
 }
 
-void _r_listview_setgroup (HWND hwnd, UINT ctrl, size_t group_id, LPCWSTR header, LPCWSTR subtitle)
+void _r_listview_setgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR header, LPCWSTR subtitle)
 {
 	if (!header && !subtitle)
 		return;
@@ -1908,25 +1956,25 @@ void _r_listview_setgroup (HWND hwnd, UINT ctrl, size_t group_id, LPCWSTR header
 		StringCchCopy (sttl, _countof (sttl), subtitle);
 	}
 
-	SendDlgItemMessage (hwnd, ctrl, LVM_SETGROUPINFO, group_id, (LPARAM)&lvg);
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETGROUPINFO, group_id, (LPARAM)&lvg);
 }
 
-DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle)
+DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle)
 {
-	SetWindowTheme (GetDlgItem (hwnd, ctrl), L"Explorer", nullptr);
+	SetWindowTheme (GetDlgItem (hwnd, ctrl_id), L"Explorer", nullptr);
 
-	_r_wnd_top ((HWND)SendDlgItemMessage (hwnd, ctrl, LVM_GETTOOLTIPS, 0, 0), true); // listview-tooltip-HACK!!!
+	_r_wnd_top ((HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETTOOLTIPS, 0, 0), true); // listview-tooltip-HACK!!!
 
-	SendDlgItemMessage (hwnd, ctrl, LVM_SETUNICODEFORMAT, TRUE, 0);
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETUNICODEFORMAT, TRUE, 0);
 
-	return (DWORD)SendDlgItemMessage (hwnd, ctrl, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, (LPARAM)exstyle);
+	return (DWORD)SendDlgItemMessage (hwnd, ctrl_id, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, (LPARAM)exstyle);
 }
 
 /*
 	Control: treeview
 */
 
-HTREEITEM _r_treeview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, HTREEITEM parent, size_t image, LPARAM lparam)
+HTREEITEM _r_treeview_additem (HWND hwnd, UINT ctrl_id, LPCWSTR text, HTREEITEM parent, size_t image, LPARAM lparam)
 {
 	TVINSERTSTRUCT tvi = {0};
 
@@ -1951,44 +1999,44 @@ HTREEITEM _r_treeview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, HTREEITEM par
 		tvi.itemex.lParam = lparam;
 	}
 
-	return (HTREEITEM)SendDlgItemMessage (hwnd, ctrl, TVM_INSERTITEM, 0, (LPARAM)&tvi);
+	return (HTREEITEM)SendDlgItemMessage (hwnd, ctrl_id, TVM_INSERTITEM, 0, (LPARAM)&tvi);
 }
 
-LPARAM _r_treeview_getlparam (HWND hwnd, UINT ctrl, HTREEITEM item)
+LPARAM _r_treeview_getlparam (HWND hwnd, UINT ctrl_id, HTREEITEM item)
 {
 	TVITEMEX tvi = {0};
 
 	tvi.mask = TVIF_PARAM;
 	tvi.hItem = item;
 
-	SendDlgItemMessage (hwnd, ctrl, TVM_GETITEM, 0, (LPARAM)&tvi);
+	SendDlgItemMessage (hwnd, ctrl_id, TVM_GETITEM, 0, (LPARAM)&tvi);
 
 	return tvi.lParam;
 }
 
-DWORD _r_treeview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle, INT height)
+DWORD _r_treeview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle, INT height)
 {
 	if (height)
 	{
-		SendDlgItemMessage (hwnd, ctrl, TVM_SETITEMHEIGHT, (WPARAM)height, 0);
+		SendDlgItemMessage (hwnd, ctrl_id, TVM_SETITEMHEIGHT, (WPARAM)height, 0);
 	}
 
-	SetWindowTheme (GetDlgItem (hwnd, ctrl), L"Explorer", nullptr);
+	SetWindowTheme (GetDlgItem (hwnd, ctrl_id), L"Explorer", nullptr);
 
-	return (DWORD)SendDlgItemMessage (hwnd, ctrl, TVM_SETEXTENDEDSTYLE, 0, (LPARAM)exstyle);
+	return (DWORD)SendDlgItemMessage (hwnd, ctrl_id, TVM_SETEXTENDEDSTYLE, 0, (LPARAM)exstyle);
 }
 
 /*
 	Control: statusbar
 */
 
-void _r_status_settext (HWND hwnd, UINT ctrl, INT part, LPCWSTR text)
+void _r_status_settext (HWND hwnd, UINT ctrl_id, INT part, LPCWSTR text)
 {
-	SendDlgItemMessage (hwnd, ctrl, SB_SETTEXT, MAKEWPARAM (part, 0), (LPARAM)text);
+	SendDlgItemMessage (hwnd, ctrl_id, SB_SETTEXT, MAKEWPARAM (part, 0), (LPARAM)text);
 }
 
-void _r_status_setstyle (HWND hwnd, UINT ctrl, INT height)
+void _r_status_setstyle (HWND hwnd, UINT ctrl_id, INT height)
 {
-	SendDlgItemMessage (hwnd, ctrl, SB_SETMINHEIGHT, (WPARAM)height, 0);
-	SendDlgItemMessage (hwnd, ctrl, WM_SIZE, 0, 0);
+	SendDlgItemMessage (hwnd, ctrl_id, SB_SETMINHEIGHT, (WPARAM)height, 0);
+	SendDlgItemMessage (hwnd, ctrl_id, WM_SIZE, 0, 0);
 }

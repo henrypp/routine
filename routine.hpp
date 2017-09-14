@@ -174,12 +174,19 @@ __time64_t _r_unixtime_from_filetime (const FILETIME* pft);
 __time64_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst);
 
 /*
+	Painting
+*/
+
+void _r_dc_fillrect (HDC dc, LPRECT rc, COLORREF clr);
+int _r_dc_fontsizetoheight (INT size);
+int _r_dc_fontheighttosize (INT size);
+
+/*
 	Window management
 */
 
 void _r_wnd_center (HWND hwnd);
 void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action);
-void _r_wnd_fillrect (HDC dc, LPRECT rc, COLORREF clr);
 void _r_wnd_toggle (HWND hwnd, bool show);
 void _r_wnd_top (HWND hwnd, bool is_enable);
 void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT index);
@@ -205,56 +212,60 @@ size_t _r_rnd (size_t start, size_t end);
 	Control: common
 */
 
-void _r_ctrl_enable (HWND hwnd, UINT ctrl, bool is_enable);
+void _r_ctrl_enable (HWND hwnd, UINT ctrl_id, bool is_enable);
 
-rstring _r_ctrl_gettext (HWND hwnd, UINT ctrl);
-void _r_ctrl_settext (HWND hwnd, UINT ctrl, LPCWSTR str, ...);
+rstring _r_ctrl_gettext (HWND hwnd, UINT ctrl_id);
+void _r_ctrl_settext (HWND hwnd, UINT ctrl_id, LPCWSTR str, ...);
 
 bool _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text);
-bool _r_ctrl_showtip (HWND hwnd, UINT ctrl, LPCWSTR title, LPCWSTR text, INT icon);
+bool _r_ctrl_showtip (HWND hwnd, UINT ctrl_id, LPCWSTR title, LPCWSTR text, INT icon);
 
 /*
 	Control: listview
 */
 
-INT _r_listview_addcolumn (HWND hwnd, UINT ctrl, LPCWSTR text, UINT width, size_t subitem, INT fmt);
-INT _r_listview_addgroup (HWND hwnd, UINT ctrl, LPCWSTR text, size_t group_id, UINT align = 0, UINT state = 0);
-INT _r_listview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t subitem, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
+INT _r_listview_addcolumn (HWND hwnd, UINT ctrl_id, LPCWSTR text, UINT width, size_t subitem, INT fmt);
+INT _r_listview_addgroup (HWND hwnd, UINT ctrl_id, LPCWSTR text, size_t group_id, UINT align = 0, UINT state = 0);
+INT _r_listview_additem (HWND hwnd, UINT ctrl_id, LPCWSTR text, size_t item, size_t subitem, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
 
-void _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl);
-void _r_listview_deleteallgroups (HWND hwnd, UINT ctrl);
-void _r_listview_deleteallitems (HWND hwnd, UINT ctrl);
+void _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl_id);
+void _r_listview_deleteallgroups (HWND hwnd, UINT ctrl_id);
+void _r_listview_deleteallitems (HWND hwnd, UINT ctrl_id);
 
-bool _r_listview_getcheckstate (HWND hwnd, UINT ctrl, size_t item);
-INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl, INT column);
-size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl, bool list_checked = false);
-INT _r_listview_getcolumncount (HWND hwnd, UINT ctrl);
-LPARAM _r_listview_getitemlparam (HWND hwnd, UINT ctrl, size_t item);
-rstring _r_listview_getitemtext (HWND hwnd, UINT ctrl, size_t item, size_t subitem);
+INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl_id, INT column);
+size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl_id, bool list_checked = false);
+INT _r_listview_getcolumncount (HWND hwnd, UINT ctrl_id);
+LPARAM _r_listview_getitemlparam (HWND hwnd, UINT ctrl_id, size_t item);
+rstring _r_listview_getitemtext (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem);
 
-DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle);
+bool _r_listview_isitemchecked (HWND hwnd, UINT ctrl_id, size_t item);
+bool _r_listview_isitemvisible (HWND hwnd, UINT ctrl_id, size_t item);
+
+void _r_listview_redraw (HWND hwnd, UINT ctrl_id);
+
+DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle);
 void _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR text, INT width);
-void _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl, INT column_id, INT arrow);
-INT _r_listview_setitem (HWND hwnd, UINT ctrl, LPCWSTR text, size_t item, size_t subitem, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
-void _r_listview_setitemcheck (HWND hwnd, UINT ctrl, size_t item, bool state);
-void _r_listview_setitemgroup (HWND hwnd, UINT ctrl, size_t item, size_t group_id);
-void _r_listview_setitemlparam (HWND hwnd, UINT ctrl, UINT item, LPARAM param);
-void _r_listview_setgroup (HWND hwnd, UINT ctrl, size_t group_id, LPCWSTR header, LPCWSTR footer);
+void _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl_id, INT column_id, INT arrow);
+INT _r_listview_setitem (HWND hwnd, UINT ctrl_id, LPCWSTR text, size_t item, size_t subitem, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
+void _r_listview_setitemcheck (HWND hwnd, UINT ctrl_id, size_t item, bool state);
+void _r_listview_setitemgroup (HWND hwnd, UINT ctrl_id, size_t item, size_t group_id);
+void _r_listview_setitemlparam (HWND hwnd, UINT ctrl_id, UINT item, LPARAM param);
+void _r_listview_setgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR header, LPCWSTR footer);
 
 /*
 	Control: treeview
 */
 
-HTREEITEM _r_treeview_additem (HWND hwnd, UINT ctrl, LPCWSTR text, HTREEITEM parent = nullptr, size_t image = LAST_VALUE, LPARAM lparam = 0);
-LPARAM _r_treeview_getlparam (HWND hwnd, UINT ctrl, HTREEITEM item);
-DWORD _r_treeview_setstyle (HWND hwnd, UINT ctrl, DWORD exstyle, INT height);
+HTREEITEM _r_treeview_additem (HWND hwnd, UINT ctrl_id, LPCWSTR text, HTREEITEM parent = nullptr, size_t image = LAST_VALUE, LPARAM lparam = 0);
+LPARAM _r_treeview_getlparam (HWND hwnd, UINT ctrl_id, HTREEITEM item);
+DWORD _r_treeview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle, INT height);
 
 /*
 	Control: statusbar
 */
 
-void _r_status_settext (HWND hwnd, UINT ctrl, INT part, LPCWSTR text);
-void _r_status_setstyle (HWND hwnd, UINT ctrl, INT height);
+void _r_status_settext (HWND hwnd, UINT ctrl_id, INT part, LPCWSTR text);
+void _r_status_setstyle (HWND hwnd, UINT ctrl_id, INT height);
 
 /*
 	Exported function definitions
