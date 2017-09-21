@@ -1192,7 +1192,7 @@ void _r_wnd_center (HWND hwnd)
 	HWND parent = GetWindow (hwnd, GW_OWNER);
 	RECT rc_child = {0}, rc_parent = {0};
 
-	if (!IsWindowVisible (parent))
+	if (!IsWindowVisible (parent) || IsIconic (parent))
 	{
 		parent = GetDesktopWindow ();
 	}
@@ -1554,7 +1554,7 @@ void _r_ctrl_settext (HWND hwnd, UINT ctrl_id, LPCWSTR str, ...)
 bool _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text)
 {
 	const HINSTANCE hinst = GetModuleHandle (nullptr);
-	const HWND htip = CreateWindowEx (0, TOOLTIPS_CLASS, nullptr, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, hinst, nullptr);
+	const HWND htip = CreateWindowEx (WS_EX_TOPMOST, TOOLTIPS_CLASS, nullptr, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, hinst, nullptr);
 
 	if (htip)
 	{
@@ -1568,6 +1568,7 @@ bool _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text)
 		ti.lpszText = text;
 
 		SendMessage (htip, TTM_ACTIVATE, TRUE, 0);
+		SendMessage (htip, TTM_SETMAXTIPWIDTH, 0, _R_BUFFER_LENGTH);
 		SendMessage (htip, TTM_ADDTOOL, 0, (LPARAM)&ti);
 
 		return true;
