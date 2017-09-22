@@ -616,7 +616,13 @@ bool _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags)
 
 rstring _r_path_expand (rstring path)
 {
+	if (path.IsEmpty ())
+		return path;
+
 	if (path.Find (L'\\') == rstring::npos)
+		return path;
+
+	if (path.At (0) == L'\\')
 		return path;
 
 	rstring result;
@@ -639,7 +645,13 @@ rstring _r_path_expand (rstring path)
 
 rstring _r_path_unexpand (rstring path)
 {
+	if (path.IsEmpty ())
+		return path;
+
 	if (path.Find (L'\\') == rstring::npos)
+		return path;
+
+	if (path.At (0) == L'\\')
 		return path;
 
 	rstring result;
@@ -699,6 +711,9 @@ rstring _r_path_extractfile (rstring path)
 rstring _r_path_dospathfromnt (LPCWSTR path)
 {
 	rstring result = path;
+
+	if (result.Find (L'\\') == rstring::npos)
+		return result;
 
 	if (_wcsnicmp (path, L"\\Device\\Serial", 14) == 0 || _wcsnicmp (path, L"\\Device\\UsbSer", 14) == 0)  // "Serial1" & "USBSER000"
 	{
@@ -762,6 +777,71 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 	}
 
 	return result;
+}
+
+// Author: Elmue
+// http://stackoverflow.com/questions/65170/how-to-get-name-associated-with-open-handle/18792477#18792477
+//
+// returns
+// "\Device\HarddiskVolume3"                                (Harddisk Drive)
+// "\Device\HarddiskVolume3\Temp"                           (Harddisk Directory)
+// "\Device\HarddiskVolume3\Temp\transparent.jpeg"          (Harddisk File)
+// "\Device\Harddisk1\DP(1)0-0+6\foto.jpg"                  (USB stick)
+// "\Device\TrueCryptVolumeP\Data\Passwords.txt"            (Truecrypt Volume)
+// "\Device\Floppy0\Autoexec.bat"                           (Floppy disk)
+// "\Device\CdRom1\VIDEO_TS\VTS_01_0.VOB"                   (DVD drive)
+// "\Device\Serial1"                                        (real COM port)
+// "\Device\USBSER000"                                      (virtual COM port)
+// "\Device\Mup\ComputerName\C$\Boot.ini"                   (network drive share,  Windows 7)
+// "\Device\LanmanRedirector\ComputerName\C$\Boot.ini"      (network drive share,  Windows XP)
+// "\Device\LanmanRedirector\ComputerName\Shares\Dance.m3u" (network folder share, Windows XP)
+// "\Device\Afd"                                            (internet socket)
+// "\Device\NamedPipe\Pipename"                             (named pipe)
+// "\BaseNamedObjects\Objectname"                           (named mutex, named event, named semaphore)
+// "\REGISTRY\MACHINE\SOFTWARE\Classes\.txt"                (HKEY_CLASSES_ROOT\.txt)
+
+DWORD _r_path_ntpathfromdos (rstring& path)
+{
+	if (path.IsEmpty ())
+		return ERROR_BAD_ARGUMENTS;
+
+	HANDLE h = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_NO_BUFFERING, nullptr);
+
+	if (h == INVALID_HANDLE_VALUE)
+	{
+		return GetLastError ();
+	}
+	else
+	{
+		BYTE buffer[2048] = {0};
+		DWORD required_length = 0;
+
+		PUNICODE_STRING pk_Info = &((OBJECT_NAME_INFORMATION*)buffer)->Name;
+		pk_Info->Buffer = nullptr;
+		pk_Info->Length = 0;
+
+		// IMPORTANT: The return value from NtQueryObject is bullshit! (driver bug?)
+		// - The function may return STATUS_NOT_SUPPORTED although it has successfully written to the buffer.
+		// - The function returns STATUS_SUCCESS although h_File == 0xFFFFFFFF
+		NtQueryObject (h, ObjectNameInformation, buffer, sizeof (buffer), &required_length);
+
+		if (!pk_Info->Length || !pk_Info->Buffer)
+		{
+			CloseHandle (h);
+			return ERROR_FILE_NOT_FOUND;
+		}
+		else
+		{
+			pk_Info->Buffer[pk_Info->Length / sizeof (WCHAR)] = 0; // trim buffer!
+
+			path = pk_Info->Buffer;
+			path.ToLower (); // lower is imoprtant!
+		}
+
+		CloseHandle (h);
+	}
+
+	return ERROR_SUCCESS;
 }
 
 /*
