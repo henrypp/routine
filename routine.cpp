@@ -691,7 +691,7 @@ rstring _r_path_extractfile (rstring path)
 }
 
 // Author: Elmue
-// http://stackoverflow.com/questions/65170/how-to-get-name-associated-with-open-handle/18792477#18792477
+// https://stackoverflow.com/a/18792477
 //
 // converts
 // "\Device\HarddiskVolume3"                                -> "E:"
@@ -780,7 +780,7 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 }
 
 // Author: Elmue
-// http://stackoverflow.com/questions/65170/how-to-get-name-associated-with-open-handle/18792477#18792477
+// https://stackoverflow.com/a/18792477
 //
 // returns
 // "\Device\HarddiskVolume3"                                (Harddisk Drive)
@@ -1267,6 +1267,18 @@ int _r_dc_fontheighttosize (INT size)
 	Window management
 */
 
+void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT index)
+{
+	if (ctrl_id)
+		hwnd = GetDlgItem (hwnd, ctrl_id);
+
+	LONG_PTR style = (GetWindowLongPtr (hwnd, index) & ~stateMask) | mask;
+
+	SetWindowLongPtr (hwnd, index, style);
+
+	SetWindowPos (hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOMOVE | SWP_NOSIZE);
+}
+
 void _r_wnd_center (HWND hwnd)
 {
 	HWND parent = GetWindow (hwnd, GW_OWNER);
@@ -1317,7 +1329,7 @@ void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 
 void _r_wnd_toggle (HWND hwnd, bool show)
 {
-	if (show || !IsWindowVisible (hwnd))
+	if (show || !IsWindowVisible (hwnd) || IsIconic (hwnd))
 	{
 		ShowWindow (hwnd, SW_SHOW);
 
@@ -1338,16 +1350,23 @@ void _r_wnd_top (HWND hwnd, bool is_enable)
 	SetWindowPos (hwnd, (is_enable ? HWND_TOPMOST : HWND_NOTOPMOST), 0, 0, 0, 0, SWP_NOOWNERZORDER | SWP_NOMOVE | SWP_NOSIZE);
 }
 
-void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT index)
+// Author: Mikhail
+// https://stackoverflow.com/a/9126096
+bool _r_wnd_undercursor (HWND hwnd)
 {
-	if (ctrl_id)
-		hwnd = GetDlgItem (hwnd, ctrl_id);
+	if (!IsWindowVisible (hwnd) || IsIconic (hwnd))
+		return false;
 
-	LONG_PTR style = (GetWindowLongPtr (hwnd, index) & ~stateMask) | mask;
+	POINT pt = {0};
+	RECT rect = {0};
 
-	SetWindowLongPtr (hwnd, index, style);
+	GetCursorPos (&pt);
+	GetWindowRect (hwnd, &rect);
 
-	SetWindowPos (hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOMOVE | SWP_NOSIZE);
+	if (PtInRect (&rect, pt))
+		return true;
+
+	return false;
 }
 
 /*

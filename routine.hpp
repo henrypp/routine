@@ -187,11 +187,12 @@ int _r_dc_fontheighttosize (INT size);
 	Window management
 */
 
+void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT index);
 void _r_wnd_center (HWND hwnd);
 void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action);
 void _r_wnd_toggle (HWND hwnd, bool show);
 void _r_wnd_top (HWND hwnd, bool is_enable);
-void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT index);
+bool _r_wnd_undercursor (HWND hwnd);
 
 /*
 	Inernet access (WinHTTP)
