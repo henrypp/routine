@@ -1329,7 +1329,7 @@ void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 
 void _r_wnd_toggle (HWND hwnd, bool show)
 {
-	if (show || !IsWindowVisible (hwnd) || IsIconic (hwnd))
+	if (show || !IsWindowVisible (hwnd))
 	{
 		ShowWindow (hwnd, SW_SHOW);
 
@@ -1354,7 +1354,7 @@ void _r_wnd_top (HWND hwnd, bool is_enable)
 // https://stackoverflow.com/a/9126096
 bool _r_wnd_undercursor (HWND hwnd)
 {
-	if (!IsWindowVisible (hwnd) || IsIconic (hwnd))
+	if (!IsWindowVisible (hwnd))
 		return false;
 
 	POINT pt = {0};
