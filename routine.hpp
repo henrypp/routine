@@ -83,7 +83,7 @@ rstring _r_fmt_size64 (DWORDLONG size);
 */
 
 #define _R_YIELD_ITERATION 30 // yeild after 30 iterations
-#define _R_MAX_ITERATION 40
+#define _R_MAX_SLEEP_ITERATION 40
 #define _R_EXCHANGE 100
 #define _R_COMPARE 0
 

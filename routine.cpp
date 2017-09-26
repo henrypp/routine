@@ -169,6 +169,9 @@ bool _r_spinislocked (volatile LONG* plock)
 	return ((*plock == _R_COMPARE) ? false : true);
 }
 
+// Author: sameer_87
+// https://www.codeproject.com/Articles/184046/Spin-Lock-in-C
+
 bool _r_spinlock (volatile LONG* plock)
 {
 	if (!plock)
@@ -191,7 +194,7 @@ bool _r_spinlock (volatile LONG* plock)
 			bus. It is better to see if the 'dest' value is what it is expected and then retry interlockedxx.
 		*/
 
-		if (InterlockedCompareExchange (plock, _R_EXCHANGE, _R_COMPARE) == _R_COMPARE)
+		if (InterlockedCompareExchange (plock, _R_EXCHANGE, _R_COMPARE) == 0)
 		{
 			// assign CurrentThreadId to dest to make it re-entrant safe
 			*plock = GetCurrentThreadId ();
@@ -202,12 +205,12 @@ bool _r_spinlock (volatile LONG* plock)
 		// spin wait to acquire
 		while (*plock != _R_COMPARE)
 		{
-			if ((m_iterations >= _R_YIELD_ITERATION))
+			if (m_iterations >= _R_YIELD_ITERATION)
 			{
-				if (m_iterations + _R_YIELD_ITERATION >= _R_MAX_ITERATION)
+				if (m_iterations + _R_YIELD_ITERATION >= _R_MAX_SLEEP_ITERATION)
 					Sleep (0);
 
-				if (m_iterations >= _R_YIELD_ITERATION && m_iterations < _R_MAX_ITERATION)
+				if (m_iterations >= _R_YIELD_ITERATION && m_iterations < _R_MAX_SLEEP_ITERATION)
 				{
 					m_iterations = 0;
 					SwitchToThread ();
@@ -1352,6 +1355,7 @@ void _r_wnd_top (HWND hwnd, bool is_enable)
 
 // Author: Mikhail
 // https://stackoverflow.com/a/9126096
+
 bool _r_wnd_undercursor (HWND hwnd)
 {
 	if (!IsWindowVisible (hwnd))
@@ -1653,7 +1657,7 @@ void _r_ctrl_settext (HWND hwnd, UINT ctrl_id, LPCWSTR str, ...)
 bool _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text)
 {
 	const HINSTANCE hinst = GetModuleHandle (nullptr);
-	const HWND htip = CreateWindowEx (WS_EX_TOPMOST, TOOLTIPS_CLASS, nullptr, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, hinst, nullptr);
+	const HWND htip = CreateWindowEx (0, TOOLTIPS_CLASS, nullptr, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, hinst, nullptr);
 
 	if (htip)
 	{

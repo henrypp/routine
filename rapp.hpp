@@ -89,7 +89,7 @@ public:
 	bool CheckMutex (bool activate_window);
 
 #ifdef _APP_HAVE_AUTORUN
-	void AutorunEnable (bool is_enable);
+	bool AutorunEnable (bool is_enable);
 	bool AutorunIsEnabled ();
 #endif // _APP_HAVE_AUTORUN
 

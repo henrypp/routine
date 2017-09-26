@@ -200,8 +200,9 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 }
 
 #ifdef _APP_HAVE_AUTORUN
-void rapp::AutorunEnable (bool is_enable)
+bool rapp::AutorunEnable (bool is_enable)
 {
+	bool result = false;
 	HKEY key = nullptr;
 
 	if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE | KEY_READ, &key) == ERROR_SUCCESS)
@@ -213,17 +214,20 @@ void rapp::AutorunEnable (bool is_enable)
 			PathQuoteSpaces (buffer);
 			StringCchCat (buffer, _countof (buffer), L" /minimized");
 
-			RegSetValueEx (key, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) + 1) * sizeof (WCHAR)));
+			result = (RegSetValueEx (key, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) + 1) * sizeof (WCHAR))) == ERROR_SUCCESS);
 		}
 		else
 		{
 			RegDeleteValue (key, app_name);
+			result = true;
 		}
 
-		ConfigSet (L"AutorunIsEnabled", is_enable);
+		ConfigSet (L"AutorunIsEnabled", is_enable ? result : false);
 
 		RegCloseKey (key);
 	}
+
+	return result;
 }
 
 bool rapp::AutorunIsEnabled ()
@@ -1698,7 +1702,7 @@ bool rapp::SkipUacEnable (bool is_enable)
 
 		CoUninitialize ();
 
-		ConfigSet (L"SkipUacIsEnabled", is_enable);
+		ConfigSet (L"SkipUacIsEnabled", is_enable ? result : false);
 	}
 
 	return result;
@@ -1707,9 +1711,7 @@ bool rapp::SkipUacEnable (bool is_enable)
 bool rapp::SkipUacIsEnabled ()
 {
 	if (IsVistaOrLater ())
-	{
 		return ConfigGet (L"SkipUacIsEnabled", false).AsBool ();
-	}
 
 	return false;
 }
