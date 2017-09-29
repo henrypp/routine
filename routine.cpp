@@ -927,6 +927,22 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 	Strings
 */
 
+WCHAR _r_str_lower (WCHAR chr)
+{
+	WCHAR buf[1] = {chr};
+	CharLowerBuff (buf, _countof (buf));
+
+	return buf[0];
+}
+
+WCHAR _r_str_upper (WCHAR chr)
+{
+	WCHAR buf[1] = {chr};
+	CharUpperBuff (buf, _countof(buf));
+
+	return buf[0];
+}
+
 size_t _r_str_hash (LPCWSTR text)
 {
 	if (!text)
@@ -940,7 +956,7 @@ size_t _r_str_hash (LPCWSTR text)
 
 	for (size_t i = 0; i < length; i++)
 	{
-		hash = hash ^ (towlower (text[i])); /* xor the low 8 bits */
+		hash = hash ^ (_r_str_lower (text[i])); /* xor the low 8 bits */
 		hash = hash * FNVMultiple; /* multiply by the magic number */
 	}
 

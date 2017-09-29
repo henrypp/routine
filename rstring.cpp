@@ -699,7 +699,19 @@ rstring& rstring::ToLower ()
 	{
 		for (size_t i = 0; i < thisBuffer->length; i++)
 		{
-			thisBuffer->data[i] = towlower (thisBuffer->data[i]);
+			thisBuffer->data[i] = _r_str_lower (thisBuffer->data[i]);
+		}
+	}
+	return *this;
+}
+rstring& rstring::ToUpper ()
+{
+	Buffer* thisBuffer = toBuffer ();
+	if (thisBuffer)
+	{
+		for (size_t i = 0; i < thisBuffer->length; i++)
+		{
+			thisBuffer->data[i] = _r_str_upper (thisBuffer->data[i]);
 		}
 	}
 	return *this;
@@ -917,7 +929,7 @@ bool rstring::Match (LPCWSTR str, LPCWSTR pattern) const
 
 	// If the first string contains '?', or current characters
 	// of both strings match
-	if (*pattern == L'?' || towlower (*str) == towlower (*pattern))
+	if (*pattern == L'?' || _r_str_lower (*str) == _r_str_lower (*pattern))
 	{
 		return Match (str + 1, pattern + 1);
 	}

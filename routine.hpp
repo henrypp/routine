@@ -146,6 +146,10 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len);
 /*
 	Strings
 */
+
+WCHAR _r_str_lower (WCHAR chr);
+WCHAR _r_str_upper (WCHAR chr);
+
 size_t _r_str_hash (LPCWSTR text);
 INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2);
 

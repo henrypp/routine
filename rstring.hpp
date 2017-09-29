@@ -132,6 +132,7 @@ public:
 	bool Match (LPCWSTR str, LPCWSTR pattern) const;
 
 	rstring& ToLower ();
+	rstring& ToUpper ();
 
 private:
 
