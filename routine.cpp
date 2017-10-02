@@ -736,12 +736,12 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 	if (_wcsnicmp (path, L"\\Device\\Mup\\", device_length) == 0) // Win7
 	{
 		result = L"\\\\";
-		result.Append (path + device_length);
+		result.Append (path + device_length + 1);
 	}
 	else if (_wcsnicmp (path, L"\\Device\\LanmanRedirector\\", device_length) == 0) // WinXP
 	{
 		result = L"\\\\";
-		result.Append (path + device_length);
+		result.Append (path + device_length + 1);
 	}
 	else
 	{
