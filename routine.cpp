@@ -715,33 +715,33 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 {
 	rstring result = path;
 
-	if (result.Find (L'\\') == rstring::npos)
-		return result;
+	// calculate device length
+	size_t device_length = rstring::npos;
 
-	if (_wcsnicmp (path, L"\\Device\\Serial", 14) == 0 || _wcsnicmp (path, L"\\Device\\UsbSer", 14) == 0)  // "Serial1" & "USBSER000"
+	for (size_t i = 0, cnt = 0; i < result.GetLength (); i++)
 	{
-		HKEY hkey = nullptr;
-
-		if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, L"Hardware\\DeviceMap\\SerialComm", 0, KEY_QUERY_VALUE, &hkey) == ERROR_SUCCESS)
+		if (result.At (i) == L'\\')
 		{
-			WCHAR buffer[64] = {0};
-			DWORD size = (sizeof (buffer) * sizeof (WCHAR));
-
-			if (RegQueryValueEx (hkey, path, 0, nullptr, (LPBYTE)buffer, &size) == ERROR_SUCCESS)
-				result = buffer;
-
-			RegCloseKey (hkey);
+			if (++cnt >= 3)
+			{
+				device_length = i;
+				break;
+			}
 		}
 	}
-	else if (_wcsnicmp (path, L"\\Device\\Mup\\", 12) == 0) // Win7
+
+	if (device_length == rstring::npos)
+		return result;
+
+	if (_wcsnicmp (path, L"\\Device\\Mup\\", device_length) == 0) // Win7
 	{
 		result = L"\\\\";
-		result.Append (path + 12);
+		result.Append (path + device_length);
 	}
-	else if (_wcsnicmp (path, L"\\Device\\LanmanRedirector\\", 25) == 0) // WinXP
+	else if (_wcsnicmp (path, L"\\Device\\LanmanRedirector\\", device_length) == 0) // WinXP
 	{
 		result = L"\\\\";
-		result.Append (path + 25);
+		result.Append (path + device_length);
 	}
 	else
 	{
@@ -763,12 +763,10 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 				// returns very weird strings for network shares
 				if (QueryDosDevice (drv, volume, _countof (volume)))
 				{
-					const size_t length = wcslen (volume);
-
-					if (length && _wcsnicmp (path, volume, length) == 0)
+					if (_wcsnicmp (path, volume, device_length) == 0)
 					{
 						result = drv;
-						result.Append (path + length);
+						result.Append (path + device_length);
 
 						break;
 					}
@@ -917,11 +915,11 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 						break;
 				}
 			}
+}
 		}
-	}
 
 	return result;
-}
+	}
 
 /*
 	Strings
@@ -938,7 +936,7 @@ WCHAR _r_str_lower (WCHAR chr)
 WCHAR _r_str_upper (WCHAR chr)
 {
 	WCHAR buf[1] = {chr};
-	CharUpperBuff (buf, _countof(buf));
+	CharUpperBuff (buf, _countof (buf));
 
 	return buf[0];
 }
