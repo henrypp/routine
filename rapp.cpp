@@ -25,8 +25,12 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	StringCchCopy (app_version, _countof (app_version), version);
 	StringCchCopy (app_copyright, _countof (app_copyright), copyright);
 
-#ifdef _APP_BETA
+#if defined(_APP_BETA) || defined(_APP_BETA_RC)
+#ifdef _APP_BETA_RC
+	StringCchCat (app_version, _countof (app_version), L" RC");
+#else
 	StringCchCat (app_version, _countof (app_version), L" Beta");
+#endif // _APP_BETA_RC
 #endif // _APP_BETA
 
 	// get dpi scale
@@ -1470,11 +1474,11 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 			HINTERNET hconnect = nullptr;
 			HINTERNET hrequest = nullptr;
 
-#ifdef _APP_BETA
+#if defined(_APP_BETA) || defined(_APP_BETA_RC)
 			const bool is_beta = true;
 #else
 			const bool is_beta = this_ptr->ConfigGet (L"CheckUpdatesForBeta", false).AsBool ();
-#endif
+#endif // _APP_BETA
 
 			if (_r_inet_openurl (hsession, _r_fmt (L"%s/update.php?product=%s&is_beta=%d", _APP_WEBSITE_URL, this_ptr->app_name_short, is_beta), &hconnect, &hrequest, nullptr))
 			{
