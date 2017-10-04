@@ -49,26 +49,6 @@ typedef struct
 	LPARAM lparam = 0;
 } *PAPP_SETTINGS_PAGE, APP_SETTINGS_PAGE;
 
-#ifdef _APP_HAVE_SIMPLE_SETTINGS
-enum CfgType
-{
-	Boolean,
-	Integer,
-	Long,
-	String,
-};
-
-typedef struct
-{
-	CfgType type;
-
-	WCHAR def_value[128] = {0};
-
-	UINT locale_id = 0;
-	WCHAR locale_sid[64] = {0};
-} *PAPP_SETTINGS_CONFIG, APP_SETTINGS_CONFIG;
-#endif // _APP_HAVE_SIMPLE_SETTINGS
-
 #endif // _APP_NO_SETTINGS
 
 /*
@@ -130,10 +110,6 @@ public:
 	size_t AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
 	void ClearSettingsPage ();
 	void InitSettingsPage (HWND hwnd, bool is_restart);
-
-#ifdef _APP_HAVE_SIMPLE_SETTINGS
-	void AddSettingsItem (LPCWSTR name, LPCWSTR def_value, CfgType type, UINT locale_id, LPCWSTR locale_sid);
-#endif // _APP_HAVE_SIMPLE_SETTINGS
 
 #endif // _APP_NO_SETTINGS
 
@@ -243,10 +219,6 @@ private:
 	std::vector<PAPP_SETTINGS_PAGE> app_settings_pages;
 	rstring::map_two app_settings;
 	size_t settings_page = 0;
-
-#ifdef _APP_HAVE_SIMPLE_SETTINGS
-	std::unordered_map<rstring, PAPP_SETTINGS_CONFIG, rstring::hash, rstring::is_equal> app_configs;
-#endif // _APP_HAVE_SIMPLE_SETTINGS
 
 #endif // _APP_NO_SETTINGS
 };

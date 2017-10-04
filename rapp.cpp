@@ -930,7 +930,6 @@ size_t rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR 
 
 void rapp::ClearSettingsPage ()
 {
-#ifndef _APP_HAVE_SIMPLE_SETTINGS
 	for (size_t i = 0; i < app_settings_pages.size (); i++)
 	{
 		PAPP_SETTINGS_PAGE const ptr = app_settings_pages.at (i);
@@ -939,16 +938,6 @@ void rapp::ClearSettingsPage ()
 	}
 
 	app_settings_pages.clear ();
-#else // _APP_HAVE_SIMPLE_SETTINGS
-	for (auto const& p : app_configs)
-	{
-		PAPP_SETTINGS_CONFIG const ptr = p.second;
-
-		free (ptr);
-	}
-
-	app_configs.clear ();
-#endif // _APP_HAVE_SIMPLE_SETTINGS
 }
 
 void rapp::InitSettingsPage (HWND hwnd, bool is_newlocale)
@@ -997,27 +986,6 @@ void rapp::InitSettingsPage (HWND hwnd, bool is_newlocale)
 	_r_ctrl_enable (hwnd, IDC_APPLY, false);
 }
 #endif // _APP_NO_SETTINGS
-
-#ifdef _APP_HAVE_SIMPLE_SETTINGS
-void rapp::AddSettingsItem (LPCWSTR name, LPCWSTR def_value, CfgType type, UINT locale_id, LPCWSTR locale_sid)
-{
-	if (app_configs.find (name) != app_configs.end ())
-		return;
-
-	PAPP_SETTINGS_CONFIG ptr = (PAPP_SETTINGS_CONFIG)malloc (sizeof (APP_SETTINGS_CONFIG));
-
-	if (ptr)
-	{
-		ptr->type = type;
-		StringCchCopy (ptr->def_value, _countof (ptr->def_value), def_value);
-
-		ptr->locale_id = locale_id;
-		StringCchCopy (ptr->locale_sid, _countof (ptr->locale_sid), locale_sid);
-
-		app_configs[name] = ptr;
-	}
-}
-#endif // _APP_HAVE_SIMPLE_SETTINGS
 
 rstring rapp::GetBinaryPath () const
 {
@@ -1250,6 +1218,9 @@ INT_PTR CALLBACK rapp::SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LP
 		case WM_INITDIALOG:
 		{
 			this_ptr = reinterpret_cast<rapp*>(lparam);
+
+			EnableThemeDialogTexture (hwnd, ETDT_ENABLETAB);
+
 			break;
 		}
 
@@ -1308,9 +1279,10 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			_r_wnd_center (hwnd);
 
 			// configure treeview
-			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, GetSystemMetrics (SM_CYSMICON));
+			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, this_ptr->GetDPI (22));
 
-#ifndef _APP_HAVE_SIMPLE_SETTINGS
+			SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETBKCOLOR, TVSIL_STATE, (LPARAM)GetSysColor (COLOR_3DFACE));
+
 			for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 			{
 				PAPP_SETTINGS_PAGE ptr = this_ptr->app_settings_pages.at (i);
@@ -1323,14 +1295,29 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 				if (this_ptr->ConfigGet (L"SettingsLastPage", this_ptr->app_settings_pages.at (0)->dlg_id).AsSizeT () == ptr->dlg_id)
 					SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)ptr->item);
 			}
-#else
-			for (auto const &p : this_ptr->app_configs)
-			{
-				_r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (nullptr, p.second->locale_id, p.second->locale_sid), this_ptr->app_settings_pages.at (0)->item, LAST_VALUE, 0);
-			}
-#endif // _APP_HAVE_SIMPLE_SETTINGS
 
 			this_ptr->InitSettingsPage (hwnd, true);
+
+			break;
+		}
+
+		case WM_DRAWITEM:
+		{
+			PDRAWITEMSTRUCT drawInfo = (PDRAWITEMSTRUCT)lparam;
+
+			if (drawInfo->CtlID == IDC_SEPARATOR)
+			{
+				RECT rect;
+
+				rect = drawInfo->rcItem;
+				rect.right = 2;
+				FillRect (drawInfo->hDC, &rect, GetSysColorBrush (COLOR_3DHIGHLIGHT));
+
+				rect.left += 1;
+				FillRect (drawInfo->hDC, &rect, GetSysColorBrush (COLOR_3DSHADOW));
+
+				return TRUE;
+			}
 
 			break;
 		}
