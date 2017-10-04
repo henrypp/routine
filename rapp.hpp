@@ -32,7 +32,6 @@ typedef BOOL (*APPLICATION_CALLBACK) (HWND hwnd, DWORD msg, LPVOID lpdata1, LPVO
 */
 
 #ifndef _APP_NO_SETTINGS
-
 typedef struct
 {
 	HINSTANCE h = nullptr;
@@ -44,11 +43,7 @@ typedef struct
 
 	UINT locale_id = 0;
 	WCHAR locale_sid[32] = {0};
-
-	APPLICATION_CALLBACK callback;
-	LPARAM lparam = 0;
 } *PAPP_SETTINGS_PAGE, APP_SETTINGS_PAGE;
-
 #endif // _APP_NO_SETTINGS
 
 /*
@@ -106,11 +101,11 @@ public:
 #endif // _APP_HAVE_TRAY
 
 #ifndef _APP_NO_SETTINGS
+	size_t AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback, size_t group_id = LAST_VALUE);
 	void CreateSettingsWindow (size_t dlg_id = LAST_VALUE);
-	size_t AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
-	void ClearSettingsPage ();
-	void InitSettingsPage (HWND hwnd, bool is_restart);
 
+	HWND SettingsGetWindow ();
+	void SettingsInitialize ();
 #endif // _APP_NO_SETTINGS
 
 	rstring GetBinaryPath () const;
@@ -129,6 +124,7 @@ public:
 	bool IsClassicUI () const;
 	bool IsVistaOrLater () const;
 
+	void LocaleApplyFromControl (HWND hwnd, UINT ctrl_id);
 	void LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id);
 	void LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, const UINT id_start);
 	UINT LocaleGetCount ();
@@ -217,8 +213,10 @@ private:
 
 #ifndef _APP_NO_SETTINGS
 	std::vector<PAPP_SETTINGS_PAGE> app_settings_pages;
+	APPLICATION_CALLBACK app_settings_callback;
 	rstring::map_two app_settings;
-	size_t settings_page = 0;
-
+	size_t settings_page_id = 0;
+	HWND settings_hwnd = nullptr;
 #endif // _APP_NO_SETTINGS
+
 };

@@ -28,6 +28,10 @@
 #pragma comment(lib, "uxtheme.lib")
 #pragma comment(lib, "winhttp.lib")
 
+#ifndef LVM_RESETEMPTYTEXT
+#define LVM_RESETEMPTYTEXT (LVM_FIRST + 84)
+#endif
+
 /*
 	Unit conversion
 */

@@ -103,10 +103,6 @@ rapp::~rapp ()
 	if (app_callback)
 		app_callback (GetHWND (), _RM_UNINITIALIZE, nullptr, nullptr);
 
-#ifndef _APP_NO_SETTINGS
-	ClearSettingsPage ();
-#endif // _APP_NO_SETTINGS
-
 	UninitializeMutex ();
 }
 
@@ -903,24 +899,26 @@ void rapp::CreateSettingsWindow (size_t dlg_id)
 	is_opened = false;
 }
 
-size_t rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback, size_t group_id, LPARAM lparam)
+size_t rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback, size_t group_id)
 {
 	PAPP_SETTINGS_PAGE ptr = (PAPP_SETTINGS_PAGE)malloc (sizeof (APP_SETTINGS_PAGE));
 
 	if (ptr)
 	{
+		SecureZeroMemory (ptr, sizeof (APP_SETTINGS_PAGE));
+
 		ptr->hwnd = nullptr;
 
 		ptr->h = h;
 		ptr->group_id = group_id;
 		ptr->dlg_id = dlg_id;
-		ptr->callback = callback;
-		ptr->lparam = lparam;
 
 		ptr->locale_id = locale_id;
 		StringCchCopy (ptr->locale_sid, _countof (ptr->locale_sid), locale_sid);
 
 		app_settings_pages.push_back (ptr);
+
+		app_settings_callback = callback;
 
 		return app_settings_pages.size () - 1;
 	}
@@ -928,31 +926,24 @@ size_t rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR 
 	return LAST_VALUE;
 }
 
-void rapp::ClearSettingsPage ()
+HWND rapp::SettingsGetWindow ()
 {
-	for (size_t i = 0; i < app_settings_pages.size (); i++)
-	{
-		PAPP_SETTINGS_PAGE const ptr = app_settings_pages.at (i);
-
-		free (ptr);
-	}
-
-	app_settings_pages.clear ();
+	return settings_hwnd;
 }
 
-void rapp::InitSettingsPage (HWND hwnd, bool is_newlocale)
+void rapp::SettingsInitialize ()
 {
-	if (is_newlocale)
-	{
-		// localize window
-		SetWindowText (hwnd, I18N (this, IDS_SETTINGS, 0));
+	const HWND hwnd = SettingsGetWindow ();
 
-		SetDlgItemText (hwnd, IDC_APPLY, I18N (this, IDS_APPLY, 0));
-		SetDlgItemText (hwnd, IDC_CLOSE, I18N (this, IDS_CLOSE, 0));
-	}
+	if (!hwnd)
+		return;
+
+	// localize window
+	SetWindowText (hwnd, I18N (this, IDS_SETTINGS, 0));
+
+	SetDlgItemText (hwnd, IDC_CLOSE, I18N (this, IDS_CLOSE, 0));
 
 	// apply classic ui for buttons
-	_r_wnd_addstyle (hwnd, IDC_APPLY, IsClassicUI () ? WS_EX_STATICEDGE : 0, WS_EX_STATICEDGE, GWL_EXSTYLE);
 	_r_wnd_addstyle (hwnd, IDC_CLOSE, IsClassicUI () ? WS_EX_STATICEDGE : 0, WS_EX_STATICEDGE, GWL_EXSTYLE);
 
 	// initialize treeview
@@ -960,30 +951,22 @@ void rapp::InitSettingsPage (HWND hwnd, bool is_newlocale)
 	{
 		PAPP_SETTINGS_PAGE const ptr = app_settings_pages.at (i);
 
-		if (is_newlocale)
-		{
-			TVITEMEX tvi = {0};
+		TVITEMEX tvi = {0};
 
-			tvi.mask = TVIF_PARAM;
-			tvi.hItem = ptr->item;
+		tvi.mask = TVIF_PARAM;
+		tvi.hItem = ptr->item;
 
-			SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETITEM, 0, (LPARAM)&tvi);
+		SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETITEM, 0, (LPARAM)&tvi);
 
-			rstring text = LocaleString (ptr->h, ptr->locale_id, ptr->locale_sid);
+		rstring text = LocaleString (ptr->h, ptr->locale_id, ptr->locale_sid);
 
-			tvi.mask = TVIF_TEXT;
-			tvi.pszText = text.GetBuffer ();
+		tvi.mask = TVIF_TEXT;
+		tvi.pszText = text.GetBuffer ();
 
-			SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETITEM, 0, (LPARAM)&tvi);
+		SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETITEM, 0, (LPARAM)&tvi);
 
-			text.Clear ();
-		}
-
-		if (ptr->dlg_id && ptr->callback)
-			ptr->callback (ptr->hwnd, _RM_INITIALIZE, nullptr, ptr);
+		text.Clear ();
 	}
-
-	_r_ctrl_enable (hwnd, IDC_APPLY, false);
 }
 #endif // _APP_NO_SETTINGS
 
@@ -1020,6 +1003,28 @@ HINSTANCE rapp::GetHINSTANCE () const
 HWND rapp::GetHWND () const
 {
 	return app_hwnd;
+}
+
+void rapp::LocaleApplyFromControl (HWND hwnd, UINT ctrl_id)
+{
+	ConfigSet (L"Language", _r_ctrl_gettext (hwnd, ctrl_id));
+
+	LocaleInit ();
+
+	if (app_settings_callback && SettingsGetWindow ())
+	{
+		SettingsInitialize ();
+
+		if (settings_page_id != LAST_VALUE)
+			app_settings_callback (app_settings_pages.at (settings_page_id)->hwnd, _RM_LOCALIZE, nullptr, app_settings_pages.at (settings_page_id));
+	}
+
+	if (app_callback)
+	{
+		app_callback (GetHWND (), _RM_LOCALIZE, nullptr, nullptr);
+
+		DrawMenuBar (GetHWND ()); // redraw menu
+	}
 }
 
 void rapp::LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id)
@@ -1224,41 +1229,27 @@ INT_PTR CALLBACK rapp::SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LP
 			break;
 		}
 
-		case WM_COMMAND:
+		case WM_VSCROLL:
+		case WM_HSCROLL:
 		case WM_CONTEXTMENU:
 		case WM_NOTIFY:
-		case WM_MOUSEMOVE:
-		case WM_LBUTTONUP:
+		case WM_PAINT:
+		case WM_COMMAND:
 		{
-			INT_PTR result = 0;
-
-			MSG wmsg = {0};
-
-			wmsg.message = msg;
-			wmsg.wParam = wparam;
-			wmsg.lParam = lparam;
-
-			PAPP_SETTINGS_PAGE const ptr = this_ptr->app_settings_pages.at (min (this_ptr->settings_page, this_ptr->app_settings_pages.size () - 1));
-
-			if (!ptr->callback)
-				break;
-
-			result = ptr->callback (hwnd, _RM_MESSAGE, &wmsg, ptr);
-
-			if (msg == WM_COMMAND)
+			if (this_ptr->settings_page_id != LAST_VALUE)
 			{
-				bool is_button = (GetWindowLongPtr (GetDlgItem (hwnd, LOWORD (wparam)), GWL_STYLE) & (BS_CHECKBOX | BS_RADIOBUTTON)) != 0;
+				MSG wmsg = {0};
 
-				if (lparam && ((HIWORD (wparam) == BN_CLICKED && is_button) || (HIWORD (wparam) == EN_CHANGE || HIWORD (wparam) == CBN_SELENDOK)))
-					_r_ctrl_enable (GetParent (hwnd), IDC_APPLY, true);
-			}
-			else if (msg == WM_NOTIFY)
-			{
-				if (LPNMHDR (lparam)->code == UDN_DELTAPOS || (LPNMHDR (lparam)->code == LVN_ITEMCHANGED && (LPNMLISTVIEW (lparam)->uNewState == 8192 || LPNMLISTVIEW (lparam)->uNewState == 4096)) || (LPNMHDR (lparam)->code == LVN_DELETEITEM) || (LPNMHDR (lparam)->code == LVN_ENDLABELEDIT && result))
-					_r_ctrl_enable (GetParent (hwnd), IDC_APPLY, true);
+				wmsg.message = msg;
+				wmsg.wParam = wparam;
+				wmsg.lParam = lparam;
+
+				PAPP_SETTINGS_PAGE const ptr = this_ptr->app_settings_pages.at (this_ptr->settings_page_id);
+
+				return this_ptr->app_settings_callback (hwnd, _RM_MESSAGE, &wmsg, ptr);
 			}
 
-			return result;
+			break;
 		}
 	}
 
@@ -1275,6 +1266,8 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 		{
 			this_ptr = reinterpret_cast<rapp*>(lparam);
 
+			this_ptr->settings_hwnd = hwnd;
+
 			// configure window
 			_r_wnd_center (hwnd);
 
@@ -1283,20 +1276,28 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETBKCOLOR, TVSIL_STATE, (LPARAM)GetSysColor (COLOR_3DFACE));
 
+			const size_t current_page = this_ptr->ConfigGet (L"SettingsLastPage", this_ptr->app_settings_pages.at (0)->dlg_id).AsSizeT ();
+
 			for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 			{
 				PAPP_SETTINGS_PAGE ptr = this_ptr->app_settings_pages.at (i);
 
-				if (ptr->dlg_id)
-					ptr->hwnd = CreateDialogParam (ptr->h, MAKEINTRESOURCE (ptr->dlg_id), hwnd, &this_ptr->SettingsPagesProc, (LPARAM)this_ptr);
+				if (ptr)
+				{
+					if (ptr->dlg_id)
+					{
+						ptr->hwnd = CreateDialogParam (ptr->h, MAKEINTRESOURCE (ptr->dlg_id), hwnd, &this_ptr->SettingsPagesProc, (LPARAM)this_ptr);
+						this_ptr->app_settings_callback (ptr->hwnd, _RM_INITIALIZE, nullptr, ptr);
+					}
 
-				ptr->item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr->h, ptr->locale_id, ptr->locale_sid), ((ptr->group_id == LAST_VALUE) ? nullptr : this_ptr->app_settings_pages.at (ptr->group_id)->item), LAST_VALUE, (LPARAM)i);
+					ptr->item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr->h, ptr->locale_id, ptr->locale_sid), ((ptr->group_id == LAST_VALUE) ? nullptr : this_ptr->app_settings_pages.at (ptr->group_id)->item), LAST_VALUE, (LPARAM)i);
 
-				if (this_ptr->ConfigGet (L"SettingsLastPage", this_ptr->app_settings_pages.at (0)->dlg_id).AsSizeT () == ptr->dlg_id)
-					SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)ptr->item);
+					if (current_page == ptr->dlg_id)
+						SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)ptr->item);
+				}
 			}
 
-			this_ptr->InitSettingsPage (hwnd, true);
+			this_ptr->SettingsInitialize ();
 
 			break;
 		}
@@ -1324,17 +1325,14 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 		case WM_DESTROY:
 		{
-			for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
-			{
-				PAPP_SETTINGS_PAGE const ptr = this_ptr->app_settings_pages.at (i);
+			this_ptr->settings_hwnd = nullptr;
+			this_ptr->settings_page_id = LAST_VALUE;
 
-				// send close message to settings callback
-				if (!ptr->h && ptr->callback)
-				{
-					ptr->callback (ptr->hwnd, _RM_UNINITIALIZE, nullptr, ptr);
-					break;
-				}
-			}
+			this_ptr->ConfigInit (); // re-read settings
+
+			_r_wnd_top (this_ptr->GetHWND (), this_ptr->ConfigGet (L"AlwaysOnTop", false).AsBool ());
+
+			this_ptr->app_settings_callback (hwnd, _RM_CLOSE, nullptr, nullptr);
 
 			break;
 		}
@@ -1354,16 +1352,19 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 						const size_t old_id = size_t (pnmtv->itemOld.lParam);
 						const size_t new_id = size_t (pnmtv->itemNew.lParam);
 
+						this_ptr->settings_page_id = new_id;
+
 						if (this_ptr->app_settings_pages.at (old_id)->hwnd)
 							ShowWindow (this_ptr->app_settings_pages.at (old_id)->hwnd, SW_HIDE);
 
 						if (this_ptr->app_settings_pages.at (new_id)->hwnd)
 						{
-							ShowWindow (this_ptr->app_settings_pages.at (new_id)->hwnd, SW_SHOW);
-							SetFocus (this_ptr->app_settings_pages.at (new_id)->hwnd);
-						}
+							PAPP_SETTINGS_PAGE const ptr_page = this_ptr->app_settings_pages.at (new_id);
 
-						this_ptr->settings_page = new_id;
+							this_ptr->app_settings_callback (ptr_page->hwnd, _RM_LOCALIZE, nullptr, ptr_page);
+
+							ShowWindow (ptr_page->hwnd, SW_SHOW);
+						}
 
 						this_ptr->ConfigSet (L"SettingsLastPage", (DWORD)this_ptr->app_settings_pages.at (new_id)->dlg_id);
 
@@ -1379,54 +1380,10 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 		{
 			switch (LOWORD (wparam))
 			{
-				case IDOK: // process Enter key
-				case IDC_APPLY:
-				{
-					// if not enabled - nothing is changed!
-					if (!IsWindowEnabled (GetDlgItem (hwnd, IDC_APPLY)))
-						break;
-
-					bool is_newlocale = false;
-
-					for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
-					{
-						PAPP_SETTINGS_PAGE const ptr = this_ptr->app_settings_pages.at (i);
-
-						if (ptr->dlg_id && ptr->hwnd && ptr->callback)
-						{
-							if (ptr->callback (ptr->hwnd, _RM_SAVE, nullptr, ptr))
-								is_newlocale = true;
-						}
-					}
-
-					this_ptr->ConfigInit (); // re-read settings
-
-					// reinitialization
-					if (this_ptr->app_callback)
-					{
-						this_ptr->app_callback (this_ptr->GetHWND (), _RM_UNINITIALIZE, nullptr, nullptr);
-						this_ptr->app_callback (this_ptr->GetHWND (), _RM_INITIALIZE, nullptr, nullptr);
-
-						if (is_newlocale)
-						{
-							this_ptr->app_callback (this_ptr->GetHWND (), _RM_LOCALIZE, nullptr, nullptr);
-
-							DrawMenuBar (this_ptr->GetHWND ()); // redraw menu
-						}
-					}
-
-					this_ptr->InitSettingsPage (hwnd, is_newlocale);
-
-					break;
-				}
-
 				case IDCANCEL: // process Esc key
 				case IDC_CLOSE:
 				{
-					_r_wnd_top (this_ptr->GetHWND (), this_ptr->ConfigGet (L"AlwaysOnTop", false).AsBool ());
-
 					EndDialog (hwnd, 0);
-
 					break;
 				}
 			}

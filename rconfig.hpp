@@ -81,7 +81,7 @@
 
 #define _RM_INITIALIZE 0x01
 #define _RM_UNINITIALIZE 0x02
-#define _RM_SAVE 0x04
+#define _RM_CLOSE 0x04
 #define _RM_MESSAGE 0x08
 #define _RM_LOCALIZE 0x10
 #define _RM_ARGUMENTS 0x20
