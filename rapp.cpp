@@ -1276,7 +1276,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETBKCOLOR, TVSIL_STATE, (LPARAM)GetSysColor (COLOR_3DFACE));
 
-			const size_t current_page = this_ptr->ConfigGet (L"SettingsLastPage", this_ptr->app_settings_pages.at (0)->dlg_id).AsSizeT ();
+			const size_t dlg_id = this_ptr->ConfigGet (L"SettingsLastPage", this_ptr->app_settings_pages.at (0)->dlg_id).AsSizeT ();
 
 			for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 			{
@@ -1292,7 +1292,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 					ptr->item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr->h, ptr->locale_id, ptr->locale_sid), ((ptr->group_id == LAST_VALUE) ? nullptr : this_ptr->app_settings_pages.at (ptr->group_id)->item), LAST_VALUE, (LPARAM)i);
 
-					if (current_page == ptr->dlg_id)
+					if (dlg_id == ptr->dlg_id)
 						SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)ptr->item);
 				}
 			}
@@ -1302,37 +1302,53 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			break;
 		}
 
-		case WM_DRAWITEM:
+		case WM_PAINT:
 		{
-			PDRAWITEMSTRUCT drawInfo = (PDRAWITEMSTRUCT)lparam;
+			PAINTSTRUCT ps = {0};
+			HDC dc = BeginPaint (hwnd, &ps);
 
-			if (drawInfo->CtlID == IDC_SEPARATOR)
-			{
-				RECT rect;
+			RECT rc = {0};
+			GetClientRect (hwnd, &rc);
 
-				rect = drawInfo->rcItem;
-				rect.right = 2;
-				FillRect (drawInfo->hDC, &rect, GetSysColorBrush (COLOR_3DHIGHLIGHT));
+			const INT pos_x = this_ptr->GetDPI (160);
+			const INT pos_y = rc.bottom - rc.top;
 
-				rect.left += 1;
-				FillRect (drawInfo->hDC, &rect, GetSysColorBrush (COLOR_3DSHADOW));
+			for (INT i = 0; i < pos_y; i++)
+				SetPixel (dc, pos_x, i, GetSysColor (COLOR_APPWORKSPACE));
 
-				return TRUE;
-			}
+			EndPaint (hwnd, &ps);
 
 			break;
 		}
 
 		case WM_DESTROY:
 		{
+			this_ptr->ConfigInit (); // re-read settings
+
+			if (this_ptr->app_settings_callback)
+				this_ptr->app_settings_callback (hwnd, _RM_CLOSE, nullptr, nullptr);
+
+			if (this_ptr->app_callback)
+				this_ptr->app_callback (this_ptr->GetHWND (), _RM_INITIALIZE, nullptr, nullptr);
+
+			for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
+			{
+				PAPP_SETTINGS_PAGE ptr = this_ptr->app_settings_pages.at (i);
+
+				if (ptr)
+				{
+					if (ptr->hwnd)
+					{
+						DestroyWindow (ptr->hwnd);
+						ptr->hwnd = nullptr;
+					}
+				}
+			}
+
 			this_ptr->settings_hwnd = nullptr;
 			this_ptr->settings_page_id = LAST_VALUE;
 
-			this_ptr->ConfigInit (); // re-read settings
-
 			_r_wnd_top (this_ptr->GetHWND (), this_ptr->ConfigGet (L"AlwaysOnTop", false).AsBool ());
-
-			this_ptr->app_settings_callback (hwnd, _RM_CLOSE, nullptr, nullptr);
 
 			break;
 		}
@@ -1361,9 +1377,12 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 						{
 							PAPP_SETTINGS_PAGE const ptr_page = this_ptr->app_settings_pages.at (new_id);
 
-							this_ptr->app_settings_callback (ptr_page->hwnd, _RM_LOCALIZE, nullptr, ptr_page);
+							if (ptr_page)
+							{
+								this_ptr->app_settings_callback (ptr_page->hwnd, _RM_LOCALIZE, nullptr, ptr_page);
 
-							ShowWindow (ptr_page->hwnd, SW_SHOW);
+								ShowWindow (ptr_page->hwnd, SW_SHOW);
+							}
 						}
 
 						this_ptr->ConfigSet (L"SettingsLastPage", (DWORD)this_ptr->app_settings_pages.at (new_id)->dlg_id);
