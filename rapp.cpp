@@ -1325,10 +1325,12 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 		{
 			this_ptr->ConfigInit (); // re-read settings
 
-			if (this_ptr->app_settings_callback)
-				this_ptr->app_settings_callback (hwnd, _RM_CLOSE, nullptr, nullptr);
+			BOOL result = false;
 
-			if (this_ptr->app_callback)
+			if (this_ptr->app_settings_callback)
+				result = this_ptr->app_settings_callback (hwnd, _RM_CLOSE, nullptr, nullptr);
+
+			if (result && this_ptr->app_callback)
 				this_ptr->app_callback (this_ptr->GetHWND (), _RM_INITIALIZE, nullptr, nullptr);
 
 			for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
