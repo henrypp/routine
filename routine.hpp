@@ -137,7 +137,9 @@ rstring _r_path_unexpand (rstring path);
 rstring _r_path_compact (rstring path, UINT length);
 rstring _r_path_extractdir (rstring path);
 rstring _r_path_extractfile (rstring path);
+#ifdef _APP_HAVE_NTDLL
 rstring _r_path_dospathfromnt (LPCWSTR path);
+#endif // _APP_HAVE_NTDLL
 DWORD _r_path_ntpathfromdos (rstring& path);
 
 /*
@@ -292,8 +294,10 @@ typedef BOOL (WINAPI *QFPIN) (HANDLE, DWORD, LPWSTR, PDWORD); // QueryFullProces
 typedef BOOL (WINAPI *MFACS) (PCWSTR, PDWORD, PDWORD); // MapFileAndCheckSumW
 
 /*
-	NT Definitions
+	NTDLL Definitions
 */
+
+#ifdef _APP_HAVE_NTDLL
 
 // rev
 // private
@@ -590,3 +594,4 @@ extern "C" {
 		_Out_opt_ PULONG ReturnLength
 		);
 };
+#endif // _APP_HAVE_NTDLL

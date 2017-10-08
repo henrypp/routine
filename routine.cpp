@@ -801,6 +801,7 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 // "\BaseNamedObjects\Objectname"                           (named mutex, named event, named semaphore)
 // "\REGISTRY\MACHINE\SOFTWARE\Classes\.txt"                (HKEY_CLASSES_ROOT\.txt)
 
+#ifdef _APP_HAVE_NTDLL
 DWORD _r_path_ntpathfromdos (rstring& path)
 {
 	if (path.IsEmpty ())
@@ -844,6 +845,7 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 
 	return ERROR_SUCCESS;
 }
+#endif // _APP_HAVE_NTDLL
 
 /*
 	Processes

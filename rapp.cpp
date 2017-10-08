@@ -185,7 +185,7 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 		{
 			if (ptr && _wcsnicmp (_r_path_extractfile (fname), ptr->app_name_short, wcslen (ptr->app_name_short)) == 0)
 			{
-				_r_wnd_toggle (hwnd, TRUE);
+				_r_wnd_toggle (hwnd, true);
 
 				CloseHandle (h);
 
@@ -1005,6 +1005,7 @@ HWND rapp::GetHWND () const
 	return app_hwnd;
 }
 
+#ifndef _APP_NO_SETTINGS
 void rapp::LocaleApplyFromControl (HWND hwnd, UINT ctrl_id)
 {
 	ConfigSet (L"Language", _r_ctrl_gettext (hwnd, ctrl_id));
@@ -1026,6 +1027,7 @@ void rapp::LocaleApplyFromControl (HWND hwnd, UINT ctrl_id)
 		DrawMenuBar (GetHWND ()); // redraw menu
 	}
 }
+#endif // _APP_NO_SETTINGS
 
 void rapp::LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id)
 {
