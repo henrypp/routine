@@ -22,6 +22,7 @@
 //#define _APP_NO_WINXP // cut windows xp support
 
 //#define _APP_HAVE_AUTORUN // enable autorun feature
+//#define _APP_HAVE_FASTLOCK // enable fastlocks function
 //#define _APP_HAVE_NTDLL // sdk have ntdll definitions and functions
 //#define _APP_HAVE_SIZING // window is resizable
 //#define _APP_HAVE_SKIPUAC // enable skip uac feature

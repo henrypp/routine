@@ -95,9 +95,9 @@ public:
 #ifdef _APP_HAVE_TRAY
 	bool TrayCreate (HWND hwnd, UINT uid, UINT code, HICON h, bool is_hidden);
 	bool TrayDestroy (UINT uid);
-	bool TrayPopup (DWORD icon, LPCWSTR title, LPCWSTR text);
-	bool TraySetInfo (HICON h, LPCWSTR tooltip);
-	bool TrayToggle (DWORD uid, bool is_show);
+	bool TrayPopup (UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text);
+	bool TraySetInfo (UINT uid, HICON h, LPCWSTR tooltip);
+	bool TrayToggle (UINT uid, bool is_show);
 #endif // _APP_HAVE_TRAY
 
 #ifndef _APP_NO_SETTINGS

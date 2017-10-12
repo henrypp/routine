@@ -77,26 +77,76 @@ rstring _r_fmt (LPCWSTR format, ...);
 rstring _r_fmt_date (const LPFILETIME ft, const DWORD flags = FDTF_DEFAULT); // see SHFormatDateTime flags definition
 rstring _r_fmt_date (const __time64_t ut, const DWORD flags = FDTF_DEFAULT);
 
-rstring _r_fmt_size64 (DWORDLONG size);
+rstring _r_fmt_size64 (ULONGLONG size);
 
 /*
-	Spinlock
+	FastLock is a port of FastResourceLock from PH 1.x.
 
-	Author: sameer_87
-	https://www.codeproject.com/Articles/184046/Spin-Lock-in-C
+	The code contains no comments because it is a direct port. Please see FastResourceLock.cs in PH
+	1.x for details.
+
+	The fast lock is around 7% faster than the critical section when there is no contention, when
+	used solely for mutual exclusion. It is also much smaller than the critical section.
+
+	https://github.com/processhacker2/processhacker
 */
 
-#define _R_YIELD_ITERATION 30 // yeild after 30 iterations
-#define _R_MAX_SLEEP_ITERATION 40
-#define _R_EXCHANGE 100
-#define _R_COMPARE 0
+#ifdef _APP_HAVE_FASTLOCK
+#define _R_FASTLOCK_OWNED 0x1
+#define _R_FASTLOCK_EXCLUSIVE_WAKING 0x2
 
-#define _R_SPINLOCK(x) _r_spinlock(&x)
-#define _R_SPINUNLOCK(x) _r_spinunlock(&x)
+#define _R_FASTLOCK_SHARED_OWNERS_SHIFT 2
+#define _R_FASTLOCK_SHARED_OWNERS_MASK 0x3ff
+#define _R_FASTLOCK_SHARED_OWNERS_INC 0x4
 
-bool _r_spinislocked (volatile LONG* plock);
-bool _r_spinlock (volatile LONG* plock);
-bool _r_spinunlock (volatile LONG* plock);
+#define _R_FASTLOCK_SHARED_WAITERS_SHIFT 12
+#define _R_FASTLOCK_SHARED_WAITERS_MASK 0x3ff
+#define _R_FASTLOCK_SHARED_WAITERS_INC 0x1000
+
+#define _R_FASTLOCK_EXCLUSIVE_WAITERS_SHIFT 22
+#define _R_FASTLOCK_EXCLUSIVE_WAITERS_MASK 0x3ff
+#define _R_FASTLOCK_EXCLUSIVE_WAITERS_INC 0x400000
+
+#define _R_FASTLOCK_EXCLUSIVE_MASK (_R_FASTLOCK_EXCLUSIVE_WAKING | (_R_FASTLOCK_EXCLUSIVE_WAITERS_MASK << _R_FASTLOCK_EXCLUSIVE_WAITERS_SHIFT))
+
+typedef struct _R_FASTLOCK
+{
+	_R_FASTLOCK ()
+	{
+		this->Value = 0;
+		this->ExclusiveWakeEvent = CreateSemaphoreEx (nullptr, 0, MAXLONG, nullptr, 0, SEMAPHORE_ALL_ACCESS);
+		this->SharedWakeEvent = CreateSemaphoreEx (nullptr, 0, MAXLONG, nullptr, 0, SEMAPHORE_ALL_ACCESS);
+	}
+
+	~_R_FASTLOCK()
+	{
+		if (this->ExclusiveWakeEvent)
+		{
+			CloseHandle (this->ExclusiveWakeEvent);
+			this->ExclusiveWakeEvent = nullptr;
+		}
+
+		if (this->SharedWakeEvent)
+		{
+			CloseHandle (this->SharedWakeEvent);
+			this->SharedWakeEvent = nullptr;
+		}
+
+	}
+
+	ULONG Value;
+	HANDLE ExclusiveWakeEvent;
+	HANDLE SharedWakeEvent;
+} R_FASTLOCK, *P_FASTLOCK;
+
+ULONG _r_fastlock_islocked (P_FASTLOCK plock);
+
+void _r_fastlock_acquireexclusive (P_FASTLOCK plock);
+void _r_fastlock_acquireshared (P_FASTLOCK plock);
+
+void _r_fastlock_releaseexclusive (P_FASTLOCK plock);
+void _r_fastlock_releaseshared (P_FASTLOCK plock);
+#endif // _APP_HAVE_FASTLOCK
 
 /*
 	System messages
@@ -147,6 +197,8 @@ DWORD _r_path_ntpathfromdos (rstring& path);
 */
 
 BOOL _r_process_getpath (HANDLE h, LPWSTR path, DWORD length);
+
+[[deprecated ("May cause troubles on WOW64!")]]
 BOOL _r_process_is_exists (LPCWSTR path, const size_t len);
 
 /*
@@ -572,6 +624,29 @@ typedef struct _SYSTEM_PROCESS_INFORMATION
 	SYSTEM_THREAD_INFORMATION Threads[1];
 } SYSTEM_PROCESS_INFORMATION, *PSYSTEM_PROCESS_INFORMATION;
 
+struct SYSTEM_CACHE_INFORMATION
+{
+	ULONG_PTR	CurrentSize;
+	ULONG_PTR	PeakSize;
+	ULONG_PTR	PageFaultCount;
+	ULONG_PTR	MinimumWorkingSet;
+	ULONG_PTR	MaximumWorkingSet;
+	ULONG_PTR	TransitionSharedPages;
+	ULONG_PTR	PeakTransitionSharedPages;
+	DWORD		Unused[2];
+};
+
+typedef enum _SYSTEM_MEMORY_LIST_COMMAND
+{
+	MemoryCaptureAccessedBits,
+	MemoryCaptureAndResetAccessedBits,
+	MemoryEmptyWorkingSets,
+	MemoryFlushModifiedList,
+	MemoryPurgeStandbyList,
+	MemoryPurgeLowPriorityStandbyList,
+	MemoryCommandMax
+} SYSTEM_MEMORY_LIST_COMMAND;
+
 extern "C" {
 	NTSYSCALLAPI
 		NTSTATUS
@@ -592,6 +667,15 @@ extern "C" {
 		_Out_writes_bytes_opt_ (SystemInformationLength) PVOID SystemInformation,
 		_In_ ULONG SystemInformationLength,
 		_Out_opt_ PULONG ReturnLength
+		);
+
+	NTSYSCALLAPI
+		NTSTATUS
+		NTAPI
+		NtSetSystemInformation (
+		_In_ UINT SystemInformationClass,
+		_In_reads_bytes_opt_ (SystemInformationLength) PVOID SystemInformation,
+		_In_ ULONG SystemInformationLength
 		);
 };
 #endif // _APP_HAVE_NTDLL

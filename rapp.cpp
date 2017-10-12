@@ -787,9 +787,10 @@ bool rapp::TrayCreate (HWND hwnd, UINT uid, UINT code, HICON h, bool is_hidden)
 	}
 
 	if (Shell_NotifyIcon (NIM_ADD, &nid))
+	{
 		result = true;
-
-	Shell_NotifyIcon (NIM_SETVERSION, &nid);
+		Shell_NotifyIcon (NIM_SETVERSION, &nid);
+	}
 
 	return result;
 }
@@ -811,12 +812,13 @@ bool rapp::TrayDestroy (UINT uid)
 	return false;
 }
 
-bool rapp::TrayPopup (DWORD icon, LPCWSTR title, LPCWSTR text)
+bool rapp::TrayPopup (UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text)
 {
 	bool result = false;
 
 	nid.uFlags = NIF_INFO | NIF_REALTIME;
-	nid.dwInfoFlags = NIIF_LARGE_ICON | icon;
+	nid.dwInfoFlags = NIIF_LARGE_ICON | icon_id;
+	nid.uID = uid;
 
 	// tooltip-visibility fix
 	if (nid.szTip[0])
@@ -836,15 +838,10 @@ bool rapp::TrayPopup (DWORD icon, LPCWSTR title, LPCWSTR text)
 	return result;
 }
 
-bool rapp::TraySetInfo (HICON h, LPCWSTR tooltip)
+bool rapp::TraySetInfo (UINT uid, HICON h, LPCWSTR tooltip)
 {
 	nid.uFlags = 0;
-
-	if (tooltip)
-	{
-		nid.uFlags |= (NIF_SHOWTIP | NIF_TIP);
-		StringCchCopy (nid.szTip, _countof (nid.szTip), tooltip);
-	}
+	nid.uID = uid;
 
 	if (h)
 	{
@@ -858,13 +855,19 @@ bool rapp::TraySetInfo (HICON h, LPCWSTR tooltip)
 		nid.hIcon = h;
 	}
 
+	if (tooltip)
+	{
+		nid.uFlags |= (NIF_SHOWTIP | NIF_TIP);
+		StringCchCopy (nid.szTip, _countof (nid.szTip), tooltip);
+	}
+
 	if (Shell_NotifyIcon (NIM_MODIFY, &nid))
 		return true;
 
 	return false;
 }
 
-bool rapp::TrayToggle (DWORD uid, bool is_show)
+bool rapp::TrayToggle (UINT uid, bool is_show)
 {
 	nid.uID = uid;
 	nid.uFlags = NIF_STATE;

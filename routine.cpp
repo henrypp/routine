@@ -2,7 +2,6 @@
 // Copyright (c) 2012-2017 Henry++
 
 #include "routine.hpp"
-
 /*
 	Write debug log to console
 */
@@ -133,120 +132,207 @@ rstring _r_fmt_date (const __time64_t ut, const DWORD flags)
 	return _r_fmt_date (&ft, flags);
 }
 
-rstring _r_fmt_size64 (DWORDLONG size)
+rstring _r_fmt_size64 (ULONGLONG size)
 {
-	static const WCHAR *sizes[] = {L"B", L"KB", L"MB", L"GB", L"TB", L"PB"};
+	static LPCWSTR sizes[] = {L"B", L"kB", L"MB", L"GB", L"TB", L"PB", L"EB"};
 
 	rstring result;
 
 	INT div = 0;
-	SIZE_T rem = 0;
+	ULONGLONG rem = 0;
 
-	while (size >= 1000 && div < _countof (sizes))
+	while (size >= 1024 && div < _countof (sizes))
 	{
 		rem = (size % 1024);
 		div++;
 		size /= 1024;
 	}
 
-	double size_d = double (size) + double (rem) / 1024.0;
+	// round off
+	double d = (double (size) + double (rem) / 1024.0) * 100.0;
+	d = (d + 0.5) / 100.0;
 
-	size_d += 0.001; // round up
-
-
-	return result.Format (L"%.2f %s", size_d, sizes[div]);
+	return result.Format (L"%.2f %s", d, sizes[div]);
 }
 
 /*
-	Spinlocks
+	FastLock is a port of FastResourceLock from PH 1.x.
+
+	The code contains no comments because it is a direct port. Please see FastResourceLock.cs in PH
+	1.x for details.
+
+	The fast lock is around 7% faster than the critical section when there is no contention, when
+	used solely for mutual exclusion. It is also much smaller than the critical section.
+
+	https://github.com/processhacker2/processhacker
 */
 
-bool _r_spinislocked (volatile LONG* plock)
+#ifdef _APP_HAVE_FASTLOCK
+ULONG _r_fastlock_islocked (P_FASTLOCK plock)
 {
-	if (!plock)
-		return false;
+	const ULONG value = plock->Value;
 
-	return ((*plock == _R_COMPARE) ? false : true);
+	return value;
 }
 
-// Author: sameer_87
-// https://www.codeproject.com/Articles/184046/Spin-Lock-in-C
-
-bool _r_spinlock (volatile LONG* plock)
+static DWORD _r_fastlock_getspincount ()
 {
-	if (!plock)
-		return false;
+	SYSTEM_INFO si = {0};
+	GetSystemInfo (&si);
 
-	UINT m_iterations = 0;
+	if (si.dwNumberOfProcessors > 1)
+		return 4000;
+	else
+		return 0;
+}
 
-	SYSTEM_INFO sysinfo = {0};
-	GetSystemInfo (&sysinfo);
+void _r_fastlock_acquireexclusive (P_FASTLOCK plock)
+{
+	ULONG value;
+	ULONG i = 0;
+	const DWORD spinCount = _r_fastlock_getspincount ();
 
 	while (true)
 	{
-		// A thread alreading owning the lock shouldn't be allowed to wait to acquire the lock - reentrant safe
-		if ((DWORD)*plock == GetCurrentThreadId ())
-			break;
+		value = plock->Value;
 
-		/*
-			Spinning in a loop of interlockedxxx calls can reduce the available memory bandwidth and slow
-			down the rest of the system. Interlocked calls are expensive in their use of the system memory
-			bus. It is better to see if the 'dest' value is what it is expected and then retry interlockedxx.
-		*/
-
-		if (InterlockedCompareExchange (plock, _R_EXCHANGE, _R_COMPARE) == 0)
+		if (!(value & (_R_FASTLOCK_OWNED | _R_FASTLOCK_EXCLUSIVE_WAKING)))
 		{
-			// assign CurrentThreadId to dest to make it re-entrant safe
-			*plock = GetCurrentThreadId ();
-
-			break; // lock acquired
+			if (_InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_OWNED, value) == value)
+				break;
 		}
-
-		// spin wait to acquire
-		while (*plock != _R_COMPARE)
+		else if (i >= spinCount)
 		{
-			if (m_iterations >= _R_YIELD_ITERATION)
+			if (_InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_EXCLUSIVE_WAITERS_INC, value) == value)
 			{
-				if (m_iterations + _R_YIELD_ITERATION >= _R_MAX_SLEEP_ITERATION)
-					Sleep (0);
+				if (WaitForSingleObjectEx (plock->ExclusiveWakeEvent, 0, FALSE) != STATUS_WAIT_0)
+					break;
 
-				if (m_iterations >= _R_YIELD_ITERATION && m_iterations < _R_MAX_SLEEP_ITERATION)
+				do
 				{
-					m_iterations = 0;
-					SwitchToThread ();
+					value = plock->Value;
 				}
-			}
+				while (_InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_OWNED - _R_FASTLOCK_EXCLUSIVE_WAKING, value) != value);
 
-			// Yield processor on multi-processor but if on single processor then give other thread the CPU
-			m_iterations++;
-
-			if (sysinfo.dwNumberOfProcessors > 1)
-			{
-				YieldProcessor (/*no op*/);
-			}
-			else
-			{
-				SwitchToThread ();
+				break;
 			}
 		}
+
+		i++;
+		YieldProcessor ();
 	}
-
-	return true;
 }
 
-bool _r_spinunlock (volatile LONG* plock)
+void _r_fastlock_acquireshared (P_FASTLOCK plock)
 {
-	if (!plock)
-		return false;
+	ULONG value;
+	ULONG i = 0;
+	const DWORD spinCount = _r_fastlock_getspincount ();
 
-	if ((DWORD)*plock != GetCurrentThreadId ())
-		throw std::runtime_error ("Unexpected thread-id in release");
+	while (true)
+	{
+		value = plock->Value;
 
-	// lock released
-	InterlockedCompareExchange (plock, _R_COMPARE, GetCurrentThreadId ());
+		if (!(value & (
+			_R_FASTLOCK_OWNED |
+			(_R_FASTLOCK_SHARED_OWNERS_MASK << _R_FASTLOCK_SHARED_OWNERS_SHIFT) |
+			_R_FASTLOCK_EXCLUSIVE_MASK
+			)))
+		{
+			if (_InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_OWNED + _R_FASTLOCK_SHARED_OWNERS_INC, value) == value)
+				break;
+		}
+		else if (
+			(value & _R_FASTLOCK_OWNED) &&
+			((value >> _R_FASTLOCK_SHARED_OWNERS_SHIFT) & _R_FASTLOCK_SHARED_OWNERS_MASK) > 0 &&
+			!(value & _R_FASTLOCK_EXCLUSIVE_MASK)
+			)
+		{
+			if (_InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_SHARED_OWNERS_INC, value) == value)
+			{
+				break;
+			}
+		}
+		else if (i >= spinCount)
+		{
+			if (_InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_SHARED_WAITERS_INC, value) == value)
+			{
+				if (WaitForSingleObjectEx (plock->SharedWakeEvent, 0, FALSE) != STATUS_WAIT_0)
+					break;
 
-	return true;
+				continue;
+			}
+		}
+
+		i++;
+		YieldProcessor ();
+	}
 }
+
+void _r_fastlock_releaseexclusive (P_FASTLOCK plock)
+{
+	ULONG value;
+
+	while (true)
+	{
+		value = plock->Value;
+
+		if ((value >> _R_FASTLOCK_EXCLUSIVE_WAITERS_SHIFT) & _R_FASTLOCK_EXCLUSIVE_WAITERS_MASK)
+		{
+			if (_InterlockedCompareExchange (&plock->Value, value - _R_FASTLOCK_OWNED + _R_FASTLOCK_EXCLUSIVE_WAKING - _R_FASTLOCK_EXCLUSIVE_WAITERS_INC, value) == value)
+			{
+				ReleaseSemaphore (plock->ExclusiveWakeEvent, 1, nullptr);
+				break;
+			}
+		}
+		else
+		{
+			ULONG sharedWaiters = (value >> _R_FASTLOCK_SHARED_WAITERS_SHIFT) & _R_FASTLOCK_SHARED_WAITERS_MASK;
+
+			if (_InterlockedCompareExchange (&plock->Value, value & ~(_R_FASTLOCK_OWNED | (_R_FASTLOCK_SHARED_WAITERS_MASK << _R_FASTLOCK_SHARED_WAITERS_SHIFT)), value) == value)
+			{
+				if (sharedWaiters)
+					ReleaseSemaphore (plock->SharedWakeEvent, sharedWaiters, nullptr);
+
+				break;
+			}
+		}
+
+		YieldProcessor ();
+	}
+}
+
+void _r_fastlock_releaseshared (P_FASTLOCK plock)
+{
+	ULONG value;
+
+	while (true)
+	{
+		value = plock->Value;
+
+		if (((value >> _R_FASTLOCK_SHARED_OWNERS_SHIFT) & _R_FASTLOCK_SHARED_OWNERS_MASK) > 1)
+		{
+			if (_InterlockedCompareExchange (&plock->Value, value - _R_FASTLOCK_SHARED_OWNERS_INC, value) == value)
+				break;
+		}
+		else if ((value >> _R_FASTLOCK_EXCLUSIVE_WAITERS_SHIFT) & _R_FASTLOCK_EXCLUSIVE_WAITERS_MASK)
+		{
+			if (_InterlockedCompareExchange (&plock->Value, value - _R_FASTLOCK_OWNED + _R_FASTLOCK_EXCLUSIVE_WAKING - _R_FASTLOCK_SHARED_OWNERS_INC - _R_FASTLOCK_EXCLUSIVE_WAITERS_INC, value) == value)
+			{
+				ReleaseSemaphore (plock->ExclusiveWakeEvent, 1, nullptr);
+				break;
+			}
+		}
+		else
+		{
+			if (_InterlockedCompareExchange (&plock->Value, value - _R_FASTLOCK_OWNED - _R_FASTLOCK_SHARED_OWNERS_INC, value) == value)
+				break;
+		}
+
+		YieldProcessor ();
+	}
+}
+#endif // _APP_HAVE_FASTLOCK
 
 /*
 	System messages
@@ -1777,14 +1863,6 @@ INT _r_listview_additem (HWND hwnd, UINT ctrl_id, LPCWSTR text, size_t item, siz
 			item -= 1;
 	}
 
-	if (subitem)
-	{
-		if (lparam)
-			_r_listview_setitem (hwnd, ctrl_id, nullptr, item, 0, LAST_VALUE, LAST_VALUE, lparam);
-
-		return _r_listview_setitem (hwnd, ctrl_id, text, item, subitem);
-	}
-
 	WCHAR buffer[MAX_PATH] = {0};
 
 	LVITEM lvi = {0};
@@ -1800,19 +1878,19 @@ INT _r_listview_additem (HWND hwnd, UINT ctrl_id, LPCWSTR text, size_t item, siz
 		StringCchCopy (buffer, _countof (buffer), text);
 	}
 
-	if (image != LAST_VALUE)
+	if (!subitem && image != LAST_VALUE)
 	{
 		lvi.mask |= LVIF_IMAGE;
 		lvi.iImage = static_cast<INT>(image);
 	}
 
-	if (group_id != LAST_VALUE)
+	if (!subitem && group_id != LAST_VALUE)
 	{
 		lvi.mask |= LVIF_GROUPID;
 		lvi.iGroupId = static_cast<INT>(group_id);
 	}
 
-	if (lparam && !subitem)
+	if (!subitem && lparam)
 	{
 		lvi.mask |= LVIF_PARAM;
 		lvi.lParam = lparam;
@@ -1997,19 +2075,19 @@ INT _r_listview_setitem (HWND hwnd, UINT ctrl_id, LPCWSTR text, size_t item, siz
 		StringCchCopy (buffer, _countof (buffer), text);
 	}
 
-	if (image != LAST_VALUE)
+	if (!lvi.iSubItem && image != LAST_VALUE)
 	{
 		lvi.mask |= LVIF_IMAGE;
 		lvi.iImage = static_cast<INT>(image);
 	}
 
-	if (group_id != LAST_VALUE)
+	if (!lvi.iSubItem && group_id != LAST_VALUE)
 	{
 		lvi.mask |= LVIF_GROUPID;
 		lvi.iGroupId = static_cast<INT>(group_id);
 	}
 
-	if (lparam)
+	if (!lvi.iSubItem && lparam)
 	{
 		lvi.mask |= LVIF_PARAM;
 		lvi.lParam = lparam;
