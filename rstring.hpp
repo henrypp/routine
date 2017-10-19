@@ -61,18 +61,12 @@ public:
 	bool operator< (LPCWSTR str) const;
 	bool operator> (LPCWSTR str) const;
 
-	WCHAR operator[] (const size_t index) const;
+	const WCHAR operator[] (const size_t index) const;
 	WCHAR& operator[] (const size_t index);
 
 	rstring& operator= (const rstring& other);
 	rstring& operator= (LPCWSTR str);
 	rstring& operator= (rstring&& other);
-
-	rstring& operator+= (const rstring& other);
-	rstring& operator+= (LPCWSTR str);
-
-	friend rstring operator+ (const rstring& str1, const rstring& str2);
-	friend rstring operator+ (const rstring& str1, LPCWSTR str2);
 
 	WCHAR& At (size_t index) const;
 
@@ -92,7 +86,9 @@ public:
 
 	rstring& Append (const rstring& str);
 	rstring& Append (LPCWSTR str);
-	rstring& Insert (LPCWSTR text, size_t pos);
+	rstring& AppendFormat (LPCWSTR str, ...);
+	rstring& Insert (size_t pos, LPCWSTR str);
+	rstring& InsertFormat (size_t pos, LPCWSTR str, ...);
 	rstring& Mid (size_t start, size_t length = npos);
 	rstring& Remove (size_t start, size_t length = npos);
 	rstring& Replace (LPCWSTR from, LPCWSTR to);

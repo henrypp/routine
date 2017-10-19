@@ -19,7 +19,7 @@
 	Localization macros
 */
 
-#define I18N(ptr, id, str) ((ptr)->LocaleString(nullptr, id, (str) ? (str) : L#id))
+#define I18N(ptr, id, str) ((ptr)->LocaleString(nullptr, id, (str) ? (str) : L#id).GetString ())
 
 /*
 	Callback functions
@@ -93,7 +93,7 @@ public:
 	bool CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback);
 
 #ifdef _APP_HAVE_TRAY
-	bool TrayCreate (HWND hwnd, UINT uid, UINT code, HICON h, bool is_hidden);
+	bool TrayCreate (HWND hwnd, UINT uid, UINT code, HICON hicon, bool is_hidden);
 	bool TrayDestroy (UINT uid);
 	bool TrayPopup (UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text);
 	bool TraySetInfo (UINT uid, HICON h, LPCWSTR tooltip);
@@ -108,13 +108,14 @@ public:
 	void SettingsInitialize ();
 #endif // _APP_NO_SETTINGS
 
-	rstring GetBinaryPath () const;
-	rstring GetDirectory () const;
-	rstring GetProfileDirectory () const;
+	LPCWSTR GetBinaryPath () const;
+	LPCWSTR GetDirectory () const;
+	LPCWSTR GetProfileDirectory () const;
 
 	rstring GetUserAgent () const;
 
 	INT GetDPI (INT v) const;
+	HICON GetHICON (bool is_big) const;
 	HINSTANCE GetHINSTANCE () const;
 	HWND GetHWND () const;
 
@@ -129,7 +130,7 @@ public:
 	void LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, const UINT id_start);
 	UINT LocaleGetCount ();
 	rstring LocaleString (HINSTANCE h, UINT id, LPCWSTR name);
-	void LocaleMenu (HMENU menu, LPCWSTR text, UINT item, bool by_position) const;
+	void LocaleMenu (HMENU menu, LPCWSTR text, UINT item, bool by_position, LPCWSTR append) const;
 
 #ifdef _APP_HAVE_SKIPUAC
 	bool SkipUacEnable (bool is_enable);
@@ -186,8 +187,8 @@ private:
 	HINSTANCE app_hinstance = nullptr;
 	APPLICATION_CALLBACK app_callback = nullptr;
 
-	HICON app_icon_1 = nullptr;
-	HICON app_icon_2 = nullptr;
+	HICON app_icon_small = nullptr;
+	HICON app_icon_big = nullptr;
 
 	WCHAR app_binary[MAX_PATH];
 	WCHAR app_directory[MAX_PATH];

@@ -63,7 +63,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 				StringCchCopy (app_config_path, _countof (app_config_path), _r_path_expand (ptr));
 
 				if (PathGetDriveNumber (app_config_path) == -1)
-					StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s", GetDirectory (), _r_path_expand (ptr));
+					StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s", GetDirectory (), _r_path_expand (ptr).GetString ());
 
 				if (!_r_fs_exists (app_config_path))
 				{
@@ -215,14 +215,18 @@ bool rapp::AutorunEnable (bool is_enable)
 			StringCchCat (buffer, _countof (buffer), L" /minimized");
 
 			result = (RegSetValueEx (key, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) + 1) * sizeof (WCHAR))) == ERROR_SUCCESS);
+
+			if (result)
+				ConfigSet (L"AutorunIsEnabled", true);
 		}
 		else
 		{
 			RegDeleteValue (key, app_name);
+			ConfigSet (L"AutorunIsEnabled", false);
+
 			result = true;
 		}
 
-		ConfigSet (L"AutorunIsEnabled", is_enable ? result : false);
 
 		RegCloseKey (key);
 	}
@@ -402,7 +406,7 @@ void rapp::CreateDonateWindow ()
 		if (ConfigGet (L"IsShowDonateAtStartup", true).AsBool ())
 			tdc.dwFlags |= TDF_VERIFICATION_FLAG_CHECKED;
 
-		if (_r_msg2 (&tdc, &result, nullptr, &is_flagchecked))
+		if (_r_msg_taskdialog (&tdc, &result, nullptr, &is_flagchecked))
 		{
 			ConfigSet (L"IsShowDonateAtStartup", is_flagchecked ? true : false);
 
@@ -436,17 +440,17 @@ bool rapp::IsVistaOrLater () const
 
 void rapp::SetIcon (UINT icon_id)
 {
-	if (app_icon_1)
-		DestroyIcon (app_icon_1);
+	if (app_icon_small)
+		DestroyIcon (app_icon_small);
 
-	if (app_icon_2)
-		DestroyIcon (app_icon_2);
+	if (app_icon_big)
+		DestroyIcon (app_icon_big);
 
-	app_icon_1 = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (icon_id), GetSystemMetrics (SM_CXSMICON));
-	app_icon_2 = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (icon_id), GetSystemMetrics (SM_CXICON));
+	app_icon_small = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (icon_id), GetSystemMetrics (SM_CXSMICON));
+	app_icon_big = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (icon_id), GetSystemMetrics (SM_CXICON));
 
-	SendMessage (GetHWND (), WM_SETICON, ICON_SMALL, (LPARAM)app_icon_1);
-	SendMessage (GetHWND (), WM_SETICON, ICON_BIG, (LPARAM)app_icon_2);
+	SendMessage (GetHWND (), WM_SETICON, ICON_SMALL, (LPARAM)app_icon_small);
+	SendMessage (GetHWND (), WM_SETICON, ICON_BIG, (LPARAM)app_icon_big);
 }
 
 LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
@@ -657,12 +661,14 @@ bool rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 
 		// update autorun settings
 #ifdef _APP_HAVE_AUTORUN
-		AutorunEnable (AutorunIsEnabled ());
+		if (AutorunIsEnabled ())
+			AutorunEnable (true);
 #endif // _APP_HAVE_AUTORUN
 
 		// update uac settings
 #ifdef _APP_HAVE_SKIPUAC
-		SkipUacEnable (ConfigGet (L"SkipUacIsEnabled", false).AsBool ());
+		if (SkipUacIsEnabled ())
+			SkipUacEnable (true);
 #endif // _APP_HAVE_SKIPUAC
 
 		// set window on top
@@ -766,7 +772,7 @@ bool rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 }
 
 #ifdef _APP_HAVE_TRAY
-bool rapp::TrayCreate (HWND hwnd, UINT uid, UINT code, HICON h, bool is_hidden)
+bool rapp::TrayCreate (HWND hwnd, UINT uid, UINT code, HICON hicon, bool is_hidden)
 {
 	bool result = false;
 
@@ -776,7 +782,7 @@ bool rapp::TrayCreate (HWND hwnd, UINT uid, UINT code, HICON h, bool is_hidden)
 	nid.uID = uid;
 	nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_SHOWTIP | NIF_TIP;
 	nid.uCallbackMessage = code;
-	nid.hIcon = h;
+	nid.hIcon = hicon;
 	StringCchCopy (nid.szTip, _countof (nid.szTip), app_name);
 
 	if (is_hidden)
@@ -788,8 +794,8 @@ bool rapp::TrayCreate (HWND hwnd, UINT uid, UINT code, HICON h, bool is_hidden)
 
 	if (Shell_NotifyIcon (NIM_ADD, &nid))
 	{
-		result = true;
 		Shell_NotifyIcon (NIM_SETVERSION, &nid);
+		result = true;
 	}
 
 	return result;
@@ -819,6 +825,17 @@ bool rapp::TrayPopup (UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text)
 	nid.uFlags = NIF_INFO | NIF_REALTIME;
 	nid.dwInfoFlags = NIIF_LARGE_ICON | icon_id;
 	nid.uID = uid;
+
+	if (icon_id == NIIF_USER && IsVistaOrLater ())
+	{
+		nid.hBalloonIcon = GetHICON (true);
+	}
+#ifndef _APP_NO_WINXP
+	else
+	{
+		nid.dwInfoFlags = NIIF_INFO;
+	}
+#endif // _APP_NO_WINXP
 
 	// tooltip-visibility fix
 	if (nid.szTip[0])
@@ -973,17 +990,17 @@ void rapp::SettingsInitialize ()
 }
 #endif // _APP_NO_SETTINGS
 
-rstring rapp::GetBinaryPath () const
+LPCWSTR rapp::GetBinaryPath () const
 {
 	return app_binary;
 }
 
-rstring rapp::GetDirectory () const
+LPCWSTR rapp::GetDirectory () const
 {
 	return app_directory;
 }
 
-rstring rapp::GetProfileDirectory () const
+LPCWSTR rapp::GetProfileDirectory () const
 {
 	return app_profile_directory;
 }
@@ -996,6 +1013,14 @@ rstring rapp::GetUserAgent () const
 INT rapp::GetDPI (INT v) const
 {
 	return (INT)ceil (static_cast<DOUBLE>(v) * dpi_percent);
+}
+
+HICON rapp::GetHICON (bool is_big) const
+{
+	if (is_big)
+		return app_icon_big;
+
+	return app_icon_small;
 }
 
 HINSTANCE rapp::GetHINSTANCE () const
@@ -1157,7 +1182,7 @@ void rapp::LocaleInit ()
 
 	if (!name.IsEmpty ())
 	{
-		is_localized = ParseINI (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\%s.ini", GetDirectory (), name), &app_locale_array);
+		is_localized = ParseINI (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\%s.ini", GetDirectory (), name.GetString ()), &app_locale_array);
 
 		if (is_localized)
 		{
@@ -1201,12 +1226,15 @@ rstring rapp::LocaleString (HINSTANCE h, UINT uid, LPCWSTR name)
 	return result;
 }
 
-void rapp::LocaleMenu (HMENU menu, LPCWSTR text, UINT item, bool by_position) const
+void rapp::LocaleMenu (HMENU menu, LPCWSTR text, UINT item, bool by_position, LPCWSTR append) const
 {
 	if (text)
 	{
 		WCHAR buffer[128] = {0};
 		StringCchCopy (buffer, _countof (buffer), text);
+
+		if (append)
+			StringCchCat (buffer, _countof (buffer), append);
 
 		MENUITEMINFO mi = {0};
 
@@ -1273,6 +1301,9 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			this_ptr->settings_hwnd = hwnd;
 
+			SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)this_ptr->GetHICON (false));
+			SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)this_ptr->GetHICON (true));
+
 			// configure window
 			_r_wnd_center (hwnd);
 
@@ -1312,10 +1343,18 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			PAINTSTRUCT ps = {0};
 			HDC dc = BeginPaint (hwnd, &ps);
 
+			// calculate "x" position
 			RECT rc = {0};
-			GetClientRect (hwnd, &rc);
+			GetWindowRect (GetDlgItem (hwnd, IDC_NAV), &rc);
 
-			const INT pos_x = this_ptr->GetDPI (160);
+			INT pos_x = rc.right - rc.left;
+
+			// shift "x" position
+			MapWindowPoints (HWND_DESKTOP, hwnd, (LPPOINT)&rc, 2);
+			pos_x += rc.left + GetSystemMetrics (SM_CYBORDER);
+
+			// calculate "y" position
+			GetClientRect (hwnd, &rc);
 			const INT pos_y = rc.bottom - rc.top;
 
 			for (INT i = 0; i < pos_y; i++)
@@ -1470,7 +1509,7 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 
 				if (!bufferw.IsEmpty () && _r_str_versioncompare (this_ptr->app_version, bufferw) == -1)
 				{
-					if (_r_msg (this_ptr->GetHWND (), MB_YESNO | MB_ICONQUESTION, this_ptr->app_name, nullptr, I18N (this_ptr, IDS_UPDATE_YES, 0), bufferw) == IDYES)
+					if (_r_msg (this_ptr->GetHWND (), MB_YESNO | MB_ICONQUESTION, this_ptr->app_name, nullptr, I18N (this_ptr, IDS_UPDATE_YES, 0), bufferw.GetString ()) == IDYES)
 					{
 						ShellExecute (nullptr, nullptr, _r_fmt (_APP_UPDATE_URL, this_ptr->app_name_short), nullptr, nullptr, SW_SHOWDEFAULT);
 					}
@@ -1655,7 +1694,9 @@ bool rapp::SkipUacEnable (bool is_enable)
 
 							if (action_result && SUCCEEDED (folder->RegisterTaskDefinition (name.GetBuffer (), task, TASK_CREATE_OR_UPDATE, _variant_t (), _variant_t (), TASK_LOGON_INTERACTIVE_TOKEN, _variant_t (), &registered_task)))
 							{
+								ConfigSet (L"SkipUacIsEnabled", true);
 								result = true;
+
 								registered_task->Release ();
 							}
 
@@ -1665,6 +1706,7 @@ bool rapp::SkipUacEnable (bool is_enable)
 					else
 					{
 						result = SUCCEEDED (folder->DeleteTask (name.GetBuffer (), 0));
+						ConfigSet (L"SkipUacIsEnabled", false);
 					}
 
 					folder->Release ();
@@ -1675,8 +1717,6 @@ bool rapp::SkipUacEnable (bool is_enable)
 		}
 
 		CoUninitialize ();
-
-		ConfigSet (L"SkipUacIsEnabled", is_enable ? result : false);
 	}
 
 	return result;

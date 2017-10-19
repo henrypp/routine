@@ -18,6 +18,7 @@
 #include <process.h>
 #include <winhttp.h>
 #include <subauth.h>
+#include <sddl.h>
 
 #include "rconfig.hpp"
 #include "rstring.hpp"
@@ -45,13 +46,17 @@
 #define _R_SECONDSCLOCK_DAY(days)((_R_SECONDSCLOCK_HOUR (1) * 24) * (days))
 
 /*
-	Helper macroses
+	Color shader
 */
 
 #define _R_COLOR_SHADE(clr, percent) RGB ((BYTE)((float)GetRValue (clr) * percent / 100.0), (BYTE)((float)GetGValue (clr) * percent / 100.0), (BYTE)((float)GetBValue (clr) * percent / 100.0))
 
-#define _R_PERCENT_OF(val, total) INT(ceil((double(val) / double(total)) * 100.0))
-#define _R_PERCENT_VAL(val, total) INT(double(total) * double(val) / 100.0)
+/*
+	Percentage calculation
+*/
+
+#define _R_PERCENT_OF(val, total) INT(ceil((double((val)) / double((total))) * 100.0))
+#define _R_PERCENT_VAL(val, total) INT(double((total)) * double((val)) / 100.0)
 
 /*
 	Debug logging
@@ -155,7 +160,7 @@ void _r_fastlock_releaseshared (P_FASTLOCK plock);
 #define WMSG(a, ...) _r_msg (nullptr, 0, nullptr, nullptr, a, __VA_ARGS__)
 
 INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format, ...);
-bool _r_msg2 (const TASKDIALOGCONFIG* ptd, INT* pbutton, INT* pradiobutton, BOOL* pcheckbox); // vista TaskDialogIndirect
+bool _r_msg_taskdialog (const TASKDIALOGCONFIG* ptd, INT* pbutton, INT* pradiobutton, BOOL* pcheckbox); // vista TaskDialogIndirect
 HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR ref);
 
 /*
@@ -222,7 +227,7 @@ bool _r_sys_iswow64 ();
 #endif // _WIN64
 
 bool _r_sys_setsecurityattributes (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURITY_DESCRIPTOR sd);
-bool _r_sys_setprivilege (LPCWSTR privilege, bool is_enable);
+bool _r_sys_setprivilege (LPCWSTR privileges[], UINT count, bool is_enable);
 bool _r_sys_uacstate ();
 bool _r_sys_validversion (DWORD major, DWORD minor, DWORD build = 0, BYTE condition = VER_GREATER_EQUAL);
 void _r_sleep (DWORD milliseconds);
@@ -283,15 +288,15 @@ rstring _r_ctrl_gettext (HWND hwnd, UINT ctrl_id);
 void _r_ctrl_settext (HWND hwnd, UINT ctrl_id, LPCWSTR str, ...);
 
 bool _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text);
-bool _r_ctrl_showtip (HWND hwnd, UINT ctrl_id, LPCWSTR title, LPCWSTR text, INT icon);
+bool _r_ctrl_showtip (HWND hwnd, UINT ctrl_id, INT icon_id, LPCWSTR title, LPCWSTR text);
 
 /*
 	Control: listview
 */
 
-INT _r_listview_addcolumn (HWND hwnd, UINT ctrl_id, LPCWSTR text, UINT width, size_t subitem, INT fmt);
-INT _r_listview_addgroup (HWND hwnd, UINT ctrl_id, LPCWSTR text, size_t group_id, UINT align = 0, UINT state = 0);
-INT _r_listview_additem (HWND hwnd, UINT ctrl_id, LPCWSTR text, size_t item, size_t subitem, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
+INT _r_listview_addcolumn (HWND hwnd, UINT ctrl_id, size_t column_id, LPCWSTR text, UINT width, INT fmt);
+INT _r_listview_addgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR text, UINT align, UINT state);
+INT _r_listview_additem (HWND hwnd, UINT ctrl_id, size_t item_id, size_t subitem, LPCWSTR text, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
 
 void _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl_id);
 void _r_listview_deleteallgroups (HWND hwnd, UINT ctrl_id);
@@ -311,11 +316,9 @@ void _r_listview_redraw (HWND hwnd, UINT ctrl_id);
 DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle);
 void _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR text, INT width);
 void _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl_id, INT column_id, INT arrow);
-INT _r_listview_setitem (HWND hwnd, UINT ctrl_id, LPCWSTR text, size_t item, size_t subitem, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
-void _r_listview_setitemcheck (HWND hwnd, UINT ctrl_id, size_t item, bool state);
-void _r_listview_setitemgroup (HWND hwnd, UINT ctrl_id, size_t item, size_t group_id);
-void _r_listview_setitemlparam (HWND hwnd, UINT ctrl_id, UINT item, LPARAM param);
-void _r_listview_setgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR header, LPCWSTR footer);
+INT _r_listview_setitem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, LPCWSTR text, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
+BOOL _r_listview_setitemcheck (HWND hwnd, UINT ctrl_id, size_t item, bool state);
+INT _r_listview_setgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR title);
 
 /*
 	Control: treeview
@@ -646,6 +649,13 @@ typedef enum _SYSTEM_MEMORY_LIST_COMMAND
 	MemoryPurgeLowPriorityStandbyList,
 	MemoryCommandMax
 } SYSTEM_MEMORY_LIST_COMMAND;
+
+typedef struct _MEMORY_COMBINE_INFORMATION_EX
+{
+	HANDLE Handle;
+	ULONG_PTR PagesCombined;
+	ULONG Flags;
+} MEMORY_COMBINE_INFORMATION_EX, *PMEMORY_COMBINE_INFORMATION_EX;
 
 extern "C" {
 	NTSYSCALLAPI

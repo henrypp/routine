@@ -14,8 +14,7 @@ const size_t rstring::npos = MAXDWORD64;
 #pragma warning(pop)
 
 rstring::rstring (): data_ (nullptr)
-{
-}
+{}
 
 rstring::rstring (const rstring& other) : data_ (nullptr)
 {
@@ -173,7 +172,7 @@ bool rstring::operator> (LPCWSTR str) const
 	return Compare (str) > 0;
 }
 
-WCHAR rstring::operator[] (const size_t index) const
+const WCHAR rstring::operator[] (const size_t index) const
 {
 	return At (index);
 }
@@ -223,26 +222,6 @@ rstring& rstring::operator= (rstring&& other)
 		other.data_ = nullptr;
 	}
 	return *this;
-}
-
-rstring& rstring::operator+= (const rstring& other)
-{
-	return Append (other);
-}
-
-rstring& rstring::operator+= (LPCWSTR str)
-{
-	return Append (str);
-}
-
-rstring operator+ (const rstring& str1, const rstring& str2)
-{
-	return str1.Appended (str2);
-}
-
-rstring operator+ (const rstring& str1, LPCWSTR str2)
-{
-	return str1.Appended (str2);
 }
 
 WCHAR& rstring::At (size_t index) const
@@ -394,7 +373,7 @@ rstring& rstring::Append (const rstring& other)
 		}
 		else
 		{
-			size_t oldLength = thisBuffer->length;
+			const size_t oldLength = thisBuffer->length;
 			if (thisBuffer == otherBuffer)
 			{
 				thisBuffer = ReallocateUnique (thisBuffer->length + thisBuffer->length);
@@ -410,14 +389,14 @@ rstring& rstring::Append (const rstring& other)
 	return *this;
 }
 
-rstring&rstring::Append (LPCWSTR str)
+rstring& rstring::Append (LPCWSTR str)
 {
-	if (str && str[0])
+	if (str)
 	{
 		Buffer* thisBuffer = toBuffer ();
 		if (!thisBuffer)
 		{
-			size_t length = wcslen (str);
+			const size_t length = wcslen (str);
 			if (length)
 			{
 				ReallocateUnique (length);
@@ -426,24 +405,24 @@ rstring&rstring::Append (LPCWSTR str)
 		}
 		else if (str == data_)
 		{
-			size_t oldLength = thisBuffer->length;
+			const size_t oldLength = thisBuffer->length;
 
 			thisBuffer = ReallocateUnique (thisBuffer->length + thisBuffer->length);
 			wmemmove_s (&thisBuffer->data[oldLength], oldLength, thisBuffer->data, oldLength);
 		}
 		else if (str > data_ && str < (data_ + thisBuffer->length))
 		{
-			size_t offset = str - data_;
-			size_t length = thisBuffer->length - offset;
-			size_t oldLength = thisBuffer->length;
+			const size_t offset = str - data_;
+			const size_t length = thisBuffer->length - offset;
+			const size_t oldLength = thisBuffer->length;
 			thisBuffer = ReallocateUnique (thisBuffer->length + length);
 			str = data_ + offset;
 			wmemmove_s (&thisBuffer->data[oldLength], length, str, length);
 		}
 		else
 		{
-			size_t length = wcslen (str);
-			size_t oldLength = thisBuffer->length;
+			const size_t length = wcslen (str);
+			const size_t oldLength = thisBuffer->length;
 			thisBuffer = ReallocateUnique (oldLength + length);
 			wmemmove_s (&thisBuffer->data[oldLength], length, str, length);
 		}
@@ -451,29 +430,41 @@ rstring&rstring::Append (LPCWSTR str)
 	return *this;
 }
 
-rstring& rstring::Insert (LPCWSTR text, size_t pos)
+rstring& rstring::AppendFormat (LPCWSTR str, ...)
 {
-	size_t textLength = wcslen (text);
-	if (text && textLength)
+	rstring p;
+
+	va_list args;
+	va_start (args, str);
+	p.FormatV (str, args);
+	va_end (args);
+
+	return Append (p);
+}
+
+rstring& rstring::Insert (size_t pos, LPCWSTR str)
+{
+	size_t textLength = wcslen (str);
+	if (str && textLength)
 	{
 		Buffer* thisBuffer = toBuffer ();
 		if (thisBuffer)
 		{
 			if (pos >= thisBuffer->length)
 			{
-				Append (text);
+				Append (str);
 			}
 			else
 			{
-				if ((text >= data_) && (text < (data_ + thisBuffer->length)))
+				if ((str >= data_) && (str < (data_ + thisBuffer->length)))
 				{
-					size_t offset = text - data_;
+					const size_t offset = str - data_;
 					if (textLength > (thisBuffer->length - offset))
 					{
 						textLength = thisBuffer->length - offset;
 					}
-					rstring s (text, textLength);
-					size_t oldLength = thisBuffer->length;
+					rstring s (str, textLength);
+					const size_t oldLength = thisBuffer->length;
 					thisBuffer = ReallocateUnique (oldLength + textLength);
 					memmove (&thisBuffer->data[pos + textLength], &thisBuffer->data[pos], (oldLength - pos) * sizeof (WCHAR));
 					memmove (&thisBuffer->data[pos], s.GetBuffer (), textLength * sizeof (WCHAR));
@@ -481,20 +472,32 @@ rstring& rstring::Insert (LPCWSTR text, size_t pos)
 				}
 				else
 				{
-					size_t oldLength = thisBuffer->length;
+					const size_t oldLength = thisBuffer->length;
 					thisBuffer = ReallocateUnique (oldLength + textLength);
 					memmove (&thisBuffer->data[pos + textLength], &thisBuffer->data[pos], (oldLength - pos) * sizeof (WCHAR));
-					memcpy (&thisBuffer->data[pos], text, textLength * sizeof (WCHAR));
+					memcpy (&thisBuffer->data[pos], str, textLength * sizeof (WCHAR));
 				}
 			}
 		}
 		else
 		{
 			thisBuffer = allocate (textLength);
-			memmove (thisBuffer->data, text, textLength * sizeof (WCHAR));
+			memmove (thisBuffer->data, str, textLength * sizeof (WCHAR));
 		}
 	}
 	return *this;
+}
+
+rstring& rstring::InsertFormat (size_t pos, LPCWSTR str, ...)
+{
+	rstring p;
+
+	va_list args;
+	va_start (args, str);
+	p.FormatV (str, args);
+	va_end (args);
+
+	return Insert (pos, p);
 }
 
 rstring& rstring::Mid (size_t start, size_t length)
