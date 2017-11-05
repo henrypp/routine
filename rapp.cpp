@@ -112,7 +112,7 @@ bool rapp::InitializeMutex ()
 
 	app_mutex = CreateMutex (&sa, FALSE, app_name_short);
 
-	return true;
+	return (app_mutex != nullptr);
 }
 
 bool rapp::UninitializeMutex ()
@@ -120,7 +120,6 @@ bool rapp::UninitializeMutex ()
 	if (app_mutex)
 	{
 		CloseHandle (app_mutex);
-
 		app_mutex = nullptr;
 
 		return true;
@@ -205,14 +204,29 @@ bool rapp::AutorunEnable (bool is_enable)
 	bool result = false;
 	HKEY key = nullptr;
 
-	if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE | KEY_READ, &key) == ERROR_SUCCESS)
+//#ifdef _APP_NO_GUEST
+//	const HKEY hroot = HKEY_LOCAL_MACHINE;
+//
+//	// remove old HKCU entry
+//	{
+//		HKEY key2 = nullptr;
+//
+//		if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE | KEY_READ, &key2) == ERROR_SUCCESS)
+//		{
+//			RegDeleteValue (key2, app_name);
+//			RegCloseKey (key2);
+//		}
+//	}
+//#else
+	const HKEY hroot = HKEY_CURRENT_USER;
+//#endif // _APP_NO_GUEST
+
+	if (RegOpenKeyEx (hroot, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE | KEY_READ, &key) == ERROR_SUCCESS)
 	{
 		if (is_enable)
 		{
 			WCHAR buffer[MAX_PATH] = {0};
-			StringCchCopy (buffer, _countof (buffer), GetBinaryPath ());
-			PathQuoteSpaces (buffer);
-			StringCchCat (buffer, _countof (buffer), L" /minimized");
+			StringCchPrintf (buffer, _countof (buffer), L"\"%s\" /minimized", GetBinaryPath ());
 
 			result = (RegSetValueEx (key, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) + 1) * sizeof (WCHAR))) == ERROR_SUCCESS);
 
@@ -226,7 +240,6 @@ bool rapp::AutorunEnable (bool is_enable)
 
 			result = true;
 		}
-
 
 		RegCloseKey (key);
 	}
@@ -449,8 +462,8 @@ void rapp::SetIcon (UINT icon_id)
 	app_icon_small = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (icon_id), GetSystemMetrics (SM_CXSMICON));
 	app_icon_big = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (icon_id), GetSystemMetrics (SM_CXICON));
 
-	SendMessage (GetHWND (), WM_SETICON, ICON_SMALL, (LPARAM)app_icon_small);
-	SendMessage (GetHWND (), WM_SETICON, ICON_BIG, (LPARAM)app_icon_big);
+	PostMessage (GetHWND (), WM_SETICON, ICON_SMALL, (LPARAM)app_icon_small);
+	PostMessage (GetHWND (), WM_SETICON, ICON_BIG, (LPARAM)app_icon_big);
 }
 
 LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
@@ -613,19 +626,19 @@ bool rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 	if (CheckMutex (true))
 		return false;
 
-#ifdef _APP_HAVE_SKIPUAC
+#if defined(_APP_HAVE_SKIPUAC) || defined(_APP_NO_GUEST)
 	if (RunAsAdmin ())
 		return false;
 
 #ifdef _APP_NO_GUEST
 	if (!IsAdmin ())
 	{
-		_r_msg (nullptr, MB_OK | MB_ICONSTOP, app_name, L"Application required administrative privileges!", nullptr);
+		_r_msg (nullptr, MB_OK | MB_ICONSTOP, app_name, L"No rights!", L"%s required administrative privileges!", app_name);
 		return false;
 	}
 #endif // _APP_NO_GUEST
 
-#endif // _APP_HAVE_SKIPUAC
+#endif // _APP_HAVE_SKIPUAC || _APP_NO_GUEST
 
 	InitializeMutex ();
 
@@ -1277,9 +1290,9 @@ INT_PTR CALLBACK rapp::SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LP
 				wmsg.wParam = wparam;
 				wmsg.lParam = lparam;
 
-				PAPP_SETTINGS_PAGE const ptr = this_ptr->app_settings_pages.at (this_ptr->settings_page_id);
+				PAPP_SETTINGS_PAGE const ptr_page = this_ptr->app_settings_pages.at (this_ptr->settings_page_id);
 
-				return this_ptr->app_settings_callback (hwnd, _RM_MESSAGE, &wmsg, ptr);
+				return this_ptr->app_settings_callback (hwnd, _RM_MESSAGE, &wmsg, ptr_page);
 			}
 
 			break;
@@ -1301,8 +1314,8 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			this_ptr->settings_hwnd = hwnd;
 
-			SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)this_ptr->GetHICON (false));
-			SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)this_ptr->GetHICON (true));
+			PostMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)this_ptr->GetHICON (false));
+			PostMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)this_ptr->GetHICON (true));
 
 			// configure window
 			_r_wnd_center (hwnd);
@@ -1678,7 +1691,10 @@ bool rapp::SkipUacEnable (bool is_enable)
 										WCHAR path[MAX_PATH] = {0};
 										StringCchCopy (path, _countof (path), GetBinaryPath ());
 
-										if (SUCCEEDED (exec_action->put_Path (path)) && SUCCEEDED (exec_action->put_Arguments (L"$(Arg0)")))
+										WCHAR directory[MAX_PATH] = {0};
+										StringCchCopy (directory, _countof (directory), GetDirectory ());
+
+										if (SUCCEEDED (exec_action->put_Path (path)) && SUCCEEDED (exec_action->put_WorkingDirectory (directory)) && SUCCEEDED (exec_action->put_Arguments (L"$(Arg0)")))
 										{
 											action_result = true;
 										}
@@ -1792,11 +1808,9 @@ bool rapp::SkipUacRun ()
 												}
 
 												LocalFree (arga);
-
-												args.Trim (L" ");
 											}
 
-											variant_t ticker = args;
+											variant_t ticker = args.Trim (L" ");
 
 											if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_AS_SELF, 0, nullptr, &running_task)) && running_task)
 											{
@@ -1857,7 +1871,7 @@ bool rapp::RunAsAdmin ()
 {
 	bool result = false;
 
-	if (_r_sys_uacstate ())
+	if (!IsAdmin ())
 	{
 #ifdef _APP_HAVE_SKIPUAC
 		result = SkipUacRun ();
@@ -1874,16 +1888,19 @@ bool rapp::RunAsAdmin ()
 			WCHAR path[MAX_PATH] = {0};
 			StringCchCopy (path, _countof (path), GetBinaryPath ());
 
+			WCHAR directory[MAX_PATH] = {0};
+			StringCchCopy (directory, _countof (directory), GetDirectory ());
+
 			WCHAR args[MAX_PATH] = {0};
 			StringCchCopy (args, _countof (args), GetCommandLine ());
 
 			shex.cbSize = sizeof (shex);
-			shex.fMask = SEE_MASK_UNICODE | SEE_MASK_NOZONECHECKS;
+			shex.fMask = SEE_MASK_UNICODE | SEE_MASK_NOZONECHECKS | SEE_MASK_FLAG_NO_UI;
 			shex.lpVerb = L"runas";
 			shex.nShow = SW_NORMAL;
 			shex.lpFile = path;
+			shex.lpDirectory = directory;
 			shex.lpParameters = args;
-			shex.lpDirectory = GetDirectory ();
 
 			if (ShellExecuteEx (&shex))
 			{

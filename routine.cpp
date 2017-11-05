@@ -88,7 +88,7 @@ rstring _r_dbg_getpath (LPCWSTR appname)
 
 	StringCchCat (result, _countof (result), L"\\");
 	StringCchCat (result, _countof (result), appname);
-	StringCchCat (result, _countof (result), L".log");
+	StringCchCat (result, _countof (result), L"_error.log");
 
 	return result;
 }
@@ -178,7 +178,7 @@ ULONG _r_fastlock_islocked (P_FASTLOCK plock)
 static DWORD _r_fastlock_getspincount ()
 {
 	SYSTEM_INFO si = {0};
-	GetSystemInfo (&si);
+	GetNativeSystemInfo (&si);
 
 	if (si.dwNumberOfProcessors > 1)
 		return 4000;
@@ -1339,6 +1339,25 @@ __time64_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst)
 /*
 	Optimized version of WinAPI function "FillRect"
 */
+
+ULONG _r_dc_getcolorbrightness (COLORREF clr)
+{
+	ULONG r = clr & 0xff;
+	ULONG g = (clr >> 8) & 0xff;
+	ULONG b = (clr >> 16) & 0xff;
+	ULONG min = 0;
+	ULONG max = 0;
+
+	min = r;
+	if (g < min) min = g;
+	if (b < min) min = b;
+
+	max = r;
+	if (g > max) max = g;
+	if (b > max) max = b;
+
+	return (min + max) / 2;
+}
 
 void _r_dc_fillrect (HDC dc, LPRECT rc, COLORREF clr)
 {

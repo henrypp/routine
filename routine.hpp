@@ -246,6 +246,7 @@ __time64_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst);
 	Painting
 */
 
+ULONG _r_dc_getcolorbrightness (COLORREF clr);
 void _r_dc_fillrect (HDC dc, LPRECT rc, COLORREF clr);
 int _r_dc_fontsizetoheight (INT size);
 int _r_dc_fontheighttosize (INT size);
