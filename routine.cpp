@@ -1406,9 +1406,7 @@ void _r_wnd_center (HWND hwnd)
 	RECT rc_child = {0}, rc_parent = {0};
 
 	if (!IsWindowVisible (parent) || IsIconic (parent))
-	{
 		parent = GetDesktopWindow ();
-	}
 
 	GetWindowRect (hwnd, &rc_child);
 	GetWindowRect (parent, &rc_parent);

@@ -204,22 +204,22 @@ bool rapp::AutorunEnable (bool is_enable)
 	bool result = false;
 	HKEY key = nullptr;
 
-//#ifdef _APP_NO_GUEST
-//	const HKEY hroot = HKEY_LOCAL_MACHINE;
-//
-//	// remove old HKCU entry
-//	{
-//		HKEY key2 = nullptr;
-//
-//		if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE | KEY_READ, &key2) == ERROR_SUCCESS)
-//		{
-//			RegDeleteValue (key2, app_name);
-//			RegCloseKey (key2);
-//		}
-//	}
-//#else
+	//#ifdef _APP_NO_GUEST
+	//	const HKEY hroot = HKEY_LOCAL_MACHINE;
+	//
+	//	// remove old HKCU entry
+	//	{
+	//		HKEY key2 = nullptr;
+	//
+	//		if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE | KEY_READ, &key2) == ERROR_SUCCESS)
+	//		{
+	//			RegDeleteValue (key2, app_name);
+	//			RegCloseKey (key2);
+	//		}
+	//	}
+	//#else
 	const HKEY hroot = HKEY_CURRENT_USER;
-//#endif // _APP_NO_GUEST
+	//#endif // _APP_NO_GUEST
 
 	if (RegOpenKeyEx (hroot, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE | KEY_READ, &key) == ERROR_SUCCESS)
 	{
@@ -386,23 +386,22 @@ void rapp::CreateDonateWindow ()
 		BOOL is_flagchecked = FALSE;
 
 		WCHAR title[64] = {0};
-		StringCchCopy (title, _countof (title), I18N (this, IDS_DONATE, 0));
-
+		WCHAR checkbox[64] = {0};
 		WCHAR content[256] = {0};
+
+		StringCchCopy (title, _countof (title), I18N (this, IDS_DONATE, 0));
+		StringCchCopy (checkbox, _countof (checkbox), I18N (this, IDS_SHOWATSTARTUP_CHK, 0));
 		StringCchCopy (content, _countof (content), I18N (this, IDS_DONATE_TEXT, 0));
 
-		WCHAR checkbox[64] = {0};
-		StringCchCopy (checkbox, _countof (checkbox), I18N (this, IDS_SHOWATSTARTUP_CHK, 0));
-
 		tdc.cbSize = sizeof (tdc);
-		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_USE_COMMAND_LINKS;
+		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_USE_COMMAND_LINKS | TDF_USE_HICON_MAIN;
 		tdc.hwndParent = GetHWND ();
 		tdc.pfCallback = &_r_msg_callback;
 		tdc.pszWindowTitle = app_name;
 		tdc.pszMainInstruction = title;
 		tdc.pszContent = content;
 		tdc.pszVerificationText = checkbox;
-		tdc.pszMainIcon = TD_INFORMATION_ICON;
+		tdc.hMainIcon = GetHICON (true);
 		tdc.dwCommonButtons = TDCBF_CLOSE_BUTTON;
 
 		tdc.nDefaultButton = IDCLOSE;
@@ -425,6 +424,7 @@ void rapp::CreateDonateWindow ()
 
 			if (result == 100)
 				ShellExecute (GetHWND (), nullptr, _APP_DONATE_URL_BTC, nullptr, nullptr, SW_SHOWDEFAULT);
+
 			else if (result == 101)
 				ShellExecute (GetHWND (), nullptr, _APP_DONATE_URL_PAYPAL, nullptr, nullptr, SW_SHOWDEFAULT);
 		}
@@ -700,9 +700,7 @@ bool rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 			}
 
 			if (GetClientRect (GetHWND (), &rc))
-			{
 				SendMessage (GetHWND (), WM_SIZE, 0, MAKELPARAM ((rc.right - rc.left), (rc.bottom - rc.top)));
-			}
 
 			// restore window position
 			const INT xpos = ConfigGet (L"WindowPosX", 0).AsInt ();
@@ -719,9 +717,8 @@ bool rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 		}
 #endif // _APP_HAVE_SIZING
 
+		bool is_minimized = false;
 		{
-			bool is_minimized = false;
-
 			// show window minimized
 #ifdef _APP_STARTMINIMIZED
 			is_minimized = true;
@@ -771,7 +768,7 @@ bool rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 			DrawMenuBar (GetHWND ()); // redraw menu
 		}
 
-		if (IsVistaOrLater () && ConfigGet (L"IsShowDonateAtStartup", true).AsBool ())
+		if (!is_minimized && IsVistaOrLater () && ConfigGet (L"IsShowDonateAtStartup", true).AsBool ())
 			CreateDonateWindow ();
 
 		result = true;
