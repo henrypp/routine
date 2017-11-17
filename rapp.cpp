@@ -998,6 +998,25 @@ void rapp::SettingsInitialize ()
 		text.Clear ();
 	}
 }
+
+void rapp::SettingsPageInitialize (UINT dlg_id, bool is_localize)
+{
+	if (!app_settings_callback)
+		return;
+
+	for (size_t i = 0; i < app_settings_pages.size (); i++)
+	{
+		APP_SETTINGS_PAGE *ppage = app_settings_pages.at (i);
+
+		if (ppage && ppage->dlg_id == dlg_id)
+		{
+			app_settings_callback (ppage->hwnd, _RM_INITIALIZE, 0, ppage);
+
+			if (is_localize)
+				app_settings_callback (ppage->hwnd, _RM_LOCALIZE, 0, ppage);
+		}
+	}
+}
 #endif // _APP_NO_SETTINGS
 
 LPCWSTR rapp::GetBinaryPath () const
@@ -1326,20 +1345,20 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 			{
-				PAPP_SETTINGS_PAGE ptr = this_ptr->app_settings_pages.at (i);
+				PAPP_SETTINGS_PAGE ppage = this_ptr->app_settings_pages.at (i);
 
-				if (ptr)
+				if (ppage)
 				{
-					if (ptr->dlg_id)
+					if (ppage->dlg_id)
 					{
-						ptr->hwnd = CreateDialogParam (ptr->h, MAKEINTRESOURCE (ptr->dlg_id), hwnd, &this_ptr->SettingsPagesProc, (LPARAM)this_ptr);
-						this_ptr->app_settings_callback (ptr->hwnd, _RM_INITIALIZE, nullptr, ptr);
+						ppage->hwnd = CreateDialogParam (ppage->h, MAKEINTRESOURCE (ppage->dlg_id), hwnd, &this_ptr->SettingsPagesProc, (LPARAM)this_ptr);
+						this_ptr->app_settings_callback (ppage->hwnd, _RM_INITIALIZE, nullptr, ppage);
 					}
 
-					ptr->item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr->h, ptr->locale_id, ptr->locale_sid), ((ptr->group_id == LAST_VALUE) ? nullptr : this_ptr->app_settings_pages.at (ptr->group_id)->item), LAST_VALUE, (LPARAM)i);
+					ppage->item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ppage->h, ppage->locale_id, ppage->locale_sid), ((ppage->group_id == LAST_VALUE) ? nullptr : this_ptr->app_settings_pages.at (ppage->group_id)->item), LAST_VALUE, (LPARAM)i);
 
-					if (dlg_id == ptr->dlg_id)
-						SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)ptr->item);
+					if (dlg_id == ppage->dlg_id)
+						SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)ppage->item);
 				}
 			}
 

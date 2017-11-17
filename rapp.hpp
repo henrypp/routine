@@ -106,6 +106,7 @@ public:
 
 	HWND SettingsGetWindow ();
 	void SettingsInitialize ();
+	void SettingsPageInitialize (UINT dlg_id, bool is_localize);
 #endif // _APP_NO_SETTINGS
 
 	LPCWSTR GetBinaryPath () const;
