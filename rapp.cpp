@@ -204,22 +204,7 @@ bool rapp::AutorunEnable (bool is_enable)
 	bool result = false;
 	HKEY key = nullptr;
 
-	//#ifdef _APP_NO_GUEST
-	//	const HKEY hroot = HKEY_LOCAL_MACHINE;
-	//
-	//	// remove old HKCU entry
-	//	{
-	//		HKEY key2 = nullptr;
-	//
-	//		if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE | KEY_READ, &key2) == ERROR_SUCCESS)
-	//		{
-	//			RegDeleteValue (key2, app_name);
-	//			RegCloseKey (key2);
-	//		}
-	//	}
-	//#else
 	const HKEY hroot = HKEY_CURRENT_USER;
-	//#endif // _APP_NO_GUEST
 
 	if (RegOpenKeyEx (hroot, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE | KEY_READ, &key) == ERROR_SUCCESS)
 	{
@@ -999,9 +984,9 @@ void rapp::SettingsInitialize ()
 	}
 }
 
-void rapp::SettingsPageInitialize (UINT dlg_id, bool is_localize)
+void rapp::SettingsPageInitialize (UINT dlg_id, bool is_initialize, bool is_localize)
 {
-	if (!app_settings_callback)
+	if (!app_settings_callback || (!is_initialize && !is_localize))
 		return;
 
 	for (size_t i = 0; i < app_settings_pages.size (); i++)
@@ -1010,7 +995,8 @@ void rapp::SettingsPageInitialize (UINT dlg_id, bool is_localize)
 
 		if (ppage && ppage->dlg_id == dlg_id)
 		{
-			app_settings_callback (ppage->hwnd, _RM_INITIALIZE, 0, ppage);
+			if (is_initialize)
+				app_settings_callback (ppage->hwnd, _RM_INITIALIZE, 0, ppage);
 
 			if (is_localize)
 				app_settings_callback (ppage->hwnd, _RM_LOCALIZE, 0, ppage);

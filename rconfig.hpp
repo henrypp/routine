@@ -67,7 +67,11 @@
 #endif // _APP_UPDATE_URL
 
 #ifndef _APP_UPDATE_PERIOD
-#	define _APP_UPDATE_PERIOD _R_SECONDSCLOCK_DAY (2) // update checking period (sec.)
+#if defined(_APP_BETA) || defined(_APP_BETA_RC)
+#	define _APP_UPDATE_PERIOD _R_SECONDSCLOCK_HOUR (12) // update checking period for beta is 12 hours
+#else
+#	define _APP_UPDATE_PERIOD _R_SECONDSCLOCK_HOUR (48) // update checking period for stable is 48 hours
+#endif // _APP_BETA || _APP_BETA_RC
 #endif // _APP_UPDATE_PERIOD
 
 #define _APP_I18N_DIRECTORY L"i18n"
