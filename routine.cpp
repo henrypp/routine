@@ -889,9 +889,9 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 	if (path.IsEmpty ())
 		return ERROR_BAD_ARGUMENTS;
 
-	HANDLE h = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_NO_BUFFERING, nullptr);
+	HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_NO_BUFFERING, nullptr);
 
-	if (h == INVALID_HANDLE_VALUE)
+	if (hfile == INVALID_HANDLE_VALUE)
 	{
 		return GetLastError ();
 	}
@@ -907,11 +907,11 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 		// IMPORTANT: The return value from NtQueryObject is bullshit! (driver bug?)
 		// - The function may return STATUS_NOT_SUPPORTED although it has successfully written to the buffer.
 		// - The function returns STATUS_SUCCESS although h_File == 0xFFFFFFFF
-		NtQueryObject (h, ObjectNameInformation, buffer, sizeof (buffer), &required_length);
+		NtQueryObject (hfile, ObjectNameInformation, buffer, sizeof (buffer), &required_length);
 
 		if (!pk_Info->Length || !pk_Info->Buffer)
 		{
-			CloseHandle (h);
+			CloseHandle (hfile);
 			return ERROR_FILE_NOT_FOUND;
 		}
 		else
@@ -922,7 +922,7 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 			path.ToLower (); // lower is imoprtant!
 		}
 
-		CloseHandle (h);
+		CloseHandle (hfile);
 	}
 
 	return ERROR_SUCCESS;
