@@ -80,7 +80,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	if (!app_config_path[0] || !_r_fs_exists (app_config_path))
 		StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s.ini", GetDirectory (), app_name_short);
 
-	if (!_r_fs_exists (app_config_path))
+	if (!_r_fs_exists (app_config_path) && !_r_fs_exists (_r_fmt (L"%s\\portable.dat", GetDirectory ())))
 	{
 		StringCchCopy (app_profile_directory, _countof (app_profile_directory), _r_path_expand (L"%APPDATA%\\" _APP_AUTHOR L"\\"));
 		StringCchCat (app_profile_directory, _countof (app_profile_directory), app_name);
