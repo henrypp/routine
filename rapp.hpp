@@ -34,7 +34,7 @@ typedef BOOL (*APPLICATION_CALLBACK) (HWND hwnd, DWORD msg, LPVOID lpdata1, LPVO
 #ifndef _APP_NO_SETTINGS
 typedef struct
 {
-	HINSTANCE h = nullptr;
+	HINSTANCE hinst = nullptr;
 	HTREEITEM item = nullptr;
 	HWND hwnd = nullptr;
 
@@ -72,8 +72,8 @@ public:
 	void CheckForUpdates (bool is_periodical);
 #endif // _APP_NO_UPDATES
 
-	rstring ConfigGet (LPCWSTR key, INT def, LPCWSTR name = nullptr) const;
-	rstring ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name = nullptr) const;
+	rstring ConfigGet (LPCWSTR key, INT def, LPCWSTR name = nullptr);
+	rstring ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name = nullptr);
 
 	bool ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name = nullptr);
 	bool ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name = nullptr);
@@ -120,7 +120,7 @@ public:
 	HINSTANCE GetHINSTANCE () const;
 	HWND GetHWND () const;
 
-	void SetIcon (UINT icon_id);
+	void SetIcon (HWND hwnd, UINT icon_id, bool is_forced);
 
 	bool IsAdmin () const;
 	bool IsClassicUI () const;
@@ -200,6 +200,7 @@ private:
 	WCHAR app_name_short[MAX_PATH];
 	WCHAR app_version[MAX_PATH];
 	WCHAR app_copyright[MAX_PATH];
+	WCHAR app_useragent[MAX_PATH];
 
 	WCHAR default_locale[LOCALE_NAME_MAX_LENGTH];
 
@@ -221,4 +222,5 @@ private:
 	HWND settings_hwnd = nullptr;
 #endif // _APP_NO_SETTINGS
 
+	_R_FASTLOCK lock;
 };

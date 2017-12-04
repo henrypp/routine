@@ -167,7 +167,6 @@ rstring _r_fmt_size64 (ULONGLONG size)
 	https://github.com/processhacker2/processhacker
 */
 
-#ifdef _APP_HAVE_FASTLOCK
 ULONG _r_fastlock_islocked (P_FASTLOCK plock)
 {
 	const ULONG value = plock->Value;
@@ -332,7 +331,6 @@ void _r_fastlock_releaseshared (P_FASTLOCK plock)
 		YieldProcessor ();
 	}
 }
-#endif // _APP_HAVE_FASTLOCK
 
 /*
 	System messages
@@ -468,16 +466,14 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 bool _r_msg_taskdialog (const TASKDIALOGCONFIG* ptd, INT* pbutton, INT* pradiobutton, BOOL* pcheckbox)
 {
 #ifndef _APP_NO_WINXP
-	TDI _TaskDialogIndirect = (TDI)GetProcAddress (GetModuleHandle (L"comctl32.dll"), "TaskDialogIndirect");
+	const TDI _TaskDialogIndirect = (TDI)GetProcAddress (GetModuleHandle (L"comctl32.dll"), "TaskDialogIndirect");
 
 	if (_TaskDialogIndirect)
 		return (_TaskDialogIndirect (ptd, pbutton, pradiobutton, pcheckbox) == S_OK);
 
 	return false;
 #else
-
 	return (TaskDialogIndirect (ptd, pbutton, pradiobutton, pcheckbox) == S_OK);
-
 #endif // _APP_NO_WINXP
 }
 
@@ -629,12 +625,10 @@ bool _r_fs_mkdir (LPCWSTR path)
 {
 	bool result = false;
 
-	SHCDEX _SHCreateDirectoryEx = (SHCDEX)GetProcAddress (GetModuleHandle (L"shell32.dll"), "SHCreateDirectoryExW");
+	const SHCDEX _SHCreateDirectoryEx = (SHCDEX)GetProcAddress (GetModuleHandle (L"shell32.dll"), "SHCreateDirectoryExW");
 
 	if (_SHCreateDirectoryEx)
-	{
 		result = _SHCreateDirectoryEx (nullptr, path, nullptr) == ERROR_SUCCESS;
-	}
 
 	if (!result)
 	{
@@ -939,7 +933,7 @@ BOOL _r_process_getpath (HANDLE h, LPWSTR path, DWORD length)
 
 	if (path)
 	{
-		QFPIN _QueryFullProcessImageName = (QFPIN)GetProcAddress (GetModuleHandle (L"kernel32.dll"), "QueryFullProcessImageNameW");
+		const QFPIN _QueryFullProcessImageName = (QFPIN)GetProcAddress (GetModuleHandle (L"kernel32.dll"), "QueryFullProcessImageNameW");
 
 		if (_QueryFullProcessImageName)
 		{
@@ -1167,12 +1161,10 @@ bool _r_sys_iswow64 ()
 	// Use GetModuleHandle to get a handle to the DLL that contains the function
 	// and GetProcAddress to get a pointer to the function if available.
 
-	IW64P _IsWow64Process = (IW64P)GetProcAddress (GetModuleHandle (L"kernel32.dll"), "IsWow64Process");
+	const IW64P _IsWow64Process = (IW64P)GetProcAddress (GetModuleHandle (L"kernel32.dll"), "IsWow64Process");
 
 	if (_IsWow64Process)
-	{
 		_IsWow64Process (GetCurrentProcess (), &result);
-	}
 
 	if (result)
 		return true;
@@ -1340,7 +1332,7 @@ __time64_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst)
 	Optimized version of WinAPI function "FillRect"
 */
 
-ULONG _r_dc_getcolorbrightness (COLORREF clr)
+COLORREF _r_dc_getcolorbrightness (COLORREF clr)
 {
 	ULONG r = clr & 0xff;
 	ULONG g = (clr >> 8) & 0xff;
@@ -1356,7 +1348,10 @@ ULONG _r_dc_getcolorbrightness (COLORREF clr)
 	if (g > max) max = g;
 	if (b > max) max = b;
 
-	return (min + max) / 2;
+	if (((min + max) / 2) > 100)
+		return RGB (0x00, 0x00, 0x00);
+	
+	return RGB (0xff, 0xff, 0xff);
 }
 
 void _r_dc_fillrect (HDC dc, LPRECT rc, COLORREF clr)
@@ -1428,7 +1423,7 @@ void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 {
 	if (_r_sys_validversion (6, 0))
 	{
-		CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (GetModuleHandle (L"user32.dll"), "ChangeWindowMessageFilterEx"); // win7 and later
+		const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (GetModuleHandle (L"user32.dll"), "ChangeWindowMessageFilterEx"); // win7 and later
 
 		if (_ChangeWindowMessageFilterEx)
 		{
@@ -1436,12 +1431,10 @@ void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 		}
 		else
 		{
-			CWMF _ChangeWindowMessageFilter = (CWMF)GetProcAddress (GetModuleHandle (L"user32.dll"), "ChangeWindowMessageFilter"); // vista
+			const CWMF _ChangeWindowMessageFilter = (CWMF)GetProcAddress (GetModuleHandle (L"user32.dll"), "ChangeWindowMessageFilter"); // vista
 
 			if (_ChangeWindowMessageFilter)
-			{
 				_ChangeWindowMessageFilter (msg, action);
-			}
 		}
 	}
 }
@@ -1678,18 +1671,14 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d)
 {
 	HICON result = nullptr;
 
-	LIWSD _LoadIconWithScaleDown = (LIWSD)GetProcAddress (GetModuleHandle (L"comctl32.dll"), "LoadIconWithScaleDown");
+	const LIWSD _LoadIconWithScaleDown = (LIWSD)GetProcAddress (GetModuleHandle (L"comctl32.dll"), "LoadIconWithScaleDown");
 
 	if (_LoadIconWithScaleDown)
-	{
 		_LoadIconWithScaleDown (h, name, d, d, &result);
-	}
 
 #ifndef _APP_NO_WINXP
 	if (!result)
-	{
 		result = (HICON)LoadImage (h, name, IMAGE_ICON, d, d, 0);
-	}
 #endif // _APP_NO_WINXP
 
 	return result;

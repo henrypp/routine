@@ -96,7 +96,6 @@ rstring _r_fmt_size64 (ULONGLONG size);
 	https://github.com/processhacker2/processhacker
 */
 
-#ifdef _APP_HAVE_FASTLOCK
 #define _R_FASTLOCK_OWNED 0x1
 #define _R_FASTLOCK_EXCLUSIVE_WAKING 0x2
 
@@ -151,7 +150,6 @@ void _r_fastlock_acquireshared (P_FASTLOCK plock);
 
 void _r_fastlock_releaseexclusive (P_FASTLOCK plock);
 void _r_fastlock_releaseshared (P_FASTLOCK plock);
-#endif // _APP_HAVE_FASTLOCK
 
 /*
 	System messages

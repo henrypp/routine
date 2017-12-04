@@ -46,6 +46,9 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	StringCchCopy (app_directory, _countof (app_directory), app_binary);
 	PathRemoveFileSpec (app_directory);
 
+	// useragent
+	StringCchCopy (app_useragent, _countof (app_useragent), ConfigGet (L"UserAgent", _r_fmt (L"%s/%s (+%s)", app_name, app_version, _APP_WEBSITE_URL)));
+
 	// parse command line
 	INT numargs = 0;
 	LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
@@ -260,9 +263,12 @@ void rapp::CheckForUpdates (bool is_periodical)
 
 void rapp::ConfigInit ()
 {
-	app_config_array.clear (); // reset
+	_r_fastlock_acquireexclusive (&lock);
 
+	app_config_array.clear (); // reset
 	ParseINI (app_config_path, &app_config_array);
+
+	_r_fastlock_releaseexclusive (&lock);
 
 	LocaleInit ();
 
@@ -272,30 +278,34 @@ void rapp::ConfigInit ()
 #endif // _APP_NO_UPDATES
 }
 
-rstring rapp::ConfigGet (LPCWSTR key, INT def, LPCWSTR name) const
+rstring rapp::ConfigGet (LPCWSTR key, INT def, LPCWSTR name)
 {
-	return ConfigGet (key, _r_fmt (L"%d", def), name);
+	_r_fastlock_acquireshared (&lock);
+
+	const rstring val = ConfigGet (key, _r_fmt (L"%d", def), name);
+
+	_r_fastlock_releaseshared (&lock);
+
+	return val;
 }
 
-rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name) const
+rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 {
 	rstring result;
 
 	if (!name)
-	{
 		name = app_name_short;
-	}
+
+	_r_fastlock_acquireshared (&lock);
 
 	// check key is exists
 	if (app_config_array.find (name) != app_config_array.end () && app_config_array.at (name).find (key) != app_config_array.at (name).end ())
-	{
 		result = app_config_array.at (name).at (key);
-	}
 
 	if (result.IsEmpty ())
-	{
 		result = def;
-	}
+
+	_r_fastlock_releaseshared (&lock);
 
 	return result;
 }
@@ -303,17 +313,17 @@ rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name) const
 bool rapp::ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name)
 {
 	if (!_r_fs_exists (app_profile_directory))
-	{
 		_r_fs_mkdir (app_profile_directory);
-	}
 
 	if (!name)
-	{
 		name = app_name_short;
-	}
 
 	// update hash value
+	_r_fastlock_acquireexclusive (&lock);
+
 	app_config_array[name][key] = val;
+
+	_r_fastlock_releaseexclusive (&lock);
 
 	if (WritePrivateProfileString (name, key, val, app_config_path))
 		return true;
@@ -436,19 +446,32 @@ bool rapp::IsVistaOrLater () const
 	return is_vistaorlater;
 }
 
-void rapp::SetIcon (UINT icon_id)
+void rapp::SetIcon (HWND hwnd, UINT icon_id, bool is_forced)
 {
-	if (app_icon_small)
-		DestroyIcon (app_icon_small);
+	_r_fastlock_acquireexclusive (&lock);
 
-	if (app_icon_big)
-		DestroyIcon (app_icon_big);
+	if (is_forced || (!app_icon_small || !app_icon_big))
+	{
+		if (app_icon_small)
+		{
+			DestroyIcon (app_icon_small);
+			app_icon_small = nullptr;
+		}
 
-	app_icon_small = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (icon_id), GetSystemMetrics (SM_CXSMICON));
-	app_icon_big = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (icon_id), GetSystemMetrics (SM_CXICON));
+		if (app_icon_big)
+		{
+			DestroyIcon (app_icon_big);
+			app_icon_big = nullptr;
+		}
 
-	PostMessage (GetHWND (), WM_SETICON, ICON_SMALL, (LPARAM)app_icon_small);
-	PostMessage (GetHWND (), WM_SETICON, ICON_BIG, (LPARAM)app_icon_big);
+		app_icon_small = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (icon_id), GetSystemMetrics (SM_CXSMICON));
+		app_icon_big = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (icon_id), GetSystemMetrics (SM_CXICON));
+	}
+
+	_r_fastlock_releaseexclusive (&lock);
+
+	PostMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)app_icon_small);
+	PostMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)app_icon_big);
 }
 
 LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
@@ -561,23 +584,22 @@ bool rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 
 	// check checksum
 	{
-		HINSTANCE h = LoadLibrary (L"imagehlp.dll");
+		const HINSTANCE hlib = LoadLibrary (L"imagehlp.dll");
 
-		if (h)
+		if (hlib)
 		{
-			MFACS _MapFileAndCheckSumW = (MFACS)GetProcAddress (h, "MapFileAndCheckSumW");
+			const MFACS _MapFileAndCheckSumW = (MFACS)GetProcAddress (hlib, "MapFileAndCheckSumW");
 
 			if (_MapFileAndCheckSumW)
 			{
 				DWORD dwFileChecksum = 0, dwRealChecksum = 0;
-
 				_MapFileAndCheckSumW (GetBinaryPath (), &dwFileChecksum, &dwRealChecksum);
 
 				if (dwRealChecksum != dwFileChecksum)
 					return false;
 			}
 
-			FreeLibrary (h);
+			FreeLibrary (hlib);
 		}
 	}
 
@@ -618,7 +640,7 @@ bool rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 #ifdef _APP_NO_GUEST
 	if (!IsAdmin ())
 	{
-		_r_msg (nullptr, MB_OK | MB_ICONSTOP, app_name, L"No rights!", L"%s required administrative privileges!", app_name);
+		_r_msg (nullptr, MB_OK | MB_ICONWARNING, app_name, L"No rights!", L"%s required administrative privileges!", app_name);
 		return false;
 	}
 #endif // _APP_NO_GUEST
@@ -736,7 +758,7 @@ bool rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 
 		// set icons
 #ifdef IDI_MAIN
-		SetIcon (IDI_MAIN);
+		SetIcon (GetHWND (), IDI_MAIN, true);
 #endif // IDI_MAIN
 
 		// remove focus
@@ -850,12 +872,12 @@ bool rapp::TrayPopup (UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text)
 	return result;
 }
 
-bool rapp::TraySetInfo (UINT uid, HICON h, LPCWSTR tooltip)
+bool rapp::TraySetInfo (UINT uid, HICON hicon, LPCWSTR tooltip)
 {
 	nid.uFlags = 0;
 	nid.uID = uid;
 
-	if (h)
+	if (hicon)
 	{
 		if (nid.hIcon)
 		{
@@ -864,7 +886,7 @@ bool rapp::TraySetInfo (UINT uid, HICON h, LPCWSTR tooltip)
 		}
 
 		nid.uFlags |= NIF_ICON;
-		nid.hIcon = h;
+		nid.hIcon = hicon;
 	}
 
 	if (tooltip)
@@ -914,24 +936,22 @@ void rapp::CreateSettingsWindow (size_t dlg_id)
 	is_opened = false;
 }
 
-size_t rapp::AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback, size_t group_id)
+size_t rapp::AddSettingsPage (HINSTANCE hinst, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback, size_t group_id)
 {
-	PAPP_SETTINGS_PAGE ptr = (PAPP_SETTINGS_PAGE)malloc (sizeof (APP_SETTINGS_PAGE));
+	PAPP_SETTINGS_PAGE ptr_page = new APP_SETTINGS_PAGE;
 
-	if (ptr)
+	if (ptr_page)
 	{
-		SecureZeroMemory (ptr, sizeof (APP_SETTINGS_PAGE));
+		ptr_page->hwnd = nullptr;
 
-		ptr->hwnd = nullptr;
+		ptr_page->hinst = hinst;
+		ptr_page->group_id = group_id;
+		ptr_page->dlg_id = dlg_id;
 
-		ptr->h = h;
-		ptr->group_id = group_id;
-		ptr->dlg_id = dlg_id;
+		ptr_page->locale_id = locale_id;
+		StringCchCopy (ptr_page->locale_sid, _countof (ptr_page->locale_sid), locale_sid);
 
-		ptr->locale_id = locale_id;
-		StringCchCopy (ptr->locale_sid, _countof (ptr->locale_sid), locale_sid);
-
-		app_settings_pages.push_back (ptr);
+		app_settings_pages.push_back (ptr_page);
 
 		app_settings_callback = callback;
 
@@ -964,16 +984,16 @@ void rapp::SettingsInitialize ()
 	// initialize treeview
 	for (size_t i = 0; i < app_settings_pages.size (); i++)
 	{
-		PAPP_SETTINGS_PAGE const ptr = app_settings_pages.at (i);
+		PAPP_SETTINGS_PAGE const ptr_page = app_settings_pages.at (i);
 
 		TVITEMEX tvi = {0};
 
 		tvi.mask = TVIF_PARAM;
-		tvi.hItem = ptr->item;
+		tvi.hItem = ptr_page->item;
 
 		SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETITEM, 0, (LPARAM)&tvi);
 
-		rstring text = LocaleString (ptr->h, ptr->locale_id, ptr->locale_sid);
+		rstring text = LocaleString (ptr_page->hinst, ptr_page->locale_id, ptr_page->locale_sid);
 
 		tvi.mask = TVIF_TEXT;
 		tvi.pszText = text.GetBuffer ();
@@ -1022,7 +1042,7 @@ LPCWSTR rapp::GetProfileDirectory () const
 
 rstring rapp::GetUserAgent () const
 {
-	return ConfigGet (L"UserAgent", _r_fmt (L"%s/%s (+%s)", app_name, app_version, _APP_WEBSITE_URL));
+	return app_useragent;
 }
 
 INT rapp::GetDPI (INT v) const
@@ -1125,7 +1145,7 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, const UINT id_start
 	}
 
 	WIN32_FIND_DATA wfd = {0};
-	HANDLE h = FindFirstFile (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\*.ini", GetDirectory ()), &wfd);
+	HANDLE h = FindFirstFile (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\*.ini", _r_path_expand (ConfigGet (L"LocalePath", GetDirectory ())).GetString ()), &wfd);
 
 	if (h != INVALID_HANDLE_VALUE)
 	{
@@ -1189,6 +1209,7 @@ void rapp::LocaleInit ()
 
 	if (name.IsEmpty ())
 		name = default_locale;
+
 	else if (name.CompareNoCase (_APP_LANGUAGE_DEFAULT) == 0)
 		name = L"";
 
@@ -1197,7 +1218,7 @@ void rapp::LocaleInit ()
 
 	if (!name.IsEmpty ())
 	{
-		is_localized = ParseINI (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\%s.ini", GetDirectory (), name.GetString ()), &app_locale_array);
+		is_localized = ParseINI (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\%s.ini", _r_path_expand (ConfigGet (L"LocalePath", GetDirectory ())).GetString (), name.GetString ()), &app_locale_array);
 
 		if (is_localized)
 		{
@@ -1315,9 +1336,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			this_ptr = reinterpret_cast<rapp*>(lparam);
 
 			this_ptr->settings_hwnd = hwnd;
-
-			PostMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)this_ptr->GetHICON (false));
-			PostMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)this_ptr->GetHICON (true));
+			this_ptr->SetIcon (hwnd, 0, false);
 
 			// configure window
 			_r_wnd_center (hwnd);
@@ -1331,20 +1350,20 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 			{
-				PAPP_SETTINGS_PAGE ppage = this_ptr->app_settings_pages.at (i);
+				PAPP_SETTINGS_PAGE ptr_page = this_ptr->app_settings_pages.at (i);
 
-				if (ppage)
+				if (ptr_page)
 				{
-					if (ppage->dlg_id)
+					if (ptr_page->dlg_id)
 					{
-						ppage->hwnd = CreateDialogParam (ppage->h, MAKEINTRESOURCE (ppage->dlg_id), hwnd, &this_ptr->SettingsPagesProc, (LPARAM)this_ptr);
-						this_ptr->app_settings_callback (ppage->hwnd, _RM_INITIALIZE, nullptr, ppage);
+						ptr_page->hwnd = CreateDialogParam (ptr_page->hinst, MAKEINTRESOURCE (ptr_page->dlg_id), hwnd, &this_ptr->SettingsPagesProc, (LPARAM)this_ptr);
+						this_ptr->app_settings_callback (ptr_page->hwnd, _RM_INITIALIZE, nullptr, ptr_page);
 					}
 
-					ppage->item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ppage->h, ppage->locale_id, ppage->locale_sid), ((ppage->group_id == LAST_VALUE) ? nullptr : this_ptr->app_settings_pages.at (ppage->group_id)->item), LAST_VALUE, (LPARAM)i);
+					ptr_page->item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr_page->hinst, ptr_page->locale_id, ptr_page->locale_sid), ((ptr_page->group_id == LAST_VALUE) ? nullptr : this_ptr->app_settings_pages.at (ptr_page->group_id)->item), LAST_VALUE, (LPARAM)i);
 
-					if (dlg_id == ppage->dlg_id)
-						SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)ppage->item);
+					if (dlg_id == ptr_page->dlg_id)
+						SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)ptr_page->item);
 				}
 			}
 
