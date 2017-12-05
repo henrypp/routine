@@ -1817,7 +1817,7 @@ INT _r_listview_addcolumn (HWND hwnd, UINT ctrl_id, size_t column_id, LPCWSTR te
 	lvc.pszText = (LPWSTR)text;
 	lvc.fmt = fmt;
 	lvc.cx = _R_PERCENT_VAL (width, rc.right);
-	lvc.iSubItem = static_cast<INT>(column_id);
+	lvc.iSubItem = (INT)column_id;
 
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTCOLUMN, (WPARAM)column_id, (LPARAM)&lvc);
 }
@@ -1869,7 +1869,7 @@ INT _r_listview_additem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, L
 {
 	if (item == LAST_VALUE)
 	{
-		item = static_cast<INT>(_r_listview_getitemcount (hwnd, ctrl_id));
+		item = (INT)_r_listview_getitemcount (hwnd, ctrl_id);
 
 		if (subitem)
 			item -= 1;
@@ -1879,8 +1879,8 @@ INT _r_listview_additem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, L
 
 	LVITEM lvi = {0};
 
-	lvi.iItem = static_cast<INT>(item);
-	lvi.iSubItem = static_cast<INT>(subitem);
+	lvi.iItem = (INT)item;
+	lvi.iSubItem = (INT)subitem;
 
 	if (text)
 	{
@@ -1893,13 +1893,13 @@ INT _r_listview_additem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, L
 	if (!subitem && image != LAST_VALUE)
 	{
 		lvi.mask |= LVIF_IMAGE;
-		lvi.iImage = static_cast<INT>(image);
+		lvi.iImage = (INT)image;
 	}
 
 	if (!subitem && group_id != LAST_VALUE)
 	{
 		lvi.mask |= LVIF_GROUPID;
-		lvi.iGroupId = static_cast<INT>(group_id);
+		lvi.iGroupId = (INT)group_id;
 	}
 
 	if (!subitem && lparam)
@@ -1979,16 +1979,16 @@ rstring _r_listview_getitemtext (HWND hwnd, UINT ctrl_id, size_t item, size_t su
 
 	LVITEM lvi = {0};
 
-	lvi.iSubItem = static_cast<int>(subitem);
+	lvi.iSubItem = (INT)subitem;
 
 	do
 	{
 		length += _R_BUFFER_LENGTH;
 
 		lvi.pszText = result.GetBuffer (length);
-		lvi.cchTextMax = static_cast<int>(length);
+		lvi.cchTextMax = (INT)length;
 
-		out_length = static_cast<size_t>(SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMTEXT, item, (LPARAM)&lvi));
+		out_length = (size_t)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMTEXT, item, (LPARAM)&lvi);
 		result.ReleaseBuffer ();
 	}
 	while (out_length == (length - 1));
@@ -2076,8 +2076,8 @@ INT _r_listview_setitem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, L
 
 	LVITEM lvi = {0};
 
-	lvi.iItem = static_cast<INT>(item);
-	lvi.iSubItem = static_cast<INT>(subitem);
+	lvi.iItem = (INT)item;
+	lvi.iSubItem = (INT)subitem;
 
 	if (text)
 	{
@@ -2090,13 +2090,13 @@ INT _r_listview_setitem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, L
 	if (!lvi.iSubItem && image != LAST_VALUE)
 	{
 		lvi.mask |= LVIF_IMAGE;
-		lvi.iImage = static_cast<INT>(image);
+		lvi.iImage = (INT)image;
 	}
 
 	if (!lvi.iSubItem && group_id != LAST_VALUE)
 	{
 		lvi.mask |= LVIF_GROUPID;
-		lvi.iGroupId = static_cast<INT>(group_id);
+		lvi.iGroupId = (INT)group_id;
 	}
 
 	if (!lvi.iSubItem && lparam)
@@ -2164,8 +2164,8 @@ HTREEITEM _r_treeview_additem (HWND hwnd, UINT ctrl_id, LPCWSTR text, HTREEITEM 
 	if (image != LAST_VALUE)
 	{
 		tvi.itemex.mask |= (TVIF_IMAGE | TVIF_SELECTEDIMAGE);
-		tvi.itemex.iImage = static_cast<INT>(image);
-		tvi.itemex.iSelectedImage = static_cast<INT>(image);
+		tvi.itemex.iImage = (INT)image;
+		tvi.itemex.iSelectedImage = (INT)image;
 	}
 
 	if (lparam)

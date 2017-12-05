@@ -1047,7 +1047,7 @@ rstring rapp::GetUserAgent () const
 
 INT rapp::GetDPI (INT v) const
 {
-	return (INT)ceil (static_cast<DOUBLE>(v) * dpi_percent);
+	return (INT)ceil ((DOUBLE)(v) * dpi_percent);
 }
 
 HICON rapp::GetHICON (bool is_big) const
@@ -1498,7 +1498,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 #ifndef _APP_NO_UPDATES
 UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 {
-	rapp* this_ptr = static_cast<rapp*>(lparam);
+	rapp* this_ptr = (rapp*)(lparam);
 
 	if (this_ptr)
 	{
@@ -1596,7 +1596,7 @@ bool rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
 		{
 			length += _R_BUFFER_LENGTH;
 
-			out_length = GetPrivateProfileSectionNames (section_ptr.GetBuffer (length), static_cast<DWORD>(length), path);
+			out_length = GetPrivateProfileSectionNames (section_ptr.GetBuffer (length), (DWORD)length, path);
 		}
 		while (out_length == (length - 1));
 
@@ -1613,7 +1613,7 @@ bool rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
 			{
 				length += _R_BUFFER_LENGTH;
 
-				out_length = GetPrivateProfileSection (section, value_ptr.GetBuffer (length), static_cast<DWORD>(length), path);
+				out_length = GetPrivateProfileSection (section, value_ptr.GetBuffer (length), (DWORD)length, path);
 			}
 			while (out_length == (length - 1));
 
@@ -1628,9 +1628,7 @@ bool rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
 				delimeter = parser.Find (L'=');
 
 				if (delimeter != rstring::npos)
-				{
 					(*map)[section][parser.Midded (0, delimeter)] = parser.Midded (delimeter + 1); // set
-				}
 
 				value += wcslen (value) + 1; // go next item
 			}
