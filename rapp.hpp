@@ -83,12 +83,8 @@ public:
 	void ConfigInit ();
 
 #ifndef _APP_NO_ABOUT
-	void CreateAboutWindow ();
+	void CreateAboutWindow (HWND hwnd, LPCWSTR donate_text);
 #endif // _APP_NO_ABOUT
-
-#ifndef _APP_NO_DONATE
-	void CreateDonateWindow ();
-#endif // _APP_NO_DONATE
 
 	bool CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback);
 
@@ -129,7 +125,7 @@ public:
 	void LocaleApplyFromControl (HWND hwnd, UINT ctrl_id);
 	void LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id);
 	void LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, const UINT id_start);
-	UINT LocaleGetCount ();
+	size_t LocaleGetCount ();
 	rstring LocaleString (HINSTANCE h, UINT id, LPCWSTR name);
 	void LocaleMenu (HMENU menu, LPCWSTR text, UINT item, bool by_position, LPCWSTR append) const;
 
@@ -164,7 +160,6 @@ private:
 
 	DOUBLE dpi_percent = 0.f;
 
-	bool is_localized = false;
 	bool is_classic = false;
 	bool is_vistaorlater = false;
 	bool is_admin = false;
@@ -181,6 +176,11 @@ private:
 #ifndef _APP_NO_ABOUT
 	bool is_about_opened = false;
 #endif // _APP_NO_ABOUT
+
+#ifdef _APP_HAVE_SIZING
+	INT max_width = 0;
+	INT max_height = 0;
+#endif // _APP_HAVE_SIZING
 
 	WNDPROC app_wndproc = nullptr;
 	HWND app_hwnd = nullptr;
@@ -202,17 +202,11 @@ private:
 	WCHAR app_copyright[MAX_PATH];
 	WCHAR app_useragent[MAX_PATH];
 
-	WCHAR default_locale[LOCALE_NAME_MAX_LENGTH];
+	WCHAR locale_default[LOCALE_NAME_MAX_LENGTH];
+	WCHAR locale_current[LOCALE_NAME_MAX_LENGTH];
 
 	rstring::map_two app_config_array;
 	rstring::map_two app_locale_array;
-
-#ifdef _APP_HAVE_SIZING
-	INT max_width = 0;
-	INT max_height = 0;
-#endif // _APP_HAVE_SIZING
-
-	UINT app_locale_count = 0;
 
 #ifndef _APP_NO_SETTINGS
 	std::vector<PAPP_SETTINGS_PAGE> app_settings_pages;

@@ -174,7 +174,7 @@ ULONG _r_fastlock_islocked (P_FASTLOCK plock)
 	return value;
 }
 
-static DWORD _r_fastlock_getspincount ()
+static const DWORD _r_fastlock_getspincount ()
 {
 	SYSTEM_INFO si = {0};
 	GetNativeSystemInfo (&si);
@@ -371,58 +371,42 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 
 		// default buttons
 		if ((flags & MB_DEFMASK) == MB_DEFBUTTON2)
-		{
 			tdc.nDefaultButton = IDNO;
-		}
 
 		// buttons
 		if ((flags & MB_TYPEMASK) == MB_YESNO)
-		{
 			tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
-		}
+
 		else if ((flags & MB_TYPEMASK) == MB_YESNOCANCEL)
-		{
 			tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON | TDCBF_CANCEL_BUTTON;
-		}
+
 		else if ((flags & MB_TYPEMASK) == MB_OKCANCEL)
-		{
 			tdc.dwCommonButtons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
-		}
+
 		else if ((flags & MB_TYPEMASK) == MB_RETRYCANCEL)
-		{
 			tdc.dwCommonButtons = TDCBF_RETRY_BUTTON | TDCBF_CANCEL_BUTTON;
-		}
+
 		else
-		{
 			tdc.dwCommonButtons = TDCBF_OK_BUTTON;
-		}
 
 		// icons
 		if ((flags & MB_ICONMASK) == MB_USERICON)
-		{
 			tdc.pszMainIcon = MAKEINTRESOURCE (100);
-		}
+
 		else if ((flags & MB_ICONMASK) == MB_ICONASTERISK)
-		{
 			tdc.pszMainIcon = TD_INFORMATION_ICON;
-		}
+
 		else if ((flags & MB_ICONMASK) == MB_ICONEXCLAMATION)
-		{
 			tdc.pszMainIcon = TD_WARNING_ICON;
-		}
+
 		else if ((flags & MB_ICONMASK) == MB_ICONQUESTION)
-		{
 			tdc.pszMainIcon = TD_INFORMATION_ICON;
-		}
+
 		else if ((flags & MB_ICONMASK) == MB_ICONHAND)
-		{
 			tdc.pszMainIcon = TD_ERROR_ICON;
-		}
 
 		if ((flags & MB_TOPMOST) != 0)
-		{
 			tdc.lpCallbackData = 1; // always on top
-		}
 
 		_r_msg_taskdialog (&tdc, &result, nullptr, nullptr);
 	}
@@ -435,13 +419,10 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 		if (main)
 		{
 			if (buffer.IsEmpty ())
-			{
 				buffer.Append (main);
-			}
+
 			else
-			{
 				buffer.InsertFormat (0, L"%s\r\n\r\n", main);
-			}
 		}
 
 		mbp.cbSize = sizeof (mbp);
@@ -452,9 +433,7 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 		mbp.lpszText = buffer;
 
 		if ((flags & MB_ICONMASK) == MB_USERICON)
-		{
 			mbp.lpszIcon = MAKEINTRESOURCE (100);
-		}
 
 		result = MessageBoxIndirect (&mbp);
 	}
@@ -477,13 +456,59 @@ bool _r_msg_taskdialog (const TASKDIALOGCONFIG* ptd, INT* pbutton, INT* pradiobu
 #endif // _APP_NO_WINXP
 }
 
+bool _r_msg_checkbox (HWND hwnd, LPCWSTR title, LPCWSTR text, LPCWSTR flag, PBOOL pis_checked)
+{
+#ifndef _APP_NO_WINXP
+	if (_r_sys_validversion (6, 0))
+	{
+#endif // _APP_NO_WINXP
+
+		INT result = 0;
+
+		TASKDIALOGCONFIG tdc = {0};
+
+		WCHAR str_title[64] = {0};
+		WCHAR str_content[512] = {0};
+		WCHAR str_flag[64] = {0};
+
+		tdc.cbSize = sizeof (tdc);
+		tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_ENABLE_HYPERLINKS;
+		tdc.hwndParent = hwnd;
+		tdc.hInstance = GetModuleHandle (nullptr);
+		tdc.pfCallback = &_r_msg_callback;
+		tdc.pszMainIcon = TD_WARNING_ICON;
+		tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
+		tdc.pszWindowTitle = str_title;
+		tdc.pszContent = str_content;
+		tdc.pszVerificationText = str_flag;
+
+		StringCchCopy (str_title, _countof (str_title), title);
+		StringCchCopy (str_content, _countof (str_content), text);
+		StringCchCopy (str_flag, _countof (str_flag), flag);
+
+		if (_r_msg_taskdialog (&tdc, &result, nullptr, pis_checked))
+		{
+			if (result == IDYES)
+				return true;
+		}
+#ifndef _APP_NO_WINXP
+	}
+	else
+	{
+		return _r_msg (hwnd, MB_YESNO | MB_ICONEXCLAMATION, title, nullptr, L"%s", text) == IDYES;
+	}
+#endif // _APP_NO_WINXP
+
+	return false;
+}
+
 HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LONG_PTR lpdata)
 {
 	switch (msg)
 	{
 		case TDN_CREATED:
 		{
-			_r_wnd_center (hwnd);
+			_r_wnd_center (hwnd, GetParent (hwnd));
 
 			if (lpdata)
 				_r_wnd_top (hwnd, true);
@@ -493,8 +518,19 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 
 		case TDN_DIALOG_CONSTRUCTED:
 		{
-			SendMessage (hwnd, WM_SETICON, ICON_SMALL, 0);
-			SendMessage (hwnd, WM_SETICON, ICON_BIG, 0);
+			const HWND hparent = GetParent (hwnd);
+
+			if (hparent)
+			{
+				const LPARAM hicon_small = SendMessage (hparent, WM_GETICON, ICON_SMALL, 0);
+				const LPARAM hicon_big = SendMessage (hparent, WM_GETICON, ICON_BIG, 0);
+
+				if (hicon_small && hicon_big)
+				{
+					SendMessage (hwnd, WM_SETICON, ICON_SMALL, hicon_small);
+					SendMessage (hwnd, WM_SETICON, ICON_BIG, hicon_big);
+				}
+			}
 
 			break;
 		}
@@ -519,13 +555,12 @@ rstring _r_clipboard_get (HWND hwnd)
 
 	if (OpenClipboard (hwnd))
 	{
-		HGLOBAL h = GetClipboardData (CF_UNICODETEXT);
+		HGLOBAL hmem = GetClipboardData (CF_UNICODETEXT);
 
-		if (h)
+		if (hmem)
 		{
-			result = LPCWSTR (GlobalLock (h));
-
-			GlobalUnlock (h);
+			result = LPCWSTR (GlobalLock (hmem));
+			GlobalUnlock (hmem);
 		}
 	}
 
@@ -1280,7 +1315,6 @@ void _r_sleep (DWORD milliseconds)
 __time64_t _r_unixtime_now ()
 {
 	SYSTEMTIME st = {0};
-
 	GetSystemTime (&st);
 
 	return _r_unixtime_from_systemtime (&st);
@@ -1350,7 +1384,7 @@ COLORREF _r_dc_getcolorbrightness (COLORREF clr)
 
 	if (((min + max) / 2) > 100)
 		return RGB (0x00, 0x00, 0x00);
-	
+
 	return RGB (0xff, 0xff, 0xff);
 }
 
@@ -1395,28 +1429,65 @@ void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT in
 	SetWindowPos (hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOMOVE | SWP_NOSIZE);
 }
 
-void _r_wnd_center (HWND hwnd)
+void _r_wnd_adjustwindowrect (HWND hwnd, LPRECT lprect)
 {
-	HWND parent = GetWindow (hwnd, GW_OWNER);
-	RECT rc_child = {0}, rc_parent = {0};
+	MONITORINFO monitorInfo = {0};
+	monitorInfo.cbSize = sizeof (monitorInfo);
 
-	if (!IsWindowVisible (parent) || IsIconic (parent))
-		parent = GetDesktopWindow ();
+	HMONITOR monitor = nullptr;
 
-	GetWindowRect (hwnd, &rc_child);
-	GetWindowRect (parent, &rc_parent);
+	if (hwnd)
+		monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
 
-	INT width = rc_child.right - rc_child.left, height = rc_child.bottom - rc_child.top;
-	INT x = ((rc_parent.right - rc_parent.left) - width) / 2 + rc_parent.left, y = ((rc_parent.bottom - rc_parent.top) - height) / 2 + rc_parent.top;
-	INT screen_width = GetSystemMetrics (SM_CXSCREEN), screen_height = GetSystemMetrics (SM_CYSCREEN);
+	else
+		monitor = MonitorFromRect (lprect, MONITOR_DEFAULTTONEAREST);
 
-	x = max (0, x);
-	y = max (0, y);
+	if (GetMonitorInfo (monitor, &monitorInfo))
+	{
+		if (monitorInfo.rcWork.left + _R_RECT_WIDTH (&monitorInfo.rcWork) > lprect->left + _R_RECT_WIDTH (lprect))
+			monitorInfo.rcWork.left = lprect->left + _R_RECT_WIDTH (lprect) - _R_RECT_WIDTH (&monitorInfo.rcWork);
 
-	if (x + width > screen_width) x = screen_width - width;
-	if (y + height > screen_height) y = screen_height - height;
+		if (monitorInfo.rcWork.top + _R_RECT_HEIGHT (&monitorInfo.rcWork) > lprect->top + _R_RECT_HEIGHT (lprect))
+			monitorInfo.rcWork.top = lprect->top + _R_RECT_HEIGHT (lprect) - _R_RECT_HEIGHT (&monitorInfo.rcWork);
 
-	SetWindowPos (hwnd, nullptr, x, y, width, height, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+		if (monitorInfo.rcWork.left < lprect->left)
+			monitorInfo.rcWork.left = lprect->left;
+
+		if (monitorInfo.rcWork.top < lprect->top)
+			monitorInfo.rcWork.top = lprect->top;
+	}
+}
+
+void _r_wnd_center (HWND hwnd, HWND parent)
+{
+	if (parent && IsWindowVisible (parent) && !IsIconic (parent))
+	{
+		RECT rect = {0}, parentRect = {0};
+
+		GetWindowRect (hwnd, &rect);
+		GetWindowRect (parent, &parentRect);
+
+		_R_RECT_CENTER (&rect, &parentRect);
+
+		_r_wnd_adjustwindowrect (hwnd, &rect);
+
+		SetWindowPos (hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_NOSIZE);
+	}
+	else
+	{
+		MONITORINFO monitorInfo = {0};
+		monitorInfo.cbSize = sizeof (monitorInfo);
+
+		if (GetMonitorInfo (MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST), &monitorInfo))
+		{
+			RECT rect = {0};
+			GetWindowRect (hwnd, &rect);
+
+			_R_RECT_CENTER (&rect, &monitorInfo.rcWork);
+
+			SetWindowPos (hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_NOSIZE);
+		}
+	}
 }
 
 void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
@@ -1809,9 +1880,7 @@ INT _r_listview_addcolumn (HWND hwnd, UINT ctrl_id, size_t column_id, LPCWSTR te
 	GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
 
 	if (width > 100)
-	{
 		width = _R_PERCENT_OF (width, rc.right);
-	}
 
 	lvc.mask = LVCF_WIDTH | LVCF_TEXT | LVCF_FMT | LVCF_SUBITEM;
 	lvc.pszText = (LPWSTR)text;

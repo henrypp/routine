@@ -73,9 +73,6 @@
 #endif // _APP_BETA || _APP_BETA_RC
 #endif // _APP_UPDATE_PERIOD
 
-#define _APP_I18N_DIRECTORY L"i18n"
-#define _APP_I18N_SECTION L"i18n"
-
 #define _APP_TASKSCHD_NAME L"%sSkipUac"
 #define _APP_LANGUAGE_DEFAULT L"English (default)"
 

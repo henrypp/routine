@@ -59,6 +59,14 @@
 #define _R_PERCENT_VAL(val, total) INT(double((total)) * double((val)) / 100.0)
 
 /*
+	Rectangle
+*/
+
+#define _R_RECT_WIDTH(lprect)(((lprect)->right - (lprect)->left))
+#define _R_RECT_HEIGHT(lprect)(((lprect)->bottom - (lprect)->top))
+#define _R_RECT_CENTER(lprect,lpparent)(lprect)->left = ((lpparent)->left + (_R_RECT_WIDTH ((lpparent)) - _R_RECT_WIDTH ((lprect))) / 2);((lprect)->top = ((lpparent)->top + (_R_RECT_HEIGHT ((lpparent)) - _R_RECT_HEIGHT ((lprect))) / 2))
+
+/*
 	Debug logging
 */
 
@@ -118,11 +126,17 @@ typedef struct _R_FASTLOCK
 	_R_FASTLOCK ()
 	{
 		this->Value = 0;
+
+#ifdef _APP_NO_WINXP
 		this->ExclusiveWakeEvent = CreateSemaphoreEx (nullptr, 0, MAXLONG, nullptr, 0, SEMAPHORE_ALL_ACCESS);
 		this->SharedWakeEvent = CreateSemaphoreEx (nullptr, 0, MAXLONG, nullptr, 0, SEMAPHORE_ALL_ACCESS);
+#else
+		this->ExclusiveWakeEvent = CreateSemaphore (nullptr, 0, MAXLONG, nullptr);
+		this->SharedWakeEvent = CreateSemaphore (nullptr, 0, MAXLONG, nullptr);
+#endif
 	}
 
-	~_R_FASTLOCK()
+	~_R_FASTLOCK ()
 	{
 		if (this->ExclusiveWakeEvent)
 		{
@@ -158,6 +172,7 @@ void _r_fastlock_releaseshared (P_FASTLOCK plock);
 #define WMSG(a, ...) _r_msg (nullptr, 0, nullptr, nullptr, a, __VA_ARGS__)
 
 INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format, ...);
+bool _r_msg_checkbox (HWND hwnd, LPCWSTR title, LPCWSTR text, LPCWSTR flag, PBOOL pis_checked);
 bool _r_msg_taskdialog (const TASKDIALOGCONFIG* ptd, INT* pbutton, INT* pradiobutton, BOOL* pcheckbox); // vista TaskDialogIndirect
 HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR ref);
 
@@ -254,7 +269,7 @@ int _r_dc_fontheighttosize (INT size);
 */
 
 void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT index);
-void _r_wnd_center (HWND hwnd);
+void _r_wnd_center (HWND hwnd, HWND parent);
 void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action);
 void _r_wnd_toggle (HWND hwnd, bool show);
 void _r_wnd_top (HWND hwnd, bool is_enable);

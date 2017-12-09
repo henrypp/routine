@@ -34,9 +34,9 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 #endif // _APP_BETA
 
 	// get dpi scale
-	HDC h = GetDC (nullptr);
-	dpi_percent = DOUBLE (GetDeviceCaps (h, LOGPIXELSX)) / 96.0f;
-	ReleaseDC (nullptr, h);
+	HDC hdc = GetDC (nullptr);
+	dpi_percent = DOUBLE (GetDeviceCaps (hdc, LOGPIXELSX)) / 96.0f;
+	ReleaseDC (nullptr, hdc);
 
 	// get hinstance
 	app_hinstance = GetModuleHandle (nullptr);
@@ -95,7 +95,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	}
 
 	// get default system locale
-	GetLocaleInfo (LOCALE_SYSTEM_DEFAULT, _r_sys_validversion (6, 1) ? LOCALE_SENGLISHLANGUAGENAME : LOCALE_SENGLANGUAGE, default_locale, _countof (default_locale));
+	GetLocaleInfo (LOCALE_SYSTEM_DEFAULT, _r_sys_validversion (6, 1) ? LOCALE_SENGLISHLANGUAGENAME : LOCALE_SENGLANGUAGE, locale_default, _countof (locale_default));
 
 	// read config
 	ConfigInit ();
@@ -347,89 +347,81 @@ bool rapp::ConfigSet (LPCWSTR key, bool val, LPCWSTR name)
 }
 
 #ifndef _APP_NO_ABOUT
-void rapp::CreateAboutWindow ()
+void rapp::CreateAboutWindow (HWND hwnd, LPCWSTR donate_text)
 {
 	if (!is_about_opened)
 	{
 		is_about_opened = true;
 
 #ifdef _WIN64
-		const unsigned architecture = 64;
+		static const unsigned architecture = 64;
 #else
-		const unsigned architecture = 32;
+		static const unsigned architecture = 32;
 #endif // _WIN64
 
+#ifndef _APP_NO_WINXP
 		if (IsVistaOrLater ())
-			_r_msg (GetHWND (), MB_OK | MB_USERICON | MB_TOPMOST, I18N (this, IDS_ABOUT, 0), app_name, L"Version %s, %d-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", app_version, architecture, app_copyright, _APP_WEBSITE_URL, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL, _APP_GITHUB_URL + +rstring (_APP_GITHUB_URL).Find (L':') + 3);
+		{
+#endif // _APP_NO_WINXP
+
+			INT result = 0;
+
+			WCHAR title[64] = {0};
+			WCHAR main[64] = {0};
+			WCHAR content[512] = {0};
+			WCHAR footer[128] = {0};
+			WCHAR btn_text[64] = {0};
+
+			TASKDIALOGCONFIG tdc = {0};
+			TASKDIALOG_BUTTON buttons[1] = {0};
+
+			tdc.cbSize = sizeof (tdc);
+			tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
+			tdc.hwndParent = hwnd;
+			tdc.hInstance = GetHINSTANCE ();
+			tdc.pfCallback = &_r_msg_callback;
+			tdc.pszMainIcon = MAKEINTRESOURCE (100);
+			tdc.dwCommonButtons = TDCBF_CLOSE_BUTTON;
+			tdc.nDefaultButton = IDCLOSE;
+			tdc.pszWindowTitle = title;
+			tdc.pszMainInstruction = main;
+			tdc.pszContent = content;
+			tdc.lpCallbackData = 1; // always on top
+
+			if (donate_text)
+			{
+				tdc.pButtons = buttons;
+				tdc.cButtons = _countof (buttons);
+
+				buttons[0].nButtonID = 100;
+				buttons[0].pszButtonText = btn_text;
+			}
+
+			StringCchCopy (title, _countof (title), I18N (this, IDS_ABOUT, 0));
+			StringCchCopy (main, _countof (main), app_name);
+			StringCchPrintf (content, _countof (content), L"Version %s, %d-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", app_version, architecture, app_copyright, _APP_WEBSITE_URL, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
+			StringCchPrintf (footer, _countof (footer), L"%s", TEXT (__TIME__));
+
+			if(donate_text)
+			StringCchCopy (btn_text, _countof (btn_text), donate_text);
+
+			if (_r_msg_taskdialog (&tdc, &result, nullptr, nullptr))
+			{
+				if (result == buttons[0].nButtonID)
+					ShellExecute (GetHWND (), nullptr, _r_fmt (_APP_DONATE_URL, app_name_short), nullptr, nullptr, SW_SHOWDEFAULT);
+			}
+#ifndef _APP_NO_WINXP
+		}
 		else
-			_r_msg (GetHWND (), MB_OK | MB_USERICON | MB_TOPMOST, I18N (this, IDS_ABOUT, 0), app_name, L"Version %s, %d-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL + +rstring (_APP_GITHUB_URL).Find (L':') + 3);
+		{
+			_r_msg (hwnd, MB_OK | MB_USERICON | MB_TOPMOST, I18N (this, IDS_ABOUT, 0), app_name, L"Version %s, %d-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
+		}
+#endif // _APP_NO_WINXP
 
 		is_about_opened = false;
 	}
 }
 #endif // _APP_NO_ABOUT
-
-#ifndef _APP_NO_DONATE
-void rapp::CreateDonateWindow ()
-{
-	if (IsVistaOrLater ())
-	{
-		TASKDIALOGCONFIG tdc = {0};
-		TASKDIALOG_BUTTON buttons[2] = {0};
-
-		INT result = 0;
-		BOOL is_flagchecked = FALSE;
-
-		WCHAR title[64] = {0};
-		WCHAR checkbox[64] = {0};
-		WCHAR content[256] = {0};
-
-		StringCchCopy (title, _countof (title), I18N (this, IDS_DONATE, 0));
-		StringCchCopy (checkbox, _countof (checkbox), I18N (this, IDS_SHOWATSTARTUP_CHK, 0));
-		StringCchCopy (content, _countof (content), I18N (this, IDS_DONATE_TEXT, 0));
-
-		tdc.cbSize = sizeof (tdc);
-		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_USE_COMMAND_LINKS | TDF_USE_HICON_MAIN;
-		tdc.hwndParent = GetHWND ();
-		tdc.pfCallback = &_r_msg_callback;
-		tdc.pszWindowTitle = app_name;
-		tdc.pszMainInstruction = title;
-		tdc.pszContent = content;
-		tdc.pszVerificationText = checkbox;
-		tdc.hMainIcon = GetHICON (true);
-		tdc.dwCommonButtons = TDCBF_CLOSE_BUTTON;
-
-		tdc.nDefaultButton = IDCLOSE;
-
-		tdc.cButtons = _countof (buttons);
-		tdc.pButtons = buttons;
-
-		buttons[0].nButtonID = 100;
-		buttons[0].pszButtonText = _APP_DONATE_TXT_BTC;
-
-		buttons[1].nButtonID = 101;
-		buttons[1].pszButtonText = _APP_DONATE_TXT_PAYPAL;
-
-		if (ConfigGet (L"IsShowDonateAtStartup", true).AsBool ())
-			tdc.dwFlags |= TDF_VERIFICATION_FLAG_CHECKED;
-
-		if (_r_msg_taskdialog (&tdc, &result, nullptr, &is_flagchecked))
-		{
-			ConfigSet (L"IsShowDonateAtStartup", is_flagchecked ? true : false);
-
-			if (result == 100)
-				ShellExecute (GetHWND (), nullptr, _APP_DONATE_URL_BTC, nullptr, nullptr, SW_SHOWDEFAULT);
-
-			else if (result == 101)
-				ShellExecute (GetHWND (), nullptr, _APP_DONATE_URL_PAYPAL, nullptr, nullptr, SW_SHOWDEFAULT);
-		}
-	}
-	else
-	{
-		ShellExecute (GetHWND (), nullptr, _r_fmt (_APP_DONATE_URL, app_name_short), nullptr, nullptr, SW_SHOWDEFAULT);
-	}
-}
-#endif // _APP_NO_DONATE
 
 bool rapp::IsAdmin () const
 {
@@ -532,8 +524,8 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 
 			this_ptr->ConfigSet (L"WindowPosX", (DWORD)rc.left);
 			this_ptr->ConfigSet (L"WindowPosY", (DWORD)rc.top);
-			this_ptr->ConfigSet (L"WindowPosWidth", DWORD (rc.right - rc.left));
-			this_ptr->ConfigSet (L"WindowPosHeight", DWORD (rc.bottom - rc.top));
+			this_ptr->ConfigSet (L"WindowPosWidth", DWORD (_R_RECT_WIDTH (&rc)));
+			this_ptr->ConfigSet (L"WindowPosHeight", DWORD (_R_RECT_HEIGHT (&rc)));
 
 			break;
 		}
@@ -702,12 +694,12 @@ bool rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 			// set minmax info
 			if (GetWindowRect (GetHWND (), &rc))
 			{
-				max_width = (rc.right - rc.left);
-				max_height = (rc.bottom - rc.top);
+				max_width = _R_RECT_WIDTH (&rc);
+				max_height = _R_RECT_HEIGHT (&rc);
 			}
 
 			if (GetClientRect (GetHWND (), &rc))
-				SendMessage (GetHWND (), WM_SIZE, 0, MAKELPARAM ((rc.right - rc.left), (rc.bottom - rc.top)));
+				SendMessage (GetHWND (), WM_SIZE, 0, MAKELPARAM (_R_RECT_WIDTH (&rc), _R_RECT_HEIGHT (&rc)));
 
 			// restore window position
 			const INT xpos = ConfigGet (L"WindowPosX", 0).AsInt ();
@@ -774,9 +766,6 @@ bool rapp::CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback)
 
 			DrawMenuBar (GetHWND ()); // redraw menu
 		}
-
-		if (!is_minimized && IsVistaOrLater () && ConfigGet (L"IsShowDonateAtStartup", true).AsBool ())
-			CreateDonateWindow ();
 
 		result = true;
 	}
@@ -1016,10 +1005,10 @@ void rapp::SettingsPageInitialize (UINT dlg_id, bool is_initialize, bool is_loca
 		if (ppage && ppage->dlg_id == dlg_id)
 		{
 			if (is_initialize)
-				app_settings_callback (ppage->hwnd, _RM_INITIALIZE, 0, ppage);
+				app_settings_callback (ppage->hwnd, _RM_INITIALIZE, nullptr, ppage);
 
 			if (is_localize)
-				app_settings_callback (ppage->hwnd, _RM_LOCALIZE, 0, ppage);
+				app_settings_callback (ppage->hwnd, _RM_LOCALIZE, nullptr, ppage);
 		}
 	}
 }
@@ -1047,7 +1036,7 @@ rstring rapp::GetUserAgent () const
 
 INT rapp::GetDPI (INT v) const
 {
-	return (INT)ceil ((DOUBLE)(v) * dpi_percent);
+	return (INT)ceil ((DOUBLE)(v)* dpi_percent);
 }
 
 HICON rapp::GetHICON (bool is_big) const
@@ -1071,9 +1060,15 @@ HWND rapp::GetHWND () const
 #ifndef _APP_NO_SETTINGS
 void rapp::LocaleApplyFromControl (HWND hwnd, UINT ctrl_id)
 {
-	ConfigSet (L"Language", _r_ctrl_gettext (hwnd, ctrl_id));
+	const rstring text = _r_ctrl_gettext (hwnd, ctrl_id);
 
-	LocaleInit ();
+	if (text.CompareNoCase (_APP_LANGUAGE_DEFAULT) == 0)
+		locale_current[0] = 0;
+
+	else
+		StringCchCopy (locale_current, _countof (locale_current), text);
+
+	ConfigSet (L"Language", text);
 
 	if (app_settings_callback && SettingsGetWindow ())
 	{
@@ -1086,7 +1081,6 @@ void rapp::LocaleApplyFromControl (HWND hwnd, UINT ctrl_id)
 	if (app_callback)
 	{
 		app_callback (GetHWND (), _RM_LOCALIZE, nullptr, nullptr);
-
 		DrawMenuBar (GetHWND ()); // redraw menu
 	}
 }
@@ -1097,16 +1091,16 @@ void rapp::LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id)
 	if (selected_id == default_id)
 	{
 		ConfigSet (L"Language", _APP_LANGUAGE_DEFAULT);
+		locale_current[0] = 0;
 	}
 	else
 	{
-		WCHAR buffer[LOCALE_NAME_MAX_LENGTH] = {0};
-		GetMenuString (hmenu, selected_id, buffer, _countof (buffer), MF_BYCOMMAND);
+		WCHAR name[LOCALE_NAME_MAX_LENGTH] = {0};
+		GetMenuString (hmenu, selected_id, name, _countof (name), MF_BYCOMMAND);
 
-		ConfigSet (L"Language", buffer);
+		ConfigSet (L"Language", name);
+		StringCchCopy (locale_current, _countof (locale_current), name);
 	}
-
-	LocaleInit ();
 
 	if (app_callback)
 	{
@@ -1144,63 +1138,48 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, const UINT id_start
 		SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, 0, 0);
 	}
 
-	WIN32_FIND_DATA wfd = {0};
-	HANDLE h = FindFirstFile (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\*.ini", _r_path_expand (ConfigGet (L"LocalePath", GetDirectory ())).GetString ()), &wfd);
-
-	if (h != INVALID_HANDLE_VALUE)
+	if (!app_locale_array.empty ())
 	{
-		app_locale_count = 0;
-
-		rstring name = ConfigGet (L"Language", nullptr);
-
-		if (name.IsEmpty ())
-			name = default_locale;
-		else if (name.CompareNoCase (_APP_LANGUAGE_DEFAULT) == 0)
-			name = L"";
+		size_t idx = 1;
 
 		if (is_menu)
 			AppendMenu (hmenu, MF_SEPARATOR, 0, nullptr);
 
-		do
+		for (auto const& p : app_locale_array)
 		{
-			LPWSTR fname = wfd.cFileName;
-			PathRemoveExtension (fname);
+			LPCWSTR name = p.first;
 
 			if (is_menu)
 			{
-				AppendMenu (hmenu, MF_STRING, (++app_locale_count + id_start), fname);
+				AppendMenu (hmenu, MF_STRING, (idx + id_start), name);
 
-				if (!name.IsEmpty () && name.CompareNoCase (fname) == 0)
-					CheckMenuRadioItem (hmenu, id_start, id_start + app_locale_count, id_start + app_locale_count, MF_BYCOMMAND);
+				if (locale_current[0] && _wcsicmp (locale_current, name) == 0)
+					CheckMenuRadioItem (hmenu, id_start, id_start + UINT (idx), id_start + UINT (idx), MF_BYCOMMAND);
 			}
 			else
 			{
-				SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, ++app_locale_count, (LPARAM)fname);
+				SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, idx, (LPARAM)name);
 
-				if (!name.IsEmpty () && name.CompareNoCase (fname) == 0)
-					SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, app_locale_count, 0);
+				if (locale_current[0] && _wcsicmp (locale_current, name) == 0)
+					SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, idx, 0);
 			}
-		}
-		while (FindNextFile (h, &wfd));
 
-		FindClose (h);
+			idx += 1;
+		}
 	}
 	else
 	{
 		if (is_menu)
-		{
 			EnableMenuItem ((HMENU)hwnd, ctrl_id, MF_BYPOSITION | MF_DISABLED | MF_GRAYED);
-		}
+
 		else
-		{
 			EnableWindow (GetDlgItem (hwnd, ctrl_id), false);
-		}
 	}
 }
 
-UINT rapp::LocaleGetCount ()
+size_t rapp::LocaleGetCount ()
 {
-	return app_locale_count;
+	return app_locale_array.size ();
 }
 
 void rapp::LocaleInit ()
@@ -1208,55 +1187,62 @@ void rapp::LocaleInit ()
 	rstring name = ConfigGet (L"Language", nullptr);
 
 	if (name.IsEmpty ())
-		name = default_locale;
+		name = locale_default;
 
 	else if (name.CompareNoCase (_APP_LANGUAGE_DEFAULT) == 0)
 		name = L"";
 
 	app_locale_array.clear (); // clear
-	is_localized = false;
+	ParseINI (_r_fmt (L"%s\\%s.lng", _r_path_expand (ConfigGet (L"LocalePath", GetDirectory ())).GetString (), app_name_short), &app_locale_array);
 
-	if (!name.IsEmpty ())
+	if (!app_locale_array.empty ())
 	{
-		is_localized = ParseINI (_r_fmt (L"%s\\" _APP_I18N_DIRECTORY L"\\%s.ini", _r_path_expand (ConfigGet (L"LocalePath", GetDirectory ())).GetString (), name.GetString ()), &app_locale_array);
-
-		if (is_localized)
+		for (auto &p : app_locale_array)
 		{
-			for (auto &p : app_locale_array[_APP_I18N_SECTION])
+			for (auto &p2 : app_locale_array[p.first])
 			{
-				p.second.Replace (L"\\t", L"\t");
-				p.second.Replace (L"\\r", L"\r");
-				p.second.Replace (L"\\n", L"\n");
+				p2.second.Replace (L"\\t", L"\t");
+				p2.second.Replace (L"\\r", L"\r");
+				p2.second.Replace (L"\\n", L"\n");
 			}
 		}
 	}
-}
 
-rstring rapp::LocaleString (HINSTANCE h, UINT uid, LPCWSTR name)
-{
-	rstring result;
+	_r_fastlock_acquireexclusive (&lock);
 
-	if (!uid)
+	if (!name.IsEmpty ())
 	{
-		result = name;
+		StringCchCopy (locale_current, _countof (locale_current), name);
 	}
 	else
 	{
-		if (is_localized)
-		{
-			// check key is exists
-			if (app_locale_array[_APP_I18N_SECTION].find (name) != app_locale_array[_APP_I18N_SECTION].end ())
-				result = app_locale_array[_APP_I18N_SECTION][name];
-		}
+		locale_current[0] = 0;
+	}
+
+	_r_fastlock_releaseexclusive (&lock);
+}
+
+rstring rapp::LocaleString (HINSTANCE hinst, UINT uid, LPCWSTR name)
+{
+	rstring result;
+
+	if (locale_current[0])
+	{
+		// check key is exists
+		if (app_locale_array.find (locale_current) != app_locale_array.end () && app_locale_array[locale_current].find (name) != app_locale_array[locale_current].end ())
+			result = app_locale_array[locale_current][name];
+	}
+
+	if (uid && result.IsEmpty ())
+	{
+		if (!hinst)
+			hinst = GetHINSTANCE ();
+
+		LoadString (hinst, uid, result.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH);
+		result.ReleaseBuffer ();
 
 		if (result.IsEmpty ())
-		{
-			if (!h)
-				h = GetHINSTANCE ();
-
-			LoadString (h, uid, result.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH);
-			result.ReleaseBuffer ();
-		}
+			result = name;
 	}
 
 	return result;
@@ -1291,7 +1277,7 @@ INT_PTR CALLBACK rapp::SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LP
 	{
 		case WM_INITDIALOG:
 		{
-			this_ptr = reinterpret_cast<rapp*>(lparam);
+			this_ptr = (rapp*)(lparam);
 
 			EnableThemeDialogTexture (hwnd, ETDT_ENABLETAB);
 
@@ -1333,13 +1319,13 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 	{
 		case WM_INITDIALOG:
 		{
-			this_ptr = reinterpret_cast<rapp*>(lparam);
+			this_ptr = (rapp*)(lparam);
 
 			this_ptr->settings_hwnd = hwnd;
 			this_ptr->SetIcon (hwnd, 0, false);
 
 			// configure window
-			_r_wnd_center (hwnd);
+			_r_wnd_center (hwnd, GetParent (hwnd));
 
 			// configure treeview
 			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, this_ptr->GetDPI (22));
@@ -1381,7 +1367,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			RECT rc = {0};
 			GetWindowRect (GetDlgItem (hwnd, IDC_NAV), &rc);
 
-			INT pos_x = rc.right - rc.left;
+			INT pos_x = _R_RECT_WIDTH (&rc);
 
 			// shift "x" position
 			MapWindowPoints (HWND_DESKTOP, hwnd, (LPPOINT)&rc, 2);
@@ -1389,7 +1375,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			// calculate "y" position
 			GetClientRect (hwnd, &rc);
-			const INT pos_y = rc.bottom - rc.top;
+			const INT pos_y = _R_RECT_HEIGHT (&rc);
 
 			for (INT i = 0; i < pos_y; i++)
 				SetPixel (dc, pos_x, i, GetSysColor (COLOR_APPWORKSPACE));
