@@ -9,12 +9,6 @@ CONST UINT WM_TASKBARCREATED = RegisterWindowMessage (L"TaskbarCreated");
 
 rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright)
 {
-	// initialize security attributes
-	SecureZeroMemory (&sd, sizeof (sd));
-	SecureZeroMemory (&sa, sizeof (sa));
-
-	_r_sys_setsecurityattributes (&sa, sizeof (sa), &sd);
-
 	// store system information
 	is_vistaorlater = _r_sys_validversion (6, 0);
 	is_admin = _r_sys_adminstate ();
@@ -113,7 +107,7 @@ bool rapp::InitializeMutex ()
 {
 	UninitializeMutex ();
 
-	app_mutex = CreateMutex (&sa, FALSE, app_name_short);
+	app_mutex = CreateMutex (nullptr, FALSE, app_name_short);
 
 	return (app_mutex != nullptr);
 }
@@ -135,7 +129,7 @@ bool rapp::CheckMutex (bool activate_window)
 {
 	bool result = false;
 
-	HANDLE h = CreateMutex (&sa, FALSE, app_name_short);
+	HANDLE h = CreateMutex (nullptr, FALSE, app_name_short);
 
 	if (GetLastError () == ERROR_ALREADY_EXISTS)
 	{
@@ -402,8 +396,8 @@ void rapp::CreateAboutWindow (HWND hwnd, LPCWSTR donate_text)
 			StringCchPrintf (content, _countof (content), L"Version %s, %d-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", app_version, architecture, app_copyright, _APP_WEBSITE_URL, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
 			StringCchPrintf (footer, _countof (footer), L"%s", TEXT (__TIME__));
 
-			if(donate_text)
-			StringCchCopy (btn_text, _countof (btn_text), donate_text);
+			if (donate_text)
+				StringCchCopy (btn_text, _countof (btn_text), donate_text);
 
 			if (_r_msg_taskdialog (&tdc, &result, nullptr, nullptr))
 			{
@@ -1650,94 +1644,97 @@ bool rapp::SkipUacEnable (bool is_enable)
 		rstring name;
 		name.Format (_APP_TASKSCHD_NAME, app_name_short);
 
-		CoInitializeEx (nullptr, COINIT_MULTITHREADED);
-		CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr);
-
-		if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
+		if (SUCCEEDED (CoInitializeEx (nullptr, COINIT_MULTITHREADED)))
 		{
-			if (SUCCEEDED (service->Connect (_variant_t (), _variant_t (), _variant_t (), _variant_t ())))
+			if (SUCCEEDED (CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr)))
 			{
-				if (SUCCEEDED (service->GetFolder (L"\\", &folder)))
+				if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
 				{
-					if (is_enable)
+					if (SUCCEEDED (service->Connect (_variant_t (), _variant_t (), _variant_t (), _variant_t ())))
 					{
-						if (SUCCEEDED (service->NewTask (0, &task)))
+						if (SUCCEEDED (service->GetFolder (L"\\", &folder)))
 						{
-							if (SUCCEEDED (task->get_RegistrationInfo (&reginfo)))
+							if (is_enable)
 							{
-								reginfo->put_Author (_APP_AUTHOR);
-								reginfo->Release ();
-							}
-
-							if (SUCCEEDED (task->get_Principal (&principal)))
-							{
-								principal->put_RunLevel (TASK_RUNLEVEL_HIGHEST);
-								principal->Release ();
-							}
-
-							if (SUCCEEDED (task->get_Settings (&settings)))
-							{
-								settings->put_AllowHardTerminate (VARIANT_BOOL (FALSE));
-								settings->put_StartWhenAvailable (VARIANT_BOOL (FALSE));
-								settings->put_DisallowStartIfOnBatteries (VARIANT_BOOL (FALSE));
-								settings->put_StopIfGoingOnBatteries (VARIANT_BOOL (FALSE));
-								settings->put_MultipleInstances (TASK_INSTANCES_PARALLEL);
-								settings->put_ExecutionTimeLimit (L"PT0S");
-
-								settings->Release ();
-							}
-
-							if (SUCCEEDED (task->get_Actions (&action_collection)))
-							{
-								if (SUCCEEDED (action_collection->Create (TASK_ACTION_EXEC, &action)))
+								if (SUCCEEDED (service->NewTask (0, &task)))
 								{
-									if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID*)&exec_action)))
+									if (SUCCEEDED (task->get_RegistrationInfo (&reginfo)))
 									{
-										WCHAR path[MAX_PATH] = {0};
-										StringCchCopy (path, _countof (path), GetBinaryPath ());
-
-										WCHAR directory[MAX_PATH] = {0};
-										StringCchCopy (directory, _countof (directory), GetDirectory ());
-
-										if (SUCCEEDED (exec_action->put_Path (path)) && SUCCEEDED (exec_action->put_WorkingDirectory (directory)) && SUCCEEDED (exec_action->put_Arguments (L"$(Arg0)")))
-										{
-											action_result = true;
-										}
-
-										exec_action->Release ();
+										reginfo->put_Author (_APP_AUTHOR);
+										reginfo->Release ();
 									}
 
-									action->Release ();
+									if (SUCCEEDED (task->get_Principal (&principal)))
+									{
+										principal->put_RunLevel (TASK_RUNLEVEL_HIGHEST);
+										principal->Release ();
+									}
+
+									if (SUCCEEDED (task->get_Settings (&settings)))
+									{
+										settings->put_AllowHardTerminate (VARIANT_BOOL (FALSE));
+										settings->put_StartWhenAvailable (VARIANT_BOOL (FALSE));
+										settings->put_DisallowStartIfOnBatteries (VARIANT_BOOL (FALSE));
+										settings->put_StopIfGoingOnBatteries (VARIANT_BOOL (FALSE));
+										settings->put_MultipleInstances (TASK_INSTANCES_PARALLEL);
+										settings->put_ExecutionTimeLimit (L"PT0S");
+
+										settings->Release ();
+									}
+
+									if (SUCCEEDED (task->get_Actions (&action_collection)))
+									{
+										if (SUCCEEDED (action_collection->Create (TASK_ACTION_EXEC, &action)))
+										{
+											if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID*)&exec_action)))
+											{
+												WCHAR path[MAX_PATH] = {0};
+												StringCchCopy (path, _countof (path), GetBinaryPath ());
+
+												WCHAR directory[MAX_PATH] = {0};
+												StringCchCopy (directory, _countof (directory), GetDirectory ());
+
+												if (SUCCEEDED (exec_action->put_Path (path)) && SUCCEEDED (exec_action->put_WorkingDirectory (directory)) && SUCCEEDED (exec_action->put_Arguments (L"$(Arg0)")))
+												{
+													action_result = true;
+												}
+
+												exec_action->Release ();
+											}
+
+											action->Release ();
+										}
+
+										action_collection->Release ();
+									}
+
+									if (action_result && SUCCEEDED (folder->RegisterTaskDefinition (name.GetBuffer (), task, TASK_CREATE_OR_UPDATE, _variant_t (), _variant_t (), TASK_LOGON_INTERACTIVE_TOKEN, _variant_t (), &registered_task)))
+									{
+										ConfigSet (L"SkipUacIsEnabled", true);
+										result = true;
+
+										registered_task->Release ();
+									}
+
+									task->Release ();
 								}
-
-								action_collection->Release ();
 							}
-
-							if (action_result && SUCCEEDED (folder->RegisterTaskDefinition (name.GetBuffer (), task, TASK_CREATE_OR_UPDATE, _variant_t (), _variant_t (), TASK_LOGON_INTERACTIVE_TOKEN, _variant_t (), &registered_task)))
+							else
 							{
-								ConfigSet (L"SkipUacIsEnabled", true);
-								result = true;
-
-								registered_task->Release ();
+								result = SUCCEEDED (folder->DeleteTask (name.GetBuffer (), 0));
+								ConfigSet (L"SkipUacIsEnabled", false);
 							}
 
-							task->Release ();
+							folder->Release ();
 						}
 					}
-					else
-					{
-						result = SUCCEEDED (folder->DeleteTask (name.GetBuffer (), 0));
-						ConfigSet (L"SkipUacIsEnabled", false);
-					}
 
-					folder->Release ();
+					service->Release ();
 				}
 			}
 
-			service->Release ();
+			CoUninitialize ();
 		}
-
-		CoUninitialize ();
 	}
 
 	return result;
@@ -1771,101 +1768,104 @@ bool rapp::SkipUacRun ()
 		rstring name;
 		name.Format (_APP_TASKSCHD_NAME, app_name_short);
 
-		CoInitializeEx (nullptr, COINIT_MULTITHREADED);
-		CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr);
-
-		if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
+		if (SUCCEEDED (CoInitializeEx (nullptr, COINIT_MULTITHREADED)))
 		{
-			if (SUCCEEDED (service->Connect (_variant_t (), _variant_t (), _variant_t (), _variant_t ())))
+			if (SUCCEEDED (CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr)))
 			{
-				if (SUCCEEDED (service->GetFolder (L"\\", &folder)))
+				if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
 				{
-					if (SUCCEEDED (folder->GetTask (name.GetBuffer (), &registered_task)))
+					if (SUCCEEDED (service->Connect (_variant_t (), _variant_t (), _variant_t (), _variant_t ())))
 					{
-						if (SUCCEEDED (registered_task->get_Definition (&task)))
+						if (SUCCEEDED (service->GetFolder (L"\\", &folder)))
 						{
-							if (SUCCEEDED (task->get_Actions (&action_collection)))
+							if (SUCCEEDED (folder->GetTask (name.GetBuffer (), &registered_task)))
 							{
-								if (SUCCEEDED (action_collection->get_Item (1, &action)))
+								if (SUCCEEDED (registered_task->get_Definition (&task)))
 								{
-									if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID*)&exec_action)))
+									if (SUCCEEDED (task->get_Actions (&action_collection)))
 									{
-										BSTR path = nullptr;
-
-										exec_action->get_Path (&path);
-
-										PathUnquoteSpaces (path);
-
-										// check path is to current module
-										if (_wcsicmp (path, GetBinaryPath ()) == 0)
+										if (SUCCEEDED (action_collection->get_Item (1, &action)))
 										{
-											rstring args;
-
-											// get arguments
+											if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID*)&exec_action)))
 											{
-												INT numargs = 0;
-												LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
+												BSTR path = nullptr;
 
-												for (INT i = 1; i < numargs; i++)
+												exec_action->get_Path (&path);
+
+												PathUnquoteSpaces (path);
+
+												// check path is to current module
+												if (_wcsicmp (path, GetBinaryPath ()) == 0)
 												{
-													args.Append (arga[i]);
-													args.Append (L" ");
-												}
+													rstring args;
 
-												LocalFree (arga);
-											}
-
-											variant_t ticker = args.Trim (L" ");
-
-											if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_AS_SELF, 0, nullptr, &running_task)) && running_task)
-											{
-												TASK_STATE state;
-												INT count = 5; // try count
-
-												do
-												{
-													_r_sleep (500);
-
-													running_task->Refresh ();
-													running_task->get_State (&state);
-
-													if (state == TASK_STATE_RUNNING || state == TASK_STATE_DISABLED)
+													// get arguments
 													{
-														if (state == TASK_STATE_RUNNING)
-															result = true;
+														INT numargs = 0;
+														LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
 
-														break;
+														for (INT i = 1; i < numargs; i++)
+														{
+															args.Append (arga[i]);
+															args.Append (L" ");
+														}
+
+														LocalFree (arga);
+													}
+
+													variant_t ticker = args.Trim (L" ");
+
+													if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_AS_SELF, 0, nullptr, &running_task)) && running_task)
+													{
+														TASK_STATE state;
+														INT count = 5; // try count
+
+														do
+														{
+															_r_sleep (500);
+
+															running_task->Refresh ();
+															running_task->get_State (&state);
+
+															if (state == TASK_STATE_RUNNING || state == TASK_STATE_DISABLED)
+															{
+																if (state == TASK_STATE_RUNNING)
+																	result = true;
+
+																break;
+															}
+														}
+														while (count--);
+
+														running_task->Release ();
 													}
 												}
-												while (count--);
 
-												running_task->Release ();
+												exec_action->Release ();
 											}
+
+											action->Release ();
 										}
 
-										exec_action->Release ();
+										action_collection->Release ();
 									}
 
-									action->Release ();
+									task->Release ();
 								}
 
-								action_collection->Release ();
+								registered_task->Release ();
 							}
 
-							task->Release ();
+							folder->Release ();
 						}
-
-						registered_task->Release ();
 					}
 
-					folder->Release ();
+					service->Release ();
 				}
 			}
 
-			service->Release ();
+			CoUninitialize ();
 		}
-
-		CoUninitialize ();
 	}
 
 	return result;
@@ -1886,38 +1886,39 @@ bool rapp::RunAsAdmin ()
 		{
 			const bool is_mutexdestroyed = UninitializeMutex ();
 
-			CoInitialize (nullptr);
-
-			SHELLEXECUTEINFO shex = {0};
-
-			WCHAR path[MAX_PATH] = {0};
-			StringCchCopy (path, _countof (path), GetBinaryPath ());
-
-			WCHAR directory[MAX_PATH] = {0};
-			StringCchCopy (directory, _countof (directory), GetDirectory ());
-
-			WCHAR args[MAX_PATH] = {0};
-			StringCchCopy (args, _countof (args), GetCommandLine ());
-
-			shex.cbSize = sizeof (shex);
-			shex.fMask = SEE_MASK_UNICODE | SEE_MASK_NOZONECHECKS | SEE_MASK_FLAG_NO_UI;
-			shex.lpVerb = L"runas";
-			shex.nShow = SW_NORMAL;
-			shex.lpFile = path;
-			shex.lpDirectory = directory;
-			shex.lpParameters = args;
-
-			if (ShellExecuteEx (&shex))
+			if (SUCCEEDED (CoInitialize (nullptr)))
 			{
-				result = true;
-			}
-			else
-			{
-				if (is_mutexdestroyed)
-					InitializeMutex ();
-			}
+				SHELLEXECUTEINFO shex = {0};
 
-			CoUninitialize ();
+				WCHAR path[MAX_PATH] = {0};
+				StringCchCopy (path, _countof (path), GetBinaryPath ());
+
+				WCHAR directory[MAX_PATH] = {0};
+				StringCchCopy (directory, _countof (directory), GetDirectory ());
+
+				WCHAR args[MAX_PATH] = {0};
+				StringCchCopy (args, _countof (args), GetCommandLine ());
+
+				shex.cbSize = sizeof (shex);
+				shex.fMask = SEE_MASK_UNICODE | SEE_MASK_NOZONECHECKS | SEE_MASK_FLAG_NO_UI;
+				shex.lpVerb = L"runas";
+				shex.nShow = SW_NORMAL;
+				shex.lpFile = path;
+				shex.lpDirectory = directory;
+				shex.lpParameters = args;
+
+				if (ShellExecuteEx (&shex))
+				{
+					result = true;
+				}
+				else
+				{
+					if (is_mutexdestroyed)
+						InitializeMutex ();
+				}
+
+				CoUninitialize ();
+			}
 		}
 	}
 

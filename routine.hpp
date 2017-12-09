@@ -19,6 +19,7 @@
 #include <winhttp.h>
 #include <subauth.h>
 #include <sddl.h>
+#include <inttypes.h>
 
 #include "rconfig.hpp"
 #include "rstring.hpp"
@@ -214,7 +215,7 @@ DWORD _r_path_ntpathfromdos (rstring& path);
 	Processes
 */
 
-BOOL _r_process_getpath (HANDLE h, LPWSTR path, DWORD length);
+bool _r_process_getpath (HANDLE h, LPWSTR path, DWORD length);
 
 [[deprecated ("May cause troubles on WOW64!")]]
 BOOL _r_process_is_exists (LPCWSTR path, const size_t len);
@@ -239,7 +240,6 @@ bool _r_sys_adminstate ();
 bool _r_sys_iswow64 ();
 #endif // _WIN64
 
-bool _r_sys_setsecurityattributes (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURITY_DESCRIPTOR sd);
 bool _r_sys_setprivilege (LPCWSTR privileges[], UINT count, bool is_enable);
 bool _r_sys_uacstate ();
 bool _r_sys_validversion (DWORD major, DWORD minor, DWORD build = 0, BYTE condition = VER_GREATER_EQUAL);
@@ -290,7 +290,7 @@ void _r_inet_close (HINTERNET hinet);
 
 HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d);
 bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd = nullptr, WORD sw = SW_SHOWDEFAULT);
-size_t _r_rnd (size_t start, size_t end);
+size_t _r_rand (size_t start, size_t end);
 
 /*
 	Control: common

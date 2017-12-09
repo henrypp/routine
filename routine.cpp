@@ -445,10 +445,15 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 bool _r_msg_taskdialog (const TASKDIALOGCONFIG* ptd, INT* pbutton, INT* pradiobutton, BOOL* pcheckbox)
 {
 #ifndef _APP_NO_WINXP
-	const TDI _TaskDialogIndirect = (TDI)GetProcAddress (GetModuleHandle (L"comctl32.dll"), "TaskDialogIndirect");
+	const HMODULE hlib = GetModuleHandle (L"comctl32.dll");
 
-	if (_TaskDialogIndirect)
-		return (_TaskDialogIndirect (ptd, pbutton, pradiobutton, pcheckbox) == S_OK);
+	if (hlib)
+	{
+		const TDI _TaskDialogIndirect = (TDI)GetProcAddress (hlib, "TaskDialogIndirect");
+
+		if (_TaskDialogIndirect)
+			return (_TaskDialogIndirect (ptd, pbutton, pradiobutton, pcheckbox) == S_OK);
+	}
 
 	return false;
 #else
@@ -575,14 +580,17 @@ void _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length)
 	{
 		if (EmptyClipboard ())
 		{
-			HGLOBAL h = GlobalAlloc (GMEM_MOVEABLE | GMEM_ZEROINIT, (length + 1) * sizeof (WCHAR));
+			HGLOBAL hmem = GlobalAlloc (GMEM_MOVEABLE | GMEM_ZEROINIT, (length + 1) * sizeof (WCHAR));
 
-			if (h)
+			if (hmem)
 			{
-				memcpy (GlobalLock (h), text, (length + 1) * sizeof (WCHAR));
-				SetClipboardData (CF_UNICODETEXT, h);
+				LPVOID ptr = GlobalLock (hmem);
+				const size_t size = (length * sizeof (WCHAR)) + sizeof (WCHAR);
 
-				GlobalUnlock (h);
+				memcpy_s (ptr, size, text, size);
+				SetClipboardData (CF_UNICODETEXT, hmem);
+
+				GlobalUnlock (hmem);
 			}
 		}
 
@@ -660,10 +668,15 @@ bool _r_fs_mkdir (LPCWSTR path)
 {
 	bool result = false;
 
-	const SHCDEX _SHCreateDirectoryEx = (SHCDEX)GetProcAddress (GetModuleHandle (L"shell32.dll"), "SHCreateDirectoryExW");
+	HMODULE hlib = GetModuleHandle (L"shell32.dll");
 
-	if (_SHCreateDirectoryEx)
-		result = _SHCreateDirectoryEx (nullptr, path, nullptr) == ERROR_SUCCESS;
+	if (hlib)
+	{
+		const SHCDEX _SHCreateDirectoryEx = (SHCDEX)GetProcAddress (hlib, "SHCreateDirectoryExW");
+
+		if (_SHCreateDirectoryEx)
+			result = _SHCreateDirectoryEx (nullptr, path, nullptr) == ERROR_SUCCESS;
+	}
 
 	if (!result)
 	{
@@ -962,18 +975,23 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 	Processes
 */
 
-BOOL _r_process_getpath (HANDLE h, LPWSTR path, DWORD length)
+bool _r_process_getpath (HANDLE h, LPWSTR path, DWORD length)
 {
-	BOOL result = FALSE;
+	bool result = false;
 
 	if (path)
 	{
-		const QFPIN _QueryFullProcessImageName = (QFPIN)GetProcAddress (GetModuleHandle (L"kernel32.dll"), "QueryFullProcessImageNameW");
+		const HMODULE hlib = GetModuleHandle (L"kernel32.dll");
 
-		if (_QueryFullProcessImageName)
+		if (hlib)
 		{
-			if (_QueryFullProcessImageName (h, 0, path, &length)) // vista and later
-				result = TRUE;
+			const QFPIN _QueryFullProcessImageName = (QFPIN)GetProcAddress (hlib, "QueryFullProcessImageNameW");
+
+			if (_QueryFullProcessImageName)
+			{
+				if (_QueryFullProcessImageName (h, 0, path, &length)) // vista and later
+					result = true;
+			}
 		}
 #ifndef _APP_NO_WINXP
 		else
@@ -983,7 +1001,7 @@ BOOL _r_process_getpath (HANDLE h, LPWSTR path, DWORD length)
 			if (GetProcessImageFileName (h, buffer, _countof (buffer))) // winxp
 			{
 				StringCchCopy (path, length, _r_path_dospathfromnt (buffer));
-				result = TRUE;
+				result = true;
 			}
 		}
 #endif //_APP_NO_WINXP
@@ -1196,29 +1214,22 @@ bool _r_sys_iswow64 ()
 	// Use GetModuleHandle to get a handle to the DLL that contains the function
 	// and GetProcAddress to get a pointer to the function if available.
 
-	const IW64P _IsWow64Process = (IW64P)GetProcAddress (GetModuleHandle (L"kernel32.dll"), "IsWow64Process");
+	const HMODULE hlib = GetModuleHandle (L"kernel32.dll");
 
-	if (_IsWow64Process)
-		_IsWow64Process (GetCurrentProcess (), &result);
+	if (hlib)
+	{
+		const IW64P _IsWow64Process = (IW64P)GetProcAddress (hlib, "IsWow64Process");
 
-	if (result)
-		return true;
+		if (_IsWow64Process)
+			_IsWow64Process (GetCurrentProcess (), &result);
+
+		if (result)
+			return true;
+	}
 
 	return false;
 }
 #endif // _WIN64
-
-bool _r_sys_setsecurityattributes (LPSECURITY_ATTRIBUTES sa, DWORD length, PSECURITY_DESCRIPTOR sd)
-{
-	if (!sa || !InitializeSecurityDescriptor (sd, SECURITY_DESCRIPTOR_REVISION) || !SetSecurityDescriptorDacl (sd, TRUE, nullptr, FALSE))
-		return false;
-
-	sa->nLength = length;
-	sa->lpSecurityDescriptor = sd;
-	sa->bInheritHandle = TRUE;
-
-	return true;
-}
 
 bool _r_sys_setprivilege (LPCWSTR privileges[], UINT count, bool is_enable)
 {
@@ -1494,18 +1505,23 @@ void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 {
 	if (_r_sys_validversion (6, 0))
 	{
-		const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (GetModuleHandle (L"user32.dll"), "ChangeWindowMessageFilterEx"); // win7 and later
+		const HMODULE hlib = GetModuleHandle (L"user32.dll");
 
-		if (_ChangeWindowMessageFilterEx)
+		if (hlib)
 		{
-			_ChangeWindowMessageFilterEx (hwnd, msg, action, nullptr);
-		}
-		else
-		{
-			const CWMF _ChangeWindowMessageFilter = (CWMF)GetProcAddress (GetModuleHandle (L"user32.dll"), "ChangeWindowMessageFilter"); // vista
+			const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (hlib, "ChangeWindowMessageFilterEx"); // win7 and later
 
-			if (_ChangeWindowMessageFilter)
-				_ChangeWindowMessageFilter (msg, action);
+			if (_ChangeWindowMessageFilterEx)
+			{
+				_ChangeWindowMessageFilterEx (hwnd, msg, action, nullptr);
+			}
+			else
+			{
+				const CWMF _ChangeWindowMessageFilter = (CWMF)GetProcAddress (hlib, "ChangeWindowMessageFilter"); // vista
+
+				if (_ChangeWindowMessageFilter)
+					_ChangeWindowMessageFilter (msg, action);
+			}
 		}
 	}
 }
@@ -1742,10 +1758,15 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d)
 {
 	HICON result = nullptr;
 
-	const LIWSD _LoadIconWithScaleDown = (LIWSD)GetProcAddress (GetModuleHandle (L"comctl32.dll"), "LoadIconWithScaleDown");
+	const HMODULE hlib = GetModuleHandle (L"comctl32.dll");
 
-	if (_LoadIconWithScaleDown)
-		_LoadIconWithScaleDown (h, name, d, d, &result);
+	if (hlib)
+	{
+		const LIWSD _LoadIconWithScaleDown = (LIWSD)GetProcAddress (hlib, "LoadIconWithScaleDown");
+
+		if (_LoadIconWithScaleDown)
+			_LoadIconWithScaleDown (h, name, d, d, &result);
+	}
 
 #ifndef _APP_NO_WINXP
 	if (!result)
@@ -1784,7 +1805,7 @@ bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 	return result;
 }
 
-size_t _r_rnd (size_t start, size_t end)
+size_t _r_rand (size_t start, size_t end)
 {
 	srand (GetTickCount ());
 

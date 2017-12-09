@@ -13,7 +13,7 @@ LPWSTR rstring::empty = L"";
 const size_t rstring::npos = MAXDWORD64;
 #pragma warning(pop)
 
-rstring::rstring (): data_ (nullptr)
+rstring::rstring () : data_ (nullptr)
 {}
 
 rstring::rstring (const rstring& other) : data_ (nullptr)
@@ -26,13 +26,13 @@ rstring::rstring (const rstring& other) : data_ (nullptr)
 	}
 }
 
-rstring::rstring (rstring&& other): data_ (nullptr)
+rstring::rstring (rstring&& other) : data_ (nullptr)
 {
 	data_ = other.data_;
 	other.data_ = nullptr;
 }
 
-rstring::rstring (LPCWSTR str): data_ (nullptr)
+rstring::rstring (LPCWSTR str) : data_ (nullptr)
 {
 	if (str)
 	{
@@ -45,7 +45,7 @@ rstring::rstring (LPCWSTR str): data_ (nullptr)
 	}
 }
 
-rstring::rstring (LPCSTR str): data_ (nullptr)
+rstring::rstring (LPCSTR str) : data_ (nullptr)
 {
 	size_t length = strlen (str);
 	if (length)
@@ -55,7 +55,7 @@ rstring::rstring (LPCSTR str): data_ (nullptr)
 	}
 }
 
-rstring::rstring (LPCWSTR str1, size_t length1, LPCWSTR str2, size_t length2): data_ (nullptr)
+rstring::rstring (LPCWSTR str1, size_t length1, LPCWSTR str2, size_t length2) : data_ (nullptr)
 {
 	size_t totalLength = length1 + length2;
 	if (totalLength)
@@ -63,36 +63,42 @@ rstring::rstring (LPCWSTR str1, size_t length1, LPCWSTR str2, size_t length2): d
 		ReallocateUnique (totalLength);
 		if (str1)
 		{
-			wmemcpy (data_, str1, length1);
+			if (data_)
+				wmemcpy (data_, str1, length1);
 		}
 		else
 		{
-			wmemset (data_, 0, length1);
+			if (data_)
+				wmemset (data_, 0, length1);
 		}
 
 		if (str2)
 		{
-			wmemcpy (&data_[length1], str2, length2);
+			if (data_)
+				wmemcpy (&data_[length1], str2, length2);
 		}
 		else
 		{
-			wmemset (data_ + length1, 0, length2);
+			if (data_)
+				wmemset (data_ + length1, 0, length2);
 		}
 	}
 }
 
-rstring::rstring (LPCWSTR str, size_t length): data_ (nullptr)
+rstring::rstring (LPCWSTR str, size_t length) : data_ (nullptr)
 {
 	if (length)
 	{
 		ReallocateUnique (length);
 		if (str)
 		{
-			wmemcpy (data_, str, length);
+			if (data_)
+				wmemcpy (data_, str, length);
 		}
 		else
 		{
-			wmemset (data_, 0, length);
+			if (data_)
+				wmemset (data_, 0, length);
 		}
 	}
 }

@@ -155,9 +155,6 @@ private:
 
 	void LocaleInit ();
 
-	SECURITY_ATTRIBUTES sa;
-	SECURITY_DESCRIPTOR sd;
-
 	DOUBLE dpi_percent = 0.f;
 
 	bool is_classic = false;
