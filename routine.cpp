@@ -1,5 +1,5 @@
 // routine++
-// Copyright (c) 2012-2017 Henry++
+// Copyright (c) 2012-2018 Henry++
 
 #include "routine.hpp"
 /*
@@ -668,7 +668,7 @@ bool _r_fs_mkdir (LPCWSTR path)
 {
 	bool result = false;
 
-	HMODULE hlib = GetModuleHandle (L"shell32.dll");
+	const HMODULE hlib = GetModuleHandle (L"shell32.dll");
 
 	if (hlib)
 	{
