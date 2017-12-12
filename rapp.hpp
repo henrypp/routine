@@ -86,7 +86,7 @@ public:
 	void CreateAboutWindow (HWND hwnd, LPCWSTR donate_text);
 #endif // _APP_NO_ABOUT
 
-	bool CreateMainWindow (DLGPROC proc, APPLICATION_CALLBACK callback);
+	bool CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc, APPLICATION_CALLBACK callback);
 
 #ifdef _APP_HAVE_TRAY
 	bool TrayCreate (HWND hwnd, UINT uid, UINT code, HICON hicon, bool is_hidden);
@@ -160,6 +160,7 @@ private:
 	bool is_classic = false;
 	bool is_vistaorlater = false;
 	bool is_admin = false;
+	bool is_needmaximize = false;
 
 #ifdef _APP_HAVE_TRAY
 	NOTIFYICONDATA nid = {0};
@@ -174,10 +175,8 @@ private:
 	bool is_about_opened = false;
 #endif // _APP_NO_ABOUT
 
-#ifdef _APP_HAVE_SIZING
 	INT max_width = 0;
 	INT max_height = 0;
-#endif // _APP_HAVE_SIZING
 
 	WNDPROC app_wndproc = nullptr;
 	HWND app_hwnd = nullptr;

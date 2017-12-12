@@ -63,9 +63,8 @@
 	Rectangle
 */
 
-#define _R_RECT_WIDTH(lprect)(((lprect)->right - (lprect)->left))
-#define _R_RECT_HEIGHT(lprect)(((lprect)->bottom - (lprect)->top))
-#define _R_RECT_CENTER(lprect,lpparent)(lprect)->left = ((lpparent)->left + (_R_RECT_WIDTH ((lpparent)) - _R_RECT_WIDTH ((lprect))) / 2);((lprect)->top = ((lpparent)->top + (_R_RECT_HEIGHT ((lpparent)) - _R_RECT_HEIGHT ((lprect))) / 2))
+#define _R_RECT_WIDTH(lprect)((lprect)->right - (lprect)->left)
+#define _R_RECT_HEIGHT(lprect)((lprect)->bottom - (lprect)->top)
 
 /*
 	Debug logging
@@ -269,7 +268,9 @@ int _r_dc_fontheighttosize (INT size);
 */
 
 void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT index);
-void _r_wnd_center (HWND hwnd, HWND parent);
+void _r_wnd_adjustwindowrect (HWND hwnd, LPRECT lprect);
+void _r_wnd_centerwindowrect (LPRECT lprect, LPRECT lpparent);
+void _r_wnd_center (HWND hwnd, HWND hparent);
 void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action);
 void _r_wnd_toggle (HWND hwnd, bool show);
 void _r_wnd_top (HWND hwnd, bool is_enable);

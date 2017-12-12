@@ -513,29 +513,18 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 	{
 		case TDN_CREATED:
 		{
-			_r_wnd_center (hwnd, GetParent (hwnd));
-
 			if (lpdata)
 				_r_wnd_top (hwnd, true);
 
+			_r_wnd_center (hwnd, GetParent (hwnd));
+			
 			break;
 		}
 
 		case TDN_DIALOG_CONSTRUCTED:
 		{
-			const HWND hparent = GetParent (hwnd);
-
-			if (hparent)
-			{
-				const LPARAM hicon_small = SendMessage (hparent, WM_GETICON, ICON_SMALL, 0);
-				const LPARAM hicon_big = SendMessage (hparent, WM_GETICON, ICON_BIG, 0);
-
-				if (hicon_small && hicon_big)
-				{
-					SendMessage (hwnd, WM_SETICON, ICON_SMALL, hicon_small);
-					SendMessage (hwnd, WM_SETICON, ICON_BIG, hicon_big);
-				}
-			}
+			SendMessage (hwnd, WM_SETICON, ICON_SMALL, 0);
+			SendMessage (hwnd, WM_SETICON, ICON_BIG, 0);
 
 			break;
 		}
@@ -1367,7 +1356,6 @@ __time64_t _r_unixtime_from_filetime (const FILETIME* pft)
 __time64_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst)
 {
 	FILETIME ft = {0};
-
 	SystemTimeToFileTime (pst, &ft);
 
 	return _r_unixtime_from_filetime (&ft);
@@ -1437,7 +1425,7 @@ void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT in
 
 	SetWindowLongPtr (hwnd, index, style);
 
-	SetWindowPos (hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOMOVE | SWP_NOSIZE);
+	SetWindowPos (hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 }
 
 void _r_wnd_adjustwindowrect (HWND hwnd, LPRECT lprect)
@@ -1445,41 +1433,48 @@ void _r_wnd_adjustwindowrect (HWND hwnd, LPRECT lprect)
 	MONITORINFO monitorInfo = {0};
 	monitorInfo.cbSize = sizeof (monitorInfo);
 
-	HMONITOR monitor = nullptr;
+	const HMONITOR hmonitor = hwnd ? MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST) : MonitorFromRect (lprect, MONITOR_DEFAULTTONEAREST);
 
-	if (hwnd)
-		monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
-
-	else
-		monitor = MonitorFromRect (lprect, MONITOR_DEFAULTTONEAREST);
-
-	if (GetMonitorInfo (monitor, &monitorInfo))
+	if (GetMonitorInfo (hmonitor, &monitorInfo))
 	{
-		if (monitorInfo.rcWork.left + _R_RECT_WIDTH (&monitorInfo.rcWork) > lprect->left + _R_RECT_WIDTH (lprect))
-			monitorInfo.rcWork.left = lprect->left + _R_RECT_WIDTH (lprect) - _R_RECT_WIDTH (&monitorInfo.rcWork);
+		LPRECT lpbounds = &monitorInfo.rcWork;
 
-		if (monitorInfo.rcWork.top + _R_RECT_HEIGHT (&monitorInfo.rcWork) > lprect->top + _R_RECT_HEIGHT (lprect))
-			monitorInfo.rcWork.top = lprect->top + _R_RECT_HEIGHT (lprect) - _R_RECT_HEIGHT (&monitorInfo.rcWork);
+		const int original_width = _R_RECT_WIDTH (lprect);
+		const int original_height = _R_RECT_HEIGHT (lprect);
 
-		if (monitorInfo.rcWork.left < lprect->left)
-			monitorInfo.rcWork.left = lprect->left;
+		if (lprect->left + original_width > lpbounds->left + _R_RECT_WIDTH (lpbounds))
+			lprect->left = lpbounds->left + _R_RECT_WIDTH (lpbounds) - original_width;
 
-		if (monitorInfo.rcWork.top < lprect->top)
-			monitorInfo.rcWork.top = lprect->top;
+		if (lprect->top + original_height > lpbounds->top + _R_RECT_HEIGHT (lpbounds))
+			lprect->top = lpbounds->top + _R_RECT_HEIGHT (lpbounds) - original_height;
+
+		if (lprect->left < lpbounds->left)
+			lprect->left = lpbounds->left;
+
+		if (lprect->top < lpbounds->top)
+			lprect->top = lpbounds->top;
+
+		lprect->right = lprect->left + original_width;
+		lprect->bottom = lprect->top + original_height;
 	}
 }
 
-void _r_wnd_center (HWND hwnd, HWND parent)
+void _r_wnd_centerwindowrect (LPRECT lprect, LPRECT lpparent)
 {
-	if (parent && IsWindowVisible (parent) && !IsIconic (parent))
+	lprect->left = lpparent->left + (_R_RECT_WIDTH (lpparent) - _R_RECT_WIDTH (lprect)) / 2;
+	lprect->top = lpparent->top + (_R_RECT_HEIGHT (lpparent) - _R_RECT_HEIGHT (lprect)) / 2;
+}
+
+void _r_wnd_center (HWND hwnd, HWND hparent)
+{
+	if (hparent && IsWindowVisible (hparent) && !IsIconic (hparent))
 	{
 		RECT rect = {0}, parentRect = {0};
 
 		GetWindowRect (hwnd, &rect);
-		GetWindowRect (parent, &parentRect);
+		GetWindowRect (hparent, &parentRect);
 
-		_R_RECT_CENTER (&rect, &parentRect);
-
+		_r_wnd_centerwindowrect (&rect, &parentRect);
 		_r_wnd_adjustwindowrect (hwnd, &rect);
 
 		SetWindowPos (hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_NOSIZE);
@@ -1494,7 +1489,7 @@ void _r_wnd_center (HWND hwnd, HWND parent)
 			RECT rect = {0};
 			GetWindowRect (hwnd, &rect);
 
-			_R_RECT_CENTER (&rect, &monitorInfo.rcWork);
+			_r_wnd_centerwindowrect (&rect, &monitorInfo.rcWork);
 
 			SetWindowPos (hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_NOSIZE);
 		}
@@ -1546,7 +1541,7 @@ void _r_wnd_toggle (HWND hwnd, bool show)
 
 void _r_wnd_top (HWND hwnd, bool is_enable)
 {
-	SetWindowPos (hwnd, (is_enable ? HWND_TOPMOST : HWND_NOTOPMOST), 0, 0, 0, 0, SWP_NOOWNERZORDER | SWP_NOMOVE | SWP_NOSIZE);
+	SetWindowPos (hwnd, (is_enable ? HWND_TOPMOST : HWND_NOTOPMOST), 0, 0, 0, 0, SWP_NOOWNERZORDER | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 }
 
 // Author: Mikhail

@@ -23,7 +23,6 @@
 
 //#define _APP_HAVE_AUTORUN // enable autorun feature
 //#define _APP_HAVE_NTDLL // sdk have ntdll definitions and functions
-//#define _APP_HAVE_SIZING // window is resizable
 //#define _APP_HAVE_SKIPUAC // enable skip uac feature
 //#define _APP_HAVE_TRAY // enable tray icon feature
 //#define _APP_STARTMINIMIZED // start with no window
