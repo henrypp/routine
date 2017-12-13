@@ -151,7 +151,7 @@ private:
 	static LRESULT CALLBACK MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 	static BOOL CALLBACK ActivateWindowCallback (HWND hwnd, LPARAM lparam);
 
-	bool ParseINI (LPCWSTR path, rstring::map_two* map);
+	bool ParseINI (LPCWSTR path, rstring::map_two* pmap, std::vector<rstring>* psections);
 
 	void LocaleInit ();
 
@@ -203,6 +203,7 @@ private:
 
 	rstring::map_two app_config_array;
 	rstring::map_two app_locale_array;
+	std::vector<rstring> app_locale_names;
 
 #ifndef _APP_NO_SETTINGS
 	std::vector<PAPP_SETTINGS_PAGE> app_settings_pages;

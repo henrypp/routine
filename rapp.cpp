@@ -262,7 +262,7 @@ void rapp::ConfigInit ()
 	_r_fastlock_acquireexclusive (&lock);
 
 	app_config_array.clear (); // reset
-	ParseINI (app_config_path, &app_config_array);
+	ParseINI (app_config_path, &app_config_array, nullptr);
 
 	_r_fastlock_releaseexclusive (&lock);
 
@@ -1151,9 +1151,9 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, const UINT id_start
 		if (is_menu)
 			AppendMenu (hmenu, MF_SEPARATOR, 0, nullptr);
 
-		for (auto const& p : app_locale_array)
+		for (size_t i = 0; i < app_locale_names.size (); i++)
 		{
-			LPCWSTR name = p.first;
+			LPCWSTR name = app_locale_names.at (i);
 
 			if (is_menu)
 			{
@@ -1198,8 +1198,13 @@ void rapp::LocaleInit ()
 	else if (name.CompareNoCase (_APP_LANGUAGE_DEFAULT) == 0)
 		name = L"";
 
-	app_locale_array.clear (); // clear
-	ParseINI (_r_fmt (L"%s\\%s.lng", _r_path_expand (ConfigGet (L"LocalePath", GetDirectory ())).GetString (), app_name_short), &app_locale_array);
+	// clear
+	app_locale_array.clear ();
+	app_locale_names.clear ();
+
+	ParseINI (_r_fmt (L"%s\\%s.lng", _r_path_expand (ConfigGet (L"LocalePath", GetDirectory ())).GetString (), app_name_short), &app_locale_array, &app_locale_names);
+
+	_r_fastlock_acquireexclusive (&lock);
 
 	if (!app_locale_array.empty ())
 	{
@@ -1214,16 +1219,11 @@ void rapp::LocaleInit ()
 		}
 	}
 
-	_r_fastlock_acquireexclusive (&lock);
-
 	if (!name.IsEmpty ())
-	{
 		StringCchCopy (locale_current, _countof (locale_current), name);
-	}
+
 	else
-	{
 		locale_current[0] = 0;
-	}
 
 	_r_fastlock_releaseexclusive (&lock);
 }
@@ -1569,19 +1569,17 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 }
 #endif // _APP_NO_UPDATES
 
-bool rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
+bool rapp::ParseINI (LPCWSTR path, rstring::map_two* pmap, std::vector<rstring>* psections)
 {
 	bool result = false;
 
-	if (map && _r_fs_exists (path))
+	if (pmap && _r_fs_exists (path))
 	{
 		rstring section_ptr;
 		rstring value_ptr;
 
 		size_t length = 0, out_length = 0;
 		size_t delimeter = 0;
-
-		map->clear (); // clear first
 
 		// get sections
 		do
@@ -1600,6 +1598,9 @@ bool rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
 		{
 			// get values
 			length = 0;
+
+			if (psections)
+				psections->push_back (section);
 
 			do
 			{
@@ -1620,7 +1621,7 @@ bool rapp::ParseINI (LPCWSTR path, rstring::map_two* map)
 				delimeter = parser.Find (L'=');
 
 				if (delimeter != rstring::npos)
-					(*map)[section][parser.Midded (0, delimeter)] = parser.Midded (delimeter + 1); // set
+					(*pmap)[section][parser.Midded (0, delimeter)] = parser.Midded (delimeter + 1); // set
 
 				value += wcslen (value) + 1; // go next item
 			}
