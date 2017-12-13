@@ -701,16 +701,31 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc, APPLICATIO
 					max_height = _R_RECT_HEIGHT (&rc_original);
 				}
 
-				if (GetClientRect (GetHWND (), &rc_original))
-					SendMessage (GetHWND (), WM_SIZE, 0, MAKELPARAM (_R_RECT_WIDTH (&rc_original), _R_RECT_HEIGHT (&rc_original)));
+				// send resize message
+				if ((GetWindowLongPtr (GetHWND (), GWL_STYLE) & WS_SIZEBOX) != 0)
+				{
+					RECT rc_client = {0};
+
+					if (GetClientRect (GetHWND (), &rc_client))
+						SendMessage (GetHWND (), WM_SIZE, 0, MAKELPARAM (_R_RECT_WIDTH (&rc_client), _R_RECT_HEIGHT (&rc_client)));
+				}
 
 				// restore window position
 				RECT rect_new = {0};
 
 				rect_new.left = ConfigGet (L"WindowPosX", 0).AsInt ();
 				rect_new.top = ConfigGet (L"WindowPosY", 0).AsInt ();
-				rect_new.right = max (ConfigGet (L"WindowPosWidth", 0).AsInt (), max_width) + rect_new.left;
-				rect_new.bottom = max (ConfigGet (L"WindowPosHeight", 0).AsInt (), max_height) + rect_new.top;
+
+				if ((GetWindowLongPtr (GetHWND (), GWL_STYLE) & WS_SIZEBOX) != 0)
+				{
+					rect_new.right = max (ConfigGet (L"WindowPosWidth", 0).AsInt (), max_width) + rect_new.left;
+					rect_new.bottom = max (ConfigGet (L"WindowPosHeight", 0).AsInt (), max_height) + rect_new.top;
+				}
+				else
+				{
+					rect_new.right = _R_RECT_WIDTH (&rc_original) + rect_new.left;
+					rect_new.bottom = _R_RECT_HEIGHT (&rc_original) + rect_new.top;
+				}
 
 				_r_wnd_adjustwindowrect (nullptr, &rect_new);
 
