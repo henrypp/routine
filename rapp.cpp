@@ -692,13 +692,13 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc, APPLICATIO
 
 			// restore window position
 			{
-				RECT rc_original = {0};
+				RECT rect_original = {0};
 
 				// set minmax info
-				if (GetWindowRect (GetHWND (), &rc_original))
+				if (GetWindowRect (GetHWND (), &rect_original))
 				{
-					max_width = _R_RECT_WIDTH (&rc_original);
-					max_height = _R_RECT_HEIGHT (&rc_original);
+					max_width = _R_RECT_WIDTH (&rect_original);
+					max_height = _R_RECT_HEIGHT (&rect_original);
 				}
 
 				// send resize message
@@ -713,8 +713,8 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc, APPLICATIO
 				// restore window position
 				RECT rect_new = {0};
 
-				rect_new.left = ConfigGet (L"WindowPosX", 0).AsInt ();
-				rect_new.top = ConfigGet (L"WindowPosY", 0).AsInt ();
+				rect_new.left = ConfigGet (L"WindowPosX", rect_original.left).AsInt ();
+				rect_new.top = ConfigGet (L"WindowPosY", rect_original.top).AsInt ();
 
 				if ((GetWindowLongPtr (GetHWND (), GWL_STYLE) & WS_SIZEBOX) != 0)
 				{
@@ -723,8 +723,8 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc, APPLICATIO
 				}
 				else
 				{
-					rect_new.right = _R_RECT_WIDTH (&rc_original) + rect_new.left;
-					rect_new.bottom = _R_RECT_HEIGHT (&rc_original) + rect_new.top;
+					rect_new.right = _R_RECT_WIDTH (&rect_original) + rect_new.left;
+					rect_new.bottom = _R_RECT_HEIGHT (&rect_original) + rect_new.top;
 				}
 
 				_r_wnd_adjustwindowrect (nullptr, &rect_new);
@@ -1275,7 +1275,7 @@ void rapp::LocaleMenu (HMENU menu, LPCWSTR text, UINT item, bool by_position, LP
 }
 
 #ifndef _APP_NO_SETTINGS
-INT_PTR CALLBACK rapp::SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+INT_PTR CALLBACK rapp::SettingsPageProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
 	static rapp* this_ptr = nullptr;
 
@@ -1348,7 +1348,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 				{
 					if (ptr_page->dlg_id)
 					{
-						ptr_page->hwnd = CreateDialogParam (ptr_page->hinst, MAKEINTRESOURCE (ptr_page->dlg_id), hwnd, &this_ptr->SettingsPagesProc, (LPARAM)this_ptr);
+						ptr_page->hwnd = CreateDialogParam (ptr_page->hinst, MAKEINTRESOURCE (ptr_page->dlg_id), hwnd, &this_ptr->SettingsPageProc, (LPARAM)this_ptr);
 						this_ptr->app_settings_callback (ptr_page->hwnd, _RM_INITIALIZE, nullptr, ptr_page);
 					}
 

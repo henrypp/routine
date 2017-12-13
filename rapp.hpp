@@ -140,7 +140,7 @@ public:
 private:
 
 #ifndef _APP_NO_SETTINGS
-	static INT_PTR CALLBACK SettingsPagesProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
+	static INT_PTR CALLBACK SettingsPageProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 	static INT_PTR CALLBACK SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 #endif // _APP_NO_SETTINGS
 
