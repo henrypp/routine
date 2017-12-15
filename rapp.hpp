@@ -212,6 +212,4 @@ private:
 	size_t settings_page_id = 0;
 	HWND settings_hwnd = nullptr;
 #endif // _APP_NO_SETTINGS
-
-	_R_FASTLOCK lock;
 };

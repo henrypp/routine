@@ -259,12 +259,8 @@ void rapp::CheckForUpdates (bool is_periodical)
 
 void rapp::ConfigInit ()
 {
-	_r_fastlock_acquireexclusive (&lock);
-
 	app_config_array.clear (); // reset
 	ParseINI (app_config_path, &app_config_array, nullptr);
-
-	_r_fastlock_releaseexclusive (&lock);
 
 	LocaleInit ();
 
@@ -276,11 +272,7 @@ void rapp::ConfigInit ()
 
 rstring rapp::ConfigGet (LPCWSTR key, INT def, LPCWSTR name)
 {
-	_r_fastlock_acquireshared (&lock);
-
 	const rstring val = ConfigGet (key, _r_fmt (L"%d", def), name);
-
-	_r_fastlock_releaseshared (&lock);
 
 	return val;
 }
@@ -292,16 +284,12 @@ rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 	if (!name)
 		name = app_name_short;
 
-	_r_fastlock_acquireshared (&lock);
-
 	// check key is exists
 	if (app_config_array.find (name) != app_config_array.end () && app_config_array.at (name).find (key) != app_config_array.at (name).end ())
 		result = app_config_array.at (name).at (key);
 
 	if (result.IsEmpty ())
 		result = def;
-
-	_r_fastlock_releaseshared (&lock);
 
 	return result;
 }
@@ -315,11 +303,7 @@ bool rapp::ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name)
 		name = app_name_short;
 
 	// update hash value
-	_r_fastlock_acquireexclusive (&lock);
-
 	app_config_array[name][key] = val;
-
-	_r_fastlock_releaseexclusive (&lock);
 
 	if (WritePrivateProfileString (name, key, val, app_config_path))
 		return true;
@@ -365,7 +349,7 @@ void rapp::CreateAboutWindow (HWND hwnd, LPCWSTR donate_text)
 			WCHAR title[64] = {0};
 			WCHAR main[64] = {0};
 			WCHAR content[512] = {0};
-			WCHAR footer[128] = {0};
+			WCHAR footer[256] = {0};
 			WCHAR btn_text[64] = {0};
 
 			TASKDIALOGCONFIG tdc = {0};
@@ -377,11 +361,13 @@ void rapp::CreateAboutWindow (HWND hwnd, LPCWSTR donate_text)
 			tdc.hInstance = GetHINSTANCE ();
 			tdc.pfCallback = &_r_msg_callback;
 			tdc.pszMainIcon = MAKEINTRESOURCE (100);
+			tdc.pszFooterIcon = TD_INFORMATION_ICON;
 			tdc.dwCommonButtons = TDCBF_CLOSE_BUTTON;
 			tdc.nDefaultButton = IDCLOSE;
 			tdc.pszWindowTitle = title;
 			tdc.pszMainInstruction = main;
 			tdc.pszContent = content;
+			tdc.pszFooter = footer;
 			tdc.lpCallbackData = 1; // always on top
 
 			if (donate_text)
@@ -391,15 +377,14 @@ void rapp::CreateAboutWindow (HWND hwnd, LPCWSTR donate_text)
 
 				buttons[0].nButtonID = 100;
 				buttons[0].pszButtonText = btn_text;
+
+				StringCchCopy (btn_text, _countof (btn_text), donate_text);
 			}
 
 			StringCchCopy (title, _countof (title), I18N (this, IDS_ABOUT, 0));
 			StringCchCopy (main, _countof (main), app_name);
 			StringCchPrintf (content, _countof (content), L"Version %s, %d-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", app_version, architecture, app_copyright, _APP_WEBSITE_URL, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
-			StringCchPrintf (footer, _countof (footer), L"%s", TEXT (__TIME__));
-
-			if (donate_text)
-				StringCchCopy (btn_text, _countof (btn_text), donate_text);
+			StringCchCopy (footer, _countof (footer), L"This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License 3 as published by the Free Software Foundation.");
 
 			if (_r_msg_taskdialog (&tdc, &result, nullptr, nullptr))
 			{
@@ -436,8 +421,6 @@ bool rapp::IsVistaOrLater () const
 
 void rapp::SetIcon (HWND hwnd, UINT icon_id, bool is_forced)
 {
-	_r_fastlock_acquireexclusive (&lock);
-
 	if (is_forced || (!app_icon_small || !app_icon_big))
 	{
 		if (app_icon_small)
@@ -455,8 +438,6 @@ void rapp::SetIcon (HWND hwnd, UINT icon_id, bool is_forced)
 		app_icon_small = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (icon_id), GetSystemMetrics (SM_CXSMICON));
 		app_icon_big = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (icon_id), GetSystemMetrics (SM_CXICON));
 	}
-
-	_r_fastlock_releaseexclusive (&lock);
 
 	PostMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)app_icon_small);
 	PostMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)app_icon_big);
@@ -1204,8 +1185,6 @@ void rapp::LocaleInit ()
 
 	ParseINI (_r_fmt (L"%s\\%s.lng", _r_path_expand (ConfigGet (L"LocalePath", GetDirectory ())).GetString (), app_name_short), &app_locale_array, &app_locale_names);
 
-	_r_fastlock_acquireexclusive (&lock);
-
 	if (!app_locale_array.empty ())
 	{
 		for (auto &p : app_locale_array)
@@ -1224,8 +1203,6 @@ void rapp::LocaleInit ()
 
 	else
 		locale_current[0] = 0;
-
-	_r_fastlock_releaseexclusive (&lock);
 }
 
 rstring rapp::LocaleString (HINSTANCE hinst, UINT uid, LPCWSTR name)
