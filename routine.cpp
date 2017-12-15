@@ -6,13 +6,8 @@
 	Write debug log to console
 */
 
-void _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...)
+void _r_dbg (LPCWSTR format, ...)
 {
-	const DWORD dwLE = GetLastError ();
-	const DWORD dwTC = GetTickCount ();
-	const DWORD dwPID = GetCurrentProcessId ();
-	const DWORD dwTID = GetCurrentThreadId ();
-
 	if (!format)
 	{
 		OutputDebugString (L"\r\n");
@@ -27,14 +22,8 @@ void _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...)
 
 		va_end (args);
 
-		if (function)
-		{
-			OutputDebugString (_r_fmt (L"TC=%08d, PID=%04d, TID=%04d, LE=0x%.8lx, FN=%s, FL=%s:%d, T=%s\r\n", dwTC, dwPID, dwTID, dwLE, function, file, line, buffer.IsEmpty () ? L"<none>" : buffer));
-		}
-		else
-		{
+
 			OutputDebugString (buffer);
-		}
 	}
 }
 
@@ -63,7 +52,7 @@ void _r_dbg_write (LPCWSTR appname, LPCWSTR appversion, LPCWSTR fn, DWORD result
 		rstring buffer;
 		rstring write_buffer;
 
-		buffer.Format (_R_DEBUG_FORMAT, fn, result, desc ? desc : L"<empty>");
+		buffer.Format (_R_DBG_FORMAT, fn, result, desc ? desc : L"<empty>");
 		write_buffer.Format (L"[%s] %s [%s]\r\n", _r_fmt_date (_r_unixtime_now (), FDTF_SHORTDATE | FDTF_LONGTIME).GetString (), buffer.GetString (), appversion);
 
 		WriteFile (h, write_buffer.GetString (), DWORD (write_buffer.GetLength () * sizeof (WCHAR)), &written, nullptr);
@@ -117,7 +106,7 @@ rstring _r_fmt_date (const LPFILETIME ft, const DWORD flags)
 
 	rstring result;
 
-	SHFormatDateTime (ft, &pflags, result.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH);
+	SHFormatDateTime (ft, &pflags, result.GetBuffer (256), 256);
 	result.ReleaseBuffer ();
 
 	return result;
@@ -126,7 +115,6 @@ rstring _r_fmt_date (const LPFILETIME ft, const DWORD flags)
 rstring _r_fmt_date (const __time64_t ut, const DWORD flags)
 {
 	FILETIME ft = {0};
-
 	_r_unixtime_to_filetime (ut, &ft);
 
 	return _r_fmt_date (&ft, flags);
@@ -517,7 +505,7 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 				_r_wnd_top (hwnd, true);
 
 			_r_wnd_center (hwnd, GetParent (hwnd));
-			
+
 			break;
 		}
 
@@ -1194,6 +1182,22 @@ bool _r_sys_adminstate ()
 	return result ? true : false;
 }
 
+LONGLONG _r_sys_gettickcount ()
+{
+	static LARGE_INTEGER s_frequency;
+	static BOOL is_qpc = QueryPerformanceFrequency (&s_frequency);
+
+	if (is_qpc)
+	{
+		LARGE_INTEGER now;
+		QueryPerformanceCounter (&now);
+
+		return (1000LL * now.QuadPart) / s_frequency.QuadPart;
+	}
+
+	return GetTickCount ();
+}
+
 #ifndef _WIN64
 bool _r_sys_iswow64 ()
 {
@@ -1802,7 +1806,7 @@ bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 
 size_t _r_rand (size_t start, size_t end)
 {
-	srand (GetTickCount ());
+	srand ((unsigned int)_r_sys_gettickcount ());
 
 	return rand () % end + start;
 }

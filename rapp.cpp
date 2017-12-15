@@ -1311,7 +1311,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			_r_wnd_center (hwnd, GetParent (hwnd));
 
 			// configure treeview
-			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, this_ptr->GetDPI (22));
+			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, this_ptr->GetDPI (20));
 
 			SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETBKCOLOR, TVSIL_STATE, (LPARAM)GetSysColor (COLOR_3DFACE));
 
@@ -1513,9 +1513,7 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 				if (!bufferw.IsEmpty () && _r_str_versioncompare (this_ptr->app_version, bufferw) == -1)
 				{
 					if (_r_msg (this_ptr->GetHWND (), MB_YESNO | MB_ICONQUESTION, this_ptr->app_name, nullptr, I18N (this_ptr, IDS_UPDATE_YES, 0), bufferw.GetString ()) == IDYES)
-					{
 						ShellExecute (nullptr, nullptr, _r_fmt (_APP_UPDATE_URL, this_ptr->app_name_short), nullptr, nullptr, SW_SHOWDEFAULT);
-					}
 
 					result = true;
 				}

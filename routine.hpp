@@ -70,13 +70,11 @@
 	Debug logging
 */
 
-#define WDBG1(a) _r_dbg (__FUNCTIONW__, TEXT(__FILE__), __LINE__, L"%s", a)
-#define WDBG2(a, ...) _r_dbg (__FUNCTIONW__, TEXT(__FILE__), __LINE__, a, __VA_ARGS__)
-#define WDBG(a, ...) _r_dbg (nullptr, nullptr, 0, a, __VA_ARGS__)
+#define _R_WDBG(a, ...) _r_dbg (a, __VA_ARGS__)
 
-#define _R_DEBUG_FORMAT L"%s() failed with error code 0x%.8lx (%s)"
+#define _R_DBG_FORMAT L"%s() failed with error code 0x%.8lx (%s)"
 
-void _r_dbg (LPCWSTR function, LPCWSTR file, DWORD line, LPCWSTR format, ...);
+void _r_dbg (LPCWSTR format, ...);
 
 void _r_dbg_write (LPCWSTR appname, LPCWSTR appversion, LPCWSTR fn, DWORD result, LPCWSTR desc);
 rstring _r_dbg_getpath (LPCWSTR appname);
@@ -234,6 +232,7 @@ INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2);
 */
 
 bool _r_sys_adminstate ();
+LONGLONG _r_sys_gettickcount ();
 
 #ifndef _WIN64
 bool _r_sys_iswow64 ();
