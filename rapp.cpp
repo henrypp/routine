@@ -381,7 +381,7 @@ void rapp::CreateAboutWindow (HWND hwnd, LPCWSTR donate_text)
 				StringCchCopy (btn_text, _countof (btn_text), donate_text);
 			}
 
-			StringCchCopy (title, _countof (title), I18N (this, IDS_ABOUT, 0));
+			StringCchCopy (title, _countof (title), LocaleString (IDS_ABOUT, nullptr));
 			StringCchCopy (main, _countof (main), app_name);
 			StringCchPrintf (content, _countof (content), L"Version %s, %d-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", app_version, architecture, app_copyright, _APP_WEBSITE_URL, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
 			StringCchCopy (footer, _countof (footer), L"This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License 3 as published by the Free Software Foundation.");
@@ -395,7 +395,7 @@ void rapp::CreateAboutWindow (HWND hwnd, LPCWSTR donate_text)
 		}
 		else
 		{
-			_r_msg (hwnd, MB_OK | MB_USERICON | MB_TOPMOST, I18N (this, IDS_ABOUT, 0), app_name, L"Version %s, %d-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
+			_r_msg (hwnd, MB_OK | MB_USERICON | MB_TOPMOST, LocaleString (IDS_ABOUT, nullptr), app_name, L"Version %s, %d-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
 		}
 #endif // _APP_NO_WINXP
 
@@ -912,7 +912,7 @@ void rapp::CreateSettingsWindow (size_t dlg_id)
 	is_opened = false;
 }
 
-size_t rapp::AddSettingsPage (HINSTANCE hinst, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback, size_t group_id)
+size_t rapp::AddSettingsPage (UINT dlg_id, UINT locale_id, APPLICATION_CALLBACK callback, size_t group_id)
 {
 	PAPP_SETTINGS_PAGE ptr_page = new APP_SETTINGS_PAGE;
 
@@ -920,12 +920,9 @@ size_t rapp::AddSettingsPage (HINSTANCE hinst, UINT dlg_id, UINT locale_id, LPCW
 	{
 		ptr_page->hwnd = nullptr;
 
-		ptr_page->hinst = hinst;
 		ptr_page->group_id = group_id;
 		ptr_page->dlg_id = dlg_id;
-
 		ptr_page->locale_id = locale_id;
-		StringCchCopy (ptr_page->locale_sid, _countof (ptr_page->locale_sid), locale_sid);
 
 		app_settings_pages.push_back (ptr_page);
 
@@ -950,9 +947,9 @@ void rapp::SettingsInitialize ()
 		return;
 
 	// localize window
-	SetWindowText (hwnd, I18N (this, IDS_SETTINGS, 0));
+	SetWindowText (hwnd, LocaleString (IDS_SETTINGS, nullptr));
 
-	SetDlgItemText (hwnd, IDC_CLOSE, I18N (this, IDS_CLOSE, 0));
+	SetDlgItemText (hwnd, IDC_CLOSE, LocaleString (IDS_CLOSE, nullptr));
 
 	// apply classic ui for buttons
 	_r_wnd_addstyle (hwnd, IDC_CLOSE, IsClassicUI () ? WS_EX_STATICEDGE : 0, WS_EX_STATICEDGE, GWL_EXSTYLE);
@@ -969,7 +966,7 @@ void rapp::SettingsInitialize ()
 
 		SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETITEM, 0, (LPARAM)&tvi);
 
-		rstring text = LocaleString (ptr_page->hinst, ptr_page->locale_id, ptr_page->locale_sid);
+		rstring text = LocaleString (ptr_page->locale_id, nullptr);
 
 		tvi.mask = TVIF_TEXT;
 		tvi.pszText = text.GetBuffer ();
@@ -1205,50 +1202,47 @@ void rapp::LocaleInit ()
 		locale_current[0] = 0;
 }
 
-rstring rapp::LocaleString (HINSTANCE hinst, UINT uid, LPCWSTR name)
+rstring rapp::LocaleString (UINT uid, LPCWSTR append)
 {
 	rstring result;
+
+	rstring key;
+	key.Format (L"%04d", uid);
 
 	if (locale_current[0])
 	{
 		// check key is exists
-		if (app_locale_array.find (locale_current) != app_locale_array.end () && app_locale_array[locale_current].find (name) != app_locale_array[locale_current].end ())
-			result = app_locale_array[locale_current][name];
+		if (app_locale_array.find (locale_current) != app_locale_array.end () && app_locale_array[locale_current].find (key) != app_locale_array[locale_current].end ())
+			result = app_locale_array[locale_current][key];
 	}
 
 	if (uid && result.IsEmpty ())
 	{
-		if (!hinst)
-			hinst = GetHINSTANCE ();
-
-		LoadString (hinst, uid, result.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH);
+		LoadString (GetHINSTANCE (), uid, result.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH);
 		result.ReleaseBuffer ();
 
 		if (result.IsEmpty ())
-			result = name;
+			result = key;
 	}
+
+	if (append)
+		result.Append (append);
 
 	return result;
 }
 
-void rapp::LocaleMenu (HMENU menu, LPCWSTR text, UINT item, bool by_position, LPCWSTR append) const
+void rapp::LocaleMenu (HMENU menu, UINT id, UINT item, bool by_position, LPCWSTR append)
 {
-	if (text)
-	{
-		WCHAR buffer[128] = {0};
-		StringCchCopy (buffer, _countof (buffer), text);
+	WCHAR buffer[128] = {0};
+	StringCchCopy (buffer, _countof (buffer), LocaleString (id, append));
 
-		if (append)
-			StringCchCat (buffer, _countof (buffer), append);
+	MENUITEMINFO mi = {0};
 
-		MENUITEMINFO mi = {0};
+	mi.cbSize = sizeof (mi);
+	mi.fMask = MIIM_STRING;
+	mi.dwTypeData = buffer;
 
-		mi.cbSize = sizeof (mi);
-		mi.fMask = MIIM_STRING;
-		mi.dwTypeData = buffer;
-
-		SetMenuItemInfo (menu, item, by_position, &mi);
-	}
+	SetMenuItemInfo (menu, item, by_position, &mi);
 }
 
 #ifndef _APP_NO_SETTINGS
@@ -1311,7 +1305,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			_r_wnd_center (hwnd, GetParent (hwnd));
 
 			// configure treeview
-			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, this_ptr->GetDPI (20));
+			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, this_ptr->GetDPI (22));
 
 			SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETBKCOLOR, TVSIL_STATE, (LPARAM)GetSysColor (COLOR_3DFACE));
 
@@ -1325,11 +1319,11 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 				{
 					if (ptr_page->dlg_id)
 					{
-						ptr_page->hwnd = CreateDialogParam (ptr_page->hinst, MAKEINTRESOURCE (ptr_page->dlg_id), hwnd, &this_ptr->SettingsPageProc, (LPARAM)this_ptr);
+						ptr_page->hwnd = CreateDialogParam (this_ptr->GetHINSTANCE(), MAKEINTRESOURCE (ptr_page->dlg_id), hwnd, &this_ptr->SettingsPageProc, (LPARAM)this_ptr);
 						this_ptr->app_settings_callback (ptr_page->hwnd, _RM_INITIALIZE, nullptr, ptr_page);
 					}
 
-					ptr_page->item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr_page->hinst, ptr_page->locale_id, ptr_page->locale_sid), ((ptr_page->group_id == LAST_VALUE) ? nullptr : this_ptr->app_settings_pages.at (ptr_page->group_id)->item), LAST_VALUE, (LPARAM)i);
+					ptr_page->item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr_page->locale_id, nullptr), ((ptr_page->group_id == LAST_VALUE) ? nullptr : this_ptr->app_settings_pages.at (ptr_page->group_id)->item), LAST_VALUE, (LPARAM)i);
 
 					if (dlg_id == ptr_page->dlg_id)
 						SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)ptr_page->item);
@@ -1512,7 +1506,7 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 
 				if (!bufferw.IsEmpty () && _r_str_versioncompare (this_ptr->app_version, bufferw) == -1)
 				{
-					if (_r_msg (this_ptr->GetHWND (), MB_YESNO | MB_ICONQUESTION, this_ptr->app_name, nullptr, I18N (this_ptr, IDS_UPDATE_YES, 0), bufferw.GetString ()) == IDYES)
+					if (_r_msg (this_ptr->GetHWND (), MB_YESNO | MB_ICONQUESTION, this_ptr->app_name, nullptr, this_ptr->LocaleString (IDS_UPDATE_YES, nullptr), bufferw.GetString ()) == IDYES)
 						ShellExecute (nullptr, nullptr, _r_fmt (_APP_UPDATE_URL, this_ptr->app_name_short), nullptr, nullptr, SW_SHOWDEFAULT);
 
 					result = true;
@@ -1534,7 +1528,7 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 
 		if (!result && !this_ptr->is_update_forced)
 		{
-			_r_msg (this_ptr->GetHWND (), MB_OK | MB_ICONINFORMATION, this_ptr->app_name, nullptr, I18N (this_ptr, IDS_UPDATE_NO, 0));
+			_r_msg (this_ptr->GetHWND (), MB_OK | MB_ICONINFORMATION, this_ptr->app_name, nullptr, this_ptr->LocaleString (IDS_UPDATE_NO, nullptr));
 		}
 
 		this_ptr->update_lock = false;

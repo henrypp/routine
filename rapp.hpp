@@ -12,14 +12,9 @@
 #include "rconfig.hpp"
 
 // libs
-#pragma comment(lib, "comsupp.lib")
+#ifdef _APP_HAVE_SKIPUAC
 #pragma comment(lib, "taskschd.lib")
-
-/*
-	Localization macros
-*/
-
-#define I18N(ptr, id, str) ((ptr)->LocaleString(nullptr, id, (str) ? (str) : L#id).GetString ())
+#endif // _APP_HAVE_SKIPUAC
 
 /*
 	Callback functions
@@ -34,7 +29,6 @@ typedef BOOL (*APPLICATION_CALLBACK) (HWND hwnd, DWORD msg, LPVOID lpdata1, LPVO
 #ifndef _APP_NO_SETTINGS
 typedef struct
 {
-	HINSTANCE hinst = nullptr;
 	HTREEITEM item = nullptr;
 	HWND hwnd = nullptr;
 
@@ -42,7 +36,6 @@ typedef struct
 	UINT dlg_id = 0;
 
 	UINT locale_id = 0;
-	WCHAR locale_sid[32] = {0};
 } *PAPP_SETTINGS_PAGE, APP_SETTINGS_PAGE;
 #endif // _APP_NO_SETTINGS
 
@@ -97,7 +90,7 @@ public:
 #endif // _APP_HAVE_TRAY
 
 #ifndef _APP_NO_SETTINGS
-	size_t AddSettingsPage (HINSTANCE h, UINT dlg_id, UINT locale_id, LPCWSTR locale_sid, APPLICATION_CALLBACK callback, size_t group_id = LAST_VALUE);
+	size_t AddSettingsPage (UINT dlg_id, UINT locale_id, APPLICATION_CALLBACK callback, size_t group_id = LAST_VALUE);
 	void CreateSettingsWindow (size_t dlg_id = LAST_VALUE);
 
 	HWND SettingsGetWindow ();
@@ -126,8 +119,8 @@ public:
 	void LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id);
 	void LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, const UINT id_start);
 	size_t LocaleGetCount ();
-	rstring LocaleString (HINSTANCE h, UINT id, LPCWSTR name);
-	void LocaleMenu (HMENU menu, LPCWSTR text, UINT item, bool by_position, LPCWSTR append) const;
+	rstring LocaleString (UINT id, LPCWSTR append);
+	void LocaleMenu (HMENU menu, UINT id, UINT item, bool by_position, LPCWSTR append);
 
 #ifdef _APP_HAVE_SKIPUAC
 	bool SkipUacEnable (bool is_enable);

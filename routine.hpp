@@ -70,7 +70,7 @@
 	Debug logging
 */
 
-#define _R_WDBG(a, ...) _r_dbg (a, __VA_ARGS__)
+#define _R_DBG(a, ...) _r_dbg (a, __VA_ARGS__)
 
 #define _R_DBG_FORMAT L"%s() failed with error code 0x%.8lx (%s)"
 
