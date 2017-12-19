@@ -920,13 +920,14 @@ size_t rapp::AddSettingsPage (UINT dlg_id, UINT locale_id, APPLICATION_CALLBACK 
 	{
 		ptr_page->hwnd = nullptr;
 
-		ptr_page->group_id = group_id;
 		ptr_page->dlg_id = dlg_id;
+		ptr_page->group_id = group_id;
 		ptr_page->locale_id = locale_id;
 
 		app_settings_pages.push_back (ptr_page);
 
-		app_settings_callback = callback;
+		if (callback)
+			app_settings_callback = callback;
 
 		return app_settings_pages.size () - 1;
 	}
@@ -966,14 +967,13 @@ void rapp::SettingsInitialize ()
 
 		SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETITEM, 0, (LPARAM)&tvi);
 
-		rstring text = LocaleString (ptr_page->locale_id, nullptr);
+		WCHAR buffer[128] = {0};
+		StringCchCopy (buffer, _countof (buffer), LocaleString (ptr_page->locale_id, nullptr));
 
 		tvi.mask = TVIF_TEXT;
-		tvi.pszText = text.GetBuffer ();
+		tvi.pszText = buffer;
 
 		SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETITEM, 0, (LPARAM)&tvi);
-
-		text.Clear ();
 	}
 }
 
@@ -1319,7 +1319,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 				{
 					if (ptr_page->dlg_id)
 					{
-						ptr_page->hwnd = CreateDialogParam (this_ptr->GetHINSTANCE(), MAKEINTRESOURCE (ptr_page->dlg_id), hwnd, &this_ptr->SettingsPageProc, (LPARAM)this_ptr);
+						ptr_page->hwnd = CreateDialogParam (this_ptr->GetHINSTANCE (), MAKEINTRESOURCE (ptr_page->dlg_id), hwnd, &this_ptr->SettingsPageProc, (LPARAM)this_ptr);
 						this_ptr->app_settings_callback (ptr_page->hwnd, _RM_INITIALIZE, nullptr, ptr_page);
 					}
 
@@ -1364,7 +1364,10 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 		case WM_DESTROY:
 		{
-			this_ptr->ConfigInit (); // re-read settings
+			// check for updates
+#ifndef _APP_NO_UPDATES
+			this_ptr->CheckForUpdates (true);
+#endif // _APP_NO_UPDATES
 
 			BOOL result = false;
 
@@ -1376,14 +1379,14 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 			{
-				PAPP_SETTINGS_PAGE ptr = this_ptr->app_settings_pages.at (i);
+				PAPP_SETTINGS_PAGE ptr_page = this_ptr->app_settings_pages.at (i);
 
-				if (ptr)
+				if (ptr_page)
 				{
-					if (ptr->hwnd)
+					if (ptr_page->hwnd)
 					{
-						DestroyWindow (ptr->hwnd);
-						ptr->hwnd = nullptr;
+						DestroyWindow (ptr_page->hwnd);
+						ptr_page->hwnd = nullptr;
 					}
 				}
 			}
@@ -1412,6 +1415,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 						const size_t new_id = size_t (pnmtv->itemNew.lParam);
 
 						this_ptr->settings_page_id = new_id;
+						this_ptr->ConfigSet (L"SettingsLastPage", (DWORD)this_ptr->app_settings_pages.at (new_id)->dlg_id);
 
 						if (this_ptr->app_settings_pages.at (old_id)->hwnd)
 							ShowWindow (this_ptr->app_settings_pages.at (old_id)->hwnd, SW_HIDE);
@@ -1423,12 +1427,9 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 							if (ptr_page)
 							{
 								this_ptr->app_settings_callback (ptr_page->hwnd, _RM_LOCALIZE, nullptr, ptr_page);
-
 								ShowWindow (ptr_page->hwnd, SW_SHOW);
 							}
 						}
-
-						this_ptr->ConfigSet (L"SettingsLastPage", (DWORD)this_ptr->app_settings_pages.at (new_id)->dlg_id);
 
 						break;
 					}

@@ -21,8 +21,20 @@ public:
 
 	static const size_t npos;
 
-	struct hash { size_t operator() (const rstring& k) const { return k.Hash (); } };
-	struct is_equal { bool operator() (const rstring& lhs, const rstring& rhs) const { return lhs.CompareNoCase (rhs) == 0; } };
+	struct hash
+	{
+		size_t operator() (const rstring& k) const
+		{
+			return k.Hash ();
+		}
+	};
+	struct is_equal
+	{
+		bool operator() (const rstring& lhs, const rstring& rhs) const
+		{
+			return lhs.CompareNoCase (rhs) == 0;
+		}
+	};
 
 	typedef std::vector<rstring> rvector;
 

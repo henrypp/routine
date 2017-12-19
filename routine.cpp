@@ -22,8 +22,7 @@ void _r_dbg (LPCWSTR format, ...)
 
 		va_end (args);
 
-
-			OutputDebugString (buffer);
+		OutputDebugString (buffer);
 	}
 }
 

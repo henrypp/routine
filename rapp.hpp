@@ -201,7 +201,6 @@ private:
 #ifndef _APP_NO_SETTINGS
 	std::vector<PAPP_SETTINGS_PAGE> app_settings_pages;
 	APPLICATION_CALLBACK app_settings_callback;
-	rstring::map_two app_settings;
 	size_t settings_page_id = 0;
 	HWND settings_hwnd = nullptr;
 #endif // _APP_NO_SETTINGS
