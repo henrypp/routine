@@ -32,10 +32,10 @@ typedef struct
 	HTREEITEM item = nullptr;
 	HWND hwnd = nullptr;
 
-	size_t group_id = 0;
 	UINT dlg_id = 0;
-
 	UINT locale_id = 0;
+
+	size_t group_id = 0;
 } *PAPP_SETTINGS_PAGE, APP_SETTINGS_PAGE;
 #endif // _APP_NO_SETTINGS
 

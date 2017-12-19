@@ -1207,7 +1207,7 @@ rstring rapp::LocaleString (UINT uid, LPCWSTR append)
 	rstring result;
 
 	rstring key;
-	key.Format (L"%04d", uid);
+	key.Format (L"%03d", uid);
 
 	if (locale_current[0])
 	{
