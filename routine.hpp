@@ -70,7 +70,7 @@
 	Debug logging
 */
 
-#define _R_DBG(a, ...) _r_dbg (a, __VA_ARGS__)
+#define RDBG(a, ...) _r_dbg (a, __VA_ARGS__)
 
 #define _R_DBG_FORMAT L"%s() failed with error code 0x%.8lx (%s)"
 
@@ -86,9 +86,10 @@ rstring _r_dbg_getpath (LPCWSTR appname);
 rstring _r_fmt (LPCWSTR format, ...);
 
 rstring _r_fmt_date (const LPFILETIME ft, const DWORD flags = FDTF_DEFAULT); // see SHFormatDateTime flags definition
-rstring _r_fmt_date (const __time64_t ut, const DWORD flags = FDTF_DEFAULT);
+rstring _r_fmt_date (const time_t ut, const DWORD flags = FDTF_DEFAULT);
 
-rstring _r_fmt_size64 (ULONGLONG size);
+rstring _r_fmt_size64 (LONGLONG bytes);
+rstring _r_fmt_interval (time_t seconds);
 
 /*
 	FastLock is a port of FastResourceLock from PH 1.x.
@@ -247,11 +248,11 @@ void _r_sleep (DWORD milliseconds);
 	Unixtime
 */
 
-__time64_t _r_unixtime_now ();
-void _r_unixtime_to_filetime (__time64_t ut, const LPFILETIME pft);
-void _r_unixtime_to_systemtime (__time64_t ut, const LPSYSTEMTIME pst);
-__time64_t _r_unixtime_from_filetime (const FILETIME* pft);
-__time64_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst);
+time_t _r_unixtime_now ();
+void _r_unixtime_to_filetime (time_t ut, const LPFILETIME pft);
+void _r_unixtime_to_systemtime (time_t ut, const LPSYSTEMTIME pst);
+time_t _r_unixtime_from_filetime (const FILETIME* pft);
+time_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst);
 
 /*
 	Painting
@@ -361,6 +362,7 @@ typedef HRESULT (WINAPI *TDI) (const TASKDIALOGCONFIG*, INT*, INT*, BOOL*); // T
 typedef int (WINAPI *SHCDEX) (HWND, LPCTSTR, const SECURITY_ATTRIBUTES*); // SHCreateDirectoryEx
 typedef BOOL (WINAPI *QFPIN) (HANDLE, DWORD, LPWSTR, PDWORD); // QueryFullProcessImageName
 typedef BOOL (WINAPI *MFACS) (PCWSTR, PDWORD, PDWORD); // MapFileAndCheckSumW
+typedef BOOL (WINAPI *SFBSE) (ULONGLONG, SFBS_FLAGS, PWSTR, UINT); // StrFormatByteSizeEx
 
 /*
 	NTDLL Definitions

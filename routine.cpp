@@ -111,7 +111,7 @@ rstring _r_fmt_date (const LPFILETIME ft, const DWORD flags)
 	return result;
 }
 
-rstring _r_fmt_date (const __time64_t ut, const DWORD flags)
+rstring _r_fmt_date (const time_t ut, const DWORD flags)
 {
 	FILETIME ft = {0};
 	_r_unixtime_to_filetime (ut, &ft);
@@ -119,27 +119,40 @@ rstring _r_fmt_date (const __time64_t ut, const DWORD flags)
 	return _r_fmt_date (&ft, flags);
 }
 
-rstring _r_fmt_size64 (ULONGLONG size)
+rstring _r_fmt_size64 (LONGLONG bytes)
 {
-	static LPCWSTR sizes[] = {L"B", L"kB", L"MB", L"GB", L"TB", L"PB", L"EB"};
+	WCHAR buffer[128] = {0};
+	bool is_success = false;
 
-	rstring result;
-
-	INT div = 0;
-	ULONGLONG rem = 0;
-
-	while (size >= 1024 && div < _countof (sizes))
+#ifdef _APP_NO_WINXP
+	is_success = (StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, _countof (buffer)) == S_OK); // vista (sp1) and above
+#else
+	if (_r_sys_validversion (6, 0))
 	{
-		rem = (size % 1024);
-		div++;
-		size /= 1024;
+		const HMODULE hlib = GetModuleHandle (L"shlwapi.dll");
+
+		if (hlib)
+		{
+			const SFBSE _StrFormatByteSizeEx = (SFBSE)GetProcAddress (hlib, "StrFormatByteSizeEx");
+
+			if (_StrFormatByteSizeEx)
+				is_success = (_StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, _countof (buffer)) == S_OK); // vista (sp1) and above
+		}
 	}
+#endif // _APP_NO_WINXP
 
-	// round up
-	double size_d = double (size) + double (rem) / 1024.0;
-	size_d += 0.001;
+	if (!is_success)
+		StrFormatByteSize64 (bytes, buffer, _countof (buffer)); // fallback
 
-	return result.Format (L"%.2f %s", size_d, sizes[div]);
+	return buffer;
+}
+
+rstring _r_fmt_interval (time_t seconds)
+{
+	WCHAR buffer[128] = {0};
+	StrFromTimeInterval (buffer, _countof (buffer), DWORD (seconds) * 1000, 2);
+
+	return buffer;
 }
 
 /*
@@ -1315,7 +1328,7 @@ void _r_sleep (DWORD milliseconds)
 	Unixtime
 */
 
-__time64_t _r_unixtime_now ()
+time_t _r_unixtime_now ()
 {
 	SYSTEMTIME st = {0};
 	GetSystemTime (&st);
@@ -1323,18 +1336,18 @@ __time64_t _r_unixtime_now ()
 	return _r_unixtime_from_systemtime (&st);
 }
 
-void _r_unixtime_to_filetime (__time64_t ut, const LPFILETIME pft)
+void _r_unixtime_to_filetime (time_t ut, const LPFILETIME pft)
 {
 	if (ut && pft)
 	{
-		__time64_t ll = ut * 10000000ULL + 116444736000000000; // 64-bit value
+		time_t ll = ut * 10000000ULL + 116444736000000000; // 64-bit value
 
 		pft->dwLowDateTime = (DWORD)ll;
 		pft->dwHighDateTime = ll >> 32;
 	}
 }
 
-void _r_unixtime_to_systemtime (__time64_t ut, const LPSYSTEMTIME pst)
+void _r_unixtime_to_systemtime (time_t ut, const LPSYSTEMTIME pst)
 {
 	FILETIME ft = {0};
 
@@ -1343,7 +1356,7 @@ void _r_unixtime_to_systemtime (__time64_t ut, const LPSYSTEMTIME pst)
 	FileTimeToSystemTime (&ft, pst);
 }
 
-__time64_t _r_unixtime_from_filetime (const FILETIME* pft)
+time_t _r_unixtime_from_filetime (const FILETIME* pft)
 {
 	ULARGE_INTEGER ull = {0};
 
@@ -1356,7 +1369,7 @@ __time64_t _r_unixtime_from_filetime (const FILETIME* pft)
 	return ull.QuadPart / 10000000ULL - 11644473600ULL;
 }
 
-__time64_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst)
+time_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst)
 {
 	FILETIME ft = {0};
 	SystemTimeToFileTime (pst, &ft);
