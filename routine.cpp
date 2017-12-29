@@ -125,7 +125,7 @@ rstring _r_fmt_size64 (LONGLONG bytes)
 	bool is_success = false;
 
 #ifdef _APP_NO_WINXP
-	is_success = (StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, _countof (buffer)) == S_OK); // vista (sp1) and above
+	is_success = (StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, _countof (buffer)) == S_OK); // vista (sp1)+
 #else
 	if (_r_sys_validversion (6, 0))
 	{
@@ -136,7 +136,7 @@ rstring _r_fmt_size64 (LONGLONG bytes)
 			const SFBSE _StrFormatByteSizeEx = (SFBSE)GetProcAddress (hlib, "StrFormatByteSizeEx");
 
 			if (_StrFormatByteSizeEx)
-				is_success = (_StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, _countof (buffer)) == S_OK); // vista (sp1) and above
+				is_success = (_StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, _countof (buffer)) == S_OK); // vista (sp1)+
 		}
 	}
 #endif // _APP_NO_WINXP
@@ -377,8 +377,6 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 		if (!buffer.IsEmpty ())
 			tdc.pszContent = buffer;
 
-		tdc.pfCallback = &_r_msg_callback;
-
 		// default buttons
 		if ((flags & MB_DEFMASK) == MB_DEFBUTTON2)
 			tdc.nDefaultButton = IDNO;
@@ -512,9 +510,9 @@ bool _r_msg_checkbox (HWND hwnd, LPCWSTR title, LPCWSTR main, LPCWSTR text, LPCW
 
 		if (_r_msg_taskdialog (&tdc, &result, nullptr, pis_checked))
 		{
-			if (result == IDYES)
+			if (result == IDYES || result == IDOK)
 				return true;
-}
+		}
 #ifndef _APP_NO_WINXP
 	}
 	else
@@ -865,12 +863,12 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 	if (device_length == rstring::npos)
 		return result;
 
-	if (_wcsnicmp (path, L"\\Device\\Mup\\", device_length) == 0) // Win7
+	if (_wcsnicmp (path, L"\\Device\\Mup\\", device_length) == 0) // network share (win7+)
 	{
 		result = L"\\\\";
 		result.Append (path + device_length + 1);
 	}
-	else if (_wcsnicmp (path, L"\\Device\\LanmanRedirector\\", device_length) == 0) // WinXP
+	else if (_wcsnicmp (path, L"\\Device\\LanmanRedirector\\", device_length) == 0) // network share (winxp+)
 	{
 		result = L"\\\\";
 		result.Append (path + device_length + 1);
@@ -983,7 +981,7 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 	Processes
 */
 
-bool _r_process_getpath (HANDLE h, LPWSTR path, DWORD length)
+bool _r_process_getpath (HANDLE hproc, LPWSTR path, DWORD length)
 {
 	bool result = false;
 
@@ -997,7 +995,7 @@ bool _r_process_getpath (HANDLE h, LPWSTR path, DWORD length)
 
 			if (_QueryFullProcessImageName)
 			{
-				if (_QueryFullProcessImageName (h, 0, path, &length)) // vista and later
+				if (_QueryFullProcessImageName (hproc, 0, path, &length)) // vista+
 					result = true;
 			}
 		}
@@ -1006,7 +1004,7 @@ bool _r_process_getpath (HANDLE h, LPWSTR path, DWORD length)
 		{
 			WCHAR buffer[_R_BYTESIZE_KB] = {0};
 
-			if (GetProcessImageFileName (h, buffer, _countof (buffer))) // winxp
+			if (GetProcessImageFileName (hproc, buffer, _countof (buffer))) // winxp fallback
 			{
 				StringCchCopy (path, length, _r_path_dospathfromnt (buffer));
 				result = true;
@@ -1023,7 +1021,7 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 	BOOL result = FALSE;
 	DWORD pid[_R_BYTESIZE_KB] = {0}, cb = 0;
 
-	DWORD access_rights = PROCESS_QUERY_LIMITED_INFORMATION; // vista and later
+	DWORD access_rights = PROCESS_QUERY_LIMITED_INFORMATION; // vista+
 
 #ifndef _APP_NO_WINXP
 	if (!_r_sys_validversion (6, 0))
@@ -1539,7 +1537,7 @@ void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 
 		if (hlib)
 		{
-			const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (hlib, "ChangeWindowMessageFilterEx"); // win7 and later
+			const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (hlib, "ChangeWindowMessageFilterEx"); // win7+
 
 			if (_ChangeWindowMessageFilterEx)
 			{
@@ -1547,7 +1545,7 @@ void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 			}
 			else
 			{
-				const CWMF _ChangeWindowMessageFilter = (CWMF)GetProcAddress (hlib, "ChangeWindowMessageFilter"); // vista
+				const CWMF _ChangeWindowMessageFilter = (CWMF)GetProcAddress (hlib, "ChangeWindowMessageFilter"); // vista fallback
 
 				if (_ChangeWindowMessageFilter)
 					_ChangeWindowMessageFilter (msg, action);
@@ -1796,7 +1794,7 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d)
 
 		if (_LoadIconWithScaleDown)
 			_LoadIconWithScaleDown (h, name, d, d, &result);
-}
+	}
 
 #ifndef _APP_NO_WINXP
 	if (!result)

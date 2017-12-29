@@ -326,15 +326,19 @@ bool rapp::ConfigSet (LPCWSTR key, bool val, LPCWSTR name)
 	return ConfigSet (key, val ? L"true" : L"false", name);
 }
 
-#ifdef IDS_QUESTION_FLAG_CHK
 bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config_cfg)
 {
 	if (!ConfigGet (config_cfg, true).AsBool ())
 		return true;
 
 	BOOL is_flagchecked = FALSE;
+#ifdef IDS_QUESTION_FLAG_CHK
+	const rstring flag_text = LocaleString (IDS_QUESTION_FLAG_CHK, nullptr);
+#else
+	const rstring flag_text = L"Do not ask again";
+#endif // IDS_QUESTION_FLAG_CHK
 
-	if (_r_msg_checkbox (hwnd, app_name, main, text, LocaleString (IDS_QUESTION_FLAG_CHK, nullptr), &is_flagchecked))
+	if (_r_msg_checkbox (hwnd, app_name, main, text, flag_text, &is_flagchecked))
 	{
 		if (is_flagchecked)
 			ConfigSet (config_cfg, false);
@@ -344,7 +348,6 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 
 	return false;
 }
-#endif // IDS_QUESTION_FLAG_CHK
 
 #ifndef _APP_NO_ABOUT
 void rapp::CreateAboutWindow (HWND hwnd, LPCWSTR donate_text)
