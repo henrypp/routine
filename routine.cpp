@@ -150,7 +150,7 @@ rstring _r_fmt_size64 (LONGLONG bytes)
 rstring _r_fmt_interval (time_t seconds)
 {
 	WCHAR buffer[128] = {0};
-	StrFromTimeInterval (buffer, _countof (buffer), DWORD (seconds) * 1000, 2);
+	StrFromTimeInterval (buffer, _countof (buffer), DWORD (seconds) * 1000, 3);
 
 	return buffer;
 }
@@ -167,13 +167,7 @@ rstring _r_fmt_interval (time_t seconds)
 	https://github.com/processhacker2/processhacker
 */
 
-ULONG _r_fastlock_islocked (P_FASTLOCK plock)
-{
-	const ULONG value = plock->Value;
-
-	return value;
-}
-
+#ifndef _APP_HAVE_SRWLOCK
 static const DWORD _r_fastlock_getspincount ()
 {
 	SYSTEM_INFO si = {0};
@@ -183,6 +177,21 @@ static const DWORD _r_fastlock_getspincount ()
 		return 4000;
 	else
 		return 0;
+}
+
+ULONG _r_fastlock_islocked (P_FASTLOCK plock)
+{
+	const ULONG value = plock->Value;
+
+	return value;
+}
+
+void _r_fastlock_initialize (P_FASTLOCK plock)
+{
+	plock->Value = 0;
+
+	plock->ExclusiveWakeEvent = CreateSemaphore (nullptr, 0, MAXLONG, nullptr);
+	plock->SharedWakeEvent = CreateSemaphore (nullptr, 0, MAXLONG, nullptr);
 }
 
 void _r_fastlock_acquireexclusive (P_FASTLOCK plock)
@@ -331,6 +340,7 @@ void _r_fastlock_releaseshared (P_FASTLOCK plock)
 		YieldProcessor ();
 	}
 }
+#endif // _APP_HAVE_SRWLOCK
 
 /*
 	System messages
@@ -461,7 +471,7 @@ bool _r_msg_taskdialog (const TASKDIALOGCONFIG* ptd, INT* pbutton, INT* pradiobu
 #endif // _APP_NO_WINXP
 }
 
-bool _r_msg_checkbox (HWND hwnd, LPCWSTR title, LPCWSTR text, LPCWSTR flag, PBOOL pis_checked)
+bool _r_msg_checkbox (HWND hwnd, LPCWSTR title, LPCWSTR main, LPCWSTR text, LPCWSTR flag, PBOOL pis_checked)
 {
 #ifndef _APP_NO_WINXP
 	if (_r_sys_validversion (6, 0))
@@ -473,6 +483,7 @@ bool _r_msg_checkbox (HWND hwnd, LPCWSTR title, LPCWSTR text, LPCWSTR flag, PBOO
 		TASKDIALOGCONFIG tdc = {0};
 
 		WCHAR str_title[64] = {0};
+		WCHAR str_main[256] = {0};
 		WCHAR str_content[512] = {0};
 		WCHAR str_flag[64] = {0};
 
@@ -484,18 +495,26 @@ bool _r_msg_checkbox (HWND hwnd, LPCWSTR title, LPCWSTR text, LPCWSTR flag, PBOO
 		tdc.pszMainIcon = TD_WARNING_ICON;
 		tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
 		tdc.pszWindowTitle = str_title;
+		tdc.pszMainInstruction = str_main;
 		tdc.pszContent = str_content;
 		tdc.pszVerificationText = str_flag;
+		tdc.lpCallbackData = 1; // always on top
 
 		StringCchCopy (str_title, _countof (str_title), title);
-		StringCchCopy (str_content, _countof (str_content), text);
+
+		if (main)
+			StringCchCopy (str_main, _countof (str_main), main);
+
+		if (text)
+			StringCchCopy (str_content, _countof (str_content), text);
+
 		StringCchCopy (str_flag, _countof (str_flag), flag);
 
 		if (_r_msg_taskdialog (&tdc, &result, nullptr, pis_checked))
 		{
 			if (result == IDYES)
 				return true;
-		}
+}
 #ifndef _APP_NO_WINXP
 	}
 	else
@@ -1777,7 +1796,7 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d)
 
 		if (_LoadIconWithScaleDown)
 			_LoadIconWithScaleDown (h, name, d, d, &result);
-	}
+}
 
 #ifndef _APP_NO_WINXP
 	if (!result)

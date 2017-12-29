@@ -103,6 +103,20 @@ rstring _r_fmt_interval (time_t seconds);
 	https://github.com/processhacker2/processhacker
 */
 
+#ifdef _APP_HAVE_SRWLOCK
+#define _R_FASTLOCK SRWLOCK
+#define P_FASTLOCK PSRWLOCK
+
+#define _r_fastlock_islocked(x)((((x)->Ptr) ? true : false))
+
+#define _r_fastlock_initialize InitializeSRWLock
+
+#define _r_fastlock_acquireexclusive AcquireSRWLockExclusive
+#define _r_fastlock_acquireshared AcquireSRWLockShared
+
+#define _r_fastlock_releaseexclusive ReleaseSRWLockExclusive
+#define _r_fastlock_releaseshared ReleaseSRWLockShared
+#else
 #define _R_FASTLOCK_OWNED 0x1
 #define _R_FASTLOCK_EXCLUSIVE_WAKING 0x2
 
@@ -122,19 +136,6 @@ rstring _r_fmt_interval (time_t seconds);
 
 typedef struct _R_FASTLOCK
 {
-	_R_FASTLOCK ()
-	{
-		this->Value = 0;
-
-#ifdef _APP_NO_WINXP
-		this->ExclusiveWakeEvent = CreateSemaphoreEx (nullptr, 0, MAXLONG, nullptr, 0, SEMAPHORE_ALL_ACCESS);
-		this->SharedWakeEvent = CreateSemaphoreEx (nullptr, 0, MAXLONG, nullptr, 0, SEMAPHORE_ALL_ACCESS);
-#else
-		this->ExclusiveWakeEvent = CreateSemaphore (nullptr, 0, MAXLONG, nullptr);
-		this->SharedWakeEvent = CreateSemaphore (nullptr, 0, MAXLONG, nullptr);
-#endif
-	}
-
 	~_R_FASTLOCK ()
 	{
 		if (this->ExclusiveWakeEvent)
@@ -158,11 +159,14 @@ typedef struct _R_FASTLOCK
 
 ULONG _r_fastlock_islocked (P_FASTLOCK plock);
 
+void _r_fastlock_initialize (P_FASTLOCK plock);
+
 void _r_fastlock_acquireexclusive (P_FASTLOCK plock);
 void _r_fastlock_acquireshared (P_FASTLOCK plock);
 
 void _r_fastlock_releaseexclusive (P_FASTLOCK plock);
 void _r_fastlock_releaseshared (P_FASTLOCK plock);
+#endif // _APP_HAVE_SRWLOCK
 
 /*
 	System messages
@@ -171,7 +175,7 @@ void _r_fastlock_releaseshared (P_FASTLOCK plock);
 #define WMSG(a, ...) _r_msg (nullptr, 0, nullptr, nullptr, a, __VA_ARGS__)
 
 INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format, ...);
-bool _r_msg_checkbox (HWND hwnd, LPCWSTR title, LPCWSTR text, LPCWSTR flag, PBOOL pis_checked);
+bool _r_msg_checkbox (HWND hwnd, LPCWSTR title, LPCWSTR main, LPCWSTR text, LPCWSTR flag, PBOOL pis_checked);
 bool _r_msg_taskdialog (const TASKDIALOGCONFIG* ptd, INT* pbutton, INT* pradiobutton, BOOL* pcheckbox); // vista TaskDialogIndirect
 HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR ref);
 

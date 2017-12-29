@@ -326,6 +326,26 @@ bool rapp::ConfigSet (LPCWSTR key, bool val, LPCWSTR name)
 	return ConfigSet (key, val ? L"true" : L"false", name);
 }
 
+#ifdef IDS_QUESTION_FLAG_CHK
+bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config_cfg)
+{
+	if (!ConfigGet (config_cfg, true).AsBool ())
+		return true;
+
+	BOOL is_flagchecked = FALSE;
+
+	if (_r_msg_checkbox (hwnd, app_name, main, text, LocaleString (IDS_QUESTION_FLAG_CHK, nullptr), &is_flagchecked))
+	{
+		if (is_flagchecked)
+			ConfigSet (config_cfg, false);
+
+		return true;
+	}
+
+	return false;
+}
+#endif // IDS_QUESTION_FLAG_CHK
+
 #ifndef _APP_NO_ABOUT
 void rapp::CreateAboutWindow (HWND hwnd, LPCWSTR donate_text)
 {
@@ -619,12 +639,20 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc, APPLICATIO
 #ifdef _APP_NO_GUEST
 	if (!IsAdmin ())
 	{
-		_r_msg (nullptr, MB_OK | MB_ICONWARNING, app_name, L"No rights!", L"%s required administrative privileges!", app_name);
+		_r_msg (nullptr, MB_OK | MB_ICONWARNING, app_name, L"Warning!", L"%s required administrative privileges!", app_name);
 		return false;
 	}
 #endif // _APP_NO_GUEST
 
 #endif // _APP_HAVE_SKIPUAC || _APP_NO_GUEST
+
+#ifndef _WIN64
+	if (_r_sys_iswow64 ())
+	{
+		if (!ConfirmMessage (nullptr, L"Warning!", _r_fmt (L"You are attempting to run the 32-bit version of %s on 64-bit Windows.\r\n\r\nPlease run the 64-bit version of %s instead.", app_name, app_name), L"ConfirmWOW64"))
+			return false;
+	}
+#endif // _WIN64
 
 	InitializeMutex ();
 

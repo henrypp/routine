@@ -75,6 +75,10 @@ public:
 
 	void ConfigInit ();
 
+#ifdef IDS_QUESTION_FLAG_CHK
+	bool ConfirmMessage (HWND hwnd, LPCWSTR text, LPCWSTR main, LPCWSTR config_cfg);
+#endif // IDS_QUESTION_FLAG_CHK
+
 #ifndef _APP_NO_ABOUT
 	void CreateAboutWindow (HWND hwnd, LPCWSTR donate_text);
 #endif // _APP_NO_ABOUT
