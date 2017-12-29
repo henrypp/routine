@@ -493,7 +493,7 @@ bool _r_msg_checkbox (HWND hwnd, LPCWSTR title, LPCWSTR main, LPCWSTR text, LPCW
 		tdc.hInstance = GetModuleHandle (nullptr);
 		tdc.pfCallback = &_r_msg_callback;
 		tdc.pszMainIcon = TD_WARNING_ICON;
-		tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
+		tdc.dwCommonButtons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
 		tdc.pszWindowTitle = str_title;
 		tdc.pszMainInstruction = str_main;
 		tdc.pszContent = str_content;
