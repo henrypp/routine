@@ -75,7 +75,7 @@ public:
 
 	void ConfigInit ();
 
-	bool ConfirmMessage (HWND hwnd, LPCWSTR text, LPCWSTR main, LPCWSTR config_cfg);
+	bool ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config_cfg);
 
 #ifndef _APP_NO_ABOUT
 	void CreateAboutWindow (HWND hwnd, LPCWSTR donate_text);

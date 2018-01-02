@@ -201,31 +201,31 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 bool rapp::AutorunEnable (bool is_enable)
 {
 	bool result = false;
-	HKEY key = nullptr;
 
 	const HKEY hroot = HKEY_CURRENT_USER;
+	HKEY hkey = nullptr;
 
-	if (RegOpenKeyEx (hroot, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE | KEY_READ, &key) == ERROR_SUCCESS)
+	if (RegOpenKeyEx (hroot, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE | KEY_READ, &hkey) == ERROR_SUCCESS)
 	{
 		if (is_enable)
 		{
 			WCHAR buffer[MAX_PATH] = {0};
 			StringCchPrintf (buffer, _countof (buffer), L"\"%s\" /minimized", GetBinaryPath ());
 
-			result = (RegSetValueEx (key, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) + 1) * sizeof (WCHAR))) == ERROR_SUCCESS);
+			result = (RegSetValueEx (hkey, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) + 1) * sizeof (WCHAR))) == ERROR_SUCCESS);
 
 			if (result)
 				ConfigSet (L"AutorunIsEnabled", true);
 		}
 		else
 		{
-			RegDeleteValue (key, app_name);
+			RegDeleteValue (hkey, app_name);
 			ConfigSet (L"AutorunIsEnabled", false);
 
 			result = true;
 		}
 
-		RegCloseKey (key);
+		RegCloseKey (hkey);
 	}
 
 	return result;
@@ -332,13 +332,82 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 		return true;
 
 	BOOL is_flagchecked = FALSE;
+
+	INT result = 0;
+
+#ifndef _APP_NO_WINXP
+	if (_r_sys_validversion (6, 0))
+	{
+#endif // _APP_NO_WINXP
+
 #ifdef IDS_QUESTION_FLAG_CHK
-	const rstring flag_text = LocaleString (IDS_QUESTION_FLAG_CHK, nullptr);
+		const rstring flag_text = LocaleString (IDS_QUESTION_FLAG_CHK, nullptr);
 #else
-	const rstring flag_text = L"Do not ask again";
+		const rstring flag_text = L"Do not ask again";
 #endif // IDS_QUESTION_FLAG_CHK
 
-	if (_r_msg_checkbox (hwnd, app_name, main, text, flag_text, &is_flagchecked))
+		TASKDIALOGCONFIG tdc = {0};
+
+		WCHAR str_title[64] = {0};
+		WCHAR str_main[256] = {0};
+		WCHAR str_content[512] = {0};
+		WCHAR str_flag[64] = {0};
+
+		tdc.cbSize = sizeof (tdc);
+		tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_ENABLE_HYPERLINKS;
+		tdc.hwndParent = hwnd;
+		tdc.hInstance = GetModuleHandle (nullptr);
+		tdc.pfCallback = &_r_msg_callback;
+		tdc.pszMainIcon = TD_WARNING_ICON;
+		tdc.dwCommonButtons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
+		tdc.pszWindowTitle = str_title;
+		tdc.pszMainInstruction = str_main;
+		tdc.pszContent = str_content;
+		tdc.pszVerificationText = str_flag;
+		tdc.lpCallbackData = 1; // always on top
+
+		StringCchCopy (str_title, _countof (str_title), app_name);
+
+		if (main)
+			StringCchCopy (str_main, _countof (str_main), main);
+
+		if (text)
+			StringCchCopy (str_content, _countof (str_content), text);
+
+		StringCchCopy (str_flag, _countof (str_flag), flag_text);
+
+		_r_msg_taskdialog (&tdc, &result, nullptr, &is_flagchecked);
+#ifndef _APP_NO_WINXP
+	}
+	else
+	{
+		rstring cfg_string;
+		cfg_string.Format (L"%s\\%s", app_name_short, config_cfg);
+
+		result = SHMessageBoxCheck (hwnd, text, app_name, MB_OKCANCEL | MB_ICONEXCLAMATION | MB_TOPMOST, IDOK, cfg_string);
+
+		// get checkbox value fron registry
+		{
+			HKEY hkey = nullptr;
+
+			if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\DontShowMeThisDialogAgain", 0, KEY_WRITE | KEY_READ, &hkey) == ERROR_SUCCESS)
+			{
+				if (result == IDOK)
+					is_flagchecked = (RegQueryValueEx (hkey, cfg_string, 0, nullptr, nullptr, nullptr) == ERROR_SUCCESS);
+
+				RegDeleteValue (hkey, cfg_string);
+
+				RegCloseKey (hkey);
+			}
+		}
+	}
+#endif // _APP_NO_WINXP
+
+	if (result <= 0)
+	{
+		_r_msg (hwnd, MB_OKCANCEL | MB_ICONEXCLAMATION | MB_TOPMOST, app_name, main, L"%s", text);
+	}
+	else if (result == IDOK)
 	{
 		if (is_flagchecked)
 			ConfigSet (config_cfg, false);
@@ -430,7 +499,7 @@ void rapp::CreateAboutWindow (HWND hwnd, LPCWSTR donate_text)
 bool rapp::IsAdmin () const
 {
 	return is_admin;
-}
+	}
 
 bool rapp::IsClassicUI () const
 {
@@ -665,7 +734,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc, APPLICATIO
 
 		if (ConfigGet (L"ClassicUI", false).AsBool ())
 			SetThemeAppProperties (1);
-	}
+}
 
 	// create window
 	if (dlg_id && proc)
@@ -800,8 +869,14 @@ bool rapp::TrayCreate (HWND hwnd, UINT uid, UINT code, HICON hicon, bool is_hidd
 {
 	bool result = false;
 
+#ifdef _APP_NO_WINXP
+	nid.cbSize = sizeof (nid);
+	nid.uVersion = NOTIFYICON_VERSION_4;
+#else
 	nid.cbSize = IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
 	nid.uVersion = IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION;
+#endif // _APP_NO_WINXP
+
 	nid.hWnd = hwnd;
 	nid.uID = uid;
 	nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_SHOWTIP | NIF_TIP;

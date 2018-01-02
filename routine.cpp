@@ -468,62 +468,6 @@ bool _r_msg_taskdialog (const TASKDIALOGCONFIG* ptd, INT* pbutton, INT* pradiobu
 	return (TaskDialogIndirect (ptd, pbutton, pradiobutton, pcheckbox) == S_OK);
 #endif // _APP_NO_WINXP
 }
-
-bool _r_msg_checkbox (HWND hwnd, LPCWSTR title, LPCWSTR main, LPCWSTR text, LPCWSTR flag, PBOOL pis_checked)
-{
-#ifndef _APP_NO_WINXP
-	if (_r_sys_validversion (6, 0))
-	{
-#endif // _APP_NO_WINXP
-
-		INT result = 0;
-
-		TASKDIALOGCONFIG tdc = {0};
-
-		WCHAR str_title[64] = {0};
-		WCHAR str_main[256] = {0};
-		WCHAR str_content[512] = {0};
-		WCHAR str_flag[64] = {0};
-
-		tdc.cbSize = sizeof (tdc);
-		tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_ENABLE_HYPERLINKS;
-		tdc.hwndParent = hwnd;
-		tdc.hInstance = GetModuleHandle (nullptr);
-		tdc.pfCallback = &_r_msg_callback;
-		tdc.pszMainIcon = TD_WARNING_ICON;
-		tdc.dwCommonButtons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
-		tdc.pszWindowTitle = str_title;
-		tdc.pszMainInstruction = str_main;
-		tdc.pszContent = str_content;
-		tdc.pszVerificationText = str_flag;
-		tdc.lpCallbackData = 1; // always on top
-
-		StringCchCopy (str_title, _countof (str_title), title);
-
-		if (main)
-			StringCchCopy (str_main, _countof (str_main), main);
-
-		if (text)
-			StringCchCopy (str_content, _countof (str_content), text);
-
-		StringCchCopy (str_flag, _countof (str_flag), flag);
-
-		if (_r_msg_taskdialog (&tdc, &result, nullptr, pis_checked))
-		{
-			if (result == IDYES || result == IDOK)
-				return true;
-		}
-#ifndef _APP_NO_WINXP
-	}
-	else
-	{
-		return _r_msg (hwnd, MB_YESNO | MB_ICONEXCLAMATION, title, nullptr, L"%s", text) == IDYES;
-	}
-#endif // _APP_NO_WINXP
-
-	return false;
-}
-
 HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LONG_PTR lpdata)
 {
 	switch (msg)
