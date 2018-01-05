@@ -1840,7 +1840,7 @@ bool _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text)
 		ti.lpszText = text;
 
 		SendMessage (htip, TTM_ACTIVATE, TRUE, 0);
-		SendMessage (htip, TTM_SETMAXTIPWIDTH, 0, _R_BUFFER_LENGTH);
+		SendMessage (htip, TTM_SETMAXTIPWIDTH, 0, 512);
 		SendMessage (htip, TTM_ADDTOOL, 0, (LPARAM)&ti);
 
 		return true;
@@ -1892,7 +1892,7 @@ INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl_id, INT column_id)
 	return _R_PERCENT_OF (SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMNWIDTH, column_id, NULL), rc.right);
 }
 
-INT _r_listview_addgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR text, UINT align, UINT state)
+INT _r_listview_addgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR title, UINT align, UINT state)
 {
 	LVGROUP lvg = {0};
 
@@ -1902,11 +1902,11 @@ INT _r_listview_addgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR text
 	lvg.mask = LVGF_GROUPID;
 	lvg.iGroupId = (INT)group_id;
 
-	if (text)
+	if (title)
 	{
 		lvg.mask |= LVGF_HEADER;
 		lvg.pszHeader = hdr;
-		StringCchCopy (hdr, _countof (hdr), text);
+		StringCchCopy (hdr, _countof (hdr), title);
 	}
 
 	if (align)
@@ -2180,19 +2180,25 @@ BOOL _r_listview_setitemcheck (HWND hwnd, UINT ctrl_id, size_t item, bool state)
 	return (BOOL)SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEMSTATE, (item == LAST_VALUE) ? -1 : item, (LPARAM)&lvi);
 }
 
-INT _r_listview_setgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR title)
+INT _r_listview_setgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR title, UINT state, UINT state_mask)
 {
 	LVGROUP lvg = {0};
+	lvg.cbSize = sizeof (lvg);
 
 	WCHAR hdr[MAX_PATH] = {0};
-
-	lvg.cbSize = sizeof (lvg);
 
 	if (title)
 	{
 		lvg.mask |= LVGF_HEADER;
 		lvg.pszHeader = hdr;
 		StringCchCopy (hdr, _countof (hdr), title);
+	}
+
+	if (state || state_mask)
+	{
+		lvg.mask |= LVGF_STATE;
+		lvg.state = state;
+		lvg.stateMask = state_mask;
 	}
 
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_SETGROUPINFO, (WPARAM)group_id, (LPARAM)&lvg);

@@ -212,7 +212,7 @@ bool rapp::AutorunEnable (bool is_enable)
 			WCHAR buffer[MAX_PATH] = {0};
 			StringCchPrintf (buffer, _countof (buffer), L"\"%s\" /minimized", GetBinaryPath ());
 
-			result = (RegSetValueEx (hkey, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) + 1) * sizeof (WCHAR))) == ERROR_SUCCESS);
+			result = (RegSetValueEx (hkey, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) * sizeof (WCHAR)) + sizeof (WCHAR))) == ERROR_SUCCESS);
 
 			if (result)
 				ConfigSet (L"AutorunIsEnabled", true);
