@@ -811,11 +811,13 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 	{
 		result = L"\\\\";
 		result.Append (path + device_length + 1);
+		result.ToLower ();
 	}
 	else if (_wcsnicmp (path, L"\\Device\\LanmanRedirector\\", device_length) == 0) // network share (winxp+)
 	{
 		result = L"\\\\";
 		result.Append (path + device_length + 1);
+		result.ToLower ();
 	}
 	else
 	{
@@ -840,7 +842,7 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 					if (_wcsnicmp (path, volume, device_length) == 0)
 					{
 						result = drv;
-						result.Append (path + device_length);
+						result.Append (rstring (path + device_length).ToLower ());
 
 						break;
 					}
@@ -1746,7 +1748,7 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d)
 #endif // _APP_NO_WINXP
 
 	return result;
-}
+	}
 
 bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 {
