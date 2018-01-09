@@ -537,7 +537,7 @@ void _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length)
 				LPVOID ptr = GlobalLock (hmem);
 				const size_t size = (length * sizeof (WCHAR)) + sizeof (WCHAR);
 
-				memcpy_s (ptr, size, text, size);
+				memcpy (ptr, text, size);
 				SetClipboardData (CF_UNICODETEXT, hmem);
 
 				GlobalUnlock (hmem);
