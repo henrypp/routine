@@ -87,7 +87,7 @@ public:
 	bool TrayCreate (HWND hwnd, UINT uid, UINT code, HICON hicon, bool is_hidden);
 	bool TrayDestroy (UINT uid);
 	bool TrayPopup (UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text);
-	bool TraySetInfo (UINT uid, HICON h, LPCWSTR tooltip);
+	bool TraySetInfo (UINT uid, HICON hicon, LPCWSTR tooltip);
 	bool TrayToggle (UINT uid, bool is_show);
 #endif // _APP_HAVE_TRAY
 

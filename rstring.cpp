@@ -40,7 +40,9 @@ rstring::rstring (LPCWSTR str) : data_ (nullptr)
 		if (length)
 		{
 			ReallocateUnique (length);
-			wmemcpy (data_, str, length);
+
+			if (data_)
+				wmemcpy (data_, str, length);
 		}
 	}
 }

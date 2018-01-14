@@ -236,7 +236,7 @@ INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2);
 */
 
 bool _r_sys_adminstate ();
-LONGLONG _r_sys_gettickcount ();
+ULONGLONG _r_sys_gettickcount ();
 
 #ifndef _WIN64
 bool _r_sys_iswow64 ();

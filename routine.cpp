@@ -535,12 +535,16 @@ void _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length)
 			if (hmem)
 			{
 				LPVOID ptr = GlobalLock (hmem);
-				const size_t size = (length * sizeof (WCHAR)) + sizeof (WCHAR);
 
-				memcpy (ptr, text, size);
-				SetClipboardData (CF_UNICODETEXT, hmem);
+				if (ptr)
+				{
+					const size_t size = (length * sizeof (WCHAR)) + sizeof (WCHAR);
 
-				GlobalUnlock (hmem);
+					memcpy (ptr, text, size);
+					SetClipboardData (CF_UNICODETEXT, hmem);
+
+					GlobalUnlock (hmem);
+				}
 			}
 		}
 
@@ -1157,7 +1161,7 @@ bool _r_sys_adminstate ()
 	return result ? true : false;
 }
 
-LONGLONG _r_sys_gettickcount ()
+ULONGLONG _r_sys_gettickcount ()
 {
 	static LARGE_INTEGER s_frequency;
 	static BOOL is_qpc = QueryPerformanceFrequency (&s_frequency);
@@ -1170,7 +1174,11 @@ LONGLONG _r_sys_gettickcount ()
 		return (1000LL * now.QuadPart) / s_frequency.QuadPart;
 	}
 
+#ifdef _APP_NO_WINXP
+	return GetTickCount64 ();
+#else
 	return GetTickCount ();
+#endif // _APP_NO_WINXP
 }
 
 #ifndef _WIN64
@@ -1303,7 +1311,7 @@ void _r_unixtime_to_filetime (time_t ut, const LPFILETIME pft)
 {
 	if (ut && pft)
 	{
-		time_t ll = ut * 10000000ULL + 116444736000000000; // 64-bit value
+		const time_t ll = ut * 10000000ULL + 116444736000000000; // 64-bit value
 
 		pft->dwLowDateTime = (DWORD)ll;
 		pft->dwHighDateTime = ll >> 32;
@@ -1748,7 +1756,7 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d)
 #endif // _APP_NO_WINXP
 
 	return result;
-	}
+}
 
 bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 {
