@@ -237,7 +237,7 @@ bool rapp::AutorunIsEnabled ()
 }
 #endif // _APP_HAVE_AUTORUN
 
-#ifndef _APP_NO_UPDATES
+#ifdef _APP_HAVE_UPDATES
 void rapp::CheckForUpdates (bool is_periodical)
 {
 	if (update_lock)
@@ -255,7 +255,7 @@ void rapp::CheckForUpdates (bool is_periodical)
 
 	update_lock = true;
 }
-#endif // _APP_NO_UPDATES
+#endif // _APP_HAVE_UPDATES
 
 void rapp::ConfigInit ()
 {
@@ -265,9 +265,9 @@ void rapp::ConfigInit ()
 	LocaleInit ();
 
 	// check for updates
-#ifndef _APP_NO_UPDATES
+#ifdef _APP_HAVE_UPDATES
 	CheckForUpdates (true);
-#endif // _APP_NO_UPDATES
+#endif // _APP_HAVE_UPDATES
 }
 
 rstring rapp::ConfigGet (LPCWSTR key, INT def, LPCWSTR name)
@@ -998,7 +998,7 @@ bool rapp::TrayToggle (UINT uid, bool is_show)
 }
 #endif // _APP_HAVE_TRAY
 
-#ifndef _APP_NO_SETTINGS
+#ifdef _APP_HAVE_SETTINGS
 void rapp::CreateSettingsWindow (size_t dlg_id)
 {
 	static bool is_opened = false;
@@ -1102,7 +1102,7 @@ void rapp::SettingsPageInitialize (UINT dlg_id, bool is_initialize, bool is_loca
 		}
 	}
 }
-#endif // _APP_NO_SETTINGS
+#endif // _APP_HAVE_SETTINGS
 
 LPCWSTR rapp::GetBinaryPath () const
 {
@@ -1147,7 +1147,7 @@ HWND rapp::GetHWND () const
 	return app_hwnd;
 }
 
-#ifndef _APP_NO_SETTINGS
+#ifdef _APP_HAVE_SETTINGS
 void rapp::LocaleApplyFromControl (HWND hwnd, UINT ctrl_id)
 {
 	const rstring text = _r_ctrl_gettext (hwnd, ctrl_id);
@@ -1174,7 +1174,7 @@ void rapp::LocaleApplyFromControl (HWND hwnd, UINT ctrl_id)
 		DrawMenuBar (GetHWND ()); // redraw menu
 	}
 }
-#endif // _APP_NO_SETTINGS
+#endif // _APP_HAVE_SETTINGS
 
 void rapp::LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id)
 {
@@ -1351,7 +1351,7 @@ void rapp::LocaleMenu (HMENU menu, UINT id, UINT item, bool by_position, LPCWSTR
 	SetMenuItemInfo (menu, item, by_position, &mi);
 }
 
-#ifndef _APP_NO_SETTINGS
+#ifdef _APP_HAVE_SETTINGS
 INT_PTR CALLBACK rapp::SettingsPageProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
 	static rapp* this_ptr = nullptr;
@@ -1471,9 +1471,9 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 		case WM_DESTROY:
 		{
 			// check for updates
-#ifndef _APP_NO_UPDATES
+#ifdef _APP_HAVE_UPDATES
 			this_ptr->CheckForUpdates (true);
-#endif // _APP_NO_UPDATES
+#endif // _APP_HAVE_UPDATES
 
 			BOOL result = false;
 
@@ -1563,9 +1563,9 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 	return FALSE;
 }
-#endif // _APP_NO_SETTINGS
+#endif // _APP_HAVE_SETTINGS
 
-#ifndef _APP_NO_UPDATES
+#ifdef _APP_HAVE_UPDATES
 UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 {
 	rapp* this_ptr = (rapp*)(lparam);
@@ -1643,7 +1643,7 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 
 	return ERROR_SUCCESS;
 }
-#endif // _APP_NO_UPDATES
+#endif // _APP_HAVE_UPDATES
 
 bool rapp::ParseINI (LPCWSTR path, rstring::map_two* pmap, std::vector<rstring>* psections)
 {

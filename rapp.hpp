@@ -61,9 +61,9 @@ public:
 	bool AutorunIsEnabled ();
 #endif // _APP_HAVE_AUTORUN
 
-#ifndef _APP_NO_UPDATES
+#ifdef _APP_HAVE_UPDATES
 	void CheckForUpdates (bool is_periodical);
-#endif // _APP_NO_UPDATES
+#endif // _APP_HAVE_UPDATES
 
 	rstring ConfigGet (LPCWSTR key, INT def, LPCWSTR name = nullptr);
 	rstring ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name = nullptr);
@@ -91,14 +91,14 @@ public:
 	bool TrayToggle (UINT uid, bool is_show);
 #endif // _APP_HAVE_TRAY
 
-#ifndef _APP_NO_SETTINGS
+#ifdef _APP_HAVE_SETTINGS
 	size_t AddSettingsPage (UINT dlg_id, UINT locale_id, APPLICATION_CALLBACK callback, size_t group_id = LAST_VALUE);
 	void CreateSettingsWindow (size_t dlg_id = LAST_VALUE);
 
 	HWND SettingsGetWindow ();
 	void SettingsInitialize ();
 	void SettingsPageInitialize (UINT dlg_id, bool is_initialize, bool is_localize);
-#endif // _APP_NO_SETTINGS
+#endif // _APP_HAVE_SETTINGS
 
 	LPCWSTR GetBinaryPath () const;
 	LPCWSTR GetDirectory () const;
@@ -134,14 +134,14 @@ public:
 
 private:
 
-#ifndef _APP_NO_SETTINGS
+#ifdef _APP_HAVE_SETTINGS
 	static INT_PTR CALLBACK SettingsPageProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 	static INT_PTR CALLBACK SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
-#endif // _APP_NO_SETTINGS
+#endif // _APP_HAVE_SETTINGS
 
-#ifndef _APP_NO_UPDATES
+#ifdef _APP_HAVE_UPDATES
 	static UINT WINAPI CheckForUpdatesProc (LPVOID lparam);
-#endif // _APP_NO_UPDATES
+#endif // _APP_HAVE_UPDATES
 
 	static LRESULT CALLBACK MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 	static BOOL CALLBACK ActivateWindowCallback (HWND hwnd, LPARAM lparam);
@@ -161,10 +161,10 @@ private:
 	NOTIFYICONDATA nid = {0};
 #endif // _APP_HAVE_TRAY
 
-#ifndef _APP_NO_UPDATES
+#ifdef _APP_HAVE_UPDATES
 	bool is_update_forced = false;
 	bool update_lock = false;
-#endif // _APP_NO_UPDATES
+#endif // _APP_HAVE_UPDATES
 
 #ifndef _APP_NO_ABOUT
 	bool is_about_opened = false;
@@ -200,10 +200,10 @@ private:
 	rstring::map_two app_locale_array;
 	std::vector<rstring> app_locale_names;
 
-#ifndef _APP_NO_SETTINGS
+#ifdef _APP_HAVE_SETTINGS
 	std::vector<PAPP_SETTINGS_PAGE> app_settings_pages;
 	APPLICATION_CALLBACK app_settings_callback;
 	size_t settings_page_id = 0;
 	HWND settings_hwnd = nullptr;
-#endif // _APP_NO_SETTINGS
+#endif // _APP_HAVE_SETTINGS
 };

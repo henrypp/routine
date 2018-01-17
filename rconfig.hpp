@@ -15,11 +15,12 @@
 
 #define _R_BUFFER_LENGTH 8192
 
-//#define _APP_NO_ABOUT // cut about window methods
-//#define _APP_NO_GUEST // cut "guest" mode, running without admin rights; see _APP_HAVE_SKIPUAC
-//#define _APP_NO_SETTINGS // cut settings window methods
-//#define _APP_NO_UPDATES // cut update checking methods
-//#define _APP_NO_WINXP // cut windows xp support
+//#define _APP_NO_ABOUT // disable about dialog feature
+//#define _APP_NO_GUEST // disable "guest" mode, running without admin rights; see _APP_HAVE_SKIPUAC
+//#define _APP_NO_WINXP // disable winxp support
+
+//#define _APP_HAVE_SETTINGS // enable settings dialog feature
+//#define _APP_HAVE_UPDATES // enable update checking feature
 
 //#define _APP_HAVE_AUTORUN // enable autorun feature
 //#define _APP_HAVE_NTDLL // sdk have ntdll definitions and functions
@@ -27,6 +28,7 @@
 //#define _APP_HAVE_TRAY // enable tray icon feature
 //#define _APP_HAVE_SRWLOCK // srw locks (vista+)
 //#define _APP_STARTMINIMIZED // start with no window
+
 
 //#define _APP_BETA // app has beta status
 //#define _APP_BETA_RC // app has release candidate status
