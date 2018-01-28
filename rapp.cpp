@@ -499,7 +499,7 @@ void rapp::CreateAboutWindow (HWND hwnd, LPCWSTR donate_text)
 bool rapp::IsAdmin () const
 {
 	return is_admin;
-	}
+}
 
 bool rapp::IsClassicUI () const
 {
@@ -734,7 +734,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc, APPLICATIO
 
 		if (ConfigGet (L"ClassicUI", false).AsBool ())
 			SetThemeAppProperties (1);
-}
+	}
 
 	// create window
 	if (dlg_id && proc)
@@ -820,14 +820,14 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc, APPLICATIO
 				INT show_code = SW_SHOW;
 
 				// show window minimized
-#if defined(_APP_HAVE_TRAY) && defined(_APP_STARTMINIMIZED)
-				show_code = SW_HIDE;
-#endif // _APP_STARTMINIMIZED && _APP_HAVE_TRAY
-
 #ifdef _APP_HAVE_TRAY
+#ifdef _APP_STARTMINIMIZED
+				show_code = SW_HIDE;
+#else
 				// if window have tray - check arguments
-				if (wcsstr (GetCommandLine (), L"/minimized"))
+				if (wcsstr (GetCommandLine (), L"/minimized") || ConfigGet (L"IsStartMinimized", false).AsBool ())
 					show_code = SW_HIDE;
+#endif // _APP_STARTMINIMIZED
 #endif // _APP_HAVE_TRAY
 
 				if (ConfigGet (L"IsWindowZoomed", false).AsBool () && (GetWindowLongPtr (GetHWND (), GWL_STYLE) & WS_MAXIMIZEBOX) != 0)
