@@ -193,8 +193,8 @@ bool _r_fs_delete (LPCWSTR path, bool allowundo = false);
 bool _r_fs_exists (LPCWSTR path);
 bool _r_fs_mkdir (LPCWSTR path);
 void _r_fs_rmdir (LPCWSTR path);
-bool _r_fs_readfile (HANDLE h, LPVOID result, DWORD64 size);
-DWORD64 _r_fs_size (HANDLE h);
+bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size);
+DWORD64 _r_fs_size (HANDLE hfile);
 bool _r_fs_move (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
 bool _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
 
@@ -365,7 +365,8 @@ typedef HRESULT (WINAPI *TDI) (const TASKDIALOGCONFIG*, INT*, INT*, BOOL*); // T
 typedef int (WINAPI *SHCDEX) (HWND, LPCTSTR, const SECURITY_ATTRIBUTES*); // SHCreateDirectoryEx
 typedef BOOL (WINAPI *QFPIN) (HANDLE, DWORD, LPWSTR, PDWORD); // QueryFullProcessImageName
 typedef BOOL (WINAPI *MFACS) (PCWSTR, PDWORD, PDWORD); // MapFileAndCheckSumW
-typedef BOOL (WINAPI *SFBSE) (ULONGLONG, SFBS_FLAGS, PWSTR, UINT); // StrFormatByteSizeEx
+typedef HRESULT (WINAPI *SFBSE) (ULONGLONG, SFBS_FLAGS, PWSTR, UINT); // StrFormatByteSizeEx
+typedef ULONGLONG (WINAPI *GTC64) (VOID); // GetTickCount64
 
 /*
 	NTDLL Definitions

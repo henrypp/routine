@@ -584,15 +584,15 @@ bool _r_fs_exists (LPCWSTR path)
 	return (GetFileAttributes (path) != INVALID_FILE_ATTRIBUTES);
 }
 
-bool _r_fs_readfile (HANDLE h, LPVOID result, DWORD64 size)
+bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size)
 {
-	if (h != INVALID_HANDLE_VALUE)
+	if (hfile != INVALID_HANDLE_VALUE)
 	{
-		HANDLE fm = CreateFileMapping (h, nullptr, PAGE_READONLY, 0, 0, nullptr);
+		HANDLE hmap = CreateFileMapping (hfile, nullptr, PAGE_READONLY, 0, 0, nullptr);
 
-		if (fm)
+		if (hmap)
 		{
-			LPVOID buffer = MapViewOfFile (fm, FILE_MAP_READ, 0, 0, 0);
+			LPVOID buffer = MapViewOfFile (hmap, FILE_MAP_READ, 0, 0, 0);
 
 			if (buffer)
 			{
@@ -600,7 +600,7 @@ bool _r_fs_readfile (HANDLE h, LPVOID result, DWORD64 size)
 				UnmapViewOfFile (buffer);
 			}
 
-			CloseHandle (fm);
+			CloseHandle (hmap);
 
 			return true;
 		}
@@ -609,11 +609,11 @@ bool _r_fs_readfile (HANDLE h, LPVOID result, DWORD64 size)
 	return false;
 }
 
-DWORD64 _r_fs_size (HANDLE h)
+DWORD64 _r_fs_size (HANDLE hfile)
 {
 	LARGE_INTEGER size = {0};
 
-	GetFileSizeEx (h, &size);
+	GetFileSizeEx (hfile, &size);
 
 	return size.QuadPart;
 }
@@ -1163,12 +1163,12 @@ bool _r_sys_adminstate ()
 
 ULONGLONG _r_sys_gettickcount ()
 {
-	static LARGE_INTEGER s_frequency;
+	static LARGE_INTEGER s_frequency = {0};
 	static BOOL is_qpc = QueryPerformanceFrequency (&s_frequency);
 
 	if (is_qpc)
 	{
-		LARGE_INTEGER now;
+		LARGE_INTEGER now = {0};
 		QueryPerformanceCounter (&now);
 
 		return (1000LL * now.QuadPart) / s_frequency.QuadPart;
@@ -1177,6 +1177,20 @@ ULONGLONG _r_sys_gettickcount ()
 #ifdef _APP_NO_WINXP
 	return GetTickCount64 ();
 #else
+	// Try GetTickCount64 (vista+)
+	if (_r_sys_validversion (6, 0))
+	{
+		const HMODULE hlib = GetModuleHandle (L"kernel32.dll");
+
+		if (hlib)
+		{
+			const GTC64 _GetTickCount64 = (GTC64)GetProcAddress (hlib, "GetTickCount64");
+
+			if (_GetTickCount64)
+				return _GetTickCount64 ();
+		}
+	}
+
 	return GetTickCount ();
 #endif // _APP_NO_WINXP
 }
