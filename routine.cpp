@@ -815,13 +815,11 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 	{
 		result = L"\\\\";
 		result.Append (path + device_length + 1);
-		result.ToLower ();
 	}
 	else if (_wcsnicmp (path, L"\\Device\\LanmanRedirector\\", device_length) == 0) // network share (winxp+)
 	{
 		result = L"\\\\";
 		result.Append (path + device_length + 1);
-		result.ToLower ();
 	}
 	else
 	{
@@ -846,7 +844,7 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 					if (_wcsnicmp (path, volume, device_length) == 0)
 					{
 						result = drv;
-						result.Append (rstring (path + device_length).ToLower ());
+						result.Append (path + device_length);
 
 						break;
 					}
@@ -857,7 +855,7 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 		}
 	}
 
-	return result;
+	return result.ToLower ();
 }
 
 // Author: Elmue
