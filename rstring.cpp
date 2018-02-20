@@ -709,9 +709,7 @@ rstring& rstring::ToLower ()
 	if (thisBuffer)
 	{
 		for (size_t i = 0; i < thisBuffer->length; i++)
-		{
 			thisBuffer->data[i] = _r_str_lower (thisBuffer->data[i]);
-		}
 	}
 	return *this;
 }
@@ -721,9 +719,7 @@ rstring& rstring::ToUpper ()
 	if (thisBuffer)
 	{
 		for (size_t i = 0; i < thisBuffer->length; i++)
-		{
 			thisBuffer->data[i] = _r_str_upper (thisBuffer->data[i]);
-		}
 	}
 	return *this;
 }

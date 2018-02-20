@@ -813,13 +813,11 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 
 	if (_wcsnicmp (path, L"\\Device\\Mup\\", device_length) == 0) // network share (win7+)
 	{
-		result = L"\\\\";
-		result.Append (path + device_length + 1);
+		result.Format (L"\\\\%s", path + device_length + 1);
 	}
 	else if (_wcsnicmp (path, L"\\Device\\LanmanRedirector\\", device_length) == 0) // network share (winxp+)
 	{
-		result = L"\\\\";
-		result.Append (path + device_length + 1);
+		result.Format (L"\\\\%s", path + device_length + 1);
 	}
 	else
 	{
@@ -835,7 +833,7 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 
 				drv[2] = 0; // the backslash is not allowed for QueryDosDevice()
 
-				WCHAR volume[_R_BYTESIZE_KB] = {0};
+				WCHAR volume[MAX_PATH] = {0};
 
 				// may return multiple strings!
 				// returns very weird strings for network shares
@@ -855,7 +853,7 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 		}
 	}
 
-	return result.ToLower ();
+	return result;
 }
 
 // Author: Elmue
@@ -1012,7 +1010,7 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 
 WCHAR _r_str_lower (WCHAR chr)
 {
-	WCHAR buf[1] = {chr};
+	WCHAR buf[] = {chr, 0};
 	CharLowerBuff (buf, _countof (buf));
 
 	return buf[0];
@@ -1020,7 +1018,7 @@ WCHAR _r_str_lower (WCHAR chr)
 
 WCHAR _r_str_upper (WCHAR chr)
 {
-	WCHAR buf[1] = {chr};
+	WCHAR buf[] = {chr, 0};
 	CharUpperBuff (buf, _countof (buf));
 
 	return buf[0];
