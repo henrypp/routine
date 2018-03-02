@@ -285,7 +285,7 @@ bool _r_wnd_undercursor (HWND hwnd);
 
 HINTERNET _r_inet_createsession (LPCWSTR useragent);
 bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINTERNET* prequest, PDWORD ptotallength);
-bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD ptotallength);
+bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD plength, PDWORD ptotallength);
 void _r_inet_close (HINTERNET hinet);
 
 /*

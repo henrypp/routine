@@ -1601,7 +1601,7 @@ UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
 
 				while (true)
 				{
-					if (!_r_inet_readrequest (hrequest, buffera, _countof (buffera) - 1, &total_length))
+					if (!_r_inet_readrequest (hrequest, buffera, _countof (buffera) - 1, nullptr, &total_length))
 						break;
 
 					bufferw.Append (buffera);

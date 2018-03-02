@@ -1717,20 +1717,23 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINT
 	return false;
 }
 
-bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD ptotallength)
+bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD pwritten, PDWORD ptotallength)
 {
 	DWORD written = 0;
 
 	if (!WinHttpReadData (hrequest, buffer, length, &written))
 		return false;
 
-	if (!written)
-		return false;
-
 	buffer[written] = 0;
+
+	if (pwritten)
+		*pwritten = written;
 
 	if (ptotallength)
 		*ptotallength += written;
+
+	if (!written)
+		return false;
 
 	return true;
 }
