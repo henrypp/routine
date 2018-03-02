@@ -1160,7 +1160,7 @@ bool _r_sys_adminstate ()
 ULONGLONG _r_sys_gettickcount ()
 {
 	static LARGE_INTEGER s_frequency = {0};
-	static BOOL is_qpc = QueryPerformanceFrequency (&s_frequency);
+	static const bool is_qpc = QueryPerformanceFrequency (&s_frequency);
 
 	if (is_qpc)
 	{
@@ -1571,7 +1571,7 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent)
 
 	DWORD flags = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
 
-	const bool is_win81 = _r_sys_validversion (6, 3);
+	static const bool is_win81 = _r_sys_validversion (6, 3);
 
 	if (is_win81)
 		flags = WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY;
@@ -1580,6 +1580,12 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent)
 
 	if (!hsession)
 		return nullptr;
+
+	// enable all secure protocols
+	{
+		DWORD option = WINHTTP_FLAG_SECURE_PROTOCOL_SSL3 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
+		WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &option, sizeof (option));
+	}
 
 	// enable compression feature (win81 and above)
 	if (is_win81)
@@ -1661,22 +1667,14 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINT
 					{
 						const DWORD err = GetLastError ();
 
-						if (err == ERROR_WINHTTP_CONNECTION_ERROR || err == ERROR_WINHTTP_SECURE_FAILURE)
+						if (err == ERROR_WINHTTP_SECURE_FAILURE)
 						{
+							DWORD flag = 0;
 							DWORD old_option = 0;
 							DWORD old_length = 0;
 							DWORD new_option = 0;
-							DWORD flag = 0;
-							HINTERNET hinet = hrequest;
 
-							if (err == ERROR_WINHTTP_CONNECTION_ERROR)
-							{
-								// allow tls 1.2 secure protocol
-								flag = WINHTTP_OPTION_SECURE_PROTOCOLS;
-								new_option = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
-								hinet = hsession;
-							}
-							else if (err == ERROR_WINHTTP_SECURE_FAILURE)
+							if (err == ERROR_WINHTTP_SECURE_FAILURE)
 							{
 								// allow unknown certificates
 								flag = WINHTTP_OPTION_SECURITY_FLAGS;
@@ -1685,12 +1683,12 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINT
 
 							if (new_option)
 							{
-								if (WinHttpQueryOption (hinet, flag, &old_option, &old_length))
+								if (WinHttpQueryOption (hrequest, flag, &old_option, &old_length))
 									new_option |= old_option;
 
 								if (new_option != old_option)
 								{
-									if (!WinHttpSetOption (hinet, flag, &new_option, sizeof (new_option)))
+									if (!WinHttpSetOption (hrequest, flag, &new_option, sizeof (new_option)))
 										break;
 								}
 								else
