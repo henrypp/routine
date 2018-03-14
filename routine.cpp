@@ -147,10 +147,10 @@ rstring _r_fmt_size64 (LONGLONG bytes)
 	return buffer;
 }
 
-rstring _r_fmt_interval (time_t seconds)
+rstring _r_fmt_interval (time_t seconds, INT digits)
 {
 	WCHAR buffer[128] = {0};
-	StrFromTimeInterval (buffer, _countof (buffer), DWORD (seconds) * 1000, 3);
+	StrFromTimeInterval (buffer, _countof (buffer), DWORD (seconds) * 1000, digits);
 
 	return buffer;
 }

@@ -89,7 +89,7 @@ rstring _r_fmt_date (const LPFILETIME ft, const DWORD flags = FDTF_DEFAULT); // 
 rstring _r_fmt_date (const time_t ut, const DWORD flags = FDTF_DEFAULT);
 
 rstring _r_fmt_size64 (LONGLONG bytes);
-rstring _r_fmt_interval (time_t seconds);
+rstring _r_fmt_interval (time_t seconds, INT digits);
 
 /*
 	FastLock is a port of FastResourceLock from PH 1.x.
