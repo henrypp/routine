@@ -82,9 +82,9 @@
 	Callback message codes
 */
 
-#define _RM_INITIALIZE 0x01
-#define _RM_UNINITIALIZE 0x02
-#define _RM_CLOSE 0x04
-#define _RM_MESSAGE 0x08
-#define _RM_LOCALIZE 0x10
-#define _RM_ARGUMENTS 0x20
+#define RM_INITIALIZE (WM_USER + 1)
+#define RM_UNINITIALIZE (WM_USER + 2)
+#define RM_CLOSE (WM_USER + 3)
+#define RM_MESSAGE (WM_USER + 4)
+#define RM_LOCALIZE (WM_USER + 5)
+#define RM_ARGUMENTS (WM_USER + 6)

@@ -468,6 +468,7 @@ bool _r_msg_taskdialog (const TASKDIALOGCONFIG* ptd, INT* pbutton, INT* pradiobu
 	return (TaskDialogIndirect (ptd, pbutton, pradiobutton, pcheckbox) == S_OK);
 #endif // _APP_NO_WINXP
 }
+
 HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LONG_PTR lpdata)
 {
 	switch (msg)
@@ -484,8 +485,8 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 
 		case TDN_DIALOG_CONSTRUCTED:
 		{
-			SendMessage (hwnd, WM_SETICON, ICON_SMALL, 0);
-			SendMessage (hwnd, WM_SETICON, ICON_BIG, 0);
+			SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)SendMessage (GetParent (hwnd), WM_GETICON, ICON_SMALL, 0));
+			SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)SendMessage (GetParent (hwnd), WM_GETICON, ICON_BIG, 0));
 
 			break;
 		}
@@ -497,7 +498,7 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 		}
 	}
 
-	return FALSE;
+	return S_OK;
 }
 
 /*
@@ -618,6 +619,21 @@ DWORD64 _r_fs_size (HANDLE hfile)
 	return size.QuadPart;
 }
 
+DWORD64 _r_fs_size (LPCWSTR path)
+{
+	const HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+
+	if (hfile != INVALID_HANDLE_VALUE)
+	{
+		const DWORD64 result = _r_fs_size (hfile);
+
+		CloseHandle (hfile);
+		return result;
+	}
+
+	return 0;
+}
+
 bool _r_fs_mkdir (LPCWSTR path)
 {
 	bool result = false;
@@ -694,6 +710,17 @@ bool _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags)
 /*
 	Paths
 */
+
+rstring _r_path_gettempfilepath (LPCWSTR prefix)
+{
+	WCHAR tmp_directory[MAX_PATH] = {0};
+	GetTempPath (_countof(tmp_directory), tmp_directory);
+
+	WCHAR tmp_filename[MAX_PATH] = {0};
+	GetTempFileName (tmp_directory, prefix, 0, tmp_filename);
+
+	return tmp_filename;
+}
 
 rstring _r_path_expand (rstring path)
 {
@@ -1071,6 +1098,24 @@ INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2)
 	}
 
 	return 0;
+}
+
+bool _r_str_unserialize (rstring string, LPCWSTR str_delimeter, WCHAR key_delimeter, rstring::map_one* lpresult)
+{
+	if (!lpresult)
+		return false;
+
+	const rstring::rvector vc = string.AsVector (str_delimeter);
+
+	for (size_t i = 0; i < vc.size (); i++)
+	{
+		const size_t pos = vc.at (i).Find (key_delimeter);
+
+		if (pos != rstring::npos)
+			(*lpresult)[vc.at (i).Midded (0, pos)] = vc.at (i).Midded (pos + 1);
+	}
+
+	return true;
 }
 
 /*
@@ -1618,7 +1663,7 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINT
 	HINTERNET hconnect = nullptr;
 	HINTERNET hrequest = nullptr;
 
-	if (WinHttpCrackUrl (url, DWORD (wcslen (url)), ICU_ESCAPE, &urlcomp))
+	if (WinHttpCrackUrl (url, DWORD (wcslen (url)), ICU_DECODE, &urlcomp))
 	{
 		hconnect = WinHttpConnect (hsession, host, urlcomp.nPort, 0);
 
@@ -1717,22 +1762,22 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINT
 	return false;
 }
 
-bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD pwritten, PDWORD ptotallength)
+bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD preaded, PDWORD ptotalreaded)
 {
-	DWORD written = 0;
+	DWORD readed = 0;
 
-	if (!WinHttpReadData (hrequest, buffer, length, &written))
+	if (!WinHttpReadData (hrequest, buffer, length, &readed))
 		return false;
 
-	buffer[written] = 0;
+	buffer[readed] = 0;
 
-	if (pwritten)
-		*pwritten = written;
+	if (preaded)
+		*preaded = readed;
 
-	if (ptotallength)
-		*ptotallength += written;
+	if (ptotalreaded)
+		*ptotalreaded += readed;
 
-	if (!written)
+	if (!readed)
 		return false;
 
 	return true;
@@ -1747,7 +1792,7 @@ void _r_inet_close (HINTERNET hinet)
 	Other
 */
 
-HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d)
+HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT cx_width)
 {
 	HICON result = nullptr;
 
@@ -1758,12 +1803,12 @@ HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d)
 		const LIWSD _LoadIconWithScaleDown = (LIWSD)GetProcAddress (hlib, "LoadIconWithScaleDown");
 
 		if (_LoadIconWithScaleDown)
-			_LoadIconWithScaleDown (h, name, d, d, &result);
+			_LoadIconWithScaleDown (hinst, name, cx_width, cx_width, &result);
 	}
 
 #ifndef _APP_NO_WINXP
 	if (!result)
-		result = (HICON)LoadImage (h, name, IMAGE_ICON, d, d, 0);
+		result = (HICON)LoadImage (hinst, name, IMAGE_ICON, cx_width, cx_width, 0);
 #endif // _APP_NO_WINXP
 
 	return result;

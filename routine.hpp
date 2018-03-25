@@ -35,6 +35,13 @@
 #endif
 
 /*
+	Shared icons ids
+*/
+
+#define SIH_QUESTION 32514
+#define SIH_INFORMATION 32516
+
+/*
 	Unit conversion
 */
 
@@ -195,6 +202,7 @@ bool _r_fs_mkdir (LPCWSTR path);
 void _r_fs_rmdir (LPCWSTR path);
 bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size);
 DWORD64 _r_fs_size (HANDLE hfile);
+DWORD64 _r_fs_size (LPCWSTR path);
 bool _r_fs_move (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
 bool _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
 
@@ -202,6 +210,7 @@ bool _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
 	Paths
 */
 
+rstring _r_path_gettempfilepath (LPCWSTR prefix);
 rstring _r_path_expand (rstring path);
 rstring _r_path_unexpand (rstring path);
 rstring _r_path_compact (rstring path, UINT length);
@@ -230,6 +239,7 @@ WCHAR _r_str_upper (WCHAR chr);
 
 size_t _r_str_hash (LPCWSTR text);
 INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2);
+bool _r_str_unserialize (rstring string, LPCWSTR str_delimeter, WCHAR key_delimeter, rstring::map_one* lpresult);
 
 /*
 	System information
@@ -285,14 +295,14 @@ bool _r_wnd_undercursor (HWND hwnd);
 
 HINTERNET _r_inet_createsession (LPCWSTR useragent);
 bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINTERNET* prequest, PDWORD ptotallength);
-bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD plength, PDWORD ptotallength);
+bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD preaded, PDWORD ptotalreaded);
 void _r_inet_close (HINTERNET hinet);
 
 /*
 	Other
 */
 
-HICON _r_loadicon (HINSTANCE h, LPCWSTR name, INT d);
+HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT cx_width);
 bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd = nullptr, WORD sw = SW_SHOWDEFAULT);
 size_t _r_rand (size_t start, size_t end);
 
