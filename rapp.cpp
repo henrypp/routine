@@ -246,7 +246,7 @@ bool rapp::DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_C
 
 		if (_r_inet_openurl (hsession, url, &hconnect, &hrequest, &total_length))
 		{
-			const DWORD buffer_length = min (1024 * 16, total_length); // 16 kB
+			const DWORD buffer_length = (1024 * 16); // 16 kB
 			LPSTR content_buffer = new CHAR[buffer_length];
 
 			if (content_buffer)
@@ -1743,11 +1743,6 @@ void rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 				tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
 				tdc.hwndParent = pcontext->papp->GetHWND ();
 				tdc.hInstance = pcontext->papp->GetHINSTANCE ();
-#ifdef IDI_MAIN
-				tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
-#else
-				tdc.pszMainIcon = TD_INFORMATION_ICON;
-#endif
 				tdc.dwCommonButtons = TDCBF_CLOSE_BUTTON;
 				tdc.pszWindowTitle = pcontext->full_name;
 				tdc.pszContent = str_content;
@@ -1862,25 +1857,17 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 			{
 				TASKDIALOGCONFIG tdc = {0};
 
-				WCHAR str_title[64] = {0};
 				WCHAR str_content[256] = {0};
 
 				tdc.cbSize = sizeof (tdc);
 				tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_SHOW_PROGRESS_BAR;
 				tdc.hwndParent = pcontext->papp->GetHWND ();
 				tdc.hInstance = pcontext->papp->GetHINSTANCE ();
-#ifdef IDI_MAIN
-				tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
-#else
-				tdc.pszMainIcon = TD_INFORMATION_ICON;
-#endif
 				tdc.dwCommonButtons = TDCBF_CANCEL_BUTTON;
-				tdc.pszWindowTitle = str_title;
+				tdc.pszWindowTitle = pcontext->full_name;
 				tdc.pszContent = str_content;
 				tdc.pfCallback = &UpdateDialogCallback;
 				tdc.lpCallbackData = (LONG_PTR)pcontext;
-
-				StringCchCopy (str_title, _countof (str_title), pcontext->full_name);
 
 #ifdef IDS_UPDATE_DOWNLOAD
 				StringCchPrintf (str_content, _countof (str_content), pcontext->papp->LocaleString (IDS_UPDATE_DOWNLOAD, nullptr), 0);
@@ -1974,11 +1961,6 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 						tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
 						tdc.hwndParent = pcontext->papp->GetHWND ();
 						tdc.hInstance = pcontext->papp->GetHINSTANCE ();
-#ifdef IDI_MAIN
-						tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
-#else
-						tdc.pszMainIcon = TD_INFORMATION_ICON;
-#endif
 						tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
 						tdc.pszWindowTitle = pcontext->full_name;
 						tdc.pszContent = str_content;
