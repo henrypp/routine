@@ -210,7 +210,7 @@ bool _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
 	Paths
 */
 
-rstring _r_path_gettempfilepath (LPCWSTR prefix);
+rstring _r_path_gettempfilepath (LPCWSTR directory, LPCWSTR filename);
 rstring _r_path_expand (rstring path);
 rstring _r_path_unexpand (rstring path);
 rstring _r_path_compact (rstring path, UINT length);

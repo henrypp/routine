@@ -88,3 +88,4 @@
 #define RM_MESSAGE (WM_USER + 4)
 #define RM_LOCALIZE (WM_USER + 5)
 #define RM_ARGUMENTS (WM_USER + 6)
+#define RM_UPDATE_DONE (WM_USER + 7) // update done

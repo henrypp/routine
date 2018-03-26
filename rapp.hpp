@@ -20,11 +20,8 @@
 	Callback functions
 */
 
-typedef BOOL (*APPLICATION_CALLBACK) (HWND hwnd, DWORD msg, LPVOID lpdata1, LPVOID lpdata2);
-
-/*
-	Structures
-*/
+typedef bool (*APPLICATION_CALLBACK) (HWND hwnd, DWORD msg, LPVOID lpdata1, LPVOID lpdata2);
+typedef void (*DOWNLOAD_CALLBACK) (DWORD total_written, DWORD total_length, LONG_PTR lpdata);
 
 #ifndef _APP_NO_SETTINGS
 typedef struct
@@ -38,6 +35,14 @@ typedef struct
 	size_t group_id = 0;
 } *PAPP_SETTINGS_PAGE, APP_SETTINGS_PAGE;
 #endif // _APP_NO_SETTINGS
+
+typedef struct
+{
+	HINSTANCE hinst = nullptr;
+	UINT icon_id = 0;
+	INT cx_width = 0;
+	HICON hicon = nullptr;
+} *PAPP_SHARED_ICON, APP_SHARED_ICON;
 
 /*
 	Application class
@@ -55,6 +60,7 @@ public:
 	bool UninitializeMutex ();
 
 	bool CheckMutex (bool activate_window);
+	bool DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_CALLBACK callback, LONG_PTR lpdata);
 
 #ifdef _APP_HAVE_AUTORUN
 	bool AutorunEnable (bool is_enable);
@@ -62,7 +68,7 @@ public:
 #endif // _APP_HAVE_AUTORUN
 
 #ifdef _APP_HAVE_UPDATES
-	void CheckForUpdates (bool is_periodical);
+	bool UpdateCheck (LPCWSTR component, LPCWSTR component_name, LPCWSTR version, LPCWSTR target_path, UINT menu_id, bool is_forced);
 #endif // _APP_HAVE_UPDATES
 
 	rstring ConfigGet (LPCWSTR key, INT def, LPCWSTR name = nullptr);
@@ -78,10 +84,10 @@ public:
 	bool ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config_cfg);
 
 #ifndef _APP_NO_ABOUT
-	void CreateAboutWindow (HWND hwnd, LPCWSTR donate_text);
+	void CreateAboutWindow (HWND hwnd);
 #endif // _APP_NO_ABOUT
 
-	bool CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc, APPLICATION_CALLBACK callback);
+	bool CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc);
 
 #ifdef _APP_HAVE_TRAY
 	bool TrayCreate (HWND hwnd, UINT uid, UINT code, HICON hicon, bool is_hidden);
@@ -103,15 +109,13 @@ public:
 	LPCWSTR GetBinaryPath () const;
 	LPCWSTR GetDirectory () const;
 	LPCWSTR GetProfileDirectory () const;
-
-	rstring GetUserAgent () const;
+	LPCWSTR GetLocalePath () const;
+	LPCWSTR GetUserAgent () const;
 
 	INT GetDPI (INT v) const;
-	HICON GetHICON (bool is_big) const;
 	HINSTANCE GetHINSTANCE () const;
 	HWND GetHWND () const;
-
-	void SetIcon (HWND hwnd, UINT icon_id, bool is_forced);
+	HICON GetSharedIcon (HINSTANCE hinst, UINT icon_id, INT cx_width);
 
 	bool IsAdmin () const;
 	bool IsClassicUI () const;
@@ -121,6 +125,7 @@ public:
 	void LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id);
 	void LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, const UINT id_start);
 	size_t LocaleGetCount ();
+	time_t rapp::LocaleGetVersion ();
 	rstring LocaleString (UINT id, LPCWSTR append);
 	void LocaleMenu (HMENU menu, UINT id, UINT item, bool by_position, LPCWSTR append);
 
@@ -140,7 +145,10 @@ private:
 #endif // _APP_HAVE_SETTINGS
 
 #ifdef _APP_HAVE_UPDATES
-	static UINT WINAPI CheckForUpdatesProc (LPVOID lparam);
+	static void UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG_PTR lpdata);
+	static UINT WINAPI UpdateDownloadThread (LPVOID lparam);
+	static HRESULT CALLBACK UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR lpdata);
+	static UINT WINAPI UpdateCheckThread (LPVOID lparam);
 #endif // _APP_HAVE_UPDATES
 
 	static LRESULT CALLBACK MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
@@ -162,7 +170,6 @@ private:
 #endif // _APP_HAVE_TRAY
 
 #ifdef _APP_HAVE_UPDATES
-	bool is_update_forced = false;
 	bool update_lock = false;
 #endif // _APP_HAVE_UPDATES
 
@@ -177,10 +184,6 @@ private:
 	HWND app_hwnd = nullptr;
 	HANDLE app_mutex = nullptr;
 	HINSTANCE app_hinstance = nullptr;
-	APPLICATION_CALLBACK app_callback = nullptr;
-
-	HICON app_icon_small = nullptr;
-	HICON app_icon_big = nullptr;
 
 	WCHAR app_binary[MAX_PATH];
 	WCHAR app_directory[MAX_PATH];
@@ -192,6 +195,7 @@ private:
 	WCHAR app_version[MAX_PATH];
 	WCHAR app_copyright[MAX_PATH];
 	WCHAR app_useragent[MAX_PATH];
+	WCHAR app_localepath[MAX_PATH];
 
 	WCHAR locale_default[LOCALE_NAME_MAX_LENGTH];
 	WCHAR locale_current[LOCALE_NAME_MAX_LENGTH];
@@ -199,6 +203,7 @@ private:
 	rstring::map_two app_config_array;
 	rstring::map_two app_locale_array;
 	std::vector<rstring> app_locale_names;
+	std::vector<PAPP_SHARED_ICON> app_shared_icons;
 
 #ifdef _APP_HAVE_SETTINGS
 	std::vector<PAPP_SETTINGS_PAGE> app_settings_pages;
@@ -207,3 +212,30 @@ private:
 	HWND settings_hwnd = nullptr;
 #endif // _APP_HAVE_SETTINGS
 };
+
+/*
+	Structures
+*/
+
+#ifdef _APP_HAVE_UPDATES
+typedef struct
+{
+	HWND hwnd;
+
+	bool is_downloaded;
+	bool is_forced;
+
+	UINT menu_id;
+
+	rstring component;
+	rstring full_name;
+	rstring version;
+	rstring target_path;
+
+	rstring url;
+	rstring filepath;
+
+	HANDLE hthread;
+	rapp* papp;
+} *PAPP_UPDATE_CONTEXT, APP_UPDATE_CONTEXT;
+#endif // _APP_HAVE_UPDATES

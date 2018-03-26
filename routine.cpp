@@ -711,15 +711,27 @@ bool _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags)
 	Paths
 */
 
-rstring _r_path_gettempfilepath (LPCWSTR prefix)
+rstring _r_path_gettempfilepath (LPCWSTR directory, LPCWSTR filename)
 {
 	WCHAR tmp_directory[MAX_PATH] = {0};
-	GetTempPath (_countof(tmp_directory), tmp_directory);
 
-	WCHAR tmp_filename[MAX_PATH] = {0};
-	GetTempFileName (tmp_directory, prefix, 0, tmp_filename);
+	if (!directory)
+		GetTempPath (_countof (tmp_directory), tmp_directory);
+	else
+		StringCchCopy (tmp_directory, _countof (tmp_directory), directory);
 
-	return tmp_filename;
+	WCHAR result[MAX_PATH] = {0};
+
+	if (filename)
+	{
+		StringCchPrintf (result, _countof (result), L"%s\\%s.tmp", tmp_directory, filename);
+	}
+	else
+	{
+		GetTempFileName (tmp_directory, nullptr, 0, result);
+	}
+
+	return result;
 }
 
 rstring _r_path_expand (rstring path)
@@ -1614,21 +1626,45 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent)
 {
 	HINTERNET hsession = nullptr;
 
-	DWORD flags = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
+	DWORD flags = 0;
 
 	static const bool is_win81 = _r_sys_validversion (6, 3);
 
-	if (is_win81)
-		flags = WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY;
+	WINHTTP_CURRENT_USER_IE_PROXY_CONFIG proxyConfig = {0};
 
-	hsession = WinHttpOpen (useragent, flags, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+	WinHttpGetIEProxyConfigForCurrentUser (&proxyConfig);
+
+	// use automatic proxy configuration (win81 and above)
+	if (is_win81)
+	{
+		flags = WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY;
+	}
+	else
+	{
+		if (proxyConfig.lpszProxy)
+			flags = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
+
+		else
+			flags = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
+	}
+
+	hsession = WinHttpOpen (useragent, flags, proxyConfig.lpszProxy, proxyConfig.lpszProxyBypass, 0);
+
+	if (proxyConfig.lpszProxy)
+		GlobalFree (proxyConfig.lpszProxy);
+
+	if (proxyConfig.lpszProxyBypass)
+		GlobalFree (proxyConfig.lpszProxyBypass);
+
+	if (proxyConfig.lpszAutoConfigUrl)
+		GlobalFree (proxyConfig.lpszAutoConfigUrl);
 
 	if (!hsession)
 		return nullptr;
 
-	// enable all secure protocols
+	// enable secure protocols
 	{
-		DWORD option = WINHTTP_FLAG_SECURE_PROTOCOL_SSL3 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
+		DWORD option = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
 		WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &option, sizeof (option));
 	}
 
@@ -1712,43 +1748,23 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINT
 					{
 						const DWORD err = GetLastError ();
 
-						if (err == ERROR_WINHTTP_SECURE_FAILURE)
+						if (err == ERROR_WINHTTP_SECURE_FAILURE || err == ERROR_WINHTTP_CONNECTION_ERROR)
 						{
-							DWORD flag = 0;
-							DWORD old_option = 0;
-							DWORD old_length = 0;
-							DWORD new_option = 0;
+							// allow unknown certificates
+							DWORD flag = WINHTTP_OPTION_SECURITY_FLAGS;
+							DWORD option = SECURITY_FLAG_IGNORE_CERT_CN_INVALID | SECURITY_FLAG_IGNORE_CERT_DATE_INVALID | SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE;
 
-							if (err == ERROR_WINHTTP_SECURE_FAILURE)
-							{
-								// allow unknown certificates
-								flag = WINHTTP_OPTION_SECURITY_FLAGS;
-								new_option = SECURITY_FLAG_IGNORE_CERT_CN_INVALID | SECURITY_FLAG_IGNORE_CERT_DATE_INVALID | SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE;
-							}
-
-							if (new_option)
-							{
-								if (WinHttpQueryOption (hrequest, flag, &old_option, &old_length))
-									new_option |= old_option;
-
-								if (new_option != old_option)
-								{
-									if (!WinHttpSetOption (hrequest, flag, &new_option, sizeof (new_option)))
-										break;
-								}
-								else
-								{
-									break;
-								}
-							}
+							if (!WinHttpSetOption (hrequest, flag, &option, sizeof (option)))
+								break;
 						}
 						else
 						{
 							break;
 						}
 					}
+
 				}
-				while (retry_count++ < 3);
+				while (++retry_count <= 3);
 			}
 		}
 	}
@@ -1892,7 +1908,7 @@ void _r_ctrl_settext (HWND hwnd, UINT ctrl_id, LPCWSTR str, ...)
 bool _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text)
 {
 	const HINSTANCE hinst = GetModuleHandle (nullptr);
-	const HWND htip = CreateWindowEx (0, TOOLTIPS_CLASS, nullptr, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, hinst, nullptr);
+	const HWND htip = CreateWindowEx (WS_EX_TOPMOST, TOOLTIPS_CLASS, nullptr, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, hinst, nullptr);
 
 	if (htip)
 	{
@@ -1905,8 +1921,8 @@ bool _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text)
 		ti.uId = (UINT_PTR)GetDlgItem (hwnd, ctrl_id);
 		ti.lpszText = text;
 
-		SendMessage (htip, TTM_ACTIVATE, TRUE, 0);
 		SendMessage (htip, TTM_SETMAXTIPWIDTH, 0, 512);
+		SendMessage (htip, TTM_ACTIVATE, TRUE, 0);
 		SendMessage (htip, TTM_ADDTOOL, 0, (LPARAM)&ti);
 
 		return true;

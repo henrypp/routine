@@ -42,9 +42,6 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	StringCchCopy (app_directory, _countof (app_directory), app_binary);
 	PathRemoveFileSpec (app_directory);
 
-	// useragent
-	StringCchCopy (app_useragent, _countof (app_useragent), ConfigGet (L"UserAgent", _r_fmt (L"%s/%s (+%s)", app_name, app_version, _APP_WEBSITE_URL)));
-
 	// parse command line
 	INT numargs = 0;
 	LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
@@ -99,9 +96,6 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 
 rapp::~rapp ()
 {
-	if (app_callback)
-		app_callback (GetHWND (), _RM_UNINITIALIZE, nullptr, nullptr);
-
 	UninitializeMutex ();
 }
 
@@ -237,23 +231,125 @@ bool rapp::AutorunIsEnabled ()
 }
 #endif // _APP_HAVE_AUTORUN
 
-#ifdef _APP_HAVE_UPDATES
-void rapp::CheckForUpdates (bool is_periodical)
+bool rapp::DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_CALLBACK callback, LONG_PTR lpdata)
 {
-	if (update_lock)
-		return;
+	bool result = false;
 
-	if (is_periodical)
+	const HINTERNET hsession = _r_inet_createsession (GetUserAgent ());
+
+	if (hsession)
 	{
-		if (!ConfigGet (L"CheckUpdates", true).AsBool () || (_r_unixtime_now () - ConfigGet (L"CheckUpdatesLast", 0).AsLonglong ()) <= _APP_UPDATE_PERIOD)
-			return;
+		HINTERNET hconnect = nullptr;
+		HINTERNET hrequest = nullptr;
+
+		DWORD total_length = 0;
+
+		if (_r_inet_openurl (hsession, url, &hconnect, &hrequest, &total_length))
+		{
+			const DWORD buffer_length = min (1024 * 16, total_length); // 16 kB
+			LPSTR content_buffer = new CHAR[buffer_length];
+
+			if (content_buffer)
+			{
+				rstring* lpbuffer = nullptr;
+				HANDLE hfile = nullptr;
+
+				if (is_filepath)
+				{
+					hfile = CreateFile ((LPCWSTR)buffer, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_FLAG_WRITE_THROUGH, nullptr);
+
+					if (hfile != INVALID_HANDLE_VALUE)
+						result = true;
+				}
+				else
+				{
+					lpbuffer = (rstring*)buffer;
+
+					if (lpbuffer)
+						result = true;
+				}
+
+				if (result)
+				{
+					DWORD notneed = 0;
+					DWORD readed = 0;
+					DWORD total_readed = 0;
+
+					while (true)
+					{
+						if (!_r_inet_readrequest (hrequest, content_buffer, buffer_length - 1, &readed, &total_readed))
+							break;
+
+						if (is_filepath)
+							WriteFile (hfile, content_buffer, readed, &notneed, nullptr);
+
+						else
+							lpbuffer->Append (content_buffer);
+
+						if (callback)
+							callback (total_readed, total_length, lpdata);
+					}
+
+					if (is_filepath)
+						CloseHandle (hfile);
+				}
+
+				delete[] content_buffer;
+			}
+		}
+
+		if (hrequest)
+			_r_inet_close (hrequest);
+
+		if (hconnect)
+			_r_inet_close (hconnect);
+
+		_r_inet_close (hsession);
 	}
 
-	is_update_forced = is_periodical;
+	return result;
+}
 
-	_beginthreadex (nullptr, 0, &CheckForUpdatesProc, (LPVOID)this, 0, nullptr);
+#ifdef _APP_HAVE_UPDATES
+bool rapp::UpdateCheck (LPCWSTR component, LPCWSTR component_name, LPCWSTR version, LPCWSTR target_path, UINT menu_id, bool is_forced)
+{
+	if (update_lock)
+		return false;
 
-	update_lock = true;
+	if (!is_forced && (!ConfigGet (L"CheckUpdates", true).AsBool () || (_r_unixtime_now () - ConfigGet (L"CheckUpdatesLast", 0).AsUlonglong ()) <= _APP_UPDATE_PERIOD))
+		return false;
+
+	PAPP_UPDATE_CONTEXT pcontext = new APP_UPDATE_CONTEXT;
+
+	if (pcontext)
+	{
+		pcontext->papp = this;
+		pcontext->version = version;
+		pcontext->full_name = app_name;
+
+		if (component)
+			pcontext->component = component;
+
+		if (component_name)
+			pcontext->full_name.AppendFormat (L": %s", component_name);
+
+		if (target_path)
+			pcontext->target_path = target_path;
+
+		pcontext->menu_id = menu_id;
+		pcontext->is_downloaded = false;
+		pcontext->is_forced = is_forced;
+
+		if (_beginthreadex (nullptr, 0, &UpdateCheckThread, (LPVOID)pcontext, 0, nullptr) == -1L)
+		{
+			delete pcontext;
+			return false;
+		}
+
+		return true;
+	}
+
+	return false;
 }
 #endif // _APP_HAVE_UPDATES
 
@@ -262,12 +358,13 @@ void rapp::ConfigInit ()
 	app_config_array.clear (); // reset
 	ParseINI (app_config_path, &app_config_array, nullptr);
 
-	LocaleInit ();
+	// useragent
+	StringCchCopy (app_useragent, _countof (app_useragent), ConfigGet (L"UserAgent", _r_fmt (L"%s/%s (+%s)", app_name, app_version, _APP_WEBSITE_URL)));
 
-	// check for updates
-#ifdef _APP_HAVE_UPDATES
-	CheckForUpdates (true);
-#endif // _APP_HAVE_UPDATES
+	// locale path
+	StringCchPrintf (app_localepath, _countof (app_localepath), L"%s\\%s.lng", ConfigGet (L"LocalePath", GetDirectory ()).GetString (), app_name_short);
+
+	LocaleInit ();
 }
 
 rstring rapp::ConfigGet (LPCWSTR key, INT def, LPCWSTR name)
@@ -336,7 +433,7 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 	INT result = 0;
 
 #ifndef _APP_NO_WINXP
-	if (_r_sys_validversion (6, 0))
+	if (IsVistaOrLater ())
 	{
 #endif // _APP_NO_WINXP
 
@@ -356,14 +453,14 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 		tdc.cbSize = sizeof (tdc);
 		tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_ENABLE_HYPERLINKS;
 		tdc.hwndParent = hwnd;
-		tdc.hInstance = GetModuleHandle (nullptr);
-		tdc.pfCallback = &_r_msg_callback;
+		tdc.hInstance = GetHINSTANCE ();
 		tdc.pszMainIcon = TD_WARNING_ICON;
-		tdc.dwCommonButtons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
+		tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
 		tdc.pszWindowTitle = str_title;
 		tdc.pszMainInstruction = str_main;
 		tdc.pszContent = str_content;
 		tdc.pszVerificationText = str_flag;
+		tdc.pfCallback = &_r_msg_callback;
 		tdc.lpCallbackData = 1; // always on top
 
 		StringCchCopy (str_title, _countof (str_title), app_name);
@@ -407,7 +504,7 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 	{
 		_r_msg (hwnd, MB_OKCANCEL | MB_ICONEXCLAMATION | MB_TOPMOST, app_name, main, L"%s", text);
 	}
-	else if (result == IDOK)
+	else if (result == IDOK || result == IDYES)
 	{
 		if (is_flagchecked)
 			ConfigSet (config_cfg, false);
@@ -419,7 +516,7 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 }
 
 #ifndef _APP_NO_ABOUT
-void rapp::CreateAboutWindow (HWND hwnd, LPCWSTR donate_text)
+void rapp::CreateAboutWindow (HWND hwnd)
 {
 	if (!is_about_opened)
 	{
@@ -442,36 +539,51 @@ void rapp::CreateAboutWindow (HWND hwnd, LPCWSTR donate_text)
 			WCHAR main[64] = {0};
 			WCHAR content[512] = {0};
 			WCHAR footer[256] = {0};
-			WCHAR btn_text[64] = {0};
+
+			WCHAR btn_ok[64] = {0};
+			WCHAR btn_close[64] = {0};
 
 			TASKDIALOGCONFIG tdc = {0};
-			TASKDIALOG_BUTTON buttons[1] = {0};
+			TASKDIALOG_BUTTON buttons[2] = {0};
 
 			tdc.cbSize = sizeof (tdc);
 			tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
 			tdc.hwndParent = hwnd;
 			tdc.hInstance = GetHINSTANCE ();
-			tdc.pfCallback = &_r_msg_callback;
-			tdc.pszMainIcon = MAKEINTRESOURCE (100);
+#ifdef IDI_MAIN
+			tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
+#else
+			tdc.pszMainIcon = TD_INFORMATION_ICON;
+#endif
 			tdc.pszFooterIcon = TD_INFORMATION_ICON;
-			tdc.dwCommonButtons = TDCBF_CLOSE_BUTTON;
 			tdc.nDefaultButton = IDCLOSE;
 			tdc.pszWindowTitle = title;
 			tdc.pszMainInstruction = main;
 			tdc.pszContent = content;
 			tdc.pszFooter = footer;
+			tdc.pfCallback = &_r_msg_callback;
 			tdc.lpCallbackData = 1; // always on top
 
-			if (donate_text)
-			{
-				tdc.pButtons = buttons;
-				tdc.cButtons = _countof (buttons);
+			tdc.pButtons = buttons;
+			tdc.cButtons = _countof (buttons);
 
-				buttons[0].nButtonID = 100;
-				buttons[0].pszButtonText = btn_text;
+			buttons[0].nButtonID = IDOK;
+			buttons[0].pszButtonText = btn_ok;
 
-				StringCchCopy (btn_text, _countof (btn_text), donate_text);
-			}
+			buttons[1].nButtonID = IDCLOSE;
+			buttons[1].pszButtonText = btn_close;
+
+#ifdef IDS_DONATE
+			StringCchCopy (btn_ok, _countof (btn_ok), LocaleString (IDS_DONATE, nullptr));
+#else
+			StringCchCopy (btn_ok, _countof (btn_ok), L"Give thanks!");
+#endif
+
+#ifdef IDS_CLOSE
+			StringCchCopy (btn_close, _countof (btn_close), LocaleString (IDS_CLOSE, nullptr));
+#else
+			StringCchCopy (btn_close, _countof (btn_close), L"Close");
+#endif
 
 			StringCchCopy (title, _countof (title), LocaleString (IDS_ABOUT, nullptr));
 			StringCchCopy (main, _countof (main), app_name);
@@ -511,30 +623,6 @@ bool rapp::IsVistaOrLater () const
 	return is_vistaorlater;
 }
 
-void rapp::SetIcon (HWND hwnd, UINT icon_id, bool is_forced)
-{
-	if (is_forced || (!app_icon_small || !app_icon_big))
-	{
-		if (app_icon_small)
-		{
-			DestroyIcon (app_icon_small);
-			app_icon_small = nullptr;
-		}
-
-		if (app_icon_big)
-		{
-			DestroyIcon (app_icon_big);
-			app_icon_big = nullptr;
-		}
-
-		app_icon_small = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (icon_id), GetSystemMetrics (SM_CXSMICON));
-		app_icon_big = _r_loadicon (GetHINSTANCE (), MAKEINTRESOURCE (icon_id), GetSystemMetrics (SM_CXICON));
-	}
-
-	PostMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)app_icon_small);
-	PostMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)app_icon_big);
-}
-
 LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
 	static rapp* this_ptr = (rapp*)GetWindowLongPtr (hwnd, GWLP_USERDATA);
@@ -542,11 +630,8 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 #ifdef _APP_HAVE_TRAY
 	if (msg == WM_TASKBARCREATED)
 	{
-		if (this_ptr->app_callback)
-		{
-			this_ptr->app_callback (hwnd, _RM_UNINITIALIZE, nullptr, nullptr);
-			this_ptr->app_callback (hwnd, _RM_INITIALIZE, nullptr, nullptr);
-		}
+		SendMessage (hwnd, RM_UNINITIALIZE, 0, 0);
+		SendMessage (hwnd, RM_INITIALIZE, 0, 0);
 
 		return FALSE;
 	}
@@ -558,8 +643,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		{
 			this_ptr->is_classic = !IsThemeActive () || this_ptr->ConfigGet (L"ClassicUI", false).AsBool ();
 
-			if (this_ptr->app_callback)
-				this_ptr->app_callback (this_ptr->GetHWND (), _RM_LOCALIZE, nullptr, nullptr);
+			SendMessage (hwnd, RM_LOCALIZE, 0, 0);
 
 			break;
 		}
@@ -575,12 +659,31 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			break;
 		}
 
+		case WM_CLOSE:
+		{
+			if (this_ptr->update_lock)
+			{
+				SetWindowLongPtr (hwnd, DWLP_MSGRESULT, TRUE);
+				return TRUE;
+			}
+
+			break;
+		}
+
 		case WM_DESTROY:
 		{
 			if ((GetWindowLongPtr (hwnd, GWL_STYLE) & WS_MAXIMIZEBOX) != 0)
 				this_ptr->ConfigSet (L"IsWindowZoomed", IsZoomed (hwnd) ? true : false);
 
+			SendMessage (hwnd, RM_UNINITIALIZE, 0, 0);
+
 			break;
+		}
+
+		case WM_QUERYENDSESSION:
+		{
+			SetWindowLongPtr (hwnd, DWLP_MSGRESULT, TRUE);
+			return TRUE;
 		}
 
 		case WM_GETMINMAXINFO:
@@ -635,12 +738,6 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 
 			break;
 		}
-
-		case WM_QUERYENDSESSION:
-		{
-			SetWindowLongPtr (hwnd, DWLP_MSGRESULT, TRUE);
-			return TRUE;
-		}
 	}
 
 	if (!this_ptr->app_wndproc) // check (required!)
@@ -649,7 +746,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 	return CallWindowProc (this_ptr->app_wndproc, hwnd, msg, wparam, lparam);
 }
 
-bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc, APPLICATION_CALLBACK callback)
+bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 {
 	bool result = false;
 
@@ -684,23 +781,6 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc, APPLICATIO
 		InitCommonControlsEx (&icex);
 	}
 
-	// check arguments
-	{
-		INT numargs = 0;
-		LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
-
-		if (arga)
-		{
-			if (callback && numargs > 1)
-			{
-				if (callback (nullptr, _RM_ARGUMENTS, nullptr, nullptr))
-					return false;
-			}
-
-			LocalFree (arga);
-		}
-	}
-
 	if (CheckMutex (true))
 		return false;
 
@@ -711,7 +791,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc, APPLICATIO
 #ifdef _APP_NO_GUEST
 	if (!IsAdmin ())
 	{
-		_r_msg (nullptr, MB_OK | MB_ICONWARNING, app_name, L"Warning!", L"%s required administrative privileges!", app_name);
+		_r_msg (nullptr, MB_OK | MB_ICONEXCLAMATION, app_name, L"Warning!", L"%s administrative privileges is required!", app_name);
 		return false;
 	}
 #endif // _APP_NO_GUEST
@@ -844,18 +924,21 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc, APPLICATIO
 
 			// set icons
 			if (icon_id)
-				SetIcon (GetHWND (), icon_id, true);
-
-			// initialization callback
-			if (callback)
 			{
-				app_callback = callback;
-
-				app_callback (GetHWND (), _RM_INITIALIZE, nullptr, nullptr);
-				app_callback (GetHWND (), _RM_LOCALIZE, nullptr, nullptr);
-
-				DrawMenuBar (GetHWND ()); // redraw menu
+				SendMessage (GetHWND (), WM_SETICON, ICON_SMALL, (LPARAM)GetSharedIcon (GetHINSTANCE (), icon_id, GetSystemMetrics (SM_CXSMICON)));
+				SendMessage (GetHWND (), WM_SETICON, ICON_BIG, (LPARAM)GetSharedIcon (GetHINSTANCE (), icon_id, GetSystemMetrics (SM_CXICON)));
 			}
+
+			// common initialization
+			SendMessage (GetHWND (), RM_INITIALIZE, 0, 0);
+			SendMessage (GetHWND (), RM_LOCALIZE, 0, 0);
+
+			DrawMenuBar (GetHWND ()); // redraw menu
+
+#ifdef _APP_HAVE_UPDATES
+			if (ConfigGet (L"CheckUpdates", true).AsBool ())
+				UpdateCheck (nullptr, nullptr, app_version, nullptr, 0, false);
+#endif // _APP_HAVE_UPDATES
 
 			result = true;
 		}
@@ -927,7 +1010,11 @@ bool rapp::TrayPopup (UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text)
 
 	if (icon_id == NIIF_USER && IsVistaOrLater ())
 	{
-		nid.hBalloonIcon = GetHICON (true);
+#ifdef IDI_MAIN
+		nid.hBalloonIcon = GetSharedIcon (GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXICON));
+#else
+		nid.hBalloonIcon = GetSharedIcon (nullptr, SIH_INFORMATION, GetSystemMetrics (SM_CXICON));
+#endif
 	}
 #ifndef _APP_NO_WINXP
 	else
@@ -1095,10 +1182,10 @@ void rapp::SettingsPageInitialize (UINT dlg_id, bool is_initialize, bool is_loca
 		if (ppage && ppage->dlg_id == dlg_id)
 		{
 			if (is_initialize)
-				app_settings_callback (ppage->hwnd, _RM_INITIALIZE, nullptr, ppage);
+				app_settings_callback (ppage->hwnd, RM_INITIALIZE, nullptr, ppage);
 
 			if (is_localize)
-				app_settings_callback (ppage->hwnd, _RM_LOCALIZE, nullptr, ppage);
+				app_settings_callback (ppage->hwnd, RM_LOCALIZE, nullptr, ppage);
 		}
 	}
 }
@@ -1119,22 +1206,62 @@ LPCWSTR rapp::GetProfileDirectory () const
 	return app_profile_directory;
 }
 
-rstring rapp::GetUserAgent () const
+LPCWSTR rapp::GetLocalePath () const
+{
+	return app_localepath;
+}
+
+LPCWSTR rapp::GetUserAgent () const
 {
 	return app_useragent;
 }
 
 INT rapp::GetDPI (INT v) const
 {
-	return (INT)ceil ((DOUBLE)(v)* dpi_percent);
+	return (INT)ceil (DOUBLE (v)* dpi_percent);
 }
 
-HICON rapp::GetHICON (bool is_big) const
+HICON rapp::GetSharedIcon (HINSTANCE hinst, UINT icon_id, INT cx_width)
 {
-	if (is_big)
-		return app_icon_big;
+	PAPP_SHARED_ICON presult = nullptr;
 
-	return app_icon_small;
+	for (size_t i = 0; i < app_shared_icons.size (); i++)
+	{
+		PAPP_SHARED_ICON const pshared = app_shared_icons.at (i);
+
+		if (pshared && pshared->hinst == hinst && pshared->icon_id == icon_id && pshared->cx_width == cx_width && pshared->hicon)
+			presult = pshared;
+	}
+
+	if (!presult)
+	{
+		presult = new APP_SHARED_ICON;
+
+		if (presult)
+		{
+			const HICON hicon = _r_loadicon (hinst, MAKEINTRESOURCE (icon_id), cx_width);
+
+			if (hicon)
+			{
+				presult->hinst = hinst;
+				presult->icon_id = icon_id;
+				presult->cx_width = cx_width;
+				presult->hicon = hicon;
+
+				app_shared_icons.push_back (presult);
+			}
+			else
+			{
+				delete presult;
+				presult = nullptr;
+			}
+		}
+	}
+
+	if (!presult)
+		return nullptr;
+
+	return presult->hicon;
 }
 
 HINSTANCE rapp::GetHINSTANCE () const
@@ -1165,12 +1292,13 @@ void rapp::LocaleApplyFromControl (HWND hwnd, UINT ctrl_id)
 		SettingsInitialize ();
 
 		if (settings_page_id != LAST_VALUE)
-			app_settings_callback (app_settings_pages.at (settings_page_id)->hwnd, _RM_LOCALIZE, nullptr, app_settings_pages.at (settings_page_id));
+			app_settings_callback (app_settings_pages.at (settings_page_id)->hwnd, RM_LOCALIZE, nullptr, app_settings_pages.at (settings_page_id));
 	}
 
-	if (app_callback)
+	if (GetHWND ())
 	{
-		app_callback (GetHWND (), _RM_LOCALIZE, nullptr, nullptr);
+		SendMessage (GetHWND (), RM_LOCALIZE, 0, 0);
+
 		DrawMenuBar (GetHWND ()); // redraw menu
 	}
 }
@@ -1192,9 +1320,9 @@ void rapp::LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id)
 		StringCchCopy (locale_current, _countof (locale_current), name);
 	}
 
-	if (app_callback)
+	if (GetHWND ())
 	{
-		app_callback (GetHWND (), _RM_LOCALIZE, nullptr, nullptr);
+		SendMessage (GetHWND (), RM_LOCALIZE, 0, 0);
 
 		DrawMenuBar (GetHWND ()); // redraw menu
 	}
@@ -1233,11 +1361,17 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, const UINT id_start
 		size_t idx = 1;
 
 		if (is_menu)
+		{
 			AppendMenu (hmenu, MF_SEPARATOR, 0, nullptr);
+			EnableMenuItem ((HMENU)hwnd, ctrl_id, MF_BYPOSITION | MF_ENABLED);
+		}
 
 		for (size_t i = 0; i < app_locale_names.size (); i++)
 		{
 			LPCWSTR name = app_locale_names.at (i);
+
+			if (wcslen (name) <= 1)
+				continue;
 
 			if (is_menu)
 			{
@@ -1272,6 +1406,14 @@ size_t rapp::LocaleGetCount ()
 	return app_locale_array.size ();
 }
 
+time_t rapp::LocaleGetVersion ()
+{
+	if (app_locale_array.find (L"i") != app_locale_array.end () && app_locale_array[L"i"].find (L"t") != app_locale_array[L"i"].end ())
+		return app_locale_array[L"i"][L"t"].AsUlonglong ();
+
+	return 0;
+}
+
 void rapp::LocaleInit ()
 {
 	rstring name = ConfigGet (L"Language", nullptr);
@@ -1286,7 +1428,7 @@ void rapp::LocaleInit ()
 	app_locale_array.clear ();
 	app_locale_names.clear ();
 
-	ParseINI (_r_fmt (L"%s\\%s.lng", _r_path_expand (ConfigGet (L"LocalePath", GetDirectory ())).GetString (), app_name_short), &app_locale_array, &app_locale_names);
+	ParseINI (GetLocalePath (), &app_locale_array, &app_locale_names);
 
 	if (!app_locale_array.empty ())
 	{
@@ -1384,7 +1526,7 @@ INT_PTR CALLBACK rapp::SettingsPageProc (HWND hwnd, UINT msg, WPARAM wparam, LPA
 
 				PAPP_SETTINGS_PAGE const ptr_page = this_ptr->app_settings_pages.at (this_ptr->settings_page_id);
 
-				return this_ptr->app_settings_callback (hwnd, _RM_MESSAGE, &wmsg, ptr_page);
+				return this_ptr->app_settings_callback (hwnd, RM_MESSAGE, &wmsg, ptr_page);
 			}
 
 			break;
@@ -1405,7 +1547,11 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			this_ptr = (rapp*)(lparam);
 
 			this_ptr->settings_hwnd = hwnd;
-			this_ptr->SetIcon (hwnd, 0, false);
+
+#ifdef IDI_MAIN
+			SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)this_ptr->GetSharedIcon (this_ptr->GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXSMICON)));
+			SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)this_ptr->GetSharedIcon (this_ptr->GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXICON)));
+#endif // IDI_MAIN
 
 			// configure window
 			_r_wnd_center (hwnd, GetParent (hwnd));
@@ -1426,7 +1572,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					if (ptr_page->dlg_id)
 					{
 						ptr_page->hwnd = CreateDialogParam (this_ptr->GetHINSTANCE (), MAKEINTRESOURCE (ptr_page->dlg_id), hwnd, &this_ptr->SettingsPageProc, (LPARAM)this_ptr);
-						this_ptr->app_settings_callback (ptr_page->hwnd, _RM_INITIALIZE, nullptr, ptr_page);
+						this_ptr->app_settings_callback (ptr_page->hwnd, RM_INITIALIZE, nullptr, ptr_page);
 					}
 
 					ptr_page->item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr_page->locale_id, nullptr), ((ptr_page->group_id == LAST_VALUE) ? nullptr : this_ptr->app_settings_pages.at (ptr_page->group_id)->item), LAST_VALUE, (LPARAM)i);
@@ -1470,18 +1616,18 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 		case WM_DESTROY:
 		{
-			// check for updates
 #ifdef _APP_HAVE_UPDATES
-			this_ptr->CheckForUpdates (true);
+			if (this_ptr->ConfigGet (L"CheckUpdates", true).AsBool ())
+				this_ptr->UpdateCheck (nullptr, nullptr, this_ptr->app_version, nullptr, 0, false);
 #endif // _APP_HAVE_UPDATES
 
 			BOOL result = false;
 
 			if (this_ptr->app_settings_callback)
-				result = this_ptr->app_settings_callback (hwnd, _RM_CLOSE, nullptr, nullptr);
+				result = this_ptr->app_settings_callback (hwnd, RM_CLOSE, nullptr, nullptr);
 
-			if (result && this_ptr->app_callback)
-				this_ptr->app_callback (this_ptr->GetHWND (), _RM_INITIALIZE, nullptr, nullptr);
+			if (result && this_ptr->GetHWND ())
+				SendMessage (this_ptr->GetHWND (), RM_INITIALIZE, 0, 0);
 
 			for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 			{
@@ -1532,7 +1678,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 							if (ptr_page)
 							{
-								this_ptr->app_settings_callback (ptr_page->hwnd, _RM_LOCALIZE, nullptr, ptr_page);
+								this_ptr->app_settings_callback (ptr_page->hwnd, RM_LOCALIZE, nullptr, ptr_page);
 								ShowWindow (ptr_page->hwnd, SW_SHOW);
 							}
 						}
@@ -1566,79 +1712,349 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 #endif // _APP_HAVE_SETTINGS
 
 #ifdef _APP_HAVE_UPDATES
-UINT WINAPI rapp::CheckForUpdatesProc (LPVOID lparam)
+void rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG_PTR lpdata)
 {
-	rapp* this_ptr = (rapp*)(lparam);
+	PAPP_UPDATE_CONTEXT pcontext = (PAPP_UPDATE_CONTEXT)lpdata;
 
-	if (this_ptr)
+	const DWORD percent = _R_PERCENT_OF (total_written, total_length);
+
+	if (percent >= 100)
+		pcontext->is_downloaded = true;
+
+	if (pcontext->is_downloaded)
 	{
-		bool result = false;
+		WCHAR str_content[256] = {0};
 
-		this_ptr->update_lock = true;
-
-#ifdef IDM_CHECKUPDATES
-		EnableMenuItem (GetMenu (this_ptr->GetHWND ()), IDM_CHECKUPDATES, MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
-#endif // IDM_CHECKUPDATES
-
-		HINTERNET hsession = _r_inet_createsession (this_ptr->GetUserAgent ());
-
-		if (hsession)
-		{
-			HINTERNET hconnect = nullptr;
-			HINTERNET hrequest = nullptr;
-
-#if defined(_APP_BETA) || defined(_APP_BETA_RC)
-			const bool is_beta = true;
+#ifdef IDS_UPDATE_DONE
+		StringCchCopy (str_content, _countof (str_content), pcontext->papp->LocaleString (IDS_UPDATE_DONE, nullptr));
 #else
-			const bool is_beta = this_ptr->ConfigGet (L"CheckUpdatesForBeta", false).AsBool ();
-#endif // _APP_BETA
+		StringCchCopy (str_content, _countof (str_content), L"Downloading update finished.");
+#endif // IDS_UPDATE_DONE
 
-			if (_r_inet_openurl (hsession, _r_fmt (L"%s/update.php?product=%s&is_beta=%d", _APP_WEBSITE_URL, this_ptr->app_name_short, is_beta), &hconnect, &hrequest, nullptr))
+#ifndef _APP_NO_WINXP
+		if (pcontext->papp->IsVistaOrLater ())
+		{
+#endif // _APP_NO_WINXP
+			if (pcontext->hwnd)
 			{
-				CHAR buffera[128] = {0};
-				rstring bufferw;
-				DWORD total_length = 0;
+				TASKDIALOGCONFIG tdc = {0};
 
-				while (true)
+				tdc.cbSize = sizeof (tdc);
+				tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
+				tdc.hwndParent = pcontext->papp->GetHWND ();
+				tdc.hInstance = pcontext->papp->GetHINSTANCE ();
+#ifdef IDI_MAIN
+				tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
+#else
+				tdc.pszMainIcon = TD_INFORMATION_ICON;
+#endif
+				tdc.dwCommonButtons = TDCBF_CLOSE_BUTTON;
+				tdc.pszWindowTitle = pcontext->full_name;
+				tdc.pszContent = str_content;
+				tdc.pfCallback = &UpdateDialogCallback;
+				tdc.lpCallbackData = (LONG_PTR)pcontext;
+
+				SendMessage (pcontext->hwnd, TDM_NAVIGATE_PAGE, 0, (LPARAM)&tdc);
+			}
+#ifndef _APP_NO_WINXP
+		}
+		else
+		{
+			_r_msg (pcontext->papp->GetHWND (), MB_OK | MB_USERICON, pcontext->full_name, nullptr, L"%s", str_content);
+			}
+#endif // _APP_NO_WINXP
+	}
+	else
+	{
+#ifndef _APP_NO_WINXP
+		if (pcontext->papp->IsVistaOrLater ())
+		{
+#endif // _APP_NO_WINXP
+			if (pcontext->hwnd)
+			{
+#ifdef IDS_UPDATE_DOWNLOAD
+				SendMessage (pcontext->hwnd, TDM_SET_ELEMENT_TEXT, TDE_CONTENT, (LPARAM)_r_fmt (pcontext->papp->LocaleString (IDS_UPDATE_DOWNLOAD, nullptr), percent).GetString ());
+#else
+				SendMessage (pcontext->hwnd, TDM_SET_ELEMENT_TEXT, TDE_CONTENT, (LPARAM)_r_fmt (L"Downloading update... %d%%", percent).GetString ());
+#endif // IDS_UPDATE_DOWNLOAD
+
+				SendMessage (pcontext->hwnd, TDM_SET_PROGRESS_BAR_POS, percent, 0);
+			}
+#ifndef _APP_NO_WINXP
+			}
+#endif // _APP_NO_WINXP
+		}
+}
+
+UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
+{
+	PAPP_UPDATE_CONTEXT pcontext = (PAPP_UPDATE_CONTEXT)lparam;
+
+	if (!pcontext->papp->DownloadURL (pcontext->url, (LPVOID)pcontext->filepath.GetString (), true, &pcontext->papp->UpdateDownloadCallback, (LONG_PTR)pcontext))
+	{
+		WCHAR str_content[256] = {0};
+
+#ifdef IDS_UPDATE_ERROR
+		StringCchCopy (str_content, _countof (str_content), pcontext->papp->LocaleString (IDS_UPDATE_ERROR, nullptr));
+#else
+		StringCchCopy (str_content, _countof (str_content), L"Update server connection error");
+#endif // IDS_UPDATE_ERROR
+
+#ifndef _APP_NO_WINXP
+		if (pcontext->papp->IsVistaOrLater ())
+		{
+#endif // _APP_NO_WINXP
+			if (pcontext->hwnd)
+			{
+				TASKDIALOGCONFIG tdc = {0};
+
+				tdc.cbSize = sizeof (tdc);
+				tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
+				tdc.hwndParent = pcontext->papp->GetHWND ();
+				tdc.hInstance = pcontext->papp->GetHINSTANCE ();
+				tdc.pszMainIcon = TD_WARNING_ICON;
+				tdc.dwCommonButtons = TDCBF_CLOSE_BUTTON;
+				tdc.pszWindowTitle = pcontext->full_name;
+				tdc.pszContent = str_content;
+				tdc.pfCallback = &UpdateDialogCallback;
+				tdc.lpCallbackData = (LONG_PTR)pcontext;
+
+				SendMessage (pcontext->hwnd, TDM_NAVIGATE_PAGE, 0, (LPARAM)&tdc);
+			}
+#ifndef _APP_NO_WINXP
+		}
+		else
+		{
+			if (pcontext->is_forced)
+				_r_msg (pcontext->papp->GetHWND (), MB_OK | MB_ICONEXCLAMATION, pcontext->full_name, nullptr, L"%s", str_content);
+			}
+#endif // _APP_NO_WINXP
+		}
+
+	pcontext->hthread = nullptr;
+
+	return ERROR_SUCCESS;
+	}
+
+HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM, LONG_PTR lpdata)
+{
+	PAPP_UPDATE_CONTEXT pcontext = (PAPP_UPDATE_CONTEXT)lpdata;
+
+	switch (msg)
+	{
+		case TDN_CREATED:
+		{
+			pcontext->hwnd = hwnd;
+
+			_r_wnd_center (hwnd, GetParent (hwnd));
+
+#ifdef IDI_MAIN
+			SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)pcontext->papp->GetSharedIcon (pcontext->papp->GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXSMICON)));
+			SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)pcontext->papp->GetSharedIcon (pcontext->papp->GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXICON)));
+#endif // IDI_MAIN
+
+			break;
+		}
+
+		case TDN_BUTTON_CLICKED:
+		{
+			if (wparam == IDYES)
+			{
+				TASKDIALOGCONFIG tdc = {0};
+
+				WCHAR str_title[64] = {0};
+				WCHAR str_content[256] = {0};
+
+				tdc.cbSize = sizeof (tdc);
+				tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_SHOW_PROGRESS_BAR;
+				tdc.hwndParent = pcontext->papp->GetHWND ();
+				tdc.hInstance = pcontext->papp->GetHINSTANCE ();
+#ifdef IDI_MAIN
+				tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
+#else
+				tdc.pszMainIcon = TD_INFORMATION_ICON;
+#endif
+				tdc.dwCommonButtons = TDCBF_CANCEL_BUTTON;
+				tdc.pszWindowTitle = str_title;
+				tdc.pszContent = str_content;
+				tdc.pfCallback = &UpdateDialogCallback;
+				tdc.lpCallbackData = (LONG_PTR)pcontext;
+
+				StringCchCopy (str_title, _countof (str_title), pcontext->full_name);
+
+#ifdef IDS_UPDATE_DOWNLOAD
+				StringCchPrintf (str_content, _countof (str_content), pcontext->papp->LocaleString (IDS_UPDATE_DOWNLOAD, nullptr), 0);
+#else
+				StringCchCopy (str_content, _countof (str_content), L"Downloading update... 0%");
+#endif
+				pcontext->hthread = (HANDLE)_beginthreadex (nullptr, 0, &pcontext->papp->UpdateDownloadThread, (LPVOID)pcontext, CREATE_SUSPENDED, nullptr);
+
+				if (pcontext->hthread != (HANDLE)-1L)
 				{
-					if (!_r_inet_readrequest (hrequest, buffera, _countof (buffera) - 1, nullptr, &total_length))
-						break;
+					ResumeThread (pcontext->hthread);
+					SendMessage (hwnd, TDM_NAVIGATE_PAGE, 0, (LPARAM)&tdc);
 
-					bufferw.Append (buffera);
+					return S_FALSE;
 				}
-
-				bufferw.Trim (L" \r\n");
-
-				this_ptr->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
-
-				if (!bufferw.IsEmpty () && _r_str_versioncompare (this_ptr->app_version, bufferw) == -1)
+			}
+			else if (wparam == IDCANCEL || wparam == IDCLOSE)
+			{
+				if (pcontext->hthread)
 				{
-					if (_r_msg (this_ptr->GetHWND (), MB_YESNO | MB_ICONQUESTION, this_ptr->app_name, nullptr, this_ptr->LocaleString (IDS_UPDATE_YES, nullptr), bufferw.GetString ()) == IDYES)
-						ShellExecute (nullptr, nullptr, _r_fmt (_APP_UPDATE_URL, this_ptr->app_name_short), nullptr, nullptr, SW_SHOWDEFAULT);
-
-					result = true;
+					TerminateThread (pcontext->hthread, 0);
+					CloseHandle (pcontext->hthread);
+					pcontext->hthread = nullptr;
 				}
 			}
 
-			if (hrequest)
-				_r_inet_close (hrequest);
-
-			if (hconnect)
-				_r_inet_close (hconnect);
-
-			_r_inet_close (hsession);
+			break;
 		}
+	}
 
-#ifdef IDM_CHECKUPDATES
-		EnableMenuItem (GetMenu (this_ptr->GetHWND ()), IDM_CHECKUPDATES, MF_BYCOMMAND | MF_ENABLED);
-#endif // IDM_CHECKUPDATES
+	return S_OK;
+}
 
-		if (!result && !this_ptr->is_update_forced)
+UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
+{
+	PAPP_UPDATE_CONTEXT pcontext = (PAPP_UPDATE_CONTEXT)lparam;
+
+	if (pcontext)
+	{
+		pcontext->papp->update_lock = true;
+
+		if (pcontext->menu_id)
+			EnableMenuItem (GetMenu (pcontext->papp->GetHWND ()), pcontext->menu_id, MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
+
+		// check for beta versions flag
+#if defined(_APP_BETA) || defined(_APP_BETA_RC)
+		const bool is_beta = true;
+#else
+		const bool is_beta = pcontext->papp->ConfigGet (L"CheckUpdatesBeta", false).AsBool ();
+#endif // _APP_BETA
+
+		rstring buffer;
+
+		if (!pcontext->papp->DownloadURL (_r_fmt (_APP_WEBSITE_URL L"/update.php?product=%s%s&is_beta=%d&api=2", pcontext->papp->app_name_short, pcontext->component.IsEmpty () ? L"" : _r_fmt (L"&component=%s", pcontext->component.GetString ()), is_beta), &buffer, false, nullptr, 0))
 		{
-			_r_msg (this_ptr->GetHWND (), MB_OK | MB_ICONINFORMATION, this_ptr->app_name, nullptr, this_ptr->LocaleString (IDS_UPDATE_NO, nullptr));
+			if (pcontext->is_forced)
+			{
+#ifdef IDS_UPDATE_ERROR
+				_r_msg (pcontext->papp->GetHWND (), MB_OK | MB_ICONEXCLAMATION, pcontext->full_name, nullptr, L"%s", pcontext->papp->LocaleString (IDS_UPDATE_ERROR, nullptr).GetString ());
+#else
+				_r_msg (pcontext->papp->GetHWND (), MB_OK | MB_ICONEXCLAMATION, pcontext->full_name, nullptr, L"Update server connection error.");
+#endif // IDS_UPDATE_ERROR
+			}
+		}
+		else
+		{
+			rstring::map_one result;
+
+			if (_r_str_unserialize (buffer, L";", L'=', &result))
+			{
+				const rstring new_version = result[L"version"];
+				const rstring new_version_readable = new_version.IsNumeric () ? _r_fmt_date (new_version.AsUlonglong (), FDTF_SHORTDATE | FDTF_SHORTTIME).GetString () : new_version.GetString ();
+				const rstring new_url = result[L"url"];
+
+				if (!new_version.IsEmpty () && !new_url.IsEmpty () && (new_version.IsNumeric () ? (new_version.AsUlonglong () > pcontext->version.AsUlonglong ()) : (_r_str_versioncompare (pcontext->version, new_version) == -1)))
+				{
+					INT msg_id = 0;
+
+					pcontext->url = new_url;
+					pcontext->filepath.Format (L"%s\\update-%s-%s.tmp", _r_path_expand (L"%temp%\\").GetString (), pcontext->component.IsEmpty () ? pcontext->papp->app_name_short : pcontext->component.GetString (), new_version.GetString ());
+
+#ifndef _APP_NO_WINXP
+					if (pcontext->papp->IsVistaOrLater ())
+					{
+#endif
+						TASKDIALOGCONFIG tdc = {0};
+
+						WCHAR str_content[256] = {0};
+
+						tdc.cbSize = sizeof (tdc);
+						tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
+						tdc.hwndParent = pcontext->papp->GetHWND ();
+						tdc.hInstance = pcontext->papp->GetHINSTANCE ();
+#ifdef IDI_MAIN
+						tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
+#else
+						tdc.pszMainIcon = TD_INFORMATION_ICON;
+#endif
+						tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
+						tdc.pszWindowTitle = pcontext->full_name;
+						tdc.pszContent = str_content;
+
+						tdc.pfCallback = &UpdateDialogCallback;
+						tdc.lpCallbackData = (LONG_PTR)pcontext;
+
+						StringCchPrintf (str_content, _countof (str_content), pcontext->papp->LocaleString (IDS_UPDATE_YES, nullptr), new_version_readable.GetString ());
+
+						_r_msg_taskdialog (&tdc, &msg_id, nullptr, nullptr);
+#ifndef _APP_NO_WINXP
+					}
+					else
+					{
+						msg_id = _r_msg (pcontext->papp->GetHWND (), MB_YESNO | MB_USERICON, pcontext->full_name, nullptr, pcontext->papp->LocaleString (IDS_UPDATE_YES, nullptr), new_version_readable.GetString ());
+
+						if (msg_id == IDYES)
+						{
+							pcontext->hthread = (HANDLE)_beginthreadex (nullptr, 0, &pcontext->papp->UpdateDownloadThread, (LPVOID)pcontext, CREATE_SUSPENDED, nullptr);
+
+							if (pcontext->hthread != (HANDLE)-1L)
+							{
+								ResumeThread (pcontext->hthread);
+								WaitForSingleObjectEx (pcontext->hthread, INFINITE, FALSE);
+							}
+						}
+					}
+#endif
+					if (pcontext->is_downloaded)
+					{
+						if (pcontext->target_path.IsEmpty ())
+						{
+							_r_run (pcontext->filepath, _r_fmt (L"\"%s\" /D=%s", pcontext->filepath.GetString (), pcontext->papp->GetDirectory ()), nullptr, 0);
+						}
+						else
+						{
+							_r_fs_copy (pcontext->filepath, pcontext->target_path);
+
+							if (pcontext->papp->GetHWND ())
+							{
+								pcontext->papp->ConfigInit (); // reload configuration
+
+								SendMessage (pcontext->papp->GetHWND (), RM_UPDATE_DONE, 0, 0);
+								SendMessage (pcontext->papp->GetHWND (), RM_INITIALIZE, 0, 0);
+								SendMessage (pcontext->papp->GetHWND (), RM_LOCALIZE, 0, 0);
+
+								DrawMenuBar (pcontext->papp->GetHWND ());
+							}
+						}
+					}
+
+					_r_fs_delete (pcontext->filepath);
+				}
+				else
+				{
+					if (pcontext->is_forced)
+					{
+#ifdef IDS_UPDATE_NO
+						_r_msg (pcontext->papp->GetHWND (), MB_OK | MB_USERICON, pcontext->full_name, nullptr, L"%s", pcontext->papp->LocaleString (IDS_UPDATE_NO, nullptr).GetString ());
+#else
+						_r_msg (pcontext->papp->GetHWND (), MB_OK | MB_USERICON, pcontext->full_name, nullptr, L"No updates available.");
+#endif // IDS_UPDATE_NO
+					}
+				}
+			}
 		}
 
-		this_ptr->update_lock = false;
+		if (pcontext->component.IsEmpty ())
+			pcontext->papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
+
+		if (pcontext->menu_id)
+			EnableMenuItem (GetMenu (pcontext->papp->GetHWND ()), pcontext->menu_id, MF_BYCOMMAND | MF_ENABLED);
+
+		pcontext->papp->update_lock = false;
+
+		delete pcontext;
 	}
 
 	return ERROR_SUCCESS;
