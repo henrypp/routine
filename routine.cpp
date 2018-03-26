@@ -1729,19 +1729,28 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINT
 					{
 						if (WinHttpReceiveResponse (hrequest, nullptr))
 						{
-							if (ptotallength)
+							DWORD http_code = 0;
+							DWORD length = sizeof (DWORD);
+
+							if (WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &http_code, &length, nullptr))
 							{
-								DWORD length = sizeof (DWORD);
-								WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, nullptr, ptotallength, &length, nullptr);
+								if (http_code == HTTP_STATUS_OK)
+								{
+									if (ptotallength)
+									{
+										length = sizeof (DWORD);
+										WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, ptotallength, &length, nullptr);
+									}
+
+									if (pconnect)
+										*pconnect = hconnect;
+
+									if (prequest)
+										*prequest = hrequest;
+
+									return true;
+								}
 							}
-
-							if (pconnect)
-								*pconnect = hconnect;
-
-							if (prequest)
-								*prequest = hrequest;
-
-							return true;
 						}
 					}
 					else

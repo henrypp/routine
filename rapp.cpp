@@ -292,6 +292,9 @@ bool rapp::DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_C
 
 					if (is_filepath)
 						CloseHandle (hfile);
+
+					else
+						lpbuffer->Trim (L"\r\n ");
 				}
 
 				delete[] content_buffer;
@@ -495,8 +498,8 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 				RegDeleteValue (hkey, cfg_string);
 
 				RegCloseKey (hkey);
-			}
-		}
+	}
+}
 	}
 #endif // _APP_NO_WINXP
 
@@ -604,8 +607,8 @@ void rapp::CreateAboutWindow (HWND hwnd)
 #endif // _APP_NO_WINXP
 
 		is_about_opened = false;
-	}
-}
+			}
+		}
 #endif // _APP_NO_ABOUT
 
 bool rapp::IsAdmin () const
@@ -803,7 +806,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 	{
 		if (!ConfirmMessage (nullptr, L"Warning!", _r_fmt (L"You are attempting to run the 32-bit version of %s on 64-bit Windows.\r\nPlease run the 64-bit version of %s instead.", app_name, app_name), L"ConfirmWOW64"))
 			return false;
-	}
+}
 #endif // _WIN64
 
 	InitializeMutex ();
@@ -945,7 +948,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 	}
 
 	return result;
-}
+	}
 
 #ifdef _APP_HAVE_TRAY
 bool rapp::TrayCreate (HWND hwnd, UINT uid, UINT code, HICON hicon, bool is_hidden)
@@ -1756,7 +1759,7 @@ void rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 		else
 		{
 			_r_msg (pcontext->papp->GetHWND (), MB_OK | MB_USERICON, pcontext->full_name, nullptr, L"%s", str_content);
-			}
+		}
 #endif // _APP_NO_WINXP
 	}
 	else
@@ -1774,12 +1777,12 @@ void rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 #endif // IDS_UPDATE_DOWNLOAD
 
 				SendMessage (pcontext->hwnd, TDM_SET_PROGRESS_BAR_POS, percent, 0);
-			}
+		}
 #ifndef _APP_NO_WINXP
 			}
 #endif // _APP_NO_WINXP
 		}
-}
+	}
 
 UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 {
@@ -1930,8 +1933,8 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 #else
 				_r_msg (pcontext->papp->GetHWND (), MB_OK | MB_ICONEXCLAMATION, pcontext->full_name, nullptr, L"Update server connection error.");
 #endif // IDS_UPDATE_ERROR
-			}
 		}
+	}
 		else
 		{
 			rstring::map_one result;
@@ -1985,9 +1988,9 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							{
 								ResumeThread (pcontext->hthread);
 								WaitForSingleObjectEx (pcontext->hthread, INFINITE, FALSE);
-							}
-						}
 					}
+				}
+			}
 #endif
 					if (pcontext->is_downloaded)
 					{
@@ -2013,7 +2016,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 					}
 
 					_r_fs_delete (pcontext->filepath);
-				}
+		}
 				else
 				{
 					if (pcontext->is_forced)
@@ -2024,9 +2027,9 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 						_r_msg (pcontext->papp->GetHWND (), MB_OK | MB_USERICON, pcontext->full_name, nullptr, L"No updates available.");
 #endif // IDS_UPDATE_NO
 					}
-				}
-			}
-		}
+}
+}
+}
 
 		if (pcontext->component.IsEmpty ())
 			pcontext->papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
@@ -2037,7 +2040,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 		pcontext->papp->update_lock = false;
 
 		delete pcontext;
-	}
+}
 
 	return ERROR_SUCCESS;
 }
