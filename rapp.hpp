@@ -54,7 +54,6 @@ class rapp
 public:
 
 	rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright);
-	~rapp ();
 
 	bool InitializeMutex ();
 	bool UninitializeMutex ();

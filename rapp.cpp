@@ -94,11 +94,6 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	ConfigInit ();
 }
 
-rapp::~rapp ()
-{
-	UninitializeMutex ();
-}
-
 bool rapp::InitializeMutex ()
 {
 	UninitializeMutex ();
@@ -679,6 +674,8 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 				this_ptr->ConfigSet (L"IsWindowZoomed", IsZoomed (hwnd) ? true : false);
 
 			SendMessage (hwnd, RM_UNINITIALIZE, 0, 0);
+
+			this_ptr->UninitializeMutex ();
 
 			break;
 		}
