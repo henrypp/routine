@@ -414,7 +414,7 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 			tdc.pszMainIcon = TD_ERROR_ICON;
 
 		if ((flags & MB_TOPMOST) != 0)
-			tdc.lpCallbackData = 1; // always on top
+			tdc.lpCallbackData = MAKELONG (0, 1);
 
 		_r_msg_taskdialog (&tdc, &result, nullptr, nullptr);
 	}
@@ -475,7 +475,9 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 	{
 		case TDN_CREATED:
 		{
-			if (lpdata)
+			const bool is_topmost = HIWORD (lpdata);
+
+			if (is_topmost)
 				_r_wnd_top (hwnd, true);
 
 			_r_wnd_center (hwnd, GetParent (hwnd));
@@ -485,8 +487,13 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 
 		case TDN_DIALOG_CONSTRUCTED:
 		{
-			SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)SendMessage (GetParent (hwnd), WM_GETICON, ICON_SMALL, 0));
-			SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)SendMessage (GetParent (hwnd), WM_GETICON, ICON_BIG, 0));
+			const bool is_donotdrawicon = LOWORD (lpdata);
+
+			if (!is_donotdrawicon)
+			{
+				SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)SendMessage (GetParent (hwnd), WM_GETICON, ICON_SMALL, 0));
+				SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)SendMessage (GetParent (hwnd), WM_GETICON, ICON_BIG, 0));
+			}
 
 			break;
 		}

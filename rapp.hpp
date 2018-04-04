@@ -20,8 +20,11 @@
 	Callback functions
 */
 
-typedef bool (*APPLICATION_CALLBACK) (HWND hwnd, DWORD msg, LPVOID lpdata1, LPVOID lpdata2);
 typedef void (*DOWNLOAD_CALLBACK) (DWORD total_written, DWORD total_length, LONG_PTR lpdata);
+
+/*
+Structures
+*/
 
 #ifndef _APP_NO_SETTINGS
 typedef struct
@@ -35,6 +38,29 @@ typedef struct
 	size_t group_id = 0;
 } *PAPP_SETTINGS_PAGE, APP_SETTINGS_PAGE;
 #endif // _APP_NO_SETTINGS
+
+#ifdef _APP_HAVE_UPDATES
+typedef struct
+{
+	HWND hwnd;
+
+	bool is_downloaded;
+	bool is_forced;
+
+	UINT menu_id;
+
+	rstring component;
+	rstring full_name;
+	rstring version;
+	rstring target_path;
+
+	rstring url;
+	rstring filepath;
+
+	HANDLE hthread;
+	LPVOID papp;
+} *PAPP_UPDATE_CONTEXT, APP_UPDATE_CONTEXT;
+#endif // _APP_HAVE_UPDATES
 
 typedef struct
 {
@@ -97,18 +123,20 @@ public:
 #endif // _APP_HAVE_TRAY
 
 #ifdef _APP_HAVE_SETTINGS
-	size_t AddSettingsPage (UINT dlg_id, UINT locale_id, APPLICATION_CALLBACK callback, size_t group_id = LAST_VALUE);
-	void CreateSettingsWindow (size_t dlg_id = LAST_VALUE);
+	void CreateSettingsWindow (DLGPROC proc, size_t dlg_id = LAST_VALUE);
 
+	size_t SettingsAddPage (UINT dlg_id, UINT locale_id, size_t group_id = LAST_VALUE);
 	HWND SettingsGetWindow ();
 	void SettingsInitialize ();
-	void SettingsPageInitialize (UINT dlg_id, bool is_initialize, bool is_localize);
 #endif // _APP_HAVE_SETTINGS
 
 	LPCWSTR GetBinaryPath () const;
 	LPCWSTR GetDirectory () const;
 	LPCWSTR GetProfileDirectory () const;
+
+	LPCWSTR GetConfigPath () const;
 	LPCWSTR GetLocalePath () const;
+
 	LPCWSTR GetUserAgent () const;
 
 	INT GetDPI (INT v) const;
@@ -123,8 +151,8 @@ public:
 	void LocaleApplyFromControl (HWND hwnd, UINT ctrl_id);
 	void LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id);
 	void LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, const UINT id_start);
-	size_t LocaleGetCount ();
-	time_t rapp::LocaleGetVersion ();
+	size_t LocaleGetCount () const;
+	time_t LocaleGetVersion () const;
 	rstring LocaleString (UINT id, LPCWSTR append);
 	void LocaleMenu (HMENU menu, UINT id, UINT item, bool by_position, LPCWSTR append);
 
@@ -139,7 +167,6 @@ public:
 private:
 
 #ifdef _APP_HAVE_SETTINGS
-	static INT_PTR CALLBACK SettingsPageProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 	static INT_PTR CALLBACK SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 #endif // _APP_HAVE_SETTINGS
 
@@ -204,37 +231,12 @@ private:
 	std::vector<rstring> app_locale_names;
 	std::vector<PAPP_SHARED_ICON> app_shared_icons;
 
+	time_t app_locale_timetamp = 0;
+
 #ifdef _APP_HAVE_SETTINGS
 	std::vector<PAPP_SETTINGS_PAGE> app_settings_pages;
-	APPLICATION_CALLBACK app_settings_callback;
 	size_t settings_page_id = 0;
 	HWND settings_hwnd = nullptr;
+	DLGPROC app_settings_proc = nullptr;
 #endif // _APP_HAVE_SETTINGS
 };
-
-/*
-	Structures
-*/
-
-#ifdef _APP_HAVE_UPDATES
-typedef struct
-{
-	HWND hwnd;
-
-	bool is_downloaded;
-	bool is_forced;
-
-	UINT menu_id;
-
-	rstring component;
-	rstring full_name;
-	rstring version;
-	rstring target_path;
-
-	rstring url;
-	rstring filepath;
-
-	HANDLE hthread;
-	rapp* papp;
-} *PAPP_UPDATE_CONTEXT, APP_UPDATE_CONTEXT;
-#endif // _APP_HAVE_UPDATES

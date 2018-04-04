@@ -69,9 +69,9 @@
 
 #ifndef _APP_UPDATE_PERIOD
 #if defined(_APP_BETA) || defined(_APP_BETA_RC)
-#	define _APP_UPDATE_PERIOD _R_SECONDSCLOCK_HOUR (12) // update checking period for beta is 12 hours
+#	define _APP_UPDATE_PERIOD _R_SECONDSCLOCK_HOUR (2) // update checking period for beta is 2 hours
 #else
-#	define _APP_UPDATE_PERIOD _R_SECONDSCLOCK_HOUR (48) // update checking period for stable is 48 hours
+#	define _APP_UPDATE_PERIOD _R_SECONDSCLOCK_HOUR (24) // update checking period for stable is 24 hours
 #endif // _APP_BETA || _APP_BETA_RC
 #endif // _APP_UPDATE_PERIOD
 
@@ -89,3 +89,4 @@
 #define RM_LOCALIZE (WM_USER + 5)
 #define RM_ARGUMENTS (WM_USER + 6)
 #define RM_UPDATE_DONE (WM_USER + 7) // update done
+#define RM_RESET_DONE (WM_USER + 8) // reset done

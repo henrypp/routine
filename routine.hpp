@@ -32,7 +32,11 @@
 
 #ifndef LVM_RESETEMPTYTEXT
 #define LVM_RESETEMPTYTEXT (LVM_FIRST + 84)
-#endif
+#endif // LVM_RESETEMPTYTEXT
+
+#ifndef WM_COPYGLOBALDATA
+#define WM_COPYGLOBALDATA 0x0049
+#endif // WM_COPYGLOBALDATA
 
 /*
 	Shared icons ids
@@ -196,7 +200,7 @@ void _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length);
 	Filesystem
 */
 
-bool _r_fs_delete (LPCWSTR path, bool allowundo = false);
+bool _r_fs_delete (LPCWSTR path, bool allowundo);
 bool _r_fs_exists (LPCWSTR path);
 bool _r_fs_mkdir (LPCWSTR path);
 void _r_fs_rmdir (LPCWSTR path);
