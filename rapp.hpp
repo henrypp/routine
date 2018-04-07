@@ -58,6 +58,8 @@ typedef struct
 	rstring filepath;
 
 	HANDLE hthread;
+	HANDLE hend;
+
 	LPVOID papp;
 } *PAPP_UPDATE_CONTEXT, APP_UPDATE_CONTEXT;
 #endif // _APP_HAVE_UPDATES
@@ -174,6 +176,7 @@ private:
 	static void UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG_PTR lpdata);
 	static UINT WINAPI UpdateDownloadThread (LPVOID lparam);
 	static HRESULT CALLBACK UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR lpdata);
+	void UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS flags, TASKDIALOG_COMMON_BUTTON_FLAGS buttons, LPCWSTR content, LONG_PTR lpdata);
 	static UINT WINAPI UpdateCheckThread (LPVOID lparam);
 #endif // _APP_HAVE_UPDATES
 

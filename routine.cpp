@@ -1048,7 +1048,7 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 	}
 
 	return result;
-}
+	}
 
 /*
 	Strings
@@ -1248,7 +1248,7 @@ ULONGLONG _r_sys_gettickcount ()
 
 			if (_GetTickCount64)
 				return _GetTickCount64 ();
-		}
+	}
 	}
 
 	return GetTickCount ();
@@ -1275,7 +1275,7 @@ bool _r_sys_iswow64 ()
 
 		if (result)
 			return true;
-	}
+}
 
 	return false;
 }
