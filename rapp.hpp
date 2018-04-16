@@ -176,7 +176,7 @@ private:
 	static void UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG_PTR lpdata);
 	static UINT WINAPI UpdateDownloadThread (LPVOID lparam);
 	static HRESULT CALLBACK UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR lpdata);
-	void UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS flags, TASKDIALOG_COMMON_BUTTON_FLAGS buttons, LPCWSTR content, LONG_PTR lpdata);
+	INT UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS flags, TASKDIALOG_COMMON_BUTTON_FLAGS buttons, LPCWSTR content, LONG_PTR lpdata);
 	static UINT WINAPI UpdateCheckThread (LPVOID lparam);
 #endif // _APP_HAVE_UPDATES
 
@@ -197,10 +197,6 @@ private:
 #ifdef _APP_HAVE_TRAY
 	NOTIFYICONDATA nid = {0};
 #endif // _APP_HAVE_TRAY
-
-#ifdef _APP_HAVE_UPDATES
-	bool update_lock = false;
-#endif // _APP_HAVE_UPDATES
 
 #ifndef _APP_NO_ABOUT
 	bool is_about_opened = false;
