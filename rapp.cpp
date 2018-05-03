@@ -282,7 +282,13 @@ bool rapp::DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_C
 							lpbuffer->Append (content_buffer);
 
 						if (callback)
-							callback (total_readed, total_length, lpdata);
+						{
+							if (!callback (total_readed, total_length, lpdata))
+							{
+								result = false;
+								break;
+							}
+						}
 					}
 
 					if (is_filepath)
@@ -309,75 +315,75 @@ bool rapp::DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_C
 }
 
 #ifdef _APP_HAVE_UPDATES
-bool rapp::UpdateCheck (LPCWSTR component, LPCWSTR component_name, LPCWSTR version, LPCWSTR target_path, UINT menu_id, bool is_forced)
+void rapp::UpdateAddComponent (LPCWSTR full_name, LPCWSTR short_name, LPCWSTR version, LPCWSTR target_path, bool is_installer)
+{
+	if (!pupdateinfo)
+	{
+		pupdateinfo = new APP_UPDATE_INFO;
+
+		if (pupdateinfo)
+		{
+			pupdateinfo->papp = this;
+			pupdateinfo->hend = CreateEvent (nullptr, FALSE, FALSE, nullptr);
+		}
+	}
+
+	if (pupdateinfo)
+	{
+		PAPP_UPDATE_COMPONENT pcomponent = new APP_UPDATE_COMPONENT;
+
+		if (pcomponent)
+		{
+			pcomponent->full_name = full_name;
+			pcomponent->short_name = short_name;
+			pcomponent->version = version;
+
+			pcomponent->target_path = target_path;
+
+			pcomponent->is_installer = is_installer;
+
+			pupdateinfo->components.push_back (pcomponent);
+		}
+	}
+}
+
+bool rapp::UpdateCheck (bool is_forced)
 {
 	if (!is_forced && (!ConfigGet (L"CheckUpdates", true).AsBool () || (_r_unixtime_now () - ConfigGet (L"CheckUpdatesLast", 0).AsUlonglong ()) <= _APP_UPDATE_PERIOD))
 		return false;
 
-	PAPP_UPDATE_CONTEXT pcontext = new APP_UPDATE_CONTEXT;
+	const HANDLE hthread = (HANDLE)_beginthreadex (nullptr, 0, &UpdateCheckThread, (LPVOID)pupdateinfo, CREATE_SUSPENDED, nullptr);
 
-	if (pcontext)
+	if (hthread && hthread != (HANDLE)-1L)
 	{
-		pcontext->papp = this;
-		pcontext->version = version;
-		pcontext->full_name = app_name;
-		pcontext->hend = CreateEvent (nullptr, FALSE, FALSE, nullptr);
+		if (pupdateinfo)
+			pupdateinfo->is_forced = is_forced;
 
-		if (component)
-			pcontext->component = component;
-
-		if (component_name)
-			pcontext->full_name.AppendFormat (L": %s", component_name);
-
-		if (target_path)
-			pcontext->target_path = target_path;
-
-		pcontext->menu_id = menu_id;
-		pcontext->is_downloaded = false;
-		pcontext->is_forced = is_forced;
-
-		const HANDLE hthread = (HANDLE)_beginthreadex (nullptr, 0, &UpdateCheckThread, (LPVOID)pcontext, CREATE_SUSPENDED, nullptr);
-
-		if (hthread && hthread != (HANDLE)-1L)
+		if (is_forced)
 		{
-			if (is_forced)
-			{
-				WCHAR str_content[256] = {0};
+			WCHAR str_content[256] = {0};
 
 #ifdef IDS_UPDATE_INIT
-				StringCchCopy (str_content, _countof (str_content), LocaleString (IDS_UPDATE_INIT, nullptr));
+			StringCchCopy (str_content, _countof (str_content), LocaleString (IDS_UPDATE_INIT, nullptr));
 #else
-				StringCchCopy (str_content, _countof (str_content), L"Checking for new releases...");
+			StringCchCopy (str_content, _countof (str_content), L"Checking for new releases...");
 #endif // IDS_UPDATE_STARTED
 
-				pcontext->hthread = hthread;
+			pupdateinfo->hthread = hthread;
 
-				if (UpdateDialogNavigate (nullptr, nullptr, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, str_content, (LONG_PTR)pcontext) != IDCLOSE)
-				{
-					if (pcontext->menu_id)
-						EnableMenuItem (GetMenu (GetHWND ()), pcontext->menu_id, MF_BYCOMMAND | MF_ENABLED);
-
-					if (pcontext->hend)
-						CloseHandle (pcontext->hend);
-
-					delete pcontext;
-				}
-			}
-			else
-			{
-				ResumeThread (hthread);
-			}
+			UpdateDialogNavigate (nullptr, nullptr, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 		}
 		else
 		{
-			delete pcontext;
-			return false;
+			ResumeThread (hthread);
 		}
-
-		return true;
+	}
+	else
+	{
+		return false;
 	}
 
-	return false;
+	return true;
 }
 #endif // _APP_HAVE_UPDATES
 
@@ -391,6 +397,9 @@ void rapp::ConfigInit ()
 
 	// locale path
 	StringCchPrintf (app_localepath, _countof (app_localepath), L"%s\\%s.lng", ConfigGet (L"LocalePath", GetDirectory ()).GetString (), app_name_short);
+
+	// update path
+	StringCchPrintf (app_updatepath, _countof (app_updatepath), L"%s\\%s_update.exe", GetProfileDirectory (), app_name_short);
 
 	LocaleInit ();
 }
@@ -849,6 +858,31 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 	// create window
 	if (dlg_id && proc)
 	{
+		if (_r_fs_exists (GetUpdatePath ()))
+		{
+			WCHAR str_content[256] = {0};
+
+#ifdef IDS_UPDATE_INSTALL
+			StringCchCopy (str_content, _countof (str_content), LocaleString (IDS_UPDATE_INSTALL, nullptr));
+#else
+			StringCchCopy (str_content, _countof (str_content), L"Update available, do you want to install them?");
+#endif // IDS_UPDATE_INSTALL
+
+			if (_r_msg (nullptr, MB_YESNO | MB_USERICON | MB_TOPMOST, app_name, nullptr, L"%s", str_content) == IDYES)
+			{
+				UpdateInstall ();
+
+				return false;
+			}
+		}
+
+		//simplewall_update.exe
+
+#ifdef _APP_HAVE_UPDATES
+		UpdateAddComponent (app_name, app_name_short, app_version, GetDirectory (), true);
+		UpdateAddComponent (L"Language pack", L"language", _r_fmt (L"%d", LocaleGetVersion ()), GetLocalePath (), false);
+#endif _APP_HAVE_UPDATES
+
 		app_hwnd = CreateDialog (nullptr, MAKEINTRESOURCE (dlg_id), nullptr, proc);
 
 		if (app_hwnd)
@@ -965,7 +999,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 
 #ifdef _APP_HAVE_UPDATES
 			if (ConfigGet (L"CheckUpdates", true).AsBool ())
-				UpdateCheck (nullptr, nullptr, app_version, nullptr, 0, false);
+				UpdateCheck (false);
 #endif // _APP_HAVE_UPDATES
 
 			result = true;
@@ -1241,6 +1275,13 @@ LPCWSTR rapp::GetLocalePath () const
 {
 	return app_localepath;
 }
+
+#ifdef _APP_HAVE_UPDATES
+LPCWSTR rapp::GetUpdatePath () const
+{
+	return app_updatepath;
+}
+#endif // _APP_HAVE_UPDATES
 
 LPCWSTR rapp::GetUserAgent () const
 {
@@ -1620,7 +1661,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 		{
 #ifdef _APP_HAVE_UPDATES
 			if (this_ptr->ConfigGet (L"CheckUpdates", true).AsBool ())
-				this_ptr->UpdateCheck (nullptr, nullptr, this_ptr->app_version, nullptr, 0, false);
+				this_ptr->UpdateCheck (false);
 #endif // _APP_HAVE_UPDATES
 
 			for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
@@ -1763,128 +1804,148 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 #endif // _APP_HAVE_SETTINGS
 
 #ifdef _APP_HAVE_UPDATES
-void rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG_PTR lpdata)
+bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG_PTR lpdata)
 {
-	PAPP_UPDATE_CONTEXT pcontext = (PAPP_UPDATE_CONTEXT)lpdata;
+	PAPP_UPDATE_INFO pupdateinfo = (PAPP_UPDATE_INFO)lpdata;
 
-	if (pcontext)
+	if (pupdateinfo)
 	{
-		rapp* papp = (rapp*)(pcontext->papp);
+		rapp* papp = (rapp*)(pupdateinfo->papp);
 
 		const DWORD percent = _R_PERCENT_OF (total_written, total_length);
 
-		if (percent >= 100)
-			pcontext->is_downloaded = true;
-
-		if (pcontext->is_downloaded)
+#ifndef _APP_NO_WINXP
+		if (papp->IsVistaOrLater ())
 		{
-			WCHAR str_content[256] = {0};
-
-#ifdef IDS_UPDATE_DONE
-			StringCchCopy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_DONE, nullptr));
-#else
-			StringCchCopy (str_content, _countof (str_content), L"Downloading update finished.");
-#endif // IDS_UPDATE_DONE
-
-#ifndef _APP_NO_WINXP
-			if (papp->IsVistaOrLater ())
-			{
 #endif // _APP_NO_WINXP
-				if (pcontext->hwnd)
-				{
-					papp->UpdateDialogNavigate (pcontext->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, str_content, (LONG_PTR)pcontext);
-				}
-#ifndef _APP_NO_WINXP
-			}
-			else
+			if (pupdateinfo->hwnd)
 			{
-				_r_msg (papp->GetHWND (), MB_OK | MB_USERICON, pcontext->full_name, nullptr, L"%s", str_content);
-			}
-#endif // _APP_NO_WINXP
-		}
-		else
-		{
-#ifndef _APP_NO_WINXP
-			if (papp->IsVistaOrLater ())
-			{
-#endif // _APP_NO_WINXP
-				if (pcontext->hwnd)
-				{
-					WCHAR str_content[256] = {0};
+				WCHAR str_content[256] = {0};
 
 #ifdef IDS_UPDATE_DOWNLOAD
-					StringCchPrintf (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_DOWNLOAD, L" %d%%"), percent);
+				StringCchPrintf (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_DOWNLOAD, L" %d%%"), percent);
 #else
-					StringCchPrintf (str_content, _countof (str_content), L"Downloading update... %d%%", percent);
+				StringCchPrintf (str_content, _countof (str_content), L"Downloading update... %d%%", percent);
 #endif // IDS_UPDATE_DOWNLOAD
 
-					SendMessage (pcontext->hwnd, TDM_SET_ELEMENT_TEXT, TDE_CONTENT, (LPARAM)str_content);
-					SendMessage (pcontext->hwnd, TDM_SET_PROGRESS_BAR_POS, percent, 0);
-				}
-#ifndef _APP_NO_WINXP
+				SendMessage (pupdateinfo->hwnd, TDM_SET_ELEMENT_TEXT, TDE_CONTENT, (LPARAM)str_content);
+				SendMessage (pupdateinfo->hwnd, TDM_SET_PROGRESS_BAR_POS, percent, 0);
 			}
-#endif // _APP_NO_WINXP
+#ifndef _APP_NO_WINXP
 		}
+#endif // _APP_NO_WINXP
 	}
+
+	return true;
 }
 
 UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 {
-	PAPP_UPDATE_CONTEXT pcontext = (PAPP_UPDATE_CONTEXT)lparam;
+	PAPP_UPDATE_INFO pupdateinfo = (PAPP_UPDATE_INFO)lparam;
+	bool is_downloaded = false;
+	bool is_downloaded_installer = false;
 
-	if (pcontext)
+	if (pupdateinfo)
 	{
-		rapp* papp = (rapp*)(pcontext->papp);
+		rapp* papp = (rapp*)(pupdateinfo->papp);
 
-		if (!papp->DownloadURL (pcontext->url, (LPVOID)pcontext->filepath.GetString (), true, &papp->UpdateDownloadCallback, (LONG_PTR)pcontext))
+		for (size_t i = 0; i < pupdateinfo->components.size (); i++)
+		{
+			PAPP_UPDATE_COMPONENT pcomponent = pupdateinfo->components.at (i);
+
+			if (pcomponent)
+			{
+				if (pcomponent->is_haveupdates)
+				{
+					if (papp->DownloadURL (pcomponent->url, (LPVOID)pcomponent->filepath.GetString (), true, &papp->UpdateDownloadCallback, (LONG_PTR)pupdateinfo))
+					{
+						pcomponent->is_downloaded = true;
+						pcomponent->is_haveupdates = false;
+
+						is_downloaded = true;
+
+						if (pcomponent->is_installer)
+						{
+							is_downloaded_installer = true;
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		// show result text
 		{
 			WCHAR str_content[256] = {0};
 
-#ifdef IDS_UPDATE_ERROR
-			StringCchCopy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_ERROR, nullptr));
+			if (is_downloaded)
+			{
+				if (is_downloaded_installer)
+				{
+#ifdef IDS_UPDATE_INSTALL
+					StringCchCopy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_INSTALL, nullptr));
 #else
-			StringCchCopy (str_content, _countof (str_content), L"Update server connection error");
+					StringCchCopy (str_content, _countof (str_content), L"Update available, do you want to install them?");
+#endif // IDS_UPDATE_INSTALL
+				}
+				else
+				{
+#ifdef IDS_UPDATE_DONE
+					StringCchCopy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_DONE, nullptr));
+#else
+					StringCchCopy (str_content, _countof (str_content), L"Downloading update finished.");
+#endif // IDS_UPDATE_DONE
+				}
+			}
+			else
+			{
+#ifdef IDS_UPDATE_ERROR
+				StringCchCopy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_ERROR, nullptr));
+#else
+				StringCchCopy (str_content, _countof (str_content), L"Update server connection error");
 #endif // IDS_UPDATE_ERROR
+			}
 
 #ifndef _APP_NO_WINXP
 			if (papp->IsVistaOrLater ())
 			{
 #endif // _APP_NO_WINXP
-				if (pcontext->hwnd)
+				if (pupdateinfo->hwnd)
 				{
-					papp->UpdateDialogNavigate (pcontext->hwnd, TD_WARNING_ICON, 0, TDCBF_CLOSE_BUTTON, str_content, (LONG_PTR)pcontext);
+					papp->UpdateDialogNavigate (pupdateinfo->hwnd, (is_downloaded ? nullptr : TD_WARNING_ICON), 0, is_downloaded_installer ? TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON : TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 				}
 #ifndef _APP_NO_WINXP
 			}
 			else
 			{
 				if (pcontext->is_forced)
-					_r_msg (papp->GetHWND (), MB_OK | MB_ICONEXCLAMATION, pcontext->full_name, nullptr, L"%s", str_content);
+					_r_msg (papp->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), pcontext->full_name, nullptr, L"%s", str_content);
 			}
 #endif // _APP_NO_WINXP
 		}
-
-		if (pcontext->hend)
-			SetEvent (pcontext->hend);
 	}
+
+	//SetEvent (pupdateinfo->hend);
 
 	return ERROR_SUCCESS;
 }
 
 HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM, LONG_PTR lpdata)
 {
-	PAPP_UPDATE_CONTEXT pcontext = (PAPP_UPDATE_CONTEXT)lpdata;
-	rapp* papp = (rapp*)(pcontext->papp);
+	PAPP_UPDATE_INFO pupdateinfo = (PAPP_UPDATE_INFO)lpdata;
 
 	switch (msg)
 	{
 		case TDN_CREATED:
 		{
-			pcontext->hwnd = hwnd;
+			pupdateinfo->hwnd = hwnd;
+
+			SendMessage (hwnd, TDM_SET_MARQUEE_PROGRESS_BAR, TRUE, 0);
+			SendMessage (hwnd, TDM_SET_PROGRESS_BAR_MARQUEE, TRUE, 10);
 
 			_r_wnd_center (hwnd, GetParent (hwnd));
 
-			if (pcontext->is_forced)
+			if (pupdateinfo->is_forced)
 				_r_wnd_top (hwnd, true);
 
 			break;
@@ -1892,23 +1953,22 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 
 		case TDN_DIALOG_CONSTRUCTED:
 		{
-			if (pcontext->hthread && pcontext->hthread != (HANDLE)-1L)
-				ResumeThread (pcontext->hthread);
+			if (pupdateinfo->hthread && pupdateinfo->hthread != (HANDLE)-1L)
+				ResumeThread (pupdateinfo->hthread);
 
 			break;
 		}
 
 		case TDN_DESTROYED:
 		{
-			if (pcontext->hend)
-				SetEvent (pcontext->hend);
+			SetEvent (pupdateinfo->hend);
 
-			if (pcontext->hthread && pcontext->hthread != (HANDLE)-1L)
+			if (pupdateinfo->hthread && pupdateinfo->hthread != (HANDLE)-1L)
 			{
-				TerminateThread (pcontext->hthread, 0);
-				CloseHandle (pcontext->hthread);
+				TerminateThread (pupdateinfo->hthread, 0);
+				CloseHandle (pupdateinfo->hthread);
 
-				pcontext->hthread = nullptr;
+				pupdateinfo->hthread = nullptr;
 			}
 
 			break;
@@ -1918,6 +1978,8 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 		{
 			if (wparam == IDYES)
 			{
+				rapp* papp = (rapp*)(pupdateinfo->papp);
+
 				WCHAR str_content[256] = {0};
 
 #ifdef IDS_UPDATE_DOWNLOAD
@@ -1925,14 +1987,23 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 #else
 				StringCchCopy (str_content, _countof (str_content), L"Downloading update...");
 #endif
-				pcontext->hthread = (HANDLE)_beginthreadex (nullptr, 0, &UpdateDownloadThread, (LPVOID)pcontext, CREATE_SUSPENDED, nullptr);
+				pupdateinfo->hthread = (HANDLE)_beginthreadex (nullptr, 0, &UpdateDownloadThread, (LPVOID)pupdateinfo, CREATE_SUSPENDED, nullptr);
 
-				if (pcontext->hthread && pcontext->hthread != (HANDLE)-1L)
+				if (pupdateinfo->hthread && pupdateinfo->hthread != (HANDLE)-1L)
 				{
-					papp->UpdateDialogNavigate (hwnd, nullptr, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, str_content, (LONG_PTR)pcontext);
+					papp->UpdateDialogNavigate (hwnd, nullptr, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 
 					return S_FALSE;
 				}
+			}
+			else if (wparam == IDOK)
+			{
+				rapp* papp = (rapp*)(pupdateinfo->papp);
+
+				papp->UpdateInstall ();
+				DestroyWindow (papp->GetHWND ());
+
+				return S_FALSE;
 			}
 
 			break;
@@ -1942,13 +2013,12 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 	return S_OK;
 }
 
-INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS flags, TASKDIALOG_COMMON_BUTTON_FLAGS buttons, LPCWSTR content, LONG_PTR lpdata)
+INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS flags, TASKDIALOG_COMMON_BUTTON_FLAGS buttons, LPCWSTR main, LPCWSTR content, LONG_PTR lpdata)
 {
 	TASKDIALOGCONFIG tdc = {0};
 
-	PAPP_UPDATE_CONTEXT pcontext = (PAPP_UPDATE_CONTEXT)lpdata;
-
-	WCHAR str_title[256] = {0};
+	WCHAR str_title[128] = {0};
+	WCHAR str_main[256] = {0};
 	WCHAR str_content[512] = {0};
 
 	tdc.cbSize = sizeof (tdc);
@@ -1959,7 +2029,6 @@ INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS f
 	tdc.pfCallback = &UpdateDialogCallback;
 	tdc.lpCallbackData = lpdata;
 	tdc.pszWindowTitle = str_title;
-	tdc.pszMainInstruction = pcontext->full_name;
 
 	if (main_icon)
 	{
@@ -1974,7 +2043,13 @@ INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS f
 #endif // IDI_MAIN
 	}
 
-	StringCchCopy (str_title, _countof (str_title), L"Updater");
+	StringCchCopy (str_title, _countof (str_title), app_name);
+
+	if (main)
+	{
+		tdc.pszMainInstruction = str_main;
+		StringCchCopy (str_main, _countof (str_main), main);
+	}
 
 	if (content)
 	{
@@ -1993,16 +2068,26 @@ INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS f
 	return button;
 }
 
+rstring format_version (rstring vers)
+{
+	if (vers.IsNumeric ())
+		return _r_fmt_date (vers.AsUlonglong (), FDTF_SHORTDATE | FDTF_SHORTTIME);
+
+	return vers;
+}
+
+void rapp::UpdateInstall ()
+{
+	_r_run (_r_path_expand (L"%systemroot%\\system32\\cmd.exe"), _r_fmt (L"\"cmd.exe\" /c ping 127.0.0.1 -n 4 > nul&&start /wait \"\" \"%s\" /S /D=%s&&ping 127.0.0.1 -n 2 > nul&&del /q /f \"%s\"&start \"\" \"%s\"", GetUpdatePath (), GetDirectory (), GetUpdatePath (), GetBinaryPath ()), nullptr, SW_HIDE);
+}
+
 UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 {
-	PAPP_UPDATE_CONTEXT pcontext = (PAPP_UPDATE_CONTEXT)lparam;
+	PAPP_UPDATE_INFO pupdateinfo = (PAPP_UPDATE_INFO)lparam;
 
-	if (pcontext)
+	if (pupdateinfo)
 	{
-		rapp* papp = (rapp*)(pcontext->papp);
-
-		if (pcontext->menu_id)
-			EnableMenuItem (GetMenu (papp->GetHWND ()), pcontext->menu_id, MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
+		rapp* papp = (rapp*)(pupdateinfo->papp);
 
 		// check for beta versions flag
 #if defined(_APP_BETA) || defined(_APP_BETA_RC)
@@ -2013,15 +2098,9 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 		rstring buffer;
 
-		if (pcontext->hwnd)
+		if (!papp->DownloadURL (_r_fmt (_APP_WEBSITE_URL L"/update.php?product=%s&is_beta=%d&api=3", papp->app_name_short, is_beta), &buffer, false, nullptr, 0))
 		{
-			SendMessage (pcontext->hwnd, TDM_SET_MARQUEE_PROGRESS_BAR, TRUE, 0);
-			SendMessage (pcontext->hwnd, TDM_SET_PROGRESS_BAR_MARQUEE, TRUE, 10);
-		}
-
-		if (!papp->DownloadURL (_r_fmt (_APP_WEBSITE_URL L"/update.php?product=%s%s&is_beta=%d&api=2", papp->app_name_short, pcontext->component.IsEmpty () ? L"" : _r_fmt (L"&component=%s", pcontext->component.GetString ()), is_beta), &buffer, false, nullptr, 0))
-		{
-			if (pcontext->is_forced)
+			if (pupdateinfo->hwnd)
 			{
 				WCHAR str_content[256] = {0};
 
@@ -2031,85 +2110,128 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 				StringCchCopy (str_content, _countof (str_content), L"Update server connection error.");
 #endif // IDS_UPDATE_ERROR
 
-				papp->UpdateDialogNavigate (pcontext->hwnd, TD_WARNING_ICON, 0, TDCBF_CLOSE_BUTTON, str_content, (LONG_PTR)pcontext);
-			}
+				papp->UpdateDialogNavigate (pupdateinfo->hwnd, TD_WARNING_ICON, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 		}
+	}
 		else
 		{
 			rstring::map_one result;
 
 			if (_r_str_unserialize (buffer, L";", L'=', &result))
 			{
-				const rstring new_version = result[L"version"];
-				const rstring new_version_readable = new_version.IsNumeric () ? _r_fmt_date (new_version.AsUlonglong (), FDTF_SHORTDATE | FDTF_SHORTTIME).GetString () : new_version.GetString ();
-				const rstring new_url = result[L"url"];
+				bool is_updateavailable = false;
+				rstring updates_text;
 
-				if (!new_version.IsEmpty () && !new_url.IsEmpty () && (new_version.IsNumeric () ? (new_version.AsUlonglong () > pcontext->version.AsUlonglong ()) : (_r_str_versioncompare (pcontext->version, new_version) == -1)))
+				for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 				{
-					pcontext->url = new_url;
-					pcontext->filepath.Format (L"%s\\update-%s-%s.tmp", _r_path_expand (L"%temp%\\").GetString (), pcontext->component.IsEmpty () ? papp->app_name_short : pcontext->component.GetString (), new_version.GetString ());
+					PAPP_UPDATE_COMPONENT pcomponent = pupdateinfo->components.at (i);
 
-					WCHAR str_content[256] = {0};
+					if (pcomponent)
+					{
+						if (result.find (pcomponent->short_name) != result.end ())
+						{
+							const rstring::rvector vc = result[pcomponent->short_name].AsVector (L"|");
+
+							if (vc.size () < 2)
+								continue;
+
+							const rstring new_version = vc.at (0);
+							const rstring new_url = vc.at (1);
+
+							//if (!new_version.IsEmpty () && !new_url.IsEmpty () && (new_version.IsNumeric () ? (new_version.AsUlonglong () != pcomponent->version.AsUlonglong ()) : (_r_str_versioncompare (pcomponent->version, new_version) == -1)))
+							if (!new_version.IsEmpty () && !new_url.IsEmpty () && (new_version.IsNumeric () ? (new_version.AsUlonglong () > pcomponent->version.AsUlonglong ()) : (_r_str_versioncompare (pcomponent->version, new_version) == -1)))
+							{
+								is_updateavailable = true;
+
+								pcomponent->new_version = new_version;
+								pcomponent->url = new_url;
+								pcomponent->is_haveupdates = true;
+
+								if (pcomponent->is_installer)
+									pcomponent->filepath = papp->GetUpdatePath ();
+
+								else
+									pcomponent->filepath.Format (L"%s\\%s-%s.tmp", _r_path_expand (L"%temp%\\").GetString (), pcomponent->short_name.GetString (), new_version.GetString ());
+
+								updates_text.AppendFormat (L"- %s %s\r\n", pcomponent->full_name.GetString (), format_version (new_version).GetString ());
+
+								// do not check components when new version of application available
+								if (pcomponent->is_installer)
+									break;
+							}
+						}
+					}
+				}
+
+				if (is_updateavailable)
+				{
+					WCHAR str_main[256] = {0};
+
+					updates_text.Trim (L"\r\n ");
 
 #ifdef IDS_UPDATE_YES
-					StringCchPrintf (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_YES, nullptr), new_version_readable.GetString ());
+					StringCchCopy (str_main, _countof (str_main), papp->LocaleString (IDS_UPDATE_YES, nullptr));
 #else
-					StringCchPrintf (str_content, _countof (str_content), L"Update available (%s), download and install them?", new_version_readable.GetString ());
+					StringCchCopy (str_main, _countof (str_main), L"Update available, download and install them?");
 #endif // IDS_UPDATE_YES
 
 #ifndef _APP_NO_WINXP
 					if (papp->IsVistaOrLater ())
 					{
 #endif
-						papp->UpdateDialogNavigate (pcontext->hwnd, nullptr, 0, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, str_content, (LONG_PTR)pcontext);
+						papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, str_main, updates_text, (LONG_PTR)pupdateinfo);
 
-						WaitForSingleObjectEx (pcontext->hend, INFINITE, FALSE);
+						WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
 #ifndef _APP_NO_WINXP
 					}
 					else
 					{
-						msg_id = _r_msg (papp->GetHWND (), MB_YESNO | MB_USERICON, pcontext->full_name, nullptr, L"%s", str_content);
+						const INT msg_id = _r_msg (papp->GetHWND (), MB_YESNO | MB_USERICON, papp->app_name, str_main, L"%s", updates_text.GetString ());
 
 						if (msg_id == IDYES)
 						{
-							pcontext->hthread = (HANDLE)_beginthreadex (nullptr, 0, &papp->UpdateDownloadThread, (LPVOID)pcontext, CREATE_SUSPENDED, nullptr);
+							pupdateinfo->hthread = (HANDLE)_beginthreadex (nullptr, 0, &papp->UpdateDownloadThread, (LPVOID)pupdateinfo, CREATE_SUSPENDED, nullptr);
 
-							if (pcontext->hthread != (HANDLE)-1L)
+							if (pupdateinfo->hthread != (HANDLE)-1L)
 							{
-								ResumeThread (pcontext->hthread);
-								WaitForSingleObjectEx (pcontext->hend, INFINITE, FALSE);
+								ResumeThread (pupdateinfo->hthread);
+								WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
 							}
 						}
 					}
 #endif
-					if (pcontext->is_downloaded)
+					for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 					{
-						if (pcontext->target_path.IsEmpty ())
-						{
-							_r_run (pcontext->filepath, _r_fmt (L"\"%s\" /D=%s", pcontext->filepath.GetString (), papp->GetDirectory ()), nullptr, 0);
-						}
-						else
-						{
-							_r_fs_copy (pcontext->filepath, pcontext->target_path);
+						PAPP_UPDATE_COMPONENT pcomponent = pupdateinfo->components.at (i);
 
-							if (papp->GetHWND ())
+						if (pcomponent)
+						{
+							if (pcomponent->is_downloaded)
 							{
-								papp->ConfigInit (); // reload configuration
+								if (!pcomponent->is_installer)
+								{
+									_r_fs_copy (pcomponent->filepath, pcomponent->target_path);
 
-								SendMessage (papp->GetHWND (), RM_UPDATE_DONE, 0, 0);
-								SendMessage (papp->GetHWND (), RM_INITIALIZE, 0, 0);
-								SendMessage (papp->GetHWND (), RM_LOCALIZE, 0, 0);
+									if (papp->GetHWND ())
+									{
+										papp->ConfigInit (); // reload configuration
 
-								DrawMenuBar (papp->GetHWND ());
+										SendMessage (papp->GetHWND (), RM_UPDATE_DONE, 0, 0);
+										SendMessage (papp->GetHWND (), RM_INITIALIZE, 0, 0);
+										SendMessage (papp->GetHWND (), RM_LOCALIZE, 0, 0);
+
+										DrawMenuBar (papp->GetHWND ());
+									}
+								}
+
+								_r_fs_delete (pcomponent->filepath, false);
 							}
 						}
 					}
-
-					_r_fs_delete (pcontext->filepath, false);
 				}
 				else
 				{
-					if (pcontext->is_forced)
+					if (pupdateinfo->hwnd)
 					{
 						WCHAR str_content[256] = {0};
 #ifdef IDS_UPDATE_NO
@@ -2118,22 +2240,15 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 						StringCchCopy (str_content, _countof (str_content), L"No updates available.");
 #endif // IDS_UPDATE_NO
 
-						papp->UpdateDialogNavigate (pcontext->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, str_content, (LONG_PTR)pcontext);
+						papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 					}
 				}
 			}
 
-			if (pcontext->component.IsEmpty ())
-				papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
-		}
+			papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
+}
 
-		if (pcontext->menu_id)
-			EnableMenuItem (GetMenu (papp->GetHWND ()), pcontext->menu_id, MF_BYCOMMAND | MF_ENABLED);
-
-		if (pcontext->hend)
-			CloseHandle (pcontext->hend);
-
-		delete pcontext;
+		SetEvent (pupdateinfo->hend);
 	}
 
 	return ERROR_SUCCESS;

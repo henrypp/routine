@@ -20,7 +20,7 @@
 	Callback functions
 */
 
-typedef void (*DOWNLOAD_CALLBACK) (DWORD total_written, DWORD total_length, LONG_PTR lpdata);
+typedef bool (*DOWNLOAD_CALLBACK) (DWORD total_written, DWORD total_length, LONG_PTR lpdata);
 
 /*
 Structures
@@ -42,16 +42,14 @@ typedef struct
 #ifdef _APP_HAVE_UPDATES
 typedef struct
 {
-	HWND hwnd;
-
 	bool is_downloaded;
-	bool is_forced;
+	bool  is_installer;
+	bool  is_haveupdates;
 
-	UINT menu_id;
-
-	rstring component;
 	rstring full_name;
+	rstring short_name;
 	rstring version;
+	rstring new_version;
 	rstring target_path;
 
 	rstring url;
@@ -60,8 +58,24 @@ typedef struct
 	HANDLE hthread;
 	HANDLE hend;
 
+
+	//LPVOID papp;
+} *PAPP_UPDATE_COMPONENT, APP_UPDATE_COMPONENT;
+
+typedef struct
+{
+	bool is_downloaded;
+	bool is_forced;
+
+	std::vector<PAPP_UPDATE_COMPONENT> components;
+
+	HWND hwnd;
+
+	HANDLE hthread;
+	HANDLE hend;
+
 	LPVOID papp;
-} *PAPP_UPDATE_CONTEXT, APP_UPDATE_CONTEXT;
+} *PAPP_UPDATE_INFO, APP_UPDATE_INFO;
 #endif // _APP_HAVE_UPDATES
 
 typedef struct
@@ -95,7 +109,9 @@ public:
 #endif // _APP_HAVE_AUTORUN
 
 #ifdef _APP_HAVE_UPDATES
-	bool UpdateCheck (LPCWSTR component, LPCWSTR component_name, LPCWSTR version, LPCWSTR target_path, UINT menu_id, bool is_forced);
+	void UpdateAddComponent (LPCWSTR full_name, LPCWSTR short_name, LPCWSTR version, LPCWSTR target_path, bool is_installer);
+	bool UpdateCheck (bool is_forced);
+	void UpdateInstall ();
 #endif // _APP_HAVE_UPDATES
 
 	rstring ConfigGet (LPCWSTR key, INT def, LPCWSTR name = nullptr);
@@ -139,6 +155,10 @@ public:
 	LPCWSTR GetConfigPath () const;
 	LPCWSTR GetLocalePath () const;
 
+#ifdef _APP_HAVE_UPDATES
+	LPCWSTR GetUpdatePath () const;
+#endif // _APP_HAVE_UPDATES
+
 	LPCWSTR GetUserAgent () const;
 
 	INT GetDPI (INT v) const;
@@ -173,10 +193,10 @@ private:
 #endif // _APP_HAVE_SETTINGS
 
 #ifdef _APP_HAVE_UPDATES
-	static void UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG_PTR lpdata);
+	static bool UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG_PTR lpdata);
 	static UINT WINAPI UpdateDownloadThread (LPVOID lparam);
 	static HRESULT CALLBACK UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR lpdata);
-	INT UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS flags, TASKDIALOG_COMMON_BUTTON_FLAGS buttons, LPCWSTR content, LONG_PTR lpdata);
+	INT UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS flags, TASKDIALOG_COMMON_BUTTON_FLAGS buttons, LPCWSTR main, LPCWSTR content, LONG_PTR lpdata);
 	static UINT WINAPI UpdateCheckThread (LPVOID lparam);
 #endif // _APP_HAVE_UPDATES
 
@@ -186,6 +206,10 @@ private:
 	bool ParseINI (LPCWSTR path, rstring::map_two* pmap, std::vector<rstring>* psections);
 
 	void LocaleInit ();
+
+#ifdef _APP_HAVE_UPDATES
+	PAPP_UPDATE_INFO pupdateinfo;
+#endif // _APP_HAVE_UPDATES
 
 	DOUBLE dpi_percent = 0.f;
 
@@ -221,6 +245,10 @@ private:
 	WCHAR app_copyright[MAX_PATH];
 	WCHAR app_useragent[MAX_PATH];
 	WCHAR app_localepath[MAX_PATH];
+
+#ifdef _APP_HAVE_UPDATES
+	WCHAR app_updatepath[MAX_PATH];
+#endif // _APP_HAVE_UPDATES
 
 	WCHAR locale_default[LOCALE_NAME_MAX_LENGTH];
 	WCHAR locale_current[LOCALE_NAME_MAX_LENGTH];
