@@ -357,7 +357,10 @@ bool rapp::UpdateCheck (bool is_forced)
 	if (hthread && hthread != (HANDLE)-1L)
 	{
 		if (pupdateinfo)
+		{
 			pupdateinfo->is_forced = is_forced;
+			pupdateinfo->hwnd = nullptr;
+		}
 
 		if (is_forced)
 		{
@@ -692,17 +695,6 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 				ShowWindow (hwnd, SW_MAXIMIZE);
 				this_ptr->is_needmaximize = false;
 			}
-
-			break;
-		}
-
-		case WM_CLOSE:
-		{
-			//if (this_ptr->update_lock)
-			//{
-			//	SetWindowLongPtr (hwnd, DWLP_MSGRESULT, TRUE);
-			//	return TRUE;
-			//}
 
 			break;
 		}
@@ -2111,8 +2103,8 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 #endif // IDS_UPDATE_ERROR
 
 				papp->UpdateDialogNavigate (pupdateinfo->hwnd, TD_WARNING_ICON, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
+			}
 		}
-	}
 		else
 		{
 			rstring::map_one result;
@@ -2161,6 +2153,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							}
 						}
 					}
+
 				}
 
 				if (is_updateavailable)
@@ -2246,7 +2239,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 			}
 
 			papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
-}
+		}
 
 		SetEvent (pupdateinfo->hend);
 	}
