@@ -1042,12 +1042,6 @@ bool rapp::TrayDestroy (UINT uid)
 	nid.cbSize = IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
 	nid.uID = uid;
 
-	if (nid.hIcon)
-	{
-		DestroyIcon (nid.hIcon);
-		nid.hIcon = nullptr;
-	}
-
 	if (Shell_NotifyIcon (NIM_DELETE, &nid))
 		return true;
 
@@ -1102,12 +1096,6 @@ bool rapp::TraySetInfo (UINT uid, HICON hicon, LPCWSTR tooltip)
 
 	if (hicon)
 	{
-		if (nid.hIcon)
-		{
-			DestroyIcon (nid.hIcon);
-			nid.hIcon = nullptr;
-		}
-
 		nid.uFlags |= NIF_ICON;
 		nid.hIcon = hicon;
 	}
