@@ -1722,6 +1722,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					break;
 				}
 
+#ifdef IDC_RESET
 				case IDC_RESET:
 				{
 #ifdef IDS_QUESTION_RESET
@@ -1773,6 +1774,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 					break;
 				}
+#endif // IDC_RESET
 			}
 
 			break;
@@ -1898,8 +1900,8 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 			}
 			else
 			{
-				if (pcontext->is_forced)
-					_r_msg (papp->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), pcontext->full_name, nullptr, L"%s", str_content);
+				if (pupdateinfo->is_forced)
+					_r_msg (papp->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), papp->app_name, nullptr, L"%s", str_content);
 			}
 #endif // _APP_NO_WINXP
 		}
