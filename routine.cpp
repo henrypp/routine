@@ -133,6 +133,7 @@ rstring _r_fmt_size64 (LONGLONG bytes)
 
 		if (hlib)
 		{
+			typedef HRESULT (WINAPI *SFBSE) (ULONGLONG, SFBS_FLAGS, PWSTR, UINT); // StrFormatByteSizeEx
 			const SFBSE _StrFormatByteSizeEx = (SFBSE)GetProcAddress (hlib, "StrFormatByteSizeEx");
 
 			if (_StrFormatByteSizeEx)
@@ -457,6 +458,7 @@ bool _r_msg_taskdialog (const TASKDIALOGCONFIG* ptd, INT* pbutton, INT* pradiobu
 
 	if (hlib)
 	{
+		typedef HRESULT (WINAPI *TDI) (const TASKDIALOGCONFIG*, INT*, INT*, BOOL*); // TaskDialogIndirect
 		const TDI _TaskDialogIndirect = (TDI)GetProcAddress (hlib, "TaskDialogIndirect");
 
 		if (_TaskDialogIndirect)
@@ -649,6 +651,7 @@ bool _r_fs_mkdir (LPCWSTR path)
 
 	if (hlib)
 	{
+		typedef int (WINAPI *SHCDEX) (HWND, LPCTSTR, const SECURITY_ATTRIBUTES*); // SHCreateDirectoryEx
 		const SHCDEX _SHCreateDirectoryEx = (SHCDEX)GetProcAddress (hlib, "SHCreateDirectoryExW");
 
 		if (_SHCreateDirectoryEx)
@@ -983,6 +986,7 @@ bool _r_process_getpath (HANDLE hproc, LPWSTR path, DWORD length)
 
 		if (hlib)
 		{
+			typedef BOOL (WINAPI *QFPIN) (HANDLE, DWORD, LPWSTR, PDWORD); // QueryFullProcessImageName
 			const QFPIN _QueryFullProcessImageName = (QFPIN)GetProcAddress (hlib, "QueryFullProcessImageNameW");
 
 			if (_QueryFullProcessImageName)
@@ -1048,7 +1052,7 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 	}
 
 	return result;
-	}
+}
 
 /*
 	Strings
@@ -1244,11 +1248,12 @@ ULONGLONG _r_sys_gettickcount ()
 
 		if (hlib)
 		{
+			typedef ULONGLONG (WINAPI *GTC64) (VOID); // GetTickCount64
 			const GTC64 _GetTickCount64 = (GTC64)GetProcAddress (hlib, "GetTickCount64");
 
 			if (_GetTickCount64)
 				return _GetTickCount64 ();
-	}
+		}
 	}
 
 	return GetTickCount ();
@@ -1268,6 +1273,7 @@ bool _r_sys_iswow64 ()
 
 	if (hlib)
 	{
+		typedef BOOL (WINAPI *IW64P) (HANDLE, PBOOL); // IsWow64Process
 		const IW64P _IsWow64Process = (IW64P)GetProcAddress (hlib, "IsWow64Process");
 
 		if (_IsWow64Process)
@@ -1275,7 +1281,7 @@ bool _r_sys_iswow64 ()
 
 		if (result)
 			return true;
-}
+	}
 
 	return false;
 }
@@ -1565,6 +1571,7 @@ void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 
 		if (hlib)
 		{
+			typedef BOOL (WINAPI *CWMFEX) (HWND, UINT, DWORD, PVOID); // ChangeWindowMessageFilterEx
 			const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (hlib, "ChangeWindowMessageFilterEx"); // win7+
 
 			if (_ChangeWindowMessageFilterEx)
@@ -1573,6 +1580,7 @@ void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 			}
 			else
 			{
+				typedef BOOL (WINAPI *CWMF) (UINT, DWORD); // ChangeWindowMessageFilter
 				const CWMF _ChangeWindowMessageFilter = (CWMF)GetProcAddress (hlib, "ChangeWindowMessageFilter"); // vista fallback
 
 				if (_ChangeWindowMessageFilter)
@@ -1623,6 +1631,98 @@ bool _r_wnd_undercursor (HWND hwnd)
 		return true;
 
 	return false;
+}
+
+static bool _r_wnd_isplatformfullscreenmode ()
+{
+	// SHQueryUserNotificationState is only available for Vista and above.
+	if (_r_sys_validversion (6, 0))
+	{
+		typedef HRESULT (WINAPI *SHQueryUserNotificationStatePtr)(QUERY_USER_NOTIFICATION_STATE* state);
+
+		HMODULE shell32_base = GetModuleHandle (L"shell32.dll");
+		if (!shell32_base)
+		{
+			return false;
+		}
+		SHQueryUserNotificationStatePtr query_user_notification_state_ptr =
+			reinterpret_cast<SHQueryUserNotificationStatePtr>
+			(GetProcAddress (shell32_base, "SHQueryUserNotificationState"));
+		if (!query_user_notification_state_ptr)
+		{
+			return false;
+		}
+
+		QUERY_USER_NOTIFICATION_STATE state;
+		if (FAILED ((*query_user_notification_state_ptr)(&state)))
+			return false;
+		return state == QUNS_RUNNING_D3D_FULL_SCREEN ||
+			state == QUNS_PRESENTATION_MODE;
+	}
+
+	return false;
+}
+
+static bool _r_wnd_isfullscreenwindowmode ()
+{
+	// Get the foreground window which the user is currently working on.
+	HWND wnd = GetForegroundWindow ();
+	if (!wnd)
+		return false;
+
+	// Get the monitor where the window is located.
+	RECT wnd_rect;
+	if (!GetWindowRect (wnd, &wnd_rect))
+		return false;
+	HMONITOR monitor = MonitorFromRect (&wnd_rect, MONITOR_DEFAULTTONULL);
+	if (!monitor)
+		return false;
+	MONITORINFO monitor_info = {sizeof (monitor_info)};
+	if (!GetMonitorInfo (monitor, &monitor_info))
+		return false;
+
+	// It should be the main monitor.
+	if (!(monitor_info.dwFlags & MONITORINFOF_PRIMARY))
+		return false;
+
+	// The window should be at least as large as the monitor.
+	if (!IntersectRect (&wnd_rect, &wnd_rect, &monitor_info.rcMonitor))
+		return false;
+	if (!EqualRect (&wnd_rect, &monitor_info.rcMonitor))
+		return false;
+
+	// At last, the window style should not have WS_DLGFRAME and WS_THICKFRAME and
+	// its extended style should not have WS_EX_WINDOWEDGE and WS_EX_TOOLWINDOW.
+	LONG style = GetWindowLong (wnd, GWL_STYLE);
+	LONG ext_style = GetWindowLong (wnd, GWL_EXSTYLE);
+	return !((style & (WS_DLGFRAME | WS_THICKFRAME)) ||
+		(ext_style & (WS_EX_WINDOWEDGE | WS_EX_TOOLWINDOW)));
+}
+
+static bool _r_wnd_isfullscreenconsolemode ()
+{
+	// We detect this by attaching the current process to the console of the
+	// foreground window and then checking if it is in full screen mode.
+	DWORD pid = 0;
+	GetWindowThreadProcessId (GetForegroundWindow (), &pid);
+	if (!pid)
+		return false;
+
+	if (!AttachConsole (pid))
+		return false;
+
+	DWORD modes = 0;
+	GetConsoleDisplayMode (&modes);
+	FreeConsole ();
+
+	return (modes & (CONSOLE_FULLSCREEN | CONSOLE_FULLSCREEN_HARDWARE)) != 0;
+}
+
+bool _r_wnd_isfullscreenmode ()
+{
+	return _r_wnd_isplatformfullscreenmode () ||
+		_r_wnd_isfullscreenwindowmode () ||
+		_r_wnd_isfullscreenconsolemode ();
 }
 
 /*
@@ -1832,6 +1932,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT cx_width)
 
 	if (hlib)
 	{
+		typedef HRESULT (WINAPI *LIWSD) (HINSTANCE, PCWSTR, INT, INT, HICON*); // LoadIconWithScaleDown
 		const LIWSD _LoadIconWithScaleDown = (LIWSD)GetProcAddress (hlib, "LoadIconWithScaleDown");
 
 		if (_LoadIconWithScaleDown)
@@ -1875,11 +1976,28 @@ bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 	return result;
 }
 
-size_t _r_rand (size_t start, size_t end)
+size_t _r_rand (size_t min_number, size_t max_number)
 {
-	srand ((unsigned int)_r_sys_gettickcount ());
+	size_t rnd_number = 0;
 
-	return rand () % end + start;
+	const HMODULE hlib = GetModuleHandle (L"advapi32.dll");
+
+	if (hlib)
+	{
+		typedef BOOLEAN (WINAPI *RGR) (PVOID, ULONG); // RtlGenRandom
+		const RGR _RtlGenRandom = (RGR)GetProcAddress (hlib, "SystemFunction036"); // RtlGenRandom
+
+		if (_RtlGenRandom)
+			_RtlGenRandom (&rnd_number, sizeof (rnd_number));
+	}
+
+	if (!rnd_number)
+	{
+		srand ((UINT)_r_sys_gettickcount());
+		rnd_number = rand ();
+	}
+
+	return (min_number + (rnd_number % (max_number - min_number + 1)));
 }
 
 /*

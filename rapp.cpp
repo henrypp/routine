@@ -354,7 +354,7 @@ bool rapp::UpdateCheck (bool is_forced)
 
 	const HANDLE hthread = (HANDLE)_beginthreadex (nullptr, 0, &UpdateCheckThread, (LPVOID)pupdateinfo, CREATE_SUSPENDED, nullptr);
 
-	if (hthread && hthread != (HANDLE)-1L)
+	if (hthread)
 	{
 		if (pupdateinfo)
 		{
@@ -787,6 +787,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 
 		if (hlib)
 		{
+			typedef BOOL (WINAPI *MFACS) (PCWSTR, PDWORD, PDWORD); // MapFileAndCheckSumW
 			const MFACS _MapFileAndCheckSumW = (MFACS)GetProcAddress (hlib, "MapFileAndCheckSumW");
 
 			if (_MapFileAndCheckSumW)
@@ -1971,7 +1972,7 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 #endif
 				pupdateinfo->hthread = (HANDLE)_beginthreadex (nullptr, 0, &UpdateDownloadThread, (LPVOID)pupdateinfo, CREATE_SUSPENDED, nullptr);
 
-				if (pupdateinfo->hthread && pupdateinfo->hthread != (HANDLE)-1L)
+				if (pupdateinfo->hthread)
 				{
 					papp->UpdateDialogNavigate (hwnd, nullptr, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 
@@ -2175,7 +2176,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 						{
 							pupdateinfo->hthread = (HANDLE)_beginthreadex (nullptr, 0, &papp->UpdateDownloadThread, (LPVOID)pupdateinfo, CREATE_SUSPENDED, nullptr);
 
-							if (pupdateinfo->hthread != (HANDLE)-1L)
+							if (pupdateinfo->hthread)
 							{
 								ResumeThread (pupdateinfo->hthread);
 								WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);

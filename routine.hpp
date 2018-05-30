@@ -292,6 +292,7 @@ void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action);
 void _r_wnd_toggle (HWND hwnd, bool show);
 void _r_wnd_top (HWND hwnd, bool is_enable);
 bool _r_wnd_undercursor (HWND hwnd);
+bool _r_wnd_isfullscreenmode ();
 
 /*
 	Inernet access (WinHTTP)
@@ -308,7 +309,7 @@ void _r_inet_close (HINTERNET hinet);
 
 HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT cx_width);
 bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd = nullptr, WORD sw = SW_SHOWDEFAULT);
-size_t _r_rand (size_t start, size_t end);
+size_t _r_rand (size_t min_number, size_t max_number);
 
 /*
 	Control: common
@@ -366,21 +367,6 @@ DWORD _r_treeview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle, INT height);
 
 void _r_status_settext (HWND hwnd, UINT ctrl_id, INT part, LPCWSTR text);
 void _r_status_setstyle (HWND hwnd, UINT ctrl_id, INT height);
-
-/*
-	Exported function definitions
-*/
-
-typedef BOOL (WINAPI *CWMF) (UINT, DWORD); // ChangeWindowMessageFilter
-typedef BOOL (WINAPI *CWMFEX) (HWND, UINT, DWORD, PCHANGEFILTERSTRUCT); // ChangeWindowMessageFilterEx
-typedef BOOL (WINAPI *IW64P) (HANDLE, PBOOL); // IsWow64Process
-typedef HRESULT (WINAPI *LIWSD) (HINSTANCE, PCWSTR, INT, INT, HICON*); // LoadIconWithScaleDown
-typedef HRESULT (WINAPI *TDI) (const TASKDIALOGCONFIG*, INT*, INT*, BOOL*); // TaskDialogIndirect
-typedef int (WINAPI *SHCDEX) (HWND, LPCTSTR, const SECURITY_ATTRIBUTES*); // SHCreateDirectoryEx
-typedef BOOL (WINAPI *QFPIN) (HANDLE, DWORD, LPWSTR, PDWORD); // QueryFullProcessImageName
-typedef BOOL (WINAPI *MFACS) (PCWSTR, PDWORD, PDWORD); // MapFileAndCheckSumW
-typedef HRESULT (WINAPI *SFBSE) (ULONGLONG, SFBS_FLAGS, PWSTR, UINT); // StrFormatByteSizeEx
-typedef ULONGLONG (WINAPI *GTC64) (VOID); // GetTickCount64
 
 /*
 	NTDLL Definitions
