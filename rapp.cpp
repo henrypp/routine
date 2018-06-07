@@ -9,6 +9,9 @@ CONST UINT WM_TASKBARCREATED = RegisterWindowMessage (L"TaskbarCreated");
 
 rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright)
 {
+	SetDllDirectory (L"");
+	SetSearchPathMode (BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
+
 	// store system information
 	is_vistaorlater = _r_sys_validversion (6, 0);
 	is_admin = _r_sys_adminstate ();
