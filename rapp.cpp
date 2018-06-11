@@ -123,7 +123,7 @@ bool rapp::CheckMutex (bool activate_window)
 {
 	bool result = false;
 
-	HANDLE h = CreateMutex (nullptr, FALSE, app_name_short);
+	const HANDLE hmutex = CreateMutex (nullptr, FALSE, app_name_short);
 
 	if (GetLastError () == ERROR_ALREADY_EXISTS)
 	{
@@ -133,8 +133,8 @@ bool rapp::CheckMutex (bool activate_window)
 			EnumWindows (&ActivateWindowCallback, (LPARAM)this);
 	}
 
-	if (h)
-		CloseHandle (h);
+	if (hmutex)
+		CloseHandle (hmutex);
 
 	return result;
 }
@@ -561,10 +561,10 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 #ifndef _APP_NO_ABOUT
 void rapp::CreateAboutWindow (HWND hwnd)
 {
-	if (!is_about_opened)
-	{
-		is_about_opened = true;
+	const HANDLE habout = CreateMutex (nullptr, FALSE, TEXT (__FUNCTION__));
 
+	if (GetLastError () != ERROR_ALREADY_EXISTS)
+	{
 #ifdef _WIN64
 		static const unsigned architecture = 64;
 #else
@@ -645,9 +645,10 @@ void rapp::CreateAboutWindow (HWND hwnd)
 			_r_msg (hwnd, MB_OK | MB_USERICON | MB_TOPMOST, LocaleString (IDS_ABOUT, nullptr), app_name, L"Version %s, %u-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
 		}
 #endif // _APP_NO_WINXP
-
-		is_about_opened = false;
 	}
+
+	if (habout)
+		CloseHandle (habout);
 }
 #endif // _APP_NO_ABOUT
 
@@ -838,7 +839,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 	{
 		if (!ConfirmMessage (nullptr, L"Warning!", _r_fmt (L"You are attempting to run the 32-bit version of %s on 64-bit Windows.\r\nPlease run the 64-bit version of %s instead.", app_name, app_name), L"ConfirmWOW64"))
 			return false;
-	}
+}
 #endif // _WIN64
 
 	InitializeMutex ();
@@ -1006,7 +1007,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 }
 
 #ifdef _APP_HAVE_TRAY
-bool rapp::TrayCreate (HWND hwnd, UINT uid, UINT code, HICON hicon, bool is_hidden)
+bool rapp::TrayCreate (HWND hwnd, UINT uid, GUID guid, UINT code, HICON hicon, bool is_hidden)
 {
 	bool result = false;
 
@@ -1019,11 +1020,20 @@ bool rapp::TrayCreate (HWND hwnd, UINT uid, UINT code, HICON hicon, bool is_hidd
 #endif // _APP_NO_WINXP
 
 	nid.hWnd = hwnd;
-	nid.uID = uid;
 	nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_SHOWTIP | NIF_TIP;
 	nid.uCallbackMessage = code;
 	nid.hIcon = hicon;
 	StringCchCopy (nid.szTip, _countof (nid.szTip), app_name);
+
+	if (_r_sys_validversion (6, 1))
+	{
+		nid.uFlags |= NIF_GUID;
+		nid.guidItem = guid;
+	}
+	else
+	{
+		nid.uID = uid;
+	}
 
 	if (is_hidden)
 	{
@@ -1041,10 +1051,19 @@ bool rapp::TrayCreate (HWND hwnd, UINT uid, UINT code, HICON hicon, bool is_hidd
 	return result;
 }
 
-bool rapp::TrayDestroy (UINT uid)
+bool rapp::TrayDestroy (UINT uid, GUID guid)
 {
 	nid.cbSize = IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
-	nid.uID = uid;
+
+	if (_r_sys_validversion (6, 1))
+	{
+		nid.uFlags |= NIF_GUID;
+		nid.guidItem = guid;
+	}
+	else
+	{
+		nid.uID = uid;
+	}
 
 	if (Shell_NotifyIcon (NIM_DELETE, &nid))
 		return true;
@@ -1052,13 +1071,22 @@ bool rapp::TrayDestroy (UINT uid)
 	return false;
 }
 
-bool rapp::TrayPopup (UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text)
+bool rapp::TrayPopup (UINT uid, GUID guid, DWORD icon_id, LPCWSTR title, LPCWSTR text)
 {
 	bool result = false;
 
 	nid.uFlags = NIF_INFO | NIF_REALTIME;
 	nid.dwInfoFlags = NIIF_LARGE_ICON | icon_id;
-	nid.uID = uid;
+
+	if (_r_sys_validversion (6, 1))
+	{
+		nid.uFlags |= NIF_GUID;
+		nid.guidItem = guid;
+	}
+	else
+	{
+		nid.uID = uid;
+	}
 
 	if (icon_id == NIIF_USER && IsVistaOrLater ())
 	{
@@ -1093,10 +1121,19 @@ bool rapp::TrayPopup (UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text)
 	return result;
 }
 
-bool rapp::TraySetInfo (UINT uid, HICON hicon, LPCWSTR tooltip)
+bool rapp::TraySetInfo (UINT uid, GUID guid, HICON hicon, LPCWSTR tooltip)
 {
 	nid.uFlags = 0;
-	nid.uID = uid;
+
+	if (_r_sys_validversion (6, 1))
+	{
+		nid.uFlags |= NIF_GUID;
+		nid.guidItem = guid;
+	}
+	else
+	{
+		nid.uID = uid;
+	}
 
 	if (hicon)
 	{
@@ -1116,10 +1153,19 @@ bool rapp::TraySetInfo (UINT uid, HICON hicon, LPCWSTR tooltip)
 	return false;
 }
 
-bool rapp::TrayToggle (UINT uid, bool is_show)
+bool rapp::TrayToggle (UINT uid, GUID guid, bool is_show)
 {
-	nid.uID = uid;
 	nid.uFlags = NIF_STATE;
+
+	if (_r_sys_validversion (6, 1))
+	{
+		nid.uFlags |= NIF_GUID;
+		nid.guidItem = guid;
+	}
+	else
+	{
+		nid.uID = uid;
+	}
 
 	nid.dwState = is_show ? 0 : NIS_HIDDEN;
 	nid.dwStateMask = NIS_HIDDEN;
@@ -1134,12 +1180,10 @@ bool rapp::TrayToggle (UINT uid, bool is_show)
 #ifdef _APP_HAVE_SETTINGS
 void rapp::CreateSettingsWindow (DLGPROC proc, size_t dlg_id)
 {
-	static bool is_opened = false;
+	const HANDLE hsettings = CreateMutex (nullptr, FALSE, TEXT (__FUNCTION__));
 
-	if (!is_opened)
+	if (GetLastError () != ERROR_ALREADY_EXISTS)
 	{
-		is_opened = true;
-
 		if (dlg_id != LAST_VALUE)
 			ConfigSet (L"SettingsLastPage", (DWORD)dlg_id);
 
@@ -1151,7 +1195,8 @@ void rapp::CreateSettingsWindow (DLGPROC proc, size_t dlg_id)
 #endif // IDD_SETTINGS
 	}
 
-	is_opened = false;
+	if (hsettings)
+		CloseHandle (hsettings);
 }
 
 size_t rapp::SettingsAddPage (UINT dlg_id, UINT locale_id, size_t group_id)
@@ -1818,12 +1863,12 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 				SendMessage (pupdateinfo->hwnd, TDM_SET_PROGRESS_BAR_POS, percent, 0);
 			}
 #ifndef _APP_NO_WINXP
-		}
+			}
 #endif // _APP_NO_WINXP
-	}
+		}
 
 	return true;
-}
+	}
 
 UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 {
@@ -1906,15 +1951,15 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 			{
 				if (pupdateinfo->is_forced)
 					_r_msg (papp->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), papp->app_name, nullptr, L"%s", str_content);
-			}
+				}
 #endif // _APP_NO_WINXP
+			}
 		}
-	}
 
 	//SetEvent (pupdateinfo->hend);
 
 	return ERROR_SUCCESS;
-}
+	}
 
 HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM, LONG_PTR lpdata)
 {
