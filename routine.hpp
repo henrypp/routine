@@ -83,7 +83,7 @@
 
 #define RDBG(a, ...) _r_dbg (a, __VA_ARGS__)
 
-#define _R_DBG_FORMAT L"%s() failed with error code 0x%.8lx (%s)"
+#define _R_DBG_FORMAT L"%s(),0x%.8lx,%s"
 
 void _r_dbg (LPCWSTR format, ...);
 
@@ -217,7 +217,7 @@ bool _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
 rstring _r_path_gettempfilepath (LPCWSTR directory, LPCWSTR filename);
 rstring _r_path_expand (rstring path);
 rstring _r_path_unexpand (rstring path);
-rstring _r_path_compact (rstring path, UINT length);
+rstring _r_path_compact (rstring path, size_t length);
 rstring _r_path_extractdir (rstring path);
 rstring _r_path_extractfile (rstring path);
 #ifdef _APP_HAVE_NTDLL
@@ -256,7 +256,7 @@ ULONGLONG _r_sys_gettickcount ();
 bool _r_sys_iswow64 ();
 #endif // _WIN64
 
-bool _r_sys_setprivilege (LPCWSTR privileges[], UINT count, bool is_enable);
+bool _r_sys_setprivilege (LPCWSTR privileges[], size_t count, bool is_enable);
 bool _r_sys_uacstate ();
 bool _r_sys_validversion (DWORD major, DWORD minor, DWORD build = 0, BYTE condition = VER_GREATER_EQUAL);
 void _r_sleep (DWORD milliseconds);
@@ -284,7 +284,7 @@ int _r_dc_fontheighttosize (INT size);
 	Window management
 */
 
-void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT index);
+void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG_PTR mask, LONG_PTR stateMask, INT index);
 void _r_wnd_adjustwindowrect (HWND hwnd, LPRECT lprect);
 void _r_wnd_centerwindowrect (LPRECT lprect, LPRECT lpparent);
 void _r_wnd_center (HWND hwnd, HWND hparent);
@@ -575,6 +575,50 @@ typedef enum _SYSTEM_INFORMATION_CLASS
 	MaxSystemInfoClass
 } SYSTEM_INFORMATION_CLASS;
 
+typedef enum _KWAIT_REASON
+{
+	Executive,
+	FreePage,
+	PageIn,
+	PoolAllocation,
+	DelayExecution,
+	Suspended,
+	UserRequest,
+	WrExecutive,
+	WrFreePage,
+	WrPageIn,
+	WrPoolAllocation,
+	WrDelayExecution,
+	WrSuspended,
+	WrUserRequest,
+	WrEventPair,
+	WrQueue,
+	WrLpcReceive,
+	WrLpcReply,
+	WrVirtualMemory,
+	WrPageOut,
+	WrRendezvous,
+	WrKeyedEvent,
+	WrTerminated,
+	WrProcessInSwap,
+	WrCpuRateControl,
+	WrCalloutStack,
+	WrKernel,
+	WrResource,
+	WrPushLock,
+	WrMutex,
+	WrQuantumEnd,
+	WrDispatchInt,
+	WrPreempted,
+	WrYieldExecution,
+	WrFastMutex,
+	WrGuardedMutex,
+	WrRundown,
+	WrAlertByThreadId,
+	WrDeferredPreempt,
+	MaximumWaitReason
+} KWAIT_REASON, *PKWAIT_REASON;
+
 typedef struct _CLIENT_ID
 {
 	HANDLE UniqueProcess;
@@ -593,7 +637,7 @@ typedef struct _SYSTEM_THREAD_INFORMATION
 	LONG BasePriority;
 	ULONG ContextSwitches;
 	ULONG ThreadState;
-	ULONG WaitReason;
+	KWAIT_REASON WaitReason;
 } SYSTEM_THREAD_INFORMATION, *PSYSTEM_THREAD_INFORMATION;
 
 typedef enum _OBJECT_INFORMATION_CLASS

@@ -141,7 +141,9 @@ bool rapp::CheckMutex (bool activate_window)
 
 BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 {
-	if (!lparam)
+	rapp const* ptr = (rapp*)lparam;
+
+	if (!ptr)
 		return FALSE;
 
 	DWORD pid = 0;
@@ -153,37 +155,35 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 	WCHAR title[128] = {0};
 	GetWindowText (hwnd, title, _countof (title));
 
-	rapp const* ptr = (rapp*)lparam;
-
-	if (ptr && _wcsnicmp (title, ptr->app_name, wcslen (ptr->app_name)) != 0)
+	if (_wcsnicmp (title, ptr->app_name, wcslen (ptr->app_name)) != 0)
 		return TRUE;
 
-	DWORD access_rights = PROCESS_QUERY_LIMITED_INFORMATION; // vista and later
+	DWORD access_rights = PROCESS_QUERY_LIMITED_INFORMATION; // vista+
 
 #ifndef _APP_NO_WINXP
-	if (ptr && !ptr->IsVistaOrLater ())
+	if (!ptr->IsVistaOrLater ())
 		access_rights = PROCESS_QUERY_INFORMATION; // winxp
 #endif // _APP_NO_WINXP
 
-	HANDLE h = OpenProcess (access_rights, FALSE, pid);
+	const HANDLE hproc = OpenProcess (access_rights, FALSE, pid);
 
-	if (h)
+	if (hproc)
 	{
 		WCHAR fname[MAX_PATH] = {0};
 
-		if (_r_process_getpath (h, fname, _countof (fname)))
+		if (_r_process_getpath (hproc, fname, _countof (fname)))
 		{
-			if (ptr && _wcsnicmp (_r_path_extractfile (fname), ptr->app_name_short, wcslen (ptr->app_name_short)) == 0)
+			if (_wcsnicmp (_r_path_extractfile (fname), ptr->app_name_short, wcslen (ptr->app_name_short)) == 0)
 			{
 				_r_wnd_toggle (hwnd, true);
 
-				CloseHandle (h);
+				CloseHandle (hproc);
 
 				return FALSE;
 			}
 		}
 
-		CloseHandle (h);
+		CloseHandle (hproc);
 	}
 
 	return TRUE;
@@ -839,7 +839,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 	{
 		if (!ConfirmMessage (nullptr, L"Warning!", _r_fmt (L"You are attempting to run the 32-bit version of %s on 64-bit Windows.\r\nPlease run the 64-bit version of %s instead.", app_name, app_name), L"ConfirmWOW64"))
 			return false;
-}
+	}
 #endif // _WIN64
 
 	InitializeMutex ();
@@ -1007,9 +1007,11 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 }
 
 #ifdef _APP_HAVE_TRAY
-bool rapp::TrayCreate (HWND hwnd, UINT uid, GUID guid, UINT code, HICON hicon, bool is_hidden)
+bool rapp::TrayCreate (HWND hwnd, UINT uid, LPGUID guid, UINT code, HICON hicon, bool is_hidden)
 {
 	bool result = false;
+
+	NOTIFYICONDATA nid = {0};
 
 #ifdef _APP_NO_WINXP
 	nid.cbSize = sizeof (nid);
@@ -1021,18 +1023,15 @@ bool rapp::TrayCreate (HWND hwnd, UINT uid, GUID guid, UINT code, HICON hicon, b
 
 	nid.hWnd = hwnd;
 	nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_SHOWTIP | NIF_TIP;
+	nid.uID = uid;
 	nid.uCallbackMessage = code;
 	nid.hIcon = hicon;
 	StringCchCopy (nid.szTip, _countof (nid.szTip), app_name);
 
-	if (_r_sys_validversion (6, 1))
+	if (_r_sys_validversion (6, 1) && guid)
 	{
 		nid.uFlags |= NIF_GUID;
-		nid.guidItem = guid;
-	}
-	else
-	{
-		nid.uID = uid;
+		CopyMemory (&nid.guidItem, guid, sizeof (GUID));
 	}
 
 	if (is_hidden)
@@ -1051,18 +1050,25 @@ bool rapp::TrayCreate (HWND hwnd, UINT uid, GUID guid, UINT code, HICON hicon, b
 	return result;
 }
 
-bool rapp::TrayDestroy (UINT uid, GUID guid)
+bool rapp::TrayDestroy (HWND hwnd, UINT uid, LPGUID guid)
 {
-	nid.cbSize = IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
+	NOTIFYICONDATA nid = {0};
 
-	if (_r_sys_validversion (6, 1))
+#ifdef _APP_NO_WINXP
+	nid.cbSize = sizeof (nid);
+	nid.uVersion = NOTIFYICON_VERSION_4;
+#else
+	nid.cbSize = IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
+	nid.uVersion = IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION;
+#endif // _APP_NO_WINXP
+
+	nid.hWnd = hwnd;
+	nid.uID = uid;
+
+	if (_r_sys_validversion (6, 1) && guid)
 	{
 		nid.uFlags |= NIF_GUID;
-		nid.guidItem = guid;
-	}
-	else
-	{
-		nid.uID = uid;
+		CopyMemory (&nid.guidItem, guid, sizeof (GUID));
 	}
 
 	if (Shell_NotifyIcon (NIM_DELETE, &nid))
@@ -1071,21 +1077,29 @@ bool rapp::TrayDestroy (UINT uid, GUID guid)
 	return false;
 }
 
-bool rapp::TrayPopup (UINT uid, GUID guid, DWORD icon_id, LPCWSTR title, LPCWSTR text)
+bool rapp::TrayPopup (HWND hwnd, UINT uid, LPGUID guid, DWORD icon_id, LPCWSTR title, LPCWSTR text)
 {
 	bool result = false;
 
+	NOTIFYICONDATA nid = {0};
+
+#ifdef _APP_NO_WINXP
+	nid.cbSize = sizeof (nid);
+	nid.uVersion = NOTIFYICON_VERSION_4;
+#else
+	nid.cbSize = IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
+	nid.uVersion = IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION;
+#endif // _APP_NO_WINXP
+
 	nid.uFlags = NIF_INFO | NIF_REALTIME;
 	nid.dwInfoFlags = NIIF_LARGE_ICON | icon_id;
+	nid.hWnd = hwnd;
+	nid.uID = uid;
 
-	if (_r_sys_validversion (6, 1))
+	if (_r_sys_validversion (6, 1) && guid)
 	{
 		nid.uFlags |= NIF_GUID;
-		nid.guidItem = guid;
-	}
-	else
-	{
-		nid.uID = uid;
+		CopyMemory (&nid.guidItem, guid, sizeof (GUID));
 	}
 
 	if (icon_id == NIIF_USER && IsVistaOrLater ())
@@ -1121,18 +1135,25 @@ bool rapp::TrayPopup (UINT uid, GUID guid, DWORD icon_id, LPCWSTR title, LPCWSTR
 	return result;
 }
 
-bool rapp::TraySetInfo (UINT uid, GUID guid, HICON hicon, LPCWSTR tooltip)
+bool rapp::TraySetInfo (HWND hwnd, UINT uid, LPGUID guid, HICON hicon, LPCWSTR tooltip)
 {
-	nid.uFlags = 0;
+	NOTIFYICONDATA nid = {0};
 
-	if (_r_sys_validversion (6, 1))
+#ifdef _APP_NO_WINXP
+	nid.cbSize = sizeof (nid);
+	nid.uVersion = NOTIFYICON_VERSION_4;
+#else
+	nid.cbSize = IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
+	nid.uVersion = IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION;
+#endif // _APP_NO_WINXP
+
+	nid.hWnd = hwnd;
+	nid.uID = uid;
+
+	if (_r_sys_validversion (6, 1) && guid)
 	{
 		nid.uFlags |= NIF_GUID;
-		nid.guidItem = guid;
-	}
-	else
-	{
-		nid.uID = uid;
+		CopyMemory (&nid.guidItem, guid, sizeof (GUID));
 	}
 
 	if (hicon)
@@ -1153,18 +1174,26 @@ bool rapp::TraySetInfo (UINT uid, GUID guid, HICON hicon, LPCWSTR tooltip)
 	return false;
 }
 
-bool rapp::TrayToggle (UINT uid, GUID guid, bool is_show)
+bool rapp::TrayToggle (HWND hwnd, UINT uid, LPGUID guid, bool is_show)
 {
-	nid.uFlags = NIF_STATE;
+	NOTIFYICONDATA nid = {0};
 
-	if (_r_sys_validversion (6, 1))
+#ifdef _APP_NO_WINXP
+	nid.cbSize = sizeof (nid);
+	nid.uVersion = NOTIFYICON_VERSION_4;
+#else
+	nid.cbSize = IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
+	nid.uVersion = IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION;
+#endif // _APP_NO_WINXP
+
+	nid.uFlags = NIF_STATE;
+	nid.hWnd = hwnd;
+	nid.uID = uid;
+
+	if (_r_sys_validversion (6, 1) && guid)
 	{
 		nid.uFlags |= NIF_GUID;
-		nid.guidItem = guid;
-	}
-	else
-	{
-		nid.uID = uid;
+		CopyMemory (&nid.guidItem, guid, sizeof (GUID));
 	}
 
 	nid.dwState = is_show ? 0 : NIS_HIDDEN;
@@ -1626,7 +1655,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETBKCOLOR, TVSIL_STATE, (LPARAM)GetSysColor (COLOR_3DFACE));
 
-			const size_t dlg_id = this_ptr->ConfigGet (L"SettingsLastPage", this_ptr->app_settings_pages.at (0)->dlg_id).AsSizeT ();
+			const UINT dlg_id = this_ptr->ConfigGet (L"SettingsLastPage", this_ptr->app_settings_pages.at (0)->dlg_id).AsUint ();
 
 			for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 			{
@@ -1863,12 +1892,12 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 				SendMessage (pupdateinfo->hwnd, TDM_SET_PROGRESS_BAR_POS, percent, 0);
 			}
 #ifndef _APP_NO_WINXP
-			}
-#endif // _APP_NO_WINXP
 		}
+#endif // _APP_NO_WINXP
+	}
 
 	return true;
-	}
+}
 
 UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 {
@@ -1951,15 +1980,15 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 			{
 				if (pupdateinfo->is_forced)
 					_r_msg (papp->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), papp->app_name, nullptr, L"%s", str_content);
-				}
-#endif // _APP_NO_WINXP
 			}
+#endif // _APP_NO_WINXP
 		}
+	}
 
 	//SetEvent (pupdateinfo->hend);
 
 	return ERROR_SUCCESS;
-	}
+}
 
 HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM, LONG_PTR lpdata)
 {

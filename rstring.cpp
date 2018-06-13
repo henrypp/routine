@@ -452,6 +452,9 @@ rstring& rstring::AppendFormat (LPCWSTR str, ...)
 
 rstring& rstring::Insert (size_t pos, LPCWSTR str)
 {
+	if (!str)
+		return *this;
+
 	size_t textLength = wcslen (str);
 	if (str && textLength)
 	{
@@ -577,6 +580,7 @@ rstring& rstring::Replace (LPCWSTR from, LPCWSTR to)
 	/* if either substr or replacement is NULL, duplicate string a let caller handle it */
 	if (from == nullptr || to == nullptr) return *this;
 	newstr = _wcsdup (GetString ());
+	if (newstr == nullptr) return *this;
 	head = newstr;
 	size_t from_len = wcslen (from);
 	size_t to_len = wcslen (to);

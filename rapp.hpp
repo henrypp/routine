@@ -133,11 +133,11 @@ public:
 	bool CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc);
 
 #ifdef _APP_HAVE_TRAY
-	bool TrayCreate (HWND hwnd, UINT uid, GUID guid, UINT code, HICON hicon, bool is_hidden);
-	bool TrayDestroy (UINT uid, GUID guid);
-	bool TrayPopup (UINT uid, GUID guid, DWORD icon_id, LPCWSTR title, LPCWSTR text);
-	bool TraySetInfo (UINT uid, GUID guid, HICON hicon, LPCWSTR tooltip);
-	bool TrayToggle (UINT uid, GUID guid, bool is_show);
+	bool TrayCreate (HWND hwnd, UINT uid, LPGUID guid, UINT code, HICON hicon, bool is_hidden);
+	bool TrayDestroy (HWND hwnd, UINT uid, LPGUID guid);
+	bool TrayPopup (HWND hwnd, UINT uid, LPGUID guid, DWORD icon_id, LPCWSTR title, LPCWSTR text);
+	bool TraySetInfo (HWND hwnd, UINT uid, LPGUID guid, HICON hicon, LPCWSTR tooltip);
+	bool TrayToggle (HWND hwnd, UINT uid, LPGUID guid, bool is_show);
 #endif // _APP_HAVE_TRAY
 
 #ifdef _APP_HAVE_SETTINGS
@@ -217,10 +217,6 @@ private:
 	bool is_vistaorlater = false;
 	bool is_admin = false;
 	bool is_needmaximize = false;
-
-#ifdef _APP_HAVE_TRAY
-	NOTIFYICONDATA nid = {0};
-#endif // _APP_HAVE_TRAY
 
 	INT max_width = 0;
 	INT max_height = 0;

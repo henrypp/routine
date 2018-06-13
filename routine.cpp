@@ -30,20 +30,20 @@ void _r_dbg_write (LPCWSTR appname, LPCWSTR appversion, LPCWSTR fn, DWORD result
 {
 	rstring path = _r_dbg_getpath (appname);
 
-	HANDLE h = CreateFile (path, GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH, nullptr);
+	const HANDLE hfile = CreateFile (path, GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH, nullptr);
 
-	if (h != INVALID_HANDLE_VALUE)
+	if (hfile != INVALID_HANDLE_VALUE)
 	{
 		if (GetLastError () != ERROR_ALREADY_EXISTS)
 		{
 			DWORD written = 0;
 			static const BYTE bom[] = {0xFF, 0xFE};
 
-			WriteFile (h, bom, sizeof (bom), &written, nullptr); // write utf-16 le byte order mask
+			WriteFile (hfile, bom, sizeof (bom), &written, nullptr); // write utf-16 le byte order mask
 		}
 		else
 		{
-			SetFilePointer (h, 0, nullptr, FILE_END);
+			SetFilePointer (hfile, 0, nullptr, FILE_END);
 		}
 
 		DWORD written = 0;
@@ -52,11 +52,11 @@ void _r_dbg_write (LPCWSTR appname, LPCWSTR appversion, LPCWSTR fn, DWORD result
 		rstring write_buffer;
 
 		buffer.Format (_R_DBG_FORMAT, fn, result, desc ? desc : L"<empty>");
-		write_buffer.Format (L"[%s] %s [%s]\r\n", _r_fmt_date (_r_unixtime_now (), FDTF_SHORTDATE | FDTF_LONGTIME).GetString (), buffer.GetString (), appversion);
+		write_buffer.Format (L"%s,%s,%s\r\n", _r_fmt_date (_r_unixtime_now (), FDTF_SHORTDATE | FDTF_LONGTIME).GetString (), buffer.GetString (), appversion);
 
-		WriteFile (h, write_buffer.GetString (), DWORD (write_buffer.GetLength () * sizeof (WCHAR)), &written, nullptr);
+		WriteFile (hfile, write_buffer.GetString (), DWORD (write_buffer.GetLength () * sizeof (WCHAR)), &written, nullptr);
 
-		CloseHandle (h);
+		CloseHandle (hfile);
 	}
 }
 
@@ -744,15 +744,15 @@ rstring _r_path_gettempfilepath (LPCWSTR directory, LPCWSTR filename)
 	return result;
 }
 
-rstring _r_path_expand (rstring path)
+rstring _r_path_expand (const rstring path)
 {
 	if (path.IsEmpty ())
 		return path;
 
-	if (path.Find (L'\\') == rstring::npos)
+	if (path.At (0) == L'\\')
 		return path;
 
-	if (path.At (0) == L'\\')
+	if (path.Find (L'\\') == rstring::npos)
 		return path;
 
 	rstring result;
@@ -794,25 +794,25 @@ rstring _r_path_unexpand (rstring path)
 	return result;
 }
 
-rstring _r_path_compact (rstring path, UINT length)
+rstring _r_path_compact (rstring path, size_t length)
 {
 	rstring result;
 
-	PathCompactPathEx (result.GetBuffer (length), path, length, 0);
+	PathCompactPathEx (result.GetBuffer (length), path, (UINT)length, 0);
 	result.ReleaseBuffer ();
 
 	return result;
 }
 
-rstring _r_path_extractdir (rstring path)
+rstring _r_path_extractdir (const rstring path)
 {
-	rstring buffer = path;
-	const size_t pos = buffer.ReverseFind (L"\\/");
+	rstring result = path;
+	const size_t pos = result.ReverseFind (L"\\/");
 
-	buffer.Mid (0, pos);
-	buffer.Trim (L"\\/");
+	result.Mid (0, pos);
+	result.Trim (L"\\/");
 
-	return buffer;
+	return result;
 }
 
 rstring _r_path_extractfile (rstring path)
@@ -1132,10 +1132,11 @@ bool _r_str_unserialize (rstring string, LPCWSTR str_delimeter, WCHAR key_delime
 
 	for (size_t i = 0; i < vc.size (); i++)
 	{
-		const size_t pos = vc.at (i).Find (key_delimeter);
+		const rstring name = vc.at (i);
+		const size_t pos = name.Find (key_delimeter);
 
 		if (pos != rstring::npos)
-			(*lpresult)[vc.at (i).Midded (0, pos)] = vc.at (i).Midded (pos + 1);
+			(*lpresult)[name.Midded (0, pos)] = name.Midded (pos + 1);
 	}
 
 	return true;
@@ -1287,7 +1288,7 @@ bool _r_sys_iswow64 ()
 }
 #endif // _WIN64
 
-bool _r_sys_setprivilege (LPCWSTR privileges[], UINT count, bool is_enable)
+bool _r_sys_setprivilege (LPCWSTR privileges[], size_t count, bool is_enable)
 {
 	HANDLE token = nullptr;
 
@@ -1298,7 +1299,7 @@ bool _r_sys_setprivilege (LPCWSTR privileges[], UINT count, bool is_enable)
 
 	if (OpenProcessToken (GetCurrentProcess (), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token))
 	{
-		for (UINT i = 0; i < count; i++)
+		for (size_t i = 0; i < count; i++)
 		{
 			if (LookupPrivilegeValue (nullptr, privileges[i], &luid))
 			{
@@ -1483,7 +1484,7 @@ int _r_dc_fontheighttosize (INT size)
 	Window management
 */
 
-void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG mask, LONG stateMask, INT index)
+void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG_PTR mask, LONG_PTR stateMask, INT index)
 {
 	if (ctrl_id)
 		hwnd = GetDlgItem (hwnd, ctrl_id);
@@ -1693,8 +1694,9 @@ static bool _r_wnd_isfullscreenwindowmode ()
 
 	// At last, the window style should not have WS_DLGFRAME and WS_THICKFRAME and
 	// its extended style should not have WS_EX_WINDOWEDGE and WS_EX_TOOLWINDOW.
-	LONG style = GetWindowLong (wnd, GWL_STYLE);
-	LONG ext_style = GetWindowLong (wnd, GWL_EXSTYLE);
+	LONG_PTR style = GetWindowLongPtr (wnd, GWL_STYLE);
+	LONG_PTR ext_style = GetWindowLongPtr (wnd, GWL_EXSTYLE);
+
 	return !((style & (WS_DLGFRAME | WS_THICKFRAME)) ||
 		(ext_style & (WS_EX_WINDOWEDGE | WS_EX_TOOLWINDOW)));
 }
@@ -2013,13 +2015,13 @@ rstring _r_ctrl_gettext (HWND hwnd, UINT ctrl_id)
 {
 	rstring result = L"";
 
-	INT length = (INT)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXTLENGTH, 0, 0);
+	size_t length = (size_t)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXTLENGTH, 0, 0);
 
 	if (length)
 	{
 		length += 1;
 
-		GetDlgItemText (hwnd, ctrl_id, result.GetBuffer (length), length);
+		GetDlgItemText (hwnd, ctrl_id, result.GetBuffer (length), (INT)length);
 		result.ReleaseBuffer ();
 	}
 
@@ -2105,7 +2107,7 @@ INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl_id, INT column_id)
 	RECT rc = {0};
 	GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
 
-	return _R_PERCENT_OF (SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMNWIDTH, column_id, NULL), rc.right);
+	return _R_PERCENT_OF (SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMNWIDTH, column_id, 0), rc.right);
 }
 
 INT _r_listview_addgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR title, UINT align, UINT state)
@@ -2147,7 +2149,7 @@ INT _r_listview_additem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, L
 {
 	if (item == LAST_VALUE)
 	{
-		item = (INT)_r_listview_getitemcount (hwnd, ctrl_id);
+		item = _r_listview_getitemcount (hwnd, ctrl_id);
 
 		if (subitem)
 			item -= 1;
@@ -2221,10 +2223,10 @@ size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl_id, bool list_checked)
 {
 	if (list_checked)
 	{
-		INT item = -1;
+		size_t item = LAST_VALUE;
 		size_t count = 0;
 
-		while ((item = (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETNEXTITEM, item, LVNI_ALL)) != -1)
+		while ((item = (size_t)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETNEXTITEM, item, LVNI_ALL)) != LAST_VALUE)
 		{
 			if (_r_listview_isitemchecked (hwnd, ctrl_id, item))
 				++count;
@@ -2298,10 +2300,10 @@ void _r_listview_redraw (HWND hwnd, UINT ctrl_id)
 void _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR text, INT width)
 {
 	LVCOLUMN lvc = {0};
+	WCHAR buffer[MAX_PATH] = {0};
 
 	if (text)
 	{
-		WCHAR buffer[MAX_PATH] = {0};
 		StringCchCopy (buffer, _countof (buffer), text);
 
 		lvc.mask |= LVCF_TEXT;
