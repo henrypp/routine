@@ -405,7 +405,9 @@ void rapp::ConfigInit ()
 	StringCchPrintf (app_localepath, _countof (app_localepath), L"%s\\%s.lng", ConfigGet (L"LocalePath", GetDirectory ()).GetString (), app_name_short);
 
 	// update path
+#ifdef _APP_HAVE_UPDATES
 	StringCchPrintf (app_updatepath, _countof (app_updatepath), L"%s\\%s_update.exe", GetProfileDirectory (), app_name_short);
+#endif // _APP_HAVE_UPDATES
 
 	LocaleInit ();
 }
@@ -855,6 +857,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 	// create window
 	if (dlg_id && proc)
 	{
+#ifdef _APP_HAVE_UPDATES
 		if (_r_fs_exists (GetUpdatePath ()))
 		{
 			WCHAR str_content[256] = {0};
@@ -872,6 +875,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 				return false;
 			}
 		}
+#endif //_APP_HAVE_UPDATES
 
 		//simplewall_update.exe
 
