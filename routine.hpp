@@ -61,7 +61,7 @@
 	Color shader
 */
 
-#define _R_COLOR_SHADE(clr, percent) RGB ((BYTE)((float)GetRValue (clr) * percent / 100.0), (BYTE)((float)GetGValue (clr) * percent / 100.0), (BYTE)((float)GetBValue (clr) * percent / 100.0))
+#define _R_COLOR_SHADE(clr, percent) RGB ((BYTE)((double)GetRValue (clr) * percent / 100.0), (BYTE)((double)GetGValue (clr) * percent / 100.0), (BYTE)((double)GetBValue (clr) * (percent) / 100.0))
 
 /*
 	Percentage calculation
@@ -215,11 +215,11 @@ bool _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
 */
 
 rstring _r_path_gettempfilepath (LPCWSTR directory, LPCWSTR filename);
-rstring _r_path_expand (rstring path);
-rstring _r_path_unexpand (rstring path);
-rstring _r_path_compact (rstring path, size_t length);
-rstring _r_path_extractdir (rstring path);
-rstring _r_path_extractfile (rstring path);
+rstring _r_path_expand (const rstring &path);
+rstring _r_path_unexpand (const rstring &path);
+rstring _r_path_compact (LPCWSTR path, size_t length);
+rstring _r_path_extractdir (LPCWSTR path);
+rstring _r_path_extractfile (LPCWSTR path);
 #ifdef _APP_HAVE_NTDLL
 rstring _r_path_dospathfromnt (LPCWSTR path);
 #endif // _APP_HAVE_NTDLL

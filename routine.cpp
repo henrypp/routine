@@ -548,7 +548,7 @@ void _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length)
 
 				if (ptr)
 				{
-					const size_t size = (length * sizeof (WCHAR)) + sizeof (WCHAR);
+					const size_t size = (length + 1) * sizeof (WCHAR);
 
 					memcpy (ptr, text, size);
 					SetClipboardData (CF_UNICODETEXT, hmem);
@@ -744,7 +744,7 @@ rstring _r_path_gettempfilepath (LPCWSTR directory, LPCWSTR filename)
 	return result;
 }
 
-rstring _r_path_expand (const rstring path)
+rstring _r_path_expand (const rstring &path)
 {
 	if (path.IsEmpty ())
 		return path;
@@ -773,7 +773,7 @@ rstring _r_path_expand (const rstring path)
 	return result;
 }
 
-rstring _r_path_unexpand (rstring path)
+rstring _r_path_unexpand (const rstring &path)
 {
 	if (path.IsEmpty ())
 		return path;
@@ -794,7 +794,7 @@ rstring _r_path_unexpand (rstring path)
 	return result;
 }
 
-rstring _r_path_compact (rstring path, size_t length)
+rstring _r_path_compact (LPCWSTR path, size_t length)
 {
 	rstring result;
 
@@ -804,7 +804,7 @@ rstring _r_path_compact (rstring path, size_t length)
 	return result;
 }
 
-rstring _r_path_extractdir (const rstring path)
+rstring _r_path_extractdir (LPCWSTR path)
 {
 	rstring result = path;
 	const size_t pos = result.ReverseFind (L"\\/");
@@ -815,7 +815,7 @@ rstring _r_path_extractdir (const rstring path)
 	return result;
 }
 
-rstring _r_path_extractfile (rstring path)
+rstring _r_path_extractfile (LPCWSTR path)
 {
 	return PathFindFileName (path);
 }
@@ -932,7 +932,7 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 	if (path.IsEmpty ())
 		return ERROR_BAD_ARGUMENTS;
 
-	HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_NO_BUFFERING, nullptr);
+	const HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_NO_BUFFERING, nullptr);
 
 	if (hfile == INVALID_HANDLE_VALUE)
 	{
@@ -1030,19 +1030,19 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 		{
 			if (pid[i])
 			{
-				HANDLE h = OpenProcess (access_rights, FALSE, pid[i]);
+				const HANDLE hprocess = OpenProcess (access_rights, FALSE, pid[i]);
 
-				if (h)
+				if (hprocess)
 				{
 					WCHAR buffer[_R_BYTESIZE_KB] = {0};
 
-					if (_r_process_getpath (h, buffer, _countof (buffer)))
+					if (_r_process_getpath (hprocess, buffer, _countof (buffer)))
 					{
 						if (_wcsnicmp (path, buffer, len) == 0)
 							result = TRUE;
 					}
 
-					CloseHandle (h);
+					CloseHandle (hprocess);
 
 					if (result)
 						break;
@@ -1079,8 +1079,8 @@ size_t _r_str_hash (LPCWSTR text)
 	if (!text)
 		return 0;
 
-	static const size_t InitialFNV = 2166136261U;
-	static const size_t FNVMultiple = 16777619;
+#define InitialFNV 2166136261U
+#define FNVMultiple 16777619
 
 	size_t hash = InitialFNV;
 	const size_t length = wcslen (text);
@@ -1394,8 +1394,8 @@ void _r_unixtime_to_filetime (time_t ut, const LPFILETIME pft)
 	{
 		const time_t ll = ut * 10000000ULL + 116444736000000000; // 64-bit value
 
-		pft->dwLowDateTime = (DWORD)ll;
-		pft->dwHighDateTime = ll >> 32;
+		pft->dwLowDateTime = DWORD (ll);
+		pft->dwHighDateTime = DWORD (ll >> 32);
 	}
 }
 
@@ -1733,8 +1733,6 @@ bool _r_wnd_isfullscreenmode ()
 
 HINTERNET _r_inet_createsession (LPCWSTR useragent)
 {
-	HINTERNET hsession = nullptr;
-
 	DWORD flags = 0;
 
 	static const bool is_win81 = _r_sys_validversion (6, 3);
@@ -1757,7 +1755,7 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent)
 			flags = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
 	}
 
-	hsession = WinHttpOpen (useragent, flags, proxyConfig.lpszProxy, proxyConfig.lpszProxyBypass, 0);
+	HINTERNET hsession = WinHttpOpen (useragent, flags, proxyConfig.lpszProxy, proxyConfig.lpszProxyBypass, 0);
 
 	if (proxyConfig.lpszProxy)
 		GlobalFree (proxyConfig.lpszProxy);
@@ -1995,7 +1993,7 @@ size_t _r_rand (size_t min_number, size_t max_number)
 
 	if (!rnd_number)
 	{
-		srand ((UINT)_r_sys_gettickcount());
+		srand ((UINT)_r_sys_gettickcount ());
 		rnd_number = rand ();
 	}
 
