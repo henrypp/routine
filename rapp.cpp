@@ -860,7 +860,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 #ifdef _APP_HAVE_UPDATES
 		if (_r_fs_exists (GetUpdatePath ()))
 		{
-			WCHAR str_content[256] = {0};
+			WCHAR str_content[MAX_PATH] = {0};
 
 #ifdef IDS_UPDATE_INSTALL
 			StringCchCopy (str_content, _countof (str_content), LocaleString (IDS_UPDATE_INSTALL, nullptr));
@@ -871,7 +871,6 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 			if (_r_msg (nullptr, MB_YESNO | MB_USERICON | MB_TOPMOST, app_name, nullptr, L"%s", str_content) == IDYES)
 			{
 				UpdateInstall ();
-
 				return false;
 			}
 		}
@@ -2142,7 +2141,7 @@ rstring format_version (rstring vers)
 
 void rapp::UpdateInstall ()
 {
-	_r_run (_r_path_expand (L"%systemroot%\\system32\\cmd.exe"), _r_fmt (L"\"cmd.exe\" /c ping 127.0.0.1 -n 4 > nul&&start /wait \"\" \"%s\" /S /D=%s&&ping 127.0.0.1 -n 2 > nul&&del /q /f \"%s\"&start \"\" \"%s\"", GetUpdatePath (), GetDirectory (), GetUpdatePath (), GetBinaryPath ()), nullptr, SW_HIDE);
+	_r_run (_r_path_expand (L"%systemroot%\\system32\\cmd.exe"), _r_fmt (L"\"cmd.exe\" /c timeout 4 > nul&&start /wait \"\" \"%s\" /S /D=%s&&timeout 4 > nul&&del /q /f \"%s\"&start \"\" \"%s\"", GetUpdatePath (), GetDirectory (), GetUpdatePath (), GetBinaryPath ()), nullptr, SW_HIDE);
 }
 
 UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
