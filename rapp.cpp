@@ -190,21 +190,89 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 }
 
 #ifdef _APP_HAVE_AUTORUN
+bool rapp::AutorunIsEnabled ()
+{
+	return ConfigGet (L"AutorunIsEnabled", false).AsBool ();
+}
+
 bool rapp::AutorunEnable (bool is_enable)
 {
 	bool result = false;
 
-	const HKEY hroot = HKEY_CURRENT_USER;
+	HKEY hroot = HKEY_CURRENT_USER;
+	rstring reg_path = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+
+	// create autorun entry for current user only
+	if (IsVistaOrLater ())
+	{
+		const HINSTANCE hlib = LoadLibrary (L"wtsapi32.dll");
+
+		if (hlib)
+		{
+			typedef BOOL (WINAPI *WTSQSIW) (HANDLE, DWORD, WTS_INFO_CLASS, LPWSTR*, LPDWORD); // WTSQuerySessionInformationW
+			typedef VOID (WINAPI *WTSFM) (PVOID); // WTSFreeMemory
+
+			const WTSQSIW _WTSQuerySessionInformationW = (WTSQSIW)GetProcAddress (hlib, "WTSQuerySessionInformationW");
+			const WTSFM _WTSFreeMemory = (WTSFM)GetProcAddress (hlib, "WTSFreeMemory");
+
+			if (_WTSQuerySessionInformationW && _WTSFreeMemory)
+			{
+				LPWSTR username = nullptr;;
+				LPWSTR domain = nullptr;;
+				DWORD out = 0;
+
+				if (
+					_WTSQuerySessionInformationW (WTS_CURRENT_SERVER_HANDLE, WTS_CURRENT_SESSION, WTSUserName, &username, &out) &&
+					_WTSQuerySessionInformationW (WTS_CURRENT_SERVER_HANDLE, WTS_CURRENT_SESSION, WTSDomainName, &domain, &out)
+					)
+				{
+					DWORD sid_length = SECURITY_MAX_SID_SIZE;
+					PSID psid = new BYTE[sid_length];
+
+					if (psid)
+					{
+						WCHAR ref_domain[MAX_PATH] = {0};
+						DWORD ref_length = _countof (ref_domain);
+
+						SID_NAME_USE name_use;
+						if (LookupAccountName (domain, username, psid, &sid_length, ref_domain, &ref_length, &name_use))
+						{
+							LPWSTR sidstring = nullptr;
+
+							if (ConvertSidToStringSid (psid, &sidstring))
+							{
+								hroot = HKEY_USERS;
+								reg_path.Format (L"%s\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", sidstring);
+
+								LocalFree (sidstring);
+							}
+						}
+
+						delete[] psid;
+					}
+				}
+
+				if (username)
+					_WTSFreeMemory (username);
+
+				if (domain)
+					_WTSFreeMemory (domain);
+			}
+
+			FreeLibrary (hlib);
+		}
+	}
+
 	HKEY hkey = nullptr;
 
-	if (RegOpenKeyEx (hroot, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE | KEY_READ, &hkey) == ERROR_SUCCESS)
+	if (RegOpenKeyEx (hroot, reg_path, 0, KEY_ALL_ACCESS, &hkey) == ERROR_SUCCESS)
 	{
 		if (is_enable)
 		{
 			WCHAR buffer[MAX_PATH] = {0};
 			StringCchPrintf (buffer, _countof (buffer), L"\"%s\" /minimized", GetBinaryPath ());
 
-			result = (RegSetValueEx (hkey, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) * sizeof (WCHAR)) + sizeof (WCHAR))) == ERROR_SUCCESS);
+			result = (RegSetValueEx (hkey, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) + 1) * sizeof (WCHAR))) == ERROR_SUCCESS);
 
 			if (result)
 				ConfigSet (L"AutorunIsEnabled", true);
@@ -221,11 +289,6 @@ bool rapp::AutorunEnable (bool is_enable)
 	}
 
 	return result;
-}
-
-bool rapp::AutorunIsEnabled ()
-{
-	return ConfigGet (L"AutorunIsEnabled", false).AsBool ();
 }
 #endif // _APP_HAVE_AUTORUN
 
@@ -541,8 +604,8 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 
 				RegCloseKey (hkey);
 			}
-		}
 	}
+}
 #endif // _APP_NO_WINXP
 
 	if (result <= 0)
@@ -645,13 +708,13 @@ void rapp::CreateAboutWindow (HWND hwnd)
 		else
 		{
 			_r_msg (hwnd, MB_OK | MB_USERICON | MB_TOPMOST, LocaleString (IDS_ABOUT, nullptr), app_name, L"Version %s, %u-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
-		}
+			}
 #endif // _APP_NO_WINXP
-	}
+		}
 
 	if (habout)
 		CloseHandle (habout);
-}
+	}
 #endif // _APP_NO_ABOUT
 
 bool rapp::IsAdmin () const
@@ -841,7 +904,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 	{
 		if (!ConfirmMessage (nullptr, L"Warning!", _r_fmt (L"You are attempting to run the 32-bit version of %s on 64-bit Windows.\r\nPlease run the 64-bit version of %s instead.", app_name, app_name), L"ConfirmWOW64"))
 			return false;
-	}
+}
 #endif // _WIN64
 
 	InitializeMutex ();
@@ -1895,12 +1958,12 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 				SendMessage (pupdateinfo->hwnd, TDM_SET_PROGRESS_BAR_POS, percent, 0);
 			}
 #ifndef _APP_NO_WINXP
-		}
+			}
 #endif // _APP_NO_WINXP
-	}
+		}
 
 	return true;
-}
+	}
 
 UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 {
@@ -1983,15 +2046,15 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 			{
 				if (pupdateinfo->is_forced)
 					_r_msg (papp->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), papp->app_name, nullptr, L"%s", str_content);
-			}
+				}
 #endif // _APP_NO_WINXP
-		}
-	}
+			}
+			}
 
 	//SetEvent (pupdateinfo->hend);
 
 	return ERROR_SUCCESS;
-}
+		}
 
 HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM, LONG_PTR lpdata)
 {
@@ -2261,8 +2324,8 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 								ResumeThread (pupdateinfo->hthread);
 								WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
 							}
-						}
 					}
+				}
 #endif
 					for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 					{
@@ -2292,7 +2355,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							}
 						}
 					}
-				}
+			}
 				else
 				{
 					if (pupdateinfo->hwnd)
@@ -2307,16 +2370,16 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 						papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 					}
 				}
-			}
-
-			papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
 		}
 
-		SetEvent (pupdateinfo->hend);
+			papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
 	}
 
-	return ERROR_SUCCESS;
+		SetEvent (pupdateinfo->hend);
 }
+
+	return ERROR_SUCCESS;
+	}
 #endif // _APP_HAVE_UPDATES
 
 bool rapp::ParseINI (LPCWSTR path, rstring::map_two* pmap, std::vector<rstring>* psections)
@@ -2386,6 +2449,14 @@ bool rapp::ParseINI (LPCWSTR path, rstring::map_two* pmap, std::vector<rstring>*
 }
 
 #ifdef _APP_HAVE_SKIPUAC
+bool rapp::SkipUacIsEnabled ()
+{
+	if (IsVistaOrLater ())
+		return ConfigGet (L"SkipUacIsEnabled", false).AsBool ();
+
+	return false;
+}
+
 bool rapp::SkipUacEnable (bool is_enable)
 {
 	bool result = false;
@@ -2404,8 +2475,15 @@ bool rapp::SkipUacEnable (bool is_enable)
 
 	if (IsVistaOrLater ())
 	{
-		rstring name;
-		name.Format (_APP_TASKSCHD_NAME, app_name_short);
+		MBSTR root (L"\\");
+		MBSTR name (_r_fmt (_APP_TASKSCHD_NAME, app_name_short));
+		MBSTR author (_APP_AUTHOR);
+		MBSTR path (GetBinaryPath ());
+		MBSTR directory (GetDirectory ());
+		MBSTR args (L"$(Arg0)");
+		MBSTR timelimit (L"PT0S");
+
+		VARIANT vtEmpty = {VT_EMPTY};
 
 		if (SUCCEEDED (CoInitializeEx (nullptr, COINIT_MULTITHREADED)))
 		{
@@ -2413,17 +2491,21 @@ bool rapp::SkipUacEnable (bool is_enable)
 			{
 				if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
 				{
-					if (SUCCEEDED (service->Connect (_variant_t (), _variant_t (), _variant_t (), _variant_t ())))
+					if (SUCCEEDED (service->Connect (vtEmpty, vtEmpty, vtEmpty, vtEmpty)))
 					{
-						if (SUCCEEDED (service->GetFolder (L"\\", &folder)))
+						if (SUCCEEDED (service->GetFolder (root, &folder)))
 						{
+							// remove task
+							result = SUCCEEDED (folder->DeleteTask (name, 0));
+
+							// create task
 							if (is_enable)
 							{
 								if (SUCCEEDED (service->NewTask (0, &task)))
 								{
 									if (SUCCEEDED (task->get_RegistrationInfo (&reginfo)))
 									{
-										reginfo->put_Author (_APP_AUTHOR);
+										reginfo->put_Author (author);
 										reginfo->Release ();
 									}
 
@@ -2440,7 +2522,7 @@ bool rapp::SkipUacEnable (bool is_enable)
 										settings->put_DisallowStartIfOnBatteries (VARIANT_BOOL (FALSE));
 										settings->put_StopIfGoingOnBatteries (VARIANT_BOOL (FALSE));
 										settings->put_MultipleInstances (TASK_INSTANCES_PARALLEL);
-										settings->put_ExecutionTimeLimit (L"PT0S");
+										settings->put_ExecutionTimeLimit (timelimit);
 
 										settings->Release ();
 									}
@@ -2451,13 +2533,11 @@ bool rapp::SkipUacEnable (bool is_enable)
 										{
 											if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID*)&exec_action)))
 											{
-												WCHAR path[MAX_PATH] = {0};
-												StringCchCopy (path, _countof (path), GetBinaryPath ());
-
-												WCHAR directory[MAX_PATH] = {0};
-												StringCchCopy (directory, _countof (directory), GetDirectory ());
-
-												if (SUCCEEDED (exec_action->put_Path (path)) && SUCCEEDED (exec_action->put_WorkingDirectory (directory)) && SUCCEEDED (exec_action->put_Arguments (L"$(Arg0)")))
+												if (
+													SUCCEEDED (exec_action->put_Path (path)) &&
+													SUCCEEDED (exec_action->put_WorkingDirectory (directory)) &&
+													SUCCEEDED (exec_action->put_Arguments (args))
+													)
 												{
 													action_result = true;
 												}
@@ -2471,20 +2551,33 @@ bool rapp::SkipUacEnable (bool is_enable)
 										action_collection->Release ();
 									}
 
-									if (action_result && SUCCEEDED (folder->RegisterTaskDefinition (name.GetBuffer (), task, TASK_CREATE_OR_UPDATE, _variant_t (), _variant_t (), TASK_LOGON_INTERACTIVE_TOKEN, _variant_t (), &registered_task)))
+									if (action_result)
 									{
-										ConfigSet (L"SkipUacIsEnabled", true);
-										result = true;
+										if (SUCCEEDED (folder->RegisterTaskDefinition (
+											name,
+											task,
+											TASK_CREATE,
+											vtEmpty,
+											vtEmpty,
+											TASK_LOGON_INTERACTIVE_TOKEN,
+											vtEmpty,
+											&registered_task)
+											))
+										{
+											{
+												ConfigSet (L"SkipUacIsEnabled", true);
+												result = true;
 
-										registered_task->Release ();
+												registered_task->Release ();
+											}
+										}
+
+										task->Release ();
 									}
-
-									task->Release ();
 								}
 							}
 							else
 							{
-								result = SUCCEEDED (folder->DeleteTask (name.GetBuffer (), 0));
 								ConfigSet (L"SkipUacIsEnabled", false);
 							}
 
@@ -2501,14 +2594,6 @@ bool rapp::SkipUacEnable (bool is_enable)
 	}
 
 	return result;
-}
-
-bool rapp::SkipUacIsEnabled ()
-{
-	if (IsVistaOrLater ())
-		return ConfigGet (L"SkipUacIsEnabled", false).AsBool ();
-
-	return false;
 }
 
 bool rapp::SkipUacRun ()
@@ -2528,8 +2613,10 @@ bool rapp::SkipUacRun ()
 
 	if (IsVistaOrLater ())
 	{
-		rstring name;
-		name.Format (_APP_TASKSCHD_NAME, app_name_short);
+		MBSTR root (L"\\");
+		MBSTR name (_r_fmt (_APP_TASKSCHD_NAME, app_name_short));
+
+		VARIANT vtEmpty = {VT_EMPTY};
 
 		if (SUCCEEDED (CoInitializeEx (nullptr, COINIT_MULTITHREADED)))
 		{
@@ -2537,11 +2624,11 @@ bool rapp::SkipUacRun ()
 			{
 				if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
 				{
-					if (SUCCEEDED (service->Connect (_variant_t (), _variant_t (), _variant_t (), _variant_t ())))
+					if (SUCCEEDED (service->Connect (vtEmpty, vtEmpty, vtEmpty, vtEmpty)))
 					{
-						if (SUCCEEDED (service->GetFolder (L"\\", &folder)))
+						if (SUCCEEDED (service->GetFolder (root, &folder)))
 						{
-							if (SUCCEEDED (folder->GetTask (name.GetBuffer (), &registered_task)))
+							if (SUCCEEDED (folder->GetTask (name, &registered_task)))
 							{
 								if (SUCCEEDED (registered_task->get_Definition (&task)))
 								{
@@ -2568,31 +2655,36 @@ bool rapp::SkipUacRun ()
 														LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
 
 														for (INT i = 1; i < numargs; i++)
-														{
-															args.Append (arga[i]);
-															args.Append (L" ");
-														}
+															args.AppendFormat (L"%s ", arga[i]);
 
 														LocalFree (arga);
 													}
 
 													variant_t ticker = args.Trim (L" ");
 
-													if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_AS_SELF, 0, nullptr, &running_task)) && running_task)
+													if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_NO_FLAGS, 0, nullptr, &running_task)))
 													{
-														TASK_STATE state;
-														INT count = 5; // try count
+														UINT8 count = 4; // try count
 
 														do
 														{
-															_r_sleep (500);
+															_r_sleep (250);
+
+															TASK_STATE state;
 
 															running_task->Refresh ();
 															running_task->get_State (&state);
 
-															if (state == TASK_STATE_RUNNING || state == TASK_STATE_DISABLED)
+															if (
+																state == TASK_STATE_RUNNING ||
+																state == TASK_STATE_READY ||
+																state == TASK_STATE_DISABLED
+																)
 															{
-																if (state == TASK_STATE_RUNNING)
+																if (
+																	state == TASK_STATE_RUNNING ||
+																	state == TASK_STATE_READY
+																	)
 																	result = true;
 
 																break;
@@ -2647,8 +2739,6 @@ bool rapp::RunAsAdmin ()
 
 		if (!result)
 		{
-			const bool is_mutexdestroyed = UninitializeMutex ();
-
 			if (SUCCEEDED (CoInitialize (nullptr)))
 			{
 				SHELLEXECUTEINFO shex = {0};
@@ -2669,6 +2759,8 @@ bool rapp::RunAsAdmin ()
 				shex.lpFile = path;
 				shex.lpDirectory = directory;
 				shex.lpParameters = args;
+
+				const bool is_mutexdestroyed = UninitializeMutex ();
 
 				if (ShellExecuteEx (&shex))
 				{

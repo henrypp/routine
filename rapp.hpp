@@ -6,8 +6,14 @@
 #include "routine.hpp"
 #include "resource.hpp"
 
+#ifdef _APP_HAVE_SKIPUAC
 #include <comdef.h>
 #include <taskschd.h>
+#endif // _APP_HAVE_SKIPUAC
+
+#ifdef _APP_HAVE_AUTORUN
+#include <wtsapi32.h>
+#endif // _APP_HAVE_AUTORUN
 
 #include "rconfig.hpp"
 
@@ -15,6 +21,10 @@
 #ifdef _APP_HAVE_SKIPUAC
 #pragma comment(lib, "taskschd.lib")
 #endif // _APP_HAVE_SKIPUAC
+
+#ifdef _APP_HAVE_AUTORUN
+#pragma comment(lib, "wtsapi32.lib")
+#endif // _APP_HAVE_AUTORUN
 
 /*
 	Callback functions
@@ -57,9 +67,6 @@ typedef struct
 
 	HANDLE hthread;
 	HANDLE hend;
-
-
-	//LPVOID papp;
 } *PAPP_UPDATE_COMPONENT, APP_UPDATE_COMPONENT;
 
 typedef struct
@@ -77,6 +84,48 @@ typedef struct
 	LPVOID papp;
 } *PAPP_UPDATE_INFO, APP_UPDATE_INFO;
 #endif // _APP_HAVE_UPDATES
+
+#ifdef _APP_HAVE_SKIPUAC
+struct MBSTR
+{
+	MBSTR (LPCWSTR asString = nullptr)
+	{
+		ms_bstr = asString ? SysAllocString (asString) : nullptr;
+	}
+
+	~MBSTR ()
+	{
+		Free ();
+	}
+
+	operator BSTR() const
+	{
+		return ms_bstr;
+	}
+
+	MBSTR& operator=(LPCWSTR asString)
+	{
+		if (asString != ms_bstr)
+		{
+			Free ();
+			ms_bstr = asString ? ::SysAllocString (asString) : NULL;
+		}
+
+		return *this;
+	}
+
+	void Free ()
+	{
+		if (ms_bstr)
+		{
+			SysFreeString (ms_bstr);
+			ms_bstr = nullptr;
+		}
+	}
+protected:
+	BSTR ms_bstr;
+};
+#endif // _APP_HAVE_SKIPUAC
 
 typedef struct
 {
@@ -104,8 +153,8 @@ public:
 	bool DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_CALLBACK callback, LONG_PTR lpdata);
 
 #ifdef _APP_HAVE_AUTORUN
-	bool AutorunEnable (bool is_enable);
 	bool AutorunIsEnabled ();
+	bool AutorunEnable (bool is_enable);
 #endif // _APP_HAVE_AUTORUN
 
 #ifdef _APP_HAVE_UPDATES
@@ -179,8 +228,8 @@ public:
 	void LocaleMenu (HMENU menu, UINT id, UINT item, bool by_position, LPCWSTR append);
 
 #ifdef _APP_HAVE_SKIPUAC
-	bool SkipUacEnable (bool is_enable);
 	bool SkipUacIsEnabled ();
+	bool SkipUacEnable (bool is_enable);
 	bool SkipUacRun ();
 #endif // _APP_HAVE_SKIPUAC
 
