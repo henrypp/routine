@@ -217,8 +217,8 @@ bool rapp::AutorunEnable (bool is_enable)
 
 			if (_WTSQuerySessionInformationW && _WTSFreeMemory)
 			{
-				LPWSTR username = nullptr;;
-				LPWSTR domain = nullptr;;
+				LPWSTR username = nullptr;
+				LPWSTR domain = nullptr;
 				DWORD out = 0;
 
 				if (
@@ -2274,10 +2274,14 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 								pcomponent->is_haveupdates = true;
 
 								if (pcomponent->is_installer)
+								{
 									pcomponent->filepath = papp->GetUpdatePath ();
-
+								}
 								else
+								{
 									pcomponent->filepath.Format (L"%s\\%s-%s.tmp", _r_path_expand (L"%temp%\\").GetString (), pcomponent->short_name.GetString (), new_version.GetString ());
+									pcomponent->version = new_version;
+								}
 
 								updates_text.AppendFormat (L"- %s %s\r\n", pcomponent->full_name.GetString (), format_version (new_version).GetString ());
 
@@ -2349,9 +2353,9 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 										DrawMenuBar (papp->GetHWND ());
 									}
-								}
 
-								_r_fs_delete (pcomponent->filepath, false);
+									_r_fs_delete (pcomponent->filepath, false);
+								}
 							}
 						}
 					}
@@ -2668,8 +2672,6 @@ bool rapp::SkipUacRun ()
 
 														do
 														{
-															_r_sleep (250);
-
 															TASK_STATE state;
 
 															running_task->Refresh ();
@@ -2689,6 +2691,8 @@ bool rapp::SkipUacRun ()
 
 																break;
 															}
+
+															_r_sleep (500);
 														}
 														while (count--);
 
