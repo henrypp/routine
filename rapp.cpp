@@ -2668,7 +2668,7 @@ bool rapp::SkipUacRun ()
 
 													if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_NO_FLAGS, 0, nullptr, &running_task)))
 													{
-														UINT8 count = 4; // try count
+														UINT8 count = 5; // try count
 
 														do
 														{
