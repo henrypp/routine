@@ -235,6 +235,7 @@ bool rapp::AutorunEnable (bool is_enable)
 						DWORD ref_length = _countof (ref_domain);
 
 						SID_NAME_USE name_use;
+
 						if (LookupAccountName (domain, username, psid, &sid_length, ref_domain, &ref_length, &name_use))
 						{
 							LPWSTR sidstring = nullptr;
@@ -604,8 +605,8 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 
 				RegCloseKey (hkey);
 			}
+		}
 	}
-}
 #endif // _APP_NO_WINXP
 
 	if (result <= 0)
@@ -708,13 +709,13 @@ void rapp::CreateAboutWindow (HWND hwnd)
 		else
 		{
 			_r_msg (hwnd, MB_OK | MB_USERICON | MB_TOPMOST, LocaleString (IDS_ABOUT, nullptr), app_name, L"Version %s, %u-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
-			}
-#endif // _APP_NO_WINXP
 		}
+#endif // _APP_NO_WINXP
+	}
 
 	if (habout)
 		CloseHandle (habout);
-	}
+}
 #endif // _APP_NO_ABOUT
 
 bool rapp::IsAdmin () const
@@ -904,7 +905,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 	{
 		if (!ConfirmMessage (nullptr, L"Warning!", _r_fmt (L"You are attempting to run the 32-bit version of %s on 64-bit Windows.\r\nPlease run the 64-bit version of %s instead.", app_name, app_name), L"ConfirmWOW64"))
 			return false;
-}
+	}
 #endif // _WIN64
 
 	InitializeMutex ();
@@ -1958,12 +1959,12 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 				SendMessage (pupdateinfo->hwnd, TDM_SET_PROGRESS_BAR_POS, percent, 0);
 			}
 #ifndef _APP_NO_WINXP
-			}
-#endif // _APP_NO_WINXP
 		}
+#endif // _APP_NO_WINXP
+	}
 
 	return true;
-	}
+}
 
 UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 {
@@ -2046,15 +2047,15 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 			{
 				if (pupdateinfo->is_forced)
 					_r_msg (papp->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), papp->app_name, nullptr, L"%s", str_content);
-				}
+			}
 #endif // _APP_NO_WINXP
-			}
-			}
+		}
+	}
 
 	//SetEvent (pupdateinfo->hend);
 
 	return ERROR_SUCCESS;
-		}
+}
 
 HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM, LONG_PTR lpdata)
 {
@@ -2328,8 +2329,8 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 								ResumeThread (pupdateinfo->hthread);
 								WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
 							}
+						}
 					}
-				}
 #endif
 					for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 					{
@@ -2359,7 +2360,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							}
 						}
 					}
-			}
+				}
 				else
 				{
 					if (pupdateinfo->hwnd)
@@ -2374,16 +2375,16 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 						papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 					}
 				}
-		}
+			}
 
 			papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
-	}
+		}
 
 		SetEvent (pupdateinfo->hend);
-}
+	}
 
 	return ERROR_SUCCESS;
-	}
+}
 #endif // _APP_HAVE_UPDATES
 
 bool rapp::ParseINI (LPCWSTR path, rstring::map_two* pmap, std::vector<rstring>* psections)
@@ -2499,9 +2500,6 @@ bool rapp::SkipUacEnable (bool is_enable)
 					{
 						if (SUCCEEDED (service->GetFolder (root, &folder)))
 						{
-							// remove task
-							result = SUCCEEDED (folder->DeleteTask (name, 0));
-
 							// create task
 							if (is_enable)
 							{
@@ -2560,7 +2558,7 @@ bool rapp::SkipUacEnable (bool is_enable)
 										if (SUCCEEDED (folder->RegisterTaskDefinition (
 											name,
 											task,
-											TASK_CREATE,
+											TASK_CREATE_OR_UPDATE,
 											vtEmpty,
 											vtEmpty,
 											TASK_LOGON_INTERACTIVE_TOKEN,
@@ -2582,6 +2580,9 @@ bool rapp::SkipUacEnable (bool is_enable)
 							}
 							else
 							{
+								// remove task
+								result = SUCCEEDED (folder->DeleteTask (name, 0));
+
 								ConfigSet (L"SkipUacIsEnabled", false);
 							}
 
@@ -2672,7 +2673,9 @@ bool rapp::SkipUacRun ()
 
 														do
 														{
-															TASK_STATE state;
+															_r_sleep (250);
+
+															TASK_STATE state = TASK_STATE_UNKNOWN;
 
 															running_task->Refresh ();
 															running_task->get_State (&state);
@@ -2687,12 +2690,12 @@ bool rapp::SkipUacRun ()
 																	state == TASK_STATE_RUNNING ||
 																	state == TASK_STATE_READY
 																	)
+																{
 																	result = true;
+																}
 
 																break;
 															}
-
-															_r_sleep (500);
 														}
 														while (count--);
 

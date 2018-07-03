@@ -38,6 +38,10 @@
 #define WM_COPYGLOBALDATA 0x0049
 #endif // WM_COPYGLOBALDATA
 
+#ifndef OBJ_NAME_PATH_SEPARATOR
+#define OBJ_NAME_PATH_SEPARATOR ((WCHAR)L'\\')
+#endif // OBJ_NAME_PATH_SEPARATOR
+
 /*
 	Shared icons ids
 */
