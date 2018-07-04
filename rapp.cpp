@@ -437,6 +437,7 @@ bool rapp::UpdateCheck (bool is_forced)
 			StringCchCopy (str_content, _countof (str_content), LocaleString (IDS_UPDATE_INIT, nullptr));
 #else
 			StringCchCopy (str_content, _countof (str_content), L"Checking for new releases...");
+#pragma _R_WARNING(IDS_UPDATE_INIT)
 #endif // IDS_UPDATE_STARTED
 
 			pupdateinfo->hthread = hthread;
@@ -550,6 +551,7 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 		const rstring flag_text = LocaleString (IDS_QUESTION_FLAG_CHK, nullptr);
 #else
 		const rstring flag_text = L"Do not ask again";
+#pragma _R_WARNING(IDS_QUESTION_FLAG_CHK)
 #endif // IDS_QUESTION_FLAG_CHK
 
 		TASKDIALOGCONFIG tdc = {0};
@@ -663,6 +665,7 @@ void rapp::CreateAboutWindow (HWND hwnd)
 			tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
 #else
 			tdc.pszMainIcon = TD_INFORMATION_ICON;
+#pragma _R_WARNING(IDI_MAIN)
 #endif
 			tdc.pszFooterIcon = TD_INFORMATION_ICON;
 			tdc.nDefaultButton = IDCLOSE;
@@ -686,12 +689,14 @@ void rapp::CreateAboutWindow (HWND hwnd)
 			StringCchCopy (btn_ok, _countof (btn_ok), LocaleString (IDS_DONATE, nullptr));
 #else
 			StringCchCopy (btn_ok, _countof (btn_ok), L"Give thanks!");
+#pragma _R_WARNING(IDS_DONATE)
 #endif
 
 #ifdef IDS_CLOSE
 			StringCchCopy (btn_close, _countof (btn_close), LocaleString (IDS_CLOSE, nullptr));
 #else
 			StringCchCopy (btn_close, _countof (btn_close), L"Close");
+#pragma _R_WARNING(IDS_CLOSE)
 #endif
 
 			StringCchCopy (title, _countof (title), LocaleString (IDS_ABOUT, nullptr));
@@ -930,6 +935,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 			StringCchCopy (str_content, _countof (str_content), LocaleString (IDS_UPDATE_INSTALL, nullptr));
 #else
 			StringCchCopy (str_content, _countof (str_content), L"Update available, do you want to install them?");
+#pragma _R_WARNING(IDS_UPDATE_INSTALL)
 #endif // IDS_UPDATE_INSTALL
 
 			if (_r_msg (nullptr, MB_YESNO | MB_USERICON | MB_TOPMOST, app_name, nullptr, L"%s", str_content) == IDYES)
@@ -1175,6 +1181,7 @@ bool rapp::TrayPopup (HWND hwnd, UINT uid, LPGUID guid, DWORD icon_id, LPCWSTR t
 		nid.hBalloonIcon = GetSharedIcon (GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXICON));
 #else
 		nid.hBalloonIcon = GetSharedIcon (nullptr, SIH_INFORMATION, GetSystemMetrics (SM_CXICON));
+#pragma _R_WARNING(IDI_MAIN)
 #endif
 	}
 #ifndef _APP_NO_WINXP
@@ -1288,6 +1295,8 @@ void rapp::CreateSettingsWindow (DLGPROC proc, size_t dlg_id)
 
 #ifdef IDD_SETTINGS
 		DialogBoxParam (nullptr, MAKEINTRESOURCE (IDD_SETTINGS), GetHWND (), &SettingsWndProc, (LPARAM)this);
+#else
+#pragma _R_WARNING(IDD_SETTINGS)
 #endif // IDD_SETTINGS
 	}
 
@@ -1339,7 +1348,10 @@ void rapp::SettingsInitialize ()
 	SetDlgItemText (hwnd, IDC_CLOSE, LocaleString (IDS_CLOSE, nullptr));
 #else
 	SetDlgItemText (hwnd, IDC_CLOSE, L"Close");
+#pragma _R_WARNING(IDS_CLOSE)
 #endif // IDS_CLOSE
+#else
+#pragma _R_WARNING(IDC_CLOSE)
 #endif // IDC_CLOSE
 
 #ifdef IDC_RESET
@@ -1347,7 +1359,10 @@ void rapp::SettingsInitialize ()
 	SetDlgItemText (hwnd, IDC_RESET, LocaleString (IDS_RESET, nullptr));
 #else
 	SetDlgItemText (hwnd, IDC_RESET, L"Reset");
+#pragma _R_WARNING(IDS_RESET)
 #endif // IDS_RESET
+#else
+#pragma _R_WARNING(IDC_RESET)
 #endif // IDC_RESET
 
 	// apply classic ui for buttons
@@ -1670,11 +1685,15 @@ rstring rapp::LocaleString (UINT uid, LPCWSTR append)
 
 	if (uid && result.IsEmpty ())
 	{
-		LoadString (GetHINSTANCE (), uid, result.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH);
-		result.ReleaseBuffer ();
-
-		if (result.IsEmpty ())
+		if (LoadString (GetHINSTANCE (), uid, result.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH))
+		{
+			result.ReleaseBuffer ();
+		}
+		else
+		{
+			result.ReleaseBuffer ();
 			result = key;
+		}
 	}
 
 	if (append)
@@ -1712,6 +1731,8 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 #ifdef IDI_MAIN
 			SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)this_ptr->GetSharedIcon (this_ptr->GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXSMICON)));
 			SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)this_ptr->GetSharedIcon (this_ptr->GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXICON)));
+#else
+#pragma _R_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
 
 			// configure window
@@ -1870,11 +1891,16 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 #ifdef IDC_RESET
 				case IDC_RESET:
 				{
+					WCHAR str_content[512] = {0};
+
 #ifdef IDS_QUESTION_RESET
-					if (_r_msg (hwnd, MB_YESNO | MB_ICONEXCLAMATION | MB_DEFBUTTON2, this_ptr->app_name, nullptr, L"%s", this_ptr->LocaleString (IDS_QUESTION_RESET, nullptr).GetString ()) == IDYES)
+					StringCchCopy (str_content, _countof (str_content), this_ptr->LocaleString (IDS_QUESTION_RESET, nullptr).GetString ());
 #else
-					if (_r_msg (hwnd, MB_YESNO | MB_ICONEXCLAMATION | MB_DEFBUTTON2, this_ptr->app_name, nullptr, L"Are you really sure you want to reset all application settings?") == IDYES)
+					StringCchCopy (str_content, _countof (str_content), L"Are you really sure you want to reset all application settings?");
+#pragma _R_WARNING(IDS_QUESTION_RESET)
 #endif // IDS_QUESTION_RESET
+
+					if (_r_msg (hwnd, MB_YESNO | MB_ICONEXCLAMATION | MB_DEFBUTTON2, this_ptr->app_name, nullptr, L"%s", str_content) == IDYES)
 					{
 						if (!_r_fs_move (this_ptr->GetConfigPath (), _r_fmt (L"%s.bak", this_ptr->GetConfigPath ()), MOVEFILE_REPLACE_EXISTING)) // remove settings
 							_r_fs_delete (this_ptr->GetConfigPath (), false);
@@ -1953,6 +1979,7 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 				StringCchPrintf (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_DOWNLOAD, L" %d%%"), percent);
 #else
 				StringCchPrintf (str_content, _countof (str_content), L"Downloading update... %d%%", percent);
+#pragma _R_WARNING(IDS_UPDATE_DOWNLOAD)
 #endif // IDS_UPDATE_DOWNLOAD
 
 				SendMessage (pupdateinfo->hwnd, TDM_SET_ELEMENT_TEXT, TDE_CONTENT, (LPARAM)str_content);
@@ -2013,6 +2040,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					StringCchCopy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_INSTALL, nullptr));
 #else
 					StringCchCopy (str_content, _countof (str_content), L"Update available, do you want to install them?");
+#pragma _R_WARNING(IDS_UPDATE_INSTALL)
 #endif // IDS_UPDATE_INSTALL
 				}
 				else
@@ -2021,6 +2049,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					StringCchCopy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_DONE, nullptr));
 #else
 					StringCchCopy (str_content, _countof (str_content), L"Downloading update finished.");
+#pragma _R_WARNING(IDS_UPDATE_DONE)
 #endif // IDS_UPDATE_DONE
 				}
 			}
@@ -2030,6 +2059,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 				StringCchCopy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_ERROR, nullptr));
 #else
 				StringCchCopy (str_content, _countof (str_content), L"Update server connection error");
+#pragma _R_WARNING(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
 			}
 
@@ -2113,6 +2143,7 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 				StringCchPrintf (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_DOWNLOAD, nullptr), 0);
 #else
 				StringCchCopy (str_content, _countof (str_content), L"Downloading update...");
+#pragma _R_WARNING(IDS_UPDATE_DOWNLOAD)
 #endif
 				pupdateinfo->hthread = (HANDLE)_beginthreadex (nullptr, 0, &UpdateDownloadThread, (LPVOID)pupdateinfo, CREATE_SUSPENDED, nullptr);
 
@@ -2167,6 +2198,7 @@ INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS f
 		tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
 #else
 		tdc.pszMainIcon = TD_INFORMATION_ICON;
+#pragma _R_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
 	}
 
@@ -2235,6 +2267,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 				StringCchCopy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_ERROR, nullptr).GetString ());
 #else
 				StringCchCopy (str_content, _countof (str_content), L"Update server connection error.");
+#pragma _R_WARNING(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
 
 				papp->UpdateDialogNavigate (pupdateinfo->hwnd, TD_WARNING_ICON, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
@@ -2305,6 +2338,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 					StringCchCopy (str_main, _countof (str_main), papp->LocaleString (IDS_UPDATE_YES, nullptr));
 #else
 					StringCchCopy (str_main, _countof (str_main), L"Update available, download and install them?");
+#pragma _R_WARNING(IDS_UPDATE_YES)
 #endif // IDS_UPDATE_YES
 
 #ifndef _APP_NO_WINXP
@@ -2370,6 +2404,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 						StringCchCopy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_NO, nullptr).GetString ());
 #else
 						StringCchCopy (str_content, _countof (str_content), L"No updates available.");
+#pragma _R_WARNING(IDS_UPDATE_NO)
 #endif // IDS_UPDATE_NO
 
 						papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);

@@ -456,7 +456,7 @@ rstring& rstring::Insert (size_t pos, LPCWSTR str)
 		return *this;
 
 	size_t textLength = wcslen (str);
-	if (str && textLength)
+	if (textLength)
 	{
 		Buffer* thisBuffer = toBuffer ();
 		if (thisBuffer)

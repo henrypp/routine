@@ -33,6 +33,10 @@
 //#define _APP_BETA // app has beta status
 //#define _APP_BETA_RC // app has release candidate status
 
+#define STRINGIZE_HELPER(x) #x
+#define STRINGIZE(x) STRINGIZE_HELPER(x)
+#define _R_WARNING(desc) message(__FILE__ "(" STRINGIZE(__LINE__) ") : warning: resource id is not defined " #desc)
+
 /*
 	Definitions
 */
