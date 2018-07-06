@@ -2105,7 +2105,7 @@ INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl_id, INT column_id)
 	RECT rc = {0};
 	GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
 
-	return _R_PERCENT_OF (SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMNWIDTH, column_id, 0), rc.right);
+	return _R_PERCENT_OF (SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMNWIDTH, (WPARAM)column_id, 0), rc.right);
 }
 
 INT _r_listview_addgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR title, UINT align, UINT state)
@@ -2195,7 +2195,7 @@ void _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl_id)
 
 	for (INT i = column_count; i >= 0; i--)
 	{
-		SendDlgItemMessage (hwnd, ctrl_id, LVM_DELETECOLUMN, i, 0);
+		SendDlgItemMessage (hwnd, ctrl_id, LVM_DELETECOLUMN, (WPARAM)i, 0);
 	}
 }
 
@@ -2315,7 +2315,7 @@ void _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR tex
 	}
 
 	if (lvc.mask)
-		SendDlgItemMessage (hwnd, ctrl_id, LVM_SETCOLUMN, column_id, (LPARAM)&lvc);
+		SendDlgItemMessage (hwnd, ctrl_id, LVM_SETCOLUMN, (WPARAM)column_id, (LPARAM)&lvc);
 }
 
 void _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl_id, INT column_id, INT arrow)
