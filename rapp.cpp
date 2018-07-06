@@ -1508,7 +1508,7 @@ void rapp::LocaleApplyFromControl (HWND hwnd, UINT ctrl_id)
 			PAPP_SETTINGS_PAGE ptr_page = app_settings_pages.at (settings_page_id);
 
 			if (ptr_page && ptr_page->hwnd)
-				SendMessage (ptr_page->hwnd, RM_LOCALIZE, ptr_page->dlg_id, (LPARAM)ptr_page);
+				SendMessage (ptr_page->hwnd, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, (LPARAM)ptr_page);
 		}
 	}
 
@@ -1589,7 +1589,7 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, const UINT id_start
 
 			if (is_menu)
 			{
-				AppendMenu (hmenu, MF_STRING, (idx + id_start), name);
+				AppendMenu (hmenu, MF_STRING, UINT (idx) + id_start, name);
 
 				if (locale_current[0] && _wcsicmp (locale_current, name) == 0)
 					CheckMenuRadioItem (hmenu, id_start, id_start + UINT (idx), id_start + UINT (idx), MF_BYCOMMAND);
@@ -1759,8 +1759,8 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 						{
 							EnableThemeDialogTexture (ptr_page->hwnd, ETDT_ENABLETAB);
 
-							SetWindowLongPtr (ptr_page->hwnd, GWLP_USERDATA, ptr_page->dlg_id);
-							SendMessage (ptr_page->hwnd, RM_INITIALIZE, ptr_page->dlg_id, (LPARAM)ptr_page);
+							SetWindowLongPtr (ptr_page->hwnd, GWLP_USERDATA, (LONG_PTR)ptr_page->dlg_id);
+							SendMessage (ptr_page->hwnd, RM_INITIALIZE, (WPARAM)ptr_page->dlg_id, (LPARAM)ptr_page);
 						}
 					}
 
@@ -1864,7 +1864,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 							if (ptr_page_new->hwnd)
 							{
-								SendMessage (ptr_page_new->hwnd, RM_LOCALIZE, ptr_page_new->dlg_id, (LPARAM)ptr_page_new);
+								SendMessage (ptr_page_new->hwnd, RM_LOCALIZE, (WPARAM)ptr_page_new->dlg_id, (LPARAM)ptr_page_new);
 								ShowWindow (ptr_page_new->hwnd, SW_SHOW);
 							}
 						}
@@ -1935,10 +1935,10 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 							if (ptr_page && ptr_page->hwnd)
 							{
-								SendMessage (ptr_page->hwnd, RM_INITIALIZE, ptr_page->dlg_id, (LPARAM)ptr_page);
+								SendMessage (ptr_page->hwnd, RM_INITIALIZE, (WPARAM)ptr_page->dlg_id, (LPARAM)ptr_page);
 
 								if (this_ptr->settings_page_id == i)
-									SendMessage (ptr_page->hwnd, RM_LOCALIZE, ptr_page->dlg_id, (LPARAM)ptr_page);
+									SendMessage (ptr_page->hwnd, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, (LPARAM)ptr_page);
 							}
 						}
 					}
@@ -1983,7 +1983,7 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 #endif // IDS_UPDATE_DOWNLOAD
 
 				SendMessage (pupdateinfo->hwnd, TDM_SET_ELEMENT_TEXT, TDE_CONTENT, (LPARAM)str_content);
-				SendMessage (pupdateinfo->hwnd, TDM_SET_PROGRESS_BAR_POS, percent, 0);
+				SendMessage (pupdateinfo->hwnd, TDM_SET_PROGRESS_BAR_POS, (WPARAM)percent, 0);
 			}
 #ifndef _APP_NO_WINXP
 		}
