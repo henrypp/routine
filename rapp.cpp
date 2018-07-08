@@ -227,7 +227,7 @@ bool rapp::AutorunEnable (bool is_enable)
 					)
 				{
 					DWORD sid_length = SECURITY_MAX_SID_SIZE;
-					PSID psid = new BYTE[sid_length];
+					PBYTE psid = new BYTE[sid_length];
 
 					if (psid)
 					{
