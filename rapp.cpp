@@ -621,7 +621,6 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 					is_flagchecked = (RegQueryValueEx (hkey, cfg_string, 0, nullptr, nullptr, nullptr) == ERROR_SUCCESS);
 
 				RegDeleteValue (hkey, cfg_string);
-
 				RegCloseKey (hkey);
 			}
 		}

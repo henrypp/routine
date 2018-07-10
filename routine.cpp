@@ -124,23 +124,16 @@ rstring _r_fmt_size64 (LONGLONG bytes)
 	WCHAR buffer[128] = {0};
 	bool is_success = false;
 
-#ifdef _APP_NO_WINXP
-	is_success = (StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, _countof (buffer)) == S_OK); // vista (sp1)+
-#else
-	if (_r_sys_validversion (6, 0))
+	const HMODULE hlib = GetModuleHandle (L"shlwapi.dll");
+
+	if (hlib)
 	{
-		const HMODULE hlib = GetModuleHandle (L"shlwapi.dll");
+		typedef HRESULT (WINAPI *SFBSE) (ULONGLONG, SFBS_FLAGS, PWSTR, UINT); // StrFormatByteSizeEx
+		const SFBSE _StrFormatByteSizeEx = (SFBSE)GetProcAddress (hlib, "StrFormatByteSizeEx");
 
-		if (hlib)
-		{
-			typedef HRESULT (WINAPI *SFBSE) (ULONGLONG, SFBS_FLAGS, PWSTR, UINT); // StrFormatByteSizeEx
-			const SFBSE _StrFormatByteSizeEx = (SFBSE)GetProcAddress (hlib, "StrFormatByteSizeEx");
-
-			if (_StrFormatByteSizeEx)
-				is_success = (_StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, _countof (buffer)) == S_OK); // vista (sp1)+
-		}
+		if (_StrFormatByteSizeEx)
+			is_success = (_StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, _countof (buffer)) == S_OK); // vista (sp1)+
 	}
-#endif // _APP_NO_WINXP
 
 	if (!is_success)
 		StrFormatByteSize64 (bytes, buffer, _countof (buffer)); // fallback
