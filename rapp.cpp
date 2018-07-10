@@ -19,7 +19,6 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	// win7+
 	if (_r_sys_validversion (6, 1))
 	{
-
 		const HINSTANCE hlib = GetModuleHandle (L"kernel32.dll");
 
 		if (hlib)
@@ -159,9 +158,9 @@ bool rapp::CheckMutex (bool activate_window)
 
 BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 {
-	rapp const* ptr = (rapp*)lparam;
+	rapp const* this_ptr = (rapp*)lparam;
 
-	if (!ptr)
+	if (!this_ptr)
 		return FALSE;
 
 	DWORD pid = 0;
@@ -173,13 +172,13 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 	WCHAR title[128] = {0};
 	GetWindowText (hwnd, title, _countof (title));
 
-	if (_wcsnicmp (title, ptr->app_name, wcslen (ptr->app_name)) != 0)
+	if (_wcsnicmp (title, this_ptr->app_name, wcslen (this_ptr->app_name)) != 0)
 		return TRUE;
 
 	DWORD access_rights = PROCESS_QUERY_LIMITED_INFORMATION; // vista+
 
 #ifndef _APP_NO_WINXP
-	if (!ptr->IsVistaOrLater ())
+	if (!this_ptr->IsVistaOrLater ())
 		access_rights = PROCESS_QUERY_INFORMATION; // winxp
 #endif // _APP_NO_WINXP
 
@@ -191,7 +190,7 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 
 		if (_r_process_getpath (hproc, fname, _countof (fname)))
 		{
-			if (_wcsnicmp (_r_path_extractfile (fname), ptr->app_name_short, wcslen (ptr->app_name_short)) == 0)
+			if (_wcsnicmp (_r_path_extractfile (fname), this_ptr->app_name_short, wcslen (this_ptr->app_name_short)) == 0)
 			{
 				_r_wnd_toggle (hwnd, true);
 

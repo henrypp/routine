@@ -994,19 +994,19 @@ bool _r_process_getpath (HANDLE hproc, LPWSTR path, DWORD length)
 				if (_QueryFullProcessImageName (hproc, 0, path, &length)) // vista+
 					result = true;
 			}
-		}
 #ifndef _APP_NO_WINXP
-		else
-		{
-			WCHAR buffer[_R_BYTESIZE_KB] = {0};
-
-			if (GetProcessImageFileName (hproc, buffer, _countof (buffer))) // winxp fallback
+			else
 			{
-				StringCchCopy (path, length, _r_path_dospathfromnt (buffer));
-				result = true;
+				WCHAR buffer[_R_BYTESIZE_KB] = {0};
+
+				if (GetProcessImageFileName (hproc, buffer, _countof (buffer))) // winxp fallback
+				{
+					StringCchCopy (path, length, _r_path_dospathfromnt (buffer));
+					result = true;
+				}
 			}
-		}
 #endif //_APP_NO_WINXP
+		}
 	}
 
 	return result;
