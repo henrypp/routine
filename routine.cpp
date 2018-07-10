@@ -994,7 +994,7 @@ bool _r_process_getpath (HANDLE hproc, LPWSTR path, DWORD length)
 
 				if (GetProcessImageFileName (hproc, buffer, _countof (buffer))) // winxp fallback
 				{
-					StringCchCopy (path, length, _r_path_dospathfromnt (buffer));
+					StringCchCopy (path, (size_t)length, _r_path_dospathfromnt (buffer));
 					result = true;
 				}
 			}
@@ -1072,7 +1072,7 @@ size_t _r_str_hash (LPCWSTR text)
 	if (!text)
 		return 0;
 
-#define InitialFNV 2166136261U
+#define InitialFNV 2166136261ULL
 #define FNVMultiple 16777619
 
 	size_t hash = InitialFNV;
@@ -1174,8 +1174,8 @@ bool _r_sys_adminstate ()
 		if (!sd || !InitializeSecurityDescriptor (sd, SECURITY_DESCRIPTOR_REVISION))
 			__leave;
 
-		DWORD acl_size = sizeof (ACL) + sizeof (ACCESS_ALLOWED_ACE) + GetLengthSid (sid) - sizeof (DWORD);
-		acl = (PACL)LocalAlloc (LPTR, acl_size);
+		DWORD acl_size = sizeof (ACL) + sizeof (ACCESS_ALLOWED_ACE) + (size_t)GetLengthSid (sid) - sizeof (DWORD);
+		acl = (PACL)LocalAlloc (LPTR, (SIZE_T)acl_size);
 
 		if (!acl || !InitializeAcl (acl, acl_size, ACL_REVISION2) || !AddAccessAllowedAce (acl, ACL_REVISION2, ACCESS_READ | ACCESS_WRITE, sid) || !SetSecurityDescriptorDacl (sd, TRUE, acl, FALSE))
 			__leave;
@@ -1385,10 +1385,10 @@ void _r_unixtime_to_filetime (time_t ut, const LPFILETIME pft)
 {
 	if (ut && pft)
 	{
-		const time_t ll = ut * 10000000ULL + 116444736000000000; // 64-bit value
+		const time_t ll = ut * 10000000LL + 116444736000000000; // 64-bit value
 
 		pft->dwLowDateTime = DWORD (ll);
-		pft->dwHighDateTime = DWORD (ll >> 32);
+		pft->dwHighDateTime = DWORD (ll >> 32LL);
 	}
 }
 

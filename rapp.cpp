@@ -650,9 +650,9 @@ void rapp::CreateAboutWindow (HWND hwnd)
 	if (GetLastError () != ERROR_ALREADY_EXISTS)
 	{
 #ifdef _WIN64
-		static const unsigned architecture = 64;
+#define architecture 64
 #else
-		static const unsigned architecture = 32;
+#define architecture 32
 #endif // _WIN64
 
 #ifndef _APP_NO_WINXP
@@ -732,7 +732,7 @@ void rapp::CreateAboutWindow (HWND hwnd)
 			_r_msg (hwnd, MB_OK | MB_USERICON | MB_TOPMOST, LocaleString (IDS_ABOUT, nullptr), app_name, L"Version %s, %u-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
 		}
 #endif // _APP_NO_WINXP
-}
+	}
 
 	if (habout)
 		CloseHandle (habout);
@@ -756,7 +756,7 @@ bool rapp::IsVistaOrLater () const
 
 LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
-	static rapp* this_ptr = (rapp*)GetWindowLongPtr (hwnd, GWLP_USERDATA);
+	static rapp* this_ptr = (rapp*)GetProp (hwnd, L"this_ptr");
 
 #ifdef _APP_HAVE_TRAY
 	if (msg == WM_TASKBARCREATED)
@@ -966,7 +966,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 
 #ifdef _APP_HAVE_UPDATES
 		UpdateAddComponent (app_name, app_name_short, app_version, GetDirectory (), true);
-		UpdateAddComponent (L"Language pack", L"language", _r_fmt (L"%d", LocaleGetVersion ()), GetLocalePath (), false);
+		UpdateAddComponent (L"Language pack", L"language", _r_fmt (L"%I64u", LocaleGetVersion ()), GetLocalePath (), false);
 #endif _APP_HAVE_UPDATES
 
 		app_hwnd = CreateDialog (nullptr, MAKEINTRESOURCE (dlg_id), nullptr, proc);
@@ -983,7 +983,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 			_r_wnd_changemessagefilter (GetHWND (), WM_COPYGLOBALDATA, MSGFLT_ALLOW);
 
 			// subclass window
-			SetWindowLongPtr (GetHWND (), GWLP_USERDATA, (LONG_PTR)this);
+			SetProp (GetHWND (), L"this_ptr", this);
 			app_wndproc = (WNDPROC)SetWindowLongPtr (GetHWND (), DWLP_DLGPROC, (LONG_PTR)&MainWindowProc);
 
 			// update autorun settings
@@ -1106,8 +1106,8 @@ bool rapp::TrayCreate (HWND hwnd, UINT uid, LPGUID guid, UINT code, HICON hicon,
 	nid.cbSize = sizeof (nid);
 	nid.uVersion = NOTIFYICON_VERSION_4;
 #else
-	nid.cbSize = IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
-	nid.uVersion = IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION;
+	nid.cbSize = (IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
+	nid.uVersion = (IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
 #endif // _APP_NO_WINXP
 
 	nid.hWnd = hwnd;
@@ -1147,8 +1147,8 @@ bool rapp::TrayDestroy (HWND hwnd, UINT uid, LPGUID guid)
 	nid.cbSize = sizeof (nid);
 	nid.uVersion = NOTIFYICON_VERSION_4;
 #else
-	nid.cbSize = IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
-	nid.uVersion = IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION;
+	nid.cbSize = (IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
+	nid.uVersion = (IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
 #endif // _APP_NO_WINXP
 
 	nid.hWnd = hwnd;
@@ -1176,8 +1176,8 @@ bool rapp::TrayPopup (HWND hwnd, UINT uid, LPGUID guid, DWORD icon_id, LPCWSTR t
 	nid.cbSize = sizeof (nid);
 	nid.uVersion = NOTIFYICON_VERSION_4;
 #else
-	nid.cbSize = IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
-	nid.uVersion = IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION;
+	nid.cbSize = (IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
+	nid.uVersion = (IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
 #endif // _APP_NO_WINXP
 
 	nid.uFlags = NIF_INFO | NIF_REALTIME;
@@ -1233,8 +1233,8 @@ bool rapp::TraySetInfo (HWND hwnd, UINT uid, LPGUID guid, HICON hicon, LPCWSTR t
 	nid.cbSize = sizeof (nid);
 	nid.uVersion = NOTIFYICON_VERSION_4;
 #else
-	nid.cbSize = IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
-	nid.uVersion = IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION;
+	nid.cbSize = (IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
+	nid.uVersion = (IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
 #endif // _APP_NO_WINXP
 
 	nid.hWnd = hwnd;
@@ -1272,8 +1272,8 @@ bool rapp::TrayToggle (HWND hwnd, UINT uid, LPGUID guid, bool is_show)
 	nid.cbSize = sizeof (nid);
 	nid.uVersion = NOTIFYICON_VERSION_4;
 #else
-	nid.cbSize = IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE;
-	nid.uVersion = IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION;
+	nid.cbSize = (IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
+	nid.uVersion = (IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
 #endif // _APP_NO_WINXP
 
 	nid.uFlags = NIF_STATE;
@@ -2066,7 +2066,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					StringCchCopy (str_content, _countof (str_content), L"Update available, do you want to install them?");
 #pragma _R_WARNING(IDS_UPDATE_INSTALL)
 #endif // IDS_UPDATE_INSTALL
-			}
+				}
 				else
 				{
 #ifdef IDS_UPDATE_DONE
@@ -2075,8 +2075,8 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					StringCchCopy (str_content, _countof (str_content), L"Downloading update finished.");
 #pragma _R_WARNING(IDS_UPDATE_DONE)
 #endif // IDS_UPDATE_DONE
-		}
-	}
+				}
+			}
 			else
 			{
 #ifdef IDS_UPDATE_ERROR
@@ -2085,7 +2085,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 				StringCchCopy (str_content, _countof (str_content), L"Update server connection error");
 #pragma _R_WARNING(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
-}
+			}
 
 #ifndef _APP_NO_WINXP
 			if (papp->IsVistaOrLater ())
@@ -2841,7 +2841,7 @@ bool rapp::RunAsAdmin ()
 				CoUninitialize ();
 			}
 		}
-}
+	}
 
 	return result;
 }
