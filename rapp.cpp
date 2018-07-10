@@ -756,7 +756,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 	{
 		case WM_THEMECHANGED:
 		{
-			this_ptr->is_classic = !IsThemeActive () || this_ptr->ConfigGet (L"ClassicUI", false).AsBool ();
+			this_ptr->is_classic = !IsThemeActive () || this_ptr->ConfigGet (L"ClassicUI", _APP_CLASSICUI).AsBool ();
 
 			SendMessage (hwnd, RM_LOCALIZE, 0, 0);
 
@@ -915,11 +915,11 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 
 	InitializeMutex ();
 
-	if (ConfigGet (L"ClassicUI", false).AsBool () || !IsThemeActive ())
+	if (ConfigGet (L"ClassicUI", _APP_CLASSICUI).AsBool () || !IsThemeActive ())
 	{
 		is_classic = true;
 
-		if (IsThemeActive () && ConfigGet (L"ClassicUI", false).AsBool ())
+		if (IsThemeActive () && ConfigGet (L"ClassicUI", _APP_CLASSICUI).AsBool ())
 			SetThemeAppProperties (1);
 	}
 
@@ -1673,26 +1673,34 @@ rstring rapp::LocaleString (UINT uid, LPCWSTR append)
 {
 	rstring result;
 
-	rstring key;
-	key.Format (L"%03d", uid);
-
-	if (locale_current[0])
+	if (uid)
 	{
-		// check key is exists
-		if (app_locale_array.find (locale_current) != app_locale_array.end () && app_locale_array[locale_current].find (key) != app_locale_array[locale_current].end ())
-			result = app_locale_array[locale_current][key];
-	}
+		rstring key;
+		key.Format (L"%03d", uid);
 
-	if (uid && result.IsEmpty ())
-	{
-		if (LoadString (GetHINSTANCE (), uid, result.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH))
+		if (locale_current[0])
 		{
-			result.ReleaseBuffer ();
+			// check key is exists
+			if (
+				app_locale_array.find (locale_current) != app_locale_array.end () &&
+				app_locale_array[locale_current].find (key) != app_locale_array[locale_current].end ()
+				)
+			{
+				result = app_locale_array[locale_current][key];
+			}
 		}
-		else
+
+		if (result.IsEmpty ())
 		{
-			result.ReleaseBuffer ();
-			result = key;
+			if (LoadString (GetHINSTANCE (), uid, result.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH))
+			{
+				result.ReleaseBuffer ();
+			}
+			else
+			{
+				result.ReleaseBuffer ();
+				result = key;
+			}
 		}
 	}
 
