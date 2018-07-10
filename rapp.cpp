@@ -9,12 +9,30 @@ CONST UINT WM_TASKBARCREATED = RegisterWindowMessage (L"TaskbarCreated");
 
 rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright)
 {
-	SetDllDirectory (L"");
-	SetSearchPathMode (BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
-
 	// store system information
 	is_vistaorlater = _r_sys_validversion (6, 0);
 	is_admin = _r_sys_adminstate ();
+
+	// safe dll loading
+	SetDllDirectory (L"");
+
+	// win7+
+	if (_r_sys_validversion (6, 1))
+	{
+
+		const HINSTANCE hlib = GetModuleHandle (L"kernel32.dll");
+
+		if (hlib)
+		{
+			typedef BOOL (WINAPI *SSPM) (DWORD); // SetSearchPathMode
+
+			const SSPM _SetSearchPathMode = (SSPM)GetProcAddress (hlib, "SetSearchPathMode");
+
+			if (_SetSearchPathMode)
+				_SetSearchPathMode (BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
+
+		}
+	}
 
 	// get hinstance
 	app_hinstance = GetModuleHandle (nullptr);
@@ -716,7 +734,7 @@ void rapp::CreateAboutWindow (HWND hwnd)
 			_r_msg (hwnd, MB_OK | MB_USERICON | MB_TOPMOST, LocaleString (IDS_ABOUT, nullptr), app_name, L"Version %s, %u-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
 		}
 #endif // _APP_NO_WINXP
-	}
+}
 
 	if (habout)
 		CloseHandle (habout);
@@ -2050,7 +2068,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					StringCchCopy (str_content, _countof (str_content), L"Update available, do you want to install them?");
 #pragma _R_WARNING(IDS_UPDATE_INSTALL)
 #endif // IDS_UPDATE_INSTALL
-				}
+			}
 				else
 				{
 #ifdef IDS_UPDATE_DONE
@@ -2059,8 +2077,8 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					StringCchCopy (str_content, _countof (str_content), L"Downloading update finished.");
 #pragma _R_WARNING(IDS_UPDATE_DONE)
 #endif // IDS_UPDATE_DONE
-				}
-			}
+		}
+	}
 			else
 			{
 #ifdef IDS_UPDATE_ERROR
@@ -2069,7 +2087,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 				StringCchCopy (str_content, _countof (str_content), L"Update server connection error");
 #pragma _R_WARNING(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
-			}
+}
 
 #ifndef _APP_NO_WINXP
 			if (papp->IsVistaOrLater ())
@@ -2825,7 +2843,7 @@ bool rapp::RunAsAdmin ()
 				CoUninitialize ();
 			}
 		}
-	}
+}
 
 	return result;
 }
