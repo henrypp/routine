@@ -496,9 +496,22 @@ void rapp::ConfigInit ()
 
 rstring rapp::ConfigGet (LPCWSTR key, INT def, LPCWSTR name)
 {
-	const rstring val = ConfigGet (key, _r_fmt (L"%d", def), name);
+	return ConfigGet (key, _r_fmt (L"%" PRId32, def), name);
+}
 
-	return val;
+rstring rapp::ConfigGet (LPCWSTR key, UINT def, LPCWSTR name)
+{
+	return ConfigGet (key, _r_fmt (L"%" PRIu32, def), name);
+}
+
+rstring rapp::ConfigGet (LPCWSTR key, DWORD def, LPCWSTR name)
+{
+	return ConfigGet (key, _r_fmt (L"%lu", def), name);
+}
+
+rstring rapp::ConfigGet (LPCWSTR key, LONGLONG def, LPCWSTR name)
+{
+	return ConfigGet (key, _r_fmt (L"%" PRId64, def), name);
 }
 
 rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
@@ -518,6 +531,21 @@ rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 	return result;
 }
 
+bool rapp::ConfigSet (LPCWSTR key, DWORD val, LPCWSTR name)
+{
+	return ConfigSet (key, _r_fmt (L"%lu", val), name);
+}
+
+bool rapp::ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name)
+{
+	return ConfigSet (key, _r_fmt (L"%" PRId64, val), name);
+}
+
+bool rapp::ConfigSet (LPCWSTR key, bool val, LPCWSTR name)
+{
+	return ConfigSet (key, val ? L"true" : L"false", name);
+}
+
 bool rapp::ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name)
 {
 	if (!_r_fs_exists (app_profile_directory))
@@ -533,21 +561,6 @@ bool rapp::ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name)
 		return true;
 
 	return false;
-}
-
-bool rapp::ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name)
-{
-	return ConfigSet (key, _r_fmt (L"%lld", val), name);
-}
-
-bool rapp::ConfigSet (LPCWSTR key, DWORD val, LPCWSTR name)
-{
-	return ConfigSet (key, _r_fmt (L"%d", val), name);
-}
-
-bool rapp::ConfigSet (LPCWSTR key, bool val, LPCWSTR name)
-{
-	return ConfigSet (key, val ? L"true" : L"false", name);
 }
 
 bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config_cfg)
