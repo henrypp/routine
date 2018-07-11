@@ -433,7 +433,7 @@ void rapp::UpdateAddComponent (LPCWSTR full_name, LPCWSTR short_name, LPCWSTR ve
 
 bool rapp::UpdateCheck (bool is_forced)
 {
-	if (!is_forced && (!ConfigGet (L"CheckUpdates", true).AsBool () || (_r_unixtime_now () - ConfigGet (L"CheckUpdatesLast", 0).AsUlonglong ()) <= _APP_UPDATE_PERIOD))
+	if (!is_forced && (!ConfigGet (L"CheckUpdates", true).AsBool () || (_r_unixtime_now () - ConfigGet (L"CheckUpdatesLast", 0).AsLonglong ()) <= _APP_UPDATE_PERIOD))
 		return false;
 
 	const HANDLE hthread = (HANDLE)_beginthreadex (nullptr, 0, &UpdateCheckThread, (LPVOID)pupdateinfo, CREATE_SUSPENDED, nullptr);
@@ -534,6 +534,11 @@ rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 bool rapp::ConfigSet (LPCWSTR key, DWORD val, LPCWSTR name)
 {
 	return ConfigSet (key, _r_fmt (L"%lu", val), name);
+}
+
+bool rapp::ConfigSet (LPCWSTR key, LONG val, LPCWSTR name)
+{
+	return ConfigSet (key, _r_fmt (L"%" PRId32, val), name);
 }
 
 bool rapp::ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name)
@@ -836,13 +841,13 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			RECT rc = {0};
 			GetWindowRect (hwnd, &rc);
 
-			this_ptr->ConfigSet (L"WindowPosX", (DWORD)rc.left);
-			this_ptr->ConfigSet (L"WindowPosY", (DWORD)rc.top);
+			this_ptr->ConfigSet (L"WindowPosX", rc.left);
+			this_ptr->ConfigSet (L"WindowPosY", rc.top);
 
 			if ((GetWindowLongPtr (hwnd, GWL_STYLE) & WS_SIZEBOX) != 0)
 			{
-				this_ptr->ConfigSet (L"WindowPosWidth", (DWORD)_R_RECT_WIDTH (&rc));
-				this_ptr->ConfigSet (L"WindowPosHeight", (DWORD)_R_RECT_HEIGHT (&rc));
+				this_ptr->ConfigSet (L"WindowPosWidth", _R_RECT_WIDTH (&rc));
+				this_ptr->ConfigSet (L"WindowPosHeight", _R_RECT_HEIGHT (&rc));
 			}
 
 			break;
@@ -979,7 +984,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 
 #ifdef _APP_HAVE_UPDATES
 		UpdateAddComponent (app_name, app_name_short, app_version, GetDirectory (), true);
-		UpdateAddComponent (L"Language pack", L"language", _r_fmt (L"%I64u", LocaleGetVersion ()), GetLocalePath (), false);
+		UpdateAddComponent (L"Language pack", L"language", _r_fmt (L"%" PRId64, LocaleGetVersion ()), GetLocalePath (), false);
 #endif _APP_HAVE_UPDATES
 
 		app_hwnd = CreateDialog (nullptr, MAKEINTRESOURCE (dlg_id), nullptr, proc);
@@ -1037,13 +1042,13 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 				// restore window position
 				RECT rect_new = {0};
 
-				rect_new.left = ConfigGet (L"WindowPosX", rect_original.left).AsInt ();
-				rect_new.top = ConfigGet (L"WindowPosY", rect_original.top).AsInt ();
+				rect_new.left = ConfigGet (L"WindowPosX", rect_original.left).AsLong ();
+				rect_new.top = ConfigGet (L"WindowPosY", rect_original.top).AsLong ();
 
 				if ((GetWindowLongPtr (GetHWND (), GWL_STYLE) & WS_SIZEBOX) != 0)
 				{
-					rect_new.right = max (ConfigGet (L"WindowPosWidth", 0).AsInt (), max_width) + rect_new.left;
-					rect_new.bottom = max (ConfigGet (L"WindowPosHeight", 0).AsInt (), max_height) + rect_new.top;
+					rect_new.right = max (ConfigGet (L"WindowPosWidth", 0).AsLong (), max_width) + rect_new.left;
+					rect_new.bottom = max (ConfigGet (L"WindowPosHeight", 0).AsLong (), max_height) + rect_new.top;
 				}
 				else
 				{
@@ -1676,7 +1681,7 @@ void rapp::LocaleInit ()
 		{
 			if (app_locale_array[p.first].find (L"000") != app_locale_array[p.first].end ())
 			{
-				const time_t timestamp = app_locale_array[p.first][L"000"].AsUlonglong ();
+				const time_t timestamp = app_locale_array[p.first][L"000"].AsLonglong ();
 
 				if (app_locale_timetamp < timestamp)
 					app_locale_timetamp = timestamp;
@@ -2267,7 +2272,7 @@ INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS f
 rstring format_version (rstring vers)
 {
 	if (vers.IsNumeric ())
-		return _r_fmt_date (vers.AsUlonglong (), FDTF_SHORTDATE | FDTF_SHORTTIME);
+		return _r_fmt_date (vers.AsLonglong (), FDTF_SHORTDATE | FDTF_SHORTTIME);
 
 	return vers;
 }
@@ -2335,8 +2340,8 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							const rstring new_version = vc.at (0);
 							const rstring new_url = vc.at (1);
 
-							//if (!new_version.IsEmpty () && !new_url.IsEmpty () && (new_version.IsNumeric () ? (new_version.AsUlonglong () != pcomponent->version.AsUlonglong ()) : (_r_str_versioncompare (pcomponent->version, new_version) == -1)))
-							if (!new_version.IsEmpty () && !new_url.IsEmpty () && (new_version.IsNumeric () ? (new_version.AsUlonglong () > pcomponent->version.AsUlonglong ()) : (_r_str_versioncompare (pcomponent->version, new_version) == -1)))
+							//if (!new_version.IsEmpty () && !new_url.IsEmpty () && (new_version.IsNumeric () ? (new_version.AsLonglong () != pcomponent->version.AsLonglong ()) : (_r_str_versioncompare (pcomponent->version, new_version) == -1)))
+							if (!new_version.IsEmpty () && !new_url.IsEmpty () && (new_version.IsNumeric () ? (new_version.AsLonglong () > pcomponent->version.AsLonglong ()) : (_r_str_versioncompare (pcomponent->version, new_version) == -1)))
 							{
 								is_updateavailable = true;
 

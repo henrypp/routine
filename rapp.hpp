@@ -170,6 +170,7 @@ public:
 	rstring ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name = nullptr);
 
 	bool ConfigSet (LPCWSTR key, DWORD val, LPCWSTR name = nullptr);
+	bool ConfigSet (LPCWSTR key, LONG val, LPCWSTR name = nullptr);
 	bool ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name = nullptr);
 	bool ConfigSet (LPCWSTR key, bool val, LPCWSTR name = nullptr);
 	bool ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name = nullptr);
@@ -270,8 +271,8 @@ private:
 	bool is_admin = false;
 	bool is_needmaximize = false;
 
-	INT max_width = 0;
-	INT max_height = 0;
+	LONG max_width = 0;
+	LONG max_height = 0;
 
 	WNDPROC app_wndproc = nullptr;
 	HWND app_hwnd = nullptr;

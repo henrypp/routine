@@ -1385,10 +1385,10 @@ void _r_unixtime_to_filetime (time_t ut, const LPFILETIME pft)
 {
 	if (ut && pft)
 	{
-		const time_t ll = ut * 10000000LL + 116444736000000000; // 64-bit value
+		const LONGLONG ll = Int32x32To64 (ut, 10000000) + 116444736000000000; // 64-bit value
 
 		pft->dwLowDateTime = DWORD (ll);
-		pft->dwHighDateTime = DWORD (ll >> 32LL);
+		pft->dwHighDateTime = ll >> 32;
 	}
 }
 
