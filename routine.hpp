@@ -233,10 +233,11 @@ DWORD _r_path_ntpathfromdos (rstring& path);
 	Processes
 */
 
-bool _r_process_getpath (HANDLE hproc, LPWSTR path, DWORD length);
-
-[[deprecated ("May cause troubles on WOW64!")]]
-BOOL _r_process_is_exists (LPCWSTR path, const size_t len);
+//[[deprecated ("May cause troubles on WOW64!")]]
+//bool _r_process_getpath (HANDLE hproc, LPWSTR path, DWORD length);
+//
+//[[deprecated ("May cause troubles on WOW64!")]]
+//BOOL _r_process_is_exists (LPCWSTR path, const size_t len);
 
 /*
 	Strings

@@ -968,7 +968,7 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 /*
 	Processes
 */
-
+/*
 bool _r_process_getpath (HANDLE hproc, LPWSTR path, DWORD length)
 {
 	bool result = false;
@@ -1046,7 +1046,7 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 
 	return result;
 }
-
+*/
 /*
 	Strings
 */
@@ -1383,7 +1383,7 @@ time_t _r_unixtime_now ()
 
 void _r_unixtime_to_filetime (time_t ut, const LPFILETIME pft)
 {
-	if (ut && pft)
+	if (pft)
 	{
 		const LONGLONG ll = Int32x32To64 (ut, 10000000) + 116444736000000000; // 64-bit value
 

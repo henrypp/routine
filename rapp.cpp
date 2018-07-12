@@ -169,38 +169,38 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 	if (GetCurrentProcessId () == pid)
 		return TRUE;
 
-	WCHAR title[128] = {0};
-	GetWindowText (hwnd, title, _countof (title));
+	WCHAR buffer[MAX_PATH] = {0};
 
-	if (_wcsnicmp (title, this_ptr->app_name, wcslen (this_ptr->app_name)) != 0)
-		return TRUE;
-
-	DWORD access_rights = PROCESS_QUERY_LIMITED_INFORMATION; // vista+
-
-#ifndef _APP_NO_WINXP
-	if (!this_ptr->IsVistaOrLater ())
-		access_rights = PROCESS_QUERY_INFORMATION; // winxp
-#endif // _APP_NO_WINXP
-
-	const HANDLE hproc = OpenProcess (access_rights, FALSE, pid);
-
-	if (hproc)
+	// check window title
 	{
-		WCHAR fname[MAX_PATH] = {0};
-
-		if (_r_process_getpath (hproc, fname, _countof (fname)))
+		if (GetWindowText (hwnd, buffer, _countof (buffer)))
 		{
-			if (_wcsnicmp (_r_path_extractfile (fname), this_ptr->app_name_short, wcslen (this_ptr->app_name_short)) == 0)
+			if (_wcsnicmp (this_ptr->app_name, buffer, wcslen (this_ptr->app_name)) != 0)
+				return TRUE;
+		}
+		else
+		{
+			return TRUE;
+		}
+	}
+
+	// check window props
+	if (GetProp (hwnd, L"this_ptr"))
+	{
+		_r_wnd_toggle (hwnd, true);
+		return FALSE;
+	}
+
+	// check window filename
+	{
+		if (GetWindowModuleFileName (hwnd, buffer, _countof (buffer)))
+		{
+			if (_wcsnicmp (this_ptr->app_name_short, _r_path_extractfile (buffer), wcslen (this_ptr->app_name_short)) == 0)
 			{
 				_r_wnd_toggle (hwnd, true);
-
-				CloseHandle (hproc);
-
 				return FALSE;
 			}
 		}
-
-		CloseHandle (hproc);
 	}
 
 	return TRUE;
@@ -663,7 +663,7 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 #ifndef _APP_NO_ABOUT
 void rapp::CreateAboutWindow (HWND hwnd)
 {
-	const HANDLE habout = CreateMutex (nullptr, FALSE, TEXT (__FUNCTION__));
+	const HANDLE habout = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%s", app_name_short, TEXT (__FUNCTION__)));
 
 	if (GetLastError () != ERROR_ALREADY_EXISTS)
 	{
@@ -1317,7 +1317,7 @@ bool rapp::TrayToggle (HWND hwnd, UINT uid, LPGUID guid, bool is_show)
 #ifdef _APP_HAVE_SETTINGS
 void rapp::CreateSettingsWindow (DLGPROC proc, size_t dlg_id)
 {
-	const HANDLE hsettings = CreateMutex (nullptr, FALSE, TEXT (__FUNCTION__));
+	const HANDLE hsettings = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%s", app_name_short, TEXT (__FUNCTION__)));
 
 	if (GetLastError () != ERROR_ALREADY_EXISTS)
 	{
