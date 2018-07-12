@@ -980,8 +980,6 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 		}
 #endif //_APP_HAVE_UPDATES
 
-		//simplewall_update.exe
-
 #ifdef _APP_HAVE_UPDATES
 		UpdateAddComponent (app_name, app_name_short, app_version, GetDirectory (), true);
 		UpdateAddComponent (L"Language pack", L"language", _r_fmt (L"%" PRId64, LocaleGetVersion ()), GetLocalePath (), false);
@@ -996,9 +994,13 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 			_r_wnd_changemessagefilter (GetHWND (), WM_TASKBARCREATED, MSGFLT_ALLOW);
 #endif // _APP_HAVE_TRAY
 
-			_r_wnd_changemessagefilter (GetHWND (), WM_DROPFILES, MSGFLT_ALLOW);
-			_r_wnd_changemessagefilter (GetHWND (), WM_COPYDATA, MSGFLT_ALLOW);
-			_r_wnd_changemessagefilter (GetHWND (), WM_COPYGLOBALDATA, MSGFLT_ALLOW);
+			// uipi fix (vista+)
+			if (IsVistaOrLater ())
+			{
+				_r_wnd_changemessagefilter (GetHWND (), WM_DROPFILES, MSGFLT_ALLOW);
+				_r_wnd_changemessagefilter (GetHWND (), WM_COPYDATA, MSGFLT_ALLOW);
+				_r_wnd_changemessagefilter (GetHWND (), WM_COPYGLOBALDATA, MSGFLT_ALLOW);
+			}
 
 			// subclass window
 			SetProp (GetHWND (), L"this_ptr", this);
