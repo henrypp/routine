@@ -1448,11 +1448,11 @@ COLORREF _r_dc_getcolorbrightness (COLORREF clr)
 	return RGB (0xff, 0xff, 0xff);
 }
 
-void _r_dc_fillrect (HDC dc, LPRECT rc, COLORREF clr)
+void _r_dc_fillrect (HDC hdc, LPRECT lprc, COLORREF clr)
 {
-	COLORREF clr_prev = SetBkColor (dc, clr);
-	ExtTextOut (dc, 0, 0, ETO_OPAQUE, rc, nullptr, 0, nullptr);
-	SetBkColor (dc, clr_prev);
+	COLORREF clr_prev = SetBkColor (hdc, clr);
+	ExtTextOut (hdc, 0, 0, ETO_OPAQUE, lprc, nullptr, 0, nullptr);
+	SetBkColor (hdc, clr_prev);
 }
 
 int _r_dc_fontsizetoheight (INT size)
