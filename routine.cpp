@@ -742,10 +742,10 @@ rstring _r_path_expand (const rstring &path)
 	if (path.IsEmpty ())
 		return path;
 
-	if (path.At (0) == L'\\')
+	if (path.At (0) == OBJ_NAME_PATH_SEPARATOR)
 		return path;
 
-	if (path.Find (L'\\') == rstring::npos)
+	if (path.Find (OBJ_NAME_PATH_SEPARATOR) == rstring::npos)
 		return path;
 
 	rstring result;
@@ -771,10 +771,10 @@ rstring _r_path_unexpand (const rstring &path)
 	if (path.IsEmpty ())
 		return path;
 
-	if (path.Find (L'\\') == rstring::npos)
+	if (path.Find (OBJ_NAME_PATH_SEPARATOR) == rstring::npos)
 		return path;
 
-	if (path.At (0) == L'\\')
+	if (path.At (0) == OBJ_NAME_PATH_SEPARATOR)
 		return path;
 
 	rstring result;
@@ -840,7 +840,7 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 
 	for (size_t i = 0, cnt = 0; i < result.GetLength (); i++)
 	{
-		if (result.At (i) == L'\\')
+		if (result.At (i) == OBJ_NAME_PATH_SEPARATOR)
 		{
 			if (++cnt >= 3)
 			{
