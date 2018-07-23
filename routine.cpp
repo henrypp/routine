@@ -853,44 +853,45 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 	if (device_length == rstring::npos)
 		return result;
 
-	if (_wcsnicmp (path, L"\\Device\\Mup\\", device_length) == 0) // network share (win7+)
+	if (_wcsnicmp (path, L"\\Device\\Mup\\", device_length + 1) == 0) // network share (win7+)
 	{
 		result.Format (L"\\\\%s", path + device_length + 1);
 	}
-	else if (_wcsnicmp (path, L"\\Device\\LanmanRedirector\\", device_length) == 0) // network share (winxp+)
+	else if (_wcsnicmp (path, L"\\Device\\LanmanRedirector\\", device_length + 1) == 0) // network share (winxp+)
 	{
 		result.Format (L"\\\\%s", path + device_length + 1);
 	}
 	else
 	{
-		WCHAR drives[256] = {0};
+		WCHAR drives[MAX_PATH] = {0};
+		const DWORD count = GetLogicalDriveStrings (_countof (drives), drives);
 
-		if (GetLogicalDriveStrings (_countof (drives), drives))
+		if (count > 0 && count <= _countof (drives))
 		{
 			LPWSTR drv = drives;
 
-			while (drv[0])
+			while (*drv)
 			{
-				LPWSTR drv_next = drv + wcslen (drv) + 1;
-
-				drv[2] = 0; // the backslash is not allowed for QueryDosDevice()
-
 				WCHAR volume[MAX_PATH] = {0};
+				WCHAR drive[MAX_PATH] = {0};
+
+				StringCchCopy (drive, _countof (drive), drv);
+				drive[2] = 0; // the backslash is not allowed for QueryDosDevice()
 
 				// may return multiple strings!
 				// returns very weird strings for network shares
-				if (QueryDosDevice (drv, volume, _countof (volume)))
+				if (QueryDosDevice (drive, volume, _countof (volume)))
 				{
 					if (_wcsnicmp (path, volume, device_length) == 0)
 					{
-						result = drv;
+						result = drive;
 						result.Append (path + device_length);
 
 						break;
 					}
 				}
 
-				drv = drv_next;
+				drv += wcslen (drv) + 1;
 			}
 		}
 	}
@@ -1252,6 +1253,64 @@ ULONGLONG _r_sys_gettickcount ()
 
 	return GetTickCount ();
 #endif // _APP_NO_WINXP
+}
+
+void _r_sys_getusername (rstring* pdomain, rstring* pusername)
+{
+	LPWSTR username = nullptr;
+	LPWSTR domain = nullptr;
+
+	DWORD username_bytes = 0;
+	DWORD domain_bytes = 0;
+
+	if (
+		WTSQuerySessionInformation (WTS_CURRENT_SERVER_HANDLE, WTS_CURRENT_SESSION, WTSUserName, &username, &username_bytes) &&
+		WTSQuerySessionInformation (WTS_CURRENT_SERVER_HANDLE, WTS_CURRENT_SESSION, WTSDomainName, &domain, &domain_bytes)
+		)
+	{
+		if (pusername)
+			*pusername = username;
+
+		if (pdomain)
+			*pdomain = domain;
+	}
+
+	if (username)
+		WTSFreeMemory (username);
+
+	if (domain)
+		WTSFreeMemory (domain);
+}
+
+rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username)
+{
+	rstring result;
+
+	DWORD sid_length = SECURITY_MAX_SID_SIZE;
+	PBYTE psid = new BYTE[sid_length];
+
+	if (psid)
+	{
+		WCHAR ref_domain[MAX_PATH] = {0};
+		DWORD ref_length = _countof (ref_domain);
+
+		SID_NAME_USE name_use;
+
+		if (LookupAccountName (domain, username, psid, &sid_length, ref_domain, &ref_length, &name_use))
+		{
+			LPWSTR sidstring = nullptr;
+
+			if (ConvertSidToStringSid (psid, &sidstring))
+			{
+				result = sidstring;
+				LocalFree (sidstring);
+			}
+		}
+
+		delete[] psid;
+	}
+
+	return result;
 }
 
 #ifndef _WIN64

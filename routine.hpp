@@ -9,6 +9,7 @@
 #endif // _APP_NO_WINXP
 
 #include <windows.h>
+#include <wtsapi32.h>
 #include <shlwapi.h>
 #include <commctrl.h>
 #include <psapi.h>
@@ -256,6 +257,8 @@ bool _r_str_unserialize (rstring string, LPCWSTR str_delimeter, WCHAR key_delime
 
 bool _r_sys_adminstate ();
 ULONGLONG _r_sys_gettickcount ();
+void _r_sys_getusername (rstring* pdomain, rstring* pusername);
+rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username);
 
 #ifndef _WIN64
 bool _r_sys_iswow64 ();

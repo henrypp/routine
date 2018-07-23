@@ -172,16 +172,14 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 	WCHAR buffer[MAX_PATH] = {0};
 
 	// check window title
+	if (GetWindowText (hwnd, buffer, _countof (buffer)))
 	{
-		if (GetWindowText (hwnd, buffer, _countof (buffer)))
-		{
-			if (_wcsnicmp (this_ptr->app_name, buffer, wcslen (this_ptr->app_name)) != 0)
-				return TRUE;
-		}
-		else
-		{
+		if (_wcsnicmp (this_ptr->app_name, buffer, wcslen (this_ptr->app_name)) != 0)
 			return TRUE;
-		}
+	}
+	else
+	{
+		return TRUE;
 	}
 
 	// check window props
@@ -192,14 +190,12 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 	}
 
 	// check window filename
+	if (GetWindowModuleFileName (hwnd, buffer, _countof (buffer)))
 	{
-		if (GetWindowModuleFileName (hwnd, buffer, _countof (buffer)))
+		if (_wcsnicmp (this_ptr->app_name_short, _r_path_extractfile (buffer), wcslen (this_ptr->app_name_short)) == 0)
 		{
-			if (_wcsnicmp (this_ptr->app_name_short, _r_path_extractfile (buffer), wcslen (this_ptr->app_name_short)) == 0)
-			{
-				_r_wnd_toggle (hwnd, true);
-				return FALSE;
-			}
+			_r_wnd_toggle (hwnd, true);
+			return FALSE;
 		}
 	}
 
@@ -220,64 +216,18 @@ bool rapp::AutorunEnable (bool is_enable)
 	rstring reg_path = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 
 	// create autorun entry for current user only
-	if (IsVistaOrLater ())
 	{
-		const HINSTANCE hlib = LoadLibrary (L"wtsapi32.dll");
+		rstring reg_domain;
+		rstring reg_username;
+		rstring reg_sid;
 
-		if (hlib)
+		_r_sys_getusername (&reg_domain, &reg_username);
+		reg_sid = _r_sys_getusernamesid (reg_domain, reg_username);
+
+		if (!reg_sid.IsEmpty ())
 		{
-			typedef BOOL (WINAPI *WTSQSIW) (HANDLE, DWORD, WTS_INFO_CLASS, LPWSTR*, LPDWORD); // WTSQuerySessionInformationW
-			typedef VOID (WINAPI *WTSFM) (PVOID); // WTSFreeMemory
-
-			const WTSQSIW _WTSQuerySessionInformationW = (WTSQSIW)GetProcAddress (hlib, "WTSQuerySessionInformationW");
-			const WTSFM _WTSFreeMemory = (WTSFM)GetProcAddress (hlib, "WTSFreeMemory");
-
-			if (_WTSQuerySessionInformationW && _WTSFreeMemory)
-			{
-				LPWSTR username = nullptr;
-				LPWSTR domain = nullptr;
-				DWORD out = 0;
-
-				if (
-					_WTSQuerySessionInformationW (WTS_CURRENT_SERVER_HANDLE, WTS_CURRENT_SESSION, WTSUserName, &username, &out) &&
-					_WTSQuerySessionInformationW (WTS_CURRENT_SERVER_HANDLE, WTS_CURRENT_SESSION, WTSDomainName, &domain, &out)
-					)
-				{
-					DWORD sid_length = SECURITY_MAX_SID_SIZE;
-					PBYTE psid = new BYTE[sid_length];
-
-					if (psid)
-					{
-						WCHAR ref_domain[MAX_PATH] = {0};
-						DWORD ref_length = _countof (ref_domain);
-
-						SID_NAME_USE name_use;
-
-						if (LookupAccountName (domain, username, psid, &sid_length, ref_domain, &ref_length, &name_use))
-						{
-							LPWSTR sidstring = nullptr;
-
-							if (ConvertSidToStringSid (psid, &sidstring))
-							{
-								hroot = HKEY_USERS;
-								reg_path.Format (L"%s\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", sidstring);
-
-								LocalFree (sidstring);
-							}
-						}
-
-						delete[] psid;
-					}
-				}
-
-				if (username)
-					_WTSFreeMemory (username);
-
-				if (domain)
-					_WTSFreeMemory (domain);
-			}
-
-			FreeLibrary (hlib);
+			hroot = HKEY_USERS;
+			reg_path.Format (L"%s\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", reg_sid.GetString ());
 		}
 	}
 
@@ -767,10 +717,12 @@ bool rapp::IsClassicUI () const
 	return is_classic;
 }
 
+#ifndef _APP_NO_WINXP
 bool rapp::IsVistaOrLater () const
 {
 	return is_vistaorlater;
 }
+#endif // _APP_NO_WINXP
 
 LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
@@ -995,12 +947,16 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 #endif // _APP_HAVE_TRAY
 
 			// uipi fix (vista+)
+#ifndef _APP_NO_WINXP
 			if (IsVistaOrLater ())
 			{
+#endif // _APP_NO_WINXP
 				_r_wnd_changemessagefilter (GetHWND (), WM_DROPFILES, MSGFLT_ALLOW);
 				_r_wnd_changemessagefilter (GetHWND (), WM_COPYDATA, MSGFLT_ALLOW);
 				_r_wnd_changemessagefilter (GetHWND (), WM_COPYGLOBALDATA, MSGFLT_ALLOW);
+#ifndef _APP_NO_WINXP
 			}
+#endif // _APP_NO_WINXP
 
 			// subclass window
 			SetProp (GetHWND (), L"this_ptr", this);
@@ -1137,7 +1093,7 @@ bool rapp::TrayCreate (HWND hwnd, UINT uid, LPGUID guid, UINT code, HICON hicon,
 	nid.hIcon = hicon;
 	StringCchCopy (nid.szTip, _countof (nid.szTip), app_name);
 
-	if (_r_sys_validversion (6, 1) && guid)
+	if (guid && _r_sys_validversion (6, 1))
 	{
 		nid.uFlags |= NIF_GUID;
 		CopyMemory (&nid.guidItem, guid, sizeof (GUID));
@@ -1174,7 +1130,7 @@ bool rapp::TrayDestroy (HWND hwnd, UINT uid, LPGUID guid)
 	nid.hWnd = hwnd;
 	nid.uID = uid;
 
-	if (_r_sys_validversion (6, 1) && guid)
+	if (guid && _r_sys_validversion (6, 1))
 	{
 		nid.uFlags |= NIF_GUID;
 		CopyMemory (&nid.guidItem, guid, sizeof (GUID));
@@ -1205,27 +1161,38 @@ bool rapp::TrayPopup (HWND hwnd, UINT uid, LPGUID guid, DWORD icon_id, LPCWSTR t
 	nid.hWnd = hwnd;
 	nid.uID = uid;
 
-	if (_r_sys_validversion (6, 1) && guid)
+	if (guid && _r_sys_validversion (6, 1))
 	{
 		nid.uFlags |= NIF_GUID;
 		CopyMemory (&nid.guidItem, guid, sizeof (GUID));
 	}
 
-	if (icon_id == NIIF_USER && IsVistaOrLater ())
+	if (icon_id == NIIF_USER)
 	{
+#ifndef _APP_NO_WINXP
+		if (IsVistaOrLater ())
+		{
+#endif // _APP_NO_WINXP
+
 #ifdef IDI_MAIN
-		nid.hBalloonIcon = GetSharedIcon (GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXICON));
+			nid.hBalloonIcon = GetSharedIcon (GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXICON));
 #else
-		nid.hBalloonIcon = GetSharedIcon (nullptr, SIH_INFORMATION, GetSystemMetrics (SM_CXICON));
+			nid.hBalloonIcon = GetSharedIcon (nullptr, SIH_INFORMATION, GetSystemMetrics (SM_CXICON));
 #pragma _R_WARNING(IDI_MAIN)
 #endif
-	}
+
 #ifndef _APP_NO_WINXP
+		}
+		else
+		{
+			nid.dwInfoFlags = NIIF_INFO;
+		}
+#endif // _APP_NO_WINXP
+	}
 	else
 	{
 		nid.dwInfoFlags = NIIF_INFO;
 	}
-#endif // _APP_NO_WINXP
 
 	// tooltip-visibility fix
 	if (nid.szTip[0])
@@ -1260,7 +1227,7 @@ bool rapp::TraySetInfo (HWND hwnd, UINT uid, LPGUID guid, HICON hicon, LPCWSTR t
 	nid.hWnd = hwnd;
 	nid.uID = uid;
 
-	if (_r_sys_validversion (6, 1) && guid)
+	if (guid && _r_sys_validversion (6, 1))
 	{
 		nid.uFlags |= NIF_GUID;
 		CopyMemory (&nid.guidItem, guid, sizeof (GUID));
@@ -1300,7 +1267,7 @@ bool rapp::TrayToggle (HWND hwnd, UINT uid, LPGUID guid, bool is_show)
 	nid.hWnd = hwnd;
 	nid.uID = uid;
 
-	if (_r_sys_validversion (6, 1) && guid)
+	if (guid && _r_sys_validversion (6, 1))
 	{
 		nid.uFlags |= NIF_GUID;
 		CopyMemory (&nid.guidItem, guid, sizeof (GUID));
@@ -2535,14 +2502,21 @@ bool rapp::ParseINI (LPCWSTR path, rstring::map_two* pmap, std::vector<rstring>*
 #ifdef _APP_HAVE_SKIPUAC
 bool rapp::SkipUacIsEnabled ()
 {
-	if (IsVistaOrLater ())
-		return ConfigGet (L"SkipUacIsEnabled", false).AsBool ();
+#ifndef _APP_NO_WINXP
+	if (!IsVistaOrLater ())
+		return false;
+#endif // _APP_NO_WINXP
 
-	return false;
+	return ConfigGet (L"SkipUacIsEnabled", false).AsBool ();
 }
 
 bool rapp::SkipUacEnable (bool is_enable)
 {
+#ifndef _APP_NO_WINXP
+	if (!IsVistaOrLater ())
+		return false;
+#endif // _APP_NO_WINXP
+
 	bool result = false;
 	bool action_result = false;
 
@@ -2557,124 +2531,121 @@ bool rapp::SkipUacEnable (bool is_enable)
 	IExecAction* exec_action = nullptr;
 	IRegisteredTask* registered_task = nullptr;
 
-	if (IsVistaOrLater ())
+	MBSTR root (L"\\");
+	MBSTR name (_r_fmt (_APP_TASKSCHD_NAME, app_name_short));
+	MBSTR author (_APP_AUTHOR);
+	MBSTR path (GetBinaryPath ());
+	MBSTR directory (GetDirectory ());
+	MBSTR args (L"$(Arg0)");
+	MBSTR timelimit (L"PT0S");
+
+	VARIANT vtEmpty = {VT_EMPTY};
+
+	if (SUCCEEDED (CoInitializeEx (nullptr, COINIT_MULTITHREADED)))
 	{
-		MBSTR root (L"\\");
-		MBSTR name (_r_fmt (_APP_TASKSCHD_NAME, app_name_short));
-		MBSTR author (_APP_AUTHOR);
-		MBSTR path (GetBinaryPath ());
-		MBSTR directory (GetDirectory ());
-		MBSTR args (L"$(Arg0)");
-		MBSTR timelimit (L"PT0S");
-
-		VARIANT vtEmpty = {VT_EMPTY};
-
-		if (SUCCEEDED (CoInitializeEx (nullptr, COINIT_MULTITHREADED)))
+		if (SUCCEEDED (CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr)))
 		{
-			if (SUCCEEDED (CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr)))
+			if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
 			{
-				if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
+				if (SUCCEEDED (service->Connect (vtEmpty, vtEmpty, vtEmpty, vtEmpty)))
 				{
-					if (SUCCEEDED (service->Connect (vtEmpty, vtEmpty, vtEmpty, vtEmpty)))
+					if (SUCCEEDED (service->GetFolder (root, &folder)))
 					{
-						if (SUCCEEDED (service->GetFolder (root, &folder)))
+						// create task
+						if (is_enable)
 						{
-							// create task
-							if (is_enable)
+							if (SUCCEEDED (service->NewTask (0, &task)))
 							{
-								if (SUCCEEDED (service->NewTask (0, &task)))
+								if (SUCCEEDED (task->get_RegistrationInfo (&reginfo)))
 								{
-									if (SUCCEEDED (task->get_RegistrationInfo (&reginfo)))
-									{
-										reginfo->put_Author (author);
-										reginfo->Release ();
-									}
+									reginfo->put_Author (author);
+									reginfo->Release ();
+								}
 
-									if (SUCCEEDED (task->get_Principal (&principal)))
-									{
-										principal->put_RunLevel (TASK_RUNLEVEL_HIGHEST);
-										principal->Release ();
-									}
+								if (SUCCEEDED (task->get_Principal (&principal)))
+								{
+									principal->put_RunLevel (TASK_RUNLEVEL_HIGHEST);
+									principal->Release ();
+								}
 
-									if (SUCCEEDED (task->get_Settings (&settings)))
-									{
-										settings->put_AllowHardTerminate (VARIANT_BOOL (FALSE));
-										settings->put_StartWhenAvailable (VARIANT_BOOL (FALSE));
-										settings->put_DisallowStartIfOnBatteries (VARIANT_BOOL (FALSE));
-										settings->put_StopIfGoingOnBatteries (VARIANT_BOOL (FALSE));
-										settings->put_MultipleInstances (TASK_INSTANCES_PARALLEL);
-										settings->put_ExecutionTimeLimit (timelimit);
+								if (SUCCEEDED (task->get_Settings (&settings)))
+								{
+									settings->put_AllowHardTerminate (VARIANT_BOOL (FALSE));
+									settings->put_StartWhenAvailable (VARIANT_BOOL (FALSE));
+									settings->put_DisallowStartIfOnBatteries (VARIANT_BOOL (FALSE));
+									settings->put_StopIfGoingOnBatteries (VARIANT_BOOL (FALSE));
+									settings->put_MultipleInstances (TASK_INSTANCES_PARALLEL);
+									settings->put_ExecutionTimeLimit (timelimit);
 
-										settings->Release ();
-									}
+									settings->Release ();
+								}
 
-									if (SUCCEEDED (task->get_Actions (&action_collection)))
+								if (SUCCEEDED (task->get_Actions (&action_collection)))
+								{
+									if (SUCCEEDED (action_collection->Create (TASK_ACTION_EXEC, &action)))
 									{
-										if (SUCCEEDED (action_collection->Create (TASK_ACTION_EXEC, &action)))
+										if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID*)&exec_action)))
 										{
-											if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID*)&exec_action)))
+											if (
+												SUCCEEDED (exec_action->put_Path (path)) &&
+												SUCCEEDED (exec_action->put_WorkingDirectory (directory)) &&
+												SUCCEEDED (exec_action->put_Arguments (args))
+												)
 											{
-												if (
-													SUCCEEDED (exec_action->put_Path (path)) &&
-													SUCCEEDED (exec_action->put_WorkingDirectory (directory)) &&
-													SUCCEEDED (exec_action->put_Arguments (args))
-													)
-												{
-													action_result = true;
-												}
-
-												exec_action->Release ();
+												action_result = true;
 											}
 
-											action->Release ();
+											exec_action->Release ();
 										}
 
-										action_collection->Release ();
+										action->Release ();
 									}
 
-									if (action_result)
+									action_collection->Release ();
+								}
+
+								if (action_result)
+								{
+									if (SUCCEEDED (folder->RegisterTaskDefinition (
+										name,
+										task,
+										TASK_CREATE_OR_UPDATE,
+										vtEmpty,
+										vtEmpty,
+										TASK_LOGON_INTERACTIVE_TOKEN,
+										vtEmpty,
+										&registered_task)
+										))
 									{
-										if (SUCCEEDED (folder->RegisterTaskDefinition (
-											name,
-											task,
-											TASK_CREATE_OR_UPDATE,
-											vtEmpty,
-											vtEmpty,
-											TASK_LOGON_INTERACTIVE_TOKEN,
-											vtEmpty,
-											&registered_task)
-											))
 										{
-											{
-												ConfigSet (L"SkipUacIsEnabled", true);
-												result = true;
+											ConfigSet (L"SkipUacIsEnabled", true);
+											result = true;
 
-												registered_task->Release ();
-											}
+											registered_task->Release ();
 										}
-
-										task->Release ();
 									}
+
+									task->Release ();
 								}
 							}
-							else
-							{
-								// remove task
-								result = SUCCEEDED (folder->DeleteTask (name, 0));
-
-								ConfigSet (L"SkipUacIsEnabled", false);
-							}
-
-							folder->Release ();
 						}
+						else
+						{
+							// remove task
+							result = SUCCEEDED (folder->DeleteTask (name, 0));
+
+							ConfigSet (L"SkipUacIsEnabled", false);
+						}
+
+						folder->Release ();
 					}
-
-					service->Release ();
 				}
-			}
 
-			CoUninitialize ();
+				service->Release ();
+			}
 		}
+
+		CoUninitialize ();
 	}
 
 	return result;
@@ -2682,6 +2653,11 @@ bool rapp::SkipUacEnable (bool is_enable)
 
 bool rapp::SkipUacRun ()
 {
+#ifndef _APP_NO_WINXP
+	if (!IsVistaOrLater ())
+		return false;
+#endif // _APP_NO_WINXP
+
 	bool result = false;
 
 	ITaskService* service = nullptr;
@@ -2695,118 +2671,115 @@ bool rapp::SkipUacRun ()
 
 	IRunningTask* running_task = nullptr;
 
-	if (IsVistaOrLater ())
+	MBSTR root (L"\\");
+	MBSTR name (_r_fmt (_APP_TASKSCHD_NAME, app_name_short));
+
+	VARIANT vtEmpty = {VT_EMPTY};
+
+	if (SUCCEEDED (CoInitializeEx (nullptr, COINIT_MULTITHREADED)))
 	{
-		MBSTR root (L"\\");
-		MBSTR name (_r_fmt (_APP_TASKSCHD_NAME, app_name_short));
-
-		VARIANT vtEmpty = {VT_EMPTY};
-
-		if (SUCCEEDED (CoInitializeEx (nullptr, COINIT_MULTITHREADED)))
+		if (SUCCEEDED (CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr)))
 		{
-			if (SUCCEEDED (CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr)))
+			if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
 			{
-				if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
+				if (SUCCEEDED (service->Connect (vtEmpty, vtEmpty, vtEmpty, vtEmpty)))
 				{
-					if (SUCCEEDED (service->Connect (vtEmpty, vtEmpty, vtEmpty, vtEmpty)))
+					if (SUCCEEDED (service->GetFolder (root, &folder)))
 					{
-						if (SUCCEEDED (service->GetFolder (root, &folder)))
+						if (SUCCEEDED (folder->GetTask (name, &registered_task)))
 						{
-							if (SUCCEEDED (folder->GetTask (name, &registered_task)))
+							if (SUCCEEDED (registered_task->get_Definition (&task)))
 							{
-								if (SUCCEEDED (registered_task->get_Definition (&task)))
+								if (SUCCEEDED (task->get_Actions (&action_collection)))
 								{
-									if (SUCCEEDED (task->get_Actions (&action_collection)))
+									if (SUCCEEDED (action_collection->get_Item (1, &action)))
 									{
-										if (SUCCEEDED (action_collection->get_Item (1, &action)))
+										if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID*)&exec_action)))
 										{
-											if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID*)&exec_action)))
+											BSTR path = nullptr;
+
+											exec_action->get_Path (&path);
+
+											PathUnquoteSpaces (path);
+
+											// check path is to current module
+											if (_wcsicmp (path, GetBinaryPath ()) == 0)
 											{
-												BSTR path = nullptr;
+												rstring args;
 
-												exec_action->get_Path (&path);
-
-												PathUnquoteSpaces (path);
-
-												// check path is to current module
-												if (_wcsicmp (path, GetBinaryPath ()) == 0)
+												// get arguments
 												{
-													rstring args;
+													INT numargs = 0;
+													LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
 
-													// get arguments
-													{
-														INT numargs = 0;
-														LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
+													for (INT i = 1; i < numargs; i++)
+														args.AppendFormat (L"%s ", arga[i]);
 
-														for (INT i = 1; i < numargs; i++)
-															args.AppendFormat (L"%s ", arga[i]);
-
-														LocalFree (arga);
-													}
-
-													variant_t ticker = args.Trim (L" ");
-
-													if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_NO_FLAGS, 0, nullptr, &running_task)))
-													{
-														UINT8 count = 5; // try count
-
-														do
-														{
-															_r_sleep (250);
-
-															TASK_STATE state = TASK_STATE_UNKNOWN;
-
-															running_task->Refresh ();
-															running_task->get_State (&state);
-
-															if (
-																state == TASK_STATE_RUNNING ||
-																state == TASK_STATE_READY ||
-																state == TASK_STATE_DISABLED
-																)
-															{
-																if (
-																	state == TASK_STATE_RUNNING ||
-																	state == TASK_STATE_READY
-																	)
-																{
-																	result = true;
-																}
-
-																break;
-															}
-														}
-														while (count--);
-
-														running_task->Release ();
-													}
+													LocalFree (arga);
 												}
 
-												exec_action->Release ();
+												variant_t ticker = args.Trim (L" ");
+
+												if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_NO_FLAGS, 0, nullptr, &running_task)))
+												{
+													UINT8 count = 5; // try count
+
+													do
+													{
+														_r_sleep (250);
+
+														TASK_STATE state = TASK_STATE_UNKNOWN;
+
+														running_task->Refresh ();
+														running_task->get_State (&state);
+
+														if (
+															state == TASK_STATE_RUNNING ||
+															state == TASK_STATE_READY ||
+															state == TASK_STATE_DISABLED
+															)
+														{
+															if (
+																state == TASK_STATE_RUNNING ||
+																state == TASK_STATE_READY
+																)
+															{
+																result = true;
+															}
+
+															break;
+														}
+													}
+													while (count--);
+
+													running_task->Release ();
+												}
 											}
 
-											action->Release ();
+											exec_action->Release ();
 										}
 
-										action_collection->Release ();
+										action->Release ();
 									}
 
-									task->Release ();
+									action_collection->Release ();
 								}
 
-								registered_task->Release ();
+								task->Release ();
 							}
 
-							folder->Release ();
+							registered_task->Release ();
 						}
+
+						folder->Release ();
 					}
-
-					service->Release ();
 				}
-			}
 
-			CoUninitialize ();
+				service->Release ();
+			}
 		}
+
+		CoUninitialize ();
 	}
 
 	return result;

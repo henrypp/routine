@@ -11,10 +11,6 @@
 #include <taskschd.h>
 #endif // _APP_HAVE_SKIPUAC
 
-#ifdef _APP_HAVE_AUTORUN
-#include <wtsapi32.h>
-#endif // _APP_HAVE_AUTORUN
-
 #include "rconfig.hpp"
 
 // libs
@@ -221,7 +217,10 @@ public:
 
 	bool IsAdmin () const;
 	bool IsClassicUI () const;
+
+#ifndef _APP_NO_WINXP
 	bool IsVistaOrLater () const;
+#endif // _APP_NO_WINXP
 
 	void LocaleApplyFromControl (HWND hwnd, UINT ctrl_id);
 	void LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id);
