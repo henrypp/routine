@@ -926,7 +926,7 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 	if (path.IsEmpty ())
 		return ERROR_BAD_ARGUMENTS;
 
-	const HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_NO_BUFFERING, nullptr);
+	const HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
 
 	if (hfile == INVALID_HANDLE_VALUE)
 	{
@@ -934,29 +934,44 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 	}
 	else
 	{
-		BYTE buffer[2048] = {0};
-		DWORD required_length = 0;
-
-		PUNICODE_STRING pk_Info = &((OBJECT_NAME_INFORMATION*)buffer)->Name;
-		pk_Info->Buffer = nullptr;
-		pk_Info->Length = 0;
+		ULONG req_length = 0;
+		ULONG in_length = 0;
 
 		// IMPORTANT: The return value from NtQueryObject is bullshit! (driver bug?)
 		// - The function may return STATUS_NOT_SUPPORTED although it has successfully written to the buffer.
 		// - The function returns STATUS_SUCCESS although h_File == 0xFFFFFFFF
-		NtQueryObject (hfile, ObjectNameInformation, buffer, sizeof (buffer), &required_length);
+		NtQueryObject (hfile, ObjectNameInformation, nullptr, 0, &req_length);
 
-		if (!pk_Info->Length || !pk_Info->Buffer)
+		if (!req_length)
 		{
 			CloseHandle (hfile);
-			return ERROR_FILE_NOT_FOUND;
+			return ERROR_NOT_ENOUGH_MEMORY;
 		}
-		else
-		{
-			pk_Info->Buffer[pk_Info->Length / sizeof (WCHAR)] = 0; // trim buffer!
 
-			path = pk_Info->Buffer;
-			path.ToLower (); // lower is imoprtant!
+		PBYTE pbuffer = new BYTE[req_length];
+
+		if (pbuffer)
+		{
+			UNICODE_STRING* pk_Info = &((OBJECT_NAME_INFORMATION*)pbuffer)->Name;
+			pk_Info->Buffer = 0;
+			pk_Info->Length = 0;
+
+			NtQueryObject (hfile, ObjectNameInformation, pbuffer, req_length, &in_length);
+
+			if (!pk_Info->Length || !pk_Info->Buffer)
+			{
+				CloseHandle (hfile);
+				return ERROR_FILE_NOT_FOUND;
+			}
+			else
+			{
+				pk_Info->Buffer[pk_Info->Length / sizeof (WCHAR)] = 0; // trim buffer!
+
+				path = pk_Info->Buffer;
+				path.ToLower (); // lower is imoprtant!
+			}
+
+			delete[] pbuffer;
 		}
 
 		CloseHandle (hfile);
