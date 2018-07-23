@@ -941,11 +941,11 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 			// IMPORTANT: The return value from NtQueryObject is bullshit! (driver bug?)
 			// - The function may return STATUS_NOT_SUPPORTED although it has successfully written to the buffer.
 			// - The function returns STATUS_SUCCESS although h_File == 0xFFFFFFFF
-			NtQueryObject (hfile, ObjectNameInformation, nullptr, 0, &req_length);
+			NTSTATUS status = NtQueryObject (hfile, ObjectNameInformation, nullptr, 0, &req_length);
 
 			if (!req_length)
 			{
-				result = ERROR_NOT_ENOUGH_MEMORY;
+				result = status;
 			}
 			else
 			{
@@ -957,12 +957,12 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 					pk_Info->Buffer = 0;
 					pk_Info->Length = 0;
 
-					NtQueryObject (hfile, ObjectNameInformation, pbuffer, req_length, &out_length);
+					status = NtQueryObject (hfile, ObjectNameInformation, pbuffer, req_length, &out_length);
 
 					if (!pk_Info->Length || !pk_Info->Buffer)
 					{
+						result = status;
 						CloseHandle (hfile);
-						result = ERROR_FILE_NOT_FOUND;
 					}
 					else
 					{
@@ -2017,7 +2017,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT cx_width)
 #endif // _APP_NO_WINXP
 
 	return result;
-}
+	}
 
 bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 {
