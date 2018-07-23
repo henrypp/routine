@@ -959,7 +959,7 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 
 					status = NtQueryObject (hfile, ObjectNameInformation, pbuffer, req_length, &out_length);
 
-					if (!pk_Info->Length || !pk_Info->Buffer)
+					if (!pk_Info->Length || !pk_Info->Buffer || !out_length)
 					{
 						result = status;
 						CloseHandle (hfile);
