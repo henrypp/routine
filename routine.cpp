@@ -923,61 +923,66 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 #ifdef _APP_HAVE_NTDLL
 DWORD _r_path_ntpathfromdos (rstring& path)
 {
-	if (path.IsEmpty ())
-		return ERROR_BAD_ARGUMENTS;
+	DWORD result = ERROR_BAD_ARGUMENTS;
 
-	const HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
-
-	if (hfile == INVALID_HANDLE_VALUE)
+	if (!path.IsEmpty ())
 	{
-		return GetLastError ();
-	}
-	else
-	{
-		ULONG req_length = 0;
-		ULONG in_length = 0;
+		const HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
 
-		// IMPORTANT: The return value from NtQueryObject is bullshit! (driver bug?)
-		// - The function may return STATUS_NOT_SUPPORTED although it has successfully written to the buffer.
-		// - The function returns STATUS_SUCCESS although h_File == 0xFFFFFFFF
-		NtQueryObject (hfile, ObjectNameInformation, nullptr, 0, &req_length);
-
-		if (!req_length)
+		if (hfile == INVALID_HANDLE_VALUE)
 		{
-			CloseHandle (hfile);
-			return ERROR_NOT_ENOUGH_MEMORY;
+			result = GetLastError ();
 		}
-
-		PBYTE pbuffer = new BYTE[req_length];
-
-		if (pbuffer)
+		else
 		{
-			UNICODE_STRING* pk_Info = &((OBJECT_NAME_INFORMATION*)pbuffer)->Name;
-			pk_Info->Buffer = 0;
-			pk_Info->Length = 0;
+			ULONG req_length = 0;
+			ULONG out_length = 0;
 
-			NtQueryObject (hfile, ObjectNameInformation, pbuffer, req_length, &in_length);
+			// IMPORTANT: The return value from NtQueryObject is bullshit! (driver bug?)
+			// - The function may return STATUS_NOT_SUPPORTED although it has successfully written to the buffer.
+			// - The function returns STATUS_SUCCESS although h_File == 0xFFFFFFFF
+			NtQueryObject (hfile, ObjectNameInformation, nullptr, 0, &req_length);
 
-			if (!pk_Info->Length || !pk_Info->Buffer)
+			if (!req_length)
 			{
-				CloseHandle (hfile);
-				return ERROR_FILE_NOT_FOUND;
+				result = ERROR_NOT_ENOUGH_MEMORY;
 			}
 			else
 			{
-				pk_Info->Buffer[pk_Info->Length / sizeof (WCHAR)] = 0; // trim buffer!
+				PBYTE pbuffer = new BYTE[req_length];
 
-				path = pk_Info->Buffer;
-				path.ToLower (); // lower is imoprtant!
+				if (pbuffer)
+				{
+					UNICODE_STRING* pk_Info = &((OBJECT_NAME_INFORMATION*)pbuffer)->Name;
+					pk_Info->Buffer = 0;
+					pk_Info->Length = 0;
+
+					NtQueryObject (hfile, ObjectNameInformation, pbuffer, req_length, &out_length);
+
+					if (!pk_Info->Length || !pk_Info->Buffer)
+					{
+						CloseHandle (hfile);
+						result = ERROR_FILE_NOT_FOUND;
+					}
+					else
+					{
+						pk_Info->Buffer[pk_Info->Length / sizeof (WCHAR)] = 0; // trim buffer!
+
+						path = pk_Info->Buffer;
+						path.ToLower (); // lower is imoprtant!
+
+						result = ERROR_SUCCESS;
+					}
+
+					delete[] pbuffer;
+				}
 			}
 
-			delete[] pbuffer;
+			CloseHandle (hfile);
 		}
-
-		CloseHandle (hfile);
 	}
 
-	return ERROR_SUCCESS;
+	return result;
 }
 #endif // _APP_HAVE_NTDLL
 
