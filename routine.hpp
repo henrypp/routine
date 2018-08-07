@@ -30,6 +30,7 @@
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "uxtheme.lib")
 #pragma comment(lib, "winhttp.lib")
+#pragma comment(lib, "wtsapi32.lib")
 
 #ifndef LVM_RESETEMPTYTEXT
 #define LVM_RESETEMPTYTEXT (LVM_FIRST + 84)
