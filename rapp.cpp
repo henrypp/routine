@@ -975,7 +975,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 #endif // _APP_HAVE_SKIPUAC
 
 			// set window on top
-			_r_wnd_top (GetHWND (), ConfigGet (L"AlwaysOnTop", false).AsBool ());
+			_r_wnd_top (GetHWND (), ConfigGet (L"AlwaysOnTop", _APP_ALWAYSONTOP).AsBool ());
 
 			// restore window position
 			{
@@ -1841,7 +1841,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			this_ptr->settings_hwnd = nullptr;
 			this_ptr->settings_page_id = LAST_VALUE;
 
-			_r_wnd_top (this_ptr->GetHWND (), this_ptr->ConfigGet (L"AlwaysOnTop", false).AsBool ());
+			_r_wnd_top (this_ptr->GetHWND (), this_ptr->ConfigGet (L"AlwaysOnTop", _APP_ALWAYSONTOP).AsBool ());
 
 			break;
 		}

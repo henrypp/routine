@@ -29,10 +29,14 @@
 //#define _APP_HAVE_SRWLOCK // srw locks (vista+)
 //#define _APP_STARTMINIMIZED // start with no window
 
-// set classic ui defaults
+// set defaults
 #ifndef _APP_CLASSICUI
 #define _APP_CLASSICUI false
 #endif // _APP_CLASSICUI
+
+#ifndef _APP_ALWAYSONTOP
+#define _APP_ALWAYSONTOP false
+#endif // _APP_ALWAYSONTOP
 
 //#define _APP_BETA // app has beta status
 //#define _APP_BETA_RC // app has release candidate status
