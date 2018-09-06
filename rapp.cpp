@@ -114,16 +114,16 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	ConfigInit ();
 }
 
-bool rapp::InitializeMutex ()
+bool rapp::MutexCreate ()
 {
-	UninitializeMutex ();
+	MutexDestroy ();
 
 	app_mutex = CreateMutex (nullptr, FALSE, app_name_short);
 
 	return (app_mutex != nullptr);
 }
 
-bool rapp::UninitializeMutex ()
+bool rapp::MutexDestroy ()
 {
 	if (app_mutex)
 	{
@@ -136,7 +136,7 @@ bool rapp::UninitializeMutex ()
 	return false;
 }
 
-bool rapp::CheckMutex (bool activate_window)
+bool rapp::MutexIsExists (bool activate_window)
 {
 	bool result = false;
 
@@ -767,7 +767,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 
 			SendMessage (hwnd, RM_UNINITIALIZE, 0, 0);
 
-			this_ptr->UninitializeMutex ();
+			this_ptr->MutexDestroy ();
 
 			break;
 		}
@@ -874,7 +874,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 		InitCommonControlsEx (&icex);
 	}
 
-	if (CheckMutex (true))
+	if (MutexIsExists (true))
 		return false;
 
 #if defined(_APP_HAVE_SKIPUAC) || defined(_APP_NO_GUEST)
@@ -899,7 +899,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 	}
 #endif // _WIN64
 
-	InitializeMutex ();
+	MutexCreate ();
 
 	if (ConfigGet (L"ClassicUI", _APP_CLASSICUI).AsBool () || !IsThemeActive ())
 	{
@@ -2819,7 +2819,7 @@ bool rapp::RunAsAdmin ()
 				shex.lpDirectory = directory;
 				shex.lpParameters = args;
 
-				const bool is_mutexdestroyed = UninitializeMutex ();
+				const bool is_mutexdestroyed = MutexDestroy ();
 
 				if (ShellExecuteEx (&shex))
 				{
@@ -2828,7 +2828,7 @@ bool rapp::RunAsAdmin ()
 				else
 				{
 					if (is_mutexdestroyed)
-						InitializeMutex ();
+						MutexCreate ();
 				}
 
 				CoUninitialize ();
