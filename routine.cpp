@@ -184,8 +184,13 @@ void _r_fastlock_initialize (P_FASTLOCK plock)
 {
 	plock->Value = 0;
 
+#ifdef _APP_NO_WINXP
+	plock->ExclusiveWakeEvent = CreateSemaphoreEx (nullptr, 0, MAXLONG, nullptr, 0, SEMAPHORE_ALL_ACCESS);
+	plock->SharedWakeEvent = CreateSemaphoreEx (nullptr, 0, MAXLONG, nullptr, 0, SEMAPHORE_ALL_ACCESS);
+#else
 	plock->ExclusiveWakeEvent = CreateSemaphore (nullptr, 0, MAXLONG, nullptr);
 	plock->SharedWakeEvent = CreateSemaphore (nullptr, 0, MAXLONG, nullptr);
+#endif
 }
 
 void _r_fastlock_acquireexclusive (P_FASTLOCK plock)
@@ -591,7 +596,7 @@ bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size)
 {
 	if (hfile != INVALID_HANDLE_VALUE)
 	{
-		HANDLE hmap = CreateFileMapping (hfile, nullptr, PAGE_READONLY, 0, 0, nullptr);
+		const HANDLE hmap = CreateFileMapping (hfile, nullptr, PAGE_READONLY, 0, 0, nullptr);
 
 		if (hmap)
 		{
@@ -664,9 +669,9 @@ void _r_fs_rmdir (LPCWSTR path)
 {
 	WIN32_FIND_DATA wfd = {0};
 
-	HANDLE h = FindFirstFile (_r_fmt (L"%s\\*.*", path), &wfd);
+	const HANDLE hfind = FindFirstFile (_r_fmt (L"%s\\*.*", path), &wfd);
 
-	if (h != INVALID_HANDLE_VALUE)
+	if (hfind != INVALID_HANDLE_VALUE)
 	{
 		do
 		{
@@ -686,9 +691,9 @@ void _r_fs_rmdir (LPCWSTR path)
 				DeleteFile (full_path);
 			}
 		}
-		while (FindNextFile (h, &wfd));
+		while (FindNextFile (hfind, &wfd));
 
-		FindClose (h);
+		FindClose (hfind);
 	}
 
 	RemoveDirectory (path);
@@ -962,7 +967,6 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 					if (!pk_Info->Length || !pk_Info->Buffer || !out_length)
 					{
 						result = status;
-						CloseHandle (hfile);
 					}
 					else
 					{
@@ -1827,7 +1831,7 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent)
 			flags = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
 	}
 
-	HINTERNET hsession = WinHttpOpen (useragent, flags, proxyConfig.lpszProxy, proxyConfig.lpszProxyBypass, 0);
+	const HINTERNET hsession = WinHttpOpen (useragent, flags, proxyConfig.lpszProxy, proxyConfig.lpszProxyBypass, 0);
 
 	if (proxyConfig.lpszProxy)
 		GlobalFree (proxyConfig.lpszProxy);
@@ -1939,7 +1943,7 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINT
 						if (err == ERROR_WINHTTP_SECURE_FAILURE || err == ERROR_WINHTTP_CONNECTION_ERROR)
 						{
 							// allow unknown certificates
-							DWORD flag = WINHTTP_OPTION_SECURITY_FLAGS;
+							const DWORD flag = WINHTTP_OPTION_SECURITY_FLAGS;
 							DWORD option = SECURITY_FLAG_IGNORE_CERT_CN_INVALID | SECURITY_FLAG_IGNORE_CERT_DATE_INVALID | SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE;
 
 							if (!WinHttpSetOption (hrequest, flag, &option, sizeof (option)))
