@@ -83,7 +83,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 
 				if (!_r_fs_exists (app_config_path))
 				{
-					HANDLE hfile = CreateFile (app_config_path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+					const HANDLE hfile = CreateFile (app_config_path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 
 					if (hfile != INVALID_HANDLE_VALUE)
 						CloseHandle (hfile);
@@ -127,7 +127,9 @@ bool rapp::MutexDestroy ()
 {
 	if (app_mutex)
 	{
+		ReleaseMutex (app_mutex);
 		CloseHandle (app_mutex);
+
 		app_mutex = nullptr;
 
 		return true;
@@ -148,6 +150,10 @@ bool rapp::MutexIsExists (bool activate_window)
 
 		if (activate_window && !wcsstr (GetCommandLine (), L"/minimized"))
 			EnumWindows (&ActivateWindowCallback, (LPARAM)this);
+	}
+	else
+	{
+		ReleaseMutex (hmutex);
 	}
 
 	if (hmutex)
@@ -700,6 +706,8 @@ void rapp::CreateAboutWindow (HWND hwnd)
 			_r_msg (hwnd, MB_OK | MB_USERICON | MB_TOPMOST, LocaleString (IDS_ABOUT, nullptr), app_name, L"Version %s, %u-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
 		}
 #endif // _APP_NO_WINXP
+
+		ReleaseMutex (habout);
 	}
 
 	if (habout)
@@ -735,7 +743,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		SendMessage (hwnd, RM_INITIALIZE, 0, 0);
 
 		return FALSE;
-	}
+}
 #endif // _APP_HAVE_TRAY
 
 	switch (msg)
@@ -812,7 +820,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			{
 				_r_wnd_toggle (hwnd, false);
 				return TRUE;
-			}
+	}
 #endif // _APP_HAVE_TRAY
 
 			break;
@@ -896,7 +904,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 	{
 		if (!ConfirmMessage (nullptr, L"Warning!", _r_fmt (L"You are attempting to run the 32-bit version of %s on 64-bit Windows.\r\nPlease run the 64-bit version of %s instead.", app_name, app_name), L"ConfirmWOW64"))
 			return false;
-	}
+}
 #endif // _WIN64
 
 	MutexCreate ();
@@ -1301,6 +1309,8 @@ void rapp::CreateSettingsWindow (DLGPROC proc, size_t dlg_id)
 #else
 #pragma _R_WARNING(IDD_SETTINGS)
 #endif // IDD_SETTINGS
+
+		ReleaseMutex (hsettings);
 	}
 
 	if (hsettings)
@@ -2095,6 +2105,8 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 
 	//SetEvent (pupdateinfo->hend);
 
+	_endthreadex (ERROR_SUCCESS);
+
 	return ERROR_SUCCESS;
 }
 
@@ -2148,7 +2160,7 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 			{
 				rapp* papp = (rapp*)(pupdateinfo->papp);
 
-				WCHAR str_content[256] = {0};
+				WCHAR str_content[MAX_PATH] = {0};
 
 #ifdef IDS_UPDATE_DOWNLOAD
 				StringCchPrintf (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_DOWNLOAD, nullptr), 0);
@@ -2428,6 +2440,8 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 		SetEvent (pupdateinfo->hend);
 	}
+
+	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
 }
@@ -2834,7 +2848,7 @@ bool rapp::RunAsAdmin ()
 				CoUninitialize ();
 			}
 		}
-	}
+}
 
 	return result;
 }
