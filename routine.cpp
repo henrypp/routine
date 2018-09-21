@@ -1076,6 +1076,21 @@ BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
 	Strings
 */
 
+rstring _r_str_fromguid (const GUID lpguid)
+{
+	rstring result;
+	OLECHAR* guidString = nullptr;
+
+	if (SUCCEEDED (StringFromCLSID (lpguid, &guidString)))
+	{
+		result = guidString;
+
+		CoTaskMemFree (guidString);
+	}
+
+	return result;
+}
+
 WCHAR _r_str_lower (WCHAR chr)
 {
 	WCHAR buf[] = {chr, 0};

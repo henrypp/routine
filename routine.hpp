@@ -245,6 +245,8 @@ DWORD _r_path_ntpathfromdos (rstring& path);
 	Strings
 */
 
+rstring _r_str_fromguid (const GUID lpguid);
+
 WCHAR _r_str_lower (WCHAR chr);
 WCHAR _r_str_upper (WCHAR chr);
 
