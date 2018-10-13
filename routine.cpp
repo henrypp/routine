@@ -868,17 +868,17 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 	}
 	else
 	{
-		WCHAR drives[MAX_PATH] = {0};
+		WCHAR drives[64] = {0};
 		const DWORD count = GetLogicalDriveStrings (_countof (drives), drives);
 
-		if (count > 0 && count <= _countof (drives))
+		if (count && count <= _countof (drives))
 		{
 			LPWSTR drv = drives;
 
 			while (*drv)
 			{
 				WCHAR volume[MAX_PATH] = {0};
-				WCHAR drive[MAX_PATH] = {0};
+				WCHAR drive[8] = {0};
 
 				StringCchCopy (drive, _countof (drive), drv);
 				drive[2] = 0; // the backslash is not allowed for QueryDosDevice()
@@ -950,7 +950,7 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 
 			if (!req_length)
 			{
-				result = status;
+				result = ((status != ERROR_SUCCESS) ? status : ERROR_INVALID_FUNCTION); // see notice
 			}
 			else
 			{
@@ -966,7 +966,7 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 
 					if (!pk_Info->Length || !pk_Info->Buffer || !out_length)
 					{
-						result = status;
+						result = ((status != ERROR_SUCCESS) ? status : ERROR_INVALID_FUNCTION); // see notice
 					}
 					else
 					{
