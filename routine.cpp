@@ -1727,29 +1727,25 @@ bool _r_wnd_undercursor (HWND hwnd)
 
 static bool _r_wnd_isplatformfullscreenmode ()
 {
-	// SHQueryUserNotificationState is only available for Vista and above.
+	// SHQueryUserNotificationState is only available for Vista+
 	if (_r_sys_validversion (6, 0))
 	{
 		typedef HRESULT (WINAPI *SHQueryUserNotificationStatePtr)(QUERY_USER_NOTIFICATION_STATE* state);
 
-		HMODULE shell32_base = GetModuleHandle (L"shell32.dll");
-		if (!shell32_base)
-		{
-			return false;
-		}
-		SHQueryUserNotificationStatePtr query_user_notification_state_ptr =
-			reinterpret_cast<SHQueryUserNotificationStatePtr>
-			(GetProcAddress (shell32_base, "SHQueryUserNotificationState"));
-		if (!query_user_notification_state_ptr)
-		{
-			return false;
-		}
+		const HMODULE hlib = GetModuleHandle (L"shell32.dll");
 
-		QUERY_USER_NOTIFICATION_STATE state;
-		if (FAILED ((*query_user_notification_state_ptr)(&state)))
-			return false;
-		return state == QUNS_RUNNING_D3D_FULL_SCREEN ||
-			state == QUNS_PRESENTATION_MODE;
+		if (hlib)
+		{
+			const SHQueryUserNotificationStatePtr _SHQueryUserNotificationState = (SHQueryUserNotificationStatePtr)GetProcAddress (hlib, "SHQueryUserNotificationState");
+
+			if (_SHQueryUserNotificationState)
+			{
+				QUERY_USER_NOTIFICATION_STATE state;
+
+				if (_SHQueryUserNotificationState (&state) == S_OK)
+					return (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
+			}
+		}
 	}
 
 	return false;
@@ -1822,31 +1818,33 @@ bool _r_wnd_isfullscreenmode ()
 	Inernet access (WinHTTP)
 */
 
-HINTERNET _r_inet_createsession (LPCWSTR useragent)
+HINTERNET _r_inet_createsession (LPCWSTR useragent, rstring proxy_config)
 {
 	DWORD flags = 0;
 
 	static const bool is_win81 = _r_sys_validversion (6, 3);
+	const bool is_proxyset = !proxy_config.IsEmpty ();
 
 	WINHTTP_CURRENT_USER_IE_PROXY_CONFIG proxyConfig = {0};
 
-	WinHttpGetIEProxyConfigForCurrentUser (&proxyConfig);
+	if (!is_proxyset)
+		WinHttpGetIEProxyConfigForCurrentUser (&proxyConfig);
 
-	// use automatic proxy configuration (win81 and above)
+	// use automatic proxy configuration (win81+)
 	if (is_win81)
 	{
 		flags = WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY;
 	}
 	else
 	{
-		if (proxyConfig.lpszProxy)
+		if (proxyConfig.lpszProxy || is_proxyset)
 			flags = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
 
 		else
 			flags = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
 	}
 
-	const HINTERNET hsession = WinHttpOpen (useragent, flags, proxyConfig.lpszProxy, proxyConfig.lpszProxyBypass, 0);
+	const HINTERNET hsession = WinHttpOpen (useragent, flags, is_proxyset ? proxy_config : proxyConfig.lpszProxy, is_proxyset ? nullptr : proxyConfig.lpszProxy, 0);
 
 	if (proxyConfig.lpszProxy)
 		GlobalFree (proxyConfig.lpszProxy);
@@ -1866,7 +1864,7 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent)
 		WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &option, sizeof (option));
 	}
 
-	// enable compression feature (win81 and above)
+	// enable compression feature (win81+)
 	if (is_win81)
 	{
 		DWORD option = WINHTTP_DECOMPRESSION_FLAG_ALL;
@@ -1912,7 +1910,7 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINT
 
 			if (hrequest)
 			{
-				// disable "keep-alive" feature (win7 and above)
+				// disable "keep-alive" feature (win7+)
 				if (_r_sys_validversion (6, 1))
 				{
 					DWORD option = WINHTTP_DISABLE_KEEP_ALIVE;
@@ -1958,10 +1956,9 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINT
 						if (err == ERROR_WINHTTP_SECURE_FAILURE || err == ERROR_WINHTTP_CONNECTION_ERROR)
 						{
 							// allow unknown certificates
-							const DWORD flag = WINHTTP_OPTION_SECURITY_FLAGS;
 							DWORD option = SECURITY_FLAG_IGNORE_CERT_CN_INVALID | SECURITY_FLAG_IGNORE_CERT_DATE_INVALID | SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE;
 
-							if (!WinHttpSetOption (hrequest, flag, &option, sizeof (option)))
+							if (!WinHttpSetOption (hrequest, WINHTTP_OPTION_SECURITY_FLAGS, &option, sizeof (option)))
 								break;
 						}
 						else
@@ -2036,7 +2033,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT cx_width)
 #endif // _APP_NO_WINXP
 
 	return result;
-	}
+}
 
 bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 {

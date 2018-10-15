@@ -270,7 +270,7 @@ bool rapp::DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_C
 {
 	bool result = false;
 
-	const HINTERNET hsession = _r_inet_createsession (GetUserAgent ());
+	const HINTERNET hsession = _r_inet_createsession (GetUserAgent (), ConfigGet (L"Proxy", nullptr));
 
 	if (hsession)
 	{
@@ -1073,7 +1073,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 #endif // _APP_HAVE_UPDATES
 
 			result = true;
-		}
+	}
 	}
 
 	return result;
@@ -1530,7 +1530,7 @@ void rapp::LocaleApplyFromControl (HWND hwnd, UINT ctrl_id)
 		SendMessage (GetHWND (), RM_LOCALIZE, 0, 0);
 
 		DrawMenuBar (GetHWND ()); // redraw menu
-	}
+}
 }
 #endif // _APP_HAVE_SETTINGS
 
