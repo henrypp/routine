@@ -1837,7 +1837,7 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent, rstring proxy_config)
 	}
 	else
 	{
-		if (proxyConfig.lpszProxy || is_proxyset)
+		if (is_proxyset || proxyConfig.lpszProxy)
 			flags = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
 
 		else
