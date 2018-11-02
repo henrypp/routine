@@ -281,7 +281,7 @@ bool rapp::DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_C
 
 		if (_r_inet_openurl (hsession, url, &hconnect, &hrequest, &total_length))
 		{
-			const DWORD buffer_length = (1024 * 16); // 16 kB
+			const DWORD buffer_length = (_R_BUFFER_LENGTH * 4);
 			LPSTR content_buffer = new CHAR[buffer_length];
 
 			if (content_buffer)
