@@ -232,16 +232,6 @@ rstring _r_path_dospathfromnt (LPCWSTR path);
 DWORD _r_path_ntpathfromdos (rstring& path);
 
 /*
-	Processes
-*/
-
-//[[deprecated ("May cause troubles on WOW64!")]]
-//bool _r_process_getpath (HANDLE hproc, LPWSTR path, DWORD length);
-//
-//[[deprecated ("May cause troubles on WOW64!")]]
-//BOOL _r_process_is_exists (LPCWSTR path, const size_t len);
-
-/*
 	Strings
 */
 
@@ -378,6 +368,12 @@ DWORD _r_treeview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle, INT height);
 
 void _r_status_settext (HWND hwnd, UINT ctrl_id, INT part, LPCWSTR text);
 void _r_status_setstyle (HWND hwnd, UINT ctrl_id, INT height);
+
+/*
+	Control: progress bar
+*/
+
+void _r_status_pbsetmarquee (HWND hwnd, UINT ctrl_id, bool is_enable);
 
 /*
 	NTDLL Definitions

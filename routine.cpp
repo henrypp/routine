@@ -991,88 +991,6 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 #endif // _APP_HAVE_NTDLL
 
 /*
-	Processes
-*/
-/*
-bool _r_process_getpath (HANDLE hproc, LPWSTR path, DWORD length)
-{
-	bool result = false;
-
-	if (path)
-	{
-		const HMODULE hlib = GetModuleHandle (L"kernel32.dll");
-
-		if (hlib)
-		{
-			typedef BOOL (WINAPI *QFPIN) (HANDLE, DWORD, LPWSTR, PDWORD); // QueryFullProcessImageName
-			const QFPIN _QueryFullProcessImageName = (QFPIN)GetProcAddress (hlib, "QueryFullProcessImageNameW");
-
-			if (_QueryFullProcessImageName)
-			{
-				if (_QueryFullProcessImageName (hproc, 0, path, &length)) // vista+
-					result = true;
-			}
-#ifndef _APP_NO_WINXP
-			else
-			{
-				WCHAR buffer[_R_BYTESIZE_KB] = {0};
-
-				if (GetProcessImageFileName (hproc, buffer, _countof (buffer))) // winxp fallback
-				{
-					StringCchCopy (path, (size_t)length, _r_path_dospathfromnt (buffer));
-					result = true;
-				}
-			}
-#endif //_APP_NO_WINXP
-		}
-	}
-
-	return result;
-}
-
-BOOL _r_process_is_exists (LPCWSTR path, const size_t len)
-{
-	BOOL result = FALSE;
-	DWORD pid[_R_BYTESIZE_KB] = {0}, cb = 0;
-
-	DWORD access_rights = PROCESS_QUERY_LIMITED_INFORMATION; // vista+
-
-#ifndef _APP_NO_WINXP
-	if (!_r_sys_validversion (6, 0))
-		access_rights = PROCESS_QUERY_INFORMATION; // winxp
-#endif //_APP_NO_WINXP
-
-	if (EnumProcesses (pid, sizeof (pid), &cb))
-	{
-		for (DWORD i = 0; i < (cb / sizeof (DWORD)); i++)
-		{
-			if (pid[i])
-			{
-				const HANDLE hprocess = OpenProcess (access_rights, FALSE, pid[i]);
-
-				if (hprocess)
-				{
-					WCHAR buffer[_R_BYTESIZE_KB] = {0};
-
-					if (_r_process_getpath (hprocess, buffer, _countof (buffer)))
-					{
-						if (_wcsnicmp (path, buffer, len) == 0)
-							result = TRUE;
-					}
-
-					CloseHandle (hprocess);
-
-					if (result)
-						break;
-				}
-			}
-		}
-	}
-
-	return result;
-}
-*/
-/*
 	Strings
 */
 
@@ -2586,4 +2504,15 @@ void _r_status_setstyle (HWND hwnd, UINT ctrl_id, INT height)
 {
 	SendDlgItemMessage (hwnd, ctrl_id, SB_SETMINHEIGHT, (WPARAM)height, 0);
 	SendDlgItemMessage (hwnd, ctrl_id, WM_SIZE, 0, 0);
+}
+
+/*
+	Control: progress bar
+*/
+
+void _r_status_pbsetmarquee (HWND hwnd, UINT ctrl_id, bool is_enable)
+{
+	SendDlgItemMessage (hwnd, ctrl_id, PBM_SETMARQUEE, (WPARAM)is_enable, (LPARAM)18);
+
+	_r_wnd_addstyle (hwnd, ctrl_id, is_enable ? PBS_MARQUEE : 0, PBS_MARQUEE, GWL_STYLE);
 }
