@@ -225,10 +225,9 @@ bool rapp::AutorunEnable (bool is_enable)
 	{
 		rstring reg_domain;
 		rstring reg_username;
-		rstring reg_sid;
 
 		_r_sys_getusername (&reg_domain, &reg_username);
-		reg_sid = _r_sys_getusernamesid (reg_domain, reg_username);
+		rstring reg_sid = _r_sys_getusernamesid (reg_domain, reg_username);
 
 		if (!reg_sid.IsEmpty ())
 		{
@@ -1305,7 +1304,7 @@ void rapp::CreateSettingsWindow (DLGPROC proc, size_t dlg_id)
 			app_settings_proc = proc;
 
 #ifdef IDD_SETTINGS
-		DialogBoxParam (nullptr, MAKEINTRESOURCE (IDD_SETTINGS), GetHWND (), &SettingsWndProc, (LPARAM)this);
+		DialogBoxParam (nullptr, MAKEINTRESOURCE (IDD_SETTINGS), nullptr, &SettingsWndProc, (LPARAM)this);
 #else
 #pragma _R_WARNING(IDD_SETTINGS)
 #endif // IDD_SETTINGS
