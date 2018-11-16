@@ -1749,7 +1749,7 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent, rstring proxy_config)
 		WinHttpGetIEProxyConfigForCurrentUser (&proxyConfig);
 
 	// use automatic proxy configuration (win81+)
-	if (is_win81)
+	if (is_win81 && !is_proxyset)
 	{
 		flags = WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY;
 	}
