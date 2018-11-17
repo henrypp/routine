@@ -144,8 +144,8 @@ public:
 
 	bool MutexCreate ();
 	bool MutexDestroy ();
-
 	bool MutexIsExists (bool activate_window);
+
 	bool DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_CALLBACK callback, LONG_PTR lpdata);
 
 #ifdef _APP_HAVE_AUTORUN

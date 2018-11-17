@@ -117,7 +117,11 @@ bool rapp::MutexCreate ()
 {
 	MutexDestroy ();
 
+#ifndef _APP_NO_MUTEX
 	app_mutex = CreateMutex (nullptr, FALSE, app_name_short);
+#else
+	app_mutex = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%d", app_name_short, _r_str_hash (GetBinaryPath ()) + _r_str_hash (GetCommandLine ())));
+#endif // _APP_NO_MUTEX
 
 	return (app_mutex != nullptr);
 }
@@ -141,7 +145,11 @@ bool rapp::MutexIsExists (bool activate_window)
 {
 	bool result = false;
 
+#ifndef _APP_NO_MUTEX
 	const HANDLE hmutex = CreateMutex (nullptr, FALSE, app_name_short);
+#else
+	const HANDLE hmutex = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%d", app_name_short, _r_str_hash (GetBinaryPath ()) + _r_str_hash (GetCommandLine ())));
+#endif // _APP_NO_MUTEX
 
 	if (GetLastError () == ERROR_ALREADY_EXISTS)
 	{
@@ -741,7 +749,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		SendMessage (hwnd, RM_INITIALIZE, 0, 0);
 
 		return FALSE;
-}
+	}
 #endif // _APP_HAVE_TRAY
 
 	switch (msg)
@@ -818,7 +826,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			{
 				_r_wnd_toggle (hwnd, false);
 				return TRUE;
-	}
+			}
 #endif // _APP_HAVE_TRAY
 
 			break;
@@ -902,7 +910,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 	{
 		if (!ConfirmMessage (nullptr, L"Warning!", _r_fmt (L"You are attempting to run the 32-bit version of %s on 64-bit Windows.\r\nPlease run the 64-bit version of %s instead.", app_name, app_name), L"ConfirmWOW64"))
 			return false;
-}
+	}
 #endif // _WIN64
 
 	MutexCreate ();
@@ -1071,7 +1079,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 #endif // _APP_HAVE_UPDATES
 
 			result = true;
-	}
+		}
 	}
 
 	return result;
@@ -1528,7 +1536,7 @@ void rapp::LocaleApplyFromControl (HWND hwnd, UINT ctrl_id)
 		SendMessage (GetHWND (), RM_LOCALIZE, 0, 0);
 
 		DrawMenuBar (GetHWND ()); // redraw menu
-}
+	}
 }
 #endif // _APP_HAVE_SETTINGS
 
@@ -2846,7 +2854,7 @@ bool rapp::RunAsAdmin ()
 				CoUninitialize ();
 			}
 		}
-}
+	}
 
 	return result;
 }
