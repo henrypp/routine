@@ -299,7 +299,8 @@ bool _r_wnd_isfullscreenmode ();
 	Inernet access (WinHTTP)
 */
 
-HINTERNET _r_inet_createsession (LPCWSTR useragent);
+HINTERNET _r_inet_createsession (LPCWSTR useragent, rstring proxy_config);
+rstring _r_inet_getproxyconfiguration (LPCWSTR custom_proxy);
 bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, rstring proxy_config, HINTERNET* pconnect, HINTERNET* prequest, PDWORD ptotallength);
 bool _r_inet_parseurl (LPCWSTR url, INT *scheme_ptr, LPWSTR host_ptr, WORD *port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr);
 bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD preaded, PDWORD ptotalreaded);

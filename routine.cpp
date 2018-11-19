@@ -1736,29 +1736,41 @@ bool _r_wnd_isfullscreenmode ()
 	Inernet access (WinHTTP)
 */
 
-HINTERNET _r_inet_createsession (LPCWSTR useragent)
+rstring _r_inet_getproxyconfiguration (LPCWSTR custom_proxy)
+{
+	rstring result;
+
+	if (custom_proxy && custom_proxy[0])
+	{
+		result = custom_proxy;
+	}
+	else
+	{
+		WINHTTP_CURRENT_USER_IE_PROXY_CONFIG proxyConfig = {0};
+		WinHttpGetIEProxyConfigForCurrentUser (&proxyConfig);
+
+		if (proxyConfig.lpszProxy && proxyConfig.lpszProxy[0])
+			result = proxyConfig.lpszProxy;
+
+		if (proxyConfig.lpszProxy)
+			GlobalFree (proxyConfig.lpszProxy);
+
+		if (proxyConfig.lpszProxyBypass)
+			GlobalFree (proxyConfig.lpszProxyBypass);
+
+		if (proxyConfig.lpszAutoConfigUrl)
+			GlobalFree (proxyConfig.lpszAutoConfigUrl);
+	}
+
+	return result;
+}
+
+HINTERNET _r_inet_createsession (LPCWSTR useragent, rstring proxy_config)
 {
 	static const bool is_win81 = _r_sys_validversion (6, 3);
+	const bool is_proxyset = !proxy_config.IsEmpty ();
 
-	DWORD flags = 0;
-	WINHTTP_CURRENT_USER_IE_PROXY_CONFIG proxyConfig = {0};
-
-	if (proxyConfig.lpszProxy)
-		flags = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
-
-	else
-		flags = is_win81 ? WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY : WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
-
-	const HINTERNET hsession = WinHttpOpen (useragent, flags, proxyConfig.lpszProxy, proxyConfig.lpszProxyBypass, 0);
-
-	if (proxyConfig.lpszProxy)
-		GlobalFree (proxyConfig.lpszProxy);
-
-	if (proxyConfig.lpszProxyBypass)
-		GlobalFree (proxyConfig.lpszProxyBypass);
-
-	if (proxyConfig.lpszAutoConfigUrl)
-		GlobalFree (proxyConfig.lpszAutoConfigUrl);
+	const HINTERNET hsession = WinHttpOpen (useragent, (is_win81 && !is_proxyset) ? WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY : WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
 
 	if (!hsession)
 		return nullptr;
@@ -1794,26 +1806,6 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, rstring proxy_config, HIN
 
 	if (_r_inet_parseurl (url, &url_scheme, url_host, &url_port, url_path, nullptr, nullptr))
 	{
-		WCHAR proxy_host[MAX_PATH] = {0};
-		WCHAR proxy_user[MAX_PATH] = {0};
-		WCHAR proxy_pass[MAX_PATH] = {0};
-		WORD proxy_port = 0;
-
-		// set proxy configuration (if available)
-		if (_r_inet_parseurl (proxy_config, nullptr, proxy_host, &proxy_port, nullptr, proxy_user, proxy_pass))
-		{
-			WINHTTP_PROXY_INFO proxy = {0};
-
-			WCHAR proxy_addr[MAX_PATH] = {0};
-
-			StringCchPrintf (proxy_addr, _countof (proxy_addr), L"%s:%d", proxy_host, proxy_port);
-
-			proxy.dwAccessType = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
-			proxy.lpszProxy = proxy_addr;
-
-			WinHttpSetOption (hsession, WINHTTP_OPTION_PROXY, &proxy, sizeof (proxy));
-		}
-
 		hconnect = WinHttpConnect (hsession, url_host, url_port, 0);
 
 		if (hconnect)
@@ -1834,11 +1826,33 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, rstring proxy_config, HIN
 					WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &option, sizeof (option));
 				}
 
-				// set proxy credentials (if exists)
-				if (proxy_user[0] && proxy_pass[0])
+				// set proxy configuration (if available)
 				{
-					WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY_USERNAME, proxy_user, (DWORD)wcslen (proxy_user));
-					WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY_PASSWORD, proxy_pass, (DWORD)wcslen (proxy_pass));
+					WCHAR proxy_host[MAX_PATH] = {0};
+					WCHAR proxy_user[MAX_PATH] = {0};
+					WCHAR proxy_pass[MAX_PATH] = {0};
+					WORD proxy_port = 0;
+
+					if (_r_inet_parseurl (proxy_config, nullptr, proxy_host, &proxy_port, nullptr, proxy_user, proxy_pass))
+					{
+						WINHTTP_PROXY_INFO proxy_info = {0};
+
+						WCHAR proxy_addr[MAX_PATH] = {0};
+
+						StringCchPrintf (proxy_addr, _countof (proxy_addr), L"%s:%d", proxy_host, proxy_port);
+
+						proxy_info.dwAccessType = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
+						proxy_info.lpszProxy = proxy_addr;
+
+						WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY, &proxy_info, sizeof (proxy_info));
+
+						// set proxy credentials (if exists)
+						if (proxy_user[0] && proxy_pass[0])
+						{
+							WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY_USERNAME, proxy_user, (DWORD)wcslen (proxy_user));
+							WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY_PASSWORD, proxy_pass, (DWORD)wcslen (proxy_pass));
+						}
+					}
 				}
 
 				USHORT retry_count = 5;

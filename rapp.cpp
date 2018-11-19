@@ -276,8 +276,8 @@ bool rapp::DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_C
 {
 	bool result = false;
 
-	const rstring proxy_info = ConfigGet (L"Proxy", nullptr);
-	const HINTERNET hsession = _r_inet_createsession (GetUserAgent ());
+	const rstring proxy_info = _r_inet_getproxyconfiguration (ConfigGet (L"Proxy", nullptr));
+	const HINTERNET hsession = _r_inet_createsession (GetUserAgent (), proxy_info);
 
 	if (hsession)
 	{
