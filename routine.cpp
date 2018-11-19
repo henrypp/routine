@@ -175,9 +175,7 @@ static const DWORD _r_fastlock_getspincount ()
 
 ULONG _r_fastlock_islocked (P_FASTLOCK plock)
 {
-	const ULONG value = plock->Value;
-
-	return value;
+	return _InterlockedCompareExchange (&plock->Value, 0, 0);
 }
 
 void _r_fastlock_initialize (P_FASTLOCK plock)

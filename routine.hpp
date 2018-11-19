@@ -169,7 +169,8 @@ typedef struct _R_FASTLOCK
 
 	}
 
-	ULONG Value;
+	volatile ULONG Value;
+
 	HANDLE ExclusiveWakeEvent;
 	HANDLE SharedWakeEvent;
 } R_FASTLOCK, *P_FASTLOCK;
