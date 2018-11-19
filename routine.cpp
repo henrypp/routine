@@ -1736,33 +1736,20 @@ bool _r_wnd_isfullscreenmode ()
 	Inernet access (WinHTTP)
 */
 
-HINTERNET _r_inet_createsession (LPCWSTR useragent, rstring proxy_config)
+HINTERNET _r_inet_createsession (LPCWSTR useragent)
 {
-	DWORD flags = 0;
-
 	static const bool is_win81 = _r_sys_validversion (6, 3);
-	const bool is_proxyset = !proxy_config.IsEmpty ();
 
+	DWORD flags = 0;
 	WINHTTP_CURRENT_USER_IE_PROXY_CONFIG proxyConfig = {0};
 
-	if (!is_proxyset)
-		WinHttpGetIEProxyConfigForCurrentUser (&proxyConfig);
+	if (proxyConfig.lpszProxy)
+		flags = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
 
-	// use automatic proxy configuration (win81+)
-	if (is_win81 && !is_proxyset)
-	{
-		flags = WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY;
-	}
 	else
-	{
-		if (is_proxyset || proxyConfig.lpszProxy)
-			flags = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
+		flags = is_win81 ? WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY : WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
 
-		else
-			flags = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
-	}
-
-	const HINTERNET hsession = WinHttpOpen (useragent, flags, is_proxyset ? proxy_config : proxyConfig.lpszProxy, is_proxyset ? nullptr : proxyConfig.lpszProxy, 0);
+	const HINTERNET hsession = WinHttpOpen (useragent, flags, proxyConfig.lpszProxy, proxyConfig.lpszProxyBypass, 0);
 
 	if (proxyConfig.lpszProxy)
 		GlobalFree (proxyConfig.lpszProxy);
@@ -1792,36 +1779,48 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent, rstring proxy_config)
 	return hsession;
 }
 
-bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINTERNET* prequest, PDWORD ptotallength)
+bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, rstring proxy_config, HINTERNET* pconnect, HINTERNET* prequest, PDWORD ptotallength)
 {
 	if (!hsession)
 		return false;
 
-	URL_COMPONENTS urlcomp = {0};
-
-	WCHAR host[MAX_PATH] = {0};
+	WCHAR url_host[MAX_PATH] = {0};
 	WCHAR url_path[MAX_PATH] = {0};
-
-	urlcomp.dwStructSize = sizeof (urlcomp);
-
-	urlcomp.lpszHostName = host;
-	urlcomp.dwHostNameLength = _countof (host);
-
-	urlcomp.lpszUrlPath = url_path;
-	urlcomp.dwUrlPathLength = _countof (url_path);
+	WORD url_port = 0;
+	INT url_scheme = 0;
 
 	HINTERNET hconnect = nullptr;
 	HINTERNET hrequest = nullptr;
 
-	if (WinHttpCrackUrl (url, DWORD (wcslen (url)), ICU_DECODE, &urlcomp))
+	if (_r_inet_parseurl (url, &url_scheme, url_host, &url_port, url_path, nullptr, nullptr))
 	{
-		hconnect = WinHttpConnect (hsession, host, urlcomp.nPort, 0);
+		WCHAR proxy_host[MAX_PATH] = {0};
+		WCHAR proxy_user[MAX_PATH] = {0};
+		WCHAR proxy_pass[MAX_PATH] = {0};
+		WORD proxy_port = 0;
+
+		// set proxy configuration (if available)
+		if (_r_inet_parseurl (proxy_config, nullptr, proxy_host, &proxy_port, nullptr, proxy_user, proxy_pass))
+		{
+			WINHTTP_PROXY_INFO proxy = {0};
+
+			WCHAR proxy_addr[MAX_PATH] = {0};
+
+			StringCchPrintf (proxy_addr, _countof (proxy_addr), L"%s:%d", proxy_host, proxy_port);
+
+			proxy.dwAccessType = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
+			proxy.lpszProxy = proxy_addr;
+
+			WinHttpSetOption (hsession, WINHTTP_OPTION_PROXY, &proxy, sizeof (proxy));
+		}
+
+		hconnect = WinHttpConnect (hsession, url_host, url_port, 0);
 
 		if (hconnect)
 		{
 			DWORD flags = WINHTTP_FLAG_REFRESH;
 
-			if (urlcomp.nScheme == INTERNET_SCHEME_HTTPS)
+			if (url_scheme == INTERNET_SCHEME_HTTPS)
 				flags |= WINHTTP_FLAG_SECURE;
 
 			hrequest = WinHttpOpenRequest (hconnect, nullptr, url_path, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
@@ -1835,9 +1834,16 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINT
 					WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &option, sizeof (option));
 				}
 
-				UINT retry_count = 0;
+				// set proxy credentials (if exists)
+				if (proxy_user[0] && proxy_pass[0])
+				{
+					WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY_USERNAME, proxy_user, (DWORD)wcslen (proxy_user));
+					WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY_PASSWORD, proxy_pass, (DWORD)wcslen (proxy_pass));
+				}
 
-				do
+				USHORT retry_count = 5;
+
+				while (--retry_count)
 				{
 					if (WinHttpSendRequest (hrequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH, 0))
 					{
@@ -1846,14 +1852,14 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINT
 							DWORD http_code = 0;
 							DWORD length = sizeof (DWORD);
 
-							if (WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &http_code, &length, nullptr))
+							if (WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &http_code, &length, WINHTTP_NO_HEADER_INDEX))
 							{
 								if (http_code == HTTP_STATUS_OK)
 								{
 									if (ptotallength)
 									{
 										length = sizeof (DWORD);
-										WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, ptotallength, &length, nullptr);
+										WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, ptotallength, &length, WINHTTP_NO_HEADER_INDEX);
 									}
 
 									if (pconnect)
@@ -1864,6 +1870,13 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINT
 
 									return true;
 								}
+								else if (
+									http_code == HTTP_STATUS_DENIED ||
+									http_code == HTTP_STATUS_FORBIDDEN
+									)
+								{
+									break;
+								}
 							}
 						}
 					}
@@ -1871,22 +1884,31 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINT
 					{
 						const DWORD err = GetLastError ();
 
-						if (err == ERROR_WINHTTP_SECURE_FAILURE || err == ERROR_WINHTTP_CONNECTION_ERROR)
+						if (
+							err == ERROR_WINHTTP_SECURE_FAILURE ||
+							err == ERROR_WINHTTP_CONNECTION_ERROR
+							)
 						{
 							// allow unknown certificates
-							DWORD option = SECURITY_FLAG_IGNORE_CERT_CN_INVALID | SECURITY_FLAG_IGNORE_CERT_DATE_INVALID | SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE;
+							DWORD option = SECURITY_FLAG_IGNORE_UNKNOWN_CA |
+								SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE /*|
+								SECURITY_FLAG_IGNORE_CERT_CN_INVALID |
+								SECURITY_FLAG_IGNORE_CERT_DATE_INVALID |
+								*/;
 
 							if (!WinHttpSetOption (hrequest, WINHTTP_OPTION_SECURITY_FLAGS, &option, sizeof (option)))
 								break;
 						}
+						//else if(err == ERROR_WINHTTP_RESEND_REQUEST)
+						//{
+						//	continue;
+						//}
 						else
 						{
 							break;
 						}
 					}
-
 				}
-				while (++retry_count <= 3);
 			}
 		}
 	}
@@ -1898,6 +1920,66 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, HINTERNET* pconnect, HINT
 		_r_inet_close (hrequest);
 
 	return false;
+}
+
+bool _r_inet_parseurl (LPCWSTR url, INT *scheme_ptr, LPWSTR host_ptr, WORD *port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr)
+{
+	if (!url || !url[0] || (!scheme_ptr && !host_ptr && !port_ptr && !path_ptr && !user_ptr && !pass_ptr))
+		return false;
+
+	URL_COMPONENTS urls = {0};
+
+	WCHAR host_part[MAX_PATH] = {0};
+	WCHAR path_part[MAX_PATH] = {0};
+	WCHAR user_part[MAX_PATH] = {0};
+	WCHAR pass_part[MAX_PATH] = {0};
+
+	urls.dwStructSize = sizeof (urls);
+
+	urls.lpszHostName = host_part;
+	urls.dwHostNameLength = _countof (host_part);
+
+	urls.lpszUrlPath = path_part;
+	urls.dwUrlPathLength = _countof (path_part);
+
+	urls.lpszUserName = user_part;
+	urls.dwUserNameLength = _countof (user_part);
+
+	urls.lpszPassword = pass_part;
+	urls.dwPasswordLength = _countof (pass_part);
+
+	rstring url_copy = url;
+
+	if (!WinHttpCrackUrl (url_copy, DWORD (wcslen (url_copy)), ICU_DECODE, &urls))
+	{
+		if (GetLastError () != ERROR_WINHTTP_UNRECOGNIZED_SCHEME)
+			return false;
+
+		url_copy.Insert (0, L"https://");
+
+		if (!WinHttpCrackUrl (url_copy, DWORD (wcslen (url_copy)), ICU_DECODE, &urls))
+			return false;
+	}
+
+	if (host_ptr)
+		StringCchCopy (host_ptr, _countof (host_part), host_part);
+
+	if (path_ptr)
+		StringCchCopy (path_ptr, _countof (path_part), path_part);
+
+	if (user_ptr)
+		StringCchCopy (user_ptr, _countof (user_part), user_part);
+
+	if (pass_ptr)
+		StringCchCopy (pass_ptr, _countof (pass_part), pass_part);
+
+	if (scheme_ptr)
+		*scheme_ptr = urls.nScheme;
+
+	if (port_ptr)
+		*port_ptr = urls.nPort;
+
+	return true;
 }
 
 bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD preaded, PDWORD ptotalreaded)
@@ -1919,11 +2001,6 @@ bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD
 		return false;
 
 	return true;
-}
-
-void _r_inet_close (HINTERNET hinet)
-{
-	WinHttpCloseHandle (hinet);
 }
 
 /*

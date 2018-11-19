@@ -14,6 +14,7 @@
 #define LAST_VALUE (size_t(-1))
 
 #define _R_BUFFER_LENGTH 8192
+#define _R_BUFFER_INET_LENGTH (_R_BUFFER_LENGTH * 4)
 
 //#define _APP_NO_ABOUT // disable about dialog feature
 //#define _APP_NO_GUEST // disable "guest" mode, running without admin rights; see _APP_HAVE_SKIPUAC

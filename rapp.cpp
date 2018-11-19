@@ -276,7 +276,8 @@ bool rapp::DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_C
 {
 	bool result = false;
 
-	const HINTERNET hsession = _r_inet_createsession (GetUserAgent (), ConfigGet (L"Proxy", nullptr));
+	const rstring proxy_info = ConfigGet (L"Proxy", nullptr);
+	const HINTERNET hsession = _r_inet_createsession (GetUserAgent ());
 
 	if (hsession)
 	{
@@ -285,9 +286,9 @@ bool rapp::DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_C
 
 		DWORD total_length = 0;
 
-		if (_r_inet_openurl (hsession, url, &hconnect, &hrequest, &total_length))
+		if (_r_inet_openurl (hsession, url, proxy_info, &hconnect, &hrequest, &total_length))
 		{
-			const DWORD buffer_length = (_R_BUFFER_LENGTH * 4);
+			static const size_t buffer_length = _R_BUFFER_INET_LENGTH;
 			LPSTR content_buffer = new CHAR[buffer_length];
 
 			if (content_buffer)
