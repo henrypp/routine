@@ -858,6 +858,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 	bool result = false;
 
 	// check checksum
+#ifndef _DEBUG
 	{
 		const HINSTANCE hlib = LoadLibrary (L"imagehlp.dll");
 
@@ -878,6 +879,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 			FreeLibrary (hlib);
 		}
 	}
+#endif // _DEBUG
 
 	// initialize controls
 	{
