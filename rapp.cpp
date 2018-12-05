@@ -1305,7 +1305,11 @@ void rapp::CreateSettingsWindow (DLGPROC proc, size_t dlg_id)
 {
 	const HANDLE hsettings = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%s", app_name_short, TEXT (__FUNCTION__)));
 
-	if (GetLastError () != ERROR_ALREADY_EXISTS)
+	if (GetLastError () == ERROR_ALREADY_EXISTS)
+	{
+		_r_wnd_toggle (GetSettingsWindow (), true);
+	}
+	else
 	{
 		if (dlg_id != LAST_VALUE)
 			ConfigSet (L"SettingsLastPage", (DWORD)dlg_id);
@@ -1346,14 +1350,14 @@ size_t rapp::SettingsAddPage (UINT dlg_id, UINT locale_id, size_t group_id)
 	return LAST_VALUE;
 }
 
-HWND rapp::SettingsGetWindow ()
+HWND rapp::GetSettingsWindow ()
 {
 	return settings_hwnd;
 }
 
 void rapp::SettingsInitialize ()
 {
-	const HWND hwnd = SettingsGetWindow ();
+	const HWND hwnd = GetSettingsWindow ();
 
 	if (!hwnd)
 		return;
@@ -1521,7 +1525,7 @@ void rapp::LocaleApplyFromControl (HWND hwnd, UINT ctrl_id)
 
 	ConfigSet (L"Language", text);
 
-	if (SettingsGetWindow ())
+	if (GetSettingsWindow ())
 	{
 		SettingsInitialize ();
 

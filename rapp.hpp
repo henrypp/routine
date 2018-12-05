@@ -193,7 +193,7 @@ public:
 	void CreateSettingsWindow (DLGPROC proc, size_t dlg_id = LAST_VALUE);
 
 	size_t SettingsAddPage (UINT dlg_id, UINT locale_id, size_t group_id = LAST_VALUE);
-	HWND SettingsGetWindow ();
+	HWND GetSettingsWindow ();
 	void SettingsInitialize ();
 #endif // _APP_HAVE_SETTINGS
 
