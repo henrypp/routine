@@ -626,7 +626,7 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 #ifndef _APP_NO_ABOUT
 void rapp::CreateAboutWindow (HWND hwnd)
 {
-	const HANDLE habout = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%s", app_name_short, TEXT (__FUNCTION__)));
+	const HANDLE habout = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%d", app_name_short, GetCurrentProcessId ()));
 
 	if (GetLastError () != ERROR_ALREADY_EXISTS)
 	{
@@ -1303,7 +1303,7 @@ bool rapp::TrayToggle (HWND hwnd, UINT uid, LPGUID guid, bool is_show)
 #ifdef _APP_HAVE_SETTINGS
 void rapp::CreateSettingsWindow (DLGPROC proc, size_t dlg_id)
 {
-	const HANDLE hsettings = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%s", app_name_short, TEXT (__FUNCTION__)));
+	const HANDLE hsettings = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%d", app_name_short, GetCurrentProcessId ()));
 
 	if (GetLastError () == ERROR_ALREADY_EXISTS)
 	{
