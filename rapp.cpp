@@ -65,30 +65,38 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	INT numargs = 0;
 	LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
 
-	if (arga && numargs > 1)
+	if (arga)
 	{
-		for (INT i = 1; i < numargs; i++)
+		if (numargs > 1)
 		{
-			if (_wcsnicmp (arga[i], L"/ini", 3) == 0 && (i + 1) < numargs)
+			for (INT i = 1; i < numargs; i++)
 			{
-				LPWSTR ptr = arga[i + 1];
-
-				PathUnquoteSpaces (ptr);
-
-				StringCchCopy (app_config_path, _countof (app_config_path), _r_path_expand (ptr));
-
-				if (PathGetDriveNumber (app_config_path) == -1)
-					StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s", GetDirectory (), _r_path_expand (ptr).GetString ());
-
-				if (!_r_fs_exists (app_config_path))
+				if (_wcsnicmp (arga[i], L"/ini", 4) == 0 && (i + 1) <= numargs)
 				{
-					const HANDLE hfile = CreateFile (app_config_path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+					LPWSTR ptr = arga[i + 1];
 
-					if (hfile != INVALID_HANDLE_VALUE)
-						CloseHandle (hfile);
+					if (ptr[0] == L'/' || ptr[0] == L'-')
+						continue;
+
+					PathUnquoteSpaces (ptr);
+
+					StringCchCopy (app_config_path, _countof (app_config_path), _r_path_expand (ptr));
+
+					if (PathGetDriveNumber (app_config_path) == -1)
+						StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s", GetDirectory (), _r_path_expand (ptr).GetString ());
+
+					if (!_r_fs_exists (app_config_path))
+					{
+						const HANDLE hfile = CreateFile (app_config_path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+
+						if (hfile != INVALID_HANDLE_VALUE)
+							CloseHandle (hfile);
+					}
 				}
 			}
 		}
+
+		LocalFree (arga);
 	}
 
 	// get configuration path
@@ -423,12 +431,12 @@ bool rapp::UpdateCheck (bool is_forced)
 			pupdateinfo->hthread = hthread;
 
 			UpdateDialogNavigate (nullptr, nullptr, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
-		}
+	}
 		else
 		{
 			ResumeThread (hthread);
 		}
-	}
+}
 	else
 	{
 		return false;
@@ -603,7 +611,7 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 
 				RegDeleteValue (hkey, cfg_string);
 				RegCloseKey (hkey);
-			}
+}
 		}
 	}
 #endif // _APP_NO_WINXP
@@ -946,7 +954,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 				UpdateInstall ();
 				return false;
 			}
-		}
+	}
 #endif //_APP_HAVE_UPDATES
 
 #ifdef _APP_HAVE_UPDATES
@@ -972,7 +980,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 				_r_wnd_changemessagefilter (GetHWND (), WM_COPYDATA, MSGFLT_ALLOW);
 				_r_wnd_changemessagefilter (GetHWND (), WM_COPYGLOBALDATA, MSGFLT_ALLOW);
 #ifndef _APP_NO_WINXP
-			}
+		}
 #endif // _APP_NO_WINXP
 
 			// subclass window
@@ -1061,7 +1069,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 				}
 
 				ShowWindow (GetHWND (), show_code);
-			}
+	}
 
 			// set icons
 			if (icon_id)
@@ -1082,7 +1090,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 #endif // _APP_HAVE_UPDATES
 
 			result = true;
-		}
+}
 	}
 
 	return result;
@@ -1199,7 +1207,7 @@ bool rapp::TrayPopup (HWND hwnd, UINT uid, LPGUID guid, DWORD icon_id, LPCWSTR t
 #endif
 
 #ifndef _APP_NO_WINXP
-		}
+	}
 		else
 		{
 			nid.dwInfoFlags = NIIF_INFO;
@@ -1978,13 +1986,13 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					}
 
 					break;
-				}
-#endif // IDC_RESET
 			}
+#endif // IDC_RESET
+		}
 
 			break;
-		}
 	}
+}
 
 	return FALSE;
 }
@@ -2018,9 +2026,9 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 
 				SendMessage (pupdateinfo->hwnd, TDM_SET_ELEMENT_TEXT, TDE_CONTENT, (LPARAM)str_content);
 				SendMessage (pupdateinfo->hwnd, TDM_SET_PROGRESS_BAR_POS, (WPARAM)percent, 0);
-			}
-#ifndef _APP_NO_WINXP
 		}
+#ifndef _APP_NO_WINXP
+}
 #endif // _APP_NO_WINXP
 	}
 
@@ -2085,7 +2093,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					StringCchCopy (str_content, _countof (str_content), L"Downloading update finished.");
 #pragma _R_WARNING(IDS_UPDATE_DONE)
 #endif // IDS_UPDATE_DONE
-				}
+		}
 			}
 			else
 			{
@@ -2095,7 +2103,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 				StringCchCopy (str_content, _countof (str_content), L"Update server connection error");
 #pragma _R_WARNING(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
-			}
+	}
 
 #ifndef _APP_NO_WINXP
 			if (papp->IsVistaOrLater ())
@@ -2113,8 +2121,8 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					_r_msg (papp->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), papp->app_name, nullptr, L"%s", str_content);
 			}
 #endif // _APP_NO_WINXP
-		}
-	}
+			}
+}
 
 	//SetEvent (pupdateinfo->hend);
 
@@ -2307,8 +2315,8 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 #endif // IDS_UPDATE_ERROR
 
 				papp->UpdateDialogNavigate (pupdateinfo->hwnd, TD_WARNING_ICON, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
-			}
 		}
+}
 		else
 		{
 			rstring::map_one result;
@@ -2398,9 +2406,9 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							{
 								ResumeThread (pupdateinfo->hthread);
 								WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
-							}
-						}
-					}
+				}
+			}
+		}
 #endif
 					for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 					{
@@ -2444,7 +2452,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 #endif // IDS_UPDATE_NO
 
 						papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
-					}
+				}
 				}
 			}
 
