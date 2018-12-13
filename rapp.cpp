@@ -353,7 +353,7 @@ bool rapp::DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_C
 						lpbuffer->Trim (L"\r\n ");
 				}
 
-				delete[] content_buffer;
+				SAFE_DELETE_ARRAY (content_buffer);
 			}
 		}
 
@@ -1502,8 +1502,7 @@ HICON rapp::GetSharedIcon (HINSTANCE hinst, UINT icon_id, INT cx_width)
 			}
 			else
 			{
-				delete presult;
-				presult = nullptr;
+				SAFE_DELETE (presult);
 			}
 		}
 	}

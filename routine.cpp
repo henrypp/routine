@@ -976,7 +976,7 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 						result = ERROR_SUCCESS;
 					}
 
-					delete[] pbuffer;
+					SAFE_DELETE_ARRAY (pbuffer);
 				}
 			}
 
@@ -1287,7 +1287,7 @@ rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username)
 			}
 		}
 
-		delete[] psid;
+		SAFE_DELETE_ARRAY (psid);
 	}
 
 	return result;

@@ -8,10 +8,7 @@
 
 LPWSTR rstring::empty = L"";
 
-#pragma warning(push)
-#pragma warning(disable: 4309)
-const size_t rstring::npos = MAXDWORD64;
-#pragma warning(pop)
+const size_t rstring::npos = (size_t)-1;
 
 rstring::rstring () : data_ (nullptr)
 {}
@@ -250,9 +247,9 @@ bool rstring::AsBool () const
 	return false;
 }
 
-INT rstring::AsInt (INT radix) const
+int rstring::AsInt (int radix) const
 {
-	return static_cast<INT>(AsLong (radix));
+	return static_cast<int>(AsLong (radix));
 }
 
 DOUBLE rstring::AsDouble () const
@@ -263,7 +260,7 @@ DOUBLE rstring::AsDouble () const
 	return wcstod (GetString (), nullptr);
 }
 
-LONG rstring::AsLong (INT radix) const
+LONG rstring::AsLong (int radix) const
 {
 	if (IsEmpty ())
 		return 0;
@@ -271,7 +268,7 @@ LONG rstring::AsLong (INT radix) const
 	return wcstol (GetString (), nullptr, radix);
 }
 
-LONGLONG rstring::AsLonglong (INT radix) const
+LONGLONG rstring::AsLonglong (int radix) const
 {
 	if (IsEmpty ())
 		return 0;
@@ -279,7 +276,7 @@ LONGLONG rstring::AsLonglong (INT radix) const
 	return wcstoll (GetString (), nullptr, radix);
 }
 
-size_t rstring::AsSizeT (INT radix) const
+size_t rstring::AsSizeT (int radix) const
 {
 	if (IsEmpty ())
 		return 0;
@@ -291,12 +288,12 @@ size_t rstring::AsSizeT (INT radix) const
 #endif
 }
 
-UINT rstring::AsUint (INT radix) const
+UINT rstring::AsUint (int radix) const
 {
-	return static_cast<INT>(AsUlong (radix));
+	return static_cast<int>(AsUlong (radix));
 }
 
-ULONG rstring::AsUlong (INT radix) const
+ULONG rstring::AsUlong (int radix) const
 {
 	if (IsEmpty ())
 		return 0;
@@ -304,7 +301,7 @@ ULONG rstring::AsUlong (INT radix) const
 	return wcstoul (GetString (), nullptr, radix);
 }
 
-ULONGLONG rstring::AsUlonglong (INT radix) const
+ULONGLONG rstring::AsUlonglong (int radix) const
 {
 	if (IsEmpty ())
 		return 0;
@@ -735,22 +732,22 @@ rstring rstring::Replaced (LPCWSTR from, LPCWSTR to) const
 	return tmp;
 }
 
-INT rstring::Compare (const rstring& str) const
+int rstring::Compare (const rstring& str) const
 {
 	return _Compare (toBuffer (), str.toBuffer ());
 }
 
-INT rstring::Compare (LPCWSTR str) const
+int rstring::Compare (LPCWSTR str) const
 {
 	return _Compare (toBuffer (), str);
 }
 
-INT rstring::CompareNoCase (const rstring& str) const
+int rstring::CompareNoCase (const rstring& str) const
 {
 	return _CompareI (toBuffer (), str.toBuffer ());
 }
 
-INT rstring::CompareNoCase (LPCWSTR str) const
+int rstring::CompareNoCase (LPCWSTR str) const
 {
 	return _CompareI (toBuffer (), str);
 }
@@ -988,7 +985,7 @@ void rstring::Release ()
 		if (res == 0)
 		{
 			//char* bytes = (char*)buffer;
-			delete[] buffer;
+			SAFE_DELETE_ARRAY (buffer);
 		}
 		data_ = nullptr;
 	}
@@ -1071,7 +1068,7 @@ rstring::Buffer* rstring::ReallocateUnique (size_t length)
 				Buffer* newBuffer = (Buffer*)new char[newByteCount];
 				newBuffer->referenceCount = 1;
 				newBuffer->length = length;
-				size_t copyCount = min (buffer->length, length) + 2;
+				size_t copyCount = min (buffer->length, length) + sizeof (WCHAR);
 				memcpy (newBuffer->data, buffer->data, copyCount * sizeof (WCHAR));
 				newBuffer->data[length] = 0;
 				Release ();
@@ -1136,7 +1133,7 @@ int rstring::_Compare (Buffer* buffer1, LPCWSTR buffer2)
 		size_t compareLength = min (buffer1->length, length);
 		for (size_t i = 0; i < compareLength; i++)
 		{
-			INT res = INT (buffer1->data[i]) - INT (buffer2[i]);
+			int res = int (buffer1->data[i]) - int (buffer2[i]);
 
 			if (res != 0)
 			{
