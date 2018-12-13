@@ -431,12 +431,12 @@ bool rapp::UpdateCheck (bool is_forced)
 			pupdateinfo->hthread = hthread;
 
 			UpdateDialogNavigate (nullptr, nullptr, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
-	}
+		}
 		else
 		{
 			ResumeThread (hthread);
 		}
-}
+	}
 	else
 	{
 		return false;
@@ -611,7 +611,7 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 
 				RegDeleteValue (hkey, cfg_string);
 				RegCloseKey (hkey);
-}
+			}
 		}
 	}
 #endif // _APP_NO_WINXP
@@ -954,7 +954,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 				UpdateInstall ();
 				return false;
 			}
-	}
+		}
 #endif //_APP_HAVE_UPDATES
 
 #ifdef _APP_HAVE_UPDATES
@@ -980,7 +980,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 				_r_wnd_changemessagefilter (GetHWND (), WM_COPYDATA, MSGFLT_ALLOW);
 				_r_wnd_changemessagefilter (GetHWND (), WM_COPYGLOBALDATA, MSGFLT_ALLOW);
 #ifndef _APP_NO_WINXP
-		}
+			}
 #endif // _APP_NO_WINXP
 
 			// subclass window
@@ -1009,8 +1009,13 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 				// set minmax info
 				if (GetWindowRect (GetHWND (), &rect_original))
 				{
+#ifdef _APP_HAVE_MINSIZE
+					max_width = _R_RECT_WIDTH (&rect_original) / 2;
+					max_height = _R_RECT_HEIGHT (&rect_original) / 2;
+#else
 					max_width = _R_RECT_WIDTH (&rect_original);
 					max_height = _R_RECT_HEIGHT (&rect_original);
+#endif // _APP_HAVE_MINSIZE
 				}
 
 				// send resize message
@@ -1030,8 +1035,8 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 
 				if ((GetWindowLongPtr (GetHWND (), GWL_STYLE) & WS_SIZEBOX) != 0)
 				{
-					rect_new.right = max (ConfigGet (L"WindowPosWidth", 0).AsLong (), max_width) + rect_new.left;
-					rect_new.bottom = max (ConfigGet (L"WindowPosHeight", 0).AsLong (), max_height) + rect_new.top;
+					rect_new.right = max (ConfigGet (L"WindowPosWidth", _R_RECT_WIDTH (&rect_original)).AsLong (), max_width) + rect_new.left;
+					rect_new.bottom = max (ConfigGet (L"WindowPosHeight", _R_RECT_HEIGHT (&rect_original)).AsLong (), max_height) + rect_new.top;
 				}
 				else
 				{
@@ -1069,7 +1074,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 				}
 
 				ShowWindow (GetHWND (), show_code);
-	}
+			}
 
 			// set icons
 			if (icon_id)
@@ -1090,7 +1095,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 #endif // _APP_HAVE_UPDATES
 
 			result = true;
-}
+		}
 	}
 
 	return result;
@@ -1207,7 +1212,7 @@ bool rapp::TrayPopup (HWND hwnd, UINT uid, LPGUID guid, DWORD icon_id, LPCWSTR t
 #endif
 
 #ifndef _APP_NO_WINXP
-	}
+		}
 		else
 		{
 			nid.dwInfoFlags = NIIF_INFO;
@@ -1986,13 +1991,13 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					}
 
 					break;
-			}
+				}
 #endif // IDC_RESET
-		}
+			}
 
 			break;
+		}
 	}
-}
 
 	return FALSE;
 }
@@ -2026,9 +2031,9 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 
 				SendMessage (pupdateinfo->hwnd, TDM_SET_ELEMENT_TEXT, TDE_CONTENT, (LPARAM)str_content);
 				SendMessage (pupdateinfo->hwnd, TDM_SET_PROGRESS_BAR_POS, (WPARAM)percent, 0);
-		}
+			}
 #ifndef _APP_NO_WINXP
-}
+		}
 #endif // _APP_NO_WINXP
 	}
 
@@ -2093,7 +2098,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					StringCchCopy (str_content, _countof (str_content), L"Downloading update finished.");
 #pragma _R_WARNING(IDS_UPDATE_DONE)
 #endif // IDS_UPDATE_DONE
-		}
+				}
 			}
 			else
 			{
@@ -2103,7 +2108,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 				StringCchCopy (str_content, _countof (str_content), L"Update server connection error");
 #pragma _R_WARNING(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
-	}
+			}
 
 #ifndef _APP_NO_WINXP
 			if (papp->IsVistaOrLater ())
@@ -2121,8 +2126,8 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					_r_msg (papp->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), papp->app_name, nullptr, L"%s", str_content);
 			}
 #endif // _APP_NO_WINXP
-			}
-}
+		}
+	}
 
 	//SetEvent (pupdateinfo->hend);
 
@@ -2315,8 +2320,8 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 #endif // IDS_UPDATE_ERROR
 
 				papp->UpdateDialogNavigate (pupdateinfo->hwnd, TD_WARNING_ICON, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
+			}
 		}
-}
 		else
 		{
 			rstring::map_one result;
@@ -2406,9 +2411,9 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							{
 								ResumeThread (pupdateinfo->hthread);
 								WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
-				}
-			}
-		}
+							}
+						}
+					}
 #endif
 					for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 					{
@@ -2452,7 +2457,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 #endif // IDS_UPDATE_NO
 
 						papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
-				}
+					}
 				}
 			}
 
