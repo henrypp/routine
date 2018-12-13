@@ -44,6 +44,15 @@
 #define OBJ_NAME_PATH_SEPARATOR ((WCHAR)L'\\')
 #endif // OBJ_NAME_PATH_SEPARATOR
 
+// memory allocation/cleanup
+#ifndef SAFE_DELETE
+#define SAFE_DELETE(p) {if(p) { delete (p); (p)=nullptr;}}
+#endif
+
+#ifndef SAFE_DELETE_ARRAY
+#define SAFE_DELETE_ARRAY(p) {if(p) { delete[] (p); (p)=nullptr;}}
+#endif
+
 /*
 	Shared icons ids
 */
@@ -240,6 +249,8 @@ rstring _r_str_fromguid (const GUID lpguid);
 
 WCHAR _r_str_lower (WCHAR chr);
 WCHAR _r_str_upper (WCHAR chr);
+
+bool _r_str_alloc (LPWSTR* pwstr, size_t length, LPCWSTR text);
 
 size_t _r_str_hash (LPCWSTR text);
 INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2);

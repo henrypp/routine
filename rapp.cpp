@@ -389,11 +389,10 @@ void rapp::UpdateAddComponent (LPCWSTR full_name, LPCWSTR short_name, LPCWSTR ve
 
 		if (pcomponent)
 		{
-			pcomponent->full_name = full_name;
-			pcomponent->short_name = short_name;
-			pcomponent->version = version;
-
-			pcomponent->target_path = target_path;
+			_r_str_alloc (&pcomponent->full_name, wcslen (full_name), full_name);
+			_r_str_alloc (&pcomponent->short_name, wcslen (short_name), short_name);
+			_r_str_alloc (&pcomponent->version, wcslen (version), version);
+			_r_str_alloc (&pcomponent->target_path, wcslen (target_path), target_path);
 
 			pcomponent->is_installer = is_installer;
 
@@ -2058,7 +2057,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 			{
 				if (pcomponent->is_haveupdates)
 				{
-					if (papp->DownloadURL (pcomponent->url, (LPVOID)pcomponent->filepath.GetString (), true, &papp->UpdateDownloadCallback, (LONG_PTR)pupdateinfo))
+					if (papp->DownloadURL (pcomponent->url, pcomponent->filepath, true, &papp->UpdateDownloadCallback, (LONG_PTR)pupdateinfo))
 					{
 						pcomponent->is_downloaded = true;
 						pcomponent->is_haveupdates = false;
@@ -2337,7 +2336,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 					if (pcomponent)
 					{
-						if (result.find (pcomponent->short_name) != result.end ())
+						if (pcomponent->short_name && result.find (pcomponent->short_name) != result.end ())
 						{
 							const rstring::rvector vc = result[pcomponent->short_name].AsVector (L"|");
 
@@ -2347,26 +2346,28 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							const rstring new_version = vc.at (0);
 							const rstring new_url = vc.at (1);
 
-							//if (!new_version.IsEmpty () && !new_url.IsEmpty () && (new_version.IsNumeric () ? (new_version.AsLonglong () != pcomponent->version.AsLonglong ()) : (_r_str_versioncompare (pcomponent->version, new_version) == -1)))
-							if (!new_version.IsEmpty () && !new_url.IsEmpty () && (new_version.IsNumeric () ? (new_version.AsLonglong () > pcomponent->version.AsLonglong ()) : (_r_str_versioncompare (pcomponent->version, new_version) == -1)))
+							if (!new_version.IsEmpty () && !new_url.IsEmpty () && (new_version.IsNumeric () ? (new_version.AsLonglong () > wcstoll (pcomponent->version, nullptr, 10)) : (_r_str_versioncompare (pcomponent->version, new_version) == -1)))
 							{
 								is_updateavailable = true;
 
-								pcomponent->new_version = new_version;
-								pcomponent->url = new_url;
+								_r_str_alloc (&pcomponent->new_version, new_version.GetLength (), new_version);
+								_r_str_alloc (&pcomponent->url, new_url.GetLength (), new_url);
+
 								pcomponent->is_haveupdates = true;
 
 								if (pcomponent->is_installer)
 								{
-									pcomponent->filepath = papp->GetUpdatePath ();
+									_r_str_alloc (&pcomponent->filepath, wcslen (papp->GetUpdatePath ()), papp->GetUpdatePath ());
 								}
 								else
 								{
-									pcomponent->filepath.Format (L"%s\\%s-%s.tmp", _r_path_expand (L"%temp%\\").GetString (), pcomponent->short_name.GetString (), new_version.GetString ());
-									pcomponent->version = new_version;
+									LPCWSTR path = _r_fmt (L"%s\\%s-%s.tmp", _r_path_expand (L"%temp%\\").GetString (), pcomponent->short_name, new_version.GetString ());
+
+									_r_str_alloc (&pcomponent->filepath, wcslen (path), path);
+									_r_str_alloc (&pcomponent->version, new_version.GetLength (), new_version);
 								}
 
-								updates_text.AppendFormat (L"- %s %s\r\n", pcomponent->full_name.GetString (), format_version (new_version).GetString ());
+								updates_text.AppendFormat (L"- %s %s\r\n", pcomponent->full_name, format_version (new_version).GetString ());
 
 								// do not check components when new version of application available
 								if (pcomponent->is_installer)
@@ -2442,8 +2443,8 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 								}
 							}
 						}
-					}
 				}
+			}
 				else
 				{
 					if (pupdateinfo->hwnd)
@@ -2459,18 +2460,18 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 						papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 					}
 				}
-			}
-
-			papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
 		}
 
-		SetEvent (pupdateinfo->hend);
+			papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
 	}
+
+		SetEvent (pupdateinfo->hend);
+}
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-}
+	}
 #endif // _APP_HAVE_UPDATES
 
 bool rapp::ParseINI (LPCWSTR path, rstring::map_two* pmap, std::vector<rstring>* psections)

@@ -18,10 +18,6 @@
 #pragma comment(lib, "taskschd.lib")
 #endif // _APP_HAVE_SKIPUAC
 
-#ifdef _APP_HAVE_AUTORUN
-#pragma comment(lib, "wtsapi32.lib")
-#endif // _APP_HAVE_AUTORUN
-
 /*
 	Callback functions
 */
@@ -29,11 +25,11 @@
 typedef bool (*DOWNLOAD_CALLBACK) (DWORD total_written, DWORD total_length, LONG_PTR lpdata);
 
 /*
-Structures
+	Structures
 */
 
 #ifndef _APP_NO_SETTINGS
-typedef struct
+typedef struct _APP_SETTINGS_PAGE
 {
 	HTREEITEM item = nullptr;
 	HWND hwnd = nullptr;
@@ -46,36 +42,35 @@ typedef struct
 #endif // _APP_NO_SETTINGS
 
 #ifdef _APP_HAVE_UPDATES
-typedef struct
+typedef struct _APP_UPDATE_COMPONENT
 {
-	bool is_downloaded;
-	bool  is_installer;
-	bool  is_haveupdates;
+	bool is_downloaded = false;
+	bool is_installer = false;
+	bool is_haveupdates = false;
 
-	rstring full_name;
-	rstring short_name;
-	rstring version;
-	rstring new_version;
-	rstring target_path;
+	LPWSTR full_name = nullptr;
+	LPWSTR short_name = nullptr;
+	LPWSTR version = nullptr;
+	LPWSTR new_version = nullptr;
+	LPWSTR target_path = nullptr;
+	LPWSTR url = nullptr;
+	LPWSTR filepath = nullptr;
 
-	rstring url;
-	rstring filepath;
-
-	HANDLE hthread;
-	HANDLE hend;
+	HANDLE hthread = nullptr;
+	HANDLE hend = nullptr;
 } *PAPP_UPDATE_COMPONENT, APP_UPDATE_COMPONENT;
 
 typedef struct
 {
-	bool is_downloaded;
-	bool is_forced;
+	bool is_downloaded = false;
+	bool is_forced = false;
 
 	std::vector<PAPP_UPDATE_COMPONENT> components;
 
-	HWND hwnd;
+	HWND hwnd = nullptr;
 
-	HANDLE hthread;
-	HANDLE hend;
+	HANDLE hthread = nullptr;
+	HANDLE hend = nullptr;
 
 	LPVOID papp;
 } *PAPP_UPDATE_INFO, APP_UPDATE_INFO;
@@ -104,7 +99,7 @@ struct MBSTR
 		if (asString != ms_bstr)
 		{
 			Free ();
-			ms_bstr = asString ? ::SysAllocString (asString) : NULL;
+			ms_bstr = asString ? ::SysAllocString (asString) : nullptr;
 		}
 
 		return *this;
@@ -123,12 +118,12 @@ protected:
 };
 #endif // _APP_HAVE_SKIPUAC
 
-typedef struct
+typedef struct _APP_SHARED_ICON
 {
 	HINSTANCE hinst = nullptr;
+	HICON hicon = nullptr;
 	UINT icon_id = 0;
 	INT cx_width = 0;
-	HICON hicon = nullptr;
 } *PAPP_SHARED_ICON, APP_SHARED_ICON;
 
 /*

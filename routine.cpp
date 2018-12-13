@@ -1015,6 +1015,31 @@ WCHAR _r_str_lower (WCHAR chr)
 	return buf[0];
 }
 
+bool _r_str_alloc (LPWSTR* pwstr, size_t length, LPCWSTR text)
+{
+	if (pwstr)
+	{
+		SAFE_DELETE_ARRAY (*pwstr);
+
+		if (length)
+		{
+			length += 1;
+
+			LPWSTR new_ptr = new WCHAR[length];
+
+			if (new_ptr)
+			{
+				StringCchCopy (new_ptr, length, text);
+				*pwstr = new_ptr;
+
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 WCHAR _r_str_upper (WCHAR chr)
 {
 	WCHAR buf[] = {chr, 0};
