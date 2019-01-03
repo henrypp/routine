@@ -1,5 +1,5 @@
 // routine++
-// Copyright (c) 2012-2018 Henry++
+// Copyright (c) 2012-2019 Henry++
 
 #pragma once
 
