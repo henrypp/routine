@@ -136,9 +136,6 @@ public:
 	size_t ReverseFind (WCHAR chr, size_t start_pos = npos) const;
 	size_t ReverseFind (LPCWSTR chars, size_t start_pos = npos) const;
 
-	bool Match (LPCWSTR pattern) const;
-	bool Match (LPCWSTR str, LPCWSTR pattern) const;
-
 	rstring& ToLower ();
 	rstring& ToUpper ();
 

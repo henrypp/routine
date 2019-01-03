@@ -260,6 +260,10 @@ private:
 
 	DOUBLE dpi_percent = 0.f;
 
+#ifdef _APP_HAVE_DARKTHEME
+	bool is_darktheme = false;
+#endif // _APP_HAVE_DARKTHEME
+
 	bool is_classic = false;
 	bool is_vistaorlater = false;
 	bool is_admin = false;

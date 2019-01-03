@@ -231,8 +231,8 @@ bool _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
 */
 
 rstring _r_path_gettempfilepath (LPCWSTR directory, LPCWSTR filename);
-rstring _r_path_expand (const rstring &path);
-rstring _r_path_unexpand (const rstring &path);
+rstring _r_path_expand (const rstring path);
+rstring _r_path_unexpand (const rstring path);
 rstring _r_path_compact (LPCWSTR path, size_t length);
 rstring _r_path_extractdir (LPCWSTR path);
 rstring _r_path_extractfile (LPCWSTR path);
@@ -245,12 +245,16 @@ DWORD _r_path_ntpathfromdos (rstring& path);
 	Strings
 */
 
+bool _r_str_alloc (LPWSTR* pwstr, size_t length, LPCWSTR text);
+
 rstring _r_str_fromguid (const GUID lpguid);
+
+size_t _r_str_length (LPCWSTR str);
 
 WCHAR _r_str_lower (WCHAR chr);
 WCHAR _r_str_upper (WCHAR chr);
 
-bool _r_str_alloc (LPWSTR* pwstr, size_t length, LPCWSTR text);
+bool _r_str_match (LPCWSTR str, LPCWSTR pattern);
 
 size_t _r_str_hash (LPCWSTR text);
 INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2);
@@ -306,6 +310,12 @@ void _r_wnd_toggle (HWND hwnd, bool show);
 void _r_wnd_top (HWND hwnd, bool is_enable);
 bool _r_wnd_undercursor (HWND hwnd);
 bool _r_wnd_isfullscreenmode ();
+void _r_wnd_resize (HDWP* hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags);
+
+#ifdef _APP_HAVE_DARKTHEME
+bool _r_wnd_isdarktheme ();
+bool _r_wnd_setdarktheme (HWND hwnd);
+#endif // _APP_HAVE_DARKTHEME
 
 /*
 	Inernet access (WinHTTP)

@@ -480,6 +480,10 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 
 			_r_wnd_center (hwnd, GetParent (hwnd));
 
+#ifdef _APP_HAVE_DARKTHEME
+			_r_wnd_setdarktheme (hwnd);
+#endif // _APP_HAVE_DARKTHEME
+
 			break;
 		}
 
@@ -740,50 +744,62 @@ rstring _r_path_gettempfilepath (LPCWSTR directory, LPCWSTR filename)
 	return result;
 }
 
-rstring _r_path_expand (const rstring &path)
+rstring _r_path_expand (const rstring path)
 {
 	if (path.IsEmpty ())
 		return path;
 
-	if (path.At (0) == OBJ_NAME_PATH_SEPARATOR)
-		return path;
+	const size_t percent_pos = path.Find (L'%');
+	const size_t separator_pos = path.Find (OBJ_NAME_PATH_SEPARATOR);
 
-	if (path.Find (OBJ_NAME_PATH_SEPARATOR) == rstring::npos)
+	if (separator_pos == rstring::npos && percent_pos == rstring::npos)
 		return path;
 
 	rstring result;
 
-	if (path.Find (L'%') != rstring::npos)
+	if (percent_pos != rstring::npos)
 	{
 		if (!ExpandEnvironmentStrings (path, result.GetBuffer (4096), 4096))
+		{
+			result.ReleaseBuffer ();
 			result = path;
+		}
 	}
 	else
 	{
 		if (!PathSearchAndQualify (path, result.GetBuffer (4096), 4096))
+		{
+			result.ReleaseBuffer ();
 			result = path;
+		}
 	}
 
 	result.ReleaseBuffer ();
 
+	if (result.Find (L'~') != rstring::npos)
+	{
+		GetLongPathName (result.GetString (), result.GetBuffer (4096), 4096);
+		result.ReleaseBuffer ();
+	}
+
 	return result;
 }
 
-rstring _r_path_unexpand (const rstring &path)
+rstring _r_path_unexpand (const rstring path)
 {
 	if (path.IsEmpty ())
 		return path;
 
 	if (path.Find (OBJ_NAME_PATH_SEPARATOR) == rstring::npos)
-		return path;
-
-	if (path.At (0) == OBJ_NAME_PATH_SEPARATOR)
 		return path;
 
 	rstring result;
 
 	if (!PathUnExpandEnvStrings (path, result.GetBuffer (4096), 4096))
+	{
+		result.ReleaseBuffer ();
 		result = path;
+	}
 
 	result.ReleaseBuffer ();
 
@@ -866,7 +882,7 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 	}
 	else
 	{
-		WCHAR drives[64] = {0};
+		WCHAR drives[128] = {0};
 		const DWORD count = GetLogicalDriveStrings (_countof (drives), drives);
 
 		if (count && count <= _countof (drives))
@@ -877,24 +893,32 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 			{
 				WCHAR volume[MAX_PATH] = {0};
 				WCHAR drive[8] = {0};
-
 				StringCchCopy (drive, _countof (drive), drv);
-				drive[2] = 0; // the backslash is not allowed for QueryDosDevice()
 
-				// may return multiple strings!
-				// returns very weird strings for network shares
-				if (QueryDosDevice (drive, volume, _countof (volume)))
+				// check drive is ready
+				const UINT old_errmode = SetErrorMode (SEM_FAILCRITICALERRORS);
+				const bool is_ready = GetVolumeInformation (drive, nullptr, 0, nullptr, 0, 0, nullptr, 0);
+				SetErrorMode (old_errmode);
+
+				if (is_ready)
 				{
-					if (_wcsnicmp (path, volume, device_length) == 0)
-					{
-						result = drive;
-						result.Append (path + device_length);
+					drive[2] = 0; // the backslash is not allowed for QueryDosDevice()
 
-						break;
+					// may return multiple strings!
+					// returns very weird strings for network shares
+					if (QueryDosDevice (drive, volume, _countof (volume)))
+					{
+						if (_wcsnicmp (path, volume, device_length) == 0)
+						{
+							result = drive;
+							result.Append (path + device_length);
+
+							break;
+						}
 					}
 				}
 
-				drv += wcslen (drv) + 1;
+				drv += _r_str_length (drv) + 1;
 			}
 		}
 	}
@@ -992,29 +1016,6 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 	Strings
 */
 
-rstring _r_str_fromguid (const GUID lpguid)
-{
-	rstring result;
-	OLECHAR* guidString = nullptr;
-
-	if (SUCCEEDED (StringFromCLSID (lpguid, &guidString)))
-	{
-		result = guidString;
-
-		CoTaskMemFree (guidString);
-	}
-
-	return result;
-}
-
-WCHAR _r_str_lower (WCHAR chr)
-{
-	WCHAR buf[] = {chr, 0};
-	CharLowerBuff (buf, _countof (buf));
-
-	return buf[0];
-}
-
 bool _r_str_alloc (LPWSTR* pwstr, size_t length, LPCWSTR text)
 {
 	if (pwstr)
@@ -1040,12 +1041,69 @@ bool _r_str_alloc (LPWSTR* pwstr, size_t length, LPCWSTR text)
 	return false;
 }
 
+rstring _r_str_fromguid (const GUID lpguid)
+{
+	rstring result;
+	OLECHAR* guidString = nullptr;
+
+	if (SUCCEEDED (StringFromCLSID (lpguid, &guidString)))
+	{
+		result = guidString;
+
+		CoTaskMemFree (guidString);
+	}
+
+	return result;
+}
+
+size_t _r_str_length (LPCWSTR str)
+{
+	size_t length = 0;
+	StringCchLength (str, STRSAFE_MAX_LENGTH, &length);
+
+	return length;
+}
+
+WCHAR _r_str_lower (WCHAR chr)
+{
+	WCHAR buf[] = {chr, 0};
+	CharLowerBuff (buf, _countof (buf));
+
+	return buf[0];
+}
+
 WCHAR _r_str_upper (WCHAR chr)
 {
 	WCHAR buf[] = {chr, 0};
 	CharUpperBuff (buf, _countof (buf));
 
 	return buf[0];
+}
+
+bool _r_str_match (LPCWSTR str, LPCWSTR pattern)
+{
+	// If we reach at the end of both strings, we are done
+	if (*pattern == 0 && *str == 0)
+		return true;
+
+	// Make sure that the characters after '*' are present
+	// in second string. This function assumes that the first
+	// string will not contain two consecutive '*'
+	if (*pattern == L'*' && *(pattern + 1) != 0 && *str == 0)
+		return false;
+
+	// If the first string contains '?', or current characters
+	// of both strings match
+	if (*pattern == L'?' || _r_str_lower (*str) == _r_str_lower (*pattern))
+		return _r_str_match (str + 1, pattern + 1);
+
+	// If there is *, then there are two possibilities
+	// a) We consider current character of second string
+	// b) We ignore current character of second string.
+	if (*pattern == L'*')
+		return _r_str_match (str + 1, pattern) || _r_str_match (str, pattern + 1);
+
+	return false;
 }
 
 size_t _r_str_hash (LPCWSTR text)
@@ -1057,7 +1115,7 @@ size_t _r_str_hash (LPCWSTR text)
 #define FNVMultiple 16777619
 
 	size_t hash = InitialFNV;
-	const size_t length = wcslen (text);
+	const size_t length = _r_str_length (text);
 
 	for (size_t i = 0; i < length; i++)
 	{
@@ -1755,6 +1813,144 @@ bool _r_wnd_isfullscreenmode ()
 		_r_wnd_isfullscreenconsolemode ();
 }
 
+void _r_wnd_resize (HDWP* hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags)
+{
+	flags |= SWP_NOZORDER | SWP_NOACTIVATE;
+
+	if (!width && !height)
+		flags |= SWP_NOSIZE;
+
+	if (hdefer && * hdefer)
+		*hdefer = DeferWindowPos (*hdefer, hwnd, hwnd_after, left, right, width, height, flags);
+
+	else
+		SetWindowPos (hwnd, hwnd_after, left, right, width, height, flags);
+}
+
+#ifdef _APP_HAVE_DARKTHEME
+BOOL CALLBACK DarkChildProc (HWND hwnd, LPARAM)
+{
+	const bool is_darktheme = _r_wnd_isdarktheme ();
+
+	typedef bool (WINAPI *ADMFW) (HWND window, bool allow); // AllowDarkModeForWindow
+	const ADMFW _AllowDarkModeForWindow = (ADMFW)GetProcAddress (GetModuleHandle (L"uxtheme.dll"), MAKEINTRESOURCEA (133));
+
+	if (!IsWindow (hwnd))
+		return TRUE;
+
+	if (_AllowDarkModeForWindow)
+		_AllowDarkModeForWindow (hwnd, is_darktheme);
+
+	//WCHAR classname[128] = {0};
+
+	//if (GetClassName (hwnd, classname, 128))
+	//{
+	//	// set the themes for the controls:
+	//	// the edit box needs SearchBoxEditComposited to draw
+	//	// correctly on the dark background,
+	//	// and the toolbar and rebar need to have their default
+	//	// style removed so they don't draw in "explorer" style
+	//	//SetWindowTheme (m_hWndEdit, L"SearchBoxEditComposited", nullptr);
+	//	//SetWindowTheme (m_hWndToolbar, nullptr, nullptr);
+
+	//	if (_wcsicmp (classname, WC_LISTVIEW) == 0)
+	//	{
+	//		//SetWindowTheme (hwnd, is_darktheme ? L"ItemsView" : L"Explorer", nullptr);
+	//		//SetWindowTheme (ListView_GetHeader (hwnd), is_darktheme ? L"ItemsView" : L"Explorer", nullptr);
+	//	}
+	//	else if (_wcsicmp (classname, WC_EDIT) == 0)
+	//	{
+	//		//SetWindowTheme (hwnd, is_darktheme ? L"SearchBoxEditComposited" : nullptr, nullptr);
+	//	}
+	//}
+
+	return TRUE;
+}
+
+bool _r_wnd_isdarktheme ()
+{
+	if (!_r_sys_validversion (10, 0, 17763)) // win10rs5+
+		return false;
+
+	HIGHCONTRAST info = {0};
+	info.cbSize = sizeof (HIGHCONTRAST);
+
+	if (SystemParametersInfo (SPI_GETHIGHCONTRAST, 0, &info, 0))
+	{
+		// no dark mode in high-contrast mode
+		if ((info.dwFlags & HCF_HIGHCONTRASTON) != 0)
+			return false;
+	}
+
+	typedef bool (WINAPI *SAUDM) (); // ShouldAppsUseDarkMode
+
+	const SAUDM _ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (GetModuleHandle (L"uxtheme.dll"), MAKEINTRESOURCEA (132));
+
+	if (_ShouldAppsUseDarkMode)
+		return _ShouldAppsUseDarkMode ();
+
+	return false;
+}
+
+bool _r_wnd_setdarktheme (HWND hwnd)
+{
+	if (!_r_sys_validversion (10, 0, 17763)) // win10rs5+
+		return false;
+
+	const bool is_darktheme = _r_wnd_isdarktheme ();
+
+	/*
+		Ordinal 104: void WINAPI RefreshImmersiveColorPolicyState()
+		Ordinal 132: bool WINAPI ShouldAppsUseDarkMode()
+		Ordinal 133: bool WINAPI AllowDarkModeForWindow(HWND__ *window, bool allow)
+		Ordinal 135: bool WINAPI AllowDarkModeForApp(bool allow)
+		Ordinal 136: void WINAPI FlushMenuThemes()
+		Ordinal 137: bool WINAPI IsDarkModeAllowedForWindow(HWND__ *window)
+	*/
+
+	typedef bool (WINAPI *ADMFA) (bool allow); // AllowDarkModeForApp
+	typedef bool (WINAPI *ADMFW) (HWND window, bool allow); // AllowDarkModeForWindow
+	typedef void (WINAPI *FMT) (); // FlushMenuThemes
+	typedef HRESULT (WINAPI *DSWA) (HWND, DWORD, LPCVOID, DWORD); // DwmSetWindowAttribute
+
+	const HMODULE hlib1 = GetModuleHandle (L"uxtheme.dll");
+	const HMODULE hlib2 = GetModuleHandle (L"dwmapi.dll");
+
+	if (hlib1 && hlib2)
+	{
+		const ADMFA _AllowDarkModeForApp = (ADMFA)GetProcAddress (hlib1, MAKEINTRESOURCEA (135));
+		const ADMFW _AllowDarkModeForWindow = (ADMFW)GetProcAddress (hlib1, MAKEINTRESOURCEA (133));
+		const DSWA _DwmSetWindowAttribute = (DSWA)GetProcAddress (hlib2, "DwmSetWindowAttribute");
+
+		if (_AllowDarkModeForApp && _AllowDarkModeForWindow && _DwmSetWindowAttribute)
+		{
+			_AllowDarkModeForApp (is_darktheme);
+			_AllowDarkModeForWindow (hwnd, is_darktheme);
+
+			// Set dark window frame
+			// https://social.msdn.microsoft.com/Forums/en-US/e36eb4c0-4370-4933-943d-b6fe22677e6c/dark-mode-apis?forum=windowssdk
+			BOOL is_dwmdarkmode = is_darktheme;
+			_DwmSetWindowAttribute (hwnd, 0x13, &is_dwmdarkmode, sizeof (is_dwmdarkmode));
+
+			EnumChildWindows (hwnd, &DarkChildProc, 0);
+
+			const FMT _FlushMenuThemes = (FMT)GetProcAddress (hlib1, MAKEINTRESOURCEA (136));
+
+			if (_FlushMenuThemes)
+				_FlushMenuThemes ();
+
+			RedrawWindow (hwnd, nullptr, nullptr, RDW_FRAME | RDW_ERASE | RDW_INVALIDATE | RDW_ALLCHILDREN);
+
+			//SetClassLongPtr (hwnd, GCLP_HBRBACKGROUND, (LONG_PTR)GetSysColorBrush (BLACK_BRUSH));
+
+			return true;
+		}
+	}
+
+	return false;
+}
+#endif // _APP_HAVE_DARKTHEME
+
 /*
 	Inernet access (WinHTTP)
 */
@@ -1872,8 +2068,8 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, rstring proxy_config, HIN
 						// set proxy credentials (if exists)
 						if (proxy_user[0] && proxy_pass[0])
 						{
-							WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY_USERNAME, proxy_user, (DWORD)wcslen (proxy_user));
-							WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY_PASSWORD, proxy_pass, (DWORD)wcslen (proxy_pass));
+							WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY_USERNAME, proxy_user, (DWORD)_r_str_length (proxy_user));
+							WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY_PASSWORD, proxy_pass, (DWORD)_r_str_length (proxy_pass));
 						}
 					}
 				}
@@ -1987,14 +2183,14 @@ bool _r_inet_parseurl (LPCWSTR url, INT *scheme_ptr, LPWSTR host_ptr, WORD *port
 
 	rstring url_copy = url;
 
-	if (!WinHttpCrackUrl (url_copy, DWORD (wcslen (url_copy)), ICU_DECODE, &urls))
+	if (!WinHttpCrackUrl (url_copy, DWORD (url_copy.GetLength ()), ICU_DECODE, &urls))
 	{
 		if (GetLastError () != ERROR_WINHTTP_UNRECOGNIZED_SCHEME)
 			return false;
 
 		url_copy.Insert (0, L"https://");
 
-		if (!WinHttpCrackUrl (url_copy, DWORD (wcslen (url_copy)), ICU_DECODE, &urls))
+		if (!WinHttpCrackUrl (url_copy, DWORD (url_copy.GetLength ()), ICU_DECODE, &urls))
 			return false;
 	}
 

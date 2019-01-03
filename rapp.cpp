@@ -190,12 +190,28 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 	if (GetCurrentProcessId () == pid)
 		return TRUE;
 
-	WCHAR buffer[MAX_PATH] = {0};
+	if (!IsWindow (hwnd))
+		return TRUE;
+
+	WCHAR classname[64] = {0};
+	WCHAR window_title[MAX_PATH] = {0};
+	WCHAR window_fname[MAX_PATH] = {0};
+
+	// check window class
+	if (GetClassName (hwnd, classname, _countof (classname)))
+	{
+		if (_wcsnicmp (classname, L"#32770", 6) != 0)
+			return TRUE;
+	}
+	else
+	{
+		return TRUE;
+	}
 
 	// check window title
-	if (GetWindowText (hwnd, buffer, _countof (buffer)))
+	if (GetWindowText (hwnd, window_title, _countof (window_title)))
 	{
-		if (_wcsnicmp (this_ptr->app_name, buffer, wcslen (this_ptr->app_name)) != 0)
+		if (_wcsnicmp (this_ptr->app_name, window_title, _r_str_length (this_ptr->app_name)) != 0)
 			return TRUE;
 	}
 	else
@@ -211,9 +227,9 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 	}
 
 	// check window filename
-	if (GetWindowModuleFileName (hwnd, buffer, _countof (buffer)))
+	if (GetWindowModuleFileName (hwnd, window_fname, _countof (window_fname)))
 	{
-		if (_wcsnicmp (this_ptr->app_name_short, _r_path_extractfile (buffer), wcslen (this_ptr->app_name_short)) == 0)
+		if (_wcsnicmp (this_ptr->app_name_short, _r_path_extractfile (window_fname), _r_str_length (this_ptr->app_name_short)) == 0)
 		{
 			_r_wnd_toggle (hwnd, true);
 			return FALSE;
@@ -260,7 +276,7 @@ bool rapp::AutorunEnable (bool is_enable)
 			WCHAR buffer[MAX_PATH] = {0};
 			StringCchPrintf (buffer, _countof (buffer), L"\"%s\" /minimized", GetBinaryPath ());
 
-			result = (RegSetValueEx (hkey, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((wcslen (buffer) + 1) * sizeof (WCHAR))) == ERROR_SUCCESS);
+			result = (RegSetValueEx (hkey, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((_r_str_length (buffer) + 1) * sizeof (WCHAR))) == ERROR_SUCCESS);
 
 			if (result)
 				ConfigSet (L"AutorunIsEnabled", true);
@@ -389,10 +405,10 @@ void rapp::UpdateAddComponent (LPCWSTR full_name, LPCWSTR short_name, LPCWSTR ve
 
 		if (pcomponent)
 		{
-			_r_str_alloc (&pcomponent->full_name, wcslen (full_name), full_name);
-			_r_str_alloc (&pcomponent->short_name, wcslen (short_name), short_name);
-			_r_str_alloc (&pcomponent->version, wcslen (version), version);
-			_r_str_alloc (&pcomponent->target_path, wcslen (target_path), target_path);
+			_r_str_alloc (&pcomponent->full_name, _r_str_length (full_name), full_name);
+			_r_str_alloc (&pcomponent->short_name, _r_str_length (short_name), short_name);
+			_r_str_alloc (&pcomponent->version, _r_str_length (version), version);
+			_r_str_alloc (&pcomponent->target_path, _r_str_length (target_path), target_path);
 
 			pcomponent->is_installer = is_installer;
 
@@ -610,8 +626,8 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 
 				RegDeleteValue (hkey, cfg_string);
 				RegCloseKey (hkey);
-			}
-		}
+	}
+}
 	}
 #endif // _APP_NO_WINXP
 
@@ -643,6 +659,8 @@ void rapp::CreateAboutWindow (HWND hwnd)
 #define architecture 32
 #endif // _WIN64
 
+		WCHAR title[64] = {0};
+
 #ifndef _APP_NO_WINXP
 		if (IsVistaOrLater ())
 		{
@@ -650,7 +668,6 @@ void rapp::CreateAboutWindow (HWND hwnd)
 
 			INT result = 0;
 
-			WCHAR title[64] = {0};
 			WCHAR main[64] = {0};
 			WCHAR content[512] = {0};
 			WCHAR footer[256] = {0};
@@ -703,7 +720,12 @@ void rapp::CreateAboutWindow (HWND hwnd)
 #pragma _R_WARNING(IDS_CLOSE)
 #endif
 
+#ifdef IDS_ABOUT
 			StringCchCopy (title, _countof (title), LocaleString (IDS_ABOUT, nullptr));
+#else
+			StringCchCopy (title, _countof (title), L"About");
+#pragma _R_WARNING(IDS_ABOUT)
+#endif
 			StringCchCopy (main, _countof (main), app_name);
 			StringCchPrintf (content, _countof (content), L"Version %s, %u-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", app_version, architecture, app_copyright, _APP_WEBSITE_URL, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
 			StringCchCopy (footer, _countof (footer), L"This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License 3 as published by the Free Software Foundation.");
@@ -717,16 +739,16 @@ void rapp::CreateAboutWindow (HWND hwnd)
 		}
 		else
 		{
-			_r_msg (hwnd, MB_OK | MB_USERICON | MB_TOPMOST, LocaleString (IDS_ABOUT, nullptr), app_name, L"Version %s, %u-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
+			_r_msg (hwnd, MB_OK | MB_USERICON | MB_TOPMOST, title, app_name, L"Version %s, %u-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
 		}
 #endif // _APP_NO_WINXP
 
 		ReleaseMutex (habout);
-	}
+			}
 
 	if (habout)
 		CloseHandle (habout);
-}
+		}
 #endif // _APP_NO_ABOUT
 
 bool rapp::IsAdmin () const
@@ -779,6 +801,52 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 				this_ptr->is_needmaximize = false;
 			}
 
+			break;
+		}
+
+#ifdef _APP_HAVE_DARKTHEME
+		//case WM_CTLCOLOREDIT:
+		//{
+		//	if (_r_wnd_isdarktheme ())
+		//	{
+		//		// while the edit control gets the style "SearchBoxEditComposited", that's not
+		//		// enough: the text color still stays black. So we have to change that here.
+		//		SetTextColor ((HDC)wparam, GetSysColor (COLOR_WINDOW));
+		//		return TRUE;
+		//	}
+
+		//	break;
+		//}
+
+		//case WM_ERASEBKGND:
+		//{
+		//	HDC hDC = (HDC)wparam;
+		//	RECT rc = {0};
+		//	GetClientRect (hwnd, &rc);
+
+		//	if (this_ptr->IsDarkUI ())
+		//	{
+		//		// in dark mode, just paint the whole background in black
+		//		_r_dc_fillrect (hDC, &rc, GetSysColor (COLOR_WINDOWTEXT));
+		//		return TRUE;
+		//	}
+
+		//	break;
+		//}
+
+		case WM_SETTINGCHANGE:
+		case WM_SYSCOLORCHANGE:
+		{
+			_r_wnd_setdarktheme (hwnd);
+			break;
+		}
+#endif // _APP_HAVE_DARKTHEME
+
+		case WM_CTLCOLORSTATIC:
+		case WM_CTLCOLORDLG:
+		case WM_CTLCOLORBTN:
+		{
+			SetBkMode ((HDC)wparam, TRANSPARENT); // background-hack
 			break;
 		}
 
@@ -920,7 +988,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 	{
 		if (!ConfirmMessage (nullptr, L"Warning!", _r_fmt (L"You are attempting to run the 32-bit version of %s on 64-bit Windows.\r\nPlease run the 64-bit version of %s instead.", app_name, app_name), L"ConfirmWOW64"))
 			return false;
-	}
+}
 #endif // _WIN64
 
 	MutexCreate ();
@@ -1217,7 +1285,7 @@ bool rapp::TrayPopup (HWND hwnd, UINT uid, LPGUID guid, DWORD icon_id, LPCWSTR t
 			nid.dwInfoFlags = NIIF_INFO;
 		}
 #endif // _APP_NO_WINXP
-	}
+		}
 	else
 	{
 		nid.dwInfoFlags = NIIF_INFO;
@@ -1783,6 +1851,10 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			// configure window
 			_r_wnd_center (hwnd, GetParent (hwnd));
 
+#ifdef _APP_HAVE_DARKTHEME
+			_r_wnd_setdarktheme (hwnd);
+#endif // _APP_HAVE_DARKTHEME
+
 			// configure treeview
 			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, this_ptr->GetDPI (20));
 
@@ -1802,6 +1874,10 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 						if (ptr_page->hwnd)
 						{
+#ifdef _APP_HAVE_DARKTHEME
+							_r_wnd_setdarktheme (ptr_page->hwnd);
+#endif // _APP_HAVE_DARKTHEME
+
 							EnableThemeDialogTexture (ptr_page->hwnd, ETDT_ENABLETAB);
 
 							SetWindowLongPtr (ptr_page->hwnd, GWLP_USERDATA, (LONG_PTR)ptr_page->dlg_id);
@@ -1847,6 +1923,15 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			break;
 		}
+
+#ifdef _APP_HAVE_DARKTHEME
+		case WM_SETTINGCHANGE:
+		case WM_SYSCOLORCHANGE:
+		{
+			_r_wnd_setdarktheme (hwnd);
+			break;
+		}
+#endif // _APP_HAVE_DARKTHEME
 
 		case WM_DESTROY:
 		{
@@ -1910,6 +1995,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 							if (ptr_page_new->hwnd)
 							{
 								SendMessage (ptr_page_new->hwnd, RM_LOCALIZE, (WPARAM)ptr_page_new->dlg_id, (LPARAM)ptr_page_new);
+
 								ShowWindow (ptr_page_new->hwnd, SW_SHOW);
 							}
 						}
@@ -2087,7 +2173,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					StringCchCopy (str_content, _countof (str_content), L"Update available, do you want to install them?");
 #pragma _R_WARNING(IDS_UPDATE_INSTALL)
 #endif // IDS_UPDATE_INSTALL
-				}
+			}
 				else
 				{
 #ifdef IDS_UPDATE_DONE
@@ -2096,8 +2182,8 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					StringCchCopy (str_content, _countof (str_content), L"Downloading update finished.");
 #pragma _R_WARNING(IDS_UPDATE_DONE)
 #endif // IDS_UPDATE_DONE
-				}
-			}
+		}
+	}
 			else
 			{
 #ifdef IDS_UPDATE_ERROR
@@ -2124,8 +2210,8 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					_r_msg (papp->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), papp->app_name, nullptr, L"%s", str_content);
 			}
 #endif // _APP_NO_WINXP
-		}
-	}
+}
+}
 
 	//SetEvent (pupdateinfo->hend);
 
@@ -2247,7 +2333,7 @@ INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS f
 		tdc.pszMainIcon = TD_INFORMATION_ICON;
 #pragma _R_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
-	}
+}
 
 	StringCchCopy (str_title, _countof (str_title), app_name);
 
@@ -2356,13 +2442,13 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 								if (pcomponent->is_installer)
 								{
-									_r_str_alloc (&pcomponent->filepath, wcslen (papp->GetUpdatePath ()), papp->GetUpdatePath ());
+									_r_str_alloc (&pcomponent->filepath, _r_str_length (papp->GetUpdatePath ()), papp->GetUpdatePath ());
 								}
 								else
 								{
 									LPCWSTR path = _r_fmt (L"%s\\%s-%s.tmp", _r_path_expand (L"%temp%\\").GetString (), pcomponent->short_name, new_version.GetString ());
 
-									_r_str_alloc (&pcomponent->filepath, wcslen (path), path);
+									_r_str_alloc (&pcomponent->filepath, _r_str_length (path), path);
 									_r_str_alloc (&pcomponent->version, new_version.GetLength (), new_version);
 								}
 
@@ -2411,9 +2497,9 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							{
 								ResumeThread (pupdateinfo->hthread);
 								WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
-							}
-						}
 					}
+				}
+			}
 #endif
 					for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 					{
@@ -2442,8 +2528,8 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 								}
 							}
 						}
-				}
-			}
+					}
+		}
 				else
 				{
 					if (pupdateinfo->hwnd)
@@ -2459,18 +2545,18 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 						papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 					}
 				}
-		}
-
-			papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
 	}
 
-		SetEvent (pupdateinfo->hend);
+			papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
 }
+
+		SetEvent (pupdateinfo->hend);
+	}
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-	}
+}
 #endif // _APP_HAVE_UPDATES
 
 bool rapp::ParseINI (LPCWSTR path, rstring::map_two* pmap, std::vector<rstring>* psections)
@@ -2527,10 +2613,10 @@ bool rapp::ParseINI (LPCWSTR path, rstring::map_two* pmap, std::vector<rstring>*
 				if (delimeter != rstring::npos)
 					(*pmap)[section][parser.Midded (0, delimeter)] = parser.Midded (delimeter + 1); // set
 
-				value += wcslen (value) + 1; // go next item
+				value += _r_str_length (value) + 1; // go next item
 			}
 
-			section += wcslen (section) + 1; // go next section
+			section += _r_str_length (section) + 1; // go next section
 		}
 
 		result = true;

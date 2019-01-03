@@ -33,7 +33,7 @@ rstring::rstring (LPCWSTR str) : data_ (nullptr)
 {
 	if (str)
 	{
-		size_t length = wcslen (str);
+		const size_t length = _r_str_length (str);
 		if (length)
 		{
 			ReallocateUnique (length);
@@ -46,7 +46,7 @@ rstring::rstring (LPCWSTR str) : data_ (nullptr)
 
 rstring::rstring (LPCSTR str) : data_ (nullptr)
 {
-	size_t length = strlen (str);
+	const size_t length = strlen (str);
 	if (length)
 	{
 		ReallocateUnique (length);
@@ -201,8 +201,8 @@ rstring& rstring::operator= (LPCWSTR str)
 		Buffer* thisBuffer = toBuffer ();
 		if (thisBuffer && str >= data_ && str < data_ + thisBuffer->length)
 		{
-			size_t offset = str - data_;
-			size_t length = thisBuffer->length - offset;
+			const size_t offset = str - data_;
+			const size_t length = thisBuffer->length - offset;
 
 			EnsureUnique ();
 			str = data_ + offset;
@@ -211,7 +211,7 @@ rstring& rstring::operator= (LPCWSTR str)
 		}
 		else
 		{
-			size_t length = wcslen (str);
+			const size_t length = _r_str_length (str);
 			thisBuffer = ReallocateUnique (length);
 			wmemcpy (data_, str, length);
 		}
@@ -401,7 +401,7 @@ rstring& rstring::Append (LPCWSTR str)
 		Buffer* thisBuffer = toBuffer ();
 		if (!thisBuffer)
 		{
-			const size_t length = wcslen (str);
+			const size_t length = _r_str_length (str);
 			if (length)
 			{
 				ReallocateUnique (length);
@@ -426,7 +426,7 @@ rstring& rstring::Append (LPCWSTR str)
 		}
 		else
 		{
-			const size_t length = wcslen (str);
+			const size_t length = _r_str_length (str);
 			const size_t oldLength = thisBuffer->length;
 			thisBuffer = ReallocateUnique (oldLength + length);
 			wmemmove_s (&thisBuffer->data[oldLength], length, str, length);
@@ -452,7 +452,7 @@ rstring& rstring::Insert (size_t pos, LPCWSTR str)
 	if (!str)
 		return *this;
 
-	size_t textLength = wcslen (str);
+	size_t textLength = _r_str_length (str);
 	if (textLength)
 	{
 		Buffer* thisBuffer = toBuffer ();
@@ -579,11 +579,11 @@ rstring& rstring::Replace (LPCWSTR from, LPCWSTR to)
 	newstr = _wcsdup (GetString ());
 	if (newstr == nullptr) return *this;
 	head = newstr;
-	size_t from_len = wcslen (from);
-	size_t to_len = wcslen (to);
+	size_t from_len = _r_str_length (from);
+	size_t to_len = _r_str_length (to);
 	while ((tok = wcsstr (head, from)) != nullptr)
 	{
-		size_t orig_l = wcslen (newstr);
+		size_t orig_l = _r_str_length (newstr);
 		oldstr = newstr;
 		newstr = (LPWSTR)malloc ((orig_l - from_len + to_len + 1) * sizeof (WCHAR));
 		/*failed to alloc mem, free old string and return NULL */
@@ -613,7 +613,7 @@ rstring& rstring::Trim (LPCWSTR chars)
 	Buffer* thisBuffer = toBuffer ();
 	if (thisBuffer && chars)
 	{
-		size_t chars_len = wcslen (chars);
+		size_t chars_len = _r_str_length (chars);
 		for (size_t i = 0; i < thisBuffer->length; i++)
 		{
 			LPCWSTR res = wmemichr (chars, thisBuffer->data[i], chars_len);
@@ -682,7 +682,7 @@ rstring rstring::Appended (LPCWSTR str) const
 	Buffer* thisBuffer = toBuffer ();
 	if (thisBuffer && str && str[0])
 	{
-		rstring result (thisBuffer->data, thisBuffer->length, str, wcslen (str));
+		rstring result (thisBuffer->data, thisBuffer->length, str, _r_str_length (str));
 		return result;
 	}
 	else if (thisBuffer)
@@ -802,7 +802,7 @@ rstring& rstring::Clear ()
 
 void rstring::ReleaseBuffer ()
 {
-	size_t length = wcslen (data_);
+	const size_t length = _r_str_length (data_);
 	if (!length)
 	{
 		Release ();
@@ -841,7 +841,7 @@ size_t rstring::Find (LPCWSTR chars, size_t start_pos) const
 	Buffer* thisBuffer = toBuffer ();
 	if (thisBuffer && chars)
 	{
-		size_t len = wcslen (chars);
+		const size_t len = _r_str_length (chars);
 		while (start_pos < thisBuffer->length)
 		{
 			WCHAR c = towupper (thisBuffer->data[start_pos]);
@@ -888,7 +888,7 @@ size_t rstring::ReverseFind (WCHAR chars, size_t start_pos) const
 size_t rstring::ReverseFind (LPCWSTR chars, size_t start_pos) const
 {
 	Buffer* thisBuffer = toBuffer ();
-	size_t searchStringLength = wcslen (chars);
+	const size_t searchStringLength = _r_str_length (chars);
 	if (thisBuffer && (searchStringLength <= thisBuffer->length))
 	{
 		if (start_pos >= thisBuffer->length)
@@ -914,51 +914,11 @@ size_t rstring::ReverseFind (LPCWSTR chars, size_t start_pos) const
 	return npos;
 }
 
-bool rstring::Match (LPCWSTR pattern) const
-{
-	return Match (data_, pattern);
-}
-
-bool rstring::Match (LPCWSTR str, LPCWSTR pattern) const
-{
-	// If we reach at the end of both strings, we are done
-	if (*pattern == 0 && *str == 0)
-	{
-		return TRUE;
-	}
-
-	// Make sure that the characters after '*' are present
-	// in second string. This function assumes that the first
-	// string will not contain two consecutive '*'
-	if (*pattern == L'*' && *(pattern + 1) != 0 && *str == 0)
-	{
-		return FALSE;
-	}
-
-	// If the first string contains '?', or current characters
-	// of both strings match
-	if (*pattern == L'?' || _r_str_lower (*str) == _r_str_lower (*pattern))
-	{
-		return Match (str + 1, pattern + 1);
-	}
-
-	// If there is *, then there are two possibilities
-	// a) We consider current character of second string
-	// b) We ignore current character of second string.
-	if (*pattern == L'*')
-	{
-		return Match (str + 1, pattern) || Match (str, pattern + 1);
-	}
-
-	return FALSE;
-}
-
 rstring::Buffer* rstring::toBuffer () const
 {
 	if (data_)
-	{
 		return (Buffer*)(((char*)data_) - offsetof (Buffer, data));
-	}
+
 	return nullptr;
 }
 
@@ -979,14 +939,14 @@ void rstring::AddRef (const rstring& other)
 void rstring::Release ()
 {
 	Buffer* buffer = toBuffer ();
+
 	if (buffer)
 	{
-		LONG64 res = InterlockedDecrement64 (&buffer->referenceCount);
-		if (res == 0)
-		{
-			//char* bytes = (char*)buffer;
+		const LONG64 res = InterlockedDecrement64 (&buffer->referenceCount);
+
+		if (!res)
 			SAFE_DELETE_ARRAY (buffer);
-		}
+
 		data_ = nullptr;
 	}
 }
@@ -996,17 +956,14 @@ size_t rstring::allocationByteCount (size_t length)
 	if (length)
 	{
 		if (length < minReservedCharacters)
-		{
 			return minBufferByteCount;
-		}
 
 		size_t bytesRequired = (nonTextBufferByteCount + length) * sizeof (WCHAR);
+		const size_t remainder = bytesRequired % minBufferByteCount;
 
-		size_t remainder = bytesRequired % minBufferByteCount;
-		if (remainder != 0)
-		{
+		if (remainder)
 			bytesRequired += minBufferByteCount - remainder;
-		}
+
 		return bytesRequired;
 	}
 	return 0;
@@ -1016,25 +973,28 @@ rstring::Buffer* rstring::allocate (size_t length)
 {
 	if (length)
 	{
-		size_t byteCount = allocationByteCount (length);
+		const size_t byteCount = allocationByteCount (length);
 		Buffer* result = (Buffer*)new char[byteCount];
+
 		result->referenceCount = 1;
 		result->length = length;
 		result->data[length] = 0;
 
 		return result;
 	}
+
 	return nullptr;
 }
 
 rstring::Buffer* rstring::EnsureUnique ()
 {
 	Buffer* buffer = toBuffer ();
+
 	if (buffer)
 	{
 		if (buffer->referenceCount > 1)
 		{
-			size_t byteCount = allocationByteCount (buffer->length);
+			const size_t byteCount = allocationByteCount (buffer->length);
 
 			Buffer* newBuffer = (Buffer*)new char[byteCount];
 			newBuffer->referenceCount = 1;
@@ -1046,6 +1006,7 @@ rstring::Buffer* rstring::EnsureUnique ()
 			return newBuffer;
 		}
 	}
+
 	return buffer;
 }
 
@@ -1054,8 +1015,9 @@ rstring::Buffer* rstring::ReallocateUnique (size_t length)
 	Buffer* buffer = toBuffer ();
 	if (buffer)
 	{
-		size_t currentByteCount = allocationByteCount (buffer->length);
-		size_t newByteCount = allocationByteCount (length);
+		const size_t currentByteCount = allocationByteCount (buffer->length);
+		const size_t newByteCount = allocationByteCount (length);
+
 		if (!newByteCount)
 		{
 			Release ();
@@ -1068,13 +1030,15 @@ rstring::Buffer* rstring::ReallocateUnique (size_t length)
 				Buffer* newBuffer = (Buffer*)new char[newByteCount];
 				newBuffer->referenceCount = 1;
 				newBuffer->length = length;
-				size_t copyCount = min (buffer->length, length) + sizeof (WCHAR);
+				const size_t copyCount = min (buffer->length, length) + sizeof (WCHAR);
 				memcpy (newBuffer->data, buffer->data, copyCount * sizeof (WCHAR));
 				newBuffer->data[length] = 0;
 				Release ();
 				data_ = newBuffer->data;
+
 				return newBuffer;
 			}
+
 			buffer->length = length;
 			buffer->data[length] = 0;
 		}
@@ -1129,8 +1093,9 @@ int rstring::_Compare (Buffer* buffer1, LPCWSTR buffer2)
 {
 	if (buffer1 && buffer2 && buffer2[0] != 0)
 	{
-		size_t length = wcslen (buffer2);
-		size_t compareLength = min (buffer1->length, length);
+		const size_t length = _r_str_length (buffer2);
+		const size_t compareLength = min (buffer1->length, length);
+
 		for (size_t i = 0; i < compareLength; i++)
 		{
 			int res = int (buffer1->data[i]) - int (buffer2[i]);
