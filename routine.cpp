@@ -43,7 +43,10 @@ void _r_dbg_write (LPCWSTR appname, LPCWSTR appversion, LPCWSTR fn, DWORD result
 		}
 		else
 		{
-			SetFilePointer (hfile, 0, nullptr, FILE_END);
+			LARGE_INTEGER pos;
+			pos.QuadPart = 0;
+
+			SetFilePointerEx (hfile, pos, nullptr, FILE_END);
 		}
 
 		DWORD written = 0;
@@ -744,7 +747,7 @@ rstring _r_path_gettempfilepath (LPCWSTR directory, LPCWSTR filename)
 	return result;
 }
 
-rstring _r_path_expand (const rstring path)
+rstring _r_path_expand (const rstring& path)
 {
 	if (path.IsEmpty ())
 		return path;
@@ -785,7 +788,7 @@ rstring _r_path_expand (const rstring path)
 	return result;
 }
 
-rstring _r_path_unexpand (const rstring path)
+rstring _r_path_unexpand (const rstring& path)
 {
 	if (path.IsEmpty ())
 		return path;
@@ -891,7 +894,6 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 
 			while (*drv)
 			{
-				WCHAR volume[MAX_PATH] = {0};
 				WCHAR drive[8] = {0};
 				StringCchCopy (drive, _countof (drive), drv);
 
@@ -902,6 +904,8 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 
 				if (is_ready)
 				{
+					WCHAR volume[MAX_PATH] = {0};
+
 					drive[2] = 0; // the backslash is not allowed for QueryDosDevice()
 
 					// may return multiple strings!
@@ -1041,7 +1045,7 @@ bool _r_str_alloc (LPWSTR* pwstr, size_t length, LPCWSTR text)
 	return false;
 }
 
-rstring _r_str_fromguid (const GUID lpguid)
+rstring _r_str_fromguid (const GUID& lpguid)
 {
 	rstring result;
 	OLECHAR* guidString = nullptr;
@@ -1828,7 +1832,97 @@ void _r_wnd_resize (HDWP* hdefer, HWND hwnd, HWND hwnd_after, INT left, INT righ
 }
 
 #ifdef _APP_HAVE_DARKTHEME
-BOOL CALLBACK DarkChildProc (HWND hwnd, LPARAM)
+#ifdef _APP_HAVE_DARKTHEME_SUBCLASS
+LRESULT CALLBACK DarkExplorerWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+	WNDPROC orig_proc = (WNDPROC)GetProp (hwnd, L"orig_proc");
+
+	switch (msg)
+	{
+		case WM_ERASEBKGND:
+		{
+			HDC hDC = (HDC)wparam;
+			RECT rc = {0};
+			GetClientRect (hwnd, &rc);
+
+			if (_r_wnd_isdarktheme ())
+			{
+				// in dark mode, just paint the whole background in black
+				_r_dc_fillrect (hDC, &rc, GetSysColor (COLOR_WINDOWTEXT));
+			}
+
+			break;
+		}
+
+		case WM_CTLCOLORLISTBOX:
+		case WM_CTLCOLOREDIT:
+		case WM_CTLCOLORSTATIC:
+		case WM_CTLCOLORDLG:
+		case WM_CTLCOLORBTN:
+		{
+			SetBkMode ((HDC)wparam, TRANSPARENT); // background-hack
+
+			if (_r_wnd_isdarktheme ())
+			{
+				SetBkColor ((HDC)wparam, GetSysColor (COLOR_WINDOWTEXT));
+				SetTextColor ((HDC)wparam, GetSysColor (COLOR_WINDOW));
+
+				return (LRESULT)GetSysColorBrush (COLOR_WINDOWTEXT);
+			}
+
+			break;
+		}
+
+		case WM_NOTIFY:
+		{
+			LPNMHDR nmlp = (LPNMHDR)lparam;
+
+			switch (nmlp->code)
+			{
+				case NM_CUSTOMDRAW:
+				{
+					LPNMLVCUSTOMDRAW lpnmlv = (LPNMLVCUSTOMDRAW)lparam;
+
+					LONG result = CDRF_DODEFAULT;
+
+					switch (lpnmlv->nmcd.dwDrawStage)
+					{
+						case CDDS_PREPAINT:
+						{
+							result = CDRF_NOTIFYITEMDRAW;
+							break;
+						}
+
+						case CDDS_ITEMPREPAINT:
+						{
+							lpnmlv->clrText = _r_dc_getcolorbrightness (GetSysColor (COLOR_WINDOWTEXT));
+							lpnmlv->clrTextBk = GetSysColor (COLOR_WINDOWTEXT);
+
+							//_r_dc_fillrect (lpnmlv->nmcd.hdc, &lpnmlv->nmcd.rc, GetSysColor (COLOR_WINDOWTEXT));
+
+							result = CDRF_NEWFONT;
+
+							break;
+						}
+					}
+
+					SetWindowLongPtr (hwnd, DWLP_MSGRESULT, result);
+					return result;
+				}
+			}
+
+			break;
+		}
+	}
+
+	if (!orig_proc) // check (required!)
+		return FALSE;
+
+	return CallWindowProc (orig_proc, hwnd, msg, wparam, lparam);
+}
+#endif // _APP_HAVE_DARKTHEME_SUBCLASS
+
+BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM)
 {
 	const bool is_darktheme = _r_wnd_isdarktheme ();
 
@@ -1840,6 +1934,16 @@ BOOL CALLBACK DarkChildProc (HWND hwnd, LPARAM)
 
 	if (_AllowDarkModeForWindow)
 		_AllowDarkModeForWindow (hwnd, is_darktheme);
+
+#ifdef _APP_HAVE_DARKTHEME_SUBCLASS
+	if (!GetProp (hwnd, L"orig_proc"))
+	{
+		const WNDPROC app_wndproc = (WNDPROC)GetWindowLongPtr (hwnd, GWLP_WNDPROC);
+		SetProp (hwnd, L"orig_proc", app_wndproc);
+
+		SetWindowLongPtr (hwnd, GWLP_WNDPROC, (LONG_PTR)&DarkExplorerWindowProc);
+	}
+#endif // _APP_HAVE_DARKTHEME_SUBCLASS
 
 	//WCHAR classname[128] = {0};
 
@@ -1932,7 +2036,17 @@ bool _r_wnd_setdarktheme (HWND hwnd)
 			BOOL is_dwmdarkmode = is_darktheme;
 			_DwmSetWindowAttribute (hwnd, 0x13, &is_dwmdarkmode, sizeof (is_dwmdarkmode));
 
-			EnumChildWindows (hwnd, &DarkChildProc, 0);
+#ifdef _APP_HAVE_DARKTHEME_SUBCLASS
+			if (!GetProp (hwnd, L"orig_proc"))
+			{
+				const WNDPROC app_wndproc = (WNDPROC)GetWindowLongPtr (hwnd, DWLP_DLGPROC);
+				SetProp (hwnd, L"orig_proc", app_wndproc);
+
+				SetWindowLongPtr (hwnd, DWLP_DLGPROC, (LONG_PTR)&DarkExplorerWindowProc);
+			}
+#endif // _APP_HAVE_DARKTHEME_SUBCLASS
+
+			EnumChildWindows (hwnd, &DarkExplorerChildProc, 0);
 
 			const FMT _FlushMenuThemes = (FMT)GetProcAddress (hlib1, MAKEINTRESOURCEA (136));
 
@@ -2261,7 +2375,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT cx_width)
 #endif // _APP_NO_WINXP
 
 	return result;
-}
+	}
 
 bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 {
@@ -2334,6 +2448,11 @@ HANDLE _r_createthread (_beginthreadex_proc_type proc, void* args)
 /*
 	Control: common
 */
+
+bool _r_ctrl_isenabled (HWND hwnd, UINT ctrl_id)
+{
+	return IsWindowEnabled (GetDlgItem (hwnd, ctrl_id));
+}
 
 void _r_ctrl_enable (HWND hwnd, UINT ctrl_id, bool is_enable)
 {

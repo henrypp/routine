@@ -231,8 +231,8 @@ bool _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
 */
 
 rstring _r_path_gettempfilepath (LPCWSTR directory, LPCWSTR filename);
-rstring _r_path_expand (const rstring path);
-rstring _r_path_unexpand (const rstring path);
+rstring _r_path_expand (const rstring& path);
+rstring _r_path_unexpand (const rstring& path);
 rstring _r_path_compact (LPCWSTR path, size_t length);
 rstring _r_path_extractdir (LPCWSTR path);
 rstring _r_path_extractfile (LPCWSTR path);
@@ -247,7 +247,7 @@ DWORD _r_path_ntpathfromdos (rstring& path);
 
 bool _r_str_alloc (LPWSTR* pwstr, size_t length, LPCWSTR text);
 
-rstring _r_str_fromguid (const GUID lpguid);
+rstring _r_str_fromguid (const GUID& lpguid);
 
 size_t _r_str_length (LPCWSTR str);
 
@@ -341,6 +341,7 @@ HANDLE _r_createthread (_beginthreadex_proc_type proc, void* args);
 	Control: common
 */
 
+bool _r_ctrl_isenabled (HWND hwnd, UINT ctrl_id);
 void _r_ctrl_enable (HWND hwnd, UINT ctrl_id, bool is_enable);
 
 rstring _r_ctrl_gettext (HWND hwnd, UINT ctrl_id);

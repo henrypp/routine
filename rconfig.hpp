@@ -31,6 +31,7 @@
 //#define _APP_HAVE_SRWLOCK // srw locks (vista+)
 //#define _APP_HAVE_MINSIZE // change minimum size of main window
 //#define _APP_HAVE_DARKTHEME // enable dark theme feature (win10rs5+)
+//#define _APP_HAVE_DARKTHEME_SUBCLASS // enable dark theme own draw (win10rs5+)
 
 //#define _APP_STARTMINIMIZED // start with no window
 
