@@ -626,8 +626,8 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 
 				RegDeleteValue (hkey, cfg_string);
 				RegCloseKey (hkey);
-	}
-}
+			}
+		}
 	}
 #endif // _APP_NO_WINXP
 
@@ -744,11 +744,11 @@ void rapp::CreateAboutWindow (HWND hwnd)
 #endif // _APP_NO_WINXP
 
 		ReleaseMutex (habout);
-			}
+	}
 
 	if (habout)
 		CloseHandle (habout);
-		}
+}
 #endif // _APP_NO_ABOUT
 
 bool rapp::IsAdmin () const
@@ -988,7 +988,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 	{
 		if (!ConfirmMessage (nullptr, L"Warning!", _r_fmt (L"You are attempting to run the 32-bit version of %s on 64-bit Windows.\r\nPlease run the 64-bit version of %s instead.", app_name, app_name), L"ConfirmWOW64"))
 			return false;
-}
+	}
 #endif // _WIN64
 
 	MutexCreate ();
@@ -1285,7 +1285,7 @@ bool rapp::TrayPopup (HWND hwnd, UINT uid, LPGUID guid, DWORD icon_id, LPCWSTR t
 			nid.dwInfoFlags = NIIF_INFO;
 		}
 #endif // _APP_NO_WINXP
-		}
+	}
 	else
 	{
 		nid.dwInfoFlags = NIIF_INFO;
@@ -1849,7 +1849,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 #endif // IDI_MAIN
 
 			// configure window
-			_r_wnd_center (hwnd, GetParent (hwnd));
+			_r_wnd_center (hwnd, this_ptr->GetHWND () ? this_ptr->GetHWND () : GetParent (hwnd));
 
 #ifdef _APP_HAVE_DARKTHEME
 			_r_wnd_setdarktheme (hwnd);
@@ -2173,7 +2173,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					StringCchCopy (str_content, _countof (str_content), L"Update available, do you want to install them?");
 #pragma _R_WARNING(IDS_UPDATE_INSTALL)
 #endif // IDS_UPDATE_INSTALL
-			}
+				}
 				else
 				{
 #ifdef IDS_UPDATE_DONE
@@ -2182,8 +2182,8 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					StringCchCopy (str_content, _countof (str_content), L"Downloading update finished.");
 #pragma _R_WARNING(IDS_UPDATE_DONE)
 #endif // IDS_UPDATE_DONE
-		}
-	}
+				}
+			}
 			else
 			{
 #ifdef IDS_UPDATE_ERROR
@@ -2210,8 +2210,8 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					_r_msg (papp->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), papp->app_name, nullptr, L"%s", str_content);
 			}
 #endif // _APP_NO_WINXP
-}
-}
+		}
+	}
 
 	//SetEvent (pupdateinfo->hend);
 
@@ -2333,7 +2333,7 @@ INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS f
 		tdc.pszMainIcon = TD_INFORMATION_ICON;
 #pragma _R_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
-}
+	}
 
 	StringCchCopy (str_title, _countof (str_title), app_name);
 
@@ -2497,9 +2497,9 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							{
 								ResumeThread (pupdateinfo->hthread);
 								WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
+							}
+						}
 					}
-				}
-			}
 #endif
 					for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 					{
@@ -2529,7 +2529,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							}
 						}
 					}
-		}
+				}
 				else
 				{
 					if (pupdateinfo->hwnd)
@@ -2545,10 +2545,10 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 						papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 					}
 				}
-	}
+			}
 
 			papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
-}
+		}
 
 		SetEvent (pupdateinfo->hend);
 	}
