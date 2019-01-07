@@ -105,13 +105,11 @@ rstring _r_fmt (LPCWSTR format, ...)
 rstring _r_fmt_date (const LPFILETIME ft, const DWORD flags)
 {
 	DWORD pflags = flags;
+	WCHAR buffer[128] = {0};
 
-	rstring result;
+	SHFormatDateTime (ft, &pflags, buffer, _countof (buffer));
 
-	SHFormatDateTime (ft, &pflags, result.GetBuffer (256), 256);
-	result.ReleaseBuffer ();
-
-	return result;
+	return buffer;
 }
 
 rstring _r_fmt_date (const time_t ut, const DWORD flags)
@@ -2375,7 +2373,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT cx_width)
 #endif // _APP_NO_WINXP
 
 	return result;
-	}
+}
 
 bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 {
