@@ -1822,7 +1822,7 @@ void _r_wnd_resize (HDWP* hdefer, HWND hwnd, HWND hwnd_after, INT left, INT righ
 	if (!width && !height)
 		flags |= SWP_NOSIZE;
 
-	if (hdefer && * hdefer)
+	if (hdefer && *hdefer)
 		*hdefer = DeferWindowPos (*hdefer, hwnd, hwnd_after, left, right, width, height, flags);
 
 	else
