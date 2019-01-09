@@ -2428,14 +2428,16 @@ size_t _r_rand (size_t min_number, size_t max_number)
 	return (min_number + (rnd_number % (max_number - min_number + 1)));
 }
 
-HANDLE _r_createthread (_beginthreadex_proc_type proc, void* args)
+HANDLE _r_createthread (_beginthreadex_proc_type proc, void* args, bool is_suspended)
 {
 	const HANDLE hthread = (HANDLE)_beginthreadex (nullptr, 0, proc, args, CREATE_SUSPENDED, nullptr);
 
 	if (hthread)
 	{
 		SetThreadPriority (hthread, THREAD_PRIORITY_ABOVE_NORMAL);
-		ResumeThread (hthread);
+
+		if (!is_suspended)
+			ResumeThread (hthread);
 
 		return hthread;
 	}
