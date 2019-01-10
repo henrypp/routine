@@ -1185,13 +1185,14 @@ bool _r_sys_adminstate ()
 	BOOL result = FALSE;
 	DWORD status = 0, ps_size = sizeof (PRIVILEGE_SET);
 
-	HANDLE token = nullptr, impersonation_token = nullptr;
+	HANDLE token = nullptr;
+	HANDLE impersonation_token = nullptr;
 
 	PRIVILEGE_SET ps = {0};
 	GENERIC_MAPPING gm = {0};
 
-	PACL acl = nullptr;
-	PSID sid = nullptr;
+	PACL pacl = nullptr;
+	PSID psid = nullptr;
 	PSECURITY_DESCRIPTOR sd = nullptr;
 
 	SID_IDENTIFIER_AUTHORITY sia = SECURITY_NT_AUTHORITY;
@@ -1207,7 +1208,7 @@ bool _r_sys_adminstate ()
 		if (!DuplicateToken (token, SecurityImpersonation, &impersonation_token))
 			__leave;
 
-		if (!AllocateAndInitializeSid (&sia, 2, SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &sid))
+		if (!AllocateAndInitializeSid (&sia, 2, SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &psid))
 			__leave;
 
 		sd = LocalAlloc (LPTR, SECURITY_DESCRIPTOR_MIN_LENGTH);
@@ -1215,14 +1216,14 @@ bool _r_sys_adminstate ()
 		if (!sd || !InitializeSecurityDescriptor (sd, SECURITY_DESCRIPTOR_REVISION))
 			__leave;
 
-		DWORD acl_size = sizeof (ACL) + sizeof (ACCESS_ALLOWED_ACE) + (size_t)GetLengthSid (sid) - sizeof (DWORD);
-		acl = (PACL)LocalAlloc (LPTR, (SIZE_T)acl_size);
+		DWORD acl_size = sizeof (ACL) + sizeof (ACCESS_ALLOWED_ACE) + (size_t)GetLengthSid (psid) - sizeof (DWORD);
+		pacl = (PACL)LocalAlloc (LPTR, (SIZE_T)acl_size);
 
-		if (!acl || !InitializeAcl (acl, acl_size, ACL_REVISION2) || !AddAccessAllowedAce (acl, ACL_REVISION2, ACCESS_READ | ACCESS_WRITE, sid) || !SetSecurityDescriptorDacl (sd, TRUE, acl, FALSE))
+		if (!pacl || !InitializeAcl (pacl, acl_size, ACL_REVISION2) || !AddAccessAllowedAce (pacl, ACL_REVISION2, ACCESS_READ | ACCESS_WRITE, psid) || !SetSecurityDescriptorDacl (sd, TRUE, pacl, FALSE))
 			__leave;
 
-		SetSecurityDescriptorGroup (sd, sid, FALSE);
-		SetSecurityDescriptorOwner (sd, sid, FALSE);
+		SetSecurityDescriptorGroup (sd, psid, FALSE);
+		SetSecurityDescriptorOwner (sd, psid, FALSE);
 
 		if (!IsValidSecurityDescriptor (sd))
 			__leave;
@@ -1241,14 +1242,11 @@ bool _r_sys_adminstate ()
 
 	__finally
 	{
-		if (acl)
-			LocalFree (acl);
+		SAFE_LOCAL_FREE (pacl);
+		SAFE_LOCAL_FREE (sd);
 
-		if (sd)
-			LocalFree (sd);
-
-		if (sid)
-			FreeSid (sid);
+		if (psid)
+			FreeSid (psid);
 
 		if (impersonation_token)
 			CloseHandle (impersonation_token);
@@ -1343,7 +1341,8 @@ rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username)
 			if (ConvertSidToStringSid (psid, &sidstring))
 			{
 				result = sidstring;
-				LocalFree (sidstring);
+
+				SAFE_LOCAL_FREE (sidstring);
 			}
 		}
 
@@ -2083,14 +2082,9 @@ rstring _r_inet_getproxyconfiguration (LPCWSTR custom_proxy)
 		if (proxyConfig.lpszProxy && proxyConfig.lpszProxy[0])
 			result = proxyConfig.lpszProxy;
 
-		if (proxyConfig.lpszProxy)
-			GlobalFree (proxyConfig.lpszProxy);
-
-		if (proxyConfig.lpszProxyBypass)
-			GlobalFree (proxyConfig.lpszProxyBypass);
-
-		if (proxyConfig.lpszAutoConfigUrl)
-			GlobalFree (proxyConfig.lpszAutoConfigUrl);
+		SAFE_GLOBAL_FREE (proxyConfig.lpszProxy);
+		SAFE_GLOBAL_FREE (proxyConfig.lpszProxyBypass);
+		SAFE_GLOBAL_FREE (proxyConfig.lpszAutoConfigUrl);
 	}
 
 	return result;

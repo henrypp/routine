@@ -96,7 +96,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 			}
 		}
 
-		LocalFree (arga);
+		SAFE_LOCAL_FREE (arga);
 	}
 
 	// get configuration path
@@ -2823,13 +2823,12 @@ bool rapp::SkipUacRun ()
 										if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID*)&exec_action)))
 										{
 											BSTR path = nullptr;
-
 											exec_action->get_Path (&path);
 
 											PathUnquoteSpaces (path);
 
 											// check path is to current module
-											if (_wcsicmp (path, GetBinaryPath ()) == 0)
+											if (_wcsnicmp (path, GetBinaryPath (), _r_str_length (GetBinaryPath ())) == 0)
 											{
 												rstring args;
 
@@ -2841,12 +2840,12 @@ bool rapp::SkipUacRun ()
 													for (INT i = 1; i < numargs; i++)
 														args.AppendFormat (L"%s ", arga[i]);
 
-													LocalFree (arga);
+													SAFE_LOCAL_FREE (arga);
 												}
 
 												variant_t ticker = args.Trim (L" ");
 
-												if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_NO_FLAGS, 0, nullptr, &running_task)))
+												if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_AS_SELF, 0, nullptr, &running_task)))
 												{
 													UINT8 count = 5; // try count
 
@@ -2859,19 +2858,10 @@ bool rapp::SkipUacRun ()
 														running_task->Refresh ();
 														running_task->get_State (&state);
 
-														if (
-															state == TASK_STATE_RUNNING ||
-															state == TASK_STATE_READY ||
-															state == TASK_STATE_DISABLED
-															)
+														if (state == TASK_STATE_RUNNING || state == TASK_STATE_DISABLED)
 														{
-															if (
-																state == TASK_STATE_RUNNING ||
-																state == TASK_STATE_READY
-																)
-															{
+															if (state == TASK_STATE_RUNNING)
 																result = true;
-															}
 
 															break;
 														}

@@ -53,6 +53,14 @@
 #define SAFE_DELETE_ARRAY(p) {if(p) { delete[] (p); (p)=nullptr;}}
 #endif
 
+#ifndef SAFE_LOCAL_FREE
+#define SAFE_LOCAL_FREE(p) {if(p) { LocalFree (p); (p)=nullptr;}}
+#endif
+
+#ifndef SAFE_GLOBAL_FREE
+#define SAFE_GLOBAL_FREE(p) {if(p) { GlobalFree (p); (p)=nullptr;}}
+#endif
+
 /*
 	Shared icons ids
 */
