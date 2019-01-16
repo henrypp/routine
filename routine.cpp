@@ -1180,7 +1180,7 @@ bool _r_str_unserialize (rstring string, LPCWSTR str_delimeter, WCHAR key_delime
 	System information
 */
 
-bool _r_sys_adminstate ()
+bool _r_sys_isadmin ()
 {
 	BOOL result = FALSE;
 	DWORD status = 0, ps_size = sizeof (PRIVILEGE_SET);
@@ -1830,44 +1830,72 @@ void _r_wnd_resize (HDWP* hdefer, HWND hwnd, HWND hwnd_after, INT left, INT righ
 
 #ifdef _APP_HAVE_DARKTHEME
 #ifdef _APP_HAVE_DARKTHEME_SUBCLASS
-LRESULT CALLBACK DarkExplorerWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+LRESULT CALLBACK DarkExplorerSubclassProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
-	WNDPROC orig_proc = (WNDPROC)GetProp (hwnd, L"orig_proc");
+	const WNDPROC orig_proc = (WNDPROC)GetProp (hwnd, L"orig_proc");
+	const bool is_darktheme = _r_wnd_isdarktheme ();
 
 	switch (msg)
 	{
-		case WM_ERASEBKGND:
+		case WM_DESTROY:
 		{
-			HDC hDC = (HDC)wparam;
-			RECT rc = {0};
-			GetClientRect (hwnd, &rc);
-
-			if (_r_wnd_isdarktheme ())
-			{
-				// in dark mode, just paint the whole background in black
-				_r_dc_fillrect (hDC, &rc, GetSysColor (COLOR_WINDOWTEXT));
-			}
+			RemoveProp (hwnd, L"orig_proc");
+			SetWindowLongPtr (hwnd, GWLP_WNDPROC, (LONG_PTR)orig_proc);
 
 			break;
 		}
 
-		case WM_CTLCOLORLISTBOX:
+		//case WM_ERASEBKGND:
+		//{
+		//	HDC hDC = (HDC)wparam;
+		//	RECT rc = {0};
+		//	GetClientRect (hwnd, &rc);
+
+		//	if (is_darktheme)
+		//	{
+		//		// in dark mode, just paint the whole background in black
+		//		_r_dc_fillrect (hDC, &rc, GetSysColor (COLOR_WINDOWTEXT));
+		//	}
+
+		//	break;
+		//}
+
 		case WM_CTLCOLOREDIT:
-		case WM_CTLCOLORSTATIC:
-		case WM_CTLCOLORDLG:
-		case WM_CTLCOLORBTN:
 		{
-			SetBkMode ((HDC)wparam, TRANSPARENT); // background-hack
+			SetBkMode ((HDC)wparam, TRANSPARENT);
 
-			if (_r_wnd_isdarktheme ())
+			if (is_darktheme)
 			{
-				SetBkColor ((HDC)wparam, GetSysColor (COLOR_WINDOWTEXT));
-				SetTextColor ((HDC)wparam, GetSysColor (COLOR_WINDOW));
-
-				return (LRESULT)GetSysColorBrush (COLOR_WINDOWTEXT);
+				SetTextColor ((HDC)wparam, DarkThemeTextColor);
+				SetDCBrushColor ((HDC)wparam, RGB (60, 60, 60));
+			}
+			else
+			{
+				SetTextColor ((HDC)wparam, RGB (0x0, 0x0, 0x0));
+				SetDCBrushColor ((HDC)wparam, DarkThemeTextColor);
 			}
 
-			break;
+			return (INT_PTR)GetStockObject (DC_BRUSH);
+		}
+
+		case WM_CTLCOLORBTN:
+		case WM_CTLCOLORDLG:
+		case WM_CTLCOLORSTATIC:
+		{
+			SetBkMode ((HDC)wparam, TRANSPARENT);
+
+			if (is_darktheme)
+			{
+				SetTextColor ((HDC)wparam, DarkThemeTextColor);
+				SetDCBrushColor ((HDC)wparam, RGB (30, 30, 30));
+			}
+			else
+			{
+				SetTextColor ((HDC)wparam, RGB (0x0, 0x0, 0x0));
+				SetDCBrushColor ((HDC)wparam, DarkThemeTextColor);
+			}
+
+			return (INT_PTR)GetStockObject (DC_BRUSH);
 		}
 
 		case WM_NOTIFY:
@@ -1878,37 +1906,29 @@ LRESULT CALLBACK DarkExplorerWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPA
 			{
 				case NM_CUSTOMDRAW:
 				{
-					LPNMLVCUSTOMDRAW lpnmlv = (LPNMLVCUSTOMDRAW)lparam;
+					LPNMCUSTOMDRAW lpnmcd = (LPNMCUSTOMDRAW)lparam;
+					WCHAR classname[128] = {0};
 
-					LONG result = CDRF_DODEFAULT;
-
-					switch (lpnmlv->nmcd.dwDrawStage)
+					if (GetClassName (lpnmcd->hdr.hwndFrom, classname, _countof (classname)))
 					{
-						case CDDS_PREPAINT:
+						if (_wcsicmp (classname, WC_BUTTON) == 0)
 						{
-							result = CDRF_NOTIFYITEMDRAW;
-							break;
+							//return DrawButton (lpnmcd);
 						}
-
-						case CDDS_ITEMPREPAINT:
+						else if (_wcsicmp (classname, WC_LISTVIEW) == 0)
 						{
-							lpnmlv->clrText = _r_dc_getcolorbrightness (GetSysColor (COLOR_WINDOWTEXT));
-							lpnmlv->clrTextBk = GetSysColor (COLOR_WINDOWTEXT);
+							LPNMLVCUSTOMDRAW listViewCustomDraw = (LPNMLVCUSTOMDRAW)lpnmcd;
 
-							//_r_dc_fillrect (lpnmlv->nmcd.hdc, &lpnmlv->nmcd.rc, GetSysColor (COLOR_WINDOWTEXT));
-
-							result = CDRF_NEWFONT;
-
-							break;
+							if (listViewCustomDraw->dwItemType == LVCDI_GROUP && is_darktheme)
+							{
+								//return DrawListViewGroup (listViewCustomDraw);
+							}
 						}
 					}
 
-					SetWindowLongPtr (hwnd, DWLP_MSGRESULT, result);
-					return result;
+					break;
 				}
 			}
-
-			break;
 		}
 	}
 
@@ -1919,9 +1939,9 @@ LRESULT CALLBACK DarkExplorerWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPA
 }
 #endif // _APP_HAVE_DARKTHEME_SUBCLASS
 
-BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM)
+BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 {
-	const bool is_darktheme = _r_wnd_isdarktheme ();
+	const bool is_darktheme = (bool)lparam;
 
 	typedef bool (WINAPI *ADMFW) (HWND window, bool allow); // AllowDarkModeForWindow
 	const ADMFW _AllowDarkModeForWindow = (ADMFW)GetProcAddress (GetModuleHandle (L"uxtheme.dll"), MAKEINTRESOURCEA (133));
@@ -1933,37 +1953,52 @@ BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM)
 		_AllowDarkModeForWindow (hwnd, is_darktheme);
 
 #ifdef _APP_HAVE_DARKTHEME_SUBCLASS
-	if (!GetProp (hwnd, L"orig_proc"))
-	{
-		const WNDPROC app_wndproc = (WNDPROC)GetWindowLongPtr (hwnd, GWLP_WNDPROC);
-		SetProp (hwnd, L"orig_proc", app_wndproc);
+	const WNDPROC defaultWindowProc = (WNDPROC)GetWindowLongPtr (hwnd, GWLP_WNDPROC);
 
-		SetWindowLongPtr (hwnd, GWLP_WNDPROC, (LONG_PTR)&DarkExplorerWindowProc);
+	if (defaultWindowProc != DarkExplorerSubclassProc)
+	{
+		SetProp (hwnd, L"orig_proc", defaultWindowProc);
+		SetWindowLongPtr (hwnd, GWLP_WNDPROC, (LONG_PTR)&DarkExplorerSubclassProc);
 	}
 #endif // _APP_HAVE_DARKTHEME_SUBCLASS
 
-	//WCHAR classname[128] = {0};
+	WCHAR classname[128] = {0};
 
-	//if (GetClassName (hwnd, classname, 128))
-	//{
-	//	// set the themes for the controls:
-	//	// the edit box needs SearchBoxEditComposited to draw
-	//	// correctly on the dark background,
-	//	// and the toolbar and rebar need to have their default
-	//	// style removed so they don't draw in "explorer" style
-	//	//SetWindowTheme (m_hWndEdit, L"SearchBoxEditComposited", nullptr);
-	//	//SetWindowTheme (m_hWndToolbar, nullptr, nullptr);
+	if (GetClassName (hwnd, classname, _countof (classname)))
+	{
+		if (_wcsicmp (classname, WC_LISTVIEW) == 0)
+		{
+			if (is_darktheme)
+			{
+				ListView_SetBkColor (hwnd, RGB (30, 30, 30));
+				ListView_SetTextBkColor (hwnd, RGB (30, 30, 30));
+				ListView_SetTextColor (hwnd, DarkThemeTextColor);
+			}
+			else
+			{
+				ListView_SetBkColor (hwnd, DarkThemeTextColor);
+				ListView_SetTextBkColor (hwnd, DarkThemeTextColor);
+				ListView_SetTextColor (hwnd, RGB (0x0, 0x0, 0x0));
+			}
+		}
+		else if (_wcsicmp (classname, WC_TREEVIEW) == 0)
+		{
+			if (is_darktheme)
+			{
+				TreeView_SetBkColor (hwnd, RGB (30, 30, 30));
+				TreeView_SetLineColor (hwnd, RGB (30, 30, 30));
+				TreeView_SetTextColor (hwnd, RGB (30, 30, 30));
+			}
+			else
+			{
+				TreeView_SetBkColor (hwnd, RGB (0xff, 0xff, 0xff));
+				TreeView_SetLineColor (hwnd, RGB (0xff, 0xff, 0xff));
+				TreeView_SetTextColor (hwnd, RGB (0x0, 0x0, 0x0));
+			}
+		}
+	}
 
-	//	if (_wcsicmp (classname, WC_LISTVIEW) == 0)
-	//	{
-	//		//SetWindowTheme (hwnd, is_darktheme ? L"ItemsView" : L"Explorer", nullptr);
-	//		//SetWindowTheme (ListView_GetHeader (hwnd), is_darktheme ? L"ItemsView" : L"Explorer", nullptr);
-	//	}
-	//	else if (_wcsicmp (classname, WC_EDIT) == 0)
-	//	{
-	//		//SetWindowTheme (hwnd, is_darktheme ? L"SearchBoxEditComposited" : nullptr, nullptr);
-	//	}
-	//}
+	InvalidateRect (hwnd, nullptr, TRUE);
 
 	return TRUE;
 }
@@ -2033,24 +2068,14 @@ bool _r_wnd_setdarktheme (HWND hwnd)
 			BOOL is_dwmdarkmode = is_darktheme;
 			_DwmSetWindowAttribute (hwnd, 0x13, &is_dwmdarkmode, sizeof (is_dwmdarkmode));
 
-#ifdef _APP_HAVE_DARKTHEME_SUBCLASS
-			if (!GetProp (hwnd, L"orig_proc"))
-			{
-				const WNDPROC app_wndproc = (WNDPROC)GetWindowLongPtr (hwnd, DWLP_DLGPROC);
-				SetProp (hwnd, L"orig_proc", app_wndproc);
-
-				SetWindowLongPtr (hwnd, DWLP_DLGPROC, (LONG_PTR)&DarkExplorerWindowProc);
-			}
-#endif // _APP_HAVE_DARKTHEME_SUBCLASS
-
-			EnumChildWindows (hwnd, &DarkExplorerChildProc, 0);
+			EnumChildWindows (hwnd, &DarkExplorerChildProc, is_darktheme);
 
 			const FMT _FlushMenuThemes = (FMT)GetProcAddress (hlib1, MAKEINTRESOURCEA (136));
 
 			if (_FlushMenuThemes)
 				_FlushMenuThemes ();
 
-			RedrawWindow (hwnd, nullptr, nullptr, RDW_FRAME | RDW_ERASE | RDW_INVALIDATE | RDW_ALLCHILDREN);
+			//RedrawWindow (hwnd, nullptr, nullptr, RDW_FRAME | RDW_ERASE | RDW_INVALIDATE | RDW_ALLCHILDREN);
 
 			//SetClassLongPtr (hwnd, GCLP_HBRBACKGROUND, (LONG_PTR)GetSysColorBrush (BLACK_BRUSH));
 
@@ -2532,13 +2557,13 @@ INT _r_listview_addcolumn (HWND hwnd, UINT ctrl_id, size_t column_id, LPCWSTR te
 	RECT rc = {0};
 	GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
 
-	if (width > 100)
-		width = _R_PERCENT_OF (width, rc.right);
+	if (width <= 100)
+		width = _R_PERCENT_VAL (width, _R_RECT_WIDTH (&rc));
 
 	lvc.mask = LVCF_WIDTH | LVCF_TEXT | LVCF_FMT | LVCF_SUBITEM;
 	lvc.pszText = (LPWSTR)text;
 	lvc.fmt = fmt;
-	lvc.cx = _R_PERCENT_VAL (width, rc.right);
+	lvc.cx = width;
 	lvc.iSubItem = (INT)column_id;
 
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTCOLUMN, (WPARAM)column_id, (LPARAM)&lvc);
@@ -2549,7 +2574,7 @@ INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl_id, INT column_id)
 	RECT rc = {0};
 	GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
 
-	return _R_PERCENT_OF (SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMNWIDTH, (WPARAM)column_id, 0), rc.right);
+	return _R_PERCENT_OF (SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMNWIDTH, (WPARAM)column_id, 0), _R_RECT_WIDTH (&rc));
 }
 
 INT _r_listview_addgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR title, UINT align, UINT state)
@@ -2741,6 +2766,9 @@ void _r_listview_redraw (HWND hwnd, UINT ctrl_id)
 
 void _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR text, INT width)
 {
+	if (!text && !width)
+		return;
+
 	LVCOLUMN lvc = {0};
 	WCHAR buffer[MAX_PATH] = {0};
 
@@ -2754,6 +2782,14 @@ void _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR tex
 
 	if (width)
 	{
+		if (width < 0)
+		{
+			RECT rc = {0};
+			GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
+
+			width = _R_PERCENT_VAL (-width, _R_RECT_WIDTH (&rc));
+		}
+
 		lvc.mask |= LVCF_WIDTH;
 		lvc.cx = width;
 	}
@@ -2792,8 +2828,11 @@ void _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl_id, INT column_id, INT
 	}
 }
 
-INT _r_listview_setitem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, LPCWSTR text, size_t image, size_t group_id, LPARAM lparam)
+void _r_listview_setitem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, LPCWSTR text, size_t image, size_t group_id, LPARAM lparam)
 {
+	if (!text && image == LAST_VALUE && group_id == LAST_VALUE && !lparam)
+		return;
+
 	WCHAR txt[MAX_PATH] = {0};
 
 	LVITEM lvi = {0};
@@ -2827,7 +2866,7 @@ INT _r_listview_setitem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, L
 		lvi.lParam = lparam;
 	}
 
-	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEM, 0, (LPARAM)&lvi);
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEM, 0, (LPARAM)&lvi);
 }
 
 BOOL _r_listview_setitemcheck (HWND hwnd, UINT ctrl_id, size_t item, bool state)

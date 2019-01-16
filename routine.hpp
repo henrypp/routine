@@ -32,6 +32,12 @@
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "wtsapi32.lib")
 
+#ifdef _APP_HAVE_DARKTHEME
+#ifndef DarkThemeTextColor
+#define DarkThemeTextColor RGB (0xff, 0xff, 0xff)
+#endif // DarkThemeTextColor
+#endif // _APP_HAVE_DARKTHEME_SUBCLASS
+
 #ifndef LVM_RESETEMPTYTEXT
 #define LVM_RESETEMPTYTEXT (LVM_FIRST + 84)
 #endif // LVM_RESETEMPTYTEXT
@@ -84,7 +90,7 @@
 	Color shader
 */
 
-#define _R_COLOR_SHADE(clr, percent) RGB ((BYTE)((double)GetRValue (clr) * percent / 100.0), (BYTE)((double)GetGValue (clr) * percent / 100.0), (BYTE)((double)GetBValue (clr) * (percent) / 100.0))
+#define _R_COLOR_SHADE(clr, percent) RGB((BYTE)(double (GetRValue ((clr))) * double (percent) / 100.0), (BYTE)(double (GetGValue ((clr))) * double (percent) / 100.0), (BYTE)(double (GetBValue ((clr))) * double (percent) / 100.0))
 
 /*
 	Percentage calculation
@@ -272,7 +278,7 @@ bool _r_str_unserialize (rstring string, LPCWSTR str_delimeter, WCHAR key_delime
 	System information
 */
 
-bool _r_sys_adminstate ();
+bool _r_sys_isadmin ();
 ULONGLONG _r_sys_gettickcount ();
 void _r_sys_getusername (rstring* pdomain, rstring* pusername);
 rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username);
@@ -384,7 +390,7 @@ void _r_listview_redraw (HWND hwnd, UINT ctrl_id);
 DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle);
 void _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR text, INT width);
 void _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl_id, INT column_id, INT arrow);
-INT _r_listview_setitem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, LPCWSTR text, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
+void _r_listview_setitem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, LPCWSTR text, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
 BOOL _r_listview_setitemcheck (HWND hwnd, UINT ctrl_id, size_t item, bool state);
 INT _r_listview_setgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR title, UINT state, UINT state_mask);
 
