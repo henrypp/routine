@@ -72,7 +72,7 @@ typedef struct
 	HANDLE hthread = nullptr;
 	HANDLE hend = nullptr;
 
-	LPVOID papp;
+	LPVOID papp = nullptr;
 } *PAPP_UPDATE_INFO, APP_UPDATE_INFO;
 #endif // _APP_HAVE_UPDATES
 
