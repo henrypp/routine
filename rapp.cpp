@@ -11,7 +11,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 {
 	// store system information
 	is_vistaorlater = _r_sys_validversion (6, 0);
-	is_admin = _r_sys_adminstate ();
+	is_admin = _r_sys_isadmin ();
 
 	// safe dll loading
 	SetDllDirectory (L"");
@@ -661,6 +661,13 @@ void rapp::CreateAboutWindow (HWND hwnd)
 
 		WCHAR title[64] = {0};
 
+#ifdef IDS_ABOUT
+		StringCchCopy (title, _countof (title), LocaleString (IDS_ABOUT, nullptr));
+#else
+		StringCchCopy (title, _countof (title), L"About");
+#pragma _R_WARNING(IDS_ABOUT)
+#endif
+
 #ifndef _APP_NO_WINXP
 		if (IsVistaOrLater ())
 		{
@@ -720,12 +727,6 @@ void rapp::CreateAboutWindow (HWND hwnd)
 #pragma _R_WARNING(IDS_CLOSE)
 #endif
 
-#ifdef IDS_ABOUT
-			StringCchCopy (title, _countof (title), LocaleString (IDS_ABOUT, nullptr));
-#else
-			StringCchCopy (title, _countof (title), L"About");
-#pragma _R_WARNING(IDS_ABOUT)
-#endif
 			StringCchCopy (main, _countof (main), app_name);
 			StringCchPrintf (content, _countof (content), L"Version %s, %u-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", app_version, architecture, app_copyright, _APP_WEBSITE_URL, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
 			StringCchCopy (footer, _countof (footer), L"This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License 3 as published by the Free Software Foundation.");
@@ -945,10 +946,11 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 			if (_MapFileAndCheckSumW)
 			{
 				DWORD dwFileChecksum = 0, dwRealChecksum = 0;
-				_MapFileAndCheckSumW (GetBinaryPath (), &dwFileChecksum, &dwRealChecksum);
 
-				if (dwRealChecksum != dwFileChecksum)
+				if (_MapFileAndCheckSumW (GetBinaryPath (), &dwFileChecksum, &dwRealChecksum) == ERROR_SUCCESS && dwRealChecksum != dwFileChecksum)
+				{
 					return false;
+				}
 			}
 
 			FreeLibrary (hlib);
@@ -1841,6 +1843,10 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			this_ptr = (rapp*)(lparam);
 			this_ptr->settings_hwnd = hwnd;
 
+#ifdef _APP_HAVE_DARKTHEME
+			_r_wnd_setdarktheme (hwnd);
+#endif // _APP_HAVE_DARKTHEME
+
 #ifdef IDI_MAIN
 			SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)this_ptr->GetSharedIcon (this_ptr->GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXSMICON)));
 			SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)this_ptr->GetSharedIcon (this_ptr->GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXICON)));
@@ -1850,10 +1856,6 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			// configure window
 			_r_wnd_center (hwnd, this_ptr->GetHWND () ? this_ptr->GetHWND () : GetParent (hwnd));
-
-#ifdef _APP_HAVE_DARKTHEME
-			_r_wnd_setdarktheme (hwnd);
-#endif // _APP_HAVE_DARKTHEME
 
 			// configure treeview
 			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, this_ptr->GetDPI (20));
@@ -1874,10 +1876,6 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 						if (ptr_page->hwnd)
 						{
-#ifdef _APP_HAVE_DARKTHEME
-							_r_wnd_setdarktheme (ptr_page->hwnd);
-#endif // _APP_HAVE_DARKTHEME
-
 							EnableThemeDialogTexture (ptr_page->hwnd, ETDT_ENABLETAB);
 
 							SetWindowLongPtr (ptr_page->hwnd, GWLP_USERDATA, (LONG_PTR)ptr_page->dlg_id);
@@ -2856,14 +2854,16 @@ bool rapp::SkipUacRun ()
 														TASK_STATE state = TASK_STATE_UNKNOWN;
 
 														running_task->Refresh ();
-														running_task->get_State (&state);
 
-														if (state == TASK_STATE_RUNNING || state == TASK_STATE_DISABLED)
+														if (SUCCEEDED (running_task->get_State (&state)))
 														{
-															if (state == TASK_STATE_RUNNING)
-																result = true;
+															if (state == TASK_STATE_RUNNING || state == TASK_STATE_DISABLED)
+															{
+																if (state == TASK_STATE_RUNNING)
+																	result = true;
 
-															break;
+																break;
+															}
 														}
 													}
 													while (count--);
