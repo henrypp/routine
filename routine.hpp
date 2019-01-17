@@ -235,6 +235,7 @@ bool _r_fs_exists (LPCWSTR path);
 bool _r_fs_mkdir (LPCWSTR path);
 void _r_fs_rmdir (LPCWSTR path);
 bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size);
+bool _r_fs_setpos (HANDLE hfile, LONGLONG pos, DWORD method);
 DWORD64 _r_fs_size (HANDLE hfile);
 DWORD64 _r_fs_size (LPCWSTR path);
 bool _r_fs_move (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);

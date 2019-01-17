@@ -43,10 +43,7 @@ void _r_dbg_write (LPCWSTR appname, LPCWSTR appversion, LPCWSTR fn, DWORD result
 		}
 		else
 		{
-			LARGE_INTEGER pos;
-			pos.QuadPart = 0;
-
-			SetFilePointerEx (hfile, pos, nullptr, FILE_END);
+			_r_fs_setpos (hfile, 0, FILE_END);
 		}
 
 		DWORD written = 0;
@@ -618,6 +615,14 @@ bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size)
 	}
 
 	return false;
+}
+
+bool _r_fs_setpos (HANDLE hfile, LONGLONG pos, DWORD method)
+{
+	LARGE_INTEGER lpos = {0};
+	lpos.QuadPart = pos;
+
+	return SetFilePointerEx (hfile, lpos, nullptr, method);
 }
 
 DWORD64 _r_fs_size (HANDLE hfile)
