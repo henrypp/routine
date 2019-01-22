@@ -20,6 +20,7 @@
 //#define _APP_NO_GUEST // disable "guest" mode, running without admin rights; see _APP_HAVE_SKIPUAC
 //#define _APP_NO_WINXP // disable winxp support
 //#define _APP_NO_MUTEX // disable mutex
+//#define _APP_NO_DARKTHEME // disable dark theme feature (win10rs5+)
 
 //#define _APP_HAVE_SETTINGS // enable settings dialog feature
 //#define _APP_HAVE_UPDATES // enable update checking feature
@@ -30,7 +31,6 @@
 //#define _APP_HAVE_TRAY // enable tray icon feature
 //#define _APP_HAVE_SRWLOCK // srw locks (vista+)
 //#define _APP_HAVE_MINSIZE // change minimum size of main window
-//#define _APP_HAVE_DARKTHEME // enable dark theme feature (win10rs5+)
 //#define _APP_HAVE_DARKTHEME_SUBCLASS // enable dark theme own draw (win10rs5+)
 
 //#define _APP_STARTMINIMIZED // start with no window

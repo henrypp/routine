@@ -478,9 +478,9 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 
 			_r_wnd_center (hwnd, GetParent (hwnd));
 
-#ifdef _APP_HAVE_DARKTHEME
+#ifndef _APP_NO_DARKTHEME
 			_r_wnd_setdarktheme (hwnd);
-#endif // _APP_HAVE_DARKTHEME
+#endif // _APP_NO_DARKTHEME
 
 			break;
 		}
@@ -1115,7 +1115,7 @@ bool _r_str_match (LPCWSTR str, LPCWSTR pattern)
 
 size_t _r_str_hash (LPCWSTR text)
 {
-	if (!text)
+	if (!text || !text[0])
 		return 0;
 
 #define InitialFNV 2166136261ULL
@@ -1833,7 +1833,7 @@ void _r_wnd_resize (HDWP* hdefer, HWND hwnd, HWND hwnd_after, INT left, INT righ
 		SetWindowPos (hwnd, hwnd_after, left, right, width, height, flags);
 }
 
-#ifdef _APP_HAVE_DARKTHEME
+#ifndef _APP_NO_DARKTHEME
 #ifdef _APP_HAVE_DARKTHEME_SUBCLASS
 LRESULT CALLBACK DarkExplorerSubclassProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
@@ -1973,33 +1973,33 @@ BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 	{
 		if (_wcsicmp (classname, WC_LISTVIEW) == 0)
 		{
-			if (is_darktheme)
-			{
-				ListView_SetBkColor (hwnd, RGB (30, 30, 30));
-				ListView_SetTextBkColor (hwnd, RGB (30, 30, 30));
-				ListView_SetTextColor (hwnd, DarkThemeTextColor);
-			}
-			else
-			{
-				ListView_SetBkColor (hwnd, DarkThemeTextColor);
-				ListView_SetTextBkColor (hwnd, DarkThemeTextColor);
-				ListView_SetTextColor (hwnd, RGB (0x0, 0x0, 0x0));
-			}
+			//if (is_darktheme)
+			//{
+			//	ListView_SetBkColor (hwnd, RGB (30, 30, 30));
+			//	ListView_SetTextBkColor (hwnd, RGB (30, 30, 30));
+			//	ListView_SetTextColor (hwnd, DarkThemeTextColor);
+			//}
+			//else
+			//{
+			//	ListView_SetBkColor (hwnd, DarkThemeTextColor);
+			//	ListView_SetTextBkColor (hwnd, DarkThemeTextColor);
+			//	ListView_SetTextColor (hwnd, RGB (0x0, 0x0, 0x0));
+			//}
 		}
 		else if (_wcsicmp (classname, WC_TREEVIEW) == 0)
 		{
-			if (is_darktheme)
-			{
-				TreeView_SetBkColor (hwnd, RGB (30, 30, 30));
-				TreeView_SetLineColor (hwnd, RGB (30, 30, 30));
-				TreeView_SetTextColor (hwnd, RGB (30, 30, 30));
-			}
-			else
-			{
-				TreeView_SetBkColor (hwnd, RGB (0xff, 0xff, 0xff));
-				TreeView_SetLineColor (hwnd, RGB (0xff, 0xff, 0xff));
-				TreeView_SetTextColor (hwnd, RGB (0x0, 0x0, 0x0));
-			}
+			//if (is_darktheme)
+			//{
+			//	TreeView_SetBkColor (hwnd, RGB (30, 30, 30));
+			//	TreeView_SetLineColor (hwnd, RGB (30, 30, 30));
+			//	TreeView_SetTextColor (hwnd, RGB (30, 30, 30));
+			//}
+			//else
+			//{
+			//	TreeView_SetBkColor (hwnd, RGB (0xff, 0xff, 0xff));
+			//	TreeView_SetLineColor (hwnd, RGB (0xff, 0xff, 0xff));
+			//	TreeView_SetTextColor (hwnd, RGB (0x0, 0x0, 0x0));
+			//}
 		}
 	}
 
@@ -2090,7 +2090,7 @@ bool _r_wnd_setdarktheme (HWND hwnd)
 
 	return false;
 }
-#endif // _APP_HAVE_DARKTHEME
+#endif // _APP_NO_DARKTHEME
 
 /*
 	Inernet access (WinHTTP)

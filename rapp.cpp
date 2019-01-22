@@ -805,7 +805,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			break;
 		}
 
-#ifdef _APP_HAVE_DARKTHEME
+#ifndef _APP_NO_DARKTHEME
 		//case WM_CTLCOLOREDIT:
 		//{
 		//	if (_r_wnd_isdarktheme ())
@@ -841,7 +841,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			_r_wnd_setdarktheme (hwnd);
 			break;
 		}
-#endif // _APP_HAVE_DARKTHEME
+#endif // _APP_NO_DARKTHEME
 
 		case WM_CTLCOLORSTATIC:
 		case WM_CTLCOLORDLG:
@@ -947,9 +947,10 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 			{
 				DWORD dwFileChecksum = 0, dwRealChecksum = 0;
 
-				if (_MapFileAndCheckSumW (GetBinaryPath (), &dwFileChecksum, &dwRealChecksum) == ERROR_SUCCESS && dwRealChecksum != dwFileChecksum)
+				if (_MapFileAndCheckSumW (GetBinaryPath (), &dwFileChecksum, &dwRealChecksum) == ERROR_SUCCESS)
 				{
-					return false;
+					if (dwRealChecksum != dwFileChecksum)
+						return false;
 				}
 			}
 
@@ -1400,7 +1401,7 @@ void rapp::CreateSettingsWindow (DLGPROC proc, size_t dlg_id)
 			app_settings_proc = proc;
 
 #ifdef IDD_SETTINGS
-		DialogBoxParam (nullptr, MAKEINTRESOURCE (IDD_SETTINGS), nullptr, &SettingsWndProc, (LPARAM)this);
+		DialogBoxParam (nullptr, MAKEINTRESOURCE (IDD_SETTINGS), GetHWND (), &SettingsWndProc, (LPARAM)this);
 #else
 #pragma _R_WARNING(IDD_SETTINGS)
 #endif // IDD_SETTINGS
@@ -1843,9 +1844,9 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			this_ptr = (rapp*)(lparam);
 			this_ptr->settings_hwnd = hwnd;
 
-#ifdef _APP_HAVE_DARKTHEME
+#ifndef _APP_NO_DARKTHEME
 			_r_wnd_setdarktheme (hwnd);
-#endif // _APP_HAVE_DARKTHEME
+#endif // _APP_NO_DARKTHEME
 
 #ifdef IDI_MAIN
 			SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)this_ptr->GetSharedIcon (this_ptr->GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXSMICON)));
@@ -1856,6 +1857,9 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			// configure window
 			_r_wnd_center (hwnd, this_ptr->GetHWND () ? this_ptr->GetHWND () : GetParent (hwnd));
+
+			if (this_ptr->ConfigGet (L"IsParentNoBlock", false).AsBool ())
+				EnableWindow (GetParent (hwnd), true);
 
 			// configure treeview
 			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, this_ptr->GetDPI (20));
@@ -1922,14 +1926,14 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			break;
 		}
 
-#ifdef _APP_HAVE_DARKTHEME
+#ifndef _APP_NO_DARKTHEME
 		case WM_SETTINGCHANGE:
 		case WM_SYSCOLORCHANGE:
 		{
 			_r_wnd_setdarktheme (hwnd);
 			break;
 		}
-#endif // _APP_HAVE_DARKTHEME
+#endif // _APP_NO_DARKTHEME
 
 		case WM_DESTROY:
 		{
@@ -2665,7 +2669,9 @@ bool rapp::SkipUacEnable (bool is_enable)
 
 	VARIANT vtEmpty = {VT_EMPTY};
 
-	if (SUCCEEDED (CoInitializeEx (nullptr, COINIT_MULTITHREADED)))
+	const HRESULT hrComInit = CoInitializeEx (nullptr, COINIT_MULTITHREADED);
+
+	if ((hrComInit == RPC_E_CHANGED_MODE) || SUCCEEDED (hrComInit))
 	{
 		if (SUCCEEDED (CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr)))
 		{
@@ -2769,7 +2775,8 @@ bool rapp::SkipUacEnable (bool is_enable)
 			}
 		}
 
-		CoUninitialize ();
+		if (SUCCEEDED (hrComInit))
+			CoUninitialize ();
 	}
 
 	return result;
@@ -2800,7 +2807,9 @@ bool rapp::SkipUacRun ()
 
 	VARIANT vtEmpty = {VT_EMPTY};
 
-	if (SUCCEEDED (CoInitializeEx (nullptr, COINIT_MULTITHREADED)))
+	const HRESULT hrComInit = CoInitializeEx (nullptr, COINIT_MULTITHREADED);
+
+	if ((hrComInit == RPC_E_CHANGED_MODE) || SUCCEEDED (hrComInit))
 	{
 		if (SUCCEEDED (CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr)))
 		{
@@ -2895,7 +2904,8 @@ bool rapp::SkipUacRun ()
 			}
 		}
 
-		CoUninitialize ();
+		if (SUCCEEDED (hrComInit))
+			CoUninitialize ();
 	}
 
 	return result;
@@ -2914,7 +2924,9 @@ bool rapp::RunAsAdmin ()
 
 		if (!result)
 		{
-			if (SUCCEEDED (CoInitialize (nullptr)))
+			const HRESULT hrComInit = CoInitialize (nullptr);
+
+			if ((hrComInit == RPC_E_CHANGED_MODE) || SUCCEEDED (hrComInit))
 			{
 				SHELLEXECUTEINFO shex = {0};
 
@@ -2947,7 +2959,8 @@ bool rapp::RunAsAdmin ()
 						MutexCreate ();
 				}
 
-				CoUninitialize ();
+				if (SUCCEEDED (hrComInit))
+					CoUninitialize ();
 			}
 		}
 	}

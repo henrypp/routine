@@ -32,7 +32,7 @@
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "wtsapi32.lib")
 
-#ifdef _APP_HAVE_DARKTHEME
+#ifdef _APP_HAVE_DARKTHEME_SUBCLASS
 #ifndef DarkThemeTextColor
 #define DarkThemeTextColor RGB (0xff, 0xff, 0xff)
 #endif // DarkThemeTextColor
@@ -327,10 +327,10 @@ bool _r_wnd_undercursor (HWND hwnd);
 bool _r_wnd_isfullscreenmode ();
 void _r_wnd_resize (HDWP* hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags);
 
-#ifdef _APP_HAVE_DARKTHEME
+#ifndef _APP_NO_DARKTHEME
 bool _r_wnd_isdarktheme ();
 bool _r_wnd_setdarktheme (HWND hwnd);
-#endif // _APP_HAVE_DARKTHEME
+#endif // _APP_NO_DARKTHEME
 
 /*
 	Inernet access (WinHTTP)
