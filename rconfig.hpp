@@ -16,6 +16,9 @@
 #define _R_BUFFER_LENGTH 8192
 #define _R_BUFFER_INET_LENGTH (_R_BUFFER_LENGTH * 4)
 
+//#define _APP_BETA // app has beta status
+//#define _APP_BETA_RC // app has release candidate status
+
 //#define _APP_NO_ABOUT // disable about dialog feature
 //#define _APP_NO_GUEST // disable "guest" mode, running without admin rights; see _APP_HAVE_SKIPUAC
 //#define _APP_NO_WINXP // disable winxp support
@@ -43,9 +46,6 @@
 #ifndef _APP_ALWAYSONTOP
 #define _APP_ALWAYSONTOP false
 #endif // _APP_ALWAYSONTOP
-
-//#define _APP_BETA // app has beta status
-//#define _APP_BETA_RC // app has release candidate status
 
 #define STRINGIZE_HELPER(x) #x
 #define STRINGIZE(x) STRINGIZE_HELPER(x)

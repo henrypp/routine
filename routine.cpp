@@ -566,6 +566,9 @@ void _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length)
 
 bool _r_fs_delete (LPCWSTR path, bool allowundo)
 {
+	if(!path || !path[0])
+		return false;
+
 	bool result = false;
 
 	if (allowundo)
@@ -578,7 +581,8 @@ bool _r_fs_delete (LPCWSTR path, bool allowundo)
 
 		result = (SHFileOperation (&op) == ERROR_SUCCESS);
 	}
-	else
+
+	if (!allowundo || !result)
 	{
 		if (DeleteFile (path))
 			result = true;
