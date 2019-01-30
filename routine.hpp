@@ -263,6 +263,7 @@ DWORD _r_path_ntpathfromdos (rstring& path);
 bool _r_str_alloc (LPWSTR* pwstr, size_t length, LPCWSTR text);
 
 rstring _r_str_fromguid (const GUID& lpguid);
+rstring _r_str_fromsid (const PSID lpsid);
 
 size_t _r_str_length (LPCWSTR str);
 

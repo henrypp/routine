@@ -610,6 +610,10 @@ rstring& rstring::Replace (LPCWSTR from, LPCWSTR to)
 
 rstring& rstring::Trim (LPCWSTR chars)
 {
+#ifdef StrTrimW
+	StrTrimW (GetBuffer(), chars);
+	ReleaseBuffer ();
+#else
 	Buffer* thisBuffer = toBuffer ();
 	if (thisBuffer && chars)
 	{
@@ -637,6 +641,8 @@ rstring& rstring::Trim (LPCWSTR chars)
 		}
 		Release ();
 	}
+#endif // StrTrimW
+
 	return *this;
 }
 

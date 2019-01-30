@@ -566,7 +566,7 @@ void _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length)
 
 bool _r_fs_delete (LPCWSTR path, bool allowundo)
 {
-	if(!path || !path[0])
+	if (!path || !path[0])
 		return false;
 
 	bool result = false;
@@ -1067,6 +1067,21 @@ rstring _r_str_fromguid (const GUID& lpguid)
 	return result;
 }
 
+rstring _r_str_fromsid (const PSID lpsid)
+{
+	rstring result;
+	LPWSTR sidString = nullptr;
+
+	if (ConvertSidToStringSid (lpsid, &sidString))
+	{
+		result = sidString;
+
+		SAFE_LOCAL_FREE (sidString);
+	}
+
+	return result;
+}
+
 size_t _r_str_length (LPCWSTR str)
 {
 	size_t length = 0;
@@ -1344,16 +1359,7 @@ rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username)
 		SID_NAME_USE name_use;
 
 		if (LookupAccountName (domain, username, psid, &sid_length, ref_domain, &ref_length, &name_use))
-		{
-			LPWSTR sidstring = nullptr;
-
-			if (ConvertSidToStringSid (psid, &sidstring))
-			{
-				result = sidstring;
-
-				SAFE_LOCAL_FREE (sidstring);
-			}
-		}
+			result = _r_str_fromsid (psid);
 
 		SAFE_DELETE_ARRAY (psid);
 	}
