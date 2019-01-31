@@ -1563,27 +1563,37 @@ COLORREF _r_dc_getcolorbrightness (COLORREF clr)
 
 void _r_dc_fillrect (HDC hdc, LPRECT lprc, COLORREF clr)
 {
-	COLORREF clr_prev = SetBkColor (hdc, clr);
+	const COLORREF clr_prev = SetBkColor (hdc, clr);
 	ExtTextOut (hdc, 0, 0, ETO_OPAQUE, lprc, nullptr, 0, nullptr);
 	SetBkColor (hdc, clr_prev);
 }
 
-int _r_dc_fontsizetoheight (INT size)
+int _r_dc_fontheighttosize (INT size)
 {
-	HDC hdc = GetDC (nullptr);
-	int result = -MulDiv (size, GetDeviceCaps (hdc, LOGPIXELSY), 72);
+	const HDC hdc = GetDC (nullptr);
+	const int result = MulDiv (-size, 72, GetDeviceCaps (hdc, LOGPIXELSY));
 	ReleaseDC (nullptr, hdc);
 
 	return result;
 }
 
-int _r_dc_fontheighttosize (INT size)
+int _r_dc_fontsizetoheight (INT size)
 {
-	HDC hdc = GetDC (nullptr);
-	int result = MulDiv (-size, 72, GetDeviceCaps (hdc, LOGPIXELSY));
+	const HDC hdc = GetDC (nullptr);
+	const int result = -MulDiv (size, GetDeviceCaps (hdc, LOGPIXELSY), 72);
 	ReleaseDC (nullptr, hdc);
 
 	return result;
+}
+
+LONG _r_dc_fontwidth (HDC hdc, LPCWSTR text, size_t length)
+{
+	SIZE size = {0};
+
+	if (!GetTextExtentPoint32 (hdc, text, (INT)length, &size))
+		size.cx = 200;
+
+	return size.cx;
 }
 
 /*
@@ -1595,7 +1605,7 @@ void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG_PTR mask, LONG_PTR stateMask
 	if (ctrl_id)
 		hwnd = GetDlgItem (hwnd, ctrl_id);
 
-	LONG_PTR style = (GetWindowLongPtr (hwnd, index) & ~stateMask) | mask;
+	const LONG_PTR style = (GetWindowLongPtr (hwnd, index) & ~stateMask) | mask;
 
 	SetWindowLongPtr (hwnd, index, style);
 
