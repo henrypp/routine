@@ -2932,7 +2932,7 @@ DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle)
 {
 	SetWindowTheme (GetDlgItem (hwnd, ctrl_id), L"Explorer", nullptr);
 
-	_r_wnd_top ((HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETTOOLTIPS, 0, 0), true); // listview-tooltip-HACK!!!
+	_r_wnd_top ((HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETTOOLTIPS, 0, 0), true); // HACK!!!
 
 	return (DWORD)SendDlgItemMessage (hwnd, ctrl_id, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, (LPARAM)exstyle);
 }

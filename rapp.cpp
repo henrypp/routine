@@ -847,7 +847,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		case WM_CTLCOLORDLG:
 		case WM_CTLCOLORBTN:
 		{
-			SetBkMode ((HDC)wparam, TRANSPARENT); // background-hack
+			SetBkMode ((HDC)wparam, TRANSPARENT); // HACK!!!
 			break;
 		}
 
@@ -933,6 +933,41 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 {
 	bool result = false;
 
+	// initialize controls
+	{
+		INITCOMMONCONTROLSEX icex = {0};
+
+		icex.dwSize = sizeof (icex);
+		icex.dwICC = ICC_WIN95_CLASSES | ICC_STANDARD_CLASSES;
+
+		InitCommonControlsEx (&icex);
+	}
+
+	if (MutexIsExists (true))
+		return false;
+
+#ifdef _APP_NO_GUEST
+	if (!IsAdmin ())
+	{
+		if (RunAsAdmin ())
+			return false;
+
+		_r_msg (nullptr, MB_OK | MB_ICONEXCLAMATION, app_name, L"Warning!", L"%s administrative privileges is required!", app_name);
+		return false;
+	}
+#elif _APP_HAVE_SKIPUAC
+	if (!IsAdmin () && SkipUacRun ())
+		return false;
+#endif // _APP_NO_GUEST
+
+#ifndef _WIN64
+	if (_r_sys_iswow64 ())
+	{
+		if (!ConfirmMessage (nullptr, L"Warning!", _r_fmt (L"You are attempting to run the 32-bit version of %s on 64-bit Windows.\r\nPlease run the 64-bit version of %s instead.", app_name, app_name), L"ConfirmWOW64"))
+			return false;
+	}
+#endif // _WIN64
+
 	// check checksum
 #ifndef _DEBUG
 	{
@@ -958,41 +993,6 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 		}
 	}
 #endif // _DEBUG
-
-	// initialize controls
-	{
-		INITCOMMONCONTROLSEX icex = {0};
-
-		icex.dwSize = sizeof (icex);
-		icex.dwICC = ICC_WIN95_CLASSES | ICC_STANDARD_CLASSES;
-
-		InitCommonControlsEx (&icex);
-	}
-
-	if (MutexIsExists (true))
-		return false;
-
-#if defined(_APP_HAVE_SKIPUAC) || defined(_APP_NO_GUEST)
-	if (RunAsAdmin ())
-		return false;
-
-#ifdef _APP_NO_GUEST
-	if (!IsAdmin ())
-	{
-		_r_msg (nullptr, MB_OK | MB_ICONEXCLAMATION, app_name, L"Warning!", L"%s administrative privileges is required!", app_name);
-		return false;
-	}
-#endif // _APP_NO_GUEST
-
-#endif // _APP_HAVE_SKIPUAC || _APP_NO_GUEST
-
-#ifndef _WIN64
-	if (_r_sys_iswow64 ())
-	{
-		if (!ConfirmMessage (nullptr, L"Warning!", _r_fmt (L"You are attempting to run the 32-bit version of %s on 64-bit Windows.\r\nPlease run the 64-bit version of %s instead.", app_name, app_name), L"ConfirmWOW64"))
-			return false;
-	}
-#endif // _WIN64
 
 	MutexCreate ();
 
