@@ -2,35 +2,40 @@
 // Copyright (c) 2012-2019 Henry++
 
 #include "routine.hpp"
+
 /*
 	Write debug log to console
 */
 
-void _r_dbg (LPCWSTR format, ...)
+void _r_dbg (LPCWSTR fn, DWORD errcode, LPCWSTR desc)
 {
-	if (!format)
-	{
-		OutputDebugString (L"\r\n");
-	}
-	else
-	{
-		va_list args;
-		va_start (args, format);
+	static const rstring path = _r_dbg_getpath ();
 
-		rstring buffer;
-		buffer.FormatV (format, args);
+	rstring write_buffer;
+	write_buffer.Format (L"\"%s\"," _R_DBG_FORMAT L",\"%s\"\r\n", _r_fmt_date (_r_unixtime_now (), FDTF_SHORTDATE | FDTF_LONGTIME).GetString (), fn, errcode, desc, APP_VERSION);
 
-		va_end (args);
+	_r_dbg_print (L"%s", write_buffer.GetString ());
 
-		OutputDebugString (buffer);
-	}
+	_r_dbg_write (path, write_buffer);
 }
 
-void _r_dbg_write (LPCWSTR appname, LPCWSTR appversion, LPCWSTR fn, DWORD result, LPCWSTR desc)
+void _r_dbg_print (LPCWSTR format, ...)
 {
-	rstring path = _r_dbg_getpath (appname);
+	va_list args;
+	va_start (args, format);
 
-	const HANDLE hfile = CreateFile (path, GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH, nullptr);
+	rstring buffer;
+	buffer.FormatV (format, args);
+
+	va_end (args);
+
+	OutputDebugString (buffer);
+}
+
+void _r_dbg_write (LPCWSTR path, LPCWSTR text)
+{
+	SetFileAttributes (path, FILE_ATTRIBUTE_NORMAL); // HACK!!!
+	const HANDLE hfile = CreateFile (path, GENERIC_WRITE | GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 
 	if (hfile != INVALID_HANDLE_VALUE)
 	{
@@ -48,19 +53,13 @@ void _r_dbg_write (LPCWSTR appname, LPCWSTR appversion, LPCWSTR fn, DWORD result
 
 		DWORD written = 0;
 
-		rstring buffer;
-		rstring write_buffer;
-
-		buffer.Format (_R_DBG_FORMAT, fn, result, desc ? desc : L"<empty>");
-		write_buffer.Format (L"%s,%s,%s\r\n", _r_fmt_date (_r_unixtime_now (), FDTF_SHORTDATE | FDTF_LONGTIME).GetString (), buffer.GetString (), appversion);
-
-		WriteFile (hfile, write_buffer.GetString (), DWORD (write_buffer.GetLength () * sizeof (WCHAR)), &written, nullptr);
+		WriteFile (hfile, text, DWORD (_r_str_length (text) * sizeof (WCHAR)), &written, nullptr);
 
 		CloseHandle (hfile);
 	}
 }
 
-rstring _r_dbg_getpath (LPCWSTR appname)
+rstring _r_dbg_getpath ()
 {
 	WCHAR result[MAX_PATH] = {0};
 
@@ -75,8 +74,12 @@ rstring _r_dbg_getpath (LPCWSTR appname)
 	}
 
 	StringCchCat (result, _countof (result), L"\\");
-	StringCchCat (result, _countof (result), appname);
-	StringCchCat (result, _countof (result), L"_error.log");
+#ifdef APP_NAME_SHORT
+	StringCchCat (result, _countof (result), APP_NAME_SHORT);
+#else
+	StringCchCat (result, _countof (result), L"123");
+#endif
+	StringCchCat (result, _countof (result), L"_debug.log");
 
 	return result;
 }
@@ -1559,6 +1562,15 @@ COLORREF _r_dc_getcolorbrightness (COLORREF clr)
 		return RGB (0x00, 0x00, 0x00);
 
 	return RGB (0xff, 0xff, 0xff);
+}
+
+COLORREF _r_dc_getcolorshade (COLORREF clr, INT percent)
+{
+	const COLORREF red = ((GetRValue (clr) * percent) / 100);
+	const COLORREF green = ((GetGValue (clr) * percent) / 100);
+	const COLORREF blue = ((GetBValue (clr) * percent) / 100);
+
+	return RGB (red, green, blue);
 }
 
 void _r_dc_fillrect (HDC hdc, LPRECT lprc, COLORREF clr)

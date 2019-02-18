@@ -22,6 +22,7 @@
 #include <sddl.h>
 #include <inttypes.h>
 
+#include "app.hpp"
 #include "rconfig.hpp"
 #include "rstring.hpp"
 
@@ -87,12 +88,6 @@
 #define _R_SECONDSCLOCK_DAY(days)((_R_SECONDSCLOCK_HOUR (1) * 24) * (days))
 
 /*
-	Color shader
-*/
-
-#define _R_COLOR_SHADE(clr, percent) RGB((BYTE)(double (GetRValue ((clr))) * double (percent) / 100.0), (BYTE)(double (GetGValue ((clr))) * double (percent) / 100.0), (BYTE)(double (GetBValue ((clr))) * double (percent) / 100.0))
-
-/*
 	Percentage calculation
 */
 
@@ -110,14 +105,15 @@
 	Debug logging
 */
 
-#define RDBG(a, ...) _r_dbg (a, __VA_ARGS__)
+#define RDBG(a, ...) _r_dbg_print (a, __VA_ARGS__)
 
-#define _R_DBG_FORMAT L"%s(),0x%.8lx,%s"
+#define _R_DBG_FORMAT L"\"%s()\",\"0x%.8lx\",\"%s\""
 
-void _r_dbg (LPCWSTR format, ...);
+void _r_dbg (LPCWSTR fn, DWORD errcode, LPCWSTR desc);
+void _r_dbg_print (LPCWSTR format, ...);
+void _r_dbg_write (LPCWSTR path, LPCWSTR text);
 
-void _r_dbg_write (LPCWSTR appname, LPCWSTR appversion, LPCWSTR fn, DWORD result, LPCWSTR desc);
-rstring _r_dbg_getpath (LPCWSTR appname);
+rstring _r_dbg_getpath ();
 
 /*
 	Format strings, dates, numbers
@@ -308,7 +304,8 @@ time_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst);
 	Painting
 */
 
-ULONG _r_dc_getcolorbrightness (COLORREF clr);
+COLORREF _r_dc_getcolorbrightness (COLORREF clr);
+COLORREF _r_dc_getcolorshade (COLORREF clr, INT percent);
 void _r_dc_fillrect (HDC hdc, LPRECT lprc, COLORREF clr);
 int _r_dc_fontheighttosize (INT size);
 int _r_dc_fontsizetoheight (INT size);

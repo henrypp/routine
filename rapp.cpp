@@ -1267,31 +1267,14 @@ bool rapp::TrayPopup (HWND hwnd, UINT uid, LPGUID guid, DWORD icon_id, LPCWSTR t
 		CopyMemory (&nid.guidItem, guid, sizeof (GUID));
 	}
 
-	if (icon_id == NIIF_USER)
+	if ((icon_id & NIIF_USER) != 0)
 	{
-#ifndef _APP_NO_WINXP
-		if (IsVistaOrLater ())
-		{
-#endif // _APP_NO_WINXP
-
 #ifdef IDI_MAIN
 			nid.hBalloonIcon = GetSharedIcon (GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXICON));
 #else
 			nid.hBalloonIcon = GetSharedIcon (nullptr, SIH_INFORMATION, GetSystemMetrics (SM_CXICON));
 #pragma _R_WARNING(IDI_MAIN)
-#endif
-
-#ifndef _APP_NO_WINXP
-		}
-		else
-		{
-			nid.dwInfoFlags = NIIF_INFO;
-		}
-#endif // _APP_NO_WINXP
-	}
-	else
-	{
-		nid.dwInfoFlags = NIIF_INFO;
+#endif // IDI_MAIN
 	}
 
 	// tooltip-visibility fix
