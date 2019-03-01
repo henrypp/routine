@@ -349,7 +349,7 @@ bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD
 HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT cx_width);
 bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd = nullptr, WORD sw = SW_SHOWDEFAULT);
 size_t _r_rand (size_t min_number, size_t max_number);
-HANDLE _r_createthread (_beginthreadex_proc_type proc, void* args, bool is_suspended);
+HANDLE _r_createthread (_beginthreadex_proc_type proc, void* args, bool is_suspended, int priority = THREAD_PRIORITY_NORMAL);
 
 /*
 	Control: common
