@@ -249,27 +249,9 @@ bool rapp::AutorunEnable (bool is_enable)
 {
 	bool result = false;
 
-	HKEY hroot = HKEY_CURRENT_USER;
-	rstring reg_path = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
-
-	// create autorun entry for current user only
-	{
-		rstring reg_domain;
-		rstring reg_username;
-
-		_r_sys_getusername (&reg_domain, &reg_username);
-		rstring reg_sid = _r_sys_getusernamesid (reg_domain, reg_username);
-
-		if (!reg_sid.IsEmpty ())
-		{
-			hroot = HKEY_USERS;
-			reg_path.Format (L"%s\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", reg_sid.GetString ());
-		}
-	}
-
 	HKEY hkey = nullptr;
 
-	if (RegOpenKeyEx (hroot, reg_path, 0, KEY_ALL_ACCESS, &hkey) == ERROR_SUCCESS)
+	if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_ALL_ACCESS, &hkey) == ERROR_SUCCESS)
 	{
 		if (is_enable)
 		{
@@ -1270,9 +1252,9 @@ bool rapp::TrayPopup (HWND hwnd, UINT uid, LPGUID guid, DWORD icon_id, LPCWSTR t
 	if ((icon_id & NIIF_USER) != 0)
 	{
 #ifdef IDI_MAIN
-			nid.hBalloonIcon = GetSharedIcon (GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXICON));
+		nid.hBalloonIcon = GetSharedIcon (GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXICON));
 #else
-			nid.hBalloonIcon = GetSharedIcon (nullptr, SIH_INFORMATION, GetSystemMetrics (SM_CXICON));
+		nid.hBalloonIcon = GetSharedIcon (nullptr, SIH_INFORMATION, GetSystemMetrics (SM_CXICON));
 #pragma _R_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
 	}
@@ -2496,12 +2478,13 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							{
 								if (!pcomponent->is_installer)
 								{
+									_r_fs_delete (pcomponent->target_path, false);
 									_r_fs_copy (pcomponent->filepath, pcomponent->target_path);
+
+									papp->ConfigInit (); // reload configuration
 
 									if (papp->GetHWND ())
 									{
-										papp->ConfigInit (); // reload configuration
-
 										SendMessage (papp->GetHWND (), RM_UPDATE_DONE, 0, 0);
 										SendMessage (papp->GetHWND (), RM_INITIALIZE, 0, 0);
 										SendMessage (papp->GetHWND (), RM_LOCALIZE, 0, 0);
@@ -2730,12 +2713,10 @@ bool rapp::SkipUacEnable (bool is_enable)
 										&registered_task)
 										))
 									{
-										{
-											ConfigSet (L"SkipUacIsEnabled", true);
-											result = true;
+										ConfigSet (L"SkipUacIsEnabled", true);
+										result = true;
 
-											registered_task->Release ();
-										}
+										registered_task->Release ();
 									}
 
 									task->Release ();
