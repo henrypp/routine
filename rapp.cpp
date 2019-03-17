@@ -2259,9 +2259,11 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 				rapp* papp = (rapp*)(pupdateinfo->papp);
 
 				papp->UpdateInstall ();
-				DestroyWindow (papp->GetHWND ());
 
-				return S_FALSE;
+				DestroyWindow (papp->GetHWND ());
+				ExitProcess (ERROR_SUCCESS);
+
+				//return S_FALSE;
 			}
 
 			break;
@@ -2337,7 +2339,7 @@ rstring format_version (rstring vers)
 
 void rapp::UpdateInstall ()
 {
-	_r_run (_r_path_expand (L"%systemroot%\\system32\\cmd.exe"), _r_fmt (L"\"cmd.exe\" /c timeout 4 > nul&&start /wait \"\" \"%s\" /S /D=%s&&timeout 4 > nul&&del /q /f \"%s\"&start \"\" \"%s\"", GetUpdatePath (), GetDirectory (), GetUpdatePath (), GetBinaryPath ()), nullptr, SW_HIDE);
+	_r_run (_r_path_expand (L"%systemroot%\\system32\\cmd.exe"), _r_fmt (L"\"cmd.exe\" /c timeout 3 > nul&&start /wait \"\" \"%s\" /S /D=%s&&timeout 3 > nul&&del /q /f \"%s\"&start \"\" \"%s\"", GetUpdatePath (), GetDirectory (), GetUpdatePath (), GetBinaryPath ()), nullptr, SW_HIDE);
 }
 
 UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
