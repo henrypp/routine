@@ -842,7 +842,10 @@ rstring _r_path_extractdir (LPCWSTR path)
 
 rstring _r_path_extractfile (LPCWSTR path)
 {
-	return PathFindFileName (path);
+	if (path && path[0])
+		return PathFindFileName (path);
+
+	return path;
 }
 
 // Author: Elmue
@@ -1996,7 +1999,7 @@ BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 	{
 		SetProp (hwnd, L"orig_proc", defaultWindowProc);
 		SetWindowLongPtr (hwnd, GWLP_WNDPROC, (LONG_PTR)&DarkExplorerSubclassProc);
-	}
+}
 #endif // _APP_HAVE_DARKTHEME_SUBCLASS
 
 	WCHAR classname[128] = {0};
