@@ -365,6 +365,13 @@ bool _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text);
 bool _r_ctrl_showtip (HWND hwnd, UINT ctrl_id, INT icon_id, LPCWSTR title, LPCWSTR text);
 
 /*
+	Control: tab
+*/
+
+INT _r_tab_additem (HWND hwnd, UINT ctrl_id, size_t index, LPCWSTR text, size_t image = LAST_VALUE, LPARAM lparam = 0);
+INT _r_tab_setitem (HWND hwnd, UINT ctrl_id, size_t index, LPCWSTR text, size_t image = LAST_VALUE, LPARAM lparam = 0);
+
+/*
 	Control: listview
 */
 

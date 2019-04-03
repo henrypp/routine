@@ -1856,10 +1856,13 @@ bool _r_wnd_isfullscreenmode ()
 
 void _r_wnd_resize (HDWP* hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags)
 {
-	flags |= SWP_NOZORDER | SWP_NOACTIVATE;
+	flags |= SWP_NOACTIVATE;
 
 	if (!width && !height)
 		flags |= SWP_NOSIZE;
+
+	if (!hwnd_after)
+		flags |= SWP_NOZORDER;
 
 	if (hdefer && *hdefer)
 		*hdefer = DeferWindowPos (*hdefer, hwnd, hwnd_after, left, right, width, height, flags);
@@ -1999,7 +2002,7 @@ BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 	{
 		SetProp (hwnd, L"orig_proc", defaultWindowProc);
 		SetWindowLongPtr (hwnd, GWLP_WNDPROC, (LONG_PTR)&DarkExplorerSubclassProc);
-}
+	}
 #endif // _APP_HAVE_DARKTHEME_SUBCLASS
 
 	WCHAR classname[128] = {0};
@@ -2584,6 +2587,60 @@ bool _r_ctrl_showtip (HWND hwnd, UINT ctrl_id, INT icon_id, LPCWSTR title, LPCWS
 	ebt.ttiIcon = icon_id;
 
 	return SendDlgItemMessage (hwnd, ctrl_id, EM_SHOWBALLOONTIP, 0, (LPARAM)&ebt) ? true : false;
+}
+
+/*
+	Control: tab
+*/
+
+INT _r_tab_additem (HWND hwnd, UINT ctrl_id, size_t index, LPCWSTR text, size_t image, LPARAM lparam)
+{
+	TCITEM tci = {0};
+
+	if (text)
+	{
+		tci.mask |= TCIF_TEXT;
+		tci.pszText = (LPWSTR)text;
+	}
+
+	if (image != LAST_VALUE)
+	{
+		tci.mask |= TCIF_IMAGE;
+		tci.iImage = (INT)image;
+	}
+
+	if (lparam)
+	{
+		tci.mask |= TCIF_PARAM;
+		tci.lParam = lparam;
+	}
+
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, TCM_INSERTITEM, (WPARAM)index, (LPARAM)&tci);
+}
+
+INT _r_tab_setitem (HWND hwnd, UINT ctrl_id, size_t index, LPCWSTR text, size_t image, LPARAM lparam)
+{
+	TCITEM tci = {0};
+
+	if (text)
+	{
+		tci.mask |= TCIF_TEXT;
+		tci.pszText = (LPWSTR)text;
+	}
+
+	if (image != LAST_VALUE)
+	{
+		tci.mask |= TCIF_IMAGE;
+		tci.iImage = (INT)image;
+	}
+
+	if (lparam)
+	{
+		tci.mask |= TCIF_PARAM;
+		tci.lParam = lparam;
+	}
+
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, TCM_SETITEM, (WPARAM)index, (LPARAM)&tci);
 }
 
 /*
