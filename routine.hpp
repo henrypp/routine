@@ -375,7 +375,7 @@ INT _r_tab_setitem (HWND hwnd, UINT ctrl_id, size_t index, LPCWSTR text, size_t 
 	Control: listview
 */
 
-INT _r_listview_addcolumn (HWND hwnd, UINT ctrl_id, size_t column_id, LPCWSTR text, UINT width, INT fmt);
+INT _r_listview_addcolumn (HWND hwnd, UINT ctrl_id, size_t column_id, LPCWSTR text, INT width, INT fmt);
 INT _r_listview_addgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR title, UINT align, UINT state);
 INT _r_listview_additem (HWND hwnd, UINT ctrl_id, size_t item_id, size_t subitem, LPCWSTR text, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
 
@@ -417,10 +417,16 @@ void _r_status_settext (HWND hwnd, UINT ctrl_id, INT part, LPCWSTR text);
 void _r_status_setstyle (HWND hwnd, UINT ctrl_id, INT height);
 
 /*
+	Control: toolbar
+*/
+
+void _r_toolbar_setbuttoninfo (HWND hwnd, UINT ctrl_id, UINT command_id, LPCWSTR text, INT state = 0, size_t image = LAST_VALUE);
+
+/*
 	Control: progress bar
 */
 
-void _r_status_pbsetmarquee (HWND hwnd, UINT ctrl_id, bool is_enable);
+void _r_progress_setmarquee (HWND hwnd, UINT ctrl_id, bool is_enable);
 
 /*
 	NTDLL Definitions

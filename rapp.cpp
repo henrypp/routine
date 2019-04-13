@@ -13,6 +13,10 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	is_vistaorlater = _r_sys_validversion (6, 0);
 	is_admin = _r_sys_isadmin ();
 
+#ifdef _APP_HAVE_UPDATES
+	pupdateinfo = nullptr;
+#endif // _APP_HAVE_UPDATES
+
 	// safe dll loading
 	SetDllDirectory (L"");
 
@@ -23,7 +27,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 
 		if (hlib)
 		{
-			typedef BOOL (WINAPI *SSPM) (DWORD); // SetSearchPathMode
+			typedef BOOL (WINAPI * SSPM) (DWORD); // SetSearchPathMode
 
 			const SSPM _SetSearchPathMode = (SSPM)GetProcAddress (hlib, "SetSearchPathMode");
 
@@ -63,7 +67,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 
 	// parse command line
 	INT numargs = 0;
-	LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
+	LPWSTR *arga = CommandLineToArgvW (GetCommandLine (), &numargs);
 
 	if (arga)
 	{
@@ -168,7 +172,8 @@ bool rapp::MutexIsExists (bool activate_window)
 	}
 	else
 	{
-		ReleaseMutex (hmutex);
+		if (hmutex)
+			ReleaseMutex (hmutex);
 	}
 
 	if (hmutex)
@@ -179,7 +184,7 @@ bool rapp::MutexIsExists (bool activate_window)
 
 BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 {
-	rapp const* this_ptr = (rapp*)lparam;
+	rapp const *this_ptr = (rapp *)lparam;
 
 	if (!this_ptr)
 		return FALSE;
@@ -299,19 +304,19 @@ bool rapp::DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_C
 
 			if (content_buffer)
 			{
-				rstring* lpbuffer = nullptr;
+				rstring *lpbuffer = nullptr;
 				HANDLE hfile = nullptr;
 
 				if (is_filepath)
 				{
-					hfile = CreateFile ((LPCWSTR)buffer, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_FLAG_WRITE_THROUGH, nullptr);
+					hfile = CreateFile ((LPCWSTR)buffer, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 
 					if (hfile != INVALID_HANDLE_VALUE)
 						result = true;
 				}
 				else
 				{
-					lpbuffer = (rstring*)buffer;
+					lpbuffer = (rstring *)buffer;
 
 					if (lpbuffer)
 						result = true;
@@ -753,7 +758,7 @@ bool rapp::IsVistaOrLater () const
 
 LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
-	static rapp* this_ptr = (rapp*)GetProp (hwnd, L"this_ptr");
+	static rapp *this_ptr = (rapp *)GetProp (hwnd, L"this_ptr");
 
 #ifdef _APP_HAVE_TRAY
 	if (msg == WM_TASKBARCREATED)
@@ -884,7 +889,6 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			if (wparam == SIZE_MINIMIZED)
 			{
 				_r_wnd_toggle (hwnd, false);
-				return TRUE;
 			}
 #endif // _APP_HAVE_TRAY
 
@@ -957,7 +961,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 
 		if (hlib)
 		{
-			typedef BOOL (WINAPI *MFACS) (PCWSTR, PDWORD, PDWORD); // MapFileAndCheckSumW
+			typedef BOOL (WINAPI * MFACS) (PCWSTR, PDWORD, PDWORD); // MapFileAndCheckSumW
 			const MFACS _MapFileAndCheckSumW = (MFACS)GetProcAddress (hlib, "MapFileAndCheckSumW");
 
 			if (_MapFileAndCheckSumW)
@@ -1037,7 +1041,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 
 			// subclass window
 			SetProp (GetHWND (), L"this_ptr", this);
-			app_wndproc = (WNDPROC)SetWindowLongPtr (GetHWND (), DWLP_DLGPROC, (LONG_PTR)&MainWindowProc);
+			app_wndproc = (WNDPROC)SetWindowLongPtr (GetHWND (), DWLP_DLGPROC, (LONG_PTR)& MainWindowProc);
 
 			// update autorun settings
 #ifdef _APP_HAVE_AUTORUN
@@ -1070,15 +1074,6 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 #endif // _APP_HAVE_MINSIZE
 				}
 
-				// send resize message
-				if ((GetWindowLongPtr (GetHWND (), GWL_STYLE) & WS_SIZEBOX) != 0)
-				{
-					RECT rc_client = {0};
-
-					if (GetClientRect (GetHWND (), &rc_client))
-						SendMessage (GetHWND (), WM_SIZE, 0, MAKELPARAM (_R_RECT_WIDTH (&rc_client), _R_RECT_HEIGHT (&rc_client)));
-				}
-
 				// restore window position
 				RECT rect_new = {0};
 
@@ -1098,7 +1093,16 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 
 				_r_wnd_adjustwindowrect (nullptr, &rect_new);
 
-				SetWindowPos (GetHWND (), nullptr, rect_new.left, rect_new.top, _R_RECT_WIDTH (&rect_new), _R_RECT_HEIGHT (&rect_new), SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSENDCHANGING | SWP_FRAMECHANGED);
+				SetWindowPos (GetHWND (), nullptr, rect_new.left, rect_new.top, _R_RECT_WIDTH (&rect_new), _R_RECT_HEIGHT (&rect_new), SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSENDCHANGING);
+
+				// send resize message
+				if ((GetWindowLongPtr (GetHWND (), GWL_STYLE) & WS_SIZEBOX) != 0)
+				{
+					RECT rc_client = {0};
+
+					GetClientRect (GetHWND (), &rc_client);
+					SendMessage (GetHWND (), WM_SIZE, 0, MAKELPARAM (_R_RECT_WIDTH (&rc_client), _R_RECT_HEIGHT (&rc_client)));
+				}
 			}
 
 			// show window (or not?)
@@ -1131,8 +1135,8 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 			// set icons
 			if (icon_id)
 			{
-				SendMessage (GetHWND (), WM_SETICON, ICON_SMALL, (LPARAM)GetSharedIcon (GetHINSTANCE (), icon_id, GetSystemMetrics (SM_CXSMICON)));
-				SendMessage (GetHWND (), WM_SETICON, ICON_BIG, (LPARAM)GetSharedIcon (GetHINSTANCE (), icon_id, GetSystemMetrics (SM_CXICON)));
+				SendMessage (GetHWND (), WM_SETICON, ICON_SMALL, (LPARAM)GetSharedImage (GetHINSTANCE (), icon_id, GetSystemMetrics (SM_CXSMICON)));
+				SendMessage (GetHWND (), WM_SETICON, ICON_BIG, (LPARAM)GetSharedImage (GetHINSTANCE (), icon_id, GetSystemMetrics (SM_CXICON)));
 			}
 
 			// common initialization
@@ -1252,7 +1256,7 @@ bool rapp::TrayPopup (HWND hwnd, UINT uid, LPGUID guid, DWORD icon_id, LPCWSTR t
 	if ((icon_id & NIIF_USER) != 0)
 	{
 #ifdef IDI_MAIN
-		nid.hBalloonIcon = GetSharedIcon (GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXICON));
+		nid.hBalloonIcon = GetSharedImage (GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXICON));
 #else
 		nid.hBalloonIcon = GetSharedIcon (nullptr, SIH_INFORMATION, GetSystemMetrics (SM_CXICON));
 #pragma _R_WARNING(IDI_MAIN)
@@ -1371,7 +1375,8 @@ void rapp::CreateSettingsWindow (DLGPROC proc, size_t dlg_id)
 #pragma _R_WARNING(IDD_SETTINGS)
 #endif // IDD_SETTINGS
 
-		ReleaseMutex (hsettings);
+		if (hsettings)
+			ReleaseMutex (hsettings);
 	}
 
 	if (hsettings)
@@ -1452,7 +1457,7 @@ void rapp::SettingsInitialize ()
 		tvi.mask = TVIF_PARAM;
 		tvi.hItem = ptr_page->item;
 
-		SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETITEM, 0, (LPARAM)&tvi);
+		SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETITEM, 0, (LPARAM)& tvi);
 
 		WCHAR buffer[128] = {0};
 		StringCchCopy (buffer, _countof (buffer), LocaleString (ptr_page->locale_id, nullptr));
@@ -1460,7 +1465,7 @@ void rapp::SettingsInitialize ()
 		tvi.mask = TVIF_TEXT;
 		tvi.pszText = buffer;
 
-		SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETITEM, 0, (LPARAM)&tvi);
+		SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETITEM, 0, (LPARAM)& tvi);
 	}
 }
 #endif // _APP_HAVE_SETTINGS
@@ -1504,34 +1509,34 @@ LPCWSTR rapp::GetUserAgent () const
 
 INT rapp::GetDPI (INT v) const
 {
-	return (INT)ceil (DOUBLE (v)* dpi_percent);
+	return (INT)ceil (DOUBLE (v) * dpi_percent);
 }
 
-HICON rapp::GetSharedIcon (HINSTANCE hinst, UINT icon_id, INT cx_width)
+HICON rapp::GetSharedImage (HINSTANCE hinst, UINT icon_id, INT icon_size)
 {
-	PAPP_SHARED_ICON presult = nullptr;
+	PAPP_SHARED_IMAGE presult = nullptr;
 
 	for (size_t i = 0; i < app_shared_icons.size (); i++)
 	{
-		PAPP_SHARED_ICON const pshared = app_shared_icons.at (i);
+		const PAPP_SHARED_IMAGE pshared = app_shared_icons.at (i);
 
-		if (pshared && pshared->hinst == hinst && pshared->icon_id == icon_id && pshared->cx_width == cx_width && pshared->hicon)
+		if (pshared && pshared->hinst == hinst && pshared->icon_id == icon_id && pshared->icon_size == icon_size && pshared->hicon)
 			presult = pshared;
 	}
 
 	if (!presult)
 	{
-		presult = new APP_SHARED_ICON;
+		presult = new APP_SHARED_IMAGE;
 
 		if (presult)
 		{
-			const HICON hicon = _r_loadicon (hinst, MAKEINTRESOURCE (icon_id), cx_width);
+			const HICON hicon = _r_loadicon (hinst, MAKEINTRESOURCE (icon_id), icon_size);
 
 			if (hicon)
 			{
 				presult->hinst = hinst;
 				presult->icon_id = icon_id;
-				presult->cx_width = cx_width;
+				presult->icon_size = icon_size;
 				presult->hicon = hicon;
 
 				app_shared_icons.push_back (presult);
@@ -1800,13 +1805,13 @@ void rapp::LocaleMenu (HMENU menu, UINT id, UINT item, bool by_position, LPCWSTR
 #ifdef _APP_HAVE_SETTINGS
 INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
-	static rapp* this_ptr = nullptr;
+	static rapp *this_ptr = nullptr;
 
 	switch (msg)
 	{
 		case WM_INITDIALOG:
 		{
-			this_ptr = (rapp*)(lparam);
+			this_ptr = (rapp *)(lparam);
 			this_ptr->settings_hwnd = hwnd;
 
 #ifndef _APP_NO_DARKTHEME
@@ -1814,8 +1819,8 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 #endif // _APP_NO_DARKTHEME
 
 #ifdef IDI_MAIN
-			SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)this_ptr->GetSharedIcon (this_ptr->GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXSMICON)));
-			SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)this_ptr->GetSharedIcon (this_ptr->GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXICON)));
+			SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)this_ptr->GetSharedImage (this_ptr->GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXSMICON)));
+			SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)this_ptr->GetSharedImage (this_ptr->GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXICON)));
 #else
 #pragma _R_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
@@ -1876,7 +1881,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			INT pos_x = _R_RECT_WIDTH (&rc);
 
 			// shift "x" position
-			MapWindowPoints (HWND_DESKTOP, hwnd, (LPPOINT)&rc, 2);
+			MapWindowPoints (HWND_DESKTOP, hwnd, (LPPOINT)& rc, 2);
 			pos_x += rc.left + GetSystemMetrics (SM_CYBORDER);
 
 			// calculate "y" position
@@ -2061,7 +2066,7 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 
 	if (pupdateinfo)
 	{
-		rapp* papp = (rapp*)(pupdateinfo->papp);
+		rapp *papp = (rapp *)(pupdateinfo->papp);
 
 		const DWORD percent = _R_PERCENT_OF (total_written, total_length);
 
@@ -2099,7 +2104,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 
 	if (pupdateinfo)
 	{
-		rapp* papp = (rapp*)(pupdateinfo->papp);
+		rapp *papp = (rapp *)(pupdateinfo->papp);
 
 		for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 		{
@@ -2235,7 +2240,7 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 		{
 			if (wparam == IDYES)
 			{
-				rapp* papp = (rapp*)(pupdateinfo->papp);
+				rapp *papp = (rapp *)(pupdateinfo->papp);
 
 				WCHAR str_content[MAX_PATH] = {0};
 
@@ -2256,7 +2261,7 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 			}
 			else if (wparam == IDOK)
 			{
-				rapp* papp = (rapp*)(pupdateinfo->papp);
+				rapp *papp = (rapp *)(pupdateinfo->papp);
 
 				papp->UpdateInstall ();
 
@@ -2321,7 +2326,7 @@ INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS f
 	INT button = 0;
 
 	if (hwnd)
-		SendMessage (hwnd, TDM_NAVIGATE_PAGE, 0, (LPARAM)&tdc);
+		SendMessage (hwnd, TDM_NAVIGATE_PAGE, 0, (LPARAM)& tdc);
 
 	else
 		_r_msg_taskdialog (&tdc, &button, nullptr, nullptr);
@@ -2348,7 +2353,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 	if (pupdateinfo)
 	{
-		rapp* papp = (rapp*)(pupdateinfo->papp);
+		rapp *papp = (rapp *)(pupdateinfo->papp);
 
 		// check for beta versions flag
 #if defined(_APP_BETA) || defined(_APP_BETA_RC)
@@ -2529,7 +2534,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 }
 #endif // _APP_HAVE_UPDATES
 
-bool rapp::ParseINI (LPCWSTR path, rstring::map_two* pmap, std::vector<rstring>* psections)
+bool rapp::ParseINI (LPCWSTR path, rstring::map_two * pmap, std::vector<rstring> * psections)
 {
 	bool result = false;
 
@@ -2616,16 +2621,16 @@ bool rapp::SkipUacEnable (bool is_enable)
 	bool result = false;
 	bool action_result = false;
 
-	ITaskService* service = nullptr;
-	ITaskFolder* folder = nullptr;
-	ITaskDefinition* task = nullptr;
-	IRegistrationInfo* reginfo = nullptr;
-	IPrincipal* principal = nullptr;
-	ITaskSettings* settings = nullptr;
-	IActionCollection* action_collection = nullptr;
-	IAction* action = nullptr;
-	IExecAction* exec_action = nullptr;
-	IRegisteredTask* registered_task = nullptr;
+	ITaskService *service = nullptr;
+	ITaskFolder *folder = nullptr;
+	ITaskDefinition *task = nullptr;
+	IRegistrationInfo *reginfo = nullptr;
+	IPrincipal *principal = nullptr;
+	ITaskSettings *settings = nullptr;
+	IActionCollection *action_collection = nullptr;
+	IAction *action = nullptr;
+	IExecAction *exec_action = nullptr;
+	IRegisteredTask *registered_task = nullptr;
 
 	MBSTR root (L"\\");
 	MBSTR name (_r_fmt (_APP_TASKSCHD_NAME, app_name_short));
@@ -2643,7 +2648,7 @@ bool rapp::SkipUacEnable (bool is_enable)
 	{
 		if (SUCCEEDED (CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr)))
 		{
-			if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
+			if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID *)& service)))
 			{
 				if (SUCCEEDED (service->Connect (vtEmpty, vtEmpty, vtEmpty, vtEmpty)))
 				{
@@ -2682,7 +2687,7 @@ bool rapp::SkipUacEnable (bool is_enable)
 								{
 									if (SUCCEEDED (action_collection->Create (TASK_ACTION_EXEC, &action)))
 									{
-										if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID*)&exec_action)))
+										if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID *)& exec_action)))
 										{
 											if (
 												SUCCEEDED (exec_action->put_Path (path)) &&
@@ -2757,16 +2762,16 @@ bool rapp::SkipUacRun ()
 
 	bool result = false;
 
-	ITaskService* service = nullptr;
-	ITaskFolder* folder = nullptr;
-	IRegisteredTask* registered_task = nullptr;
+	ITaskService *service = nullptr;
+	ITaskFolder *folder = nullptr;
+	IRegisteredTask *registered_task = nullptr;
 
-	ITaskDefinition* task = nullptr;
-	IActionCollection* action_collection = nullptr;
-	IAction* action = nullptr;
-	IExecAction* exec_action = nullptr;
+	ITaskDefinition *task = nullptr;
+	IActionCollection *action_collection = nullptr;
+	IAction *action = nullptr;
+	IExecAction *exec_action = nullptr;
 
-	IRunningTask* running_task = nullptr;
+	IRunningTask *running_task = nullptr;
 
 	MBSTR root (L"\\");
 	MBSTR name (_r_fmt (_APP_TASKSCHD_NAME, app_name_short));
@@ -2779,7 +2784,7 @@ bool rapp::SkipUacRun ()
 	{
 		if (SUCCEEDED (CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr)))
 		{
-			if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service)))
+			if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID *)& service)))
 			{
 				if (SUCCEEDED (service->Connect (vtEmpty, vtEmpty, vtEmpty, vtEmpty)))
 				{
@@ -2793,7 +2798,7 @@ bool rapp::SkipUacRun ()
 								{
 									if (SUCCEEDED (action_collection->get_Item (1, &action)))
 									{
-										if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID*)&exec_action)))
+										if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID *)& exec_action)))
 										{
 											BSTR path = nullptr;
 											exec_action->get_Path (&path);
@@ -2808,7 +2813,7 @@ bool rapp::SkipUacRun ()
 												// get arguments
 												{
 													INT numargs = 0;
-													LPWSTR* arga = CommandLineToArgvW (GetCommandLine (), &numargs);
+													LPWSTR *arga = CommandLineToArgvW (GetCommandLine (), &numargs);
 
 													for (INT i = 1; i < numargs; i++)
 														args.AppendFormat (L"%s ", arga[i]);

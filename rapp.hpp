@@ -118,13 +118,13 @@ protected:
 };
 #endif // _APP_HAVE_SKIPUAC
 
-typedef struct _APP_SHARED_ICON
+typedef struct _APP_SHARED_IMAGE
 {
 	HINSTANCE hinst = nullptr;
 	HICON hicon = nullptr;
 	UINT icon_id = 0;
-	INT cx_width = 0;
-} *PAPP_SHARED_ICON, APP_SHARED_ICON;
+	INT icon_size = 0;
+} *PAPP_SHARED_IMAGE, APP_SHARED_IMAGE;
 
 /*
 	Application class
@@ -208,7 +208,7 @@ public:
 	INT GetDPI (INT v) const;
 	HINSTANCE GetHINSTANCE () const;
 	HWND GetHWND () const;
-	HICON GetSharedIcon (HINSTANCE hinst, UINT icon_id, INT cx_width);
+	HICON GetSharedImage (HINSTANCE hinst, UINT icon_id, INT icon_size);
 
 	bool IsAdmin () const;
 	bool IsClassicUI () const;
@@ -299,7 +299,7 @@ private:
 	rstring::map_two app_config_array;
 	rstring::map_two app_locale_array;
 	std::vector<rstring> app_locale_names;
-	std::vector<PAPP_SHARED_ICON> app_shared_icons;
+	std::vector<PAPP_SHARED_IMAGE> app_shared_icons;
 
 	time_t app_locale_timetamp = 0;
 

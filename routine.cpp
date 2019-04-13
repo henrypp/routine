@@ -129,7 +129,7 @@ rstring _r_fmt_size64 (LONGLONG bytes)
 
 	if (hlib)
 	{
-		typedef HRESULT (WINAPI *SFBSE) (ULONGLONG, SFBS_FLAGS, PWSTR, UINT); // StrFormatByteSizeEx
+		typedef HRESULT (WINAPI * SFBSE) (ULONGLONG, SFBS_FLAGS, PWSTR, UINT); // StrFormatByteSizeEx
 		const SFBSE _StrFormatByteSizeEx = (SFBSE)GetProcAddress (hlib, "StrFormatByteSizeEx");
 
 		if (_StrFormatByteSizeEx)
@@ -448,14 +448,14 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 	return result;
 }
 
-bool _r_msg_taskdialog (const TASKDIALOGCONFIG* ptd, INT* pbutton, INT* pradiobutton, BOOL* pcheckbox)
+bool _r_msg_taskdialog (const TASKDIALOGCONFIG * ptd, INT * pbutton, INT * pradiobutton, BOOL * pcheckbox)
 {
 #ifndef _APP_NO_WINXP
 	const HMODULE hlib = GetModuleHandle (L"comctl32.dll");
 
 	if (hlib)
 	{
-		typedef HRESULT (WINAPI *TDI) (const TASKDIALOGCONFIG*, INT*, INT*, BOOL*); // TaskDialogIndirect
+		typedef HRESULT (WINAPI * TDI) (const TASKDIALOGCONFIG *, INT *, INT *, BOOL *); // TaskDialogIndirect
 		const TDI _TaskDialogIndirect = (TDI)GetProcAddress (hlib, "TaskDialogIndirect");
 
 		if (_TaskDialogIndirect)
@@ -664,7 +664,7 @@ bool _r_fs_mkdir (LPCWSTR path)
 
 	if (hlib)
 	{
-		typedef int (WINAPI *SHCDEX) (HWND, LPCTSTR, const SECURITY_ATTRIBUTES*); // SHCreateDirectoryEx
+		typedef int (WINAPI * SHCDEX) (HWND, LPCTSTR, const SECURITY_ATTRIBUTES *); // SHCreateDirectoryEx
 		const SHCDEX _SHCreateDirectoryEx = (SHCDEX)GetProcAddress (hlib, "SHCreateDirectoryExW");
 
 		if (_SHCreateDirectoryEx)
@@ -740,7 +740,8 @@ rstring _r_path_gettempfilepath (LPCWSTR directory, LPCWSTR filename)
 
 	if (!directory)
 		GetTempPath (_countof (tmp_directory), tmp_directory);
-	else
+
+	if (!tmp_directory[0])
 		StringCchCopy (tmp_directory, _countof (tmp_directory), directory);
 
 	WCHAR result[MAX_PATH] = {0};
@@ -757,7 +758,7 @@ rstring _r_path_gettempfilepath (LPCWSTR directory, LPCWSTR filename)
 	return result;
 }
 
-rstring _r_path_expand (const rstring& path)
+rstring _r_path_expand (const rstring & path)
 {
 	if (path.IsEmpty ())
 		return path;
@@ -798,7 +799,7 @@ rstring _r_path_expand (const rstring& path)
 	return result;
 }
 
-rstring _r_path_unexpand (const rstring& path)
+rstring _r_path_unexpand (const rstring & path)
 {
 	if (path.IsEmpty ())
 		return path;
@@ -965,7 +966,7 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 // "\REGISTRY\MACHINE\SOFTWARE\Classes\.txt"                (HKEY_CLASSES_ROOT\.txt)
 
 #ifdef _APP_HAVE_NTDLL
-DWORD _r_path_ntpathfromdos (rstring& path)
+DWORD _r_path_ntpathfromdos (rstring & path)
 {
 	DWORD result = ERROR_BAD_ARGUMENTS;
 
@@ -997,7 +998,7 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 
 				if (pbuffer)
 				{
-					UNICODE_STRING* pk_Info = &((OBJECT_NAME_INFORMATION*)pbuffer)->Name;
+					UNICODE_STRING *pk_Info = &((OBJECT_NAME_INFORMATION *)pbuffer)->Name;
 					pk_Info->Buffer = 0;
 					pk_Info->Length = 0;
 
@@ -1033,7 +1034,7 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 	Strings
 */
 
-bool _r_str_alloc (LPWSTR* pwstr, size_t length, LPCWSTR text)
+bool _r_str_alloc (LPWSTR * pwstr, size_t length, LPCWSTR text)
 {
 	if (pwstr)
 	{
@@ -1058,10 +1059,10 @@ bool _r_str_alloc (LPWSTR* pwstr, size_t length, LPCWSTR text)
 	return false;
 }
 
-rstring _r_str_fromguid (const GUID& lpguid)
+rstring _r_str_fromguid (const GUID & lpguid)
 {
 	rstring result;
-	OLECHAR* guidString = nullptr;
+	OLECHAR *guidString = nullptr;
 
 	if (SUCCEEDED (StringFromCLSID (lpguid, &guidString)))
 	{
@@ -1187,7 +1188,7 @@ INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2)
 	return 0;
 }
 
-bool _r_str_unserialize (rstring string, LPCWSTR str_delimeter, WCHAR key_delimeter, rstring::map_one* lpresult)
+bool _r_str_unserialize (rstring string, LPCWSTR str_delimeter, WCHAR key_delimeter, rstring::map_one * lpresult)
 {
 	if (!lpresult)
 		return false;
@@ -1311,7 +1312,7 @@ ULONGLONG _r_sys_gettickcount ()
 
 		if (hlib)
 		{
-			typedef ULONGLONG (WINAPI *GTC64) (VOID); // GetTickCount64
+			typedef ULONGLONG (WINAPI * GTC64) (VOID); // GetTickCount64
 			const GTC64 _GetTickCount64 = (GTC64)GetProcAddress (hlib, "GetTickCount64");
 
 			if (_GetTickCount64)
@@ -1323,7 +1324,7 @@ ULONGLONG _r_sys_gettickcount ()
 #endif // _APP_NO_WINXP
 }
 
-void _r_sys_getusername (rstring* pdomain, rstring* pusername)
+void _r_sys_getusername (rstring * pdomain, rstring * pusername)
 {
 	LPWSTR username = nullptr;
 	LPWSTR domain = nullptr;
@@ -1386,7 +1387,7 @@ bool _r_sys_iswow64 ()
 
 	if (hlib)
 	{
-		typedef BOOL (WINAPI *IW64P) (HANDLE, PBOOL); // IsWow64Process
+		typedef BOOL (WINAPI * IW64P) (HANDLE, PBOOL); // IsWow64Process
 		const IW64P _IsWow64Process = (IW64P)GetProcAddress (hlib, "IsWow64Process");
 
 		if (_IsWow64Process)
@@ -1520,7 +1521,7 @@ void _r_unixtime_to_systemtime (time_t ut, const LPSYSTEMTIME pst)
 	FileTimeToSystemTime (&ft, pst);
 }
 
-time_t _r_unixtime_from_filetime (const FILETIME* pft)
+time_t _r_unixtime_from_filetime (const FILETIME * pft)
 {
 	ULARGE_INTEGER ull = {0};
 
@@ -1676,7 +1677,7 @@ void _r_wnd_center (HWND hwnd, HWND hparent)
 		_r_wnd_centerwindowrect (&rect, &parentRect);
 		_r_wnd_adjustwindowrect (hwnd, &rect);
 
-		SetWindowPos (hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_NOSIZE);
+		SetWindowPos (hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOSIZE);
 	}
 	else
 	{
@@ -1690,7 +1691,7 @@ void _r_wnd_center (HWND hwnd, HWND hparent)
 
 			_r_wnd_centerwindowrect (&rect, &monitorInfo.rcWork);
 
-			SetWindowPos (hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_NOSIZE);
+			SetWindowPos (hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOSIZE);
 		}
 	}
 }
@@ -1703,7 +1704,7 @@ void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 
 		if (hlib)
 		{
-			typedef BOOL (WINAPI *CWMFEX) (HWND, UINT, DWORD, PVOID); // ChangeWindowMessageFilterEx
+			typedef BOOL (WINAPI * CWMFEX) (HWND, UINT, DWORD, PVOID); // ChangeWindowMessageFilterEx
 			const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (hlib, "ChangeWindowMessageFilterEx"); // win7+
 
 			if (_ChangeWindowMessageFilterEx)
@@ -1712,7 +1713,7 @@ void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 			}
 			else
 			{
-				typedef BOOL (WINAPI *CWMF) (UINT, DWORD); // ChangeWindowMessageFilter
+				typedef BOOL (WINAPI * CWMF) (UINT, DWORD); // ChangeWindowMessageFilter
 				const CWMF _ChangeWindowMessageFilter = (CWMF)GetProcAddress (hlib, "ChangeWindowMessageFilter"); // vista fallback
 
 				if (_ChangeWindowMessageFilter)
@@ -1770,21 +1771,15 @@ static bool _r_wnd_isplatformfullscreenmode ()
 	// SHQueryUserNotificationState is only available for Vista+
 	if (_r_sys_validversion (6, 0))
 	{
-		typedef HRESULT (WINAPI *SHQueryUserNotificationStatePtr)(QUERY_USER_NOTIFICATION_STATE* state);
+		typedef HRESULT (WINAPI * SHQueryUserNotificationStatePtr)(QUERY_USER_NOTIFICATION_STATE * state);
+		const SHQueryUserNotificationStatePtr _SHQueryUserNotificationState = (SHQueryUserNotificationStatePtr)GetProcAddress (GetModuleHandle (L"shell32.dll"), "SHQueryUserNotificationState");
 
-		const HMODULE hlib = GetModuleHandle (L"shell32.dll");
-
-		if (hlib)
+		if (_SHQueryUserNotificationState)
 		{
-			const SHQueryUserNotificationStatePtr _SHQueryUserNotificationState = (SHQueryUserNotificationStatePtr)GetProcAddress (hlib, "SHQueryUserNotificationState");
+			QUERY_USER_NOTIFICATION_STATE state;
 
-			if (_SHQueryUserNotificationState)
-			{
-				QUERY_USER_NOTIFICATION_STATE state;
-
-				if (_SHQueryUserNotificationState (&state) == S_OK)
-					return (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
-			}
+			if (_SHQueryUserNotificationState (&state) == S_OK)
+				return (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
 		}
 	}
 
@@ -1854,7 +1849,7 @@ bool _r_wnd_isfullscreenmode ()
 		_r_wnd_isfullscreenconsolemode ();
 }
 
-void _r_wnd_resize (HDWP* hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags)
+void _r_wnd_resize (HDWP * hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags)
 {
 	flags |= SWP_NOACTIVATE;
 
@@ -1862,7 +1857,7 @@ void _r_wnd_resize (HDWP* hdefer, HWND hwnd, HWND hwnd_after, INT left, INT righ
 		flags |= SWP_NOSIZE;
 
 	if (!hwnd_after)
-		flags |= SWP_NOZORDER;
+		flags |= SWP_NOZORDER | SWP_NOOWNERZORDER;
 
 	if (hdefer && *hdefer)
 		*hdefer = DeferWindowPos (*hdefer, hwnd, hwnd_after, left, right, width, height, flags);
@@ -1986,7 +1981,7 @@ BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 {
 	const bool is_darktheme = (bool)lparam;
 
-	typedef bool (WINAPI *ADMFW) (HWND window, bool allow); // AllowDarkModeForWindow
+	typedef bool (WINAPI * ADMFW) (HWND window, bool allow); // AllowDarkModeForWindow
 	const ADMFW _AllowDarkModeForWindow = (ADMFW)GetProcAddress (GetModuleHandle (L"uxtheme.dll"), MAKEINTRESOURCEA (133));
 
 	if (!IsWindow (hwnd))
@@ -2001,9 +1996,8 @@ BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 	if (defaultWindowProc != DarkExplorerSubclassProc)
 	{
 		SetProp (hwnd, L"orig_proc", defaultWindowProc);
-		SetWindowLongPtr (hwnd, GWLP_WNDPROC, (LONG_PTR)&DarkExplorerSubclassProc);
+		SetWindowLongPtr (hwnd, GWLP_WNDPROC, (LONG_PTR)& DarkExplorerSubclassProc);
 	}
-#endif // _APP_HAVE_DARKTHEME_SUBCLASS
 
 	WCHAR classname[128] = {0};
 
@@ -2040,6 +2034,7 @@ BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 			//}
 		}
 	}
+#endif // _APP_HAVE_DARKTHEME_SUBCLASS
 
 	InvalidateRect (hwnd, nullptr, TRUE);
 
@@ -2061,8 +2056,7 @@ bool _r_wnd_isdarktheme ()
 			return false;
 	}
 
-	typedef bool (WINAPI *SAUDM) (); // ShouldAppsUseDarkMode
-
+	typedef bool (WINAPI * SAUDM) (); // ShouldAppsUseDarkMode
 	const SAUDM _ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (GetModuleHandle (L"uxtheme.dll"), MAKEINTRESOURCEA (132));
 
 	if (_ShouldAppsUseDarkMode)
@@ -2087,10 +2081,10 @@ bool _r_wnd_setdarktheme (HWND hwnd)
 		Ordinal 137: bool WINAPI IsDarkModeAllowedForWindow(HWND__ *window)
 	*/
 
-	typedef bool (WINAPI *ADMFA) (bool allow); // AllowDarkModeForApp
-	typedef bool (WINAPI *ADMFW) (HWND window, bool allow); // AllowDarkModeForWindow
-	typedef void (WINAPI *FMT) (); // FlushMenuThemes
-	typedef HRESULT (WINAPI *DSWA) (HWND, DWORD, LPCVOID, DWORD); // DwmSetWindowAttribute
+	typedef bool (WINAPI * ADMFA) (bool allow); // AllowDarkModeForApp
+	typedef bool (WINAPI * ADMFW) (HWND window, bool allow); // AllowDarkModeForWindow
+	typedef void (WINAPI * FMT) (); // FlushMenuThemes
+	typedef HRESULT (WINAPI * DSWA) (HWND, DWORD, LPCVOID, DWORD); // DwmSetWindowAttribute
 
 	const HMODULE hlib1 = GetModuleHandle (L"uxtheme.dll");
 	const HMODULE hlib2 = GetModuleHandle (L"dwmapi.dll");
@@ -2117,10 +2111,6 @@ bool _r_wnd_setdarktheme (HWND hwnd)
 
 			if (_FlushMenuThemes)
 				_FlushMenuThemes ();
-
-			//RedrawWindow (hwnd, nullptr, nullptr, RDW_FRAME | RDW_ERASE | RDW_INVALIDATE | RDW_ALLCHILDREN);
-
-			//SetClassLongPtr (hwnd, GCLP_HBRBACKGROUND, (LONG_PTR)GetSysColorBrush (BLACK_BRUSH));
 
 			return true;
 		}
@@ -2184,7 +2174,7 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent, rstring proxy_config)
 	return hsession;
 }
 
-bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, rstring proxy_config, HINTERNET* pconnect, HINTERNET* prequest, PDWORD ptotallength)
+bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, rstring proxy_config, HINTERNET * pconnect, HINTERNET * prequest, PDWORD ptotallength)
 {
 	if (!hsession)
 		return false;
@@ -2329,7 +2319,7 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, rstring proxy_config, HIN
 	return false;
 }
 
-bool _r_inet_parseurl (LPCWSTR url, INT *scheme_ptr, LPWSTR host_ptr, WORD *port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr)
+bool _r_inet_parseurl (LPCWSTR url, INT * scheme_ptr, LPWSTR host_ptr, WORD * port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr)
 {
 	if (!url || !url[0] || (!scheme_ptr && !host_ptr && !port_ptr && !path_ptr && !user_ptr && !pass_ptr))
 		return false;
@@ -2422,7 +2412,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT cx_width)
 
 	if (hlib)
 	{
-		typedef HRESULT (WINAPI *LIWSD) (HINSTANCE, PCWSTR, INT, INT, HICON*); // LoadIconWithScaleDown
+		typedef HRESULT (WINAPI * LIWSD) (HINSTANCE, PCWSTR, INT, INT, HICON *); // LoadIconWithScaleDown
 		const LIWSD _LoadIconWithScaleDown = (LIWSD)GetProcAddress (hlib, "LoadIconWithScaleDown");
 
 		if (_LoadIconWithScaleDown)
@@ -2474,7 +2464,7 @@ size_t _r_rand (size_t min_number, size_t max_number)
 
 	if (hlib)
 	{
-		typedef BOOLEAN (WINAPI *RGR) (PVOID, ULONG); // RtlGenRandom
+		typedef BOOLEAN (WINAPI * RGR) (PVOID, ULONG); // RtlGenRandom
 		const RGR _RtlGenRandom = (RGR)GetProcAddress (hlib, "SystemFunction036"); // RtlGenRandom
 
 		if (_RtlGenRandom)
@@ -2490,7 +2480,7 @@ size_t _r_rand (size_t min_number, size_t max_number)
 	return (min_number + (rnd_number % (max_number - min_number + 1)));
 }
 
-HANDLE _r_createthread (_beginthreadex_proc_type proc, void* args, bool is_suspended, int priority)
+HANDLE _r_createthread (_beginthreadex_proc_type proc, void *args, bool is_suspended, int priority)
 {
 	const HANDLE hthread = (HANDLE)_beginthreadex (nullptr, 0, proc, args, CREATE_SUSPENDED, nullptr);
 
@@ -2569,7 +2559,7 @@ bool _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text)
 
 		SendMessage (htip, TTM_SETMAXTIPWIDTH, 0, 512);
 		SendMessage (htip, TTM_ACTIVATE, TRUE, 0);
-		SendMessage (htip, TTM_ADDTOOL, 0, (LPARAM)&ti);
+		SendMessage (htip, TTM_ADDTOOL, 0, (LPARAM)& ti);
 
 		return true;
 	}
@@ -2586,7 +2576,7 @@ bool _r_ctrl_showtip (HWND hwnd, UINT ctrl_id, INT icon_id, LPCWSTR title, LPCWS
 	ebt.pszText = text;
 	ebt.ttiIcon = icon_id;
 
-	return SendDlgItemMessage (hwnd, ctrl_id, EM_SHOWBALLOONTIP, 0, (LPARAM)&ebt) ? true : false;
+	return SendDlgItemMessage (hwnd, ctrl_id, EM_SHOWBALLOONTIP, 0, (LPARAM)& ebt) ? true : false;
 }
 
 /*
@@ -2615,7 +2605,7 @@ INT _r_tab_additem (HWND hwnd, UINT ctrl_id, size_t index, LPCWSTR text, size_t 
 		tci.lParam = lparam;
 	}
 
-	return (INT)SendDlgItemMessage (hwnd, ctrl_id, TCM_INSERTITEM, (WPARAM)index, (LPARAM)&tci);
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, TCM_INSERTITEM, (WPARAM)index, (LPARAM)& tci);
 }
 
 INT _r_tab_setitem (HWND hwnd, UINT ctrl_id, size_t index, LPCWSTR text, size_t image, LPARAM lparam)
@@ -2640,30 +2630,42 @@ INT _r_tab_setitem (HWND hwnd, UINT ctrl_id, size_t index, LPCWSTR text, size_t 
 		tci.lParam = lparam;
 	}
 
-	return (INT)SendDlgItemMessage (hwnd, ctrl_id, TCM_SETITEM, (WPARAM)index, (LPARAM)&tci);
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, TCM_SETITEM, (WPARAM)index, (LPARAM)& tci);
 }
 
 /*
 	Control: listview
 */
 
-INT _r_listview_addcolumn (HWND hwnd, UINT ctrl_id, size_t column_id, LPCWSTR text, UINT width, INT fmt)
+INT _r_listview_addcolumn (HWND hwnd, UINT ctrl_id, size_t column_id, LPCWSTR text, INT width, INT fmt)
 {
 	LVCOLUMN lvc = {0};
 
-	RECT rc = {0};
-	GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
-
-	if (width <= 100)
-		width = _R_PERCENT_VAL (width, _R_RECT_WIDTH (&rc));
-
-	lvc.mask = LVCF_WIDTH | LVCF_TEXT | LVCF_FMT | LVCF_SUBITEM;
+	lvc.mask = LVCF_TEXT | LVCF_SUBITEM;
 	lvc.pszText = (LPWSTR)text;
-	lvc.fmt = fmt;
-	lvc.cx = width;
 	lvc.iSubItem = (INT)column_id;
 
-	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTCOLUMN, (WPARAM)column_id, (LPARAM)&lvc);
+	if (width)
+	{
+		if (width < 0 && (width != LVSCW_AUTOSIZE && width != LVSCW_AUTOSIZE_USEHEADER))
+		{
+			RECT rc = {0};
+			GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
+
+			width = _R_PERCENT_VAL (-width, _R_RECT_WIDTH (&rc));
+		}
+
+		lvc.mask |= LVCF_WIDTH;
+		lvc.cx = width;
+	}
+
+	if (fmt)
+	{
+		lvc.mask |= LVCF_FMT;
+		lvc.fmt = fmt;
+	}
+
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTCOLUMN, (WPARAM)column_id, (LPARAM)& lvc);
 }
 
 INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl_id, INT column_id)
@@ -2701,12 +2703,13 @@ INT _r_listview_addgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR titl
 	{
 		lvg.mask |= LVGF_STATE;
 		lvg.state = state;
+		lvg.stateMask = state;
 	}
 
 	if (!SendDlgItemMessage (hwnd, ctrl_id, LVM_ISGROUPVIEWENABLED, 0, 0))
 		SendDlgItemMessage (hwnd, ctrl_id, LVM_ENABLEGROUPVIEW, TRUE, 0);
 
-	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTGROUP, (WPARAM)group_id, (LPARAM)&lvg);
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTGROUP, (WPARAM)group_id, (LPARAM)& lvg);
 }
 
 INT _r_listview_additem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, LPCWSTR text, size_t image, size_t group_id, LPARAM lparam)
@@ -2752,7 +2755,7 @@ INT _r_listview_additem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, L
 		lvi.lParam = lparam;
 	}
 
-	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTITEM, 0, (LPARAM)&lvi);
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTITEM, 0, (LPARAM)& lvi);
 }
 
 void _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl_id)
@@ -2809,7 +2812,7 @@ LPARAM _r_listview_getitemlparam (HWND hwnd, UINT ctrl_id, size_t item)
 	lvi.mask = LVIF_PARAM;
 	lvi.iItem = (INT)item;
 
-	SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEM, 0, (LPARAM)&lvi);
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEM, 0, (LPARAM)& lvi);
 
 	return lvi.lParam;
 }
@@ -2832,7 +2835,7 @@ rstring _r_listview_getitemtext (HWND hwnd, UINT ctrl_id, size_t item, size_t su
 		lvi.pszText = result.GetBuffer (length);
 		lvi.cchTextMax = (INT)length;
 
-		out_length = (size_t)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMTEXT, item, (LPARAM)&lvi);
+		out_length = (size_t)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMTEXT, item, (LPARAM)& lvi);
 		result.ReleaseBuffer ();
 	}
 	while (out_length == (length - 1));
@@ -2879,7 +2882,7 @@ void _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR tex
 
 	if (width)
 	{
-		if (width < 0)
+		if (width < 0 && (width != LVSCW_AUTOSIZE && width != LVSCW_AUTOSIZE_USEHEADER))
 		{
 			RECT rc = {0};
 			GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
@@ -2892,7 +2895,7 @@ void _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR tex
 	}
 
 	if (lvc.mask)
-		SendDlgItemMessage (hwnd, ctrl_id, LVM_SETCOLUMN, (WPARAM)column_id, (LPARAM)&lvc);
+		SendDlgItemMessage (hwnd, ctrl_id, LVM_SETCOLUMN, (WPARAM)column_id, (LPARAM)& lvc);
 }
 
 void _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl_id, INT column_id, INT arrow)
@@ -2963,7 +2966,7 @@ void _r_listview_setitem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, 
 		lvi.lParam = lparam;
 	}
 
-	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEM, 0, (LPARAM)&lvi);
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEM, 0, (LPARAM)& lvi);
 }
 
 BOOL _r_listview_setitemcheck (HWND hwnd, UINT ctrl_id, size_t item, bool state)
@@ -2973,7 +2976,7 @@ BOOL _r_listview_setitemcheck (HWND hwnd, UINT ctrl_id, size_t item, bool state)
 	lvi.stateMask = LVIS_STATEIMAGEMASK;
 	lvi.state = INDEXTOSTATEIMAGEMASK (state ? 2 : 1);
 
-	return (BOOL)SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEMSTATE, (item == LAST_VALUE) ? -1 : item, (LPARAM)&lvi);
+	return (BOOL)SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEMSTATE, (item == LAST_VALUE) ? -1 : item, (LPARAM)& lvi);
 }
 
 INT _r_listview_setgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR title, UINT state, UINT state_mask)
@@ -2997,7 +3000,7 @@ INT _r_listview_setgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR titl
 		lvg.stateMask = state_mask;
 	}
 
-	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_SETGROUPINFO, (WPARAM)group_id, (LPARAM)&lvg);
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_SETGROUPINFO, (WPARAM)group_id, (LPARAM)& lvg);
 }
 
 DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle)
@@ -3038,7 +3041,7 @@ HTREEITEM _r_treeview_additem (HWND hwnd, UINT ctrl_id, LPCWSTR text, HTREEITEM 
 		tvi.itemex.lParam = lparam;
 	}
 
-	return (HTREEITEM)SendDlgItemMessage (hwnd, ctrl_id, TVM_INSERTITEM, 0, (LPARAM)&tvi);
+	return (HTREEITEM)SendDlgItemMessage (hwnd, ctrl_id, TVM_INSERTITEM, 0, (LPARAM)& tvi);
 }
 
 LPARAM _r_treeview_getlparam (HWND hwnd, UINT ctrl_id, HTREEITEM item)
@@ -3048,7 +3051,7 @@ LPARAM _r_treeview_getlparam (HWND hwnd, UINT ctrl_id, HTREEITEM item)
 	tvi.mask = TVIF_PARAM;
 	tvi.hItem = item;
 
-	SendDlgItemMessage (hwnd, ctrl_id, TVM_GETITEM, 0, (LPARAM)&tvi);
+	SendDlgItemMessage (hwnd, ctrl_id, TVM_GETITEM, 0, (LPARAM)& tvi);
 
 	return tvi.lParam;
 }
@@ -3081,10 +3084,47 @@ void _r_status_setstyle (HWND hwnd, UINT ctrl_id, INT height)
 }
 
 /*
+	Control: toolbar
+*/
+
+void _r_toolbar_setbuttoninfo (HWND hwnd, UINT ctrl_id, UINT command_id, LPCWSTR text, INT state, size_t image)
+{
+	TBBUTTONINFO buttonInfo = {0};
+	WCHAR buffer[MAX_PATH] = {0};
+
+	buttonInfo.cbSize = sizeof (buttonInfo);
+
+	buttonInfo.dwMask = TBIF_STYLE;
+	buttonInfo.fsStyle = BTNS_BUTTON | BTNS_AUTOSIZE | BTNS_SHOWTEXT;
+
+	if (text)
+	{
+		StringCchCopy (buffer, _countof (buffer), text);
+
+		buttonInfo.dwMask |= TBIF_TEXT;
+		buttonInfo.pszText = buffer;
+	}
+
+	if (state)
+	{
+		buttonInfo.dwMask |= TBIF_STATE;
+		buttonInfo.fsState = (BYTE)state;
+	}
+
+	if (image != LAST_VALUE)
+	{
+		buttonInfo.dwMask |= TBIF_IMAGE;
+		buttonInfo.iImage = (INT)image;
+	}
+
+	SendDlgItemMessage (hwnd, ctrl_id, TB_SETBUTTONINFO, command_id, (LPARAM)& buttonInfo);
+}
+
+/*
 	Control: progress bar
 */
 
-void _r_status_pbsetmarquee (HWND hwnd, UINT ctrl_id, bool is_enable)
+void _r_progress_setmarquee (HWND hwnd, UINT ctrl_id, bool is_enable)
 {
 	SendDlgItemMessage (hwnd, ctrl_id, PBM_SETMARQUEE, (WPARAM)is_enable, (LPARAM)18);
 
