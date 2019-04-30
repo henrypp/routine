@@ -21,6 +21,7 @@
 #include <subauth.h>
 #include <sddl.h>
 #include <inttypes.h>
+#include <assert.h>
 
 #include "app.hpp"
 #include "rconfig.hpp"
@@ -129,30 +130,13 @@ rstring _r_fmt_interval (time_t seconds, INT digits);
 
 /*
 	FastLock is a port of FastResourceLock from PH 1.x.
-
 	The code contains no comments because it is a direct port. Please see FastResourceLock.cs in PH
 	1.x for details.
-
 	The fast lock is around 7% faster than the critical section when there is no contention, when
 	used solely for mutual exclusion. It is also much smaller than the critical section.
-
 	https://github.com/processhacker2/processhacker
 */
 
-#ifdef _APP_HAVE_SRWLOCK
-#define _R_FASTLOCK SRWLOCK
-#define P_FASTLOCK PSRWLOCK
-
-#define _r_fastlock_islocked(x)((((x)->Ptr) ? true : false))
-
-#define _r_fastlock_initialize InitializeSRWLock
-
-#define _r_fastlock_acquireexclusive AcquireSRWLockExclusive
-#define _r_fastlock_acquireshared AcquireSRWLockShared
-
-#define _r_fastlock_releaseexclusive ReleaseSRWLockExclusive
-#define _r_fastlock_releaseshared ReleaseSRWLockShared
-#else
 #define _R_FASTLOCK_OWNED 0x1
 #define _R_FASTLOCK_EXCLUSIVE_WAKING 0x2
 
@@ -174,27 +158,40 @@ typedef struct _R_FASTLOCK
 {
 	~_R_FASTLOCK ()
 	{
-		if (this->ExclusiveWakeEvent)
+		if (ExclusiveWakeEvent)
 		{
-			CloseHandle (this->ExclusiveWakeEvent);
-			this->ExclusiveWakeEvent = nullptr;
+			CloseHandle (ExclusiveWakeEvent);
+			ExclusiveWakeEvent = nullptr;
 		}
 
-		if (this->SharedWakeEvent)
+		if (SharedWakeEvent)
 		{
-			CloseHandle (this->SharedWakeEvent);
-			this->SharedWakeEvent = nullptr;
+			CloseHandle (SharedWakeEvent);
+			SharedWakeEvent = nullptr;
 		}
 
 	}
 
-	volatile ULONG Value;
+	volatile ULONG Value = 0;
 
-	HANDLE ExclusiveWakeEvent;
-	HANDLE SharedWakeEvent;
+	HANDLE ExclusiveWakeEvent = nullptr;
+	HANDLE SharedWakeEvent = nullptr;
 } R_FASTLOCK, *P_FASTLOCK;
 
-ULONG _r_fastlock_islocked (P_FASTLOCK plock);
+static const DWORD _r_fastlock_getspincount ();
+
+FORCEINLINE bool _r_fastlock_islocked (P_FASTLOCK plock)
+{
+	bool owned;
+
+	// Need two memory barriers because we don't want the compiler re-ordering the following check
+	// in either direction.
+	MemoryBarrier ();
+	owned = (plock->Value & _R_FASTLOCK_OWNED);
+	MemoryBarrier ();
+
+	return owned;
+}
 
 void _r_fastlock_initialize (P_FASTLOCK plock);
 
@@ -203,8 +200,9 @@ void _r_fastlock_acquireshared (P_FASTLOCK plock);
 
 void _r_fastlock_releaseexclusive (P_FASTLOCK plock);
 void _r_fastlock_releaseshared (P_FASTLOCK plock);
-#endif // _APP_HAVE_SRWLOCK
 
+bool _r_fastlock_tryacquireexclusive (P_FASTLOCK plock);
+bool _r_fastlock_tryacquireshared (P_FASTLOCK plock);
 /*
 	System messages
 */
@@ -212,7 +210,7 @@ void _r_fastlock_releaseshared (P_FASTLOCK plock);
 #define WMSG(a, ...) _r_msg (nullptr, 0, nullptr, nullptr, a, __VA_ARGS__)
 
 INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format, ...);
-bool _r_msg_taskdialog (const TASKDIALOGCONFIG* ptd, INT* pbutton, INT* pradiobutton, BOOL* pcheckbox); // vista TaskDialogIndirect
+bool _r_msg_taskdialog (const TASKDIALOGCONFIG *ptd, INT *pbutton, INT *pradiobutton, BOOL *pcheckbox); // vista TaskDialogIndirect
 HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR ref);
 
 /*
@@ -242,23 +240,23 @@ bool _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
 */
 
 rstring _r_path_gettempfilepath (LPCWSTR directory, LPCWSTR filename);
-rstring _r_path_expand (const rstring& path);
-rstring _r_path_unexpand (const rstring& path);
+rstring _r_path_expand (const rstring &path);
+rstring _r_path_unexpand (const rstring &path);
 rstring _r_path_compact (LPCWSTR path, size_t length);
 rstring _r_path_extractdir (LPCWSTR path);
 rstring _r_path_extractfile (LPCWSTR path);
 #ifdef _APP_HAVE_NTDLL
 rstring _r_path_dospathfromnt (LPCWSTR path);
 #endif // _APP_HAVE_NTDLL
-DWORD _r_path_ntpathfromdos (rstring& path);
+DWORD _r_path_ntpathfromdos (rstring &path);
 
 /*
 	Strings
 */
 
-bool _r_str_alloc (LPWSTR* pwstr, size_t length, LPCWSTR text);
+bool _r_str_alloc (LPWSTR *pwstr, size_t length, LPCWSTR text);
 
-rstring _r_str_fromguid (const GUID& lpguid);
+rstring _r_str_fromguid (const GUID &lpguid);
 rstring _r_str_fromsid (const PSID lpsid);
 
 size_t _r_str_length (LPCWSTR str);
@@ -270,7 +268,7 @@ bool _r_str_match (LPCWSTR str, LPCWSTR pattern);
 
 size_t _r_str_hash (LPCWSTR text);
 INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2);
-bool _r_str_unserialize (rstring string, LPCWSTR str_delimeter, WCHAR key_delimeter, rstring::map_one* lpresult);
+bool _r_str_unserialize (rstring string, LPCWSTR str_delimeter, WCHAR key_delimeter, rstring::map_one *lpresult);
 
 /*
 	System information
@@ -278,7 +276,7 @@ bool _r_str_unserialize (rstring string, LPCWSTR str_delimeter, WCHAR key_delime
 
 bool _r_sys_isadmin ();
 ULONGLONG _r_sys_gettickcount ();
-void _r_sys_getusername (rstring* pdomain, rstring* pusername);
+void _r_sys_getusername (rstring *pdomain, rstring *pusername);
 rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username);
 
 #ifndef _WIN64
@@ -297,7 +295,7 @@ void _r_sleep (DWORD milliseconds);
 time_t _r_unixtime_now ();
 void _r_unixtime_to_filetime (time_t ut, const LPFILETIME pft);
 void _r_unixtime_to_systemtime (time_t ut, const LPSYSTEMTIME pst);
-time_t _r_unixtime_from_filetime (const FILETIME* pft);
+time_t _r_unixtime_from_filetime (const FILETIME *pft);
 time_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst);
 
 /*
@@ -324,7 +322,7 @@ void _r_wnd_toggle (HWND hwnd, bool show);
 void _r_wnd_top (HWND hwnd, bool is_enable);
 bool _r_wnd_undercursor (HWND hwnd);
 bool _r_wnd_isfullscreenmode ();
-void _r_wnd_resize (HDWP* hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags);
+void _r_wnd_resize (HDWP *hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags);
 
 #ifndef _APP_NO_DARKTHEME
 bool _r_wnd_isdarktheme ();
@@ -337,7 +335,7 @@ bool _r_wnd_setdarktheme (HWND hwnd);
 
 HINTERNET _r_inet_createsession (LPCWSTR useragent, rstring proxy_config);
 rstring _r_inet_getproxyconfiguration (LPCWSTR custom_proxy);
-bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, rstring proxy_config, HINTERNET* pconnect, HINTERNET* prequest, PDWORD ptotallength);
+bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, rstring proxy_config, HINTERNET *pconnect, HINTERNET *prequest, PDWORD ptotallength);
 bool _r_inet_parseurl (LPCWSTR url, INT *scheme_ptr, LPWSTR host_ptr, WORD *port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr);
 bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD preaded, PDWORD ptotalreaded);
 //void _r_inet_close (HINTERNET hinet);
@@ -349,7 +347,7 @@ bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD
 HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT cx_width);
 bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd = nullptr, WORD sw = SW_SHOWDEFAULT);
 size_t _r_rand (size_t min_number, size_t max_number);
-HANDLE _r_createthread (_beginthreadex_proc_type proc, void* args, bool is_suspended, int priority = THREAD_PRIORITY_NORMAL);
+HANDLE _r_createthread (_beginthreadex_proc_type proc, void *args, bool is_suspended, int priority = THREAD_PRIORITY_NORMAL);
 
 /*
 	Control: common
@@ -420,7 +418,7 @@ void _r_status_setstyle (HWND hwnd, UINT ctrl_id, INT height);
 	Control: toolbar
 */
 
-void _r_toolbar_setbuttoninfo (HWND hwnd, UINT ctrl_id, UINT command_id, LPCWSTR text, INT state = 0, size_t image = LAST_VALUE);
+void _r_toolbar_setbuttoninfo (HWND hwnd, UINT ctrl_id, UINT command_id, LPCWSTR text, INT style, INT state = 0, size_t image = LAST_VALUE);
 
 /*
 	Control: progress bar
@@ -433,6 +431,10 @@ void _r_progress_setmarquee (HWND hwnd, UINT ctrl_id, bool is_enable);
 */
 
 #ifdef _APP_HAVE_NTDLL
+
+#ifndef STATUS_UNSUCCESSFUL
+#define STATUS_UNSUCCESSFUL 0xc0000001
+#endif
 
 // rev
 // private
@@ -781,6 +783,16 @@ typedef struct _MEMORY_COMBINE_INFORMATION_EX
 	ULONG Flags;
 } MEMORY_COMBINE_INFORMATION_EX, *PMEMORY_COMBINE_INFORMATION_EX;
 
+typedef struct _OBJECT_ATTRIBUTES
+{
+	ULONG Length;
+	HANDLE RootDirectory;
+	PUNICODE_STRING ObjectName;
+	ULONG Attributes;
+	PVOID SecurityDescriptor; // PSECURITY_DESCRIPTOR;
+	PVOID SecurityQualityOfService; // PSECURITY_QUALITY_OF_SERVICE
+} OBJECT_ATTRIBUTES, *POBJECT_ATTRIBUTES;
+
 extern "C" {
 	NTSYSCALLAPI
 		NTSTATUS
@@ -819,6 +831,25 @@ extern "C" {
 		_In_ PUNICODE_STRING ServiceName,
 		_Out_writes_bytes_opt_ (*ServiceSidLength) PSID ServiceSid,
 		_Inout_ PULONG ServiceSidLength
+		);
+
+	NTSYSCALLAPI
+		NTSTATUS
+		NTAPI
+		NtCreateSemaphore (
+		_Out_ PHANDLE SemaphoreHandle,
+		_In_ ACCESS_MASK DesiredAccess,
+		_In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
+		_In_ LONG InitialCount,
+		_In_ LONG MaximumCount
+		);
+
+	NTSYSAPI
+		DECLSPEC_NORETURN
+		VOID
+		NTAPI
+		RtlRaiseStatus (
+		_In_ NTSTATUS Status
 		);
 };
 #endif // _APP_HAVE_NTDLL

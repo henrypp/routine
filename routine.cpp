@@ -152,17 +152,13 @@ rstring _r_fmt_interval (time_t seconds, INT digits)
 
 /*
 	FastLock is a port of FastResourceLock from PH 1.x.
-
 	The code contains no comments because it is a direct port. Please see FastResourceLock.cs in PH
 	1.x for details.
-
 	The fast lock is around 7% faster than the critical section when there is no contention, when
 	used solely for mutual exclusion. It is also much smaller than the critical section.
-
 	https://github.com/processhacker2/processhacker
 */
 
-#ifndef _APP_HAVE_SRWLOCK
 static const DWORD _r_fastlock_getspincount ()
 {
 	SYSTEM_INFO si = {0};
@@ -174,29 +170,32 @@ static const DWORD _r_fastlock_getspincount ()
 		return 0;
 }
 
-ULONG _r_fastlock_islocked (P_FASTLOCK plock)
-{
-	return _InterlockedCompareExchange (&plock->Value, 0, 0);
-}
-
 void _r_fastlock_initialize (P_FASTLOCK plock)
 {
 	plock->Value = 0;
 
-#ifdef _APP_NO_WINXP
-	plock->ExclusiveWakeEvent = CreateSemaphoreEx (nullptr, 0, MAXLONG, nullptr, 0, SEMAPHORE_ALL_ACCESS);
-	plock->SharedWakeEvent = CreateSemaphoreEx (nullptr, 0, MAXLONG, nullptr, 0, SEMAPHORE_ALL_ACCESS);
-#else
-	plock->ExclusiveWakeEvent = CreateSemaphore (nullptr, 0, MAXLONG, nullptr);
-	plock->SharedWakeEvent = CreateSemaphore (nullptr, 0, MAXLONG, nullptr);
-#endif
+	NtCreateSemaphore (&plock->ExclusiveWakeEvent, SEMAPHORE_ALL_ACCESS, nullptr, 0, MAXLONG);
+	NtCreateSemaphore (&plock->SharedWakeEvent, SEMAPHORE_ALL_ACCESS, nullptr, 0, MAXLONG);
+}
+
+FORCEINLINE void _r_fastlock_ensureeventcreated (PHANDLE phandle)
+{
+	HANDLE handle;
+
+	if (*phandle != nullptr)
+		return;
+
+	NtCreateSemaphore (&handle, SEMAPHORE_ALL_ACCESS, nullptr, 0, MAXLONG);
+
+	if (InterlockedCompareExchangePointer (phandle, handle, nullptr) != nullptr)
+		CloseHandle (handle);
 }
 
 void _r_fastlock_acquireexclusive (P_FASTLOCK plock)
 {
 	ULONG value;
 	ULONG i = 0;
-	const DWORD spinCount = _r_fastlock_getspincount ();
+	static const DWORD spinCount = _r_fastlock_getspincount ();
 
 	while (true)
 	{
@@ -209,10 +208,12 @@ void _r_fastlock_acquireexclusive (P_FASTLOCK plock)
 		}
 		else if (i >= spinCount)
 		{
+			_r_fastlock_ensureeventcreated (&plock->ExclusiveWakeEvent);
+
 			if (_InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_EXCLUSIVE_WAITERS_INC, value) == value)
 			{
-				if (WaitForSingleObjectEx (plock->ExclusiveWakeEvent, 0, FALSE) != STATUS_WAIT_0)
-					break;
+				if (WaitForSingleObjectEx (plock->ExclusiveWakeEvent, INFINITE, FALSE) != STATUS_WAIT_0)
+					RtlRaiseStatus (STATUS_UNSUCCESSFUL);
 
 				do
 				{
@@ -224,7 +225,7 @@ void _r_fastlock_acquireexclusive (P_FASTLOCK plock)
 			}
 		}
 
-		i++;
+		i += 1;
 		YieldProcessor ();
 	}
 }
@@ -233,44 +234,36 @@ void _r_fastlock_acquireshared (P_FASTLOCK plock)
 {
 	ULONG value;
 	ULONG i = 0;
-	const DWORD spinCount = _r_fastlock_getspincount ();
+	static const DWORD spinCount = _r_fastlock_getspincount ();
 
 	while (true)
 	{
 		value = plock->Value;
 
-		if (!(value & (
-			_R_FASTLOCK_OWNED |
-			(_R_FASTLOCK_SHARED_OWNERS_MASK << _R_FASTLOCK_SHARED_OWNERS_SHIFT) |
-			_R_FASTLOCK_EXCLUSIVE_MASK
-			)))
+		if (!(value & (_R_FASTLOCK_OWNED | (_R_FASTLOCK_SHARED_OWNERS_MASK << _R_FASTLOCK_SHARED_OWNERS_SHIFT) | _R_FASTLOCK_EXCLUSIVE_MASK)))
 		{
 			if (_InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_OWNED + _R_FASTLOCK_SHARED_OWNERS_INC, value) == value)
 				break;
 		}
-		else if (
-			(value & _R_FASTLOCK_OWNED) &&
-			((value >> _R_FASTLOCK_SHARED_OWNERS_SHIFT) & _R_FASTLOCK_SHARED_OWNERS_MASK) > 0 &&
-			!(value & _R_FASTLOCK_EXCLUSIVE_MASK)
-			)
+		else if ((value & _R_FASTLOCK_OWNED) && ((value >> _R_FASTLOCK_SHARED_OWNERS_SHIFT) & _R_FASTLOCK_SHARED_OWNERS_MASK) > 0 && !(value & _R_FASTLOCK_EXCLUSIVE_MASK))
 		{
 			if (_InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_SHARED_OWNERS_INC, value) == value)
-			{
 				break;
-			}
 		}
 		else if (i >= spinCount)
 		{
+			_r_fastlock_ensureeventcreated (&plock->SharedWakeEvent);
+
 			if (_InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_SHARED_WAITERS_INC, value) == value)
 			{
-				if (WaitForSingleObjectEx (plock->SharedWakeEvent, 0, FALSE) != STATUS_WAIT_0)
-					break;
+				if (WaitForSingleObjectEx (plock->SharedWakeEvent, INFINITE, FALSE) != STATUS_WAIT_0)
+					RtlRaiseStatus (STATUS_UNSUCCESSFUL);
 
 				continue;
 			}
 		}
 
-		i++;
+		i += 1;
 		YieldProcessor ();
 	}
 }
@@ -293,7 +286,7 @@ void _r_fastlock_releaseexclusive (P_FASTLOCK plock)
 		}
 		else
 		{
-			ULONG sharedWaiters = (value >> _R_FASTLOCK_SHARED_WAITERS_SHIFT) & _R_FASTLOCK_SHARED_WAITERS_MASK;
+			const ULONG sharedWaiters = (value >> _R_FASTLOCK_SHARED_WAITERS_SHIFT) & _R_FASTLOCK_SHARED_WAITERS_MASK;
 
 			if (_InterlockedCompareExchange (&plock->Value, value & ~(_R_FASTLOCK_OWNED | (_R_FASTLOCK_SHARED_WAITERS_MASK << _R_FASTLOCK_SHARED_WAITERS_SHIFT)), value) == value)
 			{
@@ -338,7 +331,35 @@ void _r_fastlock_releaseshared (P_FASTLOCK plock)
 		YieldProcessor ();
 	}
 }
-#endif // _APP_HAVE_SRWLOCK
+
+bool _r_fastlock_tryacquireexclusive (P_FASTLOCK plock)
+{
+	const ULONG value = plock->Value;
+
+	if (value & (_R_FASTLOCK_OWNED | _R_FASTLOCK_EXCLUSIVE_WAKING))
+		return false;
+
+	return _InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_OWNED, value) == value;
+}
+
+bool _r_fastlock_tryacquireshared (P_FASTLOCK plock)
+{
+	const ULONG value = plock->Value;
+
+	if (value & _R_FASTLOCK_EXCLUSIVE_MASK)
+		return false;
+
+	if (!(value & _R_FASTLOCK_OWNED))
+	{
+		return _InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_OWNED + _R_FASTLOCK_SHARED_OWNERS_INC, value) == value;
+	}
+	else if ((value >> _R_FASTLOCK_SHARED_OWNERS_SHIFT) & _R_FASTLOCK_SHARED_OWNERS_MASK)
+	{
+		return _InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_SHARED_OWNERS_INC, value) == value;
+	}
+
+	return false;
+}
 
 /*
 	System messages
@@ -509,7 +530,7 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 	}
 
 	return S_OK;
-}
+	}
 
 /*
 	Clipboard operations
@@ -1349,7 +1370,7 @@ void _r_sys_getusername (rstring * pdomain, rstring * pusername)
 
 	if (domain)
 		WTSFreeMemory (domain);
-}
+		}
 
 rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username)
 {
@@ -2454,7 +2475,7 @@ bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 		CloseHandle (pi.hProcess);
 
 	return result;
-}
+	}
 
 size_t _r_rand (size_t min_number, size_t max_number)
 {
@@ -2544,7 +2565,7 @@ void _r_ctrl_settext (HWND hwnd, UINT ctrl_id, LPCWSTR str, ...)
 bool _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text)
 {
 	const HINSTANCE hinst = GetModuleHandle (nullptr);
-	const HWND htip = CreateWindowEx (WS_EX_TOPMOST, TOOLTIPS_CLASS, nullptr, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, hinst, nullptr);
+	const HWND htip = CreateWindowEx (WS_EX_TOPMOST, TOOLTIPS_CLASS, nullptr, WS_CHILD | WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, hinst, nullptr);
 
 	if (htip)
 	{
@@ -2781,9 +2802,9 @@ void _r_listview_deleteallitems (HWND hwnd, UINT ctrl_id)
 
 INT _r_listview_getcolumncount (HWND hwnd, UINT ctrl_id)
 {
-	HWND hdr = (HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETHEADER, 0, 0);
+	const HWND hheader = (HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETHEADER, 0, 0);
 
-	return (INT)SendMessage (hdr, HDM_GETITEMCOUNT, 0, 0);
+	return (INT)SendMessage (hheader, HDM_GETITEMCOUNT, 0, 0);
 }
 
 size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl_id, bool list_checked)
@@ -2802,7 +2823,7 @@ size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl_id, bool list_checked)
 		return count;
 	}
 
-	return (size_t)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMCOUNT, 0, NULL);
+	return (size_t)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMCOUNT, 0, 0);
 }
 
 LPARAM _r_listview_getitemlparam (HWND hwnd, UINT ctrl_id, size_t item)
@@ -3087,15 +3108,18 @@ void _r_status_setstyle (HWND hwnd, UINT ctrl_id, INT height)
 	Control: toolbar
 */
 
-void _r_toolbar_setbuttoninfo (HWND hwnd, UINT ctrl_id, UINT command_id, LPCWSTR text, INT state, size_t image)
+void _r_toolbar_setbuttoninfo (HWND hwnd, UINT ctrl_id, UINT command_id, LPCWSTR text, INT style, INT state, size_t image)
 {
 	TBBUTTONINFO buttonInfo = {0};
 	WCHAR buffer[MAX_PATH] = {0};
 
 	buttonInfo.cbSize = sizeof (buttonInfo);
 
-	buttonInfo.dwMask = TBIF_STYLE;
-	buttonInfo.fsStyle = BTNS_BUTTON | BTNS_AUTOSIZE | BTNS_SHOWTEXT;
+	if (style)
+	{
+		buttonInfo.dwMask |= TBIF_STYLE;
+		buttonInfo.fsStyle = (BYTE)style;
+	}
 
 	if (text)
 	{
