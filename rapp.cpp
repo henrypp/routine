@@ -620,8 +620,8 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 
 				RegDeleteValue (hkey, cfg_string);
 				RegCloseKey (hkey);
-	}
-}
+			}
+		}
 	}
 #endif // _APP_NO_WINXP
 
@@ -739,11 +739,11 @@ void rapp::CreateAboutWindow (HWND hwnd)
 #endif // _APP_NO_WINXP
 
 		ReleaseMutex (habout);
-			}
+	}
 
 	if (habout)
 		CloseHandle (habout);
-		}
+}
 #endif // _APP_NO_ABOUT
 
 bool rapp::IsAdmin () const
@@ -878,13 +878,13 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			RECT rc = {0};
 			GetWindowRect (hwnd, &rc);
 
-			this_ptr->ConfigSet (L"WindowPosX", rc.left);
-			this_ptr->ConfigSet (L"WindowPosY", rc.top);
+			this_ptr->ConfigSet (L"WindowPosX", rc.left, L"window");
+			this_ptr->ConfigSet (L"WindowPosY", rc.top, L"window");
 
 			if ((GetWindowLongPtr (hwnd, GWL_STYLE) & WS_SIZEBOX) != 0)
 			{
-				this_ptr->ConfigSet (L"WindowPosWidth", _R_RECT_WIDTH (&rc));
-				this_ptr->ConfigSet (L"WindowPosHeight", _R_RECT_HEIGHT (&rc));
+				this_ptr->ConfigSet (L"WindowPosWidth", _R_RECT_WIDTH (&rc), L"window");
+				this_ptr->ConfigSet (L"WindowPosHeight", _R_RECT_HEIGHT (&rc), L"window");
 			}
 
 			break;
@@ -1084,13 +1084,13 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 				// restore window position
 				RECT rect_new = {0};
 
-				rect_new.left = ConfigGet (L"WindowPosX", rect_original.left).AsLong ();
-				rect_new.top = ConfigGet (L"WindowPosY", rect_original.top).AsLong ();
+				rect_new.left = ConfigGet (L"WindowPosX", rect_original.left, L"window").AsLong ();
+				rect_new.top = ConfigGet (L"WindowPosY", rect_original.top, L"window").AsLong ();
 
 				if ((GetWindowLongPtr (GetHWND (), GWL_STYLE) & WS_SIZEBOX) != 0)
 				{
-					rect_new.right = max (ConfigGet (L"WindowPosWidth", _R_RECT_WIDTH (&rect_original)).AsLong (), max_width) + rect_new.left;
-					rect_new.bottom = max (ConfigGet (L"WindowPosHeight", _R_RECT_HEIGHT (&rect_original)).AsLong (), max_height) + rect_new.top;
+					rect_new.right = max (ConfigGet (L"WindowPosWidth", _R_RECT_WIDTH (&rect_original), L"window").AsLong (), max_width) + rect_new.left;
+					rect_new.bottom = max (ConfigGet (L"WindowPosHeight", _R_RECT_HEIGHT (&rect_original), L"window").AsLong (), max_height) + rect_new.top;
 				}
 				else
 				{
@@ -1268,7 +1268,7 @@ bool rapp::TrayPopup (HWND hwnd, UINT uid, LPGUID guid, DWORD icon_id, LPCWSTR t
 		nid.hBalloonIcon = GetSharedIcon (nullptr, SIH_INFORMATION, GetSystemMetrics (SM_CXICON));
 #pragma _R_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
-}
+	}
 
 	// tooltip-visibility fix
 	if (nid.szTip[0])
@@ -2152,7 +2152,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					StringCchCopy (str_content, _countof (str_content), L"Update available, do you want to install them?");
 #pragma _R_WARNING(IDS_UPDATE_INSTALL)
 #endif // IDS_UPDATE_INSTALL
-			}
+				}
 				else
 				{
 #ifdef IDS_UPDATE_DONE
@@ -2161,8 +2161,8 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					StringCchCopy (str_content, _countof (str_content), L"Downloading update finished.");
 #pragma _R_WARNING(IDS_UPDATE_DONE)
 #endif // IDS_UPDATE_DONE
-		}
-	}
+				}
+			}
 			else
 			{
 #ifdef IDS_UPDATE_ERROR
@@ -2189,8 +2189,8 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					_r_msg (papp->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), papp->app_name, nullptr, L"%s", str_content);
 			}
 #endif // _APP_NO_WINXP
-}
-}
+		}
+	}
 
 	//SetEvent (pupdateinfo->hend);
 
@@ -2314,7 +2314,7 @@ INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS f
 		tdc.pszMainIcon = TD_INFORMATION_ICON;
 #pragma _R_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
-}
+	}
 
 	StringCchCopy (str_title, _countof (str_title), app_name);
 
@@ -2478,9 +2478,9 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							{
 								ResumeThread (pupdateinfo->hthread);
 								WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
+							}
+						}
 					}
-				}
-			}
 #endif
 					for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 					{
@@ -2511,7 +2511,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							}
 						}
 					}
-		}
+				}
 				else
 				{
 					if (pupdateinfo->hwnd)
@@ -2527,10 +2527,10 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 						papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 					}
 				}
-	}
+			}
 
 			papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
-}
+		}
 
 		SetEvent (pupdateinfo->hend);
 	}
