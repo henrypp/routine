@@ -986,7 +986,6 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 // "\BaseNamedObjects\Objectname"                           (named mutex, named event, named semaphore)
 // "\REGISTRY\MACHINE\SOFTWARE\Classes\.txt"                (HKEY_CLASSES_ROOT\.txt)
 
-#ifdef _APP_HAVE_NTDLL
 DWORD _r_path_ntpathfromdos (rstring & path)
 {
 	DWORD result = ERROR_BAD_ARGUMENTS;
@@ -1049,7 +1048,6 @@ DWORD _r_path_ntpathfromdos (rstring & path)
 
 	return result;
 }
-#endif // _APP_HAVE_NTDLL
 
 /*
 	Strings

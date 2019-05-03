@@ -29,7 +29,6 @@
 //#define _APP_HAVE_UPDATES // enable update checking feature
 
 //#define _APP_HAVE_AUTORUN // enable autorun feature
-//#define _APP_HAVE_NTDLL // sdk have ntdll definitions and functions
 //#define _APP_HAVE_SKIPUAC // enable skip uac feature
 //#define _APP_HAVE_TRAY // enable tray icon feature
 //#define _APP_HAVE_SRWLOCK // srw locks (vista+)

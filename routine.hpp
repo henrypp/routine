@@ -28,6 +28,7 @@
 #include "rstring.hpp"
 
 #pragma comment(lib, "comctl32.lib")
+#pragma comment(lib, "ntdll.lib")
 #pragma comment(lib, "psapi.lib")
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "uxtheme.lib")
@@ -246,9 +247,7 @@ rstring _r_path_unexpand (const rstring &path);
 rstring _r_path_compact (LPCWSTR path, size_t length);
 rstring _r_path_extractdir (LPCWSTR path);
 rstring _r_path_extractfile (LPCWSTR path);
-#ifdef _APP_HAVE_NTDLL
 rstring _r_path_dospathfromnt (LPCWSTR path);
-#endif // _APP_HAVE_NTDLL
 DWORD _r_path_ntpathfromdos (rstring &path);
 
 /*
@@ -430,8 +429,6 @@ void _r_progress_setmarquee (HWND hwnd, UINT ctrl_id, bool is_enable);
 /*
 	NTDLL Definitions
 */
-
-#ifdef _APP_HAVE_NTDLL
 
 #ifndef STATUS_UNSUCCESSFUL
 #define STATUS_UNSUCCESSFUL 0xc0000001
@@ -861,4 +858,3 @@ extern "C" {
 		_In_ NTSTATUS Status
 		);
 };
-#endif // _APP_HAVE_NTDLL
