@@ -203,6 +203,7 @@ void _r_fastlock_releaseshared (P_FASTLOCK plock);
 
 bool _r_fastlock_tryacquireexclusive (P_FASTLOCK plock);
 bool _r_fastlock_tryacquireshared (P_FASTLOCK plock);
+
 /*
 	System messages
 */
@@ -822,6 +823,14 @@ extern "C" {
 		_In_ UINT SystemInformationClass,
 		_In_reads_bytes_opt_ (SystemInformationLength) PVOID SystemInformation,
 		_In_ ULONG SystemInformationLength
+		);
+
+	NTSYSAPI
+		VOID
+		NTAPI
+		RtlInitUnicodeString (
+		_Out_ PUNICODE_STRING DestinationString,
+		_In_opt_ PWSTR SourceString
 		);
 
 	NTSYSCALLAPI
