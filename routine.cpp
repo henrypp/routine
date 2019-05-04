@@ -530,7 +530,7 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 	}
 
 	return S_OK;
-	}
+}
 
 /*
 	Clipboard operations
@@ -1368,7 +1368,7 @@ void _r_sys_getusername (rstring * pdomain, rstring * pusername)
 
 	if (domain)
 		WTSFreeMemory (domain);
-		}
+}
 
 rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username)
 {
@@ -2473,7 +2473,7 @@ bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 		CloseHandle (pi.hProcess);
 
 	return result;
-	}
+}
 
 size_t _r_rand (size_t min_number, size_t max_number)
 {
@@ -2560,30 +2560,30 @@ void _r_ctrl_settext (HWND hwnd, UINT ctrl_id, LPCWSTR str, ...)
 	va_end (args);
 }
 
-bool _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text)
+HWND _r_ctrl_createtip (HWND hparent)
 {
-	const HINSTANCE hinst = GetModuleHandle (nullptr);
-	const HWND htip = CreateWindowEx (WS_EX_TOPMOST, TOOLTIPS_CLASS, nullptr, WS_CHILD | WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwnd, nullptr, hinst, nullptr);
+	return CreateWindowEx (WS_EX_TOPMOST, TOOLTIPS_CLASS, nullptr, WS_CHILD | WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hparent, nullptr, GetModuleHandle (nullptr), nullptr);
+}
 
-	if (htip)
-	{
-		TOOLINFO ti = {0};
+bool _r_ctrl_settip (HWND htip, HWND hparent, UINT ctrl_id, LPWSTR text)
+{
+	if (!htip)
+		return false;
 
-		ti.cbSize = sizeof (ti);
-		ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
-		ti.hwnd = hwnd;
-		ti.hinst = hinst;
-		ti.uId = (UINT_PTR)GetDlgItem (hwnd, ctrl_id);
-		ti.lpszText = text;
+	TOOLINFO ti = {0};
 
-		SendMessage (htip, TTM_SETMAXTIPWIDTH, 0, 512);
-		SendMessage (htip, TTM_ACTIVATE, TRUE, 0);
-		SendMessage (htip, TTM_ADDTOOL, 0, (LPARAM)& ti);
+	ti.cbSize = sizeof (ti);
+	ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
+	ti.hwnd = hparent;
+	ti.hinst = GetModuleHandle (nullptr);
+	ti.uId = (UINT_PTR)GetDlgItem (hparent, ctrl_id);
+	ti.lpszText = text;
+	GetClientRect (hparent, &ti.rect);
 
-		return true;
-	}
+	SendMessage (htip, TTM_SETMAXTIPWIDTH, 0, 512);
+	SendMessage (htip, TTM_ACTIVATE, TRUE, 0);
 
-	return false;
+	return	(bool)SendMessage (htip, TTM_ADDTOOL, 0, (LPARAM)& ti);
 }
 
 bool _r_ctrl_showtip (HWND hwnd, UINT ctrl_id, INT icon_id, LPCWSTR title, LPCWSTR text)

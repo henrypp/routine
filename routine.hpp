@@ -359,7 +359,8 @@ void _r_ctrl_enable (HWND hwnd, UINT ctrl_id, bool is_enable);
 rstring _r_ctrl_gettext (HWND hwnd, UINT ctrl_id);
 void _r_ctrl_settext (HWND hwnd, UINT ctrl_id, LPCWSTR str, ...);
 
-bool _r_ctrl_settip (HWND hwnd, UINT ctrl_id, LPWSTR text);
+HWND _r_ctrl_createtip (HWND hparent);
+bool _r_ctrl_settip (HWND htip, HWND hparent, UINT ctrl_id, LPWSTR text);
 bool _r_ctrl_showtip (HWND hwnd, UINT ctrl_id, INT icon_id, LPCWSTR title, LPCWSTR text);
 
 /*
