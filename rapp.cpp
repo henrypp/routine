@@ -931,7 +931,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 		INITCOMMONCONTROLSEX icex = {0};
 
 		icex.dwSize = sizeof (icex);
-		icex.dwICC = ICC_WIN95_CLASSES | ICC_STANDARD_CLASSES;
+		icex.dwICC = ICC_LISTVIEW_CLASSES | ICC_TREEVIEW_CLASSES | ICC_BAR_CLASSES | ICC_TAB_CLASSES | ICC_PROGRESS_CLASS | ICC_COOL_CLASSES | ICC_STANDARD_CLASSES | ICC_LINK_CLASS;
 
 		InitCommonControlsEx (&icex);
 	}
@@ -1012,10 +1012,21 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 #pragma _R_WARNING(IDS_UPDATE_INSTALL)
 #endif // IDS_UPDATE_INSTALL
 
-			if (_r_msg (nullptr, MB_YESNO | MB_USERICON | MB_TOPMOST, app_name, nullptr, L"%s", str_content) == IDYES)
+			const INT code = _r_msg (nullptr, MB_YESNOCANCEL | MB_USERICON | MB_TOPMOST, app_name, nullptr, L"%s", str_content);
+
+			if (code == IDYES)
 			{
 				UpdateInstall ();
 				return false;
+			}
+			else if (code == IDNO)
+			{
+				SetFileAttributes (GetUpdatePath (), FILE_ATTRIBUTE_NORMAL);
+				_r_fs_delete (GetUpdatePath (), false);
+			}
+			else
+			{
+				// continue...
 			}
 		}
 #endif //_APP_HAVE_UPDATES
@@ -1065,51 +1076,15 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 			// set window on top
 			_r_wnd_top (GetHWND (), ConfigGet (L"AlwaysOnTop", _APP_ALWAYSONTOP).AsBool ());
 
-			// restore window position
+			RestoreWindowPosition (GetHWND ());
+
+			// send resize message
+			if ((GetWindowLongPtr (GetHWND (), GWL_STYLE) & WS_SIZEBOX) != 0)
 			{
-				RECT rect_original = {0};
+				RECT rc_client = {0};
 
-				// set minmax info
-				if (GetWindowRect (GetHWND (), &rect_original))
-				{
-#ifdef _APP_HAVE_MINSIZE
-					max_width = _R_RECT_WIDTH (&rect_original) / 2;
-					max_height = _R_RECT_HEIGHT (&rect_original) / 2;
-#else
-					max_width = _R_RECT_WIDTH (&rect_original);
-					max_height = _R_RECT_HEIGHT (&rect_original);
-#endif // _APP_HAVE_MINSIZE
-				}
-
-				// restore window position
-				RECT rect_new = {0};
-
-				rect_new.left = ConfigGet (L"WindowPosX", rect_original.left, L"window").AsLong ();
-				rect_new.top = ConfigGet (L"WindowPosY", rect_original.top, L"window").AsLong ();
-
-				if ((GetWindowLongPtr (GetHWND (), GWL_STYLE) & WS_SIZEBOX) != 0)
-				{
-					rect_new.right = max (ConfigGet (L"WindowPosWidth", _R_RECT_WIDTH (&rect_original), L"window").AsLong (), max_width) + rect_new.left;
-					rect_new.bottom = max (ConfigGet (L"WindowPosHeight", _R_RECT_HEIGHT (&rect_original), L"window").AsLong (), max_height) + rect_new.top;
-				}
-				else
-				{
-					rect_new.right = _R_RECT_WIDTH (&rect_original) + rect_new.left;
-					rect_new.bottom = _R_RECT_HEIGHT (&rect_original) + rect_new.top;
-				}
-
-				_r_wnd_adjustwindowrect (nullptr, &rect_new);
-
-				SetWindowPos (GetHWND (), nullptr, rect_new.left, rect_new.top, _R_RECT_WIDTH (&rect_new), _R_RECT_HEIGHT (&rect_new), SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSENDCHANGING);
-
-				// send resize message
-				if ((GetWindowLongPtr (GetHWND (), GWL_STYLE) & WS_SIZEBOX) != 0)
-				{
-					RECT rc_client = {0};
-
-					GetClientRect (GetHWND (), &rc_client);
-					SendMessage (GetHWND (), WM_SIZE, 0, MAKELPARAM (_R_RECT_WIDTH (&rc_client), _R_RECT_HEIGHT (&rc_client)));
-				}
+				GetClientRect (GetHWND (), &rc_client);
+				SendMessage (GetHWND (), WM_SIZE, 0, MAKELPARAM (_R_RECT_WIDTH (&rc_client), _R_RECT_HEIGHT (&rc_client)));
 			}
 
 			// show window (or not?)
@@ -1162,6 +1137,52 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 	}
 
 	return result;
+}
+
+void rapp::RestoreWindowPosition (HWND hwnd)
+{
+	static bool is_restored = false;
+
+	if (is_restored)
+		return;
+
+	// restore window position
+	RECT rect_original = {0};
+
+	// set minmax info
+	if (GetWindowRect (hwnd, &rect_original))
+	{
+#ifdef _APP_HAVE_MINSIZE
+		max_width = _R_RECT_WIDTH (&rect_original) / 2;
+		max_height = _R_RECT_HEIGHT (&rect_original) / 2;
+#else
+		max_width = _R_RECT_WIDTH (&rect_original);
+		max_height = _R_RECT_HEIGHT (&rect_original);
+#endif // _APP_HAVE_MINSIZE
+	}
+
+	// restore window position
+	RECT rect_new = {0};
+
+	rect_new.left = ConfigGet (L"WindowPosX", rect_original.left, L"window").AsLong ();
+	rect_new.top = ConfigGet (L"WindowPosY", rect_original.top, L"window").AsLong ();
+
+	if ((GetWindowLongPtr (hwnd, GWL_STYLE) & WS_SIZEBOX) != 0)
+	{
+		rect_new.right = max (ConfigGet (L"WindowPosWidth", _R_RECT_WIDTH (&rect_original), L"window").AsLong (), max_width) + rect_new.left;
+		rect_new.bottom = max (ConfigGet (L"WindowPosHeight", _R_RECT_HEIGHT (&rect_original), L"window").AsLong (), max_height) + rect_new.top;
+	}
+	else
+	{
+		rect_new.right = _R_RECT_WIDTH (&rect_original) + rect_new.left;
+		rect_new.bottom = _R_RECT_HEIGHT (&rect_original) + rect_new.top;
+	}
+
+	_r_wnd_adjustwindowrect (nullptr, &rect_new);
+
+	SetWindowPos (hwnd, nullptr, rect_new.left, rect_new.top, _R_RECT_WIDTH (&rect_new), _R_RECT_HEIGHT (&rect_new), SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSENDCHANGING);
+
+	is_restored = true;
 }
 
 #ifdef _APP_HAVE_TRAY

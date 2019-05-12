@@ -2075,7 +2075,7 @@ bool _r_wnd_isdarktheme ()
 			return false;
 	}
 
-	typedef bool (WINAPI * SAUDM) (); // ShouldAppsUseDarkMode
+	typedef BOOL (WINAPI * SAUDM) (); // ShouldAppsUseDarkMode
 	const SAUDM _ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (GetModuleHandle (L"uxtheme.dll"), MAKEINTRESOURCEA (132));
 
 	if (_ShouldAppsUseDarkMode)
@@ -2093,15 +2093,15 @@ bool _r_wnd_setdarktheme (HWND hwnd)
 
 	/*
 		Ordinal 104: void WINAPI RefreshImmersiveColorPolicyState()
-		Ordinal 132: bool WINAPI ShouldAppsUseDarkMode()
-		Ordinal 133: bool WINAPI AllowDarkModeForWindow(HWND__ *window, bool allow)
-		Ordinal 135: bool WINAPI AllowDarkModeForApp(bool allow)
+		Ordinal 132: BOOL WINAPI ShouldAppsUseDarkMode()
+		Ordinal 133: BOOL WINAPI AllowDarkModeForWindow(HWND__ *window, bool allow)
+		Ordinal 135: BOOL WINAPI AllowDarkModeForApp(bool allow)
 		Ordinal 136: void WINAPI FlushMenuThemes()
-		Ordinal 137: bool WINAPI IsDarkModeAllowedForWindow(HWND__ *window)
+		Ordinal 137: BOOL WINAPI IsDarkModeAllowedForWindow(HWND__ *window)
 	*/
 
-	typedef bool (WINAPI * ADMFA) (bool allow); // AllowDarkModeForApp
-	typedef bool (WINAPI * ADMFW) (HWND window, bool allow); // AllowDarkModeForWindow
+	typedef BOOL (WINAPI * ADMFA) (BOOL allow); // AllowDarkModeForApp
+	typedef BOOL (WINAPI * ADMFW) (HWND window, BOOL allow); // AllowDarkModeForWindow
 	typedef void (WINAPI * FMT) (); // FlushMenuThemes
 	typedef HRESULT (WINAPI * DSWA) (HWND, DWORD, LPCVOID, DWORD); // DwmSetWindowAttribute
 
