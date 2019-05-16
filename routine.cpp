@@ -476,7 +476,7 @@ bool _r_msg_taskdialog (const TASKDIALOGCONFIG * ptd, INT * pbutton, INT * pradi
 
 	if (hlib)
 	{
-		typedef HRESULT (WINAPI * TDI) (const TASKDIALOGCONFIG *, INT *, INT *, BOOL *); // TaskDialogIndirect
+		typedef HRESULT (WINAPI * TDI) (const TASKDIALOGCONFIG*, INT*, INT*, BOOL*); // TaskDialogIndirect
 		const TDI _TaskDialogIndirect = (TDI)GetProcAddress (hlib, "TaskDialogIndirect");
 
 		if (_TaskDialogIndirect)
@@ -685,7 +685,7 @@ bool _r_fs_mkdir (LPCWSTR path)
 
 	if (hlib)
 	{
-		typedef int (WINAPI * SHCDEX) (HWND, LPCTSTR, const SECURITY_ATTRIBUTES *); // SHCreateDirectoryEx
+		typedef int (WINAPI * SHCDEX) (HWND, LPCTSTR, const SECURITY_ATTRIBUTES*); // SHCreateDirectoryEx
 		const SHCDEX _SHCreateDirectoryEx = (SHCDEX)GetProcAddress (hlib, "SHCreateDirectoryExW");
 
 		if (_SHCreateDirectoryEx)
@@ -1018,7 +1018,7 @@ DWORD _r_path_ntpathfromdos (rstring & path)
 
 				if (pbuffer)
 				{
-					UNICODE_STRING *pk_Info = &((OBJECT_NAME_INFORMATION *)pbuffer)->Name;
+					UNICODE_STRING* pk_Info = &((OBJECT_NAME_INFORMATION*)pbuffer)->Name;
 					pk_Info->Buffer = 0;
 					pk_Info->Length = 0;
 
@@ -1081,7 +1081,7 @@ bool _r_str_alloc (LPWSTR * pwstr, size_t length, LPCWSTR text)
 rstring _r_str_fromguid (const GUID & lpguid)
 {
 	rstring result;
-	OLECHAR *guidString = nullptr;
+	OLECHAR* guidString = nullptr;
 
 	if (SUCCEEDED (StringFromCLSID (lpguid, &guidString)))
 	{
@@ -2431,7 +2431,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT cx_width)
 
 	if (hlib)
 	{
-		typedef HRESULT (WINAPI * LIWSD) (HINSTANCE, PCWSTR, INT, INT, HICON *); // LoadIconWithScaleDown
+		typedef HRESULT (WINAPI * LIWSD) (HINSTANCE, PCWSTR, INT, INT, HICON*); // LoadIconWithScaleDown
 		const LIWSD _LoadIconWithScaleDown = (LIWSD)GetProcAddress (hlib, "LoadIconWithScaleDown");
 
 		if (_LoadIconWithScaleDown)
@@ -2499,7 +2499,7 @@ size_t _r_rand (size_t min_number, size_t max_number)
 	return (min_number + (rnd_number % (max_number - min_number + 1)));
 }
 
-HANDLE _r_createthread (_beginthreadex_proc_type proc, void *args, bool is_suspended, int priority)
+HANDLE _r_createthread (_beginthreadex_proc_type proc, void* args, bool is_suspended, int priority)
 {
 	const HANDLE hthread = (HANDLE)_beginthreadex (nullptr, 0, proc, args, CREATE_SUSPENDED, nullptr);
 
