@@ -56,7 +56,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	// get dpi scale
 	{
 		const HDC hdc = GetDC (nullptr);
-		dpi_percent = DOUBLE (GetDeviceCaps (hdc, LOGPIXELSX)) / 96.0f;
+		dpi_value = GetDeviceCaps (hdc, LOGPIXELSX);
 		ReleaseDC (nullptr, hdc);
 	}
 
@@ -302,62 +302,59 @@ bool rapp::DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_C
 			static const size_t buffer_length = _R_BUFFER_INET_LENGTH;
 			LPSTR content_buffer = new CHAR[buffer_length];
 
-			if (content_buffer)
+			rstring *lpbuffer = nullptr;
+			HANDLE hfile = nullptr;
+
+			if (is_filepath)
 			{
-				rstring *lpbuffer = nullptr;
-				HANDLE hfile = nullptr;
+				hfile = CreateFile ((LPCWSTR)buffer, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 
-				if (is_filepath)
+				if (hfile != INVALID_HANDLE_VALUE)
+					result = true;
+			}
+			else
+			{
+				lpbuffer = (rstring *)buffer;
+
+				if (lpbuffer)
+					result = true;
+			}
+
+			if (result)
+			{
+				DWORD notneed = 0;
+				DWORD readed = 0;
+				DWORD total_readed = 0;
+
+				while (true)
 				{
-					hfile = CreateFile ((LPCWSTR)buffer, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-
-					if (hfile != INVALID_HANDLE_VALUE)
-						result = true;
-				}
-				else
-				{
-					lpbuffer = (rstring *)buffer;
-
-					if (lpbuffer)
-						result = true;
-				}
-
-				if (result)
-				{
-					DWORD notneed = 0;
-					DWORD readed = 0;
-					DWORD total_readed = 0;
-
-					while (true)
-					{
-						if (!_r_inet_readrequest (hrequest, content_buffer, buffer_length - 1, &readed, &total_readed))
-							break;
-
-						if (is_filepath)
-							WriteFile (hfile, content_buffer, readed, &notneed, nullptr);
-
-						else
-							lpbuffer->Append (content_buffer);
-
-						if (callback)
-						{
-							if (!callback (total_readed, total_length, lpdata))
-							{
-								result = false;
-								break;
-							}
-						}
-					}
+					if (!_r_inet_readrequest (hrequest, content_buffer, buffer_length - 1, &readed, &total_readed))
+						break;
 
 					if (is_filepath)
-						CloseHandle (hfile);
+						WriteFile (hfile, content_buffer, readed, &notneed, nullptr);
 
 					else
-						lpbuffer->Trim (L"\r\n ");
+						lpbuffer->Append (content_buffer);
+
+					if (callback)
+					{
+						if (!callback (total_readed, total_length, lpdata))
+						{
+							result = false;
+							break;
+						}
+					}
 				}
 
-				SAFE_DELETE_ARRAY (content_buffer);
+				if (is_filepath)
+					CloseHandle (hfile);
+
+				else
+					lpbuffer->Trim (L"\r\n ");
 			}
+
+			SAFE_DELETE_ARRAY (content_buffer);
 		}
 
 		if (hrequest)
@@ -379,28 +376,22 @@ void rapp::UpdateAddComponent (LPCWSTR full_name, LPCWSTR short_name, LPCWSTR ve
 	{
 		pupdateinfo = new APP_UPDATE_INFO;
 
-		if (pupdateinfo)
-		{
-			pupdateinfo->papp = this;
-			pupdateinfo->hend = CreateEvent (nullptr, FALSE, FALSE, nullptr);
-		}
+		pupdateinfo->papp = this;
+		pupdateinfo->hend = CreateEvent (nullptr, FALSE, FALSE, nullptr);
 	}
 
 	if (pupdateinfo)
 	{
 		PAPP_UPDATE_COMPONENT pcomponent = new APP_UPDATE_COMPONENT;
 
-		if (pcomponent)
-		{
-			_r_str_alloc (&pcomponent->full_name, _r_str_length (full_name), full_name);
-			_r_str_alloc (&pcomponent->short_name, _r_str_length (short_name), short_name);
-			_r_str_alloc (&pcomponent->version, _r_str_length (version), version);
-			_r_str_alloc (&pcomponent->target_path, _r_str_length (target_path), target_path);
+		_r_str_alloc (&pcomponent->full_name, _r_str_length (full_name), full_name);
+		_r_str_alloc (&pcomponent->short_name, _r_str_length (short_name), short_name);
+		_r_str_alloc (&pcomponent->version, _r_str_length (version), version);
+		_r_str_alloc (&pcomponent->target_path, _r_str_length (target_path), target_path);
 
-			pcomponent->is_installer = is_installer;
+		pcomponent->is_installer = is_installer;
 
-			pupdateinfo->components.push_back (pcomponent);
-		}
+		pupdateinfo->components.push_back (pcomponent);
 	}
 }
 
@@ -1415,20 +1406,15 @@ size_t rapp::SettingsAddPage (UINT dlg_id, UINT locale_id, size_t group_id)
 {
 	PAPP_SETTINGS_PAGE ptr_page = new APP_SETTINGS_PAGE;
 
-	if (ptr_page)
-	{
-		ptr_page->hwnd = nullptr;
+	ptr_page->hwnd = nullptr;
 
-		ptr_page->dlg_id = dlg_id;
-		ptr_page->group_id = group_id;
-		ptr_page->locale_id = locale_id;
+	ptr_page->dlg_id = dlg_id;
+	ptr_page->group_id = group_id;
+	ptr_page->locale_id = locale_id;
 
-		app_settings_pages.push_back (ptr_page);
+	app_settings_pages.push_back (ptr_page);
 
-		return app_settings_pages.size () - 1;
-	}
-
-	return LAST_VALUE;
+	return app_settings_pages.size () - 1;
 }
 
 HWND rapp::GetSettingsWindow ()
@@ -1537,7 +1523,7 @@ LPCWSTR rapp::GetUserAgent () const
 
 INT rapp::GetDPI (INT v) const
 {
-	return (INT)ceil (DOUBLE (v) * dpi_percent);
+	return (INT)(((ULONG64)v * (ULONG64)dpi_value + 96 / 2) / (ULONG64)96);
 }
 
 HICON rapp::GetSharedImage (HINSTANCE hinst, UINT icon_id, INT icon_size)
@@ -1556,23 +1542,20 @@ HICON rapp::GetSharedImage (HINSTANCE hinst, UINT icon_id, INT icon_size)
 	{
 		presult = new APP_SHARED_IMAGE;
 
-		if (presult)
+		const HICON hicon = _r_loadicon (hinst, MAKEINTRESOURCE (icon_id), icon_size);
+
+		if (hicon)
 		{
-			const HICON hicon = _r_loadicon (hinst, MAKEINTRESOURCE (icon_id), icon_size);
+			presult->hinst = hinst;
+			presult->icon_id = icon_id;
+			presult->icon_size = icon_size;
+			presult->hicon = hicon;
 
-			if (hicon)
-			{
-				presult->hinst = hinst;
-				presult->icon_id = icon_id;
-				presult->icon_size = icon_size;
-				presult->hicon = hicon;
-
-				app_shared_icons.push_back (presult);
-			}
-			else
-			{
-				SAFE_DELETE (presult);
-			}
+			app_shared_icons.push_back (presult);
+		}
+		else
+		{
+			SAFE_DELETE (presult);
 		}
 	}
 

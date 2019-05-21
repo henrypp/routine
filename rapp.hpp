@@ -259,7 +259,7 @@ private:
 	PAPP_UPDATE_INFO pupdateinfo;
 #endif // _APP_HAVE_UPDATES
 
-	DOUBLE dpi_percent = 0.f;
+	ULONG dpi_value = 96;
 
 #ifdef _APP_HAVE_DARKTHEME
 	bool is_darktheme = false;

@@ -1016,30 +1016,27 @@ DWORD _r_path_ntpathfromdos (rstring & path)
 			{
 				PBYTE pbuffer = new BYTE[req_length];
 
-				if (pbuffer)
+				UNICODE_STRING* pk_Info = &((OBJECT_NAME_INFORMATION*)pbuffer)->Name;
+				pk_Info->Buffer = 0;
+				pk_Info->Length = 0;
+
+				status = NtQueryObject (hfile, ObjectNameInformation, pbuffer, req_length, &out_length);
+
+				if (!pk_Info->Length || !pk_Info->Buffer || !out_length)
 				{
-					UNICODE_STRING* pk_Info = &((OBJECT_NAME_INFORMATION*)pbuffer)->Name;
-					pk_Info->Buffer = 0;
-					pk_Info->Length = 0;
-
-					status = NtQueryObject (hfile, ObjectNameInformation, pbuffer, req_length, &out_length);
-
-					if (!pk_Info->Length || !pk_Info->Buffer || !out_length)
-					{
-						result = ((status != ERROR_SUCCESS) ? status : ERROR_INVALID_FUNCTION); // see notice
-					}
-					else
-					{
-						pk_Info->Buffer[pk_Info->Length / sizeof (WCHAR)] = 0; // trim buffer!
-
-						path = pk_Info->Buffer;
-						path.ToLower (); // lower is imoprtant!
-
-						result = ERROR_SUCCESS;
-					}
-
-					SAFE_DELETE_ARRAY (pbuffer);
+					result = ((status != ERROR_SUCCESS) ? status : ERROR_INVALID_FUNCTION); // see notice
 				}
+				else
+				{
+					pk_Info->Buffer[pk_Info->Length / sizeof (WCHAR)] = 0; // trim buffer!
+
+					path = pk_Info->Buffer;
+					path.ToLower (); // lower is imoprtant!
+
+					result = ERROR_SUCCESS;
+				}
+
+				SAFE_DELETE_ARRAY (pbuffer);
 			}
 
 			CloseHandle (hfile);
@@ -1065,13 +1062,10 @@ bool _r_str_alloc (LPWSTR * pwstr, size_t length, LPCWSTR text)
 
 			LPWSTR new_ptr = new WCHAR[length];
 
-			if (new_ptr)
-			{
-				StringCchCopy (new_ptr, length, text);
-				*pwstr = new_ptr;
+			StringCchCopy (new_ptr, length, text);
+			*pwstr = new_ptr;
 
-				return true;
-			}
+			return true;
 		}
 	}
 
@@ -1377,18 +1371,15 @@ rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username)
 	DWORD sid_length = SECURITY_MAX_SID_SIZE;
 	PBYTE psid = new BYTE[sid_length];
 
-	if (psid)
-	{
-		WCHAR ref_domain[MAX_PATH] = {0};
-		DWORD ref_length = _countof (ref_domain);
+	WCHAR ref_domain[MAX_PATH] = {0};
+	DWORD ref_length = _countof (ref_domain);
 
-		SID_NAME_USE name_use;
+	SID_NAME_USE name_use;
 
-		if (LookupAccountName (domain, username, psid, &sid_length, ref_domain, &ref_length, &name_use))
-			result = _r_str_fromsid (psid);
+	if (LookupAccountName (domain, username, psid, &sid_length, ref_domain, &ref_length, &name_use))
+		result = _r_str_fromsid (psid);
 
-		SAFE_DELETE_ARRAY (psid);
-	}
+	SAFE_DELETE_ARRAY (psid);
 
 	return result;
 }
