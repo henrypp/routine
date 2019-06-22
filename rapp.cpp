@@ -839,7 +839,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		case WM_DESTROY:
 		{
 			if ((GetWindowLongPtr (hwnd, GWL_STYLE) & WS_MAXIMIZEBOX) != 0)
-				this_ptr->ConfigSet (L"IsWindowZoomed", IsZoomed (hwnd) ? true : false);
+				this_ptr->ConfigSet (L"IsWindowZoomed", IsZoomed (hwnd) ? true : false, L"window");
 
 			SendMessage (hwnd, RM_UNINITIALIZE, 0, 0);
 
@@ -1093,7 +1093,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 #endif // _APP_STARTMINIMIZED
 #endif // _APP_HAVE_TRAY
 
-				if (ConfigGet (L"IsWindowZoomed", false).AsBool () && (GetWindowLongPtr (GetHWND (), GWL_STYLE) & WS_MAXIMIZEBOX) != 0)
+				if (ConfigGet (L"IsWindowZoomed", false, L"window").AsBool () && (GetWindowLongPtr (GetHWND (), GWL_STYLE) & WS_MAXIMIZEBOX) != 0)
 				{
 					if (show_code == SW_HIDE)
 						is_needmaximize = true;
@@ -1634,7 +1634,7 @@ void rapp::LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id)
 	}
 }
 
-void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, const UINT id_start)
+void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start)
 {
 	HMENU hmenu = nullptr;
 
@@ -1678,7 +1678,7 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, const UINT id_start
 
 			if (is_menu)
 			{
-				AppendMenu (hmenu, MF_STRING, UINT (idx) + id_start, name);
+				AppendMenu (hmenu, MF_STRING, UINT_PTR (idx) + id_start, name);
 
 				if (locale_current[0] && _wcsicmp (locale_current, name) == 0)
 					CheckMenuRadioItem (hmenu, id_start, id_start + UINT (idx), id_start + UINT (idx), MF_BYCOMMAND);
@@ -1788,7 +1788,7 @@ rstring rapp::LocaleString (UINT uid, LPCWSTR append)
 			else
 			{
 				result.ReleaseBuffer ();
-				result = key;
+				result = std::move (key);
 			}
 		}
 	}
@@ -1838,9 +1838,6 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			// configure window
 			_r_wnd_center (hwnd, this_ptr->GetHWND () ? this_ptr->GetHWND () : GetParent (hwnd));
-
-			if (this_ptr->ConfigGet (L"IsParentNoBlock", false).AsBool ())
-				EnableWindow (GetParent (hwnd), true);
 
 			// configure treeview
 			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, this_ptr->GetDPI (20));

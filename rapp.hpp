@@ -220,7 +220,7 @@ public:
 
 	void LocaleApplyFromControl (HWND hwnd, UINT ctrl_id);
 	void LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id);
-	void LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, const UINT id_start);
+	void LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start);
 	size_t LocaleGetCount () const;
 	time_t LocaleGetVersion () const;
 	rstring LocaleString (UINT id, LPCWSTR append);
