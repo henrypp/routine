@@ -569,10 +569,10 @@ rstring& rstring::Replace (LPCWSTR from, LPCWSTR to)
 	if (IsEmpty ())
 		return *this;
 
-	LPWSTR tok = nullptr;
-	LPWSTR newstr = nullptr;
-	LPWSTR oldstr = nullptr;
-	LPWSTR head = nullptr;
+	LPWSTR tok;
+	LPWSTR newstr;
+	LPWSTR oldstr;
+	LPWSTR head;
 
 	/* if either substr or replacement is NULL, duplicate string a let caller handle it */
 	if (from == nullptr || to == nullptr) return *this;
