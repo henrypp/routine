@@ -206,6 +206,24 @@ bool _r_fastlock_tryacquireexclusive (P_FASTLOCK plock);
 bool _r_fastlock_tryacquireshared (P_FASTLOCK plock);
 
 /*
+	Objects referencing
+*/
+
+typedef void (*OBJECT_CLEANUP_CALLBACK) (PVOID pdata);
+
+typedef struct _R_OBJECT
+{
+	PVOID pdata = nullptr;
+
+	volatile LONG ref_count = 0;
+} R_OBJECT, *PR_OBJECT;
+
+PR_OBJECT _r_obj_allocate (PVOID pdata);
+PR_OBJECT _r_obj_reference (PR_OBJECT pobj);
+void _r_obj_dereference (PR_OBJECT pobj, OBJECT_CLEANUP_CALLBACK cleanup_callback);
+void _r_obj_dereferenceex (PR_OBJECT pobj, LONG ref_count, OBJECT_CLEANUP_CALLBACK cleanup_callback);
+
+/*
 	System messages
 */
 
@@ -326,7 +344,7 @@ void _r_wnd_resize (HDWP *hdefer, HWND hwnd, HWND hwnd_after, INT left, INT righ
 
 #ifndef _APP_NO_DARKTHEME
 bool _r_wnd_isdarktheme ();
-bool _r_wnd_setdarktheme (HWND hwnd);
+void _r_wnd_setdarktheme (HWND hwnd);
 #endif // _APP_NO_DARKTHEME
 
 /*
@@ -352,6 +370,8 @@ HANDLE _r_createthread (_beginthreadex_proc_type proc, void *args, bool is_suspe
 /*
 	Control: common
 */
+
+UINT _r_ctrl_isradiobuttonchecked (HWND hwnd, UINT start_id, UINT end_id);
 
 bool _r_ctrl_isenabled (HWND hwnd, UINT ctrl_id);
 void _r_ctrl_enable (HWND hwnd, UINT ctrl_id, bool is_enable);

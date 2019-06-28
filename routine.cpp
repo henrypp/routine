@@ -361,6 +361,65 @@ bool _r_fastlock_tryacquireshared (P_FASTLOCK plock)
 	return false;
 }
 
+PR_OBJECT _r_obj_allocate (PVOID pdata)
+{
+	PR_OBJECT pobj = new R_OBJECT;
+
+	InterlockedIncrement (&pobj->ref_count);
+
+	pobj->pdata = pdata;
+
+	return pobj;
+}
+
+PR_OBJECT _r_obj_reference (PR_OBJECT pobj)
+{
+	if (!pobj)
+		return nullptr;
+
+	InterlockedIncrement (&pobj->ref_count);
+
+	return pobj;
+}
+
+void _r_obj_dereference (PR_OBJECT pobj, OBJECT_CLEANUP_CALLBACK cleanup_callback)
+{
+	_r_obj_dereferenceex (pobj, 1, cleanup_callback);
+}
+
+void _r_obj_dereferenceex (PR_OBJECT pobj, LONG ref_count, OBJECT_CLEANUP_CALLBACK cleanup_callback)
+{
+	if (!pobj)
+		return;
+
+	assert (!(ref_count < 0));
+
+	const LONG old_count = InterlockedExchangeAdd (&pobj->ref_count, -ref_count);
+	const LONG new_count = old_count - ref_count;
+
+	if (new_count == 0)
+	{
+		if (pobj->pdata)
+		{
+			if (cleanup_callback)
+			{
+				cleanup_callback (pobj->pdata);
+				pobj->pdata = nullptr;
+			}
+			else
+			{
+				SAFE_DELETE (pobj->pdata);
+			}
+		}
+
+		SAFE_DELETE (pobj);
+	}
+	else if (new_count < 0)
+	{
+		RtlRaiseStatus (STATUS_INVALID_PARAMETER);
+	}
+}
+
 /*
 	System messages
 */
@@ -1052,24 +1111,22 @@ DWORD _r_path_ntpathfromdos (rstring & path)
 
 bool _r_str_alloc (LPWSTR * pwstr, size_t length, LPCWSTR text)
 {
-	if (pwstr)
-	{
-		SAFE_DELETE_ARRAY (*pwstr);
+	if (!pwstr)
+		return false;
 
-		if (length)
-		{
-			length += 1;
+	SAFE_DELETE_ARRAY (*pwstr);
 
-			LPWSTR new_ptr = new WCHAR[length];
+	if (!length)
+		return false;
 
-			StringCchCopy (new_ptr, length, text);
-			*pwstr = new_ptr;
+	length += 1;
 
-			return true;
-		}
-	}
+	LPWSTR new_ptr = new WCHAR[length];
 
-	return false;
+	StringCchCopy (new_ptr, length, text);
+	*pwstr = new_ptr;
+
+	return true;
 }
 
 rstring _r_str_fromguid (const GUID & lpguid)
@@ -1333,7 +1390,7 @@ ULONGLONG _r_sys_gettickcount ()
 		}
 	}
 
-	return GetTickCount ();
+	return (ULONGLONG)GetTickCount ();
 #endif // _APP_NO_WINXP
 }
 
@@ -1781,15 +1838,20 @@ static bool _r_wnd_isplatformfullscreenmode ()
 	// SHQueryUserNotificationState is only available for Vista+
 	if (_r_sys_validversion (6, 0))
 	{
-		typedef HRESULT (WINAPI * SHQueryUserNotificationStatePtr)(QUERY_USER_NOTIFICATION_STATE * state);
-		const SHQueryUserNotificationStatePtr _SHQueryUserNotificationState = (SHQueryUserNotificationStatePtr)GetProcAddress (GetModuleHandle (L"shell32.dll"), "SHQueryUserNotificationState");
+		const HINSTANCE hlib = GetModuleHandle (L"shell32.dll");
 
-		if (_SHQueryUserNotificationState)
+		if (hlib)
 		{
-			QUERY_USER_NOTIFICATION_STATE state;
+			typedef HRESULT (WINAPI * SHQueryUserNotificationStatePtr)(QUERY_USER_NOTIFICATION_STATE * state);
+			const SHQueryUserNotificationStatePtr _SHQueryUserNotificationState = (SHQueryUserNotificationStatePtr)GetProcAddress (hlib, "SHQueryUserNotificationState");
 
-			if (_SHQueryUserNotificationState (&state) == S_OK)
-				return (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
+			if (_SHQueryUserNotificationState)
+			{
+				QUERY_USER_NOTIFICATION_STATE state;
+
+				if (_SHQueryUserNotificationState (&state) == S_OK)
+					return (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
+			}
 		}
 	}
 
@@ -1989,13 +2051,17 @@ LRESULT CALLBACK DarkExplorerSubclassProc (HWND hwnd, UINT msg, WPARAM wparam, L
 
 BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 {
-	const bool is_darktheme = (bool)lparam;
-
-	typedef bool (WINAPI * ADMFW) (HWND window, bool allow); // AllowDarkModeForWindow
-	const ADMFW _AllowDarkModeForWindow = (ADMFW)GetProcAddress (GetModuleHandle (L"uxtheme.dll"), MAKEINTRESOURCEA (133));
-
 	if (!IsWindow (hwnd))
 		return TRUE;
+
+	const bool is_darktheme = (bool)lparam;
+	const HMODULE huxtheme = GetModuleHandle (L"uxtheme.dll");
+
+	if (!huxtheme)
+		return FALSE;
+
+	typedef bool (WINAPI * ADMFW) (HWND window, bool allow); // AllowDarkModeForWindow
+	const ADMFW _AllowDarkModeForWindow = (ADMFW)GetProcAddress (huxtheme, MAKEINTRESOURCEA (133));
 
 	if (_AllowDarkModeForWindow)
 		_AllowDarkModeForWindow (hwnd, is_darktheme);
@@ -2066,19 +2132,24 @@ bool _r_wnd_isdarktheme ()
 			return false;
 	}
 
-	typedef BOOL (WINAPI * SAUDM) (); // ShouldAppsUseDarkMode
-	const SAUDM _ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (GetModuleHandle (L"uxtheme.dll"), MAKEINTRESOURCEA (132));
+	const HINSTANCE hlib = GetModuleHandle (L"uxtheme.dll");
 
-	if (_ShouldAppsUseDarkMode)
-		return _ShouldAppsUseDarkMode ();
+	if (hlib)
+	{
+		typedef BOOL (WINAPI * SAUDM) (); // ShouldAppsUseDarkMode
+		const SAUDM _ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (hlib, MAKEINTRESOURCEA (132));
+
+		if (_ShouldAppsUseDarkMode)
+			return _ShouldAppsUseDarkMode ();
+	}
 
 	return false;
 }
 
-bool _r_wnd_setdarktheme (HWND hwnd)
+void _r_wnd_setdarktheme (HWND hwnd)
 {
 	if (!_r_sys_validversion (10, 0, 17763)) // win10rs5+
-		return false;
+		return;
 
 	const bool is_darktheme = _r_wnd_isdarktheme ();
 
@@ -2096,37 +2167,45 @@ bool _r_wnd_setdarktheme (HWND hwnd)
 	typedef void (WINAPI * FMT) (); // FlushMenuThemes
 	typedef HRESULT (WINAPI * DSWA) (HWND, DWORD, LPCVOID, DWORD); // DwmSetWindowAttribute
 
-	const HMODULE hlib1 = GetModuleHandle (L"uxtheme.dll");
-	const HMODULE hlib2 = GetModuleHandle (L"dwmapi.dll");
+	// Set dark window frame
+	// https://social.msdn.microsoft.com/Forums/en-US/e36eb4c0-4370-4933-943d-b6fe22677e6c/dark-mode-apis?forum=windowssdk
+	const HMODULE hdwmapi = LoadLibrary (L"dwmapi.dll");
 
-	if (hlib1 && hlib2)
+	if (hdwmapi)
 	{
-		const ADMFA _AllowDarkModeForApp = (ADMFA)GetProcAddress (hlib1, MAKEINTRESOURCEA (135));
-		const ADMFW _AllowDarkModeForWindow = (ADMFW)GetProcAddress (hlib1, MAKEINTRESOURCEA (133));
-		const DSWA _DwmSetWindowAttribute = (DSWA)GetProcAddress (hlib2, "DwmSetWindowAttribute");
+		const DSWA _DwmSetWindowAttribute = (DSWA)GetProcAddress (hdwmapi, "DwmSetWindowAttribute");
 
-		if (_AllowDarkModeForApp && _AllowDarkModeForWindow && _DwmSetWindowAttribute)
+		if (_DwmSetWindowAttribute)
+		{
+			BOOL is_dwmdarkmode = is_darktheme;
+			_DwmSetWindowAttribute (hwnd, 0x13, &is_dwmdarkmode, sizeof (is_dwmdarkmode));
+		}
+
+		FreeLibrary (hdwmapi);
+	}
+
+	const HMODULE huxtheme = LoadLibrary (L"uxtheme.dll");
+
+	if (huxtheme)
+	{
+		const ADMFA _AllowDarkModeForApp = (ADMFA)GetProcAddress (huxtheme, MAKEINTRESOURCEA (135));
+		const ADMFW _AllowDarkModeForWindow = (ADMFW)GetProcAddress (huxtheme, MAKEINTRESOURCEA (133));
+
+		if (_AllowDarkModeForApp && _AllowDarkModeForWindow)
 		{
 			_AllowDarkModeForApp (is_darktheme);
 			_AllowDarkModeForWindow (hwnd, is_darktheme);
 
-			// Set dark window frame
-			// https://social.msdn.microsoft.com/Forums/en-US/e36eb4c0-4370-4933-943d-b6fe22677e6c/dark-mode-apis?forum=windowssdk
-			BOOL is_dwmdarkmode = is_darktheme;
-			_DwmSetWindowAttribute (hwnd, 0x13, &is_dwmdarkmode, sizeof (is_dwmdarkmode));
-
 			EnumChildWindows (hwnd, &DarkExplorerChildProc, is_darktheme);
 
-			const FMT _FlushMenuThemes = (FMT)GetProcAddress (hlib1, MAKEINTRESOURCEA (136));
+			const FMT _FlushMenuThemes = (FMT)GetProcAddress (huxtheme, MAKEINTRESOURCEA (136));
 
 			if (_FlushMenuThemes)
 				_FlushMenuThemes ();
-
-			return true;
 		}
-	}
 
-	return false;
+		FreeLibrary (huxtheme);
+	}
 }
 #endif // _APP_NO_DARKTHEME
 
@@ -2511,6 +2590,17 @@ HANDLE _r_createthread (_beginthreadex_proc_type proc, void* args, bool is_suspe
 	Control: common
 */
 
+UINT _r_ctrl_isradiobuttonchecked (HWND hwnd, UINT start_id, UINT end_id)
+{
+	for (UINT i = start_id; i <= end_id; i++)
+	{
+		if (IsDlgButtonChecked (hwnd, i) == BST_CHECKED)
+			return i;
+	}
+
+	return 0;
+}
+
 bool _r_ctrl_isenabled (HWND hwnd, UINT ctrl_id)
 {
 	return IsWindowEnabled (GetDlgItem (hwnd, ctrl_id));
@@ -2662,7 +2752,7 @@ INT _r_listview_addcolumn (HWND hwnd, UINT ctrl_id, size_t column_id, LPCWSTR te
 			RECT rc = {0};
 			GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
 
-			width = _R_PERCENT_VAL (-width, _R_RECT_WIDTH (&rc));
+			width = _R_PERCENT_VAL (-width, (INT)_R_RECT_WIDTH (&rc));
 		}
 
 		lvc.mask |= LVCF_WIDTH;
@@ -2683,7 +2773,7 @@ INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl_id, INT column_id)
 	RECT rc = {0};
 	GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
 
-	return _R_PERCENT_OF (SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMNWIDTH, (WPARAM)column_id, 0), _R_RECT_WIDTH (&rc));
+	return _R_PERCENT_OF ((LONG)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMNWIDTH, (WPARAM)column_id, 0), _R_RECT_WIDTH (&rc));
 }
 
 INT _r_listview_addgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR title, UINT align, UINT state)
