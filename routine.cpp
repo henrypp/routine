@@ -2953,14 +2953,21 @@ bool _r_listview_isitemvisible (HWND hwnd, UINT ctrl_id, size_t item)
 	return (SendDlgItemMessage (hwnd, ctrl_id, LVM_ISITEMVISIBLE, item, 0)) ? true : false;
 }
 
-void _r_listview_redraw (HWND hwnd, UINT ctrl_id)
+void _r_listview_redraw (HWND hwnd, UINT ctrl_id, size_t start_id, size_t end_id)
 {
-	const size_t count = _r_listview_getitemcount (hwnd, ctrl_id);
-
-	for (size_t i = 0; i < count; i++)
+	if (start_id != LAST_VALUE && end_id != LAST_VALUE)
 	{
-		if (_r_listview_isitemvisible (hwnd, ctrl_id, i))
-			SendDlgItemMessage (hwnd, ctrl_id, LVM_REDRAWITEMS, i, i);
+		SendDlgItemMessage (hwnd, ctrl_id, LVM_REDRAWITEMS, start_id, end_id);
+	}
+	else
+	{
+		const size_t count = _r_listview_getitemcount (hwnd, ctrl_id);
+
+		for (size_t i = 0; i < count; i++)
+		{
+			if (_r_listview_isitemvisible (hwnd, ctrl_id, i))
+				SendDlgItemMessage (hwnd, ctrl_id, LVM_REDRAWITEMS, i, i);
+		}
 	}
 }
 

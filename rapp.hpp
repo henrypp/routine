@@ -175,7 +175,7 @@ public:
 #endif // _APP_NO_ABOUT
 
 	bool CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc);
-	void RestoreWindowPosition (HWND hwnd);
+	void RestoreWindowPosition (HWND hwnd, LPCWSTR window_name);
 
 #ifdef _APP_HAVE_TRAY
 	bool TrayCreate (HWND hwnd, UINT uid, LPGUID guid, UINT code, HICON hicon, bool is_hidden);

@@ -411,7 +411,7 @@ rstring _r_listview_getitemtext (HWND hwnd, UINT ctrl_id, size_t item, size_t su
 bool _r_listview_isitemchecked (HWND hwnd, UINT ctrl_id, size_t item);
 bool _r_listview_isitemvisible (HWND hwnd, UINT ctrl_id, size_t item);
 
-void _r_listview_redraw (HWND hwnd, UINT ctrl_id);
+void _r_listview_redraw (HWND hwnd, UINT ctrl_id, size_t start_id = LAST_VALUE, size_t end_id = LAST_VALUE);
 
 DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle);
 void _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR text, INT width);
