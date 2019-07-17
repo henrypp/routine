@@ -157,10 +157,15 @@ public:
 	rstring ConfigGet (LPCWSTR key, INT def, LPCWSTR name = nullptr);
 	rstring ConfigGet (LPCWSTR key, UINT def, LPCWSTR name = nullptr);
 	rstring ConfigGet (LPCWSTR key, DWORD def, LPCWSTR name = nullptr);
+	rstring ConfigGet (LPCWSTR key, LONG def, LPCWSTR name = nullptr);
 	rstring ConfigGet (LPCWSTR key, LONGLONG def, LPCWSTR name = nullptr);
+	rstring ConfigGet (LPCWSTR key, bool def, LPCWSTR name = nullptr);
 	rstring ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name = nullptr);
 
-	bool ConfigSet (LPCWSTR key, DWORD val, LPCWSTR name = nullptr);
+	bool ConfigSet (LPCWSTR key, INT val, LPCWSTR name = nullptr);
+	bool ConfigSet (LPCWSTR key, UINT val, LPCWSTR name = nullptr);
+	bool ConfigSet (LPCWSTR key, ULONG val, LPCWSTR name = nullptr);
+	bool ConfigSet (LPCWSTR key, ULONGLONG val, LPCWSTR name = nullptr);
 	bool ConfigSet (LPCWSTR key, LONG val, LPCWSTR name = nullptr);
 	bool ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name = nullptr);
 	bool ConfigSet (LPCWSTR key, bool val, LPCWSTR name = nullptr);

@@ -46,12 +46,10 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	StringCchCopy (app_copyright, _countof (app_copyright), copyright);
 
 #if defined(_APP_BETA) || defined(_APP_BETA_RC)
-#ifdef _APP_BETA_RC
-	StringCchCat (app_version, _countof (app_version), L" RC");
+	StringCchCat (app_version, _countof (app_version), L" Pre-release");
 #else
-	StringCchCat (app_version, _countof (app_version), L" Beta");
-#endif // _APP_BETA_RC
-#endif // _APP_BETA
+	StringCchCat (app_version, _countof (app_version), L" Release");
+#endif // _APP_BETA || _APP_BETA_RC
 
 	// get dpi scale
 	{
@@ -397,7 +395,7 @@ void rapp::UpdateAddComponent (LPCWSTR full_name, LPCWSTR short_name, LPCWSTR ve
 
 bool rapp::UpdateCheck (bool is_forced)
 {
-	if (!is_forced && (!ConfigGet (L"CheckUpdates", true).AsBool () || (_r_unixtime_now () - ConfigGet (L"CheckUpdatesLast", 0).AsLonglong ()) <= _APP_UPDATE_PERIOD))
+	if (!is_forced && (!ConfigGet (L"CheckUpdates", true).AsBool () || (_r_unixtime_now () - ConfigGet (L"CheckUpdatesLast", time_t (0)).AsLonglong ()) <= _APP_UPDATE_PERIOD))
 		return false;
 
 	const HANDLE hthread = (HANDLE)_beginthreadex (nullptr, 0, &UpdateCheckThread, (LPVOID)pupdateinfo, CREATE_SUSPENDED, nullptr);
@@ -460,7 +458,7 @@ void rapp::ConfigInit ()
 
 rstring rapp::ConfigGet (LPCWSTR key, INT def, LPCWSTR name)
 {
-	return ConfigGet (key, _r_fmt (L"%" PRId32, def), name);
+	return ConfigGet (key, _r_fmt (L"%" PRIi32, def), name);
 }
 
 rstring rapp::ConfigGet (LPCWSTR key, UINT def, LPCWSTR name)
@@ -470,12 +468,22 @@ rstring rapp::ConfigGet (LPCWSTR key, UINT def, LPCWSTR name)
 
 rstring rapp::ConfigGet (LPCWSTR key, DWORD def, LPCWSTR name)
 {
-	return ConfigGet (key, _r_fmt (L"%lu", def), name);
+	return ConfigGet (key, _r_fmt (L"%" PRIu32, def), name);
+}
+
+rstring rapp::ConfigGet (LPCWSTR key, LONG def, LPCWSTR name)
+{
+	return ConfigGet (key, _r_fmt (L"%" PRId32, def), name);
 }
 
 rstring rapp::ConfigGet (LPCWSTR key, LONGLONG def, LPCWSTR name)
 {
 	return ConfigGet (key, _r_fmt (L"%" PRId64, def), name);
+}
+
+rstring rapp::ConfigGet (LPCWSTR key, bool def, LPCWSTR name)
+{
+	return ConfigGet (key, _r_fmt (L"%" PRIi32, def ? 1 : 0), name);
 }
 
 rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
@@ -497,9 +505,24 @@ rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 	return def;
 }
 
-bool rapp::ConfigSet (LPCWSTR key, DWORD val, LPCWSTR name)
+bool rapp::ConfigSet (LPCWSTR key, INT val, LPCWSTR name)
 {
-	return ConfigSet (key, _r_fmt (L"%lu", val), name);
+	return ConfigSet (key, _r_fmt (L"%" PRIi32, val), name);
+}
+
+bool rapp::ConfigSet (LPCWSTR key, UINT val, LPCWSTR name)
+{
+	return ConfigSet (key, _r_fmt (L"%" PRIu32, val), name);
+}
+
+bool rapp::ConfigSet (LPCWSTR key, ULONG val, LPCWSTR name)
+{
+	return ConfigSet (key, _r_fmt (L"%" PRIu32, val), name);
+}
+
+bool rapp::ConfigSet (LPCWSTR key, ULONGLONG val, LPCWSTR name)
+{
+	return ConfigSet (key, _r_fmt (L"%" PRIu64, val), name);
 }
 
 bool rapp::ConfigSet (LPCWSTR key, LONG val, LPCWSTR name)
@@ -631,7 +654,7 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 	}
 
 	return false;
-	}
+}
 
 #ifndef _APP_NO_ABOUT
 void rapp::CreateAboutWindow (HWND hwnd)
@@ -724,7 +747,7 @@ void rapp::CreateAboutWindow (HWND hwnd)
 					ShellExecute (GetHWND (), nullptr, _r_fmt (_APP_DONATE_URL, app_name_short), nullptr, nullptr, SW_SHOWDEFAULT);
 			}
 #ifndef _APP_NO_WINXP
-	}
+		}
 		else
 		{
 			_r_msg (hwnd, MB_OK | MB_USERICON | MB_TOPMOST, title, app_name, L"Version %s, %u-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
@@ -841,7 +864,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		case WM_DESTROY:
 		{
 			if ((GetWindowLongPtr (hwnd, GWL_STYLE) & WS_MAXIMIZEBOX) != 0)
-				this_ptr->ConfigSet (L"IsWindowZoomed", IsZoomed (hwnd) ? true : false, L"window");
+				this_ptr->ConfigSet (L"IsWindowZoomed", !!IsZoomed (hwnd), L"window");
 
 			SendMessage (hwnd, RM_UNINITIALIZE, 0, 0);
 
@@ -951,7 +974,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 	{
 		if (!ConfirmMessage (nullptr, L"Warning!", _r_fmt (L"You are attempting to run the 32-bit version of %s on 64-bit Windows.\r\nPlease run the 64-bit version of %s instead.", app_name, app_name), L"ConfirmWOW64"))
 			return false;
-}
+	}
 #endif // _WIN64
 
 	// check checksum
@@ -1011,7 +1034,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 			{
 				UpdateInstall ();
 				return false;
-		}
+			}
 			else if (code == IDNO)
 			{
 				SetFileAttributes (GetUpdatePath (), FILE_ATTRIBUTE_NORMAL);
@@ -1021,7 +1044,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 			{
 				// continue...
 			}
-	}
+		}
 #endif //_APP_HAVE_UPDATES
 
 #ifdef _APP_HAVE_UPDATES
@@ -1095,7 +1118,7 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 #endif // _APP_STARTMINIMIZED
 #endif // _APP_HAVE_TRAY
 
-				if (ConfigGet (L"IsWindowZoomed", false, L"window").AsBool () && (GetWindowLongPtr (GetHWND (), GWL_STYLE) & WS_MAXIMIZEBOX) != 0)
+				if ((GetWindowLongPtr (GetHWND (), GWL_STYLE) & WS_MAXIMIZEBOX) != 0 && ConfigGet (L"IsWindowZoomed", false, L"window").AsBool ())
 				{
 					if (show_code == SW_HIDE)
 						is_needmaximize = true;
@@ -1126,8 +1149,8 @@ bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
 #endif // _APP_HAVE_UPDATES
 
 			result = true;
-			}
 		}
+	}
 
 	return result;
 }
@@ -1378,7 +1401,7 @@ void rapp::CreateSettingsWindow (DLGPROC proc, size_t dlg_id)
 	else
 	{
 		if (dlg_id != LAST_VALUE)
-			ConfigSet (L"SettingsLastPage", (DWORD)dlg_id);
+			ConfigSet (L"SettingsLastPage", dlg_id);
 
 		if (proc)
 			app_settings_proc = proc;
@@ -1395,7 +1418,7 @@ void rapp::CreateSettingsWindow (DLGPROC proc, size_t dlg_id)
 
 	if (hsettings)
 		CloseHandle (hsettings);
-	}
+}
 
 size_t rapp::SettingsAddPage (UINT dlg_id, UINT locale_id, size_t group_id)
 {
@@ -1965,7 +1988,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 						if (ptr_page_new)
 						{
-							this_ptr->ConfigSet (L"SettingsLastPage", (DWORD)ptr_page_new->dlg_id);
+							this_ptr->ConfigSet (L"SettingsLastPage", ptr_page_new->dlg_id);
 
 							if (ptr_page_new->hwnd)
 							{
@@ -2047,16 +2070,16 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 									SendMessage (ptr_page->hwnd, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, (LPARAM)ptr_page);
 							}
 						}
-				}
+					}
 
 					break;
-			}
+				}
 #endif // IDC_RESET
-		}
+			}
 
 			break;
+		}
 	}
-}
 
 	return FALSE;
 }
@@ -2092,9 +2115,9 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 				SendMessage (pupdateinfo->hwnd, TDM_SET_PROGRESS_BAR_POS, (WPARAM)percent, 0);
 			}
 #ifndef _APP_NO_WINXP
-			}
-#endif // _APP_NO_WINXP
 		}
+#endif // _APP_NO_WINXP
+	}
 
 	return true;
 }
@@ -2157,8 +2180,8 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					StringCchCopy (str_content, _countof (str_content), L"Downloading update finished.");
 #pragma _R_WARNING(IDS_UPDATE_DONE)
 #endif // IDS_UPDATE_DONE
+				}
 			}
-		}
 			else
 			{
 #ifdef IDS_UPDATE_ERROR
@@ -2167,7 +2190,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 				StringCchCopy (str_content, _countof (str_content), L"Update server connection error");
 #pragma _R_WARNING(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
-	}
+			}
 
 #ifndef _APP_NO_WINXP
 			if (papp->IsVistaOrLater ())
@@ -2178,7 +2201,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					papp->UpdateDialogNavigate (pupdateinfo->hwnd, (is_downloaded ? nullptr : TD_WARNING_ICON), 0, is_downloaded_installer ? TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON : TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 				}
 #ifndef _APP_NO_WINXP
-				}
+			}
 			else
 			{
 				if (pupdateinfo->is_forced)
@@ -2193,7 +2216,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-			}
+}
 
 HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM, LONG_PTR lpdata)
 {
@@ -2260,8 +2283,8 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 					papp->UpdateDialogNavigate (hwnd, nullptr, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 
 					return S_FALSE;
+				}
 			}
-		}
 			else if (wparam == IDOK)
 			{
 				rapp *papp = (rapp *)(pupdateinfo->papp);
@@ -2275,8 +2298,8 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 			}
 
 			break;
+		}
 	}
-}
 
 	return S_OK;
 }
@@ -2363,7 +2386,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 		const bool is_beta = true;
 #else
 		const bool is_beta = papp->ConfigGet (L"CheckUpdatesBeta", false).AsBool ();
-#endif // _APP_BETA
+#endif // _APP_BETA || _APP_BETA_RC
 
 		rstring buffer;
 
@@ -2526,15 +2549,15 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 			}
 
 			papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
-					}
+		}
 
 		SetEvent (pupdateinfo->hend);
-				}
+	}
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-			}
+}
 #endif // _APP_HAVE_UPDATES
 
 bool rapp::ParseINI (LPCWSTR path, rstring::map_two * pmap, std::vector<rstring> * psections)
