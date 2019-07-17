@@ -991,28 +991,20 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 				WCHAR drive[8] = {0};
 				StringCchCopy (drive, _countof (drive), drv);
 
-				// check drive is ready
-				const UINT old_errmode = SetErrorMode (SEM_FAILCRITICALERRORS);
-				const bool is_ready = GetVolumeInformation (drive, nullptr, 0, nullptr, 0, 0, nullptr, 0);
-				SetErrorMode (old_errmode);
+				WCHAR volume[MAX_PATH] = {0};
 
-				if (is_ready)
+				drive[2] = 0; // the backslash is not allowed for QueryDosDevice()
+
+				// may return multiple strings!
+				// returns very weird strings for network shares
+				if (QueryDosDevice (drive, volume, _countof (volume)))
 				{
-					WCHAR volume[MAX_PATH] = {0};
-
-					drive[2] = 0; // the backslash is not allowed for QueryDosDevice()
-
-					// may return multiple strings!
-					// returns very weird strings for network shares
-					if (QueryDosDevice (drive, volume, _countof (volume)))
+					if (_wcsnicmp (path, volume, device_length) == 0)
 					{
-						if (_wcsnicmp (path, volume, device_length) == 0)
-						{
-							result = drive;
-							result.Append (path + device_length);
+						result = drive;
+						result.Append (path + device_length);
 
-							break;
-						}
+						break;
 					}
 				}
 
