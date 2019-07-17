@@ -35,12 +35,6 @@
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "wtsapi32.lib")
 
-#ifdef _APP_HAVE_DARKTHEME_SUBCLASS
-#ifndef DarkThemeTextColor
-#define DarkThemeTextColor RGB (0xff, 0xff, 0xff)
-#endif // DarkThemeTextColor
-#endif // _APP_HAVE_DARKTHEME_SUBCLASS
-
 #ifndef LVM_RESETEMPTYTEXT
 #define LVM_RESETEMPTYTEXT (LVM_FIRST + 84)
 #endif // LVM_RESETEMPTYTEXT
@@ -413,7 +407,7 @@ bool _r_listview_isitemvisible (HWND hwnd, UINT ctrl_id, size_t item);
 
 void _r_listview_redraw (HWND hwnd, UINT ctrl_id, size_t start_id = LAST_VALUE, size_t end_id = LAST_VALUE);
 
-DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle);
+void _r_listview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle);
 void _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR text, INT width);
 void _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl_id, INT column_id, INT arrow);
 void _r_listview_setitem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, LPCWSTR text, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);

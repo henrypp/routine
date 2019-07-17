@@ -561,10 +561,6 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 
 			_r_wnd_center (hwnd, GetParent (hwnd));
 
-#ifndef _APP_NO_DARKTHEME
-			_r_wnd_setdarktheme (hwnd);
-#endif // _APP_NO_DARKTHEME
-
 			break;
 		}
 
@@ -577,6 +573,10 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 				SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)SendMessage (GetParent (hwnd), WM_GETICON, ICON_SMALL, 0));
 				SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)SendMessage (GetParent (hwnd), WM_GETICON, ICON_BIG, 0));
 			}
+
+#ifndef _APP_NO_DARKTHEME
+			_r_wnd_setdarktheme (hwnd);
+#endif // _APP_NO_DARKTHEME
 
 			break;
 		}
@@ -1939,178 +1939,22 @@ void _r_wnd_resize (HDWP * hdefer, HWND hwnd, HWND hwnd_after, INT left, INT rig
 }
 
 #ifndef _APP_NO_DARKTHEME
-#ifdef _APP_HAVE_DARKTHEME_SUBCLASS
-LRESULT CALLBACK DarkExplorerSubclassProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
-{
-	const WNDPROC orig_proc = (WNDPROC)GetProp (hwnd, L"orig_proc");
-	const bool is_darktheme = _r_wnd_isdarktheme ();
-
-	switch (msg)
-	{
-		case WM_DESTROY:
-		{
-			RemoveProp (hwnd, L"orig_proc");
-			SetWindowLongPtr (hwnd, GWLP_WNDPROC, (LONG_PTR)orig_proc);
-
-			break;
-		}
-
-		//case WM_ERASEBKGND:
-		//{
-		//	HDC hDC = (HDC)wparam;
-		//	RECT rc = {0};
-		//	GetClientRect (hwnd, &rc);
-
-		//	if (is_darktheme)
-		//	{
-		//		// in dark mode, just paint the whole background in black
-		//		_r_dc_fillrect (hDC, &rc, GetSysColor (COLOR_WINDOWTEXT));
-		//	}
-
-		//	break;
-		//}
-
-		case WM_CTLCOLOREDIT:
-		{
-			SetBkMode ((HDC)wparam, TRANSPARENT);
-
-			if (is_darktheme)
-			{
-				SetTextColor ((HDC)wparam, DarkThemeTextColor);
-				SetDCBrushColor ((HDC)wparam, RGB (60, 60, 60));
-			}
-			else
-			{
-				SetTextColor ((HDC)wparam, RGB (0x0, 0x0, 0x0));
-				SetDCBrushColor ((HDC)wparam, DarkThemeTextColor);
-			}
-
-			return (INT_PTR)GetStockObject (DC_BRUSH);
-		}
-
-		case WM_CTLCOLORBTN:
-		case WM_CTLCOLORDLG:
-		case WM_CTLCOLORSTATIC:
-		{
-			SetBkMode ((HDC)wparam, TRANSPARENT);
-
-			if (is_darktheme)
-			{
-				SetTextColor ((HDC)wparam, DarkThemeTextColor);
-				SetDCBrushColor ((HDC)wparam, RGB (30, 30, 30));
-			}
-			else
-			{
-				SetTextColor ((HDC)wparam, RGB (0x0, 0x0, 0x0));
-				SetDCBrushColor ((HDC)wparam, DarkThemeTextColor);
-			}
-
-			return (INT_PTR)GetStockObject (DC_BRUSH);
-		}
-
-		case WM_NOTIFY:
-		{
-			LPNMHDR nmlp = (LPNMHDR)lparam;
-
-			switch (nmlp->code)
-			{
-				case NM_CUSTOMDRAW:
-				{
-					LPNMCUSTOMDRAW lpnmcd = (LPNMCUSTOMDRAW)lparam;
-					WCHAR classname[128] = {0};
-
-					if (GetClassName (lpnmcd->hdr.hwndFrom, classname, _countof (classname)))
-					{
-						if (_wcsicmp (classname, WC_BUTTON) == 0)
-						{
-							//return DrawButton (lpnmcd);
-						}
-						else if (_wcsicmp (classname, WC_LISTVIEW) == 0)
-						{
-							LPNMLVCUSTOMDRAW listViewCustomDraw = (LPNMLVCUSTOMDRAW)lpnmcd;
-
-							if (listViewCustomDraw->dwItemType == LVCDI_GROUP && is_darktheme)
-							{
-								//return DrawListViewGroup (listViewCustomDraw);
-							}
-						}
-					}
-
-					break;
-				}
-			}
-		}
-	}
-
-	if (!orig_proc) // check (required!)
-		return FALSE;
-
-	return CallWindowProc (orig_proc, hwnd, msg, wparam, lparam);
-}
-#endif // _APP_HAVE_DARKTHEME_SUBCLASS
-
 BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 {
 	if (!IsWindow (hwnd))
 		return TRUE;
 
-	const bool is_darktheme = (bool)lparam;
+	const BOOL is_darktheme = (BOOL)lparam;
 	const HMODULE huxtheme = GetModuleHandle (L"uxtheme.dll");
 
-	if (!huxtheme)
-		return FALSE;
-
-	typedef bool (WINAPI * ADMFW) (HWND window, bool allow); // AllowDarkModeForWindow
-	const ADMFW _AllowDarkModeForWindow = (ADMFW)GetProcAddress (huxtheme, MAKEINTRESOURCEA (133));
-
-	if (_AllowDarkModeForWindow)
-		_AllowDarkModeForWindow (hwnd, is_darktheme);
-
-#ifdef _APP_HAVE_DARKTHEME_SUBCLASS
-	const WNDPROC defaultWindowProc = (WNDPROC)GetWindowLongPtr (hwnd, GWLP_WNDPROC);
-
-	if (defaultWindowProc != DarkExplorerSubclassProc)
+	if (huxtheme)
 	{
-		SetProp (hwnd, L"orig_proc", defaultWindowProc);
-		SetWindowLongPtr (hwnd, GWLP_WNDPROC, (LONG_PTR)& DarkExplorerSubclassProc);
-	}
+		typedef BOOL (WINAPI * ADMFW) (HWND window, BOOL allow); // AllowDarkModeForWindow
+		const ADMFW _AllowDarkModeForWindow = (ADMFW)GetProcAddress (huxtheme, MAKEINTRESOURCEA (133));
 
-	WCHAR classname[128] = {0};
-
-	if (GetClassName (hwnd, classname, _countof (classname)))
-	{
-		if (_wcsicmp (classname, WC_LISTVIEW) == 0)
-		{
-			//if (is_darktheme)
-			//{
-			//	ListView_SetBkColor (hwnd, RGB (30, 30, 30));
-			//	ListView_SetTextBkColor (hwnd, RGB (30, 30, 30));
-			//	ListView_SetTextColor (hwnd, DarkThemeTextColor);
-			//}
-			//else
-			//{
-			//	ListView_SetBkColor (hwnd, DarkThemeTextColor);
-			//	ListView_SetTextBkColor (hwnd, DarkThemeTextColor);
-			//	ListView_SetTextColor (hwnd, RGB (0x0, 0x0, 0x0));
-			//}
-		}
-		else if (_wcsicmp (classname, WC_TREEVIEW) == 0)
-		{
-			//if (is_darktheme)
-			//{
-			//	TreeView_SetBkColor (hwnd, RGB (30, 30, 30));
-			//	TreeView_SetLineColor (hwnd, RGB (30, 30, 30));
-			//	TreeView_SetTextColor (hwnd, RGB (30, 30, 30));
-			//}
-			//else
-			//{
-			//	TreeView_SetBkColor (hwnd, RGB (0xff, 0xff, 0xff));
-			//	TreeView_SetLineColor (hwnd, RGB (0xff, 0xff, 0xff));
-			//	TreeView_SetTextColor (hwnd, RGB (0x0, 0x0, 0x0));
-			//}
-		}
+		if (_AllowDarkModeForWindow)
+			_AllowDarkModeForWindow (hwnd, is_darktheme);
 	}
-#endif // _APP_HAVE_DARKTHEME_SUBCLASS
 
 	InvalidateRect (hwnd, nullptr, TRUE);
 
@@ -2132,15 +1976,20 @@ bool _r_wnd_isdarktheme ()
 			return false;
 	}
 
-	const HINSTANCE hlib = GetModuleHandle (L"uxtheme.dll");
+	const HMODULE huxtheme = LoadLibrary (L"uxtheme.dll");
 
-	if (hlib)
+	if (huxtheme)
 	{
 		typedef BOOL (WINAPI * SAUDM) (); // ShouldAppsUseDarkMode
-		const SAUDM _ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (hlib, MAKEINTRESOURCEA (132));
+		const SAUDM _ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (huxtheme, MAKEINTRESOURCEA (132));
 
 		if (_ShouldAppsUseDarkMode)
+		{
+			FreeLibrary (huxtheme);
 			return _ShouldAppsUseDarkMode ();
+		}
+
+		FreeLibrary (huxtheme);
 	}
 
 	return false;
@@ -2151,12 +2000,12 @@ void _r_wnd_setdarktheme (HWND hwnd)
 	if (!_r_sys_validversion (10, 0, 17763)) // win10rs5+
 		return;
 
-	const bool is_darktheme = _r_wnd_isdarktheme ();
+	const BOOL is_darktheme = _r_wnd_isdarktheme ();
 
 	/*
 		Ordinal 104: void WINAPI RefreshImmersiveColorPolicyState()
 		Ordinal 132: BOOL WINAPI ShouldAppsUseDarkMode()
-		Ordinal 133: BOOL WINAPI AllowDarkModeForWindow(HWND__ *window, bool allow)
+		Ordinal 133: BOOL WINAPI AllowDarkModeForWindow(HWND__ *window, BOOL allow)
 		Ordinal 135: BOOL WINAPI AllowDarkModeForApp(bool allow)
 		Ordinal 136: void WINAPI FlushMenuThemes()
 		Ordinal 137: BOOL WINAPI IsDarkModeAllowedForWindow(HWND__ *window)
@@ -2202,6 +2051,8 @@ void _r_wnd_setdarktheme (HWND hwnd)
 
 			if (_FlushMenuThemes)
 				_FlushMenuThemes ();
+
+			InvalidateRect (hwnd, nullptr, FALSE); // HACK
 		}
 
 		FreeLibrary (huxtheme);
@@ -3110,13 +2961,14 @@ INT _r_listview_setgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR titl
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_SETGROUPINFO, (WPARAM)group_id, (LPARAM)& lvg);
 }
 
-DWORD _r_listview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle)
+void _r_listview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle)
 {
 	SetWindowTheme (GetDlgItem (hwnd, ctrl_id), L"Explorer", nullptr);
 
 	_r_wnd_top ((HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETTOOLTIPS, 0, 0), true); // HACK!!!
 
-	return (DWORD)SendDlgItemMessage (hwnd, ctrl_id, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, (LPARAM)exstyle);
+	if (exstyle)
+		SendDlgItemMessage (hwnd, ctrl_id, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, (LPARAM)exstyle);
 }
 
 /*
