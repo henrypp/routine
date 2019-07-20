@@ -2031,8 +2031,9 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 					if (_r_msg (hwnd, MB_YESNO | MB_ICONEXCLAMATION | MB_DEFBUTTON2, this_ptr->app_name, nullptr, L"%s", str_content) == IDYES)
 					{
-						if (!_r_fs_move (this_ptr->GetConfigPath (), _r_fmt (L"%s.bak", this_ptr->GetConfigPath ()), MOVEFILE_REPLACE_EXISTING)) // remove settings
-							_r_fs_delete (this_ptr->GetConfigPath (), false);
+						const time_t current_timestamp = _r_unixtime_now ();
+
+						_r_fs_made_backup (this_ptr->GetConfigPath (), current_timestamp);
 
 						this_ptr->ConfigInit ();
 
@@ -2052,7 +2053,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 							SendMessage (this_ptr->GetHWND (), WM_EXITSIZEMOVE, 0, 0); // reset size and pos
 
-							SendMessage (this_ptr->GetHWND (), RM_RESET_DONE, 0, 0);
+							SendMessage (this_ptr->GetHWND (), RM_RESET_DONE, 0, (LPARAM)current_timestamp);
 
 							DrawMenuBar (this_ptr->GetHWND ());
 						}
