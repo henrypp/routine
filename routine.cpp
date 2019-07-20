@@ -2969,10 +2969,10 @@ void _r_listview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle)
 	SetWindowTheme (GetDlgItem (hwnd, ctrl_id), L"Explorer", nullptr);
 
 	HWND htip = (HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETTOOLTIPS, 0, 0);
-	_r_wnd_top (htip, true); // HACK!!! tooltip!
+	_r_wnd_top (htip, true); // HACK!!!
 
-	//SendMessage (htip, TTM_SETDELAYTIME, TTDT_INITIAL, 0);
 	SendMessage (htip, TTM_SETDELAYTIME, TTDT_AUTOPOP, MAXSHORT);
+	SendMessage (htip, TTM_SETMAXTIPWIDTH, 0, MAXSHORT);
 
 	if (exstyle)
 		SendDlgItemMessage (hwnd, ctrl_id, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, (LPARAM)exstyle);
