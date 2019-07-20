@@ -679,6 +679,17 @@ bool _r_fs_exists (LPCWSTR path)
 	return (GetFileAttributes (path) != INVALID_FILE_ATTRIBUTES);
 }
 
+bool _r_fs_made_backup (LPCWSTR path, time_t timestamp)
+{
+	if (!path || !_r_fs_exists (path))
+		return false;
+
+	if (timestamp)
+		return _r_fs_move (path, _r_fmt (L"%s\\%" PRId64 L"_%s.bak", _r_path_extractdir (path).GetString (), timestamp, _r_path_extractfile (path).GetString ()), MOVEFILE_REPLACE_EXISTING);
+
+	return _r_fs_move (path, _r_fmt (L"%s.bak", path), MOVEFILE_REPLACE_EXISTING);
+}
+
 bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size)
 {
 	if (hfile != INVALID_HANDLE_VALUE)
@@ -1380,7 +1391,7 @@ ULONGLONG _r_sys_gettickcount ()
 			if (_GetTickCount64)
 				return _GetTickCount64 ();
 		}
-	}
+}
 
 	return (ULONGLONG)GetTickCount ();
 #endif // _APP_NO_WINXP
@@ -2357,7 +2368,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT cx_width)
 #endif // _APP_NO_WINXP
 
 	return result;
-}
+	}
 
 bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 {
@@ -2957,7 +2968,11 @@ void _r_listview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle)
 {
 	SetWindowTheme (GetDlgItem (hwnd, ctrl_id), L"Explorer", nullptr);
 
-	_r_wnd_top ((HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETTOOLTIPS, 0, 0), true); // HACK!!!
+	HWND htip = (HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETTOOLTIPS, 0, 0);
+	_r_wnd_top (htip, true); // HACK!!! tooltip!
+
+	//SendMessage (htip, TTM_SETDELAYTIME, TTDT_INITIAL, 0);
+	SendMessage (htip, TTM_SETDELAYTIME, TTDT_AUTOPOP, MAXSHORT);
 
 	if (exstyle)
 		SendDlgItemMessage (hwnd, ctrl_id, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, (LPARAM)exstyle);

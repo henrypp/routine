@@ -240,6 +240,7 @@ void _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length);
 
 bool _r_fs_delete (LPCWSTR path, bool allowundo);
 bool _r_fs_exists (LPCWSTR path);
+bool _r_fs_made_backup (LPCWSTR path, time_t timestamp);
 bool _r_fs_mkdir (LPCWSTR path);
 void _r_fs_rmdir (LPCWSTR path);
 bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size);
