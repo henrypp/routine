@@ -2515,7 +2515,9 @@ bool _r_ctrl_settip (HWND htip, HWND hparent, UINT ctrl_id, LPWSTR text)
 	ti.lpszText = text;
 	GetClientRect (hparent, &ti.rect);
 
-	SendMessage (htip, TTM_SETMAXTIPWIDTH, 0, 512);
+	SendMessage (htip, TTM_SETDELAYTIME, TTDT_AUTOPOP, MAXSHORT);
+	SendMessage (htip, TTM_SETMAXTIPWIDTH, 0, MAXSHORT);
+
 	SendMessage (htip, TTM_ACTIVATE, TRUE, 0);
 
 	return	(bool)SendMessage (htip, TTM_ADDTOOL, 0, (LPARAM)& ti);
@@ -2969,6 +2971,7 @@ void _r_listview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle)
 	SetWindowTheme (GetDlgItem (hwnd, ctrl_id), L"Explorer", nullptr);
 
 	HWND htip = (HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETTOOLTIPS, 0, 0);
+
 	_r_wnd_top (htip, true); // HACK!!!
 
 	SendMessage (htip, TTM_SETDELAYTIME, TTDT_AUTOPOP, MAXSHORT);
