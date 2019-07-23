@@ -2033,7 +2033,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					{
 						const time_t current_timestamp = _r_unixtime_now ();
 
-						_r_fs_made_backup (this_ptr->GetConfigPath (), current_timestamp);
+						_r_fs_move_backup (this_ptr->GetConfigPath (), current_timestamp);
 
 						this_ptr->ConfigInit ();
 

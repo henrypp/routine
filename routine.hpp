@@ -240,7 +240,6 @@ void _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length);
 
 bool _r_fs_delete (LPCWSTR path, bool allowundo);
 bool _r_fs_exists (LPCWSTR path);
-bool _r_fs_made_backup (LPCWSTR path, time_t timestamp);
 bool _r_fs_mkdir (LPCWSTR path);
 void _r_fs_rmdir (LPCWSTR path);
 bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size);
@@ -248,6 +247,7 @@ bool _r_fs_setpos (HANDLE hfile, LONGLONG pos, DWORD method);
 DWORD64 _r_fs_size (HANDLE hfile);
 DWORD64 _r_fs_size (LPCWSTR path);
 bool _r_fs_move (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
+bool _r_fs_move_backup (LPCWSTR path, time_t timestamp);
 bool _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
 
 /*
