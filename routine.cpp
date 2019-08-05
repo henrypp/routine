@@ -1391,7 +1391,7 @@ ULONGLONG _r_sys_gettickcount ()
 			if (_GetTickCount64)
 				return _GetTickCount64 ();
 		}
-}
+	}
 
 	return (ULONGLONG)GetTickCount ();
 #endif // _APP_NO_WINXP
@@ -2368,7 +2368,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT cx_width)
 #endif // _APP_NO_WINXP
 
 	return result;
-	}
+}
 
 bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 {
@@ -2624,12 +2624,48 @@ INT _r_listview_addcolumn (HWND hwnd, UINT ctrl_id, size_t column_id, LPCWSTR te
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTCOLUMN, (WPARAM)column_id, (LPARAM)& lvc);
 }
 
-INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl_id, INT column_id)
+UINT _r_listview_getcolumncount (HWND hwnd, UINT ctrl_id)
+{
+	const HWND hheader = (HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETHEADER, 0, 0);
+
+	return (UINT)SendMessage (hheader, HDM_GETITEMCOUNT, 0, 0);
+}
+
+UINT _r_listview_getcolumncurrent (HWND hwnd, UINT ctrl_id)
+{
+	LVHITTESTINFO hti = {0};
+
+	SecureZeroMemory (&hti, sizeof (hti));
+
+	GetCursorPos (&hti.pt);
+	ScreenToClient (GetDlgItem (hwnd, ctrl_id), &hti.pt);
+
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_SUBITEMHITTEST, 0, (LPARAM)& hti);
+
+	return std::clamp (hti.iSubItem, 0, (INT)_r_listview_getcolumncount (hwnd, ctrl_id) - 1);
+}
+
+rstring _r_listview_getcolumntext (HWND hwnd, UINT ctrl_id, UINT column_id)
+{
+	LVCOLUMN lvc = {0};
+
+	WCHAR buffer[MAX_PATH] = {0};
+
+	lvc.mask = LVCF_TEXT;
+	lvc.pszText = buffer;
+	lvc.cchTextMax = _countof (buffer);
+
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMN, (WPARAM)column_id, (LPARAM)& lvc);
+
+	return buffer;
+}
+
+INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl_id, UINT column_id)
 {
 	RECT rc = {0};
 	GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
 
-	return _R_PERCENT_OF ((LONG)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMNWIDTH, (WPARAM)column_id, 0), _R_RECT_WIDTH (&rc));
+	return _R_PERCENT_OF ((INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMNWIDTH, (WPARAM)column_id, 0), _R_RECT_WIDTH (&rc));
 }
 
 INT _r_listview_addgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR title, UINT align, UINT state)
@@ -2735,13 +2771,6 @@ void _r_listview_deleteallitems (HWND hwnd, UINT ctrl_id)
 	SendDlgItemMessage (hwnd, ctrl_id, LVM_DELETEALLITEMS, 0, 0);
 }
 
-INT _r_listview_getcolumncount (HWND hwnd, UINT ctrl_id)
-{
-	const HWND hheader = (HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETHEADER, 0, 0);
-
-	return (INT)SendMessage (hheader, HDM_GETITEMCOUNT, 0, 0);
-}
-
 size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl_id, bool list_checked)
 {
 	if (list_checked)
@@ -2801,12 +2830,12 @@ rstring _r_listview_getitemtext (HWND hwnd, UINT ctrl_id, size_t item, size_t su
 
 bool _r_listview_isitemchecked (HWND hwnd, UINT ctrl_id, size_t item)
 {
-	return (((SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMSTATE, item, LVIS_STATEIMAGEMASK)) >> 12) - 1) ? true : false;
+	return !!(((SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMSTATE, item, LVIS_STATEIMAGEMASK)) >> 12) - 1);
 }
 
 bool _r_listview_isitemvisible (HWND hwnd, UINT ctrl_id, size_t item)
 {
-	return (SendDlgItemMessage (hwnd, ctrl_id, LVM_ISITEMVISIBLE, item, 0)) ? true : false;
+	return !!(SendDlgItemMessage (hwnd, ctrl_id, LVM_ISITEMVISIBLE, item, 0));
 }
 
 void _r_listview_redraw (HWND hwnd, UINT ctrl_id, size_t start_id, size_t end_id)
@@ -2817,9 +2846,9 @@ void _r_listview_redraw (HWND hwnd, UINT ctrl_id, size_t start_id, size_t end_id
 	}
 	else
 	{
-		const size_t count = _r_listview_getitemcount (hwnd, ctrl_id);
+		const size_t total_count = _r_listview_getitemcount (hwnd, ctrl_id);
 
-		for (size_t i = 0; i < count; i++)
+		for (size_t i = 0; i < total_count; i++)
 		{
 			if (_r_listview_isitemvisible (hwnd, ctrl_id, i))
 				SendDlgItemMessage (hwnd, ctrl_id, LVM_REDRAWITEMS, i, i);

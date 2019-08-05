@@ -22,6 +22,7 @@
 #include <sddl.h>
 #include <inttypes.h>
 #include <assert.h>
+#include <algorithm>
 
 #include "app.hpp"
 #include "rconfig.hpp"
@@ -75,8 +76,8 @@
 	Unit conversion
 */
 
-#define _R_BYTESIZE_KB (1024)
-#define _R_BYTESIZE_MB (1024 * _R_BYTESIZE_KB)
+#define _R_BYTESIZE_KB (1024ul)
+#define _R_BYTESIZE_MB (1024ul * _R_BYTESIZE_KB)
 
 #define _R_SECONDSCLOCK_MSEC (1000)
 #define _R_SECONDSCLOCK_MIN(minutes)(60 * (minutes))
@@ -397,9 +398,11 @@ void _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl_id);
 void _r_listview_deleteallgroups (HWND hwnd, UINT ctrl_id);
 void _r_listview_deleteallitems (HWND hwnd, UINT ctrl_id);
 
-INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl_id, INT column);
+UINT _r_listview_getcolumncount (HWND hwnd, UINT ctrl_id);
+UINT _r_listview_getcolumncurrent (HWND hwnd, UINT ctrl_id);
+rstring _r_listview_getcolumntext (HWND hwnd, UINT ctrl_id, UINT column);
+INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl_id, UINT column);
 size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl_id, bool list_checked = false);
-INT _r_listview_getcolumncount (HWND hwnd, UINT ctrl_id);
 LPARAM _r_listview_getitemlparam (HWND hwnd, UINT ctrl_id, size_t item);
 rstring _r_listview_getitemtext (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem);
 
