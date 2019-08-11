@@ -1686,7 +1686,7 @@ LONG _r_dc_fontwidth (HDC hdc, LPCWSTR text, size_t length)
 	Window management
 */
 
-void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG_PTR mask, LONG_PTR stateMask, INT index)
+void _r_wnd_addstyle (HWND hwnd, INT ctrl_id, LONG_PTR mask, LONG_PTR stateMask, INT index)
 {
 	if (ctrl_id)
 		hwnd = GetDlgItem (hwnd, ctrl_id);
@@ -2423,30 +2423,31 @@ size_t _r_rand (size_t min_number, size_t max_number)
 	return (min_number + (rnd_number % (max_number - min_number + 1)));
 }
 
-HANDLE _r_createthread (_beginthreadex_proc_type proc, void* args, bool is_suspended, int priority)
+HANDLE _r_createthread (_beginthreadex_proc_type proc, void* args, bool is_suspended, INT priority)
 {
 	const HANDLE hthread = (HANDLE)_beginthreadex (nullptr, 0, proc, args, CREATE_SUSPENDED, nullptr);
 
-	if (hthread)
-	{
-		SetThreadPriority (hthread, priority);
+	//if (hthread == INVALID_HANDLE_VALUE) // On an error, _beginthread returns -1L
+	//	return nullptr;
 
-		if (!is_suspended)
-			ResumeThread (hthread);
+	if (!hthread) // On an error, _beginthreadex returns 0
+		return nullptr;
 
-		return hthread;
-	}
+	SetThreadPriority (hthread, priority);
 
-	return nullptr;
+	if (!is_suspended)
+		ResumeThread (hthread);
+
+	return hthread;
 }
 
 /*
 	Control: common
 */
 
-UINT _r_ctrl_isradiobuttonchecked (HWND hwnd, UINT start_id, UINT end_id)
+INT _r_ctrl_isradiobuttonchecked (HWND hwnd, INT start_id, INT end_id)
 {
-	for (UINT i = start_id; i <= end_id; i++)
+	for (INT i = start_id; i <= end_id; i++)
 	{
 		if (IsDlgButtonChecked (hwnd, i) == BST_CHECKED)
 			return i;
@@ -2455,34 +2456,34 @@ UINT _r_ctrl_isradiobuttonchecked (HWND hwnd, UINT start_id, UINT end_id)
 	return 0;
 }
 
-bool _r_ctrl_isenabled (HWND hwnd, UINT ctrl_id)
+bool _r_ctrl_isenabled (HWND hwnd, INT ctrl_id)
 {
 	return IsWindowEnabled (GetDlgItem (hwnd, ctrl_id));
 }
 
-void _r_ctrl_enable (HWND hwnd, UINT ctrl_id, bool is_enable)
+void _r_ctrl_enable (HWND hwnd, INT ctrl_id, bool is_enable)
 {
 	EnableWindow (GetDlgItem (hwnd, ctrl_id), is_enable);
 }
 
-rstring _r_ctrl_gettext (HWND hwnd, UINT ctrl_id)
+rstring _r_ctrl_gettext (HWND hwnd, INT ctrl_id)
 {
 	rstring result = L"";
 
-	size_t length = (size_t)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXTLENGTH, 0, 0);
+	INT length = (INT)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXTLENGTH, 0, 0);
 
 	if (length)
 	{
 		length += 1;
 
-		GetDlgItemText (hwnd, ctrl_id, result.GetBuffer (length), (INT)length);
+		GetDlgItemText (hwnd, ctrl_id, result.GetBuffer (length), length);
 		result.ReleaseBuffer ();
 	}
 
 	return result;
 }
 
-void _r_ctrl_settext (HWND hwnd, UINT ctrl_id, LPCWSTR str, ...)
+void _r_ctrl_settext (HWND hwnd, INT ctrl_id, LPCWSTR str, ...)
 {
 	rstring buffer;
 
@@ -2500,7 +2501,7 @@ HWND _r_ctrl_createtip (HWND hparent)
 	return CreateWindowEx (WS_EX_TOPMOST, TOOLTIPS_CLASS, nullptr, WS_CHILD | WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hparent, nullptr, GetModuleHandle (nullptr), nullptr);
 }
 
-bool _r_ctrl_settip (HWND htip, HWND hparent, UINT ctrl_id, LPWSTR text)
+bool _r_ctrl_settip (HWND htip, HWND hparent, INT ctrl_id, LPWSTR text)
 {
 	if (!htip)
 		return false;
@@ -2520,10 +2521,10 @@ bool _r_ctrl_settip (HWND htip, HWND hparent, UINT ctrl_id, LPWSTR text)
 
 	SendMessage (htip, TTM_ACTIVATE, TRUE, 0);
 
-	return	(bool)SendMessage (htip, TTM_ADDTOOL, 0, (LPARAM)& ti);
+	return	!!SendMessage (htip, TTM_ADDTOOL, 0, (LPARAM)& ti);
 }
 
-bool _r_ctrl_showtip (HWND hwnd, UINT ctrl_id, INT icon_id, LPCWSTR title, LPCWSTR text)
+bool _r_ctrl_showtip (HWND hwnd, INT ctrl_id, INT icon_id, LPCWSTR title, LPCWSTR text)
 {
 	EDITBALLOONTIP ebt = {0};
 
@@ -2532,14 +2533,14 @@ bool _r_ctrl_showtip (HWND hwnd, UINT ctrl_id, INT icon_id, LPCWSTR title, LPCWS
 	ebt.pszText = text;
 	ebt.ttiIcon = icon_id;
 
-	return SendDlgItemMessage (hwnd, ctrl_id, EM_SHOWBALLOONTIP, 0, (LPARAM)& ebt) ? true : false;
+	return !!SendDlgItemMessage (hwnd, ctrl_id, EM_SHOWBALLOONTIP, 0, (LPARAM)& ebt);
 }
 
 /*
 	Control: tab
 */
 
-INT _r_tab_additem (HWND hwnd, UINT ctrl_id, size_t index, LPCWSTR text, size_t image, LPARAM lparam)
+INT _r_tab_additem (HWND hwnd, INT ctrl_id, size_t index, LPCWSTR text, INT image, LPARAM lparam)
 {
 	TCITEM tci = {0};
 
@@ -2549,10 +2550,10 @@ INT _r_tab_additem (HWND hwnd, UINT ctrl_id, size_t index, LPCWSTR text, size_t 
 		tci.pszText = (LPWSTR)text;
 	}
 
-	if (image != LAST_VALUE)
+	if (image != INVALID_INT)
 	{
 		tci.mask |= TCIF_IMAGE;
-		tci.iImage = (INT)image;
+		tci.iImage = image;
 	}
 
 	if (lparam)
@@ -2564,7 +2565,7 @@ INT _r_tab_additem (HWND hwnd, UINT ctrl_id, size_t index, LPCWSTR text, size_t 
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, TCM_INSERTITEM, (WPARAM)index, (LPARAM)& tci);
 }
 
-INT _r_tab_setitem (HWND hwnd, UINT ctrl_id, size_t index, LPCWSTR text, size_t image, LPARAM lparam)
+INT _r_tab_setitem (HWND hwnd, INT ctrl_id, size_t index, LPCWSTR text, INT image, LPARAM lparam)
 {
 	TCITEM tci = {0};
 
@@ -2574,10 +2575,10 @@ INT _r_tab_setitem (HWND hwnd, UINT ctrl_id, size_t index, LPCWSTR text, size_t 
 		tci.pszText = (LPWSTR)text;
 	}
 
-	if (image != LAST_VALUE)
+	if (image != INVALID_INT)
 	{
 		tci.mask |= TCIF_IMAGE;
-		tci.iImage = (INT)image;
+		tci.iImage = image;
 	}
 
 	if (lparam)
@@ -2593,13 +2594,13 @@ INT _r_tab_setitem (HWND hwnd, UINT ctrl_id, size_t index, LPCWSTR text, size_t 
 	Control: listview
 */
 
-INT _r_listview_addcolumn (HWND hwnd, UINT ctrl_id, size_t column_id, LPCWSTR text, INT width, INT fmt)
+INT _r_listview_addcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR text, INT width, INT fmt)
 {
 	LVCOLUMN lvc = {0};
 
 	lvc.mask = LVCF_TEXT | LVCF_SUBITEM;
 	lvc.pszText = (LPWSTR)text;
-	lvc.iSubItem = (INT)column_id;
+	lvc.iSubItem = column_id;
 
 	if (width)
 	{
@@ -2624,51 +2625,7 @@ INT _r_listview_addcolumn (HWND hwnd, UINT ctrl_id, size_t column_id, LPCWSTR te
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTCOLUMN, (WPARAM)column_id, (LPARAM)& lvc);
 }
 
-UINT _r_listview_getcolumncount (HWND hwnd, UINT ctrl_id)
-{
-	const HWND hheader = (HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETHEADER, 0, 0);
-
-	return (UINT)SendMessage (hheader, HDM_GETITEMCOUNT, 0, 0);
-}
-
-UINT _r_listview_getcolumncurrent (HWND hwnd, UINT ctrl_id)
-{
-	LVHITTESTINFO hti = {0};
-
-	SecureZeroMemory (&hti, sizeof (hti));
-
-	GetCursorPos (&hti.pt);
-	ScreenToClient (GetDlgItem (hwnd, ctrl_id), &hti.pt);
-
-	SendDlgItemMessage (hwnd, ctrl_id, LVM_SUBITEMHITTEST, 0, (LPARAM)& hti);
-
-	return std::clamp (hti.iSubItem, 0, (INT)_r_listview_getcolumncount (hwnd, ctrl_id) - 1);
-}
-
-rstring _r_listview_getcolumntext (HWND hwnd, UINT ctrl_id, UINT column_id)
-{
-	LVCOLUMN lvc = {0};
-
-	WCHAR buffer[MAX_PATH] = {0};
-
-	lvc.mask = LVCF_TEXT;
-	lvc.pszText = buffer;
-	lvc.cchTextMax = _countof (buffer);
-
-	SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMN, (WPARAM)column_id, (LPARAM)& lvc);
-
-	return buffer;
-}
-
-INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl_id, UINT column_id)
-{
-	RECT rc = {0};
-	GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
-
-	return _R_PERCENT_OF ((INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMNWIDTH, (WPARAM)column_id, 0), _R_RECT_WIDTH (&rc));
-}
-
-INT _r_listview_addgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR title, UINT align, UINT state)
+INT _r_listview_addgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT align, UINT state)
 {
 	LVGROUP lvg = {0};
 
@@ -2676,7 +2633,7 @@ INT _r_listview_addgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR titl
 
 	lvg.cbSize = sizeof (lvg);
 	lvg.mask = LVGF_GROUPID;
-	lvg.iGroupId = (INT)group_id;
+	lvg.iGroupId = group_id;
 
 	if (title)
 	{
@@ -2704,9 +2661,9 @@ INT _r_listview_addgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR titl
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTGROUP, (WPARAM)group_id, (LPARAM)& lvg);
 }
 
-INT _r_listview_additem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, LPCWSTR text, size_t image, size_t group_id, LPARAM lparam)
+INT _r_listview_additem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR text, INT image, INT group_id, LPARAM lparam)
 {
-	if (item == LAST_VALUE)
+	if (item == INVALID_INT)
 	{
 		item = _r_listview_getitemcount (hwnd, ctrl_id);
 
@@ -2718,8 +2675,8 @@ INT _r_listview_additem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, L
 
 	LVITEM lvi = {0};
 
-	lvi.iItem = (INT)item;
-	lvi.iSubItem = (INT)subitem;
+	lvi.iItem = item;
+	lvi.iSubItem = subitem;
 
 	if (text)
 	{
@@ -2729,16 +2686,16 @@ INT _r_listview_additem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, L
 		StringCchCopy (txt, _countof (txt), text);
 	}
 
-	if (!subitem && image != LAST_VALUE)
+	if (!subitem && image != INVALID_INT)
 	{
 		lvi.mask |= LVIF_IMAGE;
-		lvi.iImage = (INT)image;
+		lvi.iImage = image;
 	}
 
-	if (!subitem && group_id != LAST_VALUE)
+	if (!subitem && group_id != INVALID_INT)
 	{
 		lvi.mask |= LVIF_GROUPID;
-		lvi.iGroupId = (INT)group_id;
+		lvi.iGroupId = group_id;
 	}
 
 	if (!subitem && lparam)
@@ -2750,77 +2707,119 @@ INT _r_listview_additem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, L
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTITEM, 0, (LPARAM)& lvi);
 }
 
-void _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl_id)
+void _r_listview_deleteallcolumns (HWND hwnd, INT ctrl_id)
 {
 	const INT column_count = _r_listview_getcolumncount (hwnd, ctrl_id);
 
 	for (INT i = column_count; i >= 0; i--)
-	{
 		SendDlgItemMessage (hwnd, ctrl_id, LVM_DELETECOLUMN, (WPARAM)i, 0);
-	}
 }
 
-void _r_listview_deleteallgroups (HWND hwnd, UINT ctrl_id)
+void _r_listview_deleteallgroups (HWND hwnd, INT ctrl_id)
 {
 	SendDlgItemMessage (hwnd, ctrl_id, LVM_REMOVEALLGROUPS, 0, 0);
 	SendDlgItemMessage (hwnd, ctrl_id, LVM_ENABLEGROUPVIEW, FALSE, 0);
 }
 
-void _r_listview_deleteallitems (HWND hwnd, UINT ctrl_id)
+void _r_listview_deleteallitems (HWND hwnd, INT ctrl_id)
 {
 	SendDlgItemMessage (hwnd, ctrl_id, LVM_DELETEALLITEMS, 0, 0);
 }
 
-size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl_id, bool list_checked)
+INT _r_listview_getitemcount (HWND hwnd, INT ctrl_id, bool list_checked)
 {
 	if (list_checked)
 	{
-		size_t item = LAST_VALUE;
-		size_t count = 0;
+		INT total_count = (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMCOUNT, 0, 0);
+		INT checks_count = 0;
 
-		while ((item = (size_t)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETNEXTITEM, item, LVNI_ALL)) != LAST_VALUE)
+		for (INT i = 0; i < total_count; i++)
 		{
-			if (_r_listview_isitemchecked (hwnd, ctrl_id, item))
-				++count;
+			if (_r_listview_isitemchecked (hwnd, ctrl_id, i))
+				checks_count += 1;
 		}
 
-		return count;
+		return checks_count;
 	}
 
-	return (size_t)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMCOUNT, 0, 0);
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMCOUNT, 0, 0);
 }
 
-LPARAM _r_listview_getitemlparam (HWND hwnd, UINT ctrl_id, size_t item)
+INT _r_listview_getcolumncount (HWND hwnd, INT ctrl_id)
+{
+	const HWND hheader = (HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETHEADER, 0, 0);
+
+	return (INT)SendMessage (hheader, HDM_GETITEMCOUNT, 0, 0);
+}
+
+INT _r_listview_getcolumncurrent (HWND hwnd, INT ctrl_id)
+{
+	LVHITTESTINFO hti = {0};
+
+	SecureZeroMemory (&hti, sizeof (hti));
+
+	GetCursorPos (&hti.pt);
+	ScreenToClient (GetDlgItem (hwnd, ctrl_id), &hti.pt);
+
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_SUBITEMHITTEST, 0, (LPARAM)& hti);
+
+	return std::clamp (hti.iSubItem, 0, _r_listview_getcolumncount (hwnd, ctrl_id) - 1);
+}
+
+rstring _r_listview_getcolumntext (HWND hwnd, INT ctrl_id, INT column_id)
+{
+	LVCOLUMN lvc = {0};
+
+	WCHAR buffer[MAX_PATH] = {0};
+
+	lvc.mask = LVCF_TEXT;
+	lvc.pszText = buffer;
+	lvc.cchTextMax = _countof (buffer);
+
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMN, (WPARAM)column_id, (LPARAM)& lvc);
+
+	return buffer;
+}
+
+INT _r_listview_getcolumnwidth (HWND hwnd, INT ctrl_id, INT column_id)
+{
+	RECT rc = {0};
+	GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
+
+	return _R_PERCENT_OF ((INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMNWIDTH, (WPARAM)column_id, 0), _R_RECT_WIDTH (&rc));
+}
+
+LPARAM _r_listview_getitemlparam (HWND hwnd, INT ctrl_id, INT item)
 {
 	LVITEM lvi = {0};
 
 	lvi.mask = LVIF_PARAM;
-	lvi.iItem = (INT)item;
+	lvi.iItem = item;
 
 	SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEM, 0, (LPARAM)& lvi);
 
 	return lvi.lParam;
 }
 
-rstring _r_listview_getitemtext (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem)
+rstring _r_listview_getitemtext (HWND hwnd, INT ctrl_id, INT item, INT subitem)
 {
 	rstring result;
 
-	size_t length = 0;
-	size_t out_length = 0;
+	INT length = 0;
+	INT out_length = 0;
 
 	LVITEM lvi = {0};
 
-	lvi.iSubItem = (INT)subitem;
+	lvi.iSubItem = subitem;
 
 	do
 	{
 		length += _R_BUFFER_LENGTH;
 
 		lvi.pszText = result.GetBuffer (length);
-		lvi.cchTextMax = (INT)length;
+		lvi.cchTextMax = length;
 
-		out_length = (size_t)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMTEXT, item, (LPARAM)& lvi);
+		out_length = (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMTEXT, item, (LPARAM)& lvi);
 		result.ReleaseBuffer ();
 	}
 	while (out_length == (length - 1));
@@ -2828,27 +2827,27 @@ rstring _r_listview_getitemtext (HWND hwnd, UINT ctrl_id, size_t item, size_t su
 	return result;
 }
 
-bool _r_listview_isitemchecked (HWND hwnd, UINT ctrl_id, size_t item)
+bool _r_listview_isitemchecked (HWND hwnd, INT ctrl_id, INT item)
 {
 	return !!(((SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMSTATE, item, LVIS_STATEIMAGEMASK)) >> 12) - 1);
 }
 
-bool _r_listview_isitemvisible (HWND hwnd, UINT ctrl_id, size_t item)
+bool _r_listview_isitemvisible (HWND hwnd, INT ctrl_id, INT item)
 {
 	return !!(SendDlgItemMessage (hwnd, ctrl_id, LVM_ISITEMVISIBLE, item, 0));
 }
 
-void _r_listview_redraw (HWND hwnd, UINT ctrl_id, size_t start_id, size_t end_id)
+void _r_listview_redraw (HWND hwnd, INT ctrl_id, INT start_id, INT end_id)
 {
-	if (start_id != LAST_VALUE && end_id != LAST_VALUE)
+	if (start_id != INVALID_INT && end_id != INVALID_INT)
 	{
 		SendDlgItemMessage (hwnd, ctrl_id, LVM_REDRAWITEMS, start_id, end_id);
 	}
 	else
 	{
-		const size_t total_count = _r_listview_getitemcount (hwnd, ctrl_id);
+		const INT total_count = _r_listview_getitemcount (hwnd, ctrl_id);
 
-		for (size_t i = 0; i < total_count; i++)
+		for (INT i = 0; i < total_count; i++)
 		{
 			if (_r_listview_isitemvisible (hwnd, ctrl_id, i))
 				SendDlgItemMessage (hwnd, ctrl_id, LVM_REDRAWITEMS, i, i);
@@ -2856,7 +2855,7 @@ void _r_listview_redraw (HWND hwnd, UINT ctrl_id, size_t start_id, size_t end_id
 	}
 }
 
-void _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR text, INT width)
+void _r_listview_setcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR text, INT width)
 {
 	if (!text && !width)
 		return;
@@ -2890,7 +2889,7 @@ void _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR tex
 		SendDlgItemMessage (hwnd, ctrl_id, LVM_SETCOLUMN, (WPARAM)column_id, (LPARAM)& lvc);
 }
 
-void _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl_id, INT column_id, INT arrow)
+void _r_listview_setcolumnsortindex (HWND hwnd, INT ctrl_id, INT column_id, INT arrow)
 {
 	HWND header = (HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETHEADER, 0, 0);
 
@@ -2920,17 +2919,17 @@ void _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl_id, INT column_id, INT
 	}
 }
 
-void _r_listview_setitem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, LPCWSTR text, size_t image, size_t group_id, LPARAM lparam)
+void _r_listview_setitem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR text, INT image, INT group_id, LPARAM lparam)
 {
-	if (!text && image == LAST_VALUE && group_id == LAST_VALUE && !lparam)
+	if (!text && image == INVALID_INT && group_id == INVALID_INT && !lparam)
 		return;
 
 	WCHAR txt[MAX_PATH] = {0};
 
 	LVITEM lvi = {0};
 
-	lvi.iItem = (INT)item;
-	lvi.iSubItem = (INT)subitem;
+	lvi.iItem = item;
+	lvi.iSubItem = subitem;
 
 	if (text)
 	{
@@ -2940,16 +2939,16 @@ void _r_listview_setitem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, 
 		StringCchCopy (txt, _countof (txt), text);
 	}
 
-	if (!lvi.iSubItem && image != LAST_VALUE)
+	if (!lvi.iSubItem && image != INVALID_INT)
 	{
 		lvi.mask |= LVIF_IMAGE;
-		lvi.iImage = (INT)image;
+		lvi.iImage = image;
 	}
 
-	if (!lvi.iSubItem && group_id != LAST_VALUE)
+	if (!lvi.iSubItem && group_id != INVALID_INT)
 	{
 		lvi.mask |= LVIF_GROUPID;
-		lvi.iGroupId = (INT)group_id;
+		lvi.iGroupId = group_id;
 	}
 
 	if (!lvi.iSubItem && lparam)
@@ -2961,17 +2960,17 @@ void _r_listview_setitem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, 
 	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEM, 0, (LPARAM)& lvi);
 }
 
-BOOL _r_listview_setitemcheck (HWND hwnd, UINT ctrl_id, size_t item, bool state)
+bool _r_listview_setitemcheck (HWND hwnd, INT ctrl_id, INT item, bool state)
 {
 	LVITEM lvi = {0};
 
 	lvi.stateMask = LVIS_STATEIMAGEMASK;
 	lvi.state = INDEXTOSTATEIMAGEMASK (state ? 2 : 1);
 
-	return (BOOL)SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEMSTATE, (item == LAST_VALUE) ? -1 : item, (LPARAM)& lvi);
+	return !!SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEMSTATE, (item == INVALID_INT) ? -1 : item, (LPARAM)& lvi);
 }
 
-INT _r_listview_setgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR title, UINT state, UINT state_mask)
+INT _r_listview_setgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT state, UINT state_mask)
 {
 	LVGROUP lvg = {0};
 	lvg.cbSize = sizeof (lvg);
@@ -2995,7 +2994,7 @@ INT _r_listview_setgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR titl
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_SETGROUPINFO, (WPARAM)group_id, (LPARAM)& lvg);
 }
 
-void _r_listview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle)
+void _r_listview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle)
 {
 	SetWindowTheme (GetDlgItem (hwnd, ctrl_id), L"Explorer", nullptr);
 
@@ -3014,7 +3013,7 @@ void _r_listview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle)
 	Control: treeview
 */
 
-HTREEITEM _r_treeview_additem (HWND hwnd, UINT ctrl_id, LPCWSTR text, HTREEITEM parent, size_t image, LPARAM lparam)
+HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl_id, LPCWSTR text, HTREEITEM parent, INT image, LPARAM lparam)
 {
 	TVINSERTSTRUCT tvi = {0};
 
@@ -3026,11 +3025,11 @@ HTREEITEM _r_treeview_additem (HWND hwnd, UINT ctrl_id, LPCWSTR text, HTREEITEM 
 	if (parent)
 		tvi.hParent = parent;
 
-	if (image != LAST_VALUE)
+	if (image != INVALID_INT)
 	{
 		tvi.itemex.mask |= (TVIF_IMAGE | TVIF_SELECTEDIMAGE);
-		tvi.itemex.iImage = (INT)image;
-		tvi.itemex.iSelectedImage = (INT)image;
+		tvi.itemex.iImage = image;
+		tvi.itemex.iSelectedImage = image;
 	}
 
 	if (lparam)
@@ -3042,7 +3041,7 @@ HTREEITEM _r_treeview_additem (HWND hwnd, UINT ctrl_id, LPCWSTR text, HTREEITEM 
 	return (HTREEITEM)SendDlgItemMessage (hwnd, ctrl_id, TVM_INSERTITEM, 0, (LPARAM)& tvi);
 }
 
-LPARAM _r_treeview_getlparam (HWND hwnd, UINT ctrl_id, HTREEITEM item)
+LPARAM _r_treeview_getlparam (HWND hwnd, INT ctrl_id, HTREEITEM item)
 {
 	TVITEMEX tvi = {0};
 
@@ -3054,7 +3053,7 @@ LPARAM _r_treeview_getlparam (HWND hwnd, UINT ctrl_id, HTREEITEM item)
 	return tvi.lParam;
 }
 
-DWORD _r_treeview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle, INT height)
+DWORD _r_treeview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle, INT height)
 {
 	if (height)
 	{
@@ -3070,12 +3069,12 @@ DWORD _r_treeview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle, INT height)
 	Control: statusbar
 */
 
-void _r_status_settext (HWND hwnd, UINT ctrl_id, INT part, LPCWSTR text)
+void _r_status_settext (HWND hwnd, INT ctrl_id, INT part, LPCWSTR text)
 {
 	SendDlgItemMessage (hwnd, ctrl_id, SB_SETTEXT, MAKEWPARAM (part, 0), (LPARAM)text);
 }
 
-void _r_status_setstyle (HWND hwnd, UINT ctrl_id, INT height)
+void _r_status_setstyle (HWND hwnd, INT ctrl_id, INT height)
 {
 	SendDlgItemMessage (hwnd, ctrl_id, SB_SETMINHEIGHT, (WPARAM)height, 0);
 	SendDlgItemMessage (hwnd, ctrl_id, WM_SIZE, 0, 0);
@@ -3085,7 +3084,7 @@ void _r_status_setstyle (HWND hwnd, UINT ctrl_id, INT height)
 	Control: toolbar
 */
 
-void _r_toolbar_setbuttoninfo (HWND hwnd, UINT ctrl_id, UINT command_id, LPCWSTR text, INT style, INT state, size_t image)
+void _r_toolbar_setbuttoninfo (HWND hwnd, INT ctrl_id, UINT command_id, LPCWSTR text, INT style, INT state, INT image)
 {
 	TBBUTTONINFO buttonInfo = {0};
 	WCHAR buffer[MAX_PATH] = {0};
@@ -3112,10 +3111,10 @@ void _r_toolbar_setbuttoninfo (HWND hwnd, UINT ctrl_id, UINT command_id, LPCWSTR
 		buttonInfo.fsState = (BYTE)state;
 	}
 
-	if (image != LAST_VALUE)
+	if (image != INVALID_INT)
 	{
 		buttonInfo.dwMask |= TBIF_IMAGE;
-		buttonInfo.iImage = (INT)image;
+		buttonInfo.iImage = image;
 	}
 
 	SendDlgItemMessage (hwnd, ctrl_id, TB_SETBUTTONINFO, command_id, (LPARAM)& buttonInfo);
@@ -3125,7 +3124,7 @@ void _r_toolbar_setbuttoninfo (HWND hwnd, UINT ctrl_id, UINT command_id, LPCWSTR
 	Control: progress bar
 */
 
-void _r_progress_setmarquee (HWND hwnd, UINT ctrl_id, bool is_enable)
+void _r_progress_setmarquee (HWND hwnd, INT ctrl_id, bool is_enable)
 {
 	SendDlgItemMessage (hwnd, ctrl_id, PBM_SETMARQUEE, (WPARAM)is_enable, (LPARAM)18);
 

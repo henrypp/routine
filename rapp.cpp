@@ -938,7 +938,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 	return CallWindowProc (this_ptr->app_wndproc, hwnd, msg, wparam, lparam);
 }
 
-bool rapp::CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc)
+bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 {
 	bool result = false;
 
@@ -1390,7 +1390,7 @@ bool rapp::TrayToggle (HWND hwnd, UINT uid, LPGUID guid, bool is_show)
 #endif // _APP_HAVE_TRAY
 
 #ifdef _APP_HAVE_SETTINGS
-void rapp::CreateSettingsWindow (DLGPROC proc, size_t dlg_id)
+void rapp::CreateSettingsWindow (DLGPROC proc, INT dlg_id)
 {
 	const HANDLE hsettings = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%d_%d", app_name_short, GetCurrentProcessId (), __LINE__));
 
@@ -1400,7 +1400,7 @@ void rapp::CreateSettingsWindow (DLGPROC proc, size_t dlg_id)
 	}
 	else
 	{
-		if (dlg_id != LAST_VALUE)
+		if (dlg_id != INVALID_INT)
 			ConfigSet (L"SettingsLastPage", dlg_id);
 
 		if (proc)
@@ -1420,11 +1420,11 @@ void rapp::CreateSettingsWindow (DLGPROC proc, size_t dlg_id)
 		CloseHandle (hsettings);
 }
 
-size_t rapp::SettingsAddPage (UINT dlg_id, UINT locale_id, size_t group_id)
+INT rapp::SettingsAddPage (INT dlg_id, UINT locale_id, INT group_id)
 {
 	PAPP_SETTINGS_PAGE ptr_page = new APP_SETTINGS_PAGE;
 
-	ptr_page->hwnd = nullptr;
+	SecureZeroMemory (ptr_page, sizeof (APP_SETTINGS_PAGE));
 
 	ptr_page->dlg_id = dlg_id;
 	ptr_page->group_id = group_id;
@@ -1432,7 +1432,7 @@ size_t rapp::SettingsAddPage (UINT dlg_id, UINT locale_id, size_t group_id)
 
 	app_settings_pages.push_back (ptr_page);
 
-	return app_settings_pages.size () - 1;
+	return INT (app_settings_pages.size () - 1);
 }
 
 HWND rapp::GetSettingsWindow ()
@@ -1544,7 +1544,7 @@ INT rapp::GetDPI (INT v) const
 	return (INT)(((ULONG64)v * (ULONG64)dpi_value + 96 / 2) / (ULONG64)96);
 }
 
-HICON rapp::GetSharedImage (HINSTANCE hinst, UINT icon_id, INT icon_size)
+HICON rapp::GetSharedImage (HINSTANCE hinst, INT icon_id, INT icon_size)
 {
 	PAPP_SHARED_IMAGE presult = nullptr;
 
@@ -1558,22 +1558,18 @@ HICON rapp::GetSharedImage (HINSTANCE hinst, UINT icon_id, INT icon_size)
 
 	if (!presult)
 	{
-		presult = new APP_SHARED_IMAGE;
-
 		const HICON hicon = _r_loadicon (hinst, MAKEINTRESOURCE (icon_id), icon_size);
 
 		if (hicon)
 		{
+			presult = new APP_SHARED_IMAGE;
+
 			presult->hinst = hinst;
 			presult->icon_id = icon_id;
 			presult->icon_size = icon_size;
 			presult->hicon = hicon;
 
 			app_shared_icons.push_back (presult);
-		}
-		else
-		{
-			SAFE_DELETE (presult);
 		}
 	}
 
@@ -1594,7 +1590,7 @@ HWND rapp::GetHWND () const
 }
 
 #ifdef _APP_HAVE_SETTINGS
-void rapp::LocaleApplyFromControl (HWND hwnd, UINT ctrl_id)
+void rapp::LocaleApplyFromControl (HWND hwnd, INT ctrl_id)
 {
 	const rstring text = _r_ctrl_gettext (hwnd, ctrl_id);
 
@@ -1610,7 +1606,7 @@ void rapp::LocaleApplyFromControl (HWND hwnd, UINT ctrl_id)
 	{
 		SettingsInitialize ();
 
-		if (settings_page_id != LAST_VALUE)
+		if (settings_page_id != INVALID_SIZE_T)
 		{
 			PAPP_SETTINGS_PAGE ptr_page = app_settings_pages.at (settings_page_id);
 
@@ -1862,7 +1858,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETBKCOLOR, TVSIL_STATE, (LPARAM)GetSysColor (COLOR_3DFACE));
 
-			const UINT dlg_id = this_ptr->ConfigGet (L"SettingsLastPage", this_ptr->app_settings_pages.at (0)->dlg_id).AsUint ();
+			const INT dlg_id = this_ptr->ConfigGet (L"SettingsLastPage", this_ptr->app_settings_pages.at (0)->dlg_id).AsInt ();
 
 			for (size_t i = 0; i < this_ptr->app_settings_pages.size (); i++)
 			{
@@ -1883,7 +1879,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 						}
 					}
 
-					ptr_page->item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr_page->locale_id, nullptr), ((ptr_page->group_id == LAST_VALUE) ? nullptr : this_ptr->app_settings_pages.at (ptr_page->group_id)->item), LAST_VALUE, (LPARAM)i);
+					ptr_page->item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr_page->locale_id, nullptr), ((ptr_page->group_id == INVALID_INT) ? nullptr : this_ptr->app_settings_pages.at (ptr_page->group_id)->item), INVALID_INT, (LPARAM)i);
 
 					if (dlg_id == ptr_page->dlg_id)
 						SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)ptr_page->item);
@@ -1956,7 +1952,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			}
 
 			this_ptr->settings_hwnd = nullptr;
-			this_ptr->settings_page_id = LAST_VALUE;
+			this_ptr->settings_page_id = INVALID_SIZE_T;
 
 			_r_wnd_top (this_ptr->GetHWND (), this_ptr->ConfigGet (L"AlwaysOnTop", _APP_ALWAYSONTOP).AsBool ());
 

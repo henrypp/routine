@@ -36,6 +36,10 @@
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "wtsapi32.lib")
 
+#ifndef STATUS_BUFFER_TOO_SMALL
+#define STATUS_BUFFER_TOO_SMALL 0xC0000023
+#endif // STATUS_BUFFER_TOO_SMALL
+
 #ifndef LVM_RESETEMPTYTEXT
 #define LVM_RESETEMPTYTEXT (LVM_FIRST + 84)
 #endif // LVM_RESETEMPTYTEXT
@@ -327,7 +331,7 @@ LONG _r_dc_fontwidth (HDC hdc, LPCWSTR text, size_t length);
 	Window management
 */
 
-void _r_wnd_addstyle (HWND hwnd, UINT ctrl_id, LONG_PTR mask, LONG_PTR stateMask, INT index);
+void _r_wnd_addstyle (HWND hwnd, INT ctrl_id, LONG_PTR mask, LONG_PTR stateMask, INT index);
 void _r_wnd_adjustwindowrect (HWND hwnd, LPRECT lprect);
 void _r_wnd_centerwindowrect (LPRECT lprect, LPRECT lpparent);
 void _r_wnd_center (HWND hwnd, HWND hparent);
@@ -361,89 +365,91 @@ bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD
 HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT cx_width);
 bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd = nullptr, WORD sw = SW_SHOWDEFAULT);
 size_t _r_rand (size_t min_number, size_t max_number);
-HANDLE _r_createthread (_beginthreadex_proc_type proc, void *args, bool is_suspended, int priority = THREAD_PRIORITY_NORMAL);
+HANDLE _r_createthread (_beginthreadex_proc_type proc, void *args, bool is_suspended, INT priority = THREAD_PRIORITY_NORMAL);
 
 /*
 	Control: common
 */
 
-UINT _r_ctrl_isradiobuttonchecked (HWND hwnd, UINT start_id, UINT end_id);
+INT _r_ctrl_isradiobuttonchecked (HWND hwnd, INT start_id, INT end_id);
 
-bool _r_ctrl_isenabled (HWND hwnd, UINT ctrl_id);
-void _r_ctrl_enable (HWND hwnd, UINT ctrl_id, bool is_enable);
+bool _r_ctrl_isenabled (HWND hwnd, INT ctrl_id);
+void _r_ctrl_enable (HWND hwnd, INT ctrl_id, bool is_enable);
 
-rstring _r_ctrl_gettext (HWND hwnd, UINT ctrl_id);
-void _r_ctrl_settext (HWND hwnd, UINT ctrl_id, LPCWSTR str, ...);
+rstring _r_ctrl_gettext (HWND hwnd, INT ctrl_id);
+void _r_ctrl_settext (HWND hwnd, INT ctrl_id, LPCWSTR str, ...);
 
 HWND _r_ctrl_createtip (HWND hparent);
-bool _r_ctrl_settip (HWND htip, HWND hparent, UINT ctrl_id, LPWSTR text);
-bool _r_ctrl_showtip (HWND hwnd, UINT ctrl_id, INT icon_id, LPCWSTR title, LPCWSTR text);
+bool _r_ctrl_settip (HWND htip, HWND hparent, INT ctrl_id, LPWSTR text);
+bool _r_ctrl_showtip (HWND hwnd, INT ctrl_id, INT icon_id, LPCWSTR title, LPCWSTR text);
 
 /*
 	Control: tab
 */
 
-INT _r_tab_additem (HWND hwnd, UINT ctrl_id, size_t index, LPCWSTR text, size_t image = LAST_VALUE, LPARAM lparam = 0);
-INT _r_tab_setitem (HWND hwnd, UINT ctrl_id, size_t index, LPCWSTR text, size_t image = LAST_VALUE, LPARAM lparam = 0);
+INT _r_tab_additem (HWND hwnd, INT ctrl_id, size_t index, LPCWSTR text, INT image = INVALID_INT, LPARAM lparam = 0);
+INT _r_tab_setitem (HWND hwnd, INT ctrl_id, size_t index, LPCWSTR text, INT image = INVALID_INT, LPARAM lparam = 0);
 
 /*
 	Control: listview
 */
 
-INT _r_listview_addcolumn (HWND hwnd, UINT ctrl_id, size_t column_id, LPCWSTR text, INT width, INT fmt);
-INT _r_listview_addgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR title, UINT align, UINT state);
-INT _r_listview_additem (HWND hwnd, UINT ctrl_id, size_t item_id, size_t subitem, LPCWSTR text, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
+INT _r_listview_addcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR text, INT width, INT fmt);
+INT _r_listview_addgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT align, UINT state);
+INT _r_listview_additem (HWND hwnd, INT ctrl_id, INT item_id, INT subitem, LPCWSTR text, INT image = INVALID_INT, INT group_id = INVALID_INT, LPARAM lparam = 0);
 
-void _r_listview_deleteallcolumns (HWND hwnd, UINT ctrl_id);
-void _r_listview_deleteallgroups (HWND hwnd, UINT ctrl_id);
-void _r_listview_deleteallitems (HWND hwnd, UINT ctrl_id);
+void _r_listview_deleteallcolumns (HWND hwnd, INT ctrl_id);
+void _r_listview_deleteallgroups (HWND hwnd, INT ctrl_id);
+void _r_listview_deleteallitems (HWND hwnd, INT ctrl_id);
 
-UINT _r_listview_getcolumncount (HWND hwnd, UINT ctrl_id);
-UINT _r_listview_getcolumncurrent (HWND hwnd, UINT ctrl_id);
-rstring _r_listview_getcolumntext (HWND hwnd, UINT ctrl_id, UINT column);
-INT _r_listview_getcolumnwidth (HWND hwnd, UINT ctrl_id, UINT column);
-size_t _r_listview_getitemcount (HWND hwnd, UINT ctrl_id, bool list_checked = false);
-LPARAM _r_listview_getitemlparam (HWND hwnd, UINT ctrl_id, size_t item);
-rstring _r_listview_getitemtext (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem);
+INT _r_listview_getcolumncount (HWND hwnd, INT ctrl_id);
+INT _r_listview_getitemcount (HWND hwnd, INT ctrl_id, bool list_checked = false);
 
-bool _r_listview_isitemchecked (HWND hwnd, UINT ctrl_id, size_t item);
-bool _r_listview_isitemvisible (HWND hwnd, UINT ctrl_id, size_t item);
+INT _r_listview_getcolumncurrent (HWND hwnd, INT ctrl_id);
+rstring _r_listview_getcolumntext (HWND hwnd, INT ctrl_id, INT column_id);
+INT _r_listview_getcolumnwidth (HWND hwnd, INT ctrl_id, INT column_id);
 
-void _r_listview_redraw (HWND hwnd, UINT ctrl_id, size_t start_id = LAST_VALUE, size_t end_id = LAST_VALUE);
+LPARAM _r_listview_getitemlparam (HWND hwnd, INT ctrl_id, INT item);
+rstring _r_listview_getitemtext (HWND hwnd, INT ctrl_id, INT item, INT subitem);
 
-void _r_listview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle);
-void _r_listview_setcolumn (HWND hwnd, UINT ctrl_id, UINT column_id, LPCWSTR text, INT width);
-void _r_listview_setcolumnsortindex (HWND hwnd, UINT ctrl_id, INT column_id, INT arrow);
-void _r_listview_setitem (HWND hwnd, UINT ctrl_id, size_t item, size_t subitem, LPCWSTR text, size_t image = LAST_VALUE, size_t group_id = LAST_VALUE, LPARAM lparam = 0);
-BOOL _r_listview_setitemcheck (HWND hwnd, UINT ctrl_id, size_t item, bool state);
-INT _r_listview_setgroup (HWND hwnd, UINT ctrl_id, size_t group_id, LPCWSTR title, UINT state, UINT state_mask);
+bool _r_listview_isitemchecked (HWND hwnd, INT ctrl_id, INT item);
+bool _r_listview_isitemvisible (HWND hwnd, INT ctrl_id, INT item);
+
+void _r_listview_redraw (HWND hwnd, INT ctrl_id, INT start_id = INVALID_INT, INT end_id = INVALID_INT);
+
+void _r_listview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle);
+void _r_listview_setcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR text, INT width);
+void _r_listview_setcolumnsortindex (HWND hwnd, INT ctrl_id, INT column_id, INT arrow);
+void _r_listview_setitem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR text, INT image = INVALID_INT, INT group_id = INVALID_INT, LPARAM lparam = 0);
+bool _r_listview_setitemcheck (HWND hwnd, INT ctrl_id, INT item, bool state);
+INT _r_listview_setgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT state, UINT state_mask);
 
 /*
 	Control: treeview
 */
 
-HTREEITEM _r_treeview_additem (HWND hwnd, UINT ctrl_id, LPCWSTR text, HTREEITEM parent = nullptr, size_t image = LAST_VALUE, LPARAM lparam = 0);
-LPARAM _r_treeview_getlparam (HWND hwnd, UINT ctrl_id, HTREEITEM item);
-DWORD _r_treeview_setstyle (HWND hwnd, UINT ctrl_id, DWORD exstyle, INT height);
+HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl_id, LPCWSTR text, HTREEITEM parent = nullptr, INT image = INVALID_INT, LPARAM lparam = 0);
+LPARAM _r_treeview_getlparam (HWND hwnd, INT ctrl_id, HTREEITEM item);
+DWORD _r_treeview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle, INT height);
 
 /*
 	Control: statusbar
 */
 
-void _r_status_settext (HWND hwnd, UINT ctrl_id, INT part, LPCWSTR text);
-void _r_status_setstyle (HWND hwnd, UINT ctrl_id, INT height);
+void _r_status_settext (HWND hwnd, INT ctrl_id, INT part, LPCWSTR text);
+void _r_status_setstyle (HWND hwnd, INT ctrl_id, INT height);
 
 /*
 	Control: toolbar
 */
 
-void _r_toolbar_setbuttoninfo (HWND hwnd, UINT ctrl_id, UINT command_id, LPCWSTR text, INT style, INT state = 0, size_t image = LAST_VALUE);
+void _r_toolbar_setbuttoninfo (HWND hwnd, INT ctrl_id, UINT command_id, LPCWSTR text, INT style, INT state = 0, INT image = INVALID_INT);
 
 /*
 	Control: progress bar
 */
 
-void _r_progress_setmarquee (HWND hwnd, UINT ctrl_id, bool is_enable);
+void _r_progress_setmarquee (HWND hwnd, INT ctrl_id, bool is_enable);
 
 /*
 	NTDLL Definitions

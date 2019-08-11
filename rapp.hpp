@@ -34,10 +34,10 @@ typedef struct _APP_SETTINGS_PAGE
 	HTREEITEM item = nullptr;
 	HWND hwnd = nullptr;
 
-	UINT dlg_id = 0;
+	INT dlg_id = 0;
 	UINT locale_id = 0;
 
-	size_t group_id = 0;
+	INT group_id = 0;
 } *PAPP_SETTINGS_PAGE, APP_SETTINGS_PAGE;
 #endif // _APP_NO_SETTINGS
 
@@ -122,7 +122,7 @@ typedef struct _APP_SHARED_IMAGE
 {
 	HINSTANCE hinst = nullptr;
 	HICON hicon = nullptr;
-	UINT icon_id = 0;
+	INT icon_id = 0;
 	INT icon_size = 0;
 } *PAPP_SHARED_IMAGE, APP_SHARED_IMAGE;
 
@@ -179,7 +179,7 @@ public:
 	void CreateAboutWindow (HWND hwnd);
 #endif // _APP_NO_ABOUT
 
-	bool CreateMainWindow (UINT dlg_id, UINT icon_id, DLGPROC proc);
+	bool CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc);
 	void RestoreWindowPosition (HWND hwnd, LPCWSTR window_name);
 
 #ifdef _APP_HAVE_TRAY
@@ -191,9 +191,9 @@ public:
 #endif // _APP_HAVE_TRAY
 
 #ifdef _APP_HAVE_SETTINGS
-	void CreateSettingsWindow (DLGPROC proc, size_t dlg_id = LAST_VALUE);
+	void CreateSettingsWindow (DLGPROC proc, INT dlg_id = INVALID_INT);
 
-	size_t SettingsAddPage (UINT dlg_id, UINT locale_id, size_t group_id = LAST_VALUE);
+	INT SettingsAddPage (INT dlg_id, UINT locale_id, INT group_id = INVALID_INT);
 	HWND GetSettingsWindow ();
 	void SettingsInitialize ();
 #endif // _APP_HAVE_SETTINGS
@@ -214,7 +214,7 @@ public:
 	INT GetDPI (INT v) const;
 	HINSTANCE GetHINSTANCE () const;
 	HWND GetHWND () const;
-	HICON GetSharedImage (HINSTANCE hinst, UINT icon_id, INT icon_size);
+	HICON GetSharedImage (HINSTANCE hinst, INT icon_id, INT icon_size);
 
 	bool IsAdmin () const;
 	bool IsClassicUI () const;
@@ -223,7 +223,7 @@ public:
 	bool IsVistaOrLater () const;
 #endif // _APP_NO_WINXP
 
-	void LocaleApplyFromControl (HWND hwnd, UINT ctrl_id);
+	void LocaleApplyFromControl (HWND hwnd, INT ctrl_id);
 	void LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id);
 	void LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start);
 	size_t LocaleGetCount () const;

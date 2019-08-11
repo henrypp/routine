@@ -11,7 +11,9 @@
 	Configuration
 */
 
-#define LAST_VALUE (size_t(-1))
+#define INVALID_INT (INT(-1))
+#define INVALID_UINT (UINT(-1))
+#define INVALID_SIZE_T (size_t(-1))
 
 #define _R_BUFFER_LENGTH 8192
 #define _R_BUFFER_INET_LENGTH (_R_BUFFER_LENGTH * 4)
