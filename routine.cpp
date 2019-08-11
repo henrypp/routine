@@ -2819,7 +2819,7 @@ rstring _r_listview_getitemtext (HWND hwnd, INT ctrl_id, INT item, INT subitem)
 		lvi.pszText = result.GetBuffer (length);
 		lvi.cchTextMax = length;
 
-		out_length = (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMTEXT, item, (LPARAM)& lvi);
+		out_length = (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMTEXT, (WPARAM)item, (LPARAM)& lvi);
 		result.ReleaseBuffer ();
 	}
 	while (out_length == (length - 1));
@@ -2829,19 +2829,19 @@ rstring _r_listview_getitemtext (HWND hwnd, INT ctrl_id, INT item, INT subitem)
 
 bool _r_listview_isitemchecked (HWND hwnd, INT ctrl_id, INT item)
 {
-	return !!(((SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMSTATE, item, LVIS_STATEIMAGEMASK)) >> 12) - 1);
+	return !!(((SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMSTATE, (WPARAM)item, LVIS_STATEIMAGEMASK)) >> 12) - 1);
 }
 
 bool _r_listview_isitemvisible (HWND hwnd, INT ctrl_id, INT item)
 {
-	return !!(SendDlgItemMessage (hwnd, ctrl_id, LVM_ISITEMVISIBLE, item, 0));
+	return !!(SendDlgItemMessage (hwnd, ctrl_id, LVM_ISITEMVISIBLE, (WPARAM)item, 0));
 }
 
 void _r_listview_redraw (HWND hwnd, INT ctrl_id, INT start_id, INT end_id)
 {
 	if (start_id != INVALID_INT && end_id != INVALID_INT)
 	{
-		SendDlgItemMessage (hwnd, ctrl_id, LVM_REDRAWITEMS, start_id, end_id);
+		SendDlgItemMessage (hwnd, ctrl_id, LVM_REDRAWITEMS, (WPARAM)start_id, (LPARAM)end_id);
 	}
 	else
 	{
@@ -2850,7 +2850,7 @@ void _r_listview_redraw (HWND hwnd, INT ctrl_id, INT start_id, INT end_id)
 		for (INT i = 0; i < total_count; i++)
 		{
 			if (_r_listview_isitemvisible (hwnd, ctrl_id, i))
-				SendDlgItemMessage (hwnd, ctrl_id, LVM_REDRAWITEMS, i, i);
+				SendDlgItemMessage (hwnd, ctrl_id, LVM_REDRAWITEMS, (WPARAM)i, (LPARAM)i);
 		}
 	}
 }
@@ -2967,7 +2967,7 @@ bool _r_listview_setitemcheck (HWND hwnd, INT ctrl_id, INT item, bool state)
 	lvi.stateMask = LVIS_STATEIMAGEMASK;
 	lvi.state = INDEXTOSTATEIMAGEMASK (state ? 2 : 1);
 
-	return !!SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEMSTATE, (item == INVALID_INT) ? -1 : item, (LPARAM)& lvi);
+	return !!SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEMSTATE, (WPARAM)item, (LPARAM)& lvi);
 }
 
 INT _r_listview_setgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT state, UINT state_mask)
@@ -3117,14 +3117,14 @@ void _r_toolbar_setbuttoninfo (HWND hwnd, INT ctrl_id, UINT command_id, LPCWSTR 
 		buttonInfo.iImage = image;
 	}
 
-	SendDlgItemMessage (hwnd, ctrl_id, TB_SETBUTTONINFO, command_id, (LPARAM)& buttonInfo);
+	SendDlgItemMessage (hwnd, ctrl_id, TB_SETBUTTONINFO, (WPARAM)command_id, (LPARAM)& buttonInfo);
 }
 
 /*
 	Control: progress bar
 */
 
-void _r_progress_setmarquee (HWND hwnd, INT ctrl_id, bool is_enable)
+void _r_progress_setmarquee (HWND hwnd, INT ctrl_id, BOOL is_enable)
 {
 	SendDlgItemMessage (hwnd, ctrl_id, PBM_SETMARQUEE, (WPARAM)is_enable, (LPARAM)18);
 

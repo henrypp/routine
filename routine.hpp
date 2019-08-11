@@ -449,7 +449,7 @@ void _r_toolbar_setbuttoninfo (HWND hwnd, INT ctrl_id, UINT command_id, LPCWSTR 
 	Control: progress bar
 */
 
-void _r_progress_setmarquee (HWND hwnd, INT ctrl_id, bool is_enable);
+void _r_progress_setmarquee (HWND hwnd, INT ctrl_id, BOOL is_enable);
 
 /*
 	NTDLL Definitions
