@@ -330,10 +330,14 @@ bool rapp::DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_C
 						break;
 
 					if (is_filepath)
+					{
 						WriteFile (hfile, content_buffer, readed, &notneed, nullptr);
-
+					}
 					else
-						lpbuffer->Append (content_buffer);
+					{
+						if (lpbuffer)
+							lpbuffer->Append (content_buffer);
+					}
 
 					if (callback)
 					{
@@ -755,7 +759,7 @@ void rapp::CreateAboutWindow (HWND hwnd)
 #endif // _APP_NO_WINXP
 
 		ReleaseMutex (habout);
-	}
+}
 
 	if (habout)
 		CloseHandle (habout);
@@ -963,7 +967,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 
 		_r_msg (nullptr, MB_OK | MB_ICONEXCLAMATION, app_name, L"Warning!", L"%s administrative privileges is required!", app_name);
 		return false;
-	}
+}
 #elif _APP_HAVE_SKIPUAC
 	if (!IsAdmin () && SkipUacRun ())
 		return false;
@@ -1298,7 +1302,7 @@ bool rapp::TrayPopup (HWND hwnd, UINT uid, LPGUID guid, DWORD icon_id, LPCWSTR t
 		nid.hBalloonIcon = GetSharedIcon (nullptr, SIH_INFORMATION, GetSystemMetrics (SM_CXICON));
 #pragma _R_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
-	}
+}
 
 	// tooltip-visibility fix
 	if (nid.szTip[0])
@@ -2168,7 +2172,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					StringCchCopy (str_content, _countof (str_content), L"Update available, do you want to install them?");
 #pragma _R_WARNING(IDS_UPDATE_INSTALL)
 #endif // IDS_UPDATE_INSTALL
-				}
+			}
 				else
 				{
 #ifdef IDS_UPDATE_DONE
@@ -2177,8 +2181,8 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					StringCchCopy (str_content, _countof (str_content), L"Downloading update finished.");
 #pragma _R_WARNING(IDS_UPDATE_DONE)
 #endif // IDS_UPDATE_DONE
-				}
-			}
+		}
+	}
 			else
 			{
 #ifdef IDS_UPDATE_ERROR
@@ -2187,7 +2191,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 				StringCchCopy (str_content, _countof (str_content), L"Update server connection error");
 #pragma _R_WARNING(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
-			}
+}
 
 #ifndef _APP_NO_WINXP
 			if (papp->IsVistaOrLater ())
@@ -2330,7 +2334,7 @@ INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS f
 		tdc.pszMainIcon = TD_INFORMATION_ICON;
 #pragma _R_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
-	}
+}
 
 	StringCchCopy (str_title, _countof (str_title), app_name);
 
@@ -2541,12 +2545,12 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 #endif // IDS_UPDATE_NO
 
 						papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
-					}
 				}
 			}
+		}
 
 			papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
-		}
+}
 
 		SetEvent (pupdateinfo->hend);
 	}
