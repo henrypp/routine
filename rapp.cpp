@@ -506,8 +506,8 @@ rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 
 		if (map.find (key) != map.end ())
 		{
-			if (!app_config_array.at (cfg_name).at (key).IsEmpty ())
-				return app_config_array.at (cfg_name).at (key);
+			if (!map.at (key).IsEmpty ())
+				return map.at (key);
 		}
 	}
 
