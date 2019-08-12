@@ -2374,27 +2374,30 @@ bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 {
 	STARTUPINFO si = {0};
 	PROCESS_INFORMATION pi = {0};
+
+	SecureZeroMemory (&si, sizeof (si));
+	SecureZeroMemory (&pi, sizeof (pi));
+
 	bool result = false;
 	si.cb = sizeof (si);
 
 	if (sw != SW_SHOWDEFAULT)
 	{
-		si.dwFlags = STARTF_USESHOWWINDOW;
+		si.dwFlags |= STARTF_USESHOWWINDOW;
 		si.wShowWindow = sw;
 	}
 
 	rstring _intptr = cmdline ? cmdline : filename;
 
 	if (CreateProcess (filename, _intptr.GetBuffer (), nullptr, nullptr, FALSE, 0, nullptr, cd, &si, &pi))
+	{
 		result = true;
 
-	_intptr.Clear ();
-
-	if (pi.hThread)
 		CloseHandle (pi.hThread);
-
-	if (pi.hProcess)
 		CloseHandle (pi.hProcess);
+	}
+
+	_intptr.Clear ();
 
 	return result;
 }
