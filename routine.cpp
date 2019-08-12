@@ -2540,7 +2540,7 @@ bool _r_ctrl_showtip (HWND hwnd, INT ctrl_id, INT icon_id, LPCWSTR title, LPCWST
 	Control: tab
 */
 
-INT _r_tab_additem (HWND hwnd, INT ctrl_id, size_t index, LPCWSTR text, INT image, LPARAM lparam)
+INT _r_tab_additem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image, LPARAM lparam)
 {
 	TCITEM tci = {0};
 
@@ -2565,7 +2565,7 @@ INT _r_tab_additem (HWND hwnd, INT ctrl_id, size_t index, LPCWSTR text, INT imag
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, TCM_INSERTITEM, (WPARAM)index, (LPARAM)& tci);
 }
 
-INT _r_tab_setitem (HWND hwnd, INT ctrl_id, size_t index, LPCWSTR text, INT image, LPARAM lparam)
+INT _r_tab_setitem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image, LPARAM lparam)
 {
 	TCITEM tci = {0};
 

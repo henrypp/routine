@@ -387,8 +387,8 @@ bool _r_ctrl_showtip (HWND hwnd, INT ctrl_id, INT icon_id, LPCWSTR title, LPCWST
 	Control: tab
 */
 
-INT _r_tab_additem (HWND hwnd, INT ctrl_id, size_t index, LPCWSTR text, INT image = INVALID_INT, LPARAM lparam = 0);
-INT _r_tab_setitem (HWND hwnd, INT ctrl_id, size_t index, LPCWSTR text, INT image = INVALID_INT, LPARAM lparam = 0);
+INT _r_tab_additem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image = INVALID_INT, LPARAM lparam = 0);
+INT _r_tab_setitem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image = INVALID_INT, LPARAM lparam = 0);
 
 /*
 	Control: listview
@@ -806,15 +806,27 @@ typedef struct _MEMORY_COMBINE_INFORMATION_EX
 	ULONG Flags;
 } MEMORY_COMBINE_INFORMATION_EX, *PMEMORY_COMBINE_INFORMATION_EX;
 
+#ifdef _WIN64
 typedef struct _OBJECT_ATTRIBUTES
 {
 	ULONG Length;
-	HANDLE RootDirectory;
-	PUNICODE_STRING ObjectName;
+	ULONG64 RootDirectory;
+	ULONG64 ObjectName;
 	ULONG Attributes;
-	PVOID SecurityDescriptor; // PSECURITY_DESCRIPTOR;
-	PVOID SecurityQualityOfService; // PSECURITY_QUALITY_OF_SERVICE
+	ULONG64 SecurityDescriptor;
+	ULONG64 SecurityQualityOfService;
 } OBJECT_ATTRIBUTES, *POBJECT_ATTRIBUTES;
+#else
+typedef struct _OBJECT_ATTRIBUTES
+{
+	ULONG Length;
+	ULONG RootDirectory;
+	ULONG ObjectName;
+	ULONG Attributes;
+	ULONG SecurityDescriptor;
+	ULONG SecurityQualityOfService;
+} OBJECT_ATTRIBUTES, *POBJECT_ATTRIBUTES;
+#endif // _WIN64
 
 extern "C" {
 	NTSYSCALLAPI
