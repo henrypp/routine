@@ -460,6 +460,11 @@ void rapp::ConfigInit ()
 	LocaleInit ();
 }
 
+rstring rapp::ConfigGet (LPCWSTR key, bool def, LPCWSTR name)
+{
+	return ConfigGet (key, _r_fmt (L"%" PRIi32, def ? 1 : 0), name);
+}
+
 rstring rapp::ConfigGet (LPCWSTR key, INT def, LPCWSTR name)
 {
 	return ConfigGet (key, _r_fmt (L"%" PRIi32, def), name);
@@ -470,14 +475,14 @@ rstring rapp::ConfigGet (LPCWSTR key, UINT def, LPCWSTR name)
 	return ConfigGet (key, _r_fmt (L"%" PRIu32, def), name);
 }
 
-rstring rapp::ConfigGet (LPCWSTR key, DWORD def, LPCWSTR name)
-{
-	return ConfigGet (key, _r_fmt (L"%" PRIu32, def), name);
-}
-
 rstring rapp::ConfigGet (LPCWSTR key, LONG def, LPCWSTR name)
 {
 	return ConfigGet (key, _r_fmt (L"%" PRId32, def), name);
+}
+
+rstring rapp::ConfigGet (LPCWSTR key, ULONG def, LPCWSTR name)
+{
+	return ConfigGet (key, _r_fmt (L"%" PRIu32, def), name);
 }
 
 rstring rapp::ConfigGet (LPCWSTR key, LONGLONG def, LPCWSTR name)
@@ -485,9 +490,9 @@ rstring rapp::ConfigGet (LPCWSTR key, LONGLONG def, LPCWSTR name)
 	return ConfigGet (key, _r_fmt (L"%" PRId64, def), name);
 }
 
-rstring rapp::ConfigGet (LPCWSTR key, bool def, LPCWSTR name)
+rstring rapp::ConfigGet (LPCWSTR key, ULONGLONG def, LPCWSTR name)
 {
-	return ConfigGet (key, _r_fmt (L"%" PRIi32, def ? 1 : 0), name);
+	return ConfigGet (key, _r_fmt (L"%" PRIu64, def), name);
 }
 
 rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
@@ -514,6 +519,11 @@ rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 	return def;
 }
 
+bool rapp::ConfigSet (LPCWSTR key, bool val, LPCWSTR name)
+{
+	return ConfigSet (key, val ? L"true" : L"false", name);
+}
+
 bool rapp::ConfigSet (LPCWSTR key, INT val, LPCWSTR name)
 {
 	return ConfigSet (key, _r_fmt (L"%" PRIi32, val), name);
@@ -524,19 +534,14 @@ bool rapp::ConfigSet (LPCWSTR key, UINT val, LPCWSTR name)
 	return ConfigSet (key, _r_fmt (L"%" PRIu32, val), name);
 }
 
-bool rapp::ConfigSet (LPCWSTR key, ULONG val, LPCWSTR name)
-{
-	return ConfigSet (key, _r_fmt (L"%" PRIu32, val), name);
-}
-
-bool rapp::ConfigSet (LPCWSTR key, ULONGLONG val, LPCWSTR name)
-{
-	return ConfigSet (key, _r_fmt (L"%" PRIu64, val), name);
-}
-
 bool rapp::ConfigSet (LPCWSTR key, LONG val, LPCWSTR name)
 {
 	return ConfigSet (key, _r_fmt (L"%" PRId32, val), name);
+}
+
+bool rapp::ConfigSet (LPCWSTR key, ULONG val, LPCWSTR name)
+{
+	return ConfigSet (key, _r_fmt (L"%" PRIu32, val), name);
 }
 
 bool rapp::ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name)
@@ -544,9 +549,9 @@ bool rapp::ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name)
 	return ConfigSet (key, _r_fmt (L"%" PRId64, val), name);
 }
 
-bool rapp::ConfigSet (LPCWSTR key, bool val, LPCWSTR name)
+bool rapp::ConfigSet (LPCWSTR key, ULONGLONG val, LPCWSTR name)
 {
-	return ConfigSet (key, val ? L"true" : L"false", name);
+	return ConfigSet (key, _r_fmt (L"%" PRIu64, val), name);
 }
 
 bool rapp::ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name)
@@ -1687,7 +1692,7 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start)
 
 	if (!app_locale_array.empty ())
 	{
-		size_t idx = 1;
+		UINT idx = 1;
 
 		if (is_menu)
 		{
@@ -1704,14 +1709,14 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start)
 				AppendMenu (hmenu, MF_STRING, UINT_PTR (idx + id_start), name);
 
 				if (locale_current[0] && _wcsicmp (locale_current, name) == 0)
-					CheckMenuRadioItem (hmenu, id_start, id_start + UINT (idx), id_start + UINT (idx), MF_BYCOMMAND);
+					CheckMenuRadioItem (hmenu, id_start, id_start + idx, id_start + idx, MF_BYCOMMAND);
 			}
 			else
 			{
-				SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, idx, (LPARAM)name);
+				SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, (WPARAM)idx, (LPARAM)name);
 
 				if (locale_current[0] && _wcsicmp (locale_current, name) == 0)
-					SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, idx, 0);
+					SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, (WPARAM)idx, 0);
 			}
 
 			idx += 1;
