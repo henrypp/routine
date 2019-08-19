@@ -1706,7 +1706,7 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start)
 
 			if (is_menu)
 			{
-				AppendMenu (hmenu, MF_STRING, UINT_PTR (idx + id_start), name);
+				AppendMenu (hmenu, MF_STRING, idx + id_start, name);
 
 				if (locale_current[0] && _wcsicmp (locale_current, name) == 0)
 					CheckMenuRadioItem (hmenu, id_start, id_start + idx, id_start + idx, MF_BYCOMMAND);

@@ -247,64 +247,61 @@ bool rstring::AsBool () const
 	return false;
 }
 
-int rstring::AsInt (int radix) const
+INT rstring::AsInt (INT radix) const
 {
-	return static_cast<int>(AsLong (radix));
+	return (INT)AsLong (radix);
 }
 
-DOUBLE rstring::AsDouble () const
+double rstring::AsDouble () const
 {
 	if (IsEmpty ())
-		return 0;
+		return 0.f;
 
 	return wcstod (GetString (), nullptr);
 }
 
-LONG rstring::AsLong (int radix) const
+LONG rstring::AsLong (INT radix) const
 {
 	if (IsEmpty ())
-		return 0;
+		return 0l;
 
 	return wcstol (GetString (), nullptr, radix);
 }
 
-LONGLONG rstring::AsLonglong (int radix) const
+LONGLONG rstring::AsLonglong (INT radix) const
 {
 	if (IsEmpty ())
-		return 0;
+		return 0ll;
 
 	return wcstoll (GetString (), nullptr, radix);
 }
 
-size_t rstring::AsSizeT (int radix) const
+size_t rstring::AsSizeT (INT radix) const
 {
-	if (IsEmpty ())
-		return 0;
-
 #ifdef _WIN64
-	return wcstoull (GetString (), nullptr, radix);
+	return (size_t)AsUlonglong (radix);
 #else
-	return static_cast<size_t>(AsUlong (radix));
+	return (size_t)AsUint (radix);
 #endif
 }
 
-UINT rstring::AsUint (int radix) const
+UINT rstring::AsUint (INT radix) const
 {
-	return static_cast<int>(AsUlong (radix));
+	return (UINT)AsUlong (radix);
 }
 
-ULONG rstring::AsUlong (int radix) const
+ULONG rstring::AsUlong (INT radix) const
 {
 	if (IsEmpty ())
-		return 0;
+		return 0ul;
 
 	return wcstoul (GetString (), nullptr, radix);
 }
 
-ULONGLONG rstring::AsUlonglong (int radix) const
+ULONGLONG rstring::AsUlonglong (INT radix) const
 {
 	if (IsEmpty ())
-		return 0;
+		return 0ull;
 
 	return wcstoull (GetString (), nullptr, radix);
 }
@@ -611,7 +608,7 @@ rstring& rstring::Replace (LPCWSTR from, LPCWSTR to)
 rstring& rstring::Trim (LPCWSTR chars)
 {
 #ifdef StrTrimW
-	StrTrimW (GetBuffer(), chars);
+	StrTrimW (GetBuffer (), chars);
 	ReleaseBuffer ();
 #else
 	Buffer* thisBuffer = toBuffer ();

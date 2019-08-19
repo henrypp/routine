@@ -84,7 +84,7 @@ public:
 
 	bool AsBool () const;
 	INT AsInt (INT radix = 10) const;
-	DOUBLE AsDouble () const;
+	double AsDouble () const;
 	LONG AsLong (INT radix = 10) const;
 	LONGLONG AsLonglong (INT radix = 10) const;
 	size_t AsSizeT (INT radix = 10) const;
