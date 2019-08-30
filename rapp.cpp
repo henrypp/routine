@@ -350,10 +350,14 @@ bool rapp::DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_C
 				}
 
 				if (is_filepath)
+				{
 					CloseHandle (hfile);
-
+				}
 				else
-					lpbuffer->Trim (L"\r\n ");
+				{
+					if (lpbuffer)
+						lpbuffer->Trim (L"\r\n ");
+				}
 			}
 
 			SAFE_DELETE_ARRAY (content_buffer);
@@ -988,7 +992,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 	{
 		if (!ConfirmMessage (nullptr, L"Warning!", _r_fmt (L"You are attempting to run the 32-bit version of %s on 64-bit Windows.\r\nPlease run the 64-bit version of %s instead.", app_name, app_name), L"ConfirmWOW64"))
 			return false;
-	}
+}
 #endif // _WIN64
 
 	// check checksum
@@ -1184,7 +1188,7 @@ void rapp::RestoreWindowPosition (HWND hwnd, LPCWSTR window_name)
 		max_width = _R_RECT_WIDTH (&rect_original);
 		max_height = _R_RECT_HEIGHT (&rect_original);
 #endif // _APP_HAVE_MINSIZE
-	}
+}
 
 	// restore window position
 	RECT rect_new = {0};
@@ -1634,7 +1638,7 @@ void rapp::LocaleApplyFromControl (HWND hwnd, INT ctrl_id)
 		SendMessage (GetHWND (), RM_LOCALIZE, 0, 0);
 
 		DrawMenuBar (GetHWND ()); // redraw menu
-	}
+}
 }
 #endif // _APP_HAVE_SETTINGS
 
@@ -2971,7 +2975,7 @@ bool rapp::RunAsAdmin ()
 					CoUninitialize ();
 			}
 		}
-	}
+}
 
 	return result;
 }
