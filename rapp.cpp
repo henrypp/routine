@@ -960,6 +960,32 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 {
 	bool result = false;
 
+	// check checksum
+#ifndef _DEBUG
+	{
+		const HINSTANCE hlib = LoadLibrary (L"imagehlp.dll");
+
+		if (hlib)
+		{
+			typedef BOOL (WINAPI * MFACS) (PCWSTR, PDWORD, PDWORD); // MapFileAndCheckSumW
+			const MFACS _MapFileAndCheckSumW = (MFACS)GetProcAddress (hlib, "MapFileAndCheckSumW");
+
+			if (_MapFileAndCheckSumW)
+			{
+				DWORD dwFileChecksum = 0, dwRealChecksum = 0;
+
+				if (_MapFileAndCheckSumW (GetBinaryPath (), &dwFileChecksum, &dwRealChecksum) == ERROR_SUCCESS)
+				{
+					if (dwRealChecksum != dwFileChecksum)
+						return false;
+				}
+			}
+
+			FreeLibrary (hlib);
+		}
+	}
+#endif // _DEBUG
+
 	// initialize controls
 	{
 		INITCOMMONCONTROLSEX icex = {0};
@@ -994,32 +1020,6 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 			return false;
 }
 #endif // _WIN64
-
-	// check checksum
-#ifndef _DEBUG
-	{
-		const HINSTANCE hlib = LoadLibrary (L"imagehlp.dll");
-
-		if (hlib)
-		{
-			typedef BOOL (WINAPI * MFACS) (PCWSTR, PDWORD, PDWORD); // MapFileAndCheckSumW
-			const MFACS _MapFileAndCheckSumW = (MFACS)GetProcAddress (hlib, "MapFileAndCheckSumW");
-
-			if (_MapFileAndCheckSumW)
-			{
-				DWORD dwFileChecksum = 0, dwRealChecksum = 0;
-
-				if (_MapFileAndCheckSumW (GetBinaryPath (), &dwFileChecksum, &dwRealChecksum) == ERROR_SUCCESS)
-				{
-					if (dwRealChecksum != dwFileChecksum)
-						return false;
-				}
-			}
-
-			FreeLibrary (hlib);
-		}
-	}
-#endif // _DEBUG
 
 	MutexCreate ();
 
