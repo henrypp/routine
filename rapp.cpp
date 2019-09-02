@@ -1498,7 +1498,13 @@ void rapp::SettingsInitialize ()
 #endif // IDC_RESET
 
 	// apply classic ui for buttons
+#ifdef IDC_RESET
+	_r_wnd_addstyle (hwnd, IDC_RESET, IsClassicUI () ? WS_EX_STATICEDGE : 0, WS_EX_STATICEDGE, GWL_EXSTYLE);
+#endif // IDC_RESET
+
+#ifdef IDC_CLOSE
 	_r_wnd_addstyle (hwnd, IDC_CLOSE, IsClassicUI () ? WS_EX_STATICEDGE : 0, WS_EX_STATICEDGE, GWL_EXSTYLE);
+#endif // IDC_CLOSE
 
 	// initialize treeview
 	for (size_t i = 0; i < app_settings_pages.size (); i++)
