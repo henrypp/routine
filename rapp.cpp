@@ -977,7 +977,10 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 				if (_MapFileAndCheckSumW (GetBinaryPath (), &dwFileChecksum, &dwRealChecksum) == ERROR_SUCCESS)
 				{
 					if (dwRealChecksum != dwFileChecksum)
+					{
+						FreeLibrary (hlib);
 						return false;
+					}
 				}
 			}
 
@@ -2584,8 +2587,10 @@ bool rapp::ParseINI (LPCWSTR path, rstring::map_two * pmap, std::vector<rstring>
 		rstring section_ptr;
 		rstring value_ptr;
 
-		size_t length = 0, out_length = 0;
-		size_t delimeter = 0;
+		size_t length = 0;
+
+		size_t out_length;
+		size_t delimeter;
 
 		// get sections
 		do

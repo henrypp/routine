@@ -229,7 +229,7 @@ public:
 	void LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start);
 	size_t LocaleGetCount () const;
 	time_t LocaleGetVersion () const;
-	rstring LocaleString (UINT id, LPCWSTR append);
+	rstring LocaleString (UINT uid, LPCWSTR append);
 	void LocaleMenu (HMENU menu, UINT id, UINT item, bool by_position, LPCWSTR append);
 
 #ifdef _APP_HAVE_SKIPUAC
