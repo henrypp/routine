@@ -4,12 +4,23 @@
 #pragma once
 
 #include <windows.h>
-#include <math.h>
-#include <strsafe.h>
 
 /*
 	Configuration
 */
+
+#if defined(_WIN64)
+#if defined(_WINDOWS_)
+#define PR_SIZE_T "Iu"
+#define PR_PTRDIFF "Id"
+#else
+#define PR_SIZE_T "zu"
+#define PR_PTRDIFF "zd"
+#endif
+#elif defined(_WIN32)
+#define PR_SIZE_T "u"
+#define PR_PTRDIFF "d"
+#endif
 
 #define INVALID_INT (INT(-1))
 #define INVALID_UINT (UINT(-1))
