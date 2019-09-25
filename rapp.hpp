@@ -19,12 +19,6 @@
 #endif // _APP_HAVE_SKIPUAC
 
 /*
-	Callback functions
-*/
-
-typedef bool (*DOWNLOAD_CALLBACK) (DWORD total_written, DWORD total_length, LONG_PTR lpdata);
-
-/*
 	Structures
 */
 
@@ -81,7 +75,8 @@ struct MBSTR
 {
 	MBSTR (LPCWSTR asString = nullptr)
 	{
-		ms_bstr = asString ? SysAllocString (asString) : nullptr;
+		if (asString)
+			ms_bstr = SysAllocString (asString);
 	}
 
 	~MBSTR ()
@@ -99,7 +94,7 @@ struct MBSTR
 		if (asString != ms_bstr)
 		{
 			Free ();
-			ms_bstr = asString ? ::SysAllocString (asString) : nullptr;
+			ms_bstr = asString ? SysAllocString (asString) : nullptr;
 		}
 
 		return *this;
@@ -114,7 +109,7 @@ struct MBSTR
 		}
 	}
 protected:
-	BSTR ms_bstr;
+	BSTR ms_bstr = nullptr;
 };
 #endif // _APP_HAVE_SKIPUAC
 
@@ -141,8 +136,6 @@ public:
 	bool MutexDestroy ();
 	bool MutexIsExists (bool activate_window);
 
-	bool DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_CALLBACK callback, LONG_PTR lpdata);
-
 #ifdef _APP_HAVE_AUTORUN
 	bool AutorunIsEnabled ();
 	bool AutorunEnable (bool is_enable);
@@ -151,7 +144,7 @@ public:
 #ifdef _APP_HAVE_UPDATES
 	void UpdateAddComponent (LPCWSTR full_name, LPCWSTR short_name, LPCWSTR version, LPCWSTR target_path, bool is_installer);
 	bool UpdateCheck (bool is_forced);
-	void UpdateInstall ();
+	void UpdateInstall () const;
 #endif // _APP_HAVE_UPDATES
 
 	rstring ConfigGet (LPCWSTR key, bool def, LPCWSTR name = nullptr);
@@ -159,8 +152,8 @@ public:
 	rstring ConfigGet (LPCWSTR key, UINT def, LPCWSTR name = nullptr);
 	rstring ConfigGet (LPCWSTR key, LONG def, LPCWSTR name = nullptr);
 	rstring ConfigGet (LPCWSTR key, ULONG def, LPCWSTR name = nullptr);
-	rstring ConfigGet (LPCWSTR key, LONGLONG def, LPCWSTR name = nullptr);
-	rstring ConfigGet (LPCWSTR key, ULONGLONG def, LPCWSTR name = nullptr);
+	rstring ConfigGet (LPCWSTR key, LONG64 def, LPCWSTR name = nullptr);
+	rstring ConfigGet (LPCWSTR key, ULONG64 def, LPCWSTR name = nullptr);
 	rstring ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name = nullptr);
 
 	bool ConfigSet (LPCWSTR key, bool val, LPCWSTR name = nullptr);
@@ -168,8 +161,8 @@ public:
 	bool ConfigSet (LPCWSTR key, UINT val, LPCWSTR name = nullptr);
 	bool ConfigSet (LPCWSTR key, LONG val, LPCWSTR name = nullptr);
 	bool ConfigSet (LPCWSTR key, ULONG val, LPCWSTR name = nullptr);
-	bool ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name = nullptr);
-	bool ConfigSet (LPCWSTR key, ULONGLONG val, LPCWSTR name = nullptr);
+	bool ConfigSet (LPCWSTR key, LONG64 val, LPCWSTR name = nullptr);
+	bool ConfigSet (LPCWSTR key, ULONG64 val, LPCWSTR name = nullptr);
 	bool ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name = nullptr);
 
 	void ConfigInit ();
@@ -182,14 +175,6 @@ public:
 
 	bool CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc);
 	void RestoreWindowPosition (HWND hwnd, LPCWSTR window_name);
-
-#ifdef _APP_HAVE_TRAY
-	bool TrayCreate (HWND hwnd, UINT uid, LPGUID guid, UINT code, HICON hicon, bool is_hidden);
-	bool TrayDestroy (HWND hwnd, UINT uid, LPGUID guid);
-	bool TrayPopup (HWND hwnd, UINT uid, LPGUID guid, DWORD icon_id, LPCWSTR title, LPCWSTR text);
-	bool TraySetInfo (HWND hwnd, UINT uid, LPGUID guid, HICON hicon, LPCWSTR tooltip);
-	bool TrayToggle (HWND hwnd, UINT uid, LPGUID guid, bool is_show);
-#endif // _APP_HAVE_TRAY
 
 #ifdef _APP_HAVE_SETTINGS
 	void CreateSettingsWindow (DLGPROC proc, INT dlg_id = INVALID_INT);
@@ -212,7 +197,6 @@ public:
 
 	LPCWSTR GetUserAgent () const;
 
-	INT GetDPI (INT v) const;
 	HINSTANCE GetHINSTANCE () const;
 	HWND GetHWND () const;
 	HICON GetSharedImage (HINSTANCE hinst, INT icon_id, INT icon_size);
@@ -257,22 +241,21 @@ private:
 	static LRESULT CALLBACK MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 	static BOOL CALLBACK ActivateWindowCallback (HWND hwnd, LPARAM lparam);
 
-	bool ParseINI (LPCWSTR path, rstring::map_two* pmap, std::vector<rstring>* psections);
-
 	void LocaleInit ();
 
 #ifdef _APP_HAVE_UPDATES
 	PAPP_UPDATE_INFO pupdateinfo;
 #endif // _APP_HAVE_UPDATES
 
-	ULONG dpi_value = 96;
-
 #ifdef _APP_HAVE_DARKTHEME
 	bool is_darktheme = false;
 #endif // _APP_HAVE_DARKTHEME
 
-	bool is_classic = false;
+#ifndef _APP_NO_WINXP
 	bool is_vistaorlater = false;
+#endif // _APP_NO_WINXP
+
+	bool is_classic = false;
 	bool is_admin = false;
 	bool is_needmaximize = false;
 
@@ -303,9 +286,9 @@ private:
 	WCHAR locale_default[LOCALE_NAME_MAX_LENGTH];
 	WCHAR locale_current[LOCALE_NAME_MAX_LENGTH];
 
-	rstring::map_two app_config_array;
-	rstring::map_two app_locale_array;
-	std::vector<rstring> app_locale_names;
+	rstringmap2 app_config_array;
+	rstringmap2 app_locale_array;
+	rstringvec app_locale_names;
 	std::vector<PAPP_SHARED_IMAGE> app_shared_icons;
 
 	time_t app_locale_timetamp = 0;

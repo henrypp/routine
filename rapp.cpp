@@ -10,7 +10,10 @@ CONST UINT WM_TASKBARCREATED = RegisterWindowMessage (L"TaskbarCreated");
 rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright)
 {
 	// store system information
+#ifndef _APP_NO_WINXP
 	is_vistaorlater = _r_sys_validversion (6, 0);
+#endif // _APP_NO_WINXP
+
 	is_admin = _r_sys_isadmin ();
 
 #ifdef _APP_HAVE_UPDATES
@@ -28,7 +31,6 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 		if (hlib)
 		{
 			typedef BOOL (WINAPI * SSPM) (DWORD); // SetSearchPathMode
-
 			const SSPM _SetSearchPathMode = (SSPM)GetProcAddress (hlib, "SetSearchPathMode");
 
 			if (_SetSearchPathMode)
@@ -40,27 +42,20 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	app_hinstance = GetModuleHandle (nullptr);
 
 	// general information
-	StringCchCopy (app_name, _countof (app_name), name);
-	StringCchCopy (app_name_short, _countof (app_name_short), short_name);
-	StringCchCopy (app_version, _countof (app_version), version);
-	StringCchCopy (app_copyright, _countof (app_copyright), copyright);
+	_r_str_copy (app_name, _countof (app_name), name);
+	_r_str_copy (app_name_short, _countof (app_name_short), short_name);
+	_r_str_copy (app_version, _countof (app_version), version);
+	_r_str_copy (app_copyright, _countof (app_copyright), copyright);
 
 #if defined(_APP_BETA) || defined(_APP_BETA_RC)
-	StringCchCat (app_version, _countof (app_version), L" Pre-release");
+	_r_str_cat (app_version, _countof (app_version), L" Pre-release");
 #else
-	StringCchCat (app_version, _countof (app_version), L" Release");
+	_r_str_cat (app_version, _countof (app_version), L" Release");
 #endif // _APP_BETA || _APP_BETA_RC
-
-	// get dpi scale
-	{
-		const HDC hdc = GetDC (nullptr);
-		dpi_value = GetDeviceCaps (hdc, LOGPIXELSX);
-		ReleaseDC (nullptr, hdc);
-	}
 
 	// get paths
 	GetModuleFileName (GetHINSTANCE (), app_binary, _countof (app_binary));
-	StringCchCopy (app_directory, _countof (app_directory), app_binary);
+	_r_str_copy (app_directory, _countof (app_directory), app_binary);
 	PathRemoveFileSpec (app_directory);
 
 	// parse command line
@@ -73,7 +68,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 		{
 			for (INT i = 1; i < numargs; i++)
 			{
-				if (_wcsnicmp (arga[i], L"/ini", 4) == 0 && (i + 1) <= numargs)
+				if (_r_str_compare (arga[i], L"/ini", 4) == 0 && (i + 1) <= numargs)
 				{
 					LPWSTR ptr = arga[i + 1];
 
@@ -82,10 +77,10 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 
 					PathUnquoteSpaces (ptr);
 
-					StringCchCopy (app_config_path, _countof (app_config_path), _r_path_expand (ptr));
+					_r_str_copy (app_config_path, _countof (app_config_path), _r_path_expand (ptr));
 
-					if (PathGetDriveNumber (app_config_path) == -1)
-						StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s", GetDirectory (), _r_path_expand (ptr).GetString ());
+					if (PathGetDriveNumber (app_config_path) == INVALID_INT)
+						_r_str_printf (app_config_path, _countof (app_config_path), L"%s\\%s", GetDirectory (), _r_path_expand (ptr).GetString ());
 
 					if (!_r_fs_exists (app_config_path))
 					{
@@ -102,18 +97,18 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	}
 
 	// get configuration path
-	if (!app_config_path[0] || !_r_fs_exists (app_config_path))
-		StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s.ini", GetDirectory (), app_name_short);
+	if (_r_str_isempty (app_config_path) || !_r_fs_exists (app_config_path))
+		_r_str_printf (app_config_path, _countof (app_config_path), L"%s\\%s.ini", GetDirectory (), app_name_short);
 
 	if (!_r_fs_exists (app_config_path) && !_r_fs_exists (_r_fmt (L"%s\\portable.dat", GetDirectory ())))
 	{
-		StringCchCopy (app_profile_directory, _countof (app_profile_directory), _r_path_expand (L"%APPDATA%\\" _APP_AUTHOR L"\\"));
-		StringCchCat (app_profile_directory, _countof (app_profile_directory), app_name);
-		StringCchPrintf (app_config_path, _countof (app_config_path), L"%s\\%s.ini", app_profile_directory, app_name_short);
+		_r_str_copy (app_profile_directory, _countof (app_profile_directory), _r_path_expand (L"%APPDATA%\\" _APP_AUTHOR L"\\"));
+		_r_str_cat (app_profile_directory, _countof (app_profile_directory), app_name);
+		_r_str_printf (app_config_path, _countof (app_config_path), L"%s\\%s.ini", app_profile_directory, app_name_short);
 	}
 	else
 	{
-		StringCchCopy (app_profile_directory, _countof (app_profile_directory), _r_path_extractdir (app_config_path));
+		_r_str_copy (app_profile_directory, _countof (app_profile_directory), _r_path_getdirectory (app_config_path));
 	}
 
 	// get default system locale
@@ -130,7 +125,7 @@ bool rapp::MutexCreate ()
 #ifndef _APP_NO_MUTEX
 	app_mutex = CreateMutex (nullptr, FALSE, app_name_short);
 #else
-	app_mutex = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%d", app_name_short, _r_str_hash (GetBinaryPath ()) + _r_str_hash (GetCommandLine ())));
+	app_mutex = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%" PR_SIZE_T L"_%" PR_SIZE_T, app_name_short, _r_str_hash (GetBinaryPath (), INVALID_SIZE_T), _r_str_hash (GetCommandLine (), INVALID_SIZE_T)));
 #endif // _APP_NO_MUTEX
 
 	return (app_mutex != nullptr);
@@ -158,7 +153,7 @@ bool rapp::MutexIsExists (bool activate_window)
 #ifndef _APP_NO_MUTEX
 	const HANDLE hmutex = CreateMutex (nullptr, FALSE, app_name_short);
 #else
-	const HANDLE hmutex = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%d", app_name_short, _r_str_hash (GetBinaryPath ()) + _r_str_hash (GetCommandLine ())));
+	const HANDLE hmutex = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%" PR_SIZE_T L"_%" PR_SIZE_T, app_name_short, _r_str_hash (GetBinaryPath (), INVALID_SIZE_T), _r_str_hash (GetCommandLine (), INVALID_SIZE_T)));
 #endif // _APP_NO_MUTEX
 
 	if (GetLastError () == ERROR_ALREADY_EXISTS)
@@ -203,7 +198,7 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 	// check window class
 	if (GetClassName (hwnd, classname, _countof (classname)))
 	{
-		if (_wcsnicmp (classname, L"#32770", 6) != 0)
+		if (_r_str_compare (classname, L"#32770", 6) != 0)
 			return TRUE;
 	}
 	else
@@ -214,7 +209,7 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 	// check window title
 	if (GetWindowText (hwnd, window_title, _countof (window_title)))
 	{
-		if (_wcsnicmp (this_ptr->app_name, window_title, _r_str_length (this_ptr->app_name)) != 0)
+		if (_r_str_compare (this_ptr->app_name, window_title, _r_str_length (this_ptr->app_name)) != 0)
 			return TRUE;
 	}
 	else
@@ -232,7 +227,7 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 	// check window filename
 	if (GetWindowModuleFileName (hwnd, window_fname, _countof (window_fname)))
 	{
-		if (_wcsnicmp (this_ptr->app_name_short, _r_path_extractfile (window_fname), _r_str_length (this_ptr->app_name_short)) == 0)
+		if (_r_str_compare (this_ptr->app_name_short, _r_path_getfilename (window_fname), _r_str_length (this_ptr->app_name_short)) == 0)
 		{
 			_r_wnd_toggle (hwnd, true);
 			return FALSE;
@@ -259,7 +254,7 @@ bool rapp::AutorunEnable (bool is_enable)
 		if (is_enable)
 		{
 			WCHAR buffer[MAX_PATH] = {0};
-			StringCchPrintf (buffer, _countof (buffer), L"\"%s\" /minimized", GetBinaryPath ());
+			_r_str_printf (buffer, _countof (buffer), L"\"%s\" /minimized", GetBinaryPath ());
 
 			result = (RegSetValueEx (hkey, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((_r_str_length (buffer) + 1) * sizeof (WCHAR))) == ERROR_SUCCESS);
 
@@ -281,100 +276,6 @@ bool rapp::AutorunEnable (bool is_enable)
 }
 #endif // _APP_HAVE_AUTORUN
 
-bool rapp::DownloadURL (LPCWSTR url, LPVOID buffer, bool is_filepath, DOWNLOAD_CALLBACK callback, LONG_PTR lpdata)
-{
-	bool result = false;
-
-	const rstring proxy_info = _r_inet_getproxyconfiguration (ConfigGet (L"Proxy", nullptr));
-	const HINTERNET hsession = _r_inet_createsession (GetUserAgent (), proxy_info);
-
-	if (hsession)
-	{
-		HINTERNET hconnect = nullptr;
-		HINTERNET hrequest = nullptr;
-
-		DWORD total_length = 0;
-
-		if (_r_inet_openurl (hsession, url, proxy_info, &hconnect, &hrequest, &total_length))
-		{
-			static const size_t buffer_length = _R_BUFFER_INET_LENGTH;
-			LPSTR content_buffer = new CHAR[buffer_length];
-
-			rstring *lpbuffer = nullptr;
-			HANDLE hfile = nullptr;
-
-			if (is_filepath)
-			{
-				hfile = CreateFile ((LPCWSTR)buffer, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-
-				if (hfile != INVALID_HANDLE_VALUE)
-					result = true;
-			}
-			else
-			{
-				lpbuffer = (rstring *)buffer;
-
-				if (lpbuffer)
-					result = true;
-			}
-
-			if (result)
-			{
-				DWORD notneed = 0;
-				DWORD readed = 0;
-				DWORD total_readed = 0;
-
-				while (true)
-				{
-					if (!_r_inet_readrequest (hrequest, content_buffer, buffer_length - 1, &readed, &total_readed))
-						break;
-
-					if (is_filepath)
-					{
-						WriteFile (hfile, content_buffer, readed, &notneed, nullptr);
-					}
-					else
-					{
-						if (lpbuffer)
-							lpbuffer->Append (content_buffer);
-					}
-
-					if (callback)
-					{
-						if (!callback (total_readed, total_length, lpdata))
-						{
-							result = false;
-							break;
-						}
-					}
-				}
-
-				if (is_filepath)
-				{
-					CloseHandle (hfile);
-				}
-				else
-				{
-					if (lpbuffer)
-						lpbuffer->Trim (L"\r\n ");
-				}
-			}
-
-			SAFE_DELETE_ARRAY (content_buffer);
-		}
-
-		if (hrequest)
-			_r_inet_close (hrequest);
-
-		if (hconnect)
-			_r_inet_close (hconnect);
-
-		_r_inet_close (hsession);
-	}
-
-	return result;
-}
-
 #ifdef _APP_HAVE_UPDATES
 void rapp::UpdateAddComponent (LPCWSTR full_name, LPCWSTR short_name, LPCWSTR version, LPCWSTR target_path, bool is_installer)
 {
@@ -390,10 +291,10 @@ void rapp::UpdateAddComponent (LPCWSTR full_name, LPCWSTR short_name, LPCWSTR ve
 	{
 		PAPP_UPDATE_COMPONENT pcomponent = new APP_UPDATE_COMPONENT;
 
-		_r_str_alloc (&pcomponent->full_name, _r_str_length (full_name), full_name);
-		_r_str_alloc (&pcomponent->short_name, _r_str_length (short_name), short_name);
-		_r_str_alloc (&pcomponent->version, _r_str_length (version), version);
-		_r_str_alloc (&pcomponent->target_path, _r_str_length (target_path), target_path);
+		_r_str_alloc (&pcomponent->full_name, INVALID_SIZE_T, full_name);
+		_r_str_alloc (&pcomponent->short_name, INVALID_SIZE_T, short_name);
+		_r_str_alloc (&pcomponent->version, INVALID_SIZE_T, version);
+		_r_str_alloc (&pcomponent->target_path, INVALID_SIZE_T, target_path);
 
 		pcomponent->is_installer = is_installer;
 
@@ -421,9 +322,9 @@ bool rapp::UpdateCheck (bool is_forced)
 			WCHAR str_content[256] = {0};
 
 #ifdef IDS_UPDATE_INIT
-			StringCchCopy (str_content, _countof (str_content), LocaleString (IDS_UPDATE_INIT, nullptr));
+			_r_str_copy (str_content, _countof (str_content), LocaleString (IDS_UPDATE_INIT, nullptr));
 #else
-			StringCchCopy (str_content, _countof (str_content), L"Checking for new releases...");
+			_r_str_copy (str_content, _countof (str_content), L"Checking for new releases...");
 #pragma _R_WARNING(IDS_UPDATE_INIT)
 #endif // IDS_UPDATE_STARTED
 
@@ -448,17 +349,17 @@ bool rapp::UpdateCheck (bool is_forced)
 void rapp::ConfigInit ()
 {
 	app_config_array.clear (); // reset
-	ParseINI (GetConfigPath (), &app_config_array, nullptr);
+	_r_parseini (GetConfigPath (), app_config_array, nullptr);
 
 	// useragent
-	StringCchCopy (app_useragent, _countof (app_useragent), ConfigGet (L"UserAgent", _r_fmt (L"%s/%s (+%s)", app_name, app_version, _APP_WEBSITE_URL)));
+	_r_str_copy (app_useragent, _countof (app_useragent), ConfigGet (L"UserAgent", _r_fmt (L"%s/%s (+%s)", app_name, app_version, _APP_WEBSITE_URL)));
 
 	// locale path
-	StringCchPrintf (app_localepath, _countof (app_localepath), L"%s\\%s.lng", ConfigGet (L"LocalePath", GetDirectory ()).GetString (), app_name_short);
+	_r_str_printf (app_localepath, _countof (app_localepath), L"%s\\%s.lng", ConfigGet (L"LocalePath", GetDirectory ()).GetString (), app_name_short);
 
 	// update path
 #ifdef _APP_HAVE_UPDATES
-	StringCchPrintf (app_updatepath, _countof (app_updatepath), L"%s\\%s_update.exe", GetProfileDirectory (), app_name_short);
+	_r_str_printf (app_updatepath, _countof (app_updatepath), L"%s\\%s_update.exe", GetProfileDirectory (), app_name_short);
 #endif // _APP_HAVE_UPDATES
 
 	LocaleInit ();
@@ -489,12 +390,12 @@ rstring rapp::ConfigGet (LPCWSTR key, ULONG def, LPCWSTR name)
 	return ConfigGet (key, _r_fmt (L"%" PRIu32, def), name);
 }
 
-rstring rapp::ConfigGet (LPCWSTR key, LONGLONG def, LPCWSTR name)
+rstring rapp::ConfigGet (LPCWSTR key, LONG64 def, LPCWSTR name)
 {
 	return ConfigGet (key, _r_fmt (L"%" PRId64, def), name);
 }
 
-rstring rapp::ConfigGet (LPCWSTR key, ULONGLONG def, LPCWSTR name)
+rstring rapp::ConfigGet (LPCWSTR key, ULONG64 def, LPCWSTR name)
 {
 	return ConfigGet (key, _r_fmt (L"%" PRIu64, def), name);
 }
@@ -511,12 +412,12 @@ rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 	// check key is exists
 	if (app_config_array.find (cfg_name) != app_config_array.end ())
 	{
-		rstring::map_one& map = app_config_array.at (cfg_name);
+		rstringmap1& rmap = app_config_array.at (cfg_name);
 
-		if (map.find (key) != map.end ())
+		if (rmap.find (key) != rmap.end ())
 		{
-			if (!map.at (key).IsEmpty ())
-				return map.at (key);
+			if (!rmap.at (key).IsEmpty ())
+				return rmap.at (key);
 		}
 	}
 
@@ -548,12 +449,12 @@ bool rapp::ConfigSet (LPCWSTR key, ULONG val, LPCWSTR name)
 	return ConfigSet (key, _r_fmt (L"%" PRIu32, val), name);
 }
 
-bool rapp::ConfigSet (LPCWSTR key, LONGLONG val, LPCWSTR name)
+bool rapp::ConfigSet (LPCWSTR key, LONG64 val, LPCWSTR name)
 {
 	return ConfigSet (key, _r_fmt (L"%" PRId64, val), name);
 }
 
-bool rapp::ConfigSet (LPCWSTR key, ULONGLONG val, LPCWSTR name)
+bool rapp::ConfigSet (LPCWSTR key, ULONG64 val, LPCWSTR name)
 {
 	return ConfigSet (key, _r_fmt (L"%" PRIu64, val), name);
 }
@@ -571,8 +472,8 @@ bool rapp::ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name)
 		cfg_name.Format (L"%s\\%s", app_name_short, name);
 
 	// update hash value
-	if (!val || !val[0])
-		app_config_array[cfg_name][key].Clear ();
+	if (_r_str_isempty (val))
+		app_config_array[cfg_name][key].Release ();
 	else
 		app_config_array[cfg_name][key] = val;
 
@@ -623,15 +524,15 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 		tdc.pfCallback = &_r_msg_callback;
 		tdc.lpCallbackData = MAKELONG (0, 1);
 
-		StringCchCopy (str_title, _countof (str_title), app_name);
+		_r_str_copy (str_title, _countof (str_title), app_name);
 
 		if (main)
-			StringCchCopy (str_main, _countof (str_main), main);
+			_r_str_copy (str_main, _countof (str_main), main);
 
 		if (text)
-			StringCchCopy (str_content, _countof (str_content), text);
+			_r_str_copy (str_content, _countof (str_content), text);
 
-		StringCchCopy (str_flag, _countof (str_flag), flag_text);
+		_r_str_copy (str_flag, _countof (str_flag), flag_text);
 
 		_r_msg_taskdialog (&tdc, &result, nullptr, &is_flagchecked);
 #ifndef _APP_NO_WINXP
@@ -677,7 +578,7 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 #ifndef _APP_NO_ABOUT
 void rapp::CreateAboutWindow (HWND hwnd)
 {
-	const HANDLE habout = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%d_%d", app_name_short, GetCurrentProcessId (), __LINE__));
+	const HANDLE hmutex = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%d_%d", app_name_short, GetCurrentProcessId (), __LINE__));
 
 	if (GetLastError () != ERROR_ALREADY_EXISTS)
 	{
@@ -690,9 +591,9 @@ void rapp::CreateAboutWindow (HWND hwnd)
 		WCHAR title[64] = {0};
 
 #ifdef IDS_ABOUT
-		StringCchCopy (title, _countof (title), LocaleString (IDS_ABOUT, nullptr));
+		_r_str_copy (title, _countof (title), LocaleString (IDS_ABOUT, nullptr));
 #else
-		StringCchCopy (title, _countof (title), L"About");
+		_r_str_copy (title, _countof (title), L"About");
 #pragma _R_WARNING(IDS_ABOUT)
 #endif
 
@@ -742,22 +643,22 @@ void rapp::CreateAboutWindow (HWND hwnd)
 			buttons[1].pszButtonText = btn_close;
 
 #ifdef IDS_DONATE
-			StringCchCopy (btn_ok, _countof (btn_ok), LocaleString (IDS_DONATE, nullptr));
+			_r_str_copy (btn_ok, _countof (btn_ok), LocaleString (IDS_DONATE, nullptr));
 #else
-			StringCchCopy (btn_ok, _countof (btn_ok), L"Give thanks!");
+			_r_str_copy (btn_ok, _countof (btn_ok), L"Give thanks!");
 #pragma _R_WARNING(IDS_DONATE)
 #endif
 
 #ifdef IDS_CLOSE
-			StringCchCopy (btn_close, _countof (btn_close), LocaleString (IDS_CLOSE, nullptr));
+			_r_str_copy (btn_close, _countof (btn_close), LocaleString (IDS_CLOSE, nullptr));
 #else
-			StringCchCopy (btn_close, _countof (btn_close), L"Close");
+			_r_str_copy (btn_close, _countof (btn_close), L"Close");
 #pragma _R_WARNING(IDS_CLOSE)
 #endif
 
-			StringCchCopy (main, _countof (main), app_name);
-			StringCchPrintf (content, _countof (content), L"Version %s, %u-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", app_version, architecture, app_copyright, _APP_WEBSITE_URL, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
-			StringCchCopy (footer, _countof (footer), L"This program is free software; you can redistribute it and/or modify it under the terms of the <a href=\"https://www.gnu.org/licenses/gpl-3.0.html\">GNU General Public License 3</a> as published by the Free Software Foundation.");
+			_r_str_copy (main, _countof (main), app_name);
+			_r_str_printf (content, _countof (content), L"Version %s, %u-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", app_version, architecture, app_copyright, _APP_WEBSITE_URL, _APP_WEBSITE_URL + 8, _APP_GITHUB_URL, _APP_GITHUB_URL + 8);
+			_r_str_copy (footer, _countof (footer), L"This program is free software; you can redistribute it and/or modify it under the terms of the <a href=\"https://www.gnu.org/licenses/gpl-3.0.html\">GNU General Public License 3</a> as published by the Free Software Foundation.");
 
 			if (_r_msg_taskdialog (&tdc, &result, nullptr, nullptr))
 			{
@@ -768,15 +669,16 @@ void rapp::CreateAboutWindow (HWND hwnd)
 		}
 		else
 		{
-			_r_msg (hwnd, MB_OK | MB_USERICON | MB_TOPMOST, title, app_name, L"Version %s, %u-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + rstring (_APP_WEBSITE_URL).Find (L':') + 3, _APP_GITHUB_URL + rstring (_APP_GITHUB_URL).Find (L':') + 3);
+			_r_msg (hwnd, MB_OK | MB_USERICON | MB_TOPMOST, title, app_name, L"Version %s, %u-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + 8, _APP_GITHUB_URL + 8);
 		}
 #endif // _APP_NO_WINXP
 
-		ReleaseMutex (habout);
+		if (hmutex)
+			ReleaseMutex (hmutex);
 	}
 
-	if (habout)
-		CloseHandle (habout);
+	if (hmutex)
+		CloseHandle (hmutex);
 }
 #endif // _APP_NO_ABOUT
 
@@ -1021,7 +923,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 	{
 		if (!ConfirmMessage (nullptr, L"Warning!", _r_fmt (L"You are attempting to run the 32-bit version of %s on 64-bit Windows.\r\nPlease run the 64-bit version of %s instead.", app_name, app_name), L"ConfirmWOW64"))
 			return false;
-}
+	}
 #endif // _WIN64
 
 	MutexCreate ();
@@ -1043,9 +945,9 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 			WCHAR str_content[MAX_PATH] = {0};
 
 #ifdef IDS_UPDATE_INSTALL
-			StringCchCopy (str_content, _countof (str_content), LocaleString (IDS_UPDATE_INSTALL, nullptr));
+			_r_str_copy (str_content, _countof (str_content), LocaleString (IDS_UPDATE_INSTALL, nullptr));
 #else
-			StringCchCopy (str_content, _countof (str_content), L"Update available, do you want to install them?");
+			_r_str_copy (str_content, _countof (str_content), L"Update available, do you want to install them?");
 #pragma _R_WARNING(IDS_UPDATE_INSTALL)
 #endif // IDS_UPDATE_INSTALL
 
@@ -1079,7 +981,14 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 		{
 			// enable messages bypass uipi
 #ifdef _APP_HAVE_TRAY
-			_r_wnd_changemessagefilter (GetHWND (), WM_TASKBARCREATED, MSGFLT_ALLOW);
+#ifndef _APP_NO_WINXP
+			if (IsVistaOrLater ())
+			{
+#endif // _APP_NO_WINXP
+				_r_wnd_changemessagefilter (GetHWND (), WM_TASKBARCREATED, MSGFLT_ALLOW);
+#ifndef _APP_NO_WINXP
+			}
+#endif // _APP_NO_WINXP
 #endif // _APP_HAVE_TRAY
 
 			// uipi fix (vista+)
@@ -1191,7 +1100,7 @@ void rapp::RestoreWindowPosition (HWND hwnd, LPCWSTR window_name)
 		max_width = _R_RECT_WIDTH (&rect_original);
 		max_height = _R_RECT_HEIGHT (&rect_original);
 #endif // _APP_HAVE_MINSIZE
-}
+	}
 
 	// restore window position
 	RECT rect_new = {0};
@@ -1215,205 +1124,10 @@ void rapp::RestoreWindowPosition (HWND hwnd, LPCWSTR window_name)
 	SetWindowPos (hwnd, nullptr, rect_new.left, rect_new.top, _R_RECT_WIDTH (&rect_new), _R_RECT_HEIGHT (&rect_new), SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSENDCHANGING);
 }
 
-#ifdef _APP_HAVE_TRAY
-bool rapp::TrayCreate (HWND hwnd, UINT uid, LPGUID guid, UINT code, HICON hicon, bool is_hidden)
-{
-	bool result = false;
-
-	NOTIFYICONDATA nid = {0};
-
-#ifdef _APP_NO_WINXP
-	nid.cbSize = sizeof (nid);
-	nid.uVersion = NOTIFYICON_VERSION_4;
-#else
-	nid.cbSize = (IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
-	nid.uVersion = (IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
-#endif // _APP_NO_WINXP
-
-	nid.hWnd = hwnd;
-	nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_SHOWTIP | NIF_TIP;
-	nid.uID = uid;
-	nid.uCallbackMessage = code;
-	nid.hIcon = hicon;
-	StringCchCopy (nid.szTip, _countof (nid.szTip), app_name);
-
-	if (guid && _r_sys_validversion (6, 1))
-	{
-		nid.uFlags |= NIF_GUID;
-		CopyMemory (&nid.guidItem, guid, sizeof (GUID));
-	}
-
-	if (is_hidden)
-	{
-		nid.uFlags |= NIF_STATE;
-		nid.dwState = NIS_HIDDEN;
-		nid.dwStateMask = NIS_HIDDEN;
-	}
-
-	if (Shell_NotifyIcon (NIM_ADD, &nid))
-	{
-		Shell_NotifyIcon (NIM_SETVERSION, &nid);
-		result = true;
-	}
-
-	return result;
-}
-
-bool rapp::TrayDestroy (HWND hwnd, UINT uid, LPGUID guid)
-{
-	NOTIFYICONDATA nid = {0};
-
-#ifdef _APP_NO_WINXP
-	nid.cbSize = sizeof (nid);
-	nid.uVersion = NOTIFYICON_VERSION_4;
-#else
-	nid.cbSize = (IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
-	nid.uVersion = (IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
-#endif // _APP_NO_WINXP
-
-	nid.hWnd = hwnd;
-	nid.uID = uid;
-
-	if (guid && _r_sys_validversion (6, 1))
-	{
-		nid.uFlags |= NIF_GUID;
-		CopyMemory (&nid.guidItem, guid, sizeof (GUID));
-	}
-
-	if (Shell_NotifyIcon (NIM_DELETE, &nid))
-		return true;
-
-	return false;
-}
-
-bool rapp::TrayPopup (HWND hwnd, UINT uid, LPGUID guid, DWORD icon_id, LPCWSTR title, LPCWSTR text)
-{
-	bool result = false;
-
-	NOTIFYICONDATA nid = {0};
-
-#ifdef _APP_NO_WINXP
-	nid.cbSize = sizeof (nid);
-	nid.uVersion = NOTIFYICON_VERSION_4;
-#else
-	nid.cbSize = (IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
-	nid.uVersion = (IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
-#endif // _APP_NO_WINXP
-
-	nid.uFlags = NIF_INFO | NIF_REALTIME;
-	nid.dwInfoFlags = NIIF_LARGE_ICON | icon_id;
-	nid.hWnd = hwnd;
-	nid.uID = uid;
-
-	if (guid && _r_sys_validversion (6, 1))
-	{
-		nid.uFlags |= NIF_GUID;
-		CopyMemory (&nid.guidItem, guid, sizeof (GUID));
-	}
-
-	if ((icon_id & NIIF_USER) != 0)
-	{
-#ifdef IDI_MAIN
-		nid.hBalloonIcon = GetSharedImage (GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXICON));
-#else
-		nid.hBalloonIcon = GetSharedIcon (nullptr, SIH_INFORMATION, GetSystemMetrics (SM_CXICON));
-#pragma _R_WARNING(IDI_MAIN)
-#endif // IDI_MAIN
-	}
-
-	// tooltip-visibility fix
-	if (nid.szTip[0])
-		nid.uFlags |= (NIF_SHOWTIP | NIF_TIP);
-
-	if (title)
-		StringCchCopy (nid.szInfoTitle, _countof (nid.szInfoTitle), title);
-
-	if (text)
-		StringCchCopy (nid.szInfo, _countof (nid.szInfo), text);
-
-	if (Shell_NotifyIcon (NIM_MODIFY, &nid))
-		result = true;
-
-	nid.szInfo[0] = nid.szInfoTitle[0] = 0; // clear
-
-	return result;
-}
-
-bool rapp::TraySetInfo (HWND hwnd, UINT uid, LPGUID guid, HICON hicon, LPCWSTR tooltip)
-{
-	NOTIFYICONDATA nid = {0};
-
-#ifdef _APP_NO_WINXP
-	nid.cbSize = sizeof (nid);
-	nid.uVersion = NOTIFYICON_VERSION_4;
-#else
-	nid.cbSize = (IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
-	nid.uVersion = (IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
-#endif // _APP_NO_WINXP
-
-	nid.hWnd = hwnd;
-	nid.uID = uid;
-
-	if (guid && _r_sys_validversion (6, 1))
-	{
-		nid.uFlags |= NIF_GUID;
-		CopyMemory (&nid.guidItem, guid, sizeof (GUID));
-	}
-
-	if (hicon)
-	{
-		nid.uFlags |= NIF_ICON;
-		nid.hIcon = hicon;
-	}
-
-	if (tooltip)
-	{
-		nid.uFlags |= (NIF_SHOWTIP | NIF_TIP);
-		StringCchCopy (nid.szTip, _countof (nid.szTip), tooltip);
-	}
-
-	if (Shell_NotifyIcon (NIM_MODIFY, &nid))
-		return true;
-
-	return false;
-}
-
-bool rapp::TrayToggle (HWND hwnd, UINT uid, LPGUID guid, bool is_show)
-{
-	NOTIFYICONDATA nid = {0};
-
-#ifdef _APP_NO_WINXP
-	nid.cbSize = sizeof (nid);
-	nid.uVersion = NOTIFYICON_VERSION_4;
-#else
-	nid.cbSize = (IsVistaOrLater () ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
-	nid.uVersion = (IsVistaOrLater () ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
-#endif // _APP_NO_WINXP
-
-	nid.uFlags = NIF_STATE;
-	nid.hWnd = hwnd;
-	nid.uID = uid;
-
-	if (guid && _r_sys_validversion (6, 1))
-	{
-		nid.uFlags |= NIF_GUID;
-		CopyMemory (&nid.guidItem, guid, sizeof (GUID));
-	}
-
-	nid.dwState = is_show ? 0 : NIS_HIDDEN;
-	nid.dwStateMask = NIS_HIDDEN;
-
-	if (Shell_NotifyIcon (NIM_MODIFY, &nid))
-		return true;
-
-	return false;
-}
-#endif // _APP_HAVE_TRAY
-
 #ifdef _APP_HAVE_SETTINGS
 void rapp::CreateSettingsWindow (DLGPROC proc, INT dlg_id)
 {
-	const HANDLE hsettings = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%d_%d", app_name_short, GetCurrentProcessId (), __LINE__));
+	const HANDLE hmutex = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%d_%d", app_name_short, GetCurrentProcessId (), __LINE__));
 
 	if (GetLastError () == ERROR_ALREADY_EXISTS)
 	{
@@ -1433,12 +1147,12 @@ void rapp::CreateSettingsWindow (DLGPROC proc, INT dlg_id)
 #pragma _R_WARNING(IDD_SETTINGS)
 #endif // IDD_SETTINGS
 
-		if (hsettings)
-			ReleaseMutex (hsettings);
+		if (hmutex)
+			ReleaseMutex (hmutex);
 	}
 
-	if (hsettings)
-		CloseHandle (hsettings);
+	if (hmutex)
+		CloseHandle (hmutex);
 }
 
 INT rapp::SettingsAddPage (INT dlg_id, UINT locale_id, INT group_id)
@@ -1519,7 +1233,7 @@ void rapp::SettingsInitialize ()
 		SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETITEM, 0, (LPARAM)& tvi);
 
 		WCHAR buffer[128] = {0};
-		StringCchCopy (buffer, _countof (buffer), LocaleString (ptr_page->locale_id, nullptr));
+		_r_str_copy (buffer, _countof (buffer), LocaleString (ptr_page->locale_id, nullptr));
 
 		tvi.mask = TVIF_TEXT;
 		tvi.pszText = buffer;
@@ -1564,11 +1278,6 @@ LPCWSTR rapp::GetUpdatePath () const
 LPCWSTR rapp::GetUserAgent () const
 {
 	return app_useragent;
-}
-
-INT rapp::GetDPI (INT v) const
-{
-	return (INT)(((ULONG64)v * (ULONG64)dpi_value + 96 / 2) / (ULONG64)96);
 }
 
 HICON rapp::GetSharedImage (HINSTANCE hinst, INT icon_id, INT icon_size)
@@ -1621,11 +1330,11 @@ void rapp::LocaleApplyFromControl (HWND hwnd, INT ctrl_id)
 {
 	const rstring text = _r_ctrl_gettext (hwnd, ctrl_id);
 
-	if (text.CompareNoCase (_APP_LANGUAGE_DEFAULT) == 0)
+	if (_r_str_compare (text, _APP_LANGUAGE_DEFAULT) == 0)
 		locale_current[0] = 0;
 
 	else
-		StringCchCopy (locale_current, _countof (locale_current), text);
+		_r_str_copy (locale_current, _countof (locale_current), text);
 
 	ConfigSet (L"Language", text);
 
@@ -1647,7 +1356,7 @@ void rapp::LocaleApplyFromControl (HWND hwnd, INT ctrl_id)
 		SendMessage (GetHWND (), RM_LOCALIZE, 0, 0);
 
 		DrawMenuBar (GetHWND ()); // redraw menu
-}
+	}
 }
 #endif // _APP_HAVE_SETTINGS
 
@@ -1664,7 +1373,7 @@ void rapp::LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id)
 		GetMenuString (hmenu, selected_id, name, _countof (name), MF_BYCOMMAND);
 
 		ConfigSet (L"Language", name);
-		StringCchCopy (locale_current, _countof (locale_current), name);
+		_r_str_copy (locale_current, _countof (locale_current), name);
 	}
 
 	if (GetHWND ())
@@ -1721,14 +1430,14 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start)
 			{
 				AppendMenu (hmenu, MF_STRING, idx + id_start, name);
 
-				if (locale_current[0] && _wcsicmp (locale_current, name) == 0)
+				if (!_r_str_isempty (locale_current) && _r_str_compare (locale_current, name) == 0)
 					CheckMenuRadioItem (hmenu, id_start, id_start + idx, id_start + idx, MF_BYCOMMAND);
 			}
 			else
 			{
 				SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, (WPARAM)idx, (LPARAM)name);
 
-				if (locale_current[0] && _wcsicmp (locale_current, name) == 0)
+				if (!_r_str_isempty (locale_current) && _r_str_compare (locale_current, name) == 0)
 					SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, (WPARAM)idx, 0);
 			}
 
@@ -1762,14 +1471,14 @@ void rapp::LocaleInit ()
 	if (name.IsEmpty ())
 		name = locale_default;
 
-	else if (name.CompareNoCase (_APP_LANGUAGE_DEFAULT) == 0)
-		name = L"";
+	else if (_r_str_compare (name, _APP_LANGUAGE_DEFAULT) == 0)
+		name = nullptr;
 
 	// clear
 	app_locale_array.clear ();
 	app_locale_names.clear ();
 
-	ParseINI (GetLocalePath (), &app_locale_array, &app_locale_names);
+	_r_parseini (GetLocalePath (), app_locale_array, &app_locale_names);
 
 	if (!app_locale_array.empty ())
 	{
@@ -1793,7 +1502,7 @@ void rapp::LocaleInit ()
 	}
 
 	if (!name.IsEmpty ())
-		StringCchCopy (locale_current, _countof (locale_current), name);
+		_r_str_copy (locale_current, _countof (locale_current), name);
 
 	else
 		locale_current[0] = 0;
@@ -1808,7 +1517,7 @@ rstring rapp::LocaleString (UINT uid, LPCWSTR append)
 		rstring key;
 		key.Format (L"%03d", uid);
 
-		if (locale_current[0])
+		if (!_r_str_isempty (locale_current))
 		{
 			// check key is exists
 			if (
@@ -1843,7 +1552,7 @@ rstring rapp::LocaleString (UINT uid, LPCWSTR append)
 void rapp::LocaleMenu (HMENU menu, UINT id, UINT item, bool by_position, LPCWSTR append)
 {
 	WCHAR buffer[128] = {0};
-	StringCchCopy (buffer, _countof (buffer), LocaleString (id, append));
+	_r_str_copy (buffer, _countof (buffer), LocaleString (id, append));
 
 	MENUITEMINFO mi = {0};
 
@@ -1881,7 +1590,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			_r_wnd_center (hwnd, this_ptr->GetHWND () ? this_ptr->GetHWND () : GetParent (hwnd));
 
 			// configure treeview
-			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, this_ptr->GetDPI (20));
+			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, _r_dc_getdpi (20));
 
 			SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETBKCOLOR, TVSIL_STATE, (LPARAM)GetSysColor (COLOR_3DFACE));
 
@@ -2046,9 +1755,9 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					WCHAR str_content[512] = {0};
 
 #ifdef IDS_QUESTION_RESET
-					StringCchCopy (str_content, _countof (str_content), this_ptr->LocaleString (IDS_QUESTION_RESET, nullptr).GetString ());
+					_r_str_copy (str_content, _countof (str_content), this_ptr->LocaleString (IDS_QUESTION_RESET, nullptr).GetString ());
 #else
-					StringCchCopy (str_content, _countof (str_content), L"Are you really sure you want to reset all application settings?");
+					_r_str_copy (str_content, _countof (str_content), L"Are you really sure you want to reset all application settings?");
 #pragma _R_WARNING(IDS_QUESTION_RESET)
 #endif // IDS_QUESTION_RESET
 
@@ -2129,9 +1838,9 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 				WCHAR str_content[256] = {0};
 
 #ifdef IDS_UPDATE_DOWNLOAD
-				StringCchPrintf (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_DOWNLOAD, L" %d%%"), percent);
+				_r_str_printf (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_DOWNLOAD, L" %d%%"), percent);
 #else
-				StringCchPrintf (str_content, _countof (str_content), L"Downloading update... %d%%", percent);
+				_r_str_printf (str_content, _countof (str_content), L"Downloading update... %d%%", percent);
 #pragma _R_WARNING(IDS_UPDATE_DOWNLOAD)
 #endif // IDS_UPDATE_DOWNLOAD
 
@@ -2164,18 +1873,26 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 			{
 				if (pcomponent->is_haveupdates)
 				{
-					if (papp->DownloadURL (pcomponent->url, pcomponent->filepath, true, &papp->UpdateDownloadCallback, (LONG_PTR)pupdateinfo))
+					const rstring proxy_info = _r_inet_getproxyconfiguration (papp->ConfigGet (L"Proxy", nullptr));
+					const HINTERNET hsession = _r_inet_createsession (papp->GetUserAgent (), proxy_info);
+
+					if (hsession)
 					{
-						pcomponent->is_downloaded = true;
-						pcomponent->is_haveupdates = false;
-
-						is_downloaded = true;
-
-						if (pcomponent->is_installer)
+						if (_r_inet_downloadurl (hsession, proxy_info, pcomponent->url, pcomponent->filepath, true, &papp->UpdateDownloadCallback, (LONG_PTR)pupdateinfo))
 						{
-							is_downloaded_installer = true;
-							break;
+							pcomponent->is_downloaded = true;
+							pcomponent->is_haveupdates = false;
+
+							is_downloaded = true;
+
+							if (pcomponent->is_installer)
+							{
+								is_downloaded_installer = true;
+								break;
+							}
 						}
+
+						_r_inet_close (hsession);
 					}
 				}
 			}
@@ -2190,18 +1907,18 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 				if (is_downloaded_installer)
 				{
 #ifdef IDS_UPDATE_INSTALL
-					StringCchCopy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_INSTALL, nullptr));
+					_r_str_copy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_INSTALL, nullptr));
 #else
-					StringCchCopy (str_content, _countof (str_content), L"Update available, do you want to install them?");
+					_r_str_copy (str_content, _countof (str_content), L"Update available, do you want to install them?");
 #pragma _R_WARNING(IDS_UPDATE_INSTALL)
 #endif // IDS_UPDATE_INSTALL
 				}
 				else
 				{
 #ifdef IDS_UPDATE_DONE
-					StringCchCopy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_DONE, nullptr));
+					_r_str_copy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_DONE, nullptr));
 #else
-					StringCchCopy (str_content, _countof (str_content), L"Downloading update finished.");
+					_r_str_copy (str_content, _countof (str_content), L"Downloading update finished.");
 #pragma _R_WARNING(IDS_UPDATE_DONE)
 #endif // IDS_UPDATE_DONE
 				}
@@ -2209,9 +1926,9 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 			else
 			{
 #ifdef IDS_UPDATE_ERROR
-				StringCchCopy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_ERROR, nullptr));
+				_r_str_copy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_ERROR, nullptr));
 #else
-				StringCchCopy (str_content, _countof (str_content), L"Update server connection error");
+				_r_str_copy (str_content, _countof (str_content), L"Update server connection error");
 #pragma _R_WARNING(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
 			}
@@ -2265,7 +1982,7 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 
 		case TDN_DIALOG_CONSTRUCTED:
 		{
-			if (pupdateinfo->hthread && pupdateinfo->hthread != (HANDLE)-1L)
+			if (pupdateinfo->hthread && pupdateinfo->hthread != INVALID_HANDLE_VALUE)
 				ResumeThread (pupdateinfo->hthread);
 
 			break;
@@ -2275,7 +1992,7 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 		{
 			SetEvent (pupdateinfo->hend);
 
-			if (pupdateinfo->hthread && pupdateinfo->hthread != (HANDLE)-1L)
+			if (pupdateinfo->hthread && pupdateinfo->hthread != INVALID_HANDLE_VALUE)
 			{
 				TerminateThread (pupdateinfo->hthread, 0);
 				CloseHandle (pupdateinfo->hthread);
@@ -2295,9 +2012,9 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 				WCHAR str_content[MAX_PATH] = {0};
 
 #ifdef IDS_UPDATE_DOWNLOAD
-				StringCchPrintf (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_DOWNLOAD, nullptr), 0);
+				_r_str_printf (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_DOWNLOAD, nullptr), 0);
 #else
-				StringCchCopy (str_content, _countof (str_content), L"Downloading update...");
+				_r_str_copy (str_content, _countof (str_content), L"Downloading update...");
 #pragma _R_WARNING(IDS_UPDATE_DOWNLOAD)
 #endif
 				pupdateinfo->hthread = (HANDLE)_beginthreadex (nullptr, 0, &UpdateDownloadThread, (LPVOID)pupdateinfo, CREATE_SUSPENDED, nullptr);
@@ -2359,18 +2076,18 @@ INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS f
 #endif // IDI_MAIN
 	}
 
-	StringCchCopy (str_title, _countof (str_title), app_name);
+	_r_str_copy (str_title, _countof (str_title), app_name);
 
 	if (main)
 	{
 		tdc.pszMainInstruction = str_main;
-		StringCchCopy (str_main, _countof (str_main), main);
+		_r_str_copy (str_main, _countof (str_main), main);
 	}
 
 	if (content)
 	{
 		tdc.pszContent = str_content;
-		StringCchCopy (str_content, _countof (str_content), content);
+		_r_str_copy (str_content, _countof (str_content), content);
 	}
 
 	INT button = 0;
@@ -2386,13 +2103,13 @@ INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS f
 
 rstring format_version (rstring vers)
 {
-	if (vers.IsNumeric ())
+	if (_r_str_isnumeric (vers, vers.GetLength ()))
 		return _r_fmt_date (vers.AsLonglong (), FDTF_SHORTDATE | FDTF_SHORTTIME);
 
 	return vers;
 }
 
-void rapp::UpdateInstall ()
+void rapp::UpdateInstall () const
 {
 	_r_run (_r_path_expand (L"%systemroot%\\system32\\cmd.exe"), _r_fmt (L"\"cmd.exe\" /c timeout 3 > nul&&start /wait \"\" \"%s\" /S /D=%s&&timeout 3 > nul&&del /q /f \"%s\"&start \"\" \"%s\"", GetUpdatePath (), GetDirectory (), GetUpdatePath (), GetBinaryPath ()), nullptr, SW_HIDE);
 }
@@ -2414,165 +2131,174 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 		rstring buffer;
 
-		if (!papp->DownloadURL (_r_fmt (_APP_WEBSITE_URL L"/update.php?product=%s&is_beta=%d&api=3", papp->app_name_short, is_beta), &buffer, false, nullptr, 0))
+		const rstring proxy_info = _r_inet_getproxyconfiguration (papp->ConfigGet (L"Proxy", nullptr));
+		const HINTERNET hsession = _r_inet_createsession (papp->GetUserAgent (), proxy_info);
+
+		if (hsession)
 		{
-			if (pupdateinfo->hwnd)
+			if (!_r_inet_downloadurl (hsession, proxy_info, _r_fmt (_APP_WEBSITE_URL L"/update.php?product=%s&is_beta=%d&api=3", papp->app_name_short, is_beta), &buffer, false, nullptr, 0))
 			{
-				WCHAR str_content[256] = {0};
+				if (pupdateinfo->hwnd)
+				{
+					WCHAR str_content[MAX_PATH] = {0};
 
 #ifdef IDS_UPDATE_ERROR
-				StringCchCopy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_ERROR, nullptr).GetString ());
+					_r_str_copy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_ERROR, nullptr).GetString ());
 #else
-				StringCchCopy (str_content, _countof (str_content), L"Update server connection error.");
+					_r_str_copy (str_content, _countof (str_content), L"Update server connection error.");
 #pragma _R_WARNING(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
 
-				papp->UpdateDialogNavigate (pupdateinfo->hwnd, TD_WARNING_ICON, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
-			}
-		}
-		else
-		{
-			rstring::map_one result;
-
-			if (_r_str_unserialize (buffer, L";", L'=', &result))
-			{
-				bool is_updateavailable = false;
-				rstring updates_text;
-
-				for (size_t i = 0; i < pupdateinfo->components.size (); i++)
-				{
-					PAPP_UPDATE_COMPONENT pcomponent = pupdateinfo->components.at (i);
-
-					if (pcomponent)
-					{
-						if (pcomponent->short_name && result.find (pcomponent->short_name) != result.end ())
-						{
-							const rstring::rvector vc = result[pcomponent->short_name].AsVector (L"|");
-
-							if (vc.size () < 2)
-								continue;
-
-							const rstring new_version = vc.at (0);
-							const rstring new_url = vc.at (1);
-
-							if (!new_version.IsEmpty () && !new_url.IsEmpty () && (new_version.IsNumeric () ? (new_version.AsLonglong () > wcstoll (pcomponent->version, nullptr, 10)) : (_r_str_versioncompare (pcomponent->version, new_version) == -1)))
-							{
-								is_updateavailable = true;
-
-								_r_str_alloc (&pcomponent->new_version, new_version.GetLength (), new_version);
-								_r_str_alloc (&pcomponent->url, new_url.GetLength (), new_url);
-
-								pcomponent->is_haveupdates = true;
-
-								if (pcomponent->is_installer)
-								{
-									_r_str_alloc (&pcomponent->filepath, _r_str_length (papp->GetUpdatePath ()), papp->GetUpdatePath ());
-								}
-								else
-								{
-									LPCWSTR path = _r_fmt (L"%s\\%s-%s.tmp", _r_path_expand (L"%temp%\\").GetString (), pcomponent->short_name, new_version.GetString ());
-
-									_r_str_alloc (&pcomponent->filepath, _r_str_length (path), path);
-									_r_str_alloc (&pcomponent->version, new_version.GetLength (), new_version);
-								}
-
-								updates_text.AppendFormat (L"- %s %s\r\n", pcomponent->full_name, format_version (new_version).GetString ());
-
-								// do not check components when new version of application available
-								if (pcomponent->is_installer)
-									break;
-							}
-						}
-					}
-
+					papp->UpdateDialogNavigate (pupdateinfo->hwnd, TD_WARNING_ICON, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 				}
+			}
+			else
+			{
+				rstringmap1 result;
 
-				if (is_updateavailable)
+				if (_r_str_unserialize (buffer, L';', L'=', &result))
 				{
-					WCHAR str_main[256] = {0};
+					bool is_updateavailable = false;
+					rstring updates_text;
 
-					updates_text.Trim (L"\r\n ");
-
-#ifdef IDS_UPDATE_YES
-					StringCchCopy (str_main, _countof (str_main), papp->LocaleString (IDS_UPDATE_YES, nullptr));
-#else
-					StringCchCopy (str_main, _countof (str_main), L"Update available, download and install them?");
-#pragma _R_WARNING(IDS_UPDATE_YES)
-#endif // IDS_UPDATE_YES
-
-#ifndef _APP_NO_WINXP
-					if (papp->IsVistaOrLater ())
-					{
-#endif
-						papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, str_main, updates_text, (LONG_PTR)pupdateinfo);
-
-						WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
-#ifndef _APP_NO_WINXP
-					}
-					else
-					{
-						const INT msg_id = _r_msg (papp->GetHWND (), MB_YESNO | MB_USERICON, papp->app_name, str_main, L"%s", updates_text.GetString ());
-
-						if (msg_id == IDYES)
-						{
-							pupdateinfo->hthread = (HANDLE)_beginthreadex (nullptr, 0, &papp->UpdateDownloadThread, (LPVOID)pupdateinfo, CREATE_SUSPENDED, nullptr);
-
-							if (pupdateinfo->hthread)
-							{
-								ResumeThread (pupdateinfo->hthread);
-								WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
-							}
-						}
-					}
-#endif
 					for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 					{
 						PAPP_UPDATE_COMPONENT pcomponent = pupdateinfo->components.at (i);
 
 						if (pcomponent)
 						{
-							if (pcomponent->is_downloaded)
+							if (!_r_str_isempty (pcomponent->short_name) && result.find (pcomponent->short_name) != result.end ())
 							{
-								if (!pcomponent->is_installer)
+								const rstring& rlink = result[pcomponent->short_name];
+								const size_t split_pos = _r_str_find (rlink, rlink.GetLength (), L'|');
+
+								if (split_pos == INVALID_SIZE_T)
+									continue;
+
+								const rstring new_version = _r_str_extract (rlink, rlink.GetLength (), 0, split_pos);
+								const rstring new_url = _r_str_extract (rlink, rlink.GetLength (), split_pos + 1);
+
+								if (!new_version.IsEmpty () && !new_url.IsEmpty () && (_r_str_isnumeric (new_version, new_version.GetLength ()) ? (new_version.AsLonglong () > wcstoll (pcomponent->version, nullptr, 10)) : (_r_str_versioncompare (pcomponent->version, new_version) == -1)))
 								{
-									_r_fs_delete (pcomponent->target_path, false);
-									_r_fs_copy (pcomponent->filepath, pcomponent->target_path);
+									is_updateavailable = true;
 
-									papp->ConfigInit (); // reload configuration
+									_r_str_alloc (&pcomponent->new_version, new_version.GetLength (), new_version);
+									_r_str_alloc (&pcomponent->url, new_url.GetLength (), new_url);
 
-									if (papp->GetHWND ())
+									pcomponent->is_haveupdates = true;
+
+									if (pcomponent->is_installer)
 									{
-										SendMessage (papp->GetHWND (), RM_UPDATE_DONE, 0, 0);
-										SendMessage (papp->GetHWND (), RM_INITIALIZE, 0, 0);
-										SendMessage (papp->GetHWND (), RM_LOCALIZE, 0, 0);
+										_r_str_alloc (&pcomponent->filepath, INVALID_SIZE_T, papp->GetUpdatePath ());
+									}
+									else
+									{
+										LPCWSTR path = _r_fmt (L"%s\\%s-%s.tmp", _r_path_expand (L"%temp%\\").GetString (), pcomponent->short_name, new_version.GetString ());
 
-										DrawMenuBar (papp->GetHWND ());
+										_r_str_alloc (&pcomponent->filepath, INVALID_SIZE_T, path);
+										_r_str_alloc (&pcomponent->version, new_version.GetLength (), new_version);
 									}
 
-									_r_fs_delete (pcomponent->filepath, false);
+									updates_text.AppendFormat (L"- %s %s\r\n", pcomponent->full_name, format_version (new_version).GetString ());
+
+									// do not check components when new version of application available
+									if (pcomponent->is_installer)
+										break;
+								}
+							}
+						}
+
+					}
+
+					if (is_updateavailable)
+					{
+						WCHAR str_main[256] = {0};
+
+						_r_str_trim (updates_text, L"\r\n ");
+
+#ifdef IDS_UPDATE_YES
+						_r_str_copy (str_main, _countof (str_main), papp->LocaleString (IDS_UPDATE_YES, nullptr));
+#else
+						_r_str_copy (str_main, _countof (str_main), L"Update available, download and install them?");
+#pragma _R_WARNING(IDS_UPDATE_YES)
+#endif // IDS_UPDATE_YES
+
+#ifndef _APP_NO_WINXP
+						if (papp->IsVistaOrLater ())
+						{
+#endif
+							papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, str_main, updates_text, (LONG_PTR)pupdateinfo);
+
+							WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
+#ifndef _APP_NO_WINXP
+						}
+						else
+						{
+							const INT msg_id = _r_msg (papp->GetHWND (), MB_YESNO | MB_USERICON, papp->app_name, str_main, L"%s", updates_text.GetString ());
+
+							if (msg_id == IDYES)
+							{
+								pupdateinfo->hthread = (HANDLE)_beginthreadex (nullptr, 0, &papp->UpdateDownloadThread, (LPVOID)pupdateinfo, CREATE_SUSPENDED, nullptr);
+
+								if (pupdateinfo->hthread)
+								{
+									ResumeThread (pupdateinfo->hthread);
+									WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
+								}
+							}
+						}
+#endif
+						for (size_t i = 0; i < pupdateinfo->components.size (); i++)
+						{
+							PAPP_UPDATE_COMPONENT pcomponent = pupdateinfo->components.at (i);
+
+							if (pcomponent)
+							{
+								if (pcomponent->is_downloaded)
+								{
+									if (!pcomponent->is_installer)
+									{
+										_r_fs_delete (pcomponent->target_path, false);
+										_r_fs_copy (pcomponent->filepath, pcomponent->target_path);
+
+										papp->ConfigInit (); // reload configuration
+
+										if (papp->GetHWND ())
+										{
+											SendMessage (papp->GetHWND (), RM_UPDATE_DONE, 0, 0);
+											SendMessage (papp->GetHWND (), RM_INITIALIZE, 0, 0);
+											SendMessage (papp->GetHWND (), RM_LOCALIZE, 0, 0);
+
+											DrawMenuBar (papp->GetHWND ());
+										}
+
+										_r_fs_delete (pcomponent->filepath, false);
+									}
 								}
 							}
 						}
 					}
-				}
-				else
-				{
-					if (pupdateinfo->hwnd)
+					else
 					{
-						WCHAR str_content[256] = {0};
+						if (pupdateinfo->hwnd)
+						{
+							WCHAR str_content[256] = {0};
 #ifdef IDS_UPDATE_NO
-						StringCchCopy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_NO, nullptr).GetString ());
+							_r_str_copy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_NO, nullptr).GetString ());
 #else
-						StringCchCopy (str_content, _countof (str_content), L"No updates available.");
+							_r_str_copy (str_content, _countof (str_content), L"No updates available.");
 #pragma _R_WARNING(IDS_UPDATE_NO)
 #endif // IDS_UPDATE_NO
 
-						papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
+							papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
+						}
 					}
 				}
+
+				papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
 			}
 
-			papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
+			_r_inet_close (hsession);
 		}
 
 		SetEvent (pupdateinfo->hend);
@@ -2583,74 +2309,6 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 	return ERROR_SUCCESS;
 }
 #endif // _APP_HAVE_UPDATES
-
-bool rapp::ParseINI (LPCWSTR path, rstring::map_two * pmap, std::vector<rstring> * psections)
-{
-	bool result = false;
-
-	if (pmap && _r_fs_exists (path))
-	{
-		rstring section_ptr;
-		rstring value_ptr;
-
-		size_t length = 0;
-
-		size_t out_length;
-		size_t delimeter;
-
-		// get sections
-		do
-		{
-			length += _R_BUFFER_LENGTH;
-
-			out_length = GetPrivateProfileSectionNames (section_ptr.GetBuffer (length), (DWORD)length, path);
-		}
-		while (out_length == (length - 1));
-
-		section_ptr.SetLength (out_length);
-
-		LPCWSTR section = section_ptr.GetString ();
-
-		while (*section)
-		{
-			// get values
-			length = 0;
-
-			if (psections)
-				psections->push_back (section);
-
-			do
-			{
-				length += _R_BUFFER_LENGTH;
-
-				out_length = GetPrivateProfileSection (section, value_ptr.GetBuffer (length), (DWORD)length, path);
-			}
-			while (out_length == (length - 1));
-
-			value_ptr.SetLength (out_length);
-
-			LPCWSTR value = value_ptr.GetString ();
-
-			while (*value)
-			{
-				rstring parser = value;
-
-				delimeter = parser.Find (L'=');
-
-				if (delimeter != rstring::npos)
-					(*pmap)[section][parser.Midded (0, delimeter)] = parser.Midded (delimeter + 1); // set
-
-				value += _r_str_length (value) + 1; // go next item
-			}
-
-			section += _r_str_length (section) + 1; // go next section
-		}
-
-		result = true;
-	}
-
-	return result;
-}
 
 #ifdef _APP_HAVE_SKIPUAC
 bool rapp::SkipUacIsEnabled ()
@@ -2858,7 +2516,7 @@ bool rapp::SkipUacRun ()
 											PathUnquoteSpaces (path);
 
 											// check path is to current module
-											if (_wcsnicmp (path, GetBinaryPath (), _r_str_length (GetBinaryPath ())) == 0)
+											if (_r_str_compare (path, GetBinaryPath ()) == 0)
 											{
 												rstring args;
 
@@ -2873,11 +2531,13 @@ bool rapp::SkipUacRun ()
 													SAFE_LOCAL_FREE (arga);
 												}
 
-												variant_t ticker = args.Trim (L" ");
+												_r_str_trim (args, L" ");
+
+												variant_t ticker = args;
 
 												if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_AS_SELF, 0, nullptr, &running_task)))
 												{
-													UINT8 count = 5; // try count
+													DWORD attempts = 6;
 
 													do
 													{
@@ -2898,7 +2558,7 @@ bool rapp::SkipUacRun ()
 															}
 														}
 													}
-													while (count--);
+													while (attempts--);
 
 													running_task->Release ();
 												}
@@ -2954,13 +2614,13 @@ bool rapp::RunAsAdmin ()
 				SHELLEXECUTEINFO shex = {0};
 
 				WCHAR path[MAX_PATH] = {0};
-				StringCchCopy (path, _countof (path), GetBinaryPath ());
+				_r_str_copy (path, _countof (path), GetBinaryPath ());
 
 				WCHAR directory[MAX_PATH] = {0};
-				StringCchCopy (directory, _countof (directory), GetDirectory ());
+				_r_str_copy (directory, _countof (directory), GetDirectory ());
 
 				WCHAR args[MAX_PATH] = {0};
-				StringCchCopy (args, _countof (args), GetCommandLine ());
+				_r_str_copy (args, _countof (args), GetCommandLine ());
 
 				shex.cbSize = sizeof (shex);
 				shex.fMask = SEE_MASK_UNICODE | SEE_MASK_NOZONECHECKS | SEE_MASK_FLAG_NO_UI;
@@ -2984,9 +2644,12 @@ bool rapp::RunAsAdmin ()
 
 				if (SUCCEEDED (hrComInit))
 					CoUninitialize ();
+
+				if (!result)
+					_r_sleep (250);
 			}
 		}
-}
+	}
 
 	return result;
 }
