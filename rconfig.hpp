@@ -107,7 +107,6 @@
 
 #define _APP_TASKSCHD_NAME L"%sSkipUac"
 #define _APP_LANGUAGE_DEFAULT L"English (default)"
-#define _APP_ERRLOG_TITLE L"Date,Function,Code,Description,Version\r\n"
 
 /*
 	Callback message codes
