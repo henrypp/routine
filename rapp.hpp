@@ -195,7 +195,8 @@ public:
 	LPCWSTR GetUpdatePath () const;
 #endif // _APP_HAVE_UPDATES
 
-	LPCWSTR GetUserAgent () const;
+	rstring GetUserAgent ();
+	rstring GetProxyConfiguration ();
 
 	HINSTANCE GetHINSTANCE () const;
 	HWND GetHWND () const;
@@ -276,7 +277,6 @@ private:
 	WCHAR app_name_short[MAX_PATH];
 	WCHAR app_version[MAX_PATH];
 	WCHAR app_copyright[MAX_PATH];
-	WCHAR app_useragent[MAX_PATH];
 	WCHAR app_localepath[MAX_PATH];
 
 #ifdef _APP_HAVE_UPDATES

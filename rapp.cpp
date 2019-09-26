@@ -351,9 +351,6 @@ void rapp::ConfigInit ()
 	app_config_array.clear (); // reset
 	_r_parseini (GetConfigPath (), app_config_array, nullptr);
 
-	// useragent
-	_r_str_copy (app_useragent, _countof (app_useragent), ConfigGet (L"UserAgent", _r_fmt (L"%s/%s (+%s)", app_name, app_version, _APP_WEBSITE_URL)));
-
 	// locale path
 	_r_str_printf (app_localepath, _countof (app_localepath), L"%s\\%s.lng", ConfigGet (L"LocalePath", GetDirectory ()).GetString (), app_name_short);
 
@@ -1005,7 +1002,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 
 			// subclass window
 			SetProp (GetHWND (), L"this_ptr", this);
-			app_wndproc = (WNDPROC)SetWindowLongPtr (GetHWND (), DWLP_DLGPROC, (LONG_PTR)& MainWindowProc);
+			app_wndproc = (WNDPROC)SetWindowLongPtr (GetHWND (), DWLP_DLGPROC, (LONG_PTR)&MainWindowProc);
 
 			// update autorun settings
 #ifdef _APP_HAVE_AUTORUN
@@ -1230,7 +1227,7 @@ void rapp::SettingsInitialize ()
 		tvi.mask = TVIF_PARAM;
 		tvi.hItem = ptr_page->item;
 
-		SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETITEM, 0, (LPARAM)& tvi);
+		SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETITEM, 0, (LPARAM)&tvi);
 
 		WCHAR buffer[128] = {0};
 		_r_str_copy (buffer, _countof (buffer), LocaleString (ptr_page->locale_id, nullptr));
@@ -1238,7 +1235,7 @@ void rapp::SettingsInitialize ()
 		tvi.mask = TVIF_TEXT;
 		tvi.pszText = buffer;
 
-		SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETITEM, 0, (LPARAM)& tvi);
+		SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETITEM, 0, (LPARAM)&tvi);
 	}
 }
 #endif // _APP_HAVE_SETTINGS
@@ -1275,9 +1272,35 @@ LPCWSTR rapp::GetUpdatePath () const
 }
 #endif // _APP_HAVE_UPDATES
 
-LPCWSTR rapp::GetUserAgent () const
+rstring rapp::GetUserAgent ()
 {
-	return app_useragent;
+	return ConfigGet (L"UserAgent", _r_fmt (L"%s/%s (+%s)", app_name, app_version, _APP_WEBSITE_URL));
+}
+
+rstring rapp::GetProxyConfiguration ()
+{
+	rstring proxy = ConfigGet (L"Proxy", nullptr).GetString ();
+
+	if (!proxy.IsEmpty ())
+	{
+		return proxy;
+	}
+	else
+	{
+		WINHTTP_CURRENT_USER_IE_PROXY_CONFIG proxyConfig = {0};
+
+		if (WinHttpGetIEProxyConfigForCurrentUser (&proxyConfig))
+		{
+			if (!_r_str_isempty (proxyConfig.lpszProxy))
+				proxy = proxyConfig.lpszProxy;
+
+			SAFE_GLOBAL_FREE (proxyConfig.lpszProxy);
+			SAFE_GLOBAL_FREE (proxyConfig.lpszProxyBypass);
+			SAFE_GLOBAL_FREE (proxyConfig.lpszAutoConfigUrl);
+		}
+	}
+
+	return proxy;
 }
 
 HICON rapp::GetSharedImage (HINSTANCE hinst, INT icon_id, INT icon_size)
@@ -1639,7 +1662,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			INT pos_x = _R_RECT_WIDTH (&rc);
 
 			// shift "x" position
-			MapWindowPoints (HWND_DESKTOP, hwnd, (LPPOINT)& rc, 2);
+			MapWindowPoints (HWND_DESKTOP, hwnd, (LPPOINT)&rc, 2);
 			pos_x += rc.left + GetSystemMetrics (SM_CYBORDER);
 
 			// calculate "y" position
@@ -1873,12 +1896,12 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 			{
 				if (pcomponent->is_haveupdates)
 				{
-					const rstring proxy_info = _r_inet_getproxyconfiguration (papp->ConfigGet (L"Proxy", nullptr));
-					const HINTERNET hsession = _r_inet_createsession (papp->GetUserAgent (), proxy_info);
+					LPCWSTR proxy_addr = papp->GetProxyConfiguration ();
+					const HINTERNET hsession = _r_inet_createsession (papp->GetUserAgent (), proxy_addr);
 
 					if (hsession)
 					{
-						if (_r_inet_downloadurl (hsession, proxy_info, pcomponent->url, pcomponent->filepath, true, &papp->UpdateDownloadCallback, (LONG_PTR)pupdateinfo))
+						if (_r_inet_downloadurl (hsession, proxy_addr, pcomponent->url, pcomponent->filepath, true, &papp->UpdateDownloadCallback, (LONG_PTR)pupdateinfo))
 						{
 							pcomponent->is_downloaded = true;
 							pcomponent->is_haveupdates = false;
@@ -2093,7 +2116,7 @@ INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS f
 	INT button = 0;
 
 	if (hwnd)
-		SendMessage (hwnd, TDM_NAVIGATE_PAGE, 0, (LPARAM)& tdc);
+		SendMessage (hwnd, TDM_NAVIGATE_PAGE, 0, (LPARAM)&tdc);
 
 	else
 		_r_msg_taskdialog (&tdc, &button, nullptr, nullptr);
@@ -2131,12 +2154,12 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 		rstring buffer;
 
-		const rstring proxy_info = _r_inet_getproxyconfiguration (papp->ConfigGet (L"Proxy", nullptr));
-		const HINTERNET hsession = _r_inet_createsession (papp->GetUserAgent (), proxy_info);
+		LPCWSTR proxy_addr = papp->GetProxyConfiguration ();
+		const HINTERNET hsession = _r_inet_createsession (papp->GetUserAgent (), proxy_addr);
 
 		if (hsession)
 		{
-			if (!_r_inet_downloadurl (hsession, proxy_info, _r_fmt (_APP_WEBSITE_URL L"/update.php?product=%s&is_beta=%d&api=3", papp->app_name_short, is_beta), &buffer, false, nullptr, 0))
+			if (!_r_inet_downloadurl (hsession, proxy_addr, _r_fmt (_APP_WEBSITE_URL L"/update.php?product=%s&is_beta=%d&api=3", papp->app_name_short, is_beta), &buffer, false, nullptr, 0))
 			{
 				if (pupdateinfo->hwnd)
 				{
@@ -2358,7 +2381,7 @@ bool rapp::SkipUacEnable (bool is_enable)
 	{
 		if (SUCCEEDED (CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr)))
 		{
-			if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID *)& service)))
+			if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID *)&service)))
 			{
 				if (SUCCEEDED (service->Connect (vtEmpty, vtEmpty, vtEmpty, vtEmpty)))
 				{
@@ -2397,7 +2420,7 @@ bool rapp::SkipUacEnable (bool is_enable)
 								{
 									if (SUCCEEDED (action_collection->Create (TASK_ACTION_EXEC, &action)))
 									{
-										if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID *)& exec_action)))
+										if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID *)&exec_action)))
 										{
 											if (
 												SUCCEEDED (exec_action->put_Path (path)) &&
@@ -2494,7 +2517,7 @@ bool rapp::SkipUacRun ()
 	{
 		if (SUCCEEDED (CoInitializeSecurity (nullptr, -1, nullptr, nullptr, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, 0, nullptr)))
 		{
-			if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID *)& service)))
+			if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID *)&service)))
 			{
 				if (SUCCEEDED (service->Connect (vtEmpty, vtEmpty, vtEmpty, vtEmpty)))
 				{
@@ -2508,7 +2531,7 @@ bool rapp::SkipUacRun ()
 								{
 									if (SUCCEEDED (action_collection->get_Item (1, &action)))
 									{
-										if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID *)& exec_action)))
+										if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID *)&exec_action)))
 										{
 											BSTR path = nullptr;
 											exec_action->get_Path (&path);
