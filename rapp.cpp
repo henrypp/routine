@@ -2566,7 +2566,7 @@ bool rapp::SkipUacRun ()
 													{
 														_r_sleep (250);
 
-														TASK_STATE state = TASK_STATE_UNKNOWN;
+														TASK_STATE state;
 
 														running_task->Refresh ();
 
