@@ -1722,39 +1722,41 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 		{
 			LPNMHDR lphdr = (LPNMHDR)lparam;
 
-			if (lphdr->idFrom == IDC_NAV)
+			const INT ctrl_id = PtrToInt ((void*)lphdr->idFrom);
+
+			if (ctrl_id != IDC_NAV)
+				break;
+
+			switch (lphdr->code)
 			{
-				switch (lphdr->code)
+				case TVN_SELCHANGED:
 				{
-					case TVN_SELCHANGED:
+					LPNMTREEVIEW pnmtv = (LPNMTREEVIEW)lparam;
+
+					const size_t old_id = size_t (pnmtv->itemOld.lParam);
+					const size_t new_id = size_t (pnmtv->itemNew.lParam);
+
+					this_ptr->settings_page_id = new_id;
+
+					const PAPP_SETTINGS_PAGE ptr_page_old = this_ptr->app_settings_pages.at (old_id);
+					const PAPP_SETTINGS_PAGE ptr_page_new = this_ptr->app_settings_pages.at (new_id);
+
+					if (ptr_page_old && ptr_page_old->hwnd)
+						ShowWindow (ptr_page_old->hwnd, SW_HIDE);
+
+					if (ptr_page_new)
 					{
-						LPNMTREEVIEW pnmtv = (LPNMTREEVIEW)lparam;
+						this_ptr->ConfigSet (L"SettingsLastPage", ptr_page_new->dlg_id);
 
-						const size_t old_id = size_t (pnmtv->itemOld.lParam);
-						const size_t new_id = size_t (pnmtv->itemNew.lParam);
-
-						this_ptr->settings_page_id = new_id;
-
-						PAPP_SETTINGS_PAGE const ptr_page_old = this_ptr->app_settings_pages.at (old_id);
-						PAPP_SETTINGS_PAGE const ptr_page_new = this_ptr->app_settings_pages.at (new_id);
-
-						if (ptr_page_old && ptr_page_old->hwnd)
-							ShowWindow (ptr_page_old->hwnd, SW_HIDE);
-
-						if (ptr_page_new)
+						if (ptr_page_new->hwnd)
 						{
-							this_ptr->ConfigSet (L"SettingsLastPage", ptr_page_new->dlg_id);
+							SendMessage (ptr_page_new->hwnd, RM_LOCALIZE, (WPARAM)ptr_page_new->dlg_id, (LPARAM)ptr_page_new);
 
-							if (ptr_page_new->hwnd)
-							{
-								SendMessage (ptr_page_new->hwnd, RM_LOCALIZE, (WPARAM)ptr_page_new->dlg_id, (LPARAM)ptr_page_new);
-
-								ShowWindow (ptr_page_new->hwnd, SW_SHOW);
-							}
+							ShowWindow (ptr_page_new->hwnd, SW_SHOW);
 						}
-
-						break;
 					}
+
+					break;
 				}
 			}
 
