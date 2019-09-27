@@ -2281,8 +2281,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 								{
 									if (!pcomponent->is_installer)
 									{
-										_r_fs_delete (pcomponent->target_path, false);
-										_r_fs_copy (pcomponent->filepath, pcomponent->target_path);
+										_r_fs_move (pcomponent->filepath, pcomponent->target_path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
 
 										papp->ConfigInit (); // reload configuration
 
