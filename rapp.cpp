@@ -893,7 +893,23 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 		INITCOMMONCONTROLSEX icex = {0};
 
 		icex.dwSize = sizeof (icex);
-		icex.dwICC = ICC_LISTVIEW_CLASSES | ICC_TREEVIEW_CLASSES | ICC_BAR_CLASSES | ICC_TAB_CLASSES | ICC_PROGRESS_CLASS | ICC_COOL_CLASSES | ICC_STANDARD_CLASSES | ICC_LINK_CLASS;
+		icex.dwICC = ICC_LISTVIEW_CLASSES |
+			ICC_TREEVIEW_CLASSES |
+			ICC_BAR_CLASSES |
+			ICC_TAB_CLASSES |
+			ICC_UPDOWN_CLASS |
+			ICC_PROGRESS_CLASS |
+			ICC_HOTKEY_CLASS |
+			ICC_ANIMATE_CLASS |
+			ICC_WIN95_CLASSES |
+			ICC_DATE_CLASSES |
+			ICC_USEREX_CLASSES |
+			ICC_COOL_CLASSES |
+			ICC_INTERNET_CLASSES |
+			ICC_PAGESCROLLER_CLASS |
+			ICC_NATIVEFNTCTL_CLASS |
+			ICC_STANDARD_CLASSES |
+			ICC_LINK_CLASS;
 
 		InitCommonControlsEx (&icex);
 	}
@@ -1790,7 +1806,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					{
 						const time_t current_timestamp = _r_unixtime_now ();
 
-						_r_fs_move_backup (this_ptr->GetConfigPath (), current_timestamp);
+						_r_fs_madebackup (this_ptr->GetConfigPath (), current_timestamp);
 
 						this_ptr->ConfigInit ();
 
