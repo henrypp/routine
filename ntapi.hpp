@@ -3,31 +3,53 @@
 
 #pragma once
 
-/*
-	Libraries
-*/
-
+// Libraries
 #pragma comment(lib, "ntdll.lib")
 
-/*
-	System icons identificators
-*/
+// Memory
+#ifndef PTR_ADD_OFFSET
+#define PTR_ADD_OFFSET(Pointer, Offset) ((PVOID)((ULONG_PTR)(Pointer) + (ULONG_PTR)(Offset)))
+#endif
 
+#ifndef PTR_SUB_OFFSET
+#define PTR_SUB_OFFSET(Pointer, Offset) ((PVOID)((ULONG_PTR)(Pointer) - (ULONG_PTR)(Offset)))
+#endif
+
+// Icons (shell32)
+#ifndef SIH_APPLICATION
+#define SIH_APPLICATION 32512
+#endif
+
+#ifndef SIH_ERROR
+#define SIH_ERROR 32513
+#endif
+
+#ifndef SIH_QUESTION
 #define SIH_QUESTION 32514
+#endif
+
+#ifndef SIH_EXCLAMATION
+#define SIH_EXCLAMATION 32515
+#endif
+
+#ifndef SIH_INFORMATION
 #define SIH_INFORMATION 32516
+#endif
 
-/*
-	Path separator
-*/
+#ifndef SIH_WINLOGO
+#define SIH_WINLOGO 32517
+#endif
 
+#ifndef SIH_SHIELD
+#define SIH_SHIELD 32518
+#endif
+
+// Path separator
 #ifndef OBJ_NAME_PATH_SEPARATOR
 #define OBJ_NAME_PATH_SEPARATOR L'\\'
 #endif
 
-/*
-	Undocumented window messages
-*/
-
+// Undocumented window messages
 #ifndef LVM_RESETEMPTYTEXT
 #define LVM_RESETEMPTYTEXT (LVM_FIRST + 84)
 #endif
@@ -36,10 +58,7 @@
 #define WM_COPYGLOBALDATA 0x0049
 #endif
 
-/*
-	NTSTATUS Definition
-*/
-
+// NT error codes
 #ifndef STATUS_UNSUCCESSFUL
 #define STATUS_UNSUCCESSFUL 0xc0000001L
 #endif
@@ -586,7 +605,6 @@ typedef struct _PROCESS_DEVICEMAP_INFORMATION_EX
     }
 
 // Kernel-user shared data
-
 typedef enum _NT_PRODUCT_TYPE
 {
 	NtProductWinNt = 1,
