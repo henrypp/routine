@@ -72,7 +72,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 				{
 					LPWSTR ptr = arga[i + 1];
 
-					if (ptr[0] == L'/' || ptr[0] == L'-')
+					if (*ptr == L'/' || *ptr == L'-')
 						continue;
 
 					PathUnquoteSpaces (ptr);
@@ -1370,7 +1370,7 @@ void rapp::LocaleApplyFromControl (HWND hwnd, INT ctrl_id)
 	const rstring text = _r_ctrl_gettext (hwnd, ctrl_id);
 
 	if (_r_str_compare (text, _APP_LANGUAGE_DEFAULT) == 0)
-		locale_current[0] = 0;
+		*locale_current = UNICODE_NULL;
 
 	else
 		_r_str_copy (locale_current, _countof (locale_current), text);
@@ -1404,7 +1404,7 @@ void rapp::LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id)
 	if (selected_id == default_id)
 	{
 		ConfigSet (L"Language", _APP_LANGUAGE_DEFAULT);
-		locale_current[0] = 0;
+		*locale_current = UNICODE_NULL;
 	}
 	else
 	{
@@ -1544,7 +1544,7 @@ void rapp::LocaleInit ()
 		_r_str_copy (locale_current, _countof (locale_current), name);
 
 	else
-		locale_current[0] = 0;
+		*locale_current = UNICODE_NULL;
 }
 
 rstring rapp::LocaleString (UINT uid, LPCWSTR append)
