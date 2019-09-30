@@ -1236,22 +1236,12 @@ void rapp::SettingsInitialize ()
 	// initialize treeview
 	for (size_t i = 0; i < app_settings_pages.size (); i++)
 	{
-		PAPP_SETTINGS_PAGE const ptr_page = app_settings_pages.at (i);
+		PAPP_SETTINGS_PAGE ptr_page = app_settings_pages.at (i);
 
-		TVITEMEX tvi = {0};
+		if (!ptr_page || !ptr_page->hitem)
+			continue;
 
-		tvi.mask = TVIF_PARAM;
-		tvi.hItem = ptr_page->item;
-
-		SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETITEM, 0, (LPARAM)&tvi);
-
-		WCHAR buffer[128] = {0};
-		_r_str_copy (buffer, _countof (buffer), LocaleString (ptr_page->locale_id, nullptr));
-
-		tvi.mask = TVIF_TEXT;
-		tvi.pszText = buffer;
-
-		SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETITEM, 0, (LPARAM)&tvi);
+		_r_treeview_setitem (hwnd, IDC_NAV, ptr_page->hitem, LocaleString (ptr_page->locale_id, nullptr));
 	}
 }
 #endif // _APP_HAVE_SETTINGS
@@ -1654,10 +1644,10 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 						}
 					}
 
-					ptr_page->item = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr_page->locale_id, nullptr), ((ptr_page->group_id == INVALID_INT) ? nullptr : this_ptr->app_settings_pages.at (ptr_page->group_id)->item), INVALID_INT, (LPARAM)i);
+					ptr_page->hitem = _r_treeview_additem (hwnd, IDC_NAV, this_ptr->LocaleString (ptr_page->locale_id, nullptr), ((ptr_page->group_id == INVALID_INT) ? nullptr : this_ptr->app_settings_pages.at (ptr_page->group_id)->hitem), INVALID_INT, (LPARAM)i);
 
 					if (dlg_id == ptr_page->dlg_id)
-						SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)ptr_page->item);
+						SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)ptr_page->hitem);
 				}
 			}
 
@@ -1721,8 +1711,8 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 						ptr_page->hwnd = nullptr;
 					}
 
-					if (ptr_page->item)
-						ptr_page->item = nullptr;
+					if (ptr_page->hitem)
+						ptr_page->hitem = nullptr;
 				}
 			}
 
@@ -1894,7 +1884,7 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 	}
 
 	return true;
-}
+	}
 
 UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 {
@@ -1981,17 +1971,17 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 				if (pupdateinfo->hwnd)
 				{
 					papp->UpdateDialogNavigate (pupdateinfo->hwnd, (is_downloaded ? nullptr : TD_WARNING_ICON), 0, is_downloaded_installer ? TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON : TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
-				}
-#ifndef _APP_NO_WINXP
 			}
+#ifndef _APP_NO_WINXP
+		}
 			else
 			{
 				if (pupdateinfo->is_forced)
 					_r_msg (papp->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), papp->app_name, nullptr, L"%s", str_content);
-			}
-#endif // _APP_NO_WINXP
-		}
 	}
+#endif // _APP_NO_WINXP
+}
+}
 
 	//SetEvent (pupdateinfo->hend);
 
@@ -2080,11 +2070,11 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 			}
 
 			break;
-		}
-	}
+				}
+			}
 
 	return S_OK;
-}
+		}
 
 INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS flags, TASKDIALOG_COMMON_BUTTON_FLAGS buttons, LPCWSTR main, LPCWSTR content, LONG_PTR lpdata)
 {
@@ -2140,7 +2130,7 @@ INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS f
 		_r_msg_taskdialog (&tdc, &button, nullptr, nullptr);
 
 	return button;
-}
+	}
 
 rstring format_version (rstring vers)
 {
@@ -2314,10 +2304,10 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 										_r_fs_delete (pcomponent->filepath, false);
 									}
-								}
 							}
-						}
 					}
+				}
+			}
 					else
 					{
 						if (pupdateinfo->hwnd)
@@ -2333,21 +2323,21 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 						}
 					}
-				}
+	}
 
 				papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
 			}
 
 			_r_inet_close (hsession);
-		}
+}
 
 		SetEvent (pupdateinfo->hend);
-	}
+}
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-}
+	}
 #endif // _APP_HAVE_UPDATES
 
 #ifdef _APP_HAVE_SKIPUAC

@@ -25,7 +25,7 @@
 #ifndef _APP_NO_SETTINGS
 typedef struct _APP_SETTINGS_PAGE
 {
-	HTREEITEM item = nullptr;
+	HTREEITEM hitem = nullptr;
 	HWND hwnd = nullptr;
 
 	INT dlg_id = 0;
