@@ -125,7 +125,7 @@ bool rapp::MutexCreate ()
 #ifndef _APP_NO_MUTEX
 	app_mutex = CreateMutex (nullptr, FALSE, app_name_short);
 #else
-	app_mutex = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%" PR_SIZE_T L"_%" PR_SIZE_T, app_name_short, _r_str_hash (GetBinaryPath (), INVALID_SIZE_T), _r_str_hash (GetCommandLine (), INVALID_SIZE_T)));
+	app_mutex = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%" PR_SIZE_T L"_%" PR_SIZE_T, app_name_short, _r_str_hash (GetBinaryPath ()), _r_str_hash (GetCommandLine ())));
 #endif // _APP_NO_MUTEX
 
 	return (app_mutex != nullptr);
@@ -153,7 +153,7 @@ bool rapp::MutexIsExists (bool activate_window)
 #ifndef _APP_NO_MUTEX
 	const HANDLE hmutex = CreateMutex (nullptr, FALSE, app_name_short);
 #else
-	const HANDLE hmutex = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%" PR_SIZE_T L"_%" PR_SIZE_T, app_name_short, _r_str_hash (GetBinaryPath (), INVALID_SIZE_T), _r_str_hash (GetCommandLine (), INVALID_SIZE_T)));
+	const HANDLE hmutex = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%" PR_SIZE_T L"_%" PR_SIZE_T, app_name_short, _r_str_hash (GetBinaryPath ()), _r_str_hash (GetCommandLine ())));
 #endif // _APP_NO_MUTEX
 
 	if (GetLastError () == ERROR_ALREADY_EXISTS)
@@ -2134,7 +2134,7 @@ INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS f
 
 rstring format_version (rstring vers)
 {
-	if (_r_str_isnumeric (vers, vers.GetLength ()))
+	if (_r_str_isnumeric (vers))
 		return _r_fmt_date (vers.AsLonglong (), FDTF_SHORTDATE | FDTF_SHORTTIME);
 
 	return vers;
@@ -2209,7 +2209,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 								const rstring new_version = _r_str_extract (rlink, rlink.GetLength (), 0, split_pos);
 								const rstring new_url = _r_str_extract (rlink, rlink.GetLength (), split_pos + 1);
 
-								if (!new_version.IsEmpty () && !new_url.IsEmpty () && (_r_str_isnumeric (new_version, new_version.GetLength ()) ? (new_version.AsLonglong () > wcstoll (pcomponent->version, nullptr, 10)) : (_r_str_versioncompare (pcomponent->version, new_version) == -1)))
+								if (!new_version.IsEmpty () && !new_url.IsEmpty () && (_r_str_isnumeric (new_version) ? (new_version.AsLonglong () > wcstoll (pcomponent->version, nullptr, 10)) : (_r_str_versioncompare (pcomponent->version, new_version) == -1)))
 								{
 									is_updateavailable = true;
 
