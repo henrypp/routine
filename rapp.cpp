@@ -218,7 +218,10 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 	}
 
 	// check window props
-	if (GetProp (hwnd, L"this_ptr"))
+	if (
+		GetProp (hwnd, L"this_ptr") || // removed, but hardcoded
+		GetProp (hwnd, this_ptr->app_name)
+		)
 	{
 		_r_wnd_toggle (hwnd, true);
 		return FALSE;
@@ -698,7 +701,7 @@ bool rapp::IsVistaOrLater () const
 
 LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
-	static rapp *this_ptr = (rapp *)GetProp (hwnd, L"this_ptr");
+	static rapp *this_ptr = (rapp *)GetWindowLongPtr (hwnd, GWLP_USERDATA);
 
 #ifdef _APP_HAVE_TRAY
 	if (msg == WM_TASKBARCREATED)
@@ -835,6 +838,39 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			break;
 		}
 
+		case WM_DPICHANGED:
+		{
+			_r_dc_getdpivalue ((INT)LOWORD (wparam)); // // reset dpi cached value (required!)
+
+#ifdef _APP_HAVE_SETTINGS
+			if (this_ptr->GetSettingsWindow ())
+				SendDlgItemMessage (this_ptr->GetSettingsWindow (), IDC_NAV, TVM_SETITEMHEIGHT, (WPARAM)_r_dc_getdpi (_R_SIZE_ITEMHEIGHT), 0);
+#endif // _APP_HAVE_SETTINGS
+
+			// call main callback
+			SendMessage (hwnd, RM_DPICHANGED, 0, 0);
+
+			// change window size and position
+			if ((GetWindowLongPtr (hwnd, GWL_STYLE) & (WS_SIZEBOX | WS_MAXIMIZEBOX)) != 0)
+			{
+				LPRECT lprcnew = (LPRECT)lparam;
+
+				if (lprcnew)
+				{
+					SetWindowPos (hwnd, nullptr, lprcnew->left, lprcnew->top, _R_RECT_WIDTH (lprcnew), _R_RECT_HEIGHT (lprcnew), SWP_NOZORDER | SWP_NOACTIVATE);
+
+					RECT rc = {0};
+					GetClientRect (hwnd, &rc);
+
+					SendMessage (hwnd, WM_SIZE, SIZE_RESTORED, MAKELONG (_R_RECT_WIDTH (&rc), _R_RECT_HEIGHT (&rc)));
+
+					SendMessage (hwnd, WM_EXITSIZEMOVE, 0, 0); // reset size and pos
+				}
+			}
+
+			break;
+		}
+
 		case WM_SYSCOMMAND:
 		{
 #ifdef _APP_HAVE_TRAY
@@ -849,10 +885,11 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		}
 	}
 
-	if (!this_ptr->app_wndproc) // check (required!)
-		return FALSE;
+	if (this_ptr->app_wndproc)
+		return CallWindowProc (this_ptr->app_wndproc, hwnd, msg, wparam, lparam);
 
-	return CallWindowProc (this_ptr->app_wndproc, hwnd, msg, wparam, lparam);
+	return FALSE;
+
 }
 
 bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
@@ -980,7 +1017,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 			{
 				// continue...
 			}
-		}
+	}
 #endif //_APP_HAVE_UPDATES
 
 #ifdef _APP_HAVE_UPDATES
@@ -1016,8 +1053,11 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 			}
 #endif // _APP_NO_WINXP
 
+			// set window id
+			SetProp (GetHWND (), app_name, "sync-1.02; iris fucyo; none of your damn business.");
+
 			// subclass window
-			SetProp (GetHWND (), L"this_ptr", this);
+			SetWindowLongPtr (GetHWND (), GWLP_USERDATA, (LONG_PTR)this);
 			app_wndproc = (WNDPROC)SetWindowLongPtr (GetHWND (), DWLP_DLGPROC, (LONG_PTR)&MainWindowProc);
 
 			// update autorun settings
@@ -1076,8 +1116,8 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 			// set icons
 			if (icon_id)
 			{
-				SendMessage (GetHWND (), WM_SETICON, ICON_SMALL, (LPARAM)GetSharedImage (GetHINSTANCE (), icon_id, GetSystemMetrics (SM_CXSMICON)));
-				SendMessage (GetHWND (), WM_SETICON, ICON_BIG, (LPARAM)GetSharedImage (GetHINSTANCE (), icon_id, GetSystemMetrics (SM_CXICON)));
+				SendMessage (GetHWND (), WM_SETICON, ICON_SMALL, (LPARAM)GetSharedImage (GetHINSTANCE (), icon_id, _r_dc_getdpi (_R_SIZE_ICON16)));
+				SendMessage (GetHWND (), WM_SETICON, ICON_BIG, (LPARAM)GetSharedImage (GetHINSTANCE (), icon_id, _r_dc_getdpi (_R_SIZE_ICON32)));
 			}
 
 			// common initialization
@@ -1092,8 +1132,8 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 #endif // _APP_HAVE_UPDATES
 
 			result = true;
+			}
 		}
-	}
 
 	return result;
 }
@@ -1278,11 +1318,6 @@ LPCWSTR rapp::GetUpdatePath () const
 }
 #endif // _APP_HAVE_UPDATES
 
-rstring rapp::GetUserAgent ()
-{
-	return ConfigGet (L"UserAgent", _r_fmt (L"%s/%s (+%s)", app_name, app_version, _APP_WEBSITE_URL));
-}
-
 rstring rapp::GetProxyConfiguration ()
 {
 	rstring proxy = ConfigGet (L"Proxy", nullptr).GetString ();
@@ -1307,6 +1342,11 @@ rstring rapp::GetProxyConfiguration ()
 	}
 
 	return proxy;
+}
+
+rstring rapp::GetUserAgent ()
+{
+	return ConfigGet (L"UserAgent", _r_fmt (L"%s/%s (+%s)", app_name, app_version, _APP_WEBSITE_URL));
 }
 
 HICON rapp::GetSharedImage (HINSTANCE hinst, INT icon_id, INT icon_size)
@@ -1609,8 +1649,8 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 #endif // _APP_NO_DARKTHEME
 
 #ifdef IDI_MAIN
-			SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)this_ptr->GetSharedImage (this_ptr->GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXSMICON)));
-			SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)this_ptr->GetSharedImage (this_ptr->GetHINSTANCE (), IDI_MAIN, GetSystemMetrics (SM_CXICON)));
+			SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)this_ptr->GetSharedImage (this_ptr->GetHINSTANCE (), IDI_MAIN, _r_dc_getdpi (_R_SIZE_ICON16)));
+			SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)this_ptr->GetSharedImage (this_ptr->GetHINSTANCE (), IDI_MAIN, _r_dc_getdpi (_R_SIZE_ICON32)));
 #else
 #pragma _R_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
@@ -1619,7 +1659,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			_r_wnd_center (hwnd, this_ptr->GetHWND () ? this_ptr->GetHWND () : GetParent (hwnd));
 
 			// configure treeview
-			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, _r_dc_getdpi (20));
+			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, _r_dc_getdpi (_R_SIZE_ITEMHEIGHT));
 
 			SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETBKCOLOR, TVSIL_STATE, (LPARAM)GetSysColor (COLOR_3DFACE));
 
@@ -1837,13 +1877,13 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					}
 
 					break;
-				}
-#endif // IDC_RESET
 			}
+#endif // IDC_RESET
+		}
 
 			break;
-		}
 	}
+}
 
 	return FALSE;
 }
@@ -1877,14 +1917,14 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 
 				SendMessage (pupdateinfo->hwnd, TDM_SET_ELEMENT_TEXT, TDE_CONTENT, (LPARAM)str_content);
 				SendMessage (pupdateinfo->hwnd, TDM_SET_PROGRESS_BAR_POS, (WPARAM)percent, 0);
-			}
-#ifndef _APP_NO_WINXP
 		}
+#ifndef _APP_NO_WINXP
+}
 #endif // _APP_NO_WINXP
 	}
 
 	return true;
-	}
+}
 
 UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 {
@@ -1971,24 +2011,24 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 				if (pupdateinfo->hwnd)
 				{
 					papp->UpdateDialogNavigate (pupdateinfo->hwnd, (is_downloaded ? nullptr : TD_WARNING_ICON), 0, is_downloaded_installer ? TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON : TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
-			}
+				}
 #ifndef _APP_NO_WINXP
-		}
+				}
 			else
 			{
 				if (pupdateinfo->is_forced)
 					_r_msg (papp->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), papp->app_name, nullptr, L"%s", str_content);
-	}
+			}
 #endif // _APP_NO_WINXP
-}
-}
+				}
+		}
 
 	//SetEvent (pupdateinfo->hend);
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-}
+	}
 
 HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM, LONG_PTR lpdata)
 {
@@ -2056,7 +2096,7 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 
 					return S_FALSE;
 				}
-			}
+		}
 			else if (wparam == IDOK)
 			{
 				rapp *papp = (rapp *)(pupdateinfo->papp);
@@ -2070,11 +2110,11 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 			}
 
 			break;
-				}
-			}
+	}
+}
 
 	return S_OK;
-		}
+}
 
 INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS flags, TASKDIALOG_COMMON_BUTTON_FLAGS buttons, LPCWSTR main, LPCWSTR content, LONG_PTR lpdata)
 {
@@ -2130,7 +2170,7 @@ INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS f
 		_r_msg_taskdialog (&tdc, &button, nullptr, nullptr);
 
 	return button;
-	}
+}
 
 rstring format_version (rstring vers)
 {
@@ -2181,8 +2221,8 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 #endif // IDS_UPDATE_ERROR
 
 					papp->UpdateDialogNavigate (pupdateinfo->hwnd, TD_WARNING_ICON, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
-				}
-			}
+		}
+}
 			else
 			{
 				rstringmap1 result;
@@ -2276,8 +2316,8 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 									ResumeThread (pupdateinfo->hthread);
 									WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
 								}
-							}
-						}
+				}
+			}
 #endif
 						for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 						{
@@ -2304,10 +2344,10 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 										_r_fs_delete (pcomponent->filepath, false);
 									}
+								}
 							}
+						}
 					}
-				}
-			}
 					else
 					{
 						if (pupdateinfo->hwnd)
@@ -2323,21 +2363,21 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 						}
 					}
-	}
+				}
 
 				papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
 			}
 
 			_r_inet_close (hsession);
-}
+		}
 
 		SetEvent (pupdateinfo->hend);
-}
+	}
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-	}
+}
 #endif // _APP_HAVE_UPDATES
 
 #ifdef _APP_HAVE_SKIPUAC
@@ -2491,7 +2531,7 @@ bool rapp::SkipUacEnable (bool is_enable)
 	}
 
 	return result;
-}
+	}
 
 bool rapp::SkipUacRun ()
 {

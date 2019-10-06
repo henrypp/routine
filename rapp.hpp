@@ -195,8 +195,8 @@ public:
 	LPCWSTR GetUpdatePath () const;
 #endif // _APP_HAVE_UPDATES
 
-	rstring GetUserAgent ();
 	rstring GetProxyConfiguration ();
+	rstring GetUserAgent ();
 
 	HINSTANCE GetHINSTANCE () const;
 	HWND GetHWND () const;
