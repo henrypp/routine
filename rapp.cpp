@@ -161,7 +161,7 @@ bool rapp::MutexIsExists (bool activate_window)
 		result = true;
 
 		if (activate_window && !wcsstr (GetCommandLine (), L"/minimized"))
-			EnumWindows (&ActivateWindowCallback, (LPARAM)this);
+			EnumWindows (&ActivateWindowCallback, (LPARAM)this->app_name);
 	}
 	else
 	{
@@ -177,9 +177,9 @@ bool rapp::MutexIsExists (bool activate_window)
 
 BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 {
-	rapp const *this_ptr = (rapp *)lparam;
+	LPCWSTR app_name = (LPCWSTR)lparam;
 
-	if (!this_ptr)
+	if (_r_str_isempty (app_name))
 		return FALSE;
 
 	DWORD pid = 0;
@@ -192,49 +192,33 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 		return TRUE;
 
 	WCHAR classname[64] = {0};
-	WCHAR window_title[MAX_PATH] = {0};
-	WCHAR window_fname[MAX_PATH] = {0};
+	WCHAR window_title[128] = {0};
 
 	// check window class
-	if (GetClassName (hwnd, classname, _countof (classname)))
-	{
-		if (_r_str_compare (classname, L"#32770", 6) != 0)
-			return TRUE;
-	}
-	else
-	{
+	if (!GetClassName (hwnd, classname, _countof (classname)))
 		return TRUE;
-	}
 
-	// check window title
-	if (GetWindowText (hwnd, window_title, _countof (window_title)))
-	{
-		if (_r_str_compare (this_ptr->app_name, window_title, _r_str_length (this_ptr->app_name)) != 0)
-			return TRUE;
-	}
-	else
-	{
+	if (_r_str_compare (classname, L"#32770", 6) != 0)
 		return TRUE;
-	}
 
-	// check window props
+	// check window prop
 	if (
-		GetProp (hwnd, L"this_ptr") || // removed, but hardcoded
-		GetProp (hwnd, this_ptr->app_name)
+		GetProp (hwnd, app_name) ||
+		GetProp (hwnd, L"this_ptr") // deprecated
 		)
 	{
 		_r_wnd_toggle (hwnd, true);
 		return FALSE;
 	}
 
-	// check window filename
-	if (GetWindowModuleFileName (hwnd, window_fname, _countof (window_fname)))
+	// check window title
+	if (!GetWindowText (hwnd, window_title, _countof (window_title)))
+		return TRUE;
+
+	if (_r_str_compare (app_name, window_title, _r_str_length (app_name)) == 0)
 	{
-		if (_r_str_compare (this_ptr->app_name_short, _r_path_getfilename (window_fname), _r_str_length (this_ptr->app_name_short)) == 0)
-		{
-			_r_wnd_toggle (hwnd, true);
-			return FALSE;
-		}
+		_r_wnd_toggle (hwnd, true);
+		return FALSE;
 	}
 
 	return TRUE;
@@ -307,7 +291,7 @@ void rapp::UpdateAddComponent (LPCWSTR full_name, LPCWSTR short_name, LPCWSTR ve
 
 bool rapp::UpdateCheck (bool is_forced)
 {
-	if (!is_forced && (!ConfigGet (L"CheckUpdates", true).AsBool () || (_r_unixtime_now () - ConfigGet (L"CheckUpdatesLast", time_t (0)).AsLonglong ()) <= _APP_UPDATE_PERIOD))
+	if (!is_forced && (!ConfigGet (L"CheckUpdates", true).AsBool () || (_r_unixtime_now () - ConfigGet (L"CheckUpdatesLast", 0LL).AsLonglong ()) <= _APP_UPDATE_PERIOD))
 		return false;
 
 	const HANDLE hthread = (HANDLE)_beginthreadex (nullptr, 0, &UpdateCheckThread, (LPVOID)pupdateinfo, CREATE_SUSPENDED, nullptr);
@@ -1017,7 +1001,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 			{
 				// continue...
 			}
-	}
+		}
 #endif //_APP_HAVE_UPDATES
 
 #ifdef _APP_HAVE_UPDATES
@@ -1053,7 +1037,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 			}
 #endif // _APP_NO_WINXP
 
-			// set window id
+			// set window prop
 			SetProp (GetHWND (), app_name, "sync-1.02; iris fucyo; none of your damn business.");
 
 			// subclass window
@@ -1132,8 +1116,8 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 #endif // _APP_HAVE_UPDATES
 
 			result = true;
-			}
 		}
+	}
 
 	return result;
 }
@@ -1641,7 +1625,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 	{
 		case WM_INITDIALOG:
 		{
-			this_ptr = (rapp *)(lparam);
+			this_ptr = (rapp *)lparam;
 			this_ptr->settings_hwnd = hwnd;
 
 #ifndef _APP_NO_DARKTHEME
@@ -1877,13 +1861,13 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					}
 
 					break;
-			}
+				}
 #endif // IDC_RESET
-		}
+			}
 
 			break;
+		}
 	}
-}
 
 	return FALSE;
 }
@@ -1917,9 +1901,9 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 
 				SendMessage (pupdateinfo->hwnd, TDM_SET_ELEMENT_TEXT, TDE_CONTENT, (LPARAM)str_content);
 				SendMessage (pupdateinfo->hwnd, TDM_SET_PROGRESS_BAR_POS, (WPARAM)percent, 0);
-		}
+			}
 #ifndef _APP_NO_WINXP
-}
+		}
 #endif // _APP_NO_WINXP
 	}
 
@@ -2013,22 +1997,22 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					papp->UpdateDialogNavigate (pupdateinfo->hwnd, (is_downloaded ? nullptr : TD_WARNING_ICON), 0, is_downloaded_installer ? TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON : TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 				}
 #ifndef _APP_NO_WINXP
-				}
+			}
 			else
 			{
 				if (pupdateinfo->is_forced)
 					_r_msg (papp->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), papp->app_name, nullptr, L"%s", str_content);
 			}
 #endif // _APP_NO_WINXP
-				}
 		}
+	}
 
 	//SetEvent (pupdateinfo->hend);
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-	}
+}
 
 HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM, LONG_PTR lpdata)
 {
@@ -2096,7 +2080,7 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 
 					return S_FALSE;
 				}
-		}
+			}
 			else if (wparam == IDOK)
 			{
 				rapp *papp = (rapp *)(pupdateinfo->papp);
@@ -2110,8 +2094,8 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 			}
 
 			break;
+		}
 	}
-}
 
 	return S_OK;
 }
@@ -2221,8 +2205,8 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 #endif // IDS_UPDATE_ERROR
 
 					papp->UpdateDialogNavigate (pupdateinfo->hwnd, TD_WARNING_ICON, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
-		}
-}
+				}
+			}
 			else
 			{
 				rstringmap1 result;
@@ -2316,8 +2300,8 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 									ResumeThread (pupdateinfo->hthread);
 									WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
 								}
-				}
-			}
+							}
+						}
 #endif
 						for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 						{
@@ -2531,7 +2515,7 @@ bool rapp::SkipUacEnable (bool is_enable)
 	}
 
 	return result;
-	}
+}
 
 bool rapp::SkipUacRun ()
 {
