@@ -750,7 +750,6 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		//}
 
 		case WM_SETTINGCHANGE:
-		case WM_SYSCOLORCHANGE:
 		{
 			_r_wnd_setdarktheme (hwnd);
 			break;
@@ -846,8 +845,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 					RECT rc = {0};
 					GetClientRect (hwnd, &rc);
 
-					SendMessage (hwnd, WM_SIZE, SIZE_RESTORED, MAKELONG (_R_RECT_WIDTH (&rc), _R_RECT_HEIGHT (&rc)));
-
+					SendMessage (hwnd, WM_SIZE, SIZE_RESTORED, MAKELPARAM (_R_RECT_WIDTH (&rc), _R_RECT_HEIGHT (&rc)));
 					SendMessage (hwnd, WM_EXITSIZEMOVE, 0, 0); // reset size and pos
 				}
 			}
@@ -1709,7 +1707,6 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 #ifndef _APP_NO_DARKTHEME
 		case WM_SETTINGCHANGE:
-		case WM_SYSCOLORCHANGE:
 		{
 			_r_wnd_setdarktheme (hwnd);
 			break;
