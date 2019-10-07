@@ -49,13 +49,17 @@
 #define OBJ_NAME_PATH_SEPARATOR L'\\'
 #endif
 
-// Undocumented window messages
+// Undocumented codes
 #ifndef LVM_RESETEMPTYTEXT
 #define LVM_RESETEMPTYTEXT (LVM_FIRST + 84)
 #endif
 
 #ifndef WM_COPYGLOBALDATA
 #define WM_COPYGLOBALDATA 0x0049
+#endif
+
+#ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
+#define DWMWA_USE_IMMERSIVE_DARK_MODE 19
 #endif
 
 // NT error codes
@@ -74,6 +78,16 @@
 #ifndef STATUS_BUFFER_TOO_SMALL
 #define STATUS_BUFFER_TOO_SMALL 0xC0000023L
 #endif
+
+// Insider 18334
+enum PreferredAppMode
+{
+	Default,
+	AllowDark,
+	ForceDark,
+	ForceLight,
+	Max
+};
 
 // rev
 // private
