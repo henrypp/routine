@@ -956,6 +956,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 		return false;
 #endif // _APP_NO_GUEST
 
+#ifndef _DEBUG
 #ifndef _WIN64
 	if (_r_sys_iswow64 ())
 	{
@@ -963,6 +964,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 			return false;
 	}
 #endif // _WIN64
+#endif // _DEBUG
 
 	MutexCreate ();
 
