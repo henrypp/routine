@@ -846,7 +846,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 
 				if (lprcnew)
 				{
-					SetWindowPos (hwnd, nullptr, lprcnew->left, lprcnew->top, _R_RECT_WIDTH (lprcnew), _R_RECT_HEIGHT (lprcnew), SWP_NOZORDER | SWP_NOACTIVATE);
+					_r_wnd_resize (0, hwnd, nullptr, lprcnew->left, lprcnew->top, _R_RECT_WIDTH (lprcnew), _R_RECT_HEIGHT (lprcnew), 0);
 
 					RECT rc = {0};
 					GetClientRect (hwnd, &rc);
@@ -1898,12 +1898,12 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 				SendMessage (pupdateinfo->hwnd, TDM_SET_PROGRESS_BAR_POS, (WPARAM)percent, 0);
 			}
 #ifndef _APP_NO_WINXP
-			}
-#endif // _APP_NO_WINXP
 		}
+#endif // _APP_NO_WINXP
+	}
 
 	return true;
-	}
+}
 
 UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 {
@@ -1997,17 +1997,17 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 			{
 				if (pupdateinfo->is_forced)
 					_r_msg (papp->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), papp->app_name, nullptr, L"%s", str_content);
-				}
+			}
 #endif // _APP_NO_WINXP
-			}
-			}
+		}
+	}
 
 	//SetEvent (pupdateinfo->hend);
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-		}
+}
 
 HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM, LONG_PTR lpdata)
 {
@@ -2295,8 +2295,8 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 									ResumeThread (pupdateinfo->hthread);
 									WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
 								}
+							}
 						}
-					}
 #endif
 						for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 						{
@@ -2326,7 +2326,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 								}
 							}
 						}
-				}
+					}
 					else
 					{
 						if (pupdateinfo->hwnd)
@@ -2342,21 +2342,21 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 						}
 					}
-			}
+				}
 
 				papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
-		}
+			}
 
 			_r_inet_close (hsession);
-	}
+		}
 
 		SetEvent (pupdateinfo->hend);
-}
+	}
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-	}
+}
 #endif // _APP_HAVE_UPDATES
 
 #ifdef _APP_HAVE_SKIPUAC
