@@ -79,6 +79,12 @@
 #define STATUS_BUFFER_TOO_SMALL 0xC0000023L
 #endif
 
+enum IMMERSIVE_HC_CACHE_MODE
+{
+	IHCM_USE_CACHED_VALUE,
+	IHCM_REFRESH
+};
+
 // Insider 18334
 enum PreferredAppMode
 {
@@ -910,6 +916,22 @@ extern "C" {
 		RtlInitUnicodeString (
 		_Out_ PUNICODE_STRING DestinationString,
 		_In_opt_ PWSTR SourceString
+		);
+
+	NTSYSAPI
+		VOID
+		NTAPI
+		RtlFreeUnicodeString (
+		_In_ PUNICODE_STRING UnicodeString
+		);
+
+	NTSYSAPI
+		LONG
+		NTAPI
+		RtlCompareUnicodeString (
+		_In_ PUNICODE_STRING String1,
+		_In_ PUNICODE_STRING String2,
+		_In_ BOOLEAN CaseInSensitive
 		);
 
 	NTSYSAPI
