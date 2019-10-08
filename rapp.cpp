@@ -47,11 +47,11 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	_r_str_copy (app_version, _countof (app_version), version);
 	_r_str_copy (app_copyright, _countof (app_copyright), copyright);
 
-#if defined(_APP_BETA) || defined(_APP_BETA_RC)
+#ifdef _APP_BETA
 	_r_str_cat (app_version, _countof (app_version), L" Pre-release");
 #else
 	_r_str_cat (app_version, _countof (app_version), L" Release");
-#endif // _APP_BETA || _APP_BETA_RC
+#endif // _APP_BETA
 
 	// get paths
 	GetModuleFileName (GetHINSTANCE (), app_binary, _countof (app_binary));
@@ -2175,11 +2175,11 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 		rapp *papp = (rapp *)(pupdateinfo->papp);
 
 		// check for beta versions flag
-#if defined(_APP_BETA) || defined(_APP_BETA_RC)
+#ifdef _APP_BETA
 		const bool is_beta = true;
 #else
 		const bool is_beta = papp->ConfigGet (L"CheckUpdatesBeta", false).AsBool ();
-#endif // _APP_BETA || _APP_BETA_RC
+#endif // _APP_BETA
 
 		rstring buffer;
 

@@ -10,8 +10,7 @@
 #define STRINGIZE(x) STRINGIZE_HELPER(x)
 #define _R_WARNING(desc) message(__FILE__ "(" STRINGIZE(__LINE__) ") : warning: resource id is not defined " #desc)
 
-//#define _APP_BETA // app has beta status
-//#define _APP_BETA_RC // app has release candidate status
+//#define _APP_BETA // app has pre-release status
 
 //#define _APP_NO_ABOUT // disable about dialog feature
 //#define _APP_NO_GUEST // disable "guest" mode, running without admin rights; see _APP_HAVE_SKIPUAC
