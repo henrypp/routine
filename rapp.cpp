@@ -703,6 +703,10 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		{
 			this_ptr->is_classic = !IsThemeActive () || this_ptr->ConfigGet (L"ClassicUI", _APP_CLASSICUI).AsBool ();
 
+#ifndef _APP_NO_DARKTHEME
+			_r_wnd_setdarktheme (hwnd);
+#endif // _APP_NO_DARKTHEME
+
 			SendMessage (hwnd, RM_LOCALIZE, 0, 0);
 
 			break;
@@ -751,7 +755,9 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 
 		case WM_SETTINGCHANGE:
 		{
-			_r_wnd_setdarktheme (hwnd);
+			if (_r_wnd_isdarkmessage (lparam))
+				SendMessage (hwnd, WM_THEMECHANGED, 0, 0);
+
 			break;
 		}
 #endif // _APP_NO_DARKTHEME
@@ -1705,14 +1711,6 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			break;
 		}
 
-#ifndef _APP_NO_DARKTHEME
-		case WM_SETTINGCHANGE:
-		{
-			_r_wnd_setdarktheme (hwnd);
-			break;
-		}
-#endif // _APP_NO_DARKTHEME
-
 		case WM_DESTROY:
 		{
 #ifdef _APP_HAVE_UPDATES
@@ -1900,12 +1898,12 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 				SendMessage (pupdateinfo->hwnd, TDM_SET_PROGRESS_BAR_POS, (WPARAM)percent, 0);
 			}
 #ifndef _APP_NO_WINXP
-		}
+			}
 #endif // _APP_NO_WINXP
-	}
+		}
 
 	return true;
-}
+	}
 
 UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 {
@@ -1999,17 +1997,17 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 			{
 				if (pupdateinfo->is_forced)
 					_r_msg (papp->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), papp->app_name, nullptr, L"%s", str_content);
-			}
+				}
 #endif // _APP_NO_WINXP
-		}
-	}
+			}
+			}
 
 	//SetEvent (pupdateinfo->hend);
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-}
+		}
 
 HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM, LONG_PTR lpdata)
 {
@@ -2297,8 +2295,8 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 									ResumeThread (pupdateinfo->hthread);
 									WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
 								}
-							}
 						}
+					}
 #endif
 						for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 						{
@@ -2328,7 +2326,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 								}
 							}
 						}
-					}
+				}
 					else
 					{
 						if (pupdateinfo->hwnd)
@@ -2344,21 +2342,21 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 						}
 					}
-				}
-
-				papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
 			}
 
-			_r_inet_close (hsession);
+				papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
 		}
 
-		SetEvent (pupdateinfo->hend);
+			_r_inet_close (hsession);
 	}
+
+		SetEvent (pupdateinfo->hend);
+}
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-}
+	}
 #endif // _APP_HAVE_UPDATES
 
 #ifdef _APP_HAVE_SKIPUAC
