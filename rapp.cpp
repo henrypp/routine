@@ -1445,27 +1445,31 @@ void rapp::LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id)
 
 void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start)
 {
-	HMENU hmenu = nullptr;
+	HMENU hmenu;
+	HMENU hsubmenu;
 
 	if (is_menu)
 	{
-		hmenu = GetSubMenu ((HMENU)hwnd, ctrl_id);
+		hmenu = (HMENU)hwnd;
+		hsubmenu = GetSubMenu (hmenu, ctrl_id);
 
 		// clear menu
 		for (UINT i = 0;; i++)
 		{
-			if (!DeleteMenu (hmenu, id_start + i, MF_BYCOMMAND))
+			if (!DeleteMenu (hsubmenu, id_start + i, MF_BYCOMMAND))
 			{
-				DeleteMenu (hmenu, 0, MF_BYPOSITION); // delete separator
+				DeleteMenu (hsubmenu, 0, MF_BYPOSITION); // delete separator
 				break;
 			}
 		}
 
-		AppendMenu (hmenu, MF_STRING, (UINT_PTR)id_start, _APP_LANGUAGE_DEFAULT);
-		CheckMenuRadioItem (hmenu, id_start, id_start, id_start, MF_BYCOMMAND);
+		AppendMenu (hsubmenu, MF_STRING, (UINT_PTR)id_start, _APP_LANGUAGE_DEFAULT);
+		CheckMenuRadioItem (hsubmenu, id_start, id_start, id_start, MF_BYCOMMAND);
 	}
 	else
 	{
+		hmenu = hsubmenu = nullptr; // fix warning!
+
 		SendDlgItemMessage (hwnd, ctrl_id, CB_RESETCONTENT, 0, 0);
 		SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, 0, (LPARAM)_APP_LANGUAGE_DEFAULT);
 		SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, 0, 0);
@@ -1477,26 +1481,32 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start)
 
 		if (is_menu)
 		{
-			AppendMenu (hmenu, MF_SEPARATOR, 0, nullptr);
-			EnableMenuItem ((HMENU)hwnd, ctrl_id, MF_BYPOSITION | MF_ENABLED);
+			EnableMenuItem (hmenu, ctrl_id, MF_BYPOSITION | MF_ENABLED);
+			AppendMenu (hsubmenu, MF_SEPARATOR, 0, nullptr);
+		}
+		else
+		{
+			_r_ctrl_enable (hwnd, ctrl_id, true);
 		}
 
 		for (size_t i = 0; i < app_locale_names.size (); i++)
 		{
-			LPCWSTR name = app_locale_names.at (i);
+			rstring& name = app_locale_names.at (i);
+
+			const bool is_current = !_r_str_isempty (locale_current) && (_r_str_compare (locale_current, name) == 0);
 
 			if (is_menu)
 			{
-				AppendMenu (hmenu, MF_STRING, idx + id_start, name);
+				AppendMenu (hsubmenu, MF_STRING, idx + id_start, name);
 
-				if (!_r_str_isempty (locale_current) && _r_str_compare (locale_current, name) == 0)
-					CheckMenuRadioItem (hmenu, id_start, id_start + idx, id_start + idx, MF_BYCOMMAND);
+				if (is_current)
+					CheckMenuRadioItem (hsubmenu, id_start, id_start + idx, id_start + idx, MF_BYCOMMAND);
 			}
 			else
 			{
-				SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, (WPARAM)idx, (LPARAM)name);
+				SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, (WPARAM)idx, (LPARAM)name.GetString ());
 
-				if (!_r_str_isempty (locale_current) && _r_str_compare (locale_current, name) == 0)
+				if (is_current)
 					SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, (WPARAM)idx, 0);
 			}
 
@@ -1506,10 +1516,13 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start)
 	else
 	{
 		if (is_menu)
-			EnableMenuItem ((HMENU)hwnd, ctrl_id, MF_BYPOSITION | MF_DISABLED | MF_GRAYED);
-
+		{
+			EnableMenuItem (hmenu, ctrl_id, MF_BYPOSITION | MF_DISABLED | MF_GRAYED);
+		}
 		else
-			EnableWindow (GetDlgItem (hwnd, ctrl_id), false);
+		{
+			_r_ctrl_enable (hwnd, ctrl_id, false);
+		}
 	}
 }
 
@@ -1573,45 +1586,45 @@ rstring rapp::LocaleString (UINT uid, LPCWSTR append)
 
 	if (uid)
 	{
-		rstring key;
-		key.Format (L"%03d", uid);
+		rstring key_name;
+		key_name.Format (L"%03" PRIu32, uid);
 
 		if (!_r_str_isempty (locale_current))
 		{
 			// check key is exists
 			if (
 				app_locale_array.find (locale_current) != app_locale_array.end () &&
-				app_locale_array[locale_current].find (key) != app_locale_array[locale_current].end ()
+				app_locale_array[locale_current].find (key_name) != app_locale_array[locale_current].end ()
 				)
 			{
-				result = app_locale_array[locale_current][key];
+				result = app_locale_array[locale_current][key_name];
 			}
 		}
 
 		if (result.IsEmpty ())
 		{
-			if (LoadString (GetHINSTANCE (), uid, result.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH))
+			if (!LoadString (GetHINSTANCE (), uid, result.GetBuffer (_R_BUFFER_LENGTH), _R_BUFFER_LENGTH))
 			{
-				result.ReleaseBuffer ();
+				result.Release ();
+				result = std::move (key_name);
 			}
 			else
 			{
 				result.ReleaseBuffer ();
-				result = std::move (key);
 			}
 		}
 	}
 
-	if (append)
+	if (!_r_str_isempty (append))
 		result.Append (append);
 
 	return result;
 }
 
-void rapp::LocaleMenu (HMENU menu, UINT id, UINT item, bool by_position, LPCWSTR append)
+void rapp::LocaleMenu (HMENU menu, UINT uid, UINT item, bool by_position, LPCWSTR append)
 {
 	WCHAR buffer[128] = {0};
-	_r_str_copy (buffer, _countof (buffer), LocaleString (id, append));
+	_r_str_copy (buffer, _countof (buffer), LocaleString (uid, append));
 
 	MENUITEMINFO mi = {0};
 
@@ -1689,7 +1702,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 		case WM_PAINT:
 		{
 			PAINTSTRUCT ps = {0};
-			HDC dc = BeginPaint (hwnd, &ps);
+			HDC hdc = BeginPaint (hwnd, &ps);
 
 			// calculate "x" position
 			RECT rc = {0};
@@ -1706,7 +1719,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			const INT pos_y = _R_RECT_HEIGHT (&rc);
 
 			for (INT i = 0; i < pos_y; i++)
-				SetPixel (dc, pos_x, i, GetSysColor (COLOR_APPWORKSPACE));
+				SetPixel (hdc, pos_x, i, GetSysColor (COLOR_APPWORKSPACE));
 
 			EndPaint (hwnd, &ps);
 
@@ -1858,13 +1871,13 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					}
 
 					break;
-				}
-#endif // IDC_RESET
 			}
+#endif // IDC_RESET
+		}
 
 			break;
-		}
 	}
+}
 
 	return FALSE;
 }
@@ -1898,14 +1911,14 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 
 				SendMessage (pupdateinfo->hwnd, TDM_SET_ELEMENT_TEXT, TDE_CONTENT, (LPARAM)str_content);
 				SendMessage (pupdateinfo->hwnd, TDM_SET_PROGRESS_BAR_POS, (WPARAM)percent, 0);
-			}
-#ifndef _APP_NO_WINXP
 		}
+#ifndef _APP_NO_WINXP
+}
 #endif // _APP_NO_WINXP
-	}
+		}
 
 	return true;
-}
+	}
 
 UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 {
@@ -1973,7 +1986,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					_r_str_copy (str_content, _countof (str_content), L"Downloading update finished.");
 #pragma _R_WARNING(IDS_UPDATE_DONE)
 #endif // IDS_UPDATE_DONE
-				}
+		}
 			}
 			else
 			{
@@ -1983,7 +1996,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 				_r_str_copy (str_content, _countof (str_content), L"Update server connection error");
 #pragma _R_WARNING(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
-			}
+	}
 
 #ifndef _APP_NO_WINXP
 			if (papp->IsVistaOrLater ())
@@ -2001,15 +2014,15 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					_r_msg (papp->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), papp->app_name, nullptr, L"%s", str_content);
 			}
 #endif // _APP_NO_WINXP
-		}
-	}
+			}
+}
 
 	//SetEvent (pupdateinfo->hend);
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-}
+		}
 
 HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM, LONG_PTR lpdata)
 {
@@ -2202,8 +2215,8 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 #endif // IDS_UPDATE_ERROR
 
 					papp->UpdateDialogNavigate (pupdateinfo->hwnd, TD_WARNING_ICON, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
-				}
 			}
+		}
 			else
 			{
 				rstringmap1 result;
@@ -2296,9 +2309,9 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 								{
 									ResumeThread (pupdateinfo->hthread);
 									WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
-								}
-							}
-						}
+					}
+				}
+			}
 #endif
 						for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 						{
@@ -2328,12 +2341,12 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 								}
 							}
 						}
-					}
+	}
 					else
 					{
 						if (pupdateinfo->hwnd)
 						{
-							WCHAR str_content[256] = {0};
+							WCHAR str_content[MAX_PATH] = {0};
 #ifdef IDS_UPDATE_NO
 							_r_str_copy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_NO, nullptr).GetString ());
 #else
@@ -2342,23 +2355,23 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 #endif // IDS_UPDATE_NO
 
 							papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
-						}
 					}
-				}
-
-				papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
+}
 			}
 
-			_r_inet_close (hsession);
+				papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
 		}
 
-		SetEvent (pupdateinfo->hend);
+			_r_inet_close (hsession);
 	}
+
+		SetEvent (pupdateinfo->hend);
+}
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-}
+	}
 #endif // _APP_HAVE_UPDATES
 
 #ifdef _APP_HAVE_SKIPUAC
