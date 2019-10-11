@@ -829,11 +829,11 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 
 		case WM_DPICHANGED:
 		{
-			_r_dc_getdpivalue ((INT)LOWORD (wparam)); // // reset dpi cached value (required!)
+			_r_dc_getdpivalue (hwnd, (INT)LOWORD (wparam)); // // reset dpi cached value (required!)
 
 #ifdef _APP_HAVE_SETTINGS
 			if (this_ptr->GetSettingsWindow ())
-				SendDlgItemMessage (this_ptr->GetSettingsWindow (), IDC_NAV, TVM_SETITEMHEIGHT, (WPARAM)_r_dc_getdpi (_R_SIZE_ITEMHEIGHT), 0);
+				SendDlgItemMessage (this_ptr->GetSettingsWindow (), IDC_NAV, TVM_SETITEMHEIGHT, (WPARAM)_r_dc_getdpi (hwnd, _R_SIZE_ITEMHEIGHT), 0);
 #endif // _APP_HAVE_SETTINGS
 
 			// call main callback
@@ -1106,8 +1106,8 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 			// set icons
 			if (icon_id)
 			{
-				SendMessage (GetHWND (), WM_SETICON, ICON_SMALL, (LPARAM)GetSharedImage (GetHINSTANCE (), icon_id, _r_dc_getdpi (_R_SIZE_ICON16)));
-				SendMessage (GetHWND (), WM_SETICON, ICON_BIG, (LPARAM)GetSharedImage (GetHINSTANCE (), icon_id, _r_dc_getdpi (_R_SIZE_ICON32)));
+				SendMessage (GetHWND (), WM_SETICON, ICON_SMALL, (LPARAM)GetSharedImage (GetHINSTANCE (), icon_id, _r_dc_getdpi (GetHWND (), _R_SIZE_ICON16)));
+				SendMessage (GetHWND (), WM_SETICON, ICON_BIG, (LPARAM)GetSharedImage (GetHINSTANCE (), icon_id, _r_dc_getdpi (GetHWND (), _R_SIZE_ICON32)));
 			}
 
 			// common initialization
@@ -1652,17 +1652,17 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 #endif // _APP_NO_DARKTHEME
 
 #ifdef IDI_MAIN
-			SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)this_ptr->GetSharedImage (this_ptr->GetHINSTANCE (), IDI_MAIN, _r_dc_getdpi (_R_SIZE_ICON16)));
-			SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)this_ptr->GetSharedImage (this_ptr->GetHINSTANCE (), IDI_MAIN, _r_dc_getdpi (_R_SIZE_ICON32)));
+			SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)this_ptr->GetSharedImage (this_ptr->GetHINSTANCE (), IDI_MAIN, _r_dc_getdpi (hwnd, _R_SIZE_ICON16)));
+			SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)this_ptr->GetSharedImage (this_ptr->GetHINSTANCE (), IDI_MAIN, _r_dc_getdpi (hwnd, _R_SIZE_ICON32)));
 #else
 #pragma _R_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
 
 			// configure window
-			_r_wnd_center (hwnd, this_ptr->GetHWND () ? this_ptr->GetHWND () : GetParent (hwnd));
+			_r_wnd_center (hwnd, this_ptr->GetHWND ());
 
 			// configure treeview
-			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, _r_dc_getdpi (_R_SIZE_ITEMHEIGHT));
+			_r_treeview_setstyle (hwnd, IDC_NAV, TVS_EX_DOUBLEBUFFER, _r_dc_getdpi (hwnd, _R_SIZE_ITEMHEIGHT));
 
 			SendDlgItemMessage (hwnd, IDC_NAV, TVM_SETBKCOLOR, TVSIL_STATE, (LPARAM)GetSysColor (COLOR_3DFACE));
 

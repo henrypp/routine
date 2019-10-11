@@ -430,25 +430,25 @@ time_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst);
 	Device context (Draw/Calculation etc...)
 */
 
-INT _r_dc_getdpivalue (INT new_value = 0);
+INT _r_dc_getdpivalue (HWND hwnd, INT new_value = 0);
 COLORREF _r_dc_getcolorbrightness (COLORREF clr);
 COLORREF _r_dc_getcolorshade (COLORREF clr, INT percent);
 void _r_dc_fillrect (HDC hdc, const LPRECT lprc, COLORREF clr);
 LONG _r_dc_fontwidth (HDC hdc, LPCWSTR text, size_t length);
 
-FORCEINLINE INT _r_dc_getdpi (INT scale)
+FORCEINLINE INT _r_dc_getdpi (HWND hwnd, INT scale)
 {
-	return MulDiv (scale, _r_dc_getdpivalue (), USER_DEFAULT_SCREEN_DPI);
+	return MulDiv (scale, _r_dc_getdpivalue (hwnd), USER_DEFAULT_SCREEN_DPI);
 }
 
-FORCEINLINE INT _r_dc_fontheighttosize (INT height)
+FORCEINLINE INT _r_dc_fontheighttosize (HWND hwnd, INT height)
 {
-	return MulDiv (-height, 72, _r_dc_getdpivalue ());
+	return MulDiv (-height, 72, _r_dc_getdpivalue (hwnd));
 }
 
-FORCEINLINE INT _r_dc_fontsizetoheight (INT size)
+FORCEINLINE INT _r_dc_fontsizetoheight (HWND hwnd, INT size)
 {
-	return -MulDiv (size, _r_dc_getdpivalue (), 72);
+	return -MulDiv (size, _r_dc_getdpivalue (hwnd), 72);
 }
 
 /*

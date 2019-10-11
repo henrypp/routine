@@ -2037,7 +2037,7 @@ time_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst)
 	Device context (Draw/Calculation etc...)
 */
 
-INT _r_dc_getdpivalue (INT new_value)
+INT _r_dc_getdpivalue (HWND hwnd, INT new_value)
 {
 	static INT cached_value = INVALID_INT;
 
@@ -2062,10 +2062,18 @@ INT _r_dc_getdpivalue (INT new_value)
 		if (hlib)
 		{
 			typedef UINT (WINAPI * GSDFP) (HANDLE); // GetSystemDpiForProcess
+			typedef UINT (WINAPI * GDFW) (HWND); // GetDpiForWindow
 			typedef UINT (WINAPI * GDGS) (VOID); // GetDpiForSystem
 
-			const GSDFP _GetSystemDpiForProcess = (GSDFP)GetProcAddress (hlib, "GetSystemDpiForProcess"); // win10rs5+
+			const GSDFP _GetSystemDpiForProcess = (GSDFP)GetProcAddress (hlib, "GetSystemDpiForProcess"); // win10rs4+
+			const GDFW _GetDpiForWindow = (GDFW)GetProcAddress (hlib, "GetDpiForWindow"); // win10rs1+
 			const GDGS _GetDpiForSystem = (GDGS)GetProcAddress (hlib, "GetDpiForSystem"); // win10rs1+
+
+			if (hwnd && _GetDpiForWindow)
+			{
+				cached_value = _GetDpiForWindow (hwnd);
+				return cached_value;
+			}
 
 			if (_GetSystemDpiForProcess)
 			{
@@ -2081,12 +2089,12 @@ INT _r_dc_getdpivalue (INT new_value)
 		}
 	}
 
-	HDC hdc = GetDC (nullptr);
+	HDC hdc = GetDC (hwnd);
 
 	if (hdc)
 	{
 		INT result = GetDeviceCaps (hdc, LOGPIXELSX);
-		ReleaseDC (nullptr, hdc);
+		ReleaseDC (hwnd, hdc);
 
 		cached_value = result;
 
@@ -3496,7 +3504,7 @@ void _r_ctrl_setbuttonmargins (HWND hwnd, INT ctrl_id)
 	{
 		RECT rc = {0};
 
-		rc.left = rc.right = _r_dc_getdpi (4);
+		rc.left = rc.right = _r_dc_getdpi (hwnd, 4);
 
 		SendDlgItemMessage (hwnd, ctrl_id, BCM_SETTEXTMARGIN, 0, (LPARAM)&rc);
 	}
@@ -3508,7 +3516,7 @@ void _r_ctrl_setbuttonmargins (HWND hwnd, INT ctrl_id)
 
 		bsi.mask = BCSIF_SIZE;
 
-		bsi.size.cx = _r_dc_getdpi (_R_SIZE_ICON16) + _r_dc_getdpi (2);
+		bsi.size.cx = _r_dc_getdpi (hwnd, _R_SIZE_ICON16) + _r_dc_getdpi (hwnd, 2);
 		bsi.size.cy = 0;
 
 		SendDlgItemMessage (hwnd, ctrl_id, BCM_SETSPLITINFO, 0, (LPARAM)&bsi);
@@ -3523,7 +3531,7 @@ void _r_ctrl_settabletext (HDC hdc, HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT 
 	const HWND hctrl1 = GetDlgItem (hwnd, ctrl_id1);
 	const HWND hctrl2 = GetDlgItem (hwnd, ctrl_id2);
 
-	const INT wnd_spacing = _r_dc_getdpi (_R_SIZE_ICON16);
+	const INT wnd_spacing = _r_dc_getdpi (hwnd, _R_SIZE_ICON16);
 
 	SelectObject (hdc, (HFONT)SendMessage (hctrl1, WM_GETFONT, 0, 0)); // fix
 	SelectObject (hdc, (HFONT)SendMessage (hctrl2, WM_GETFONT, 0, 0)); // fix
