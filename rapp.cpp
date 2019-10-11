@@ -1699,6 +1699,22 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			break;
 		}
 
+#ifndef _APP_NO_DARKTHEME
+		case WM_THEMECHANGED:
+		{
+			_r_wnd_setdarktheme (hwnd);
+			break;
+		}
+
+		case WM_SETTINGCHANGE:
+		{
+			if (_r_wnd_isdarkmessage (lparam))
+				SendMessage (hwnd, WM_THEMECHANGED, 0, 0);
+
+			break;
+		}
+#endif // _APP_NO_DARKTHEME
+
 		case WM_PAINT:
 		{
 			PAINTSTRUCT ps = {0};
