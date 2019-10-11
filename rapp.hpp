@@ -215,7 +215,7 @@ public:
 	size_t LocaleGetCount () const;
 	time_t LocaleGetVersion () const;
 	rstring LocaleString (UINT uid, LPCWSTR append);
-	void LocaleMenu (HMENU menu, UINT uid, UINT item, bool by_position, LPCWSTR append);
+	void LocaleMenu (HMENU hmenu, UINT uid, UINT item, bool by_position, LPCWSTR append);
 
 #ifdef _APP_HAVE_SKIPUAC
 	bool SkipUacIsEnabled ();

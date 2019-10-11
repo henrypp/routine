@@ -565,7 +565,7 @@ rstring::Buffer* rstring::allocate (size_t length)
 	if (length)
 	{
 		const size_t byteCount = allocationByteCount (length);
-		Buffer* result = (Buffer*)new BYTE[byteCount];
+		Buffer* result = reinterpret_cast<Buffer*>(new BYTE[byteCount]);
 
 		result->referenceCount = 1;
 		result->length = length;
@@ -587,7 +587,7 @@ rstring::Buffer* rstring::EnsureUnique ()
 		{
 			const size_t byteCount = allocationByteCount (buffer->length);
 
-			Buffer* newBuffer = (Buffer*)new BYTE[byteCount];
+			Buffer* newBuffer = reinterpret_cast<Buffer*>(new BYTE[byteCount]);
 
 			newBuffer->referenceCount = 1;
 			newBuffer->length = buffer->length;
@@ -622,7 +622,7 @@ rstring::Buffer* rstring::ReallocateUnique (size_t length)
 		{
 			if ((buffer->referenceCount > 1) || (currentByteCount != newByteCount))
 			{
-				Buffer* newBuffer = (Buffer*)new BYTE[newByteCount];
+				Buffer* newBuffer = reinterpret_cast<Buffer*>(new BYTE[newByteCount]);
 				newBuffer->referenceCount = 1;
 				newBuffer->length = length;
 				const size_t copyCount = min (buffer->length, length) + sizeof (WCHAR);

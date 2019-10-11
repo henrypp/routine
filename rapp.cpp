@@ -491,7 +491,7 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 		TASKDIALOGCONFIG tdc = {0};
 
 		WCHAR str_title[64] = {0};
-		WCHAR str_main[256] = {0};
+		WCHAR str_main[128] = {0};
 		WCHAR str_content[512] = {0};
 		WCHAR str_flag[64] = {0};
 
@@ -588,9 +588,9 @@ void rapp::CreateAboutWindow (HWND hwnd)
 
 			INT result = 0;
 
-			WCHAR main[64] = {0};
-			WCHAR content[512] = {0};
-			WCHAR footer[256] = {0};
+			WCHAR str_main[128] = {0};
+			WCHAR str_content[512] = {0};
+			WCHAR str_footer[256] = {0};
 
 			WCHAR btn_ok[64] = {0};
 			WCHAR btn_close[64] = {0};
@@ -611,9 +611,9 @@ void rapp::CreateAboutWindow (HWND hwnd)
 			tdc.pszFooterIcon = TD_INFORMATION_ICON;
 			tdc.nDefaultButton = IDCLOSE;
 			tdc.pszWindowTitle = title;
-			tdc.pszMainInstruction = main;
-			tdc.pszContent = content;
-			tdc.pszFooter = footer;
+			tdc.pszMainInstruction = str_main;
+			tdc.pszContent = str_content;
+			tdc.pszFooter = str_footer;
 			tdc.pfCallback = &_r_msg_callback;
 			tdc.lpCallbackData = MAKELONG (1, 1); // always on top
 
@@ -640,9 +640,9 @@ void rapp::CreateAboutWindow (HWND hwnd)
 #pragma _R_WARNING(IDS_CLOSE)
 #endif
 
-			_r_str_copy (main, _countof (main), app_name);
-			_r_str_printf (content, _countof (content), L"Version %s, %u-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", app_version, architecture, app_copyright, _APP_WEBSITE_URL, _APP_WEBSITE_URL + 8, _APP_GITHUB_URL, _APP_GITHUB_URL + 8);
-			_r_str_copy (footer, _countof (footer), L"This program is free software; you can redistribute it and/or modify it under the terms of the <a href=\"https://www.gnu.org/licenses/gpl-3.0.html\">GNU General Public License 3</a> as published by the Free Software Foundation.");
+			_r_str_copy (str_main, _countof (str_main), app_name);
+			_r_str_printf (str_content, _countof (str_content), L"Version %s, %u-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", app_version, architecture, app_copyright, _APP_WEBSITE_URL, _APP_WEBSITE_URL + 8, _APP_GITHUB_URL, _APP_GITHUB_URL + 8);
+			_r_str_copy (str_footer, _countof (str_footer), L"This program is free software; you can redistribute it and/or modify it under the terms of the <a href=\"https://www.gnu.org/licenses/gpl-3.0.html\">GNU General Public License 3</a> as published by the Free Software Foundation.");
 
 			if (_r_msg_taskdialog (&tdc, &result, nullptr, nullptr))
 			{
@@ -685,7 +685,7 @@ bool rapp::IsVistaOrLater () const
 
 LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
-	static rapp *this_ptr = (rapp *)GetWindowLongPtr (hwnd, GWLP_USERDATA);
+	static rapp *this_ptr = reinterpret_cast<rapp*>(GetWindowLongPtr (hwnd, GWLP_USERDATA));
 
 #ifdef _APP_HAVE_TRAY
 	if (msg == WM_TASKBARCREATED)
@@ -982,7 +982,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 #ifdef _APP_HAVE_UPDATES
 		if (_r_fs_exists (GetUpdatePath ()))
 		{
-			WCHAR str_content[MAX_PATH] = {0};
+			WCHAR str_content[256] = {0};
 
 #ifdef IDS_UPDATE_INSTALL
 			_r_str_copy (str_content, _countof (str_content), LocaleString (IDS_UPDATE_INSTALL, nullptr));
@@ -1463,7 +1463,7 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start)
 			}
 		}
 
-		AppendMenu (hsubmenu, MF_STRING, (UINT_PTR)id_start, _APP_LANGUAGE_DEFAULT);
+		AppendMenu (hsubmenu, MF_STRING, static_cast<UINT_PTR>(id_start), _APP_LANGUAGE_DEFAULT);
 		CheckMenuRadioItem (hsubmenu, id_start, id_start, id_start, MF_BYCOMMAND);
 	}
 	else
@@ -1621,7 +1621,7 @@ rstring rapp::LocaleString (UINT uid, LPCWSTR append)
 	return result;
 }
 
-void rapp::LocaleMenu (HMENU menu, UINT uid, UINT item, bool by_position, LPCWSTR append)
+void rapp::LocaleMenu (HMENU hmenu, UINT uid, UINT item, bool by_position, LPCWSTR append)
 {
 	WCHAR buffer[128] = {0};
 	_r_str_copy (buffer, _countof (buffer), LocaleString (uid, append));
@@ -1632,7 +1632,7 @@ void rapp::LocaleMenu (HMENU menu, UINT uid, UINT item, bool by_position, LPCWST
 	mi.fMask = MIIM_STRING;
 	mi.dwTypeData = buffer;
 
-	SetMenuItemInfo (menu, item, by_position, &mi);
+	SetMenuItemInfo (hmenu, item, by_position, &mi);
 }
 
 #ifdef _APP_HAVE_SETTINGS
@@ -1644,7 +1644,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 	{
 		case WM_INITDIALOG:
 		{
-			this_ptr = (rapp *)lparam;
+			this_ptr = reinterpret_cast<rapp*>(lparam);
 			this_ptr->settings_hwnd = hwnd;
 
 #ifndef _APP_NO_DARKTHEME
@@ -1871,13 +1871,13 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					}
 
 					break;
-			}
+				}
 #endif // IDC_RESET
-		}
+			}
 
 			break;
+		}
 	}
-}
 
 	return FALSE;
 }
@@ -1890,12 +1890,12 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 
 	if (pupdateinfo)
 	{
-		rapp *papp = (rapp *)(pupdateinfo->papp);
+		rapp *this_ptr = static_cast<rapp*>(pupdateinfo->papp);
 
 		const DWORD percent = _R_PERCENT_OF (total_written, total_length);
 
 #ifndef _APP_NO_WINXP
-		if (papp->IsVistaOrLater ())
+		if (this_ptr->IsVistaOrLater ())
 		{
 #endif // _APP_NO_WINXP
 			if (pupdateinfo->hwnd)
@@ -1903,7 +1903,7 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 				WCHAR str_content[256] = {0};
 
 #ifdef IDS_UPDATE_DOWNLOAD
-				_r_str_printf (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_DOWNLOAD, L" %d%%"), percent);
+				_r_str_printf (str_content, _countof (str_content), this_ptr->LocaleString (IDS_UPDATE_DOWNLOAD, L" %d%%"), percent);
 #else
 				_r_str_printf (str_content, _countof (str_content), L"Downloading update... %d%%", percent);
 #pragma _R_WARNING(IDS_UPDATE_DOWNLOAD)
@@ -1911,14 +1911,14 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 
 				SendMessage (pupdateinfo->hwnd, TDM_SET_ELEMENT_TEXT, TDE_CONTENT, (LPARAM)str_content);
 				SendMessage (pupdateinfo->hwnd, TDM_SET_PROGRESS_BAR_POS, (WPARAM)percent, 0);
-		}
+			}
 #ifndef _APP_NO_WINXP
-}
-#endif // _APP_NO_WINXP
 		}
+#endif // _APP_NO_WINXP
+	}
 
 	return true;
-	}
+}
 
 UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 {
@@ -1928,7 +1928,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 
 	if (pupdateinfo)
 	{
-		rapp *papp = (rapp *)(pupdateinfo->papp);
+		rapp *this_ptr = static_cast<rapp*>(pupdateinfo->papp);
 
 		for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 		{
@@ -1938,12 +1938,12 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 			{
 				if (pcomponent->is_haveupdates)
 				{
-					LPCWSTR proxy_addr = papp->GetProxyConfiguration ();
-					const HINTERNET hsession = _r_inet_createsession (papp->GetUserAgent (), proxy_addr);
+					LPCWSTR proxy_addr = this_ptr->GetProxyConfiguration ();
+					const HINTERNET hsession = _r_inet_createsession (this_ptr->GetUserAgent (), proxy_addr);
 
 					if (hsession)
 					{
-						if (_r_inet_downloadurl (hsession, proxy_addr, pcomponent->url, pcomponent->filepath, true, &papp->UpdateDownloadCallback, (LONG_PTR)pupdateinfo))
+						if (_r_inet_downloadurl (hsession, proxy_addr, pcomponent->url, pcomponent->filepath, true, &this_ptr->UpdateDownloadCallback, (LONG_PTR)pupdateinfo))
 						{
 							pcomponent->is_downloaded = true;
 							pcomponent->is_haveupdates = false;
@@ -1972,7 +1972,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 				if (is_downloaded_installer)
 				{
 #ifdef IDS_UPDATE_INSTALL
-					_r_str_copy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_INSTALL, nullptr));
+					_r_str_copy (str_content, _countof (str_content), this_ptr->LocaleString (IDS_UPDATE_INSTALL, nullptr));
 #else
 					_r_str_copy (str_content, _countof (str_content), L"Update available, do you want to install them?");
 #pragma _R_WARNING(IDS_UPDATE_INSTALL)
@@ -1981,48 +1981,48 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 				else
 				{
 #ifdef IDS_UPDATE_DONE
-					_r_str_copy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_DONE, nullptr));
+					_r_str_copy (str_content, _countof (str_content), this_ptr->LocaleString (IDS_UPDATE_DONE, nullptr));
 #else
 					_r_str_copy (str_content, _countof (str_content), L"Downloading update finished.");
 #pragma _R_WARNING(IDS_UPDATE_DONE)
 #endif // IDS_UPDATE_DONE
-		}
+				}
 			}
 			else
 			{
 #ifdef IDS_UPDATE_ERROR
-				_r_str_copy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_ERROR, nullptr));
+				_r_str_copy (str_content, _countof (str_content), this_ptr->LocaleString (IDS_UPDATE_ERROR, nullptr));
 #else
 				_r_str_copy (str_content, _countof (str_content), L"Update server connection error");
 #pragma _R_WARNING(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
-	}
+			}
 
 #ifndef _APP_NO_WINXP
-			if (papp->IsVistaOrLater ())
+			if (this_ptr->IsVistaOrLater ())
 			{
 #endif // _APP_NO_WINXP
 				if (pupdateinfo->hwnd)
 				{
-					papp->UpdateDialogNavigate (pupdateinfo->hwnd, (is_downloaded ? nullptr : TD_WARNING_ICON), 0, is_downloaded_installer ? TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON : TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
+					this_ptr->UpdateDialogNavigate (pupdateinfo->hwnd, (is_downloaded ? nullptr : TD_WARNING_ICON), 0, is_downloaded_installer ? TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON : TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 				}
 #ifndef _APP_NO_WINXP
 			}
 			else
 			{
 				if (pupdateinfo->is_forced)
-					_r_msg (papp->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), papp->app_name, nullptr, L"%s", str_content);
+					_r_msg (this_ptr->GetHWND (), is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONEXCLAMATION), this_ptr->app_name, nullptr, L"%s", str_content);
 			}
 #endif // _APP_NO_WINXP
-			}
-}
+		}
+	}
 
 	//SetEvent (pupdateinfo->hend);
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-		}
+}
 
 HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM, LONG_PTR lpdata)
 {
@@ -2072,12 +2072,12 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 		{
 			if (wparam == IDYES)
 			{
-				rapp *papp = (rapp *)(pupdateinfo->papp);
+				rapp *this_ptr = static_cast<rapp*>(pupdateinfo->papp);
 
-				WCHAR str_content[MAX_PATH] = {0};
+				WCHAR str_content[256] = {0};
 
 #ifdef IDS_UPDATE_DOWNLOAD
-				_r_str_printf (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_DOWNLOAD, nullptr), 0);
+				_r_str_printf (str_content, _countof (str_content), this_ptr->LocaleString (IDS_UPDATE_DOWNLOAD, nullptr), 0);
 #else
 				_r_str_copy (str_content, _countof (str_content), L"Downloading update...");
 #pragma _R_WARNING(IDS_UPDATE_DOWNLOAD)
@@ -2086,18 +2086,18 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 
 				if (pupdateinfo->hthread)
 				{
-					papp->UpdateDialogNavigate (hwnd, nullptr, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
+					this_ptr->UpdateDialogNavigate (hwnd, nullptr, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 
 					return S_FALSE;
 				}
 			}
 			else if (wparam == IDOK)
 			{
-				rapp *papp = (rapp *)(pupdateinfo->papp);
+				rapp *this_ptr = static_cast<rapp*>(pupdateinfo->papp);
 
-				papp->UpdateInstall ();
+				this_ptr->UpdateInstall ();
 
-				DestroyWindow (papp->GetHWND ());
+				DestroyWindow (this_ptr->GetHWND ());
 				ExitProcess (ERROR_SUCCESS);
 
 				//return S_FALSE;
@@ -2114,8 +2114,8 @@ INT rapp::UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS f
 {
 	TASKDIALOGCONFIG tdc = {0};
 
-	WCHAR str_title[128] = {0};
-	WCHAR str_main[256] = {0};
+	WCHAR str_title[64] = {0};
+	WCHAR str_main[128] = {0};
 	WCHAR str_content[512] = {0};
 
 	tdc.cbSize = sizeof (tdc);
@@ -2185,38 +2185,38 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 	if (pupdateinfo)
 	{
-		rapp *papp = (rapp *)(pupdateinfo->papp);
+		rapp *this_ptr = static_cast<rapp*>(pupdateinfo->papp);
 
 		// check for beta versions flag
 #ifdef _APP_BETA
 		const bool is_beta = true;
 #else
-		const bool is_beta = papp->ConfigGet (L"CheckUpdatesBeta", false).AsBool ();
+		const bool is_beta = this_ptr->ConfigGet (L"CheckUpdatesBeta", false).AsBool ();
 #endif // _APP_BETA
 
 		rstring buffer;
 
-		LPCWSTR proxy_addr = papp->GetProxyConfiguration ();
-		const HINTERNET hsession = _r_inet_createsession (papp->GetUserAgent (), proxy_addr);
+		LPCWSTR proxy_addr = this_ptr->GetProxyConfiguration ();
+		const HINTERNET hsession = _r_inet_createsession (this_ptr->GetUserAgent (), proxy_addr);
 
 		if (hsession)
 		{
-			if (!_r_inet_downloadurl (hsession, proxy_addr, _r_fmt (_APP_WEBSITE_URL L"/update.php?product=%s&is_beta=%d&api=3", papp->app_name_short, is_beta), &buffer, false, nullptr, 0))
+			if (!_r_inet_downloadurl (hsession, proxy_addr, _r_fmt (_APP_WEBSITE_URL L"/update.php?product=%s&is_beta=%d&api=3", this_ptr->app_name_short, is_beta), &buffer, false, nullptr, 0))
 			{
 				if (pupdateinfo->hwnd)
 				{
-					WCHAR str_content[MAX_PATH] = {0};
+					WCHAR str_content[256] = {0};
 
 #ifdef IDS_UPDATE_ERROR
-					_r_str_copy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_ERROR, nullptr).GetString ());
+					_r_str_copy (str_content, _countof (str_content), this_ptr->LocaleString (IDS_UPDATE_ERROR, nullptr).GetString ());
 #else
 					_r_str_copy (str_content, _countof (str_content), L"Update server connection error.");
 #pragma _R_WARNING(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
 
-					papp->UpdateDialogNavigate (pupdateinfo->hwnd, TD_WARNING_ICON, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
+					this_ptr->UpdateDialogNavigate (pupdateinfo->hwnd, TD_WARNING_ICON, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
+				}
 			}
-		}
 			else
 			{
 				rstringmap1 result;
@@ -2254,7 +2254,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 									if (pcomponent->is_installer)
 									{
-										_r_str_alloc (&pcomponent->filepath, INVALID_SIZE_T, papp->GetUpdatePath ());
+										_r_str_alloc (&pcomponent->filepath, INVALID_SIZE_T, this_ptr->GetUpdatePath ());
 									}
 									else
 									{
@@ -2282,36 +2282,36 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 						_r_str_trim (updates_text, L"\r\n ");
 
 #ifdef IDS_UPDATE_YES
-						_r_str_copy (str_main, _countof (str_main), papp->LocaleString (IDS_UPDATE_YES, nullptr));
+						_r_str_copy (str_main, _countof (str_main), this_ptr->LocaleString (IDS_UPDATE_YES, nullptr));
 #else
 						_r_str_copy (str_main, _countof (str_main), L"Update available, download and install them?");
 #pragma _R_WARNING(IDS_UPDATE_YES)
 #endif // IDS_UPDATE_YES
 
 #ifndef _APP_NO_WINXP
-						if (papp->IsVistaOrLater ())
+						if (this_ptr->IsVistaOrLater ())
 						{
 #endif
-							papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, str_main, updates_text, (LONG_PTR)pupdateinfo);
+							this_ptr->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, str_main, updates_text, (LONG_PTR)pupdateinfo);
 
 							WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
 #ifndef _APP_NO_WINXP
 						}
 						else
 						{
-							const INT msg_id = _r_msg (papp->GetHWND (), MB_YESNO | MB_USERICON, papp->app_name, str_main, L"%s", updates_text.GetString ());
+							const INT msg_id = _r_msg (this_ptr->GetHWND (), MB_YESNO | MB_USERICON, this_ptr->app_name, str_main, L"%s", updates_text.GetString ());
 
 							if (msg_id == IDYES)
 							{
-								pupdateinfo->hthread = (HANDLE)_beginthreadex (nullptr, 0, &papp->UpdateDownloadThread, (LPVOID)pupdateinfo, CREATE_SUSPENDED, nullptr);
+								pupdateinfo->hthread = (HANDLE)_beginthreadex (nullptr, 0, &this_ptr->UpdateDownloadThread, (LPVOID)pupdateinfo, CREATE_SUSPENDED, nullptr);
 
 								if (pupdateinfo->hthread)
 								{
 									ResumeThread (pupdateinfo->hthread);
 									WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
-					}
-				}
-			}
+								}
+							}
+						}
 #endif
 						for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 						{
@@ -2325,15 +2325,15 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 									{
 										_r_fs_move (pcomponent->filepath, pcomponent->target_path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
 
-										papp->ConfigInit (); // reload configuration
+										this_ptr->ConfigInit (); // reload configuration
 
-										if (papp->GetHWND ())
+										if (this_ptr->GetHWND ())
 										{
-											SendMessage (papp->GetHWND (), RM_UPDATE_DONE, 0, 0);
-											SendMessage (papp->GetHWND (), RM_INITIALIZE, 0, 0);
-											SendMessage (papp->GetHWND (), RM_LOCALIZE, 0, 0);
+											SendMessage (this_ptr->GetHWND (), RM_UPDATE_DONE, 0, 0);
+											SendMessage (this_ptr->GetHWND (), RM_INITIALIZE, 0, 0);
+											SendMessage (this_ptr->GetHWND (), RM_LOCALIZE, 0, 0);
 
-											DrawMenuBar (papp->GetHWND ());
+											DrawMenuBar (this_ptr->GetHWND ());
 										}
 
 										_r_fs_delete (pcomponent->filepath, false);
@@ -2341,37 +2341,37 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 								}
 							}
 						}
-	}
+					}
 					else
 					{
 						if (pupdateinfo->hwnd)
 						{
-							WCHAR str_content[MAX_PATH] = {0};
+							WCHAR str_content[256] = {0};
 #ifdef IDS_UPDATE_NO
-							_r_str_copy (str_content, _countof (str_content), papp->LocaleString (IDS_UPDATE_NO, nullptr).GetString ());
+							_r_str_copy (str_content, _countof (str_content), this_ptr->LocaleString (IDS_UPDATE_NO, nullptr).GetString ());
 #else
 							_r_str_copy (str_content, _countof (str_content), L"No updates available.");
 #pragma _R_WARNING(IDS_UPDATE_NO)
 #endif // IDS_UPDATE_NO
 
-							papp->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
+							this_ptr->UpdateDialogNavigate (pupdateinfo->hwnd, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
+						}
 					}
-}
+				}
+
+				this_ptr->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
 			}
 
-				papp->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
+			_r_inet_close (hsession);
 		}
 
-			_r_inet_close (hsession);
-	}
-
 		SetEvent (pupdateinfo->hend);
-}
+	}
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-	}
+}
 #endif // _APP_HAVE_UPDATES
 
 #ifdef _APP_HAVE_SKIPUAC
