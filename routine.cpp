@@ -4,7 +4,7 @@
 #include "routine.hpp"
 
 /*
-	Write debug log to console
+	Debugging
 */
 
 void _r_dbg (LPCWSTR fn, DWORD errcode, LPCWSTR desc)
@@ -12,20 +12,20 @@ void _r_dbg (LPCWSTR fn, DWORD errcode, LPCWSTR desc)
 	static const rstring path = _r_dbg_getpath ();
 
 	rstring write_buffer;
-	write_buffer.Format (L"\"%s\"," _R_DBG_FORMAT L",\"%s\"\r\n", _r_fmt_date (_r_unixtime_now (), FDTF_SHORTDATE | FDTF_LONGTIME).GetString (), fn, errcode, desc, APP_VERSION);
+	write_buffer.Format (L"\"%s\"," _R_DEBUG_BODY L",\"%s\"\r\n", _r_fmt_date (_r_unixtime_now (), FDTF_SHORTDATE | FDTF_LONGTIME).GetString (), fn, errcode, desc, APP_VERSION);
 
 	_r_dbg_print (L"%s", write_buffer.GetString ());
 
 	_r_dbg_write (path, write_buffer);
 }
 
-void _r_dbg_print (LPCWSTR format, ...)
+void _r_dbg_print (LPCWSTR text, ...)
 {
 	va_list args;
-	va_start (args, format);
+	va_start (args, text);
 
 	rstring buffer;
-	buffer.FormatV (format, args);
+	buffer.FormatV (text, args);
 
 	va_end (args);
 
@@ -45,6 +45,8 @@ void _r_dbg_write (LPCWSTR path, LPCWSTR text)
 			static const BYTE bom[] = {0xFF, 0xFE};
 
 			WriteFile (hfile, bom, sizeof (bom), &written, nullptr); // write utf-16 le byte order mask
+
+			WriteFile (hfile, _R_DEBUG_HEADER, DWORD (_r_str_length (_R_DEBUG_HEADER) * sizeof (WCHAR)), &written, nullptr); // adds csv header
 		}
 		else
 		{
@@ -73,13 +75,14 @@ rstring _r_dbg_getpath ()
 		PathRemoveFileSpec (result);
 	}
 
-	StringCchCat (result, _countof (result), L"\\");
+	_r_str_cat (result, _countof (result), L"\\");
 #ifdef APP_NAME_SHORT
-	StringCchCat (result, _countof (result), APP_NAME_SHORT);
+	_r_str_cat (result, _countof (result), APP_NAME_SHORT);
 #else
-	StringCchCat (result, _countof (result), L"123");
+	_r_str_cat (result, _countof (result), L"unnamed");
+#pragma _R_WARNING(APP_NAME_SHORT)
 #endif
-	StringCchCat (result, _countof (result), L"_debug.log");
+	_r_str_cat (result, _countof (result), L"_debug.log");
 
 	return result;
 }
@@ -88,21 +91,21 @@ rstring _r_dbg_getpath ()
 	Format strings, dates, numbers
 */
 
-rstring _r_fmt (LPCWSTR format, ...)
+rstring _r_fmt (LPCWSTR text, ...)
 {
 	rstring result;
 
 	va_list args;
-	va_start (args, format);
+	va_start (args, text);
 
-	result.FormatV (format, args);
+	result.FormatV (text, args);
 
 	va_end (args);
 
 	return result;
 }
 
-rstring _r_fmt_date (const LPFILETIME ft, const DWORD flags)
+rstring _r_fmt_date (const LPFILETIME ft, DWORD flags)
 {
 	DWORD pflags = flags;
 	WCHAR buffer[128] = {0};
@@ -112,7 +115,7 @@ rstring _r_fmt_date (const LPFILETIME ft, const DWORD flags)
 	return buffer;
 }
 
-rstring _r_fmt_date (const time_t ut, const DWORD flags)
+rstring _r_fmt_date (time_t ut, DWORD flags)
 {
 	FILETIME ft = {0};
 	_r_unixtime_to_filetime (ut, &ft);
@@ -120,32 +123,39 @@ rstring _r_fmt_date (const time_t ut, const DWORD flags)
 	return _r_fmt_date (&ft, flags);
 }
 
-rstring _r_fmt_size64 (LONGLONG bytes)
+rstring _r_fmt_size64 (LONG64 bytes)
 {
 	WCHAR buffer[128] = {0};
-	bool is_success = false;
 
+#ifdef _APP_NO_WINXP
+	if (SUCCEEDED (StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, _countof (buffer)))) // vista (sp1)+
+		return buffer;
+#else
 	const HMODULE hlib = GetModuleHandle (L"shlwapi.dll");
 
 	if (hlib)
 	{
-		typedef HRESULT (WINAPI * SFBSE) (ULONGLONG, SFBS_FLAGS, PWSTR, UINT); // StrFormatByteSizeEx
+		typedef HRESULT (WINAPI * SFBSE) (ULONG64, SFBS_FLAGS, PWSTR, UINT); // StrFormatByteSizeEx
 		const SFBSE _StrFormatByteSizeEx = (SFBSE)GetProcAddress (hlib, "StrFormatByteSizeEx");
 
 		if (_StrFormatByteSizeEx)
-			is_success = (_StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, _countof (buffer)) == S_OK); // vista (sp1)+
+		{
+			if (SUCCEEDED (_StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, _countof (buffer)))) // vista (sp1)+
+				return buffer;
+		}
 	}
 
-	if (!is_success)
-		StrFormatByteSize64 (bytes, buffer, _countof (buffer)); // fallback
+	if (StrFormatByteSizeW (bytes, buffer, _countof (buffer))) // fallback
+		return buffer;
+#endif // _APP_NO_WINXP
 
-	return buffer;
+	return nullptr;
 }
 
 rstring _r_fmt_interval (time_t seconds, INT digits)
 {
 	WCHAR buffer[128] = {0};
-	StrFromTimeInterval (buffer, _countof (buffer), DWORD (seconds) * 1000, digits);
+	StrFromTimeInterval (buffer, _countof (buffer), DWORD (seconds) * 1000UL, digits);
 
 	return buffer;
 }
@@ -159,36 +169,12 @@ rstring _r_fmt_interval (time_t seconds, INT digits)
 	https://github.com/processhacker2/processhacker
 */
 
-static const DWORD _r_fastlock_getspincount ()
-{
-	SYSTEM_INFO si = {0};
-	GetNativeSystemInfo (&si);
-
-	if (si.dwNumberOfProcessors > 1)
-		return 4000;
-	else
-		return 0;
-}
-
 void _r_fastlock_initialize (P_FASTLOCK plock)
 {
 	plock->Value = 0;
 
 	NtCreateSemaphore (&plock->ExclusiveWakeEvent, SEMAPHORE_ALL_ACCESS, nullptr, 0, MAXLONG);
 	NtCreateSemaphore (&plock->SharedWakeEvent, SEMAPHORE_ALL_ACCESS, nullptr, 0, MAXLONG);
-}
-
-FORCEINLINE void _r_fastlock_ensureeventcreated (PHANDLE phandle)
-{
-	HANDLE handle;
-
-	if (*phandle != nullptr)
-		return;
-
-	NtCreateSemaphore (&handle, SEMAPHORE_ALL_ACCESS, nullptr, 0, MAXLONG);
-
-	if (InterlockedCompareExchangePointer (phandle, handle, nullptr) != nullptr)
-		CloseHandle (handle);
 }
 
 void _r_fastlock_acquireexclusive (P_FASTLOCK plock)
@@ -203,14 +189,14 @@ void _r_fastlock_acquireexclusive (P_FASTLOCK plock)
 
 		if (!(value & (_R_FASTLOCK_OWNED | _R_FASTLOCK_EXCLUSIVE_WAKING)))
 		{
-			if (_InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_OWNED, value) == value)
+			if (InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_OWNED, value) == value)
 				break;
 		}
 		else if (i >= spinCount)
 		{
 			_r_fastlock_ensureeventcreated (&plock->ExclusiveWakeEvent);
 
-			if (_InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_EXCLUSIVE_WAITERS_INC, value) == value)
+			if (InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_EXCLUSIVE_WAITERS_INC, value) == value)
 			{
 				if (WaitForSingleObjectEx (plock->ExclusiveWakeEvent, INFINITE, FALSE) != STATUS_WAIT_0)
 					RtlRaiseStatus (STATUS_UNSUCCESSFUL);
@@ -219,7 +205,7 @@ void _r_fastlock_acquireexclusive (P_FASTLOCK plock)
 				{
 					value = plock->Value;
 				}
-				while (_InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_OWNED - _R_FASTLOCK_EXCLUSIVE_WAKING, value) != value);
+				while (InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_OWNED - _R_FASTLOCK_EXCLUSIVE_WAKING, value) != value);
 
 				break;
 			}
@@ -242,19 +228,19 @@ void _r_fastlock_acquireshared (P_FASTLOCK plock)
 
 		if (!(value & (_R_FASTLOCK_OWNED | (_R_FASTLOCK_SHARED_OWNERS_MASK << _R_FASTLOCK_SHARED_OWNERS_SHIFT) | _R_FASTLOCK_EXCLUSIVE_MASK)))
 		{
-			if (_InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_OWNED + _R_FASTLOCK_SHARED_OWNERS_INC, value) == value)
+			if (InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_OWNED + _R_FASTLOCK_SHARED_OWNERS_INC, value) == value)
 				break;
 		}
 		else if ((value & _R_FASTLOCK_OWNED) && ((value >> _R_FASTLOCK_SHARED_OWNERS_SHIFT) & _R_FASTLOCK_SHARED_OWNERS_MASK) > 0 && !(value & _R_FASTLOCK_EXCLUSIVE_MASK))
 		{
-			if (_InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_SHARED_OWNERS_INC, value) == value)
+			if (InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_SHARED_OWNERS_INC, value) == value)
 				break;
 		}
 		else if (i >= spinCount)
 		{
 			_r_fastlock_ensureeventcreated (&plock->SharedWakeEvent);
 
-			if (_InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_SHARED_WAITERS_INC, value) == value)
+			if (InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_SHARED_WAITERS_INC, value) == value)
 			{
 				if (WaitForSingleObjectEx (plock->SharedWakeEvent, INFINITE, FALSE) != STATUS_WAIT_0)
 					RtlRaiseStatus (STATUS_UNSUCCESSFUL);
@@ -278,9 +264,9 @@ void _r_fastlock_releaseexclusive (P_FASTLOCK plock)
 
 		if ((value >> _R_FASTLOCK_EXCLUSIVE_WAITERS_SHIFT) & _R_FASTLOCK_EXCLUSIVE_WAITERS_MASK)
 		{
-			if (_InterlockedCompareExchange (&plock->Value, value - _R_FASTLOCK_OWNED + _R_FASTLOCK_EXCLUSIVE_WAKING - _R_FASTLOCK_EXCLUSIVE_WAITERS_INC, value) == value)
+			if (InterlockedCompareExchange (&plock->Value, value - _R_FASTLOCK_OWNED + _R_FASTLOCK_EXCLUSIVE_WAKING - _R_FASTLOCK_EXCLUSIVE_WAITERS_INC, value) == value)
 			{
-				ReleaseSemaphore (plock->ExclusiveWakeEvent, 1, nullptr);
+				NtReleaseSemaphore (plock->ExclusiveWakeEvent, 1, nullptr);
 				break;
 			}
 		}
@@ -288,10 +274,10 @@ void _r_fastlock_releaseexclusive (P_FASTLOCK plock)
 		{
 			const ULONG sharedWaiters = (value >> _R_FASTLOCK_SHARED_WAITERS_SHIFT) & _R_FASTLOCK_SHARED_WAITERS_MASK;
 
-			if (_InterlockedCompareExchange (&plock->Value, value & ~(_R_FASTLOCK_OWNED | (_R_FASTLOCK_SHARED_WAITERS_MASK << _R_FASTLOCK_SHARED_WAITERS_SHIFT)), value) == value)
+			if (InterlockedCompareExchange (&plock->Value, value & ~(_R_FASTLOCK_OWNED | (_R_FASTLOCK_SHARED_WAITERS_MASK << _R_FASTLOCK_SHARED_WAITERS_SHIFT)), value) == value)
 			{
 				if (sharedWaiters)
-					ReleaseSemaphore (plock->SharedWakeEvent, sharedWaiters, nullptr);
+					NtReleaseSemaphore (plock->SharedWakeEvent, sharedWaiters, nullptr);
 
 				break;
 			}
@@ -311,20 +297,20 @@ void _r_fastlock_releaseshared (P_FASTLOCK plock)
 
 		if (((value >> _R_FASTLOCK_SHARED_OWNERS_SHIFT) & _R_FASTLOCK_SHARED_OWNERS_MASK) > 1)
 		{
-			if (_InterlockedCompareExchange (&plock->Value, value - _R_FASTLOCK_SHARED_OWNERS_INC, value) == value)
+			if (InterlockedCompareExchange (&plock->Value, value - _R_FASTLOCK_SHARED_OWNERS_INC, value) == value)
 				break;
 		}
 		else if ((value >> _R_FASTLOCK_EXCLUSIVE_WAITERS_SHIFT) & _R_FASTLOCK_EXCLUSIVE_WAITERS_MASK)
 		{
-			if (_InterlockedCompareExchange (&plock->Value, value - _R_FASTLOCK_OWNED + _R_FASTLOCK_EXCLUSIVE_WAKING - _R_FASTLOCK_SHARED_OWNERS_INC - _R_FASTLOCK_EXCLUSIVE_WAITERS_INC, value) == value)
+			if (InterlockedCompareExchange (&plock->Value, value - _R_FASTLOCK_OWNED + _R_FASTLOCK_EXCLUSIVE_WAKING - _R_FASTLOCK_SHARED_OWNERS_INC - _R_FASTLOCK_EXCLUSIVE_WAITERS_INC, value) == value)
 			{
-				ReleaseSemaphore (plock->ExclusiveWakeEvent, 1, nullptr);
+				NtReleaseSemaphore (plock->ExclusiveWakeEvent, 1, nullptr);
 				break;
 			}
 		}
 		else
 		{
-			if (_InterlockedCompareExchange (&plock->Value, value - _R_FASTLOCK_OWNED - _R_FASTLOCK_SHARED_OWNERS_INC, value) == value)
+			if (InterlockedCompareExchange (&plock->Value, value - _R_FASTLOCK_OWNED - _R_FASTLOCK_SHARED_OWNERS_INC, value) == value)
 				break;
 		}
 
@@ -339,7 +325,7 @@ bool _r_fastlock_tryacquireexclusive (P_FASTLOCK plock)
 	if (value & (_R_FASTLOCK_OWNED | _R_FASTLOCK_EXCLUSIVE_WAKING))
 		return false;
 
-	return _InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_OWNED, value) == value;
+	return InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_OWNED, value) == value;
 }
 
 bool _r_fastlock_tryacquireshared (P_FASTLOCK plock)
@@ -351,23 +337,33 @@ bool _r_fastlock_tryacquireshared (P_FASTLOCK plock)
 
 	if (!(value & _R_FASTLOCK_OWNED))
 	{
-		return _InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_OWNED + _R_FASTLOCK_SHARED_OWNERS_INC, value) == value;
+		return InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_OWNED + _R_FASTLOCK_SHARED_OWNERS_INC, value) == value;
 	}
 	else if ((value >> _R_FASTLOCK_SHARED_OWNERS_SHIFT) & _R_FASTLOCK_SHARED_OWNERS_MASK)
 	{
-		return _InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_SHARED_OWNERS_INC, value) == value;
+		return InterlockedCompareExchange (&plock->Value, value + _R_FASTLOCK_SHARED_OWNERS_INC, value) == value;
 	}
 
 	return false;
 }
 
-PR_OBJECT _r_obj_allocate (PVOID pdata)
+/*
+	Objects reference
+*/
+
+PR_OBJECT _r_obj_allocate (PVOID pdata, _R_CALLBACK_OBJECT_CLEANUP cleanup_callback)
 {
+	if (!cleanup_callback)
+		return nullptr;
+
 	PR_OBJECT pobj = new R_OBJECT;
+
+	SecureZeroMemory (pobj, sizeof (R_OBJECT));
 
 	InterlockedIncrement (&pobj->ref_count);
 
 	pobj->pdata = pdata;
+	pobj->cleanup_callback = cleanup_callback;
 
 	return pobj;
 }
@@ -382,12 +378,12 @@ PR_OBJECT _r_obj_reference (PR_OBJECT pobj)
 	return pobj;
 }
 
-void _r_obj_dereference (PR_OBJECT pobj, OBJECT_CLEANUP_CALLBACK cleanup_callback)
+void _r_obj_dereference (PR_OBJECT pobj)
 {
-	_r_obj_dereferenceex (pobj, 1, cleanup_callback);
+	_r_obj_dereferenceex (pobj, 1);
 }
 
-void _r_obj_dereferenceex (PR_OBJECT pobj, LONG ref_count, OBJECT_CLEANUP_CALLBACK cleanup_callback)
+void _r_obj_dereferenceex (PR_OBJECT pobj, LONG ref_count)
 {
 	if (!pobj)
 		return;
@@ -401,15 +397,10 @@ void _r_obj_dereferenceex (PR_OBJECT pobj, LONG ref_count, OBJECT_CLEANUP_CALLBA
 	{
 		if (pobj->pdata)
 		{
-			if (cleanup_callback)
-			{
-				cleanup_callback (pobj->pdata);
-				pobj->pdata = nullptr;
-			}
-			else
-			{
-				SAFE_DELETE (pobj->pdata);
-			}
+			if (pobj->cleanup_callback)
+				pobj->cleanup_callback (pobj->pdata);
+
+			pobj->pdata = nullptr;
 		}
 
 		SAFE_DELETE (pobj);
@@ -424,24 +415,26 @@ void _r_obj_dereferenceex (PR_OBJECT pobj, LONG ref_count, OBJECT_CLEANUP_CALLBA
 	System messages
 */
 
-INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format, ...)
+INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR text, ...)
 {
 	rstring buffer;
 
 	INT result = 0;
 
-	if (format)
+	if (text)
 	{
 		va_list args;
-		va_start (args, format);
+		va_start (args, text);
 
-		buffer.FormatV (format, args);
+		buffer.FormatV (text, args);
 
 		va_end (args);
 	}
 
+#ifndef _APP_NO_WINXP
 	if (_r_sys_validversion (6, 0))
 	{
+#endif // _APP_NO_WINXP
 		TASKDIALOGCONFIG tdc = {0};
 
 		tdc.cbSize = sizeof (tdc);
@@ -492,10 +485,13 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 			tdc.pszMainIcon = TD_ERROR_ICON;
 
 		if ((flags & MB_TOPMOST) != 0)
-			tdc.lpCallbackData = MAKELONG (0, 1);
+			tdc.lpCallbackData = MAKELONG (0, TRUE);
 
-		_r_msg_taskdialog (&tdc, &result, nullptr, nullptr);
+		if (_r_msg_taskdialog (&tdc, &result, nullptr, nullptr))
+			return result;
+#ifndef _APP_NO_WINXP
 	}
+#endif // _APP_NO_WINXP
 
 #ifndef _APP_NO_WINXP
 	if (!result)
@@ -505,7 +501,7 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 		if (main)
 		{
 			if (buffer.IsEmpty ())
-				buffer.Append (main);
+				buffer = main;
 
 			else
 				buffer.InsertFormat (0, L"%s\r\n\r\n", main);
@@ -521,16 +517,18 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format,
 		if ((flags & MB_ICONMASK) == MB_USERICON)
 			mbp.lpszIcon = MAKEINTRESOURCE (100);
 
-		result = MessageBoxIndirect (&mbp);
+		return MessageBoxIndirect (&mbp);
 	}
 #endif // _APP_NO_WINXP
 
-	return result;
+	return 0;
 }
 
 bool _r_msg_taskdialog (const TASKDIALOGCONFIG * ptd, INT * pbutton, INT * pradiobutton, BOOL * pcheckbox)
 {
-#ifndef _APP_NO_WINXP
+#ifdef _APP_NO_WINXP
+	return SUCCEEDED (TaskDialogIndirect (ptd, pbutton, pradiobutton, pcheckbox));
+#else
 	const HMODULE hlib = GetModuleHandle (L"comctl32.dll");
 
 	if (hlib)
@@ -539,12 +537,10 @@ bool _r_msg_taskdialog (const TASKDIALOGCONFIG * ptd, INT * pbutton, INT * pradi
 		const TDI _TaskDialogIndirect = (TDI)GetProcAddress (hlib, "TaskDialogIndirect");
 
 		if (_TaskDialogIndirect)
-			return (_TaskDialogIndirect (ptd, pbutton, pradiobutton, pcheckbox) == S_OK);
+			return SUCCEEDED (_TaskDialogIndirect (ptd, pbutton, pradiobutton, pcheckbox));
 	}
 
 	return false;
-#else
-	return (TaskDialogIndirect (ptd, pbutton, pradiobutton, pcheckbox) == S_OK);
 #endif // _APP_NO_WINXP
 }
 
@@ -554,29 +550,34 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 	{
 		case TDN_CREATED:
 		{
-			const bool is_topmost = HIWORD (lpdata);
+			const BOOL is_topmost = HIWORD (lpdata);
 
 			if (is_topmost)
 				_r_wnd_top (hwnd, true);
 
 			_r_wnd_center (hwnd, GetParent (hwnd));
 
+#ifndef _APP_NO_DARKTHEME
+			_r_wnd_setdarktheme (hwnd);
+#endif // _APP_NO_DARKTHEME
+
 			break;
 		}
 
 		case TDN_DIALOG_CONSTRUCTED:
 		{
-			const bool is_donotdrawicon = LOWORD (lpdata);
+			const BOOL is_donotdrawicon = LOWORD (lpdata);
 
 			if (!is_donotdrawicon)
 			{
-				SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)SendMessage (GetParent (hwnd), WM_GETICON, ICON_SMALL, 0));
-				SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)SendMessage (GetParent (hwnd), WM_GETICON, ICON_BIG, 0));
-			}
+				HWND hparent = GetParent (hwnd);
 
-#ifndef _APP_NO_DARKTHEME
-			_r_wnd_setdarktheme (hwnd);
-#endif // _APP_NO_DARKTHEME
+				if (hparent)
+				{
+					SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)SendMessage (hparent, WM_GETICON, ICON_SMALL, 0));
+					SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)SendMessage (hparent, WM_GETICON, ICON_BIG, 0));
+				}
+			}
 
 			break;
 		}
@@ -597,22 +598,28 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 
 rstring _r_clipboard_get (HWND hwnd)
 {
-	rstring result;
-
 	if (OpenClipboard (hwnd))
 	{
-		HGLOBAL hmem = GetClipboardData (CF_UNICODETEXT);
+		rstring result;
+		HGLOBAL hmemory = GetClipboardData (CF_UNICODETEXT);
 
-		if (hmem)
+		if (hmemory)
 		{
-			result = LPCWSTR (GlobalLock (hmem));
-			GlobalUnlock (hmem);
+			LPCWSTR text = (LPCWSTR)GlobalLock (hmemory);
+			const size_t length = GlobalSize (hmemory);
+
+			if (text && length)
+				result = rstring (text, length);
+
+			GlobalUnlock (hmemory);
 		}
+
+		CloseClipboard ();
+
+		return result;
 	}
 
-	CloseClipboard ();
-
-	return result;
+	return nullptr;
 }
 
 void _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length)
@@ -621,20 +628,21 @@ void _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length)
 	{
 		if (EmptyClipboard ())
 		{
-			HGLOBAL hmem = GlobalAlloc (GMEM_MOVEABLE | GMEM_ZEROINIT, (length + 1) * sizeof (WCHAR));
-
-			if (hmem)
+			if (!_r_str_isempty (text) && length)
 			{
-				LPVOID ptr = GlobalLock (hmem);
+				size_t byte_size = length * sizeof (WCHAR);
+				HGLOBAL hmemory = GlobalAlloc (GMEM_MOVEABLE | GMEM_ZEROINIT, byte_size + sizeof (WCHAR));
 
-				if (ptr)
+				if (hmemory)
 				{
-					const size_t size = (length + 1) * sizeof (WCHAR);
+					LPVOID ptr_lock = GlobalLock (hmemory);
 
-					memcpy (ptr, text, size);
-					SetClipboardData (CF_UNICODETEXT, hmem);
+					memcpy (ptr_lock, text, byte_size);
+					*(PWCHAR)PTR_ADD_OFFSET (ptr_lock, byte_size) = UNICODE_NULL; // terminate
 
-					GlobalUnlock (hmem);
+					GlobalUnlock (ptr_lock);
+
+					SetClipboardData (CF_UNICODETEXT, hmemory);
 				}
 			}
 		}
@@ -649,10 +657,8 @@ void _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length)
 
 bool _r_fs_delete (LPCWSTR path, bool allowundo)
 {
-	if (!path || !path[0])
+	if (_r_str_isempty (path))
 		return false;
-
-	bool result = false;
 
 	if (allowundo)
 	{
@@ -662,57 +668,147 @@ bool _r_fs_delete (LPCWSTR path, bool allowundo)
 		op.pFrom = path;
 		op.fFlags = FOF_NO_UI | FOF_ALLOWUNDO;
 
-		result = (SHFileOperation (&op) == ERROR_SUCCESS);
+		if (SHFileOperation (&op) == ERROR_SUCCESS)
+			return true;
 	}
 
-	if (!allowundo || !result)
-	{
-		if (DeleteFile (path))
-			result = true;
-	}
-
-	return result;
+	return !!DeleteFile (path);
 }
 
 bool _r_fs_exists (LPCWSTR path)
 {
-	return (GetFileAttributes (path) != INVALID_FILE_ATTRIBUTES);
+	UINT prev_mode = SetErrorMode (SEM_FAILCRITICALERRORS);
+	DWORD attrs = GetFileAttributes (path);
+	SetErrorMode (prev_mode);
+
+	return attrs != INVALID_FILE_ATTRIBUTES;
+}
+
+bool _r_fs_makebackup (LPCWSTR path, time_t timestamp)
+{
+	if (_r_str_isempty (path) || !_r_fs_exists (path))
+		return false;
+
+	rstring dest_path;
+
+	if (timestamp)
+	{
+		SYSTEMTIME st = {0};
+
+		_r_unixtime_to_systemtime (timestamp, &st);
+		SystemTimeToTzSpecificLocalTime (nullptr, &st, &st);
+
+		WCHAR date_format[128] = {0};
+
+		GetDateFormat (LOCALE_USER_DEFAULT, 0, &st, L"yyyy-MM-dd", date_format, _countof (date_format));
+
+		dest_path.Format (L"%s\\%s-%s.bak", _r_path_getdirectory (path).GetString (), date_format, _r_path_getfilename (path));
+
+		if (_r_fs_exists (dest_path))
+			_r_path_makeunique (dest_path);
+
+		return _r_fs_move (path, dest_path, 0);
+	}
+
+	dest_path.Format (L"%s.bak", path);
+
+	if (_r_fs_exists (dest_path))
+		_r_path_makeunique (dest_path);
+
+	return _r_fs_move (path, dest_path, 0);
+}
+
+bool _r_fs_mkdir (LPCWSTR path)
+{
+	if (_r_str_isempty (path))
+		return false;
+
+	if (SHCreateDirectoryEx (nullptr, path, nullptr) == ERROR_SUCCESS)
+		return true;
+
+	if (CreateDirectory (path, nullptr)) // fallback
+		return true;
+
+	return false;
 }
 
 bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size)
 {
-	if (hfile != INVALID_HANDLE_VALUE)
+	if (!hfile || hfile == INVALID_HANDLE_VALUE)
+		return false;
+
+	const HANDLE hmap = CreateFileMapping (hfile, nullptr, PAGE_READONLY, 0, 0, nullptr);
+
+	if (hmap)
 	{
-		const HANDLE hmap = CreateFileMapping (hfile, nullptr, PAGE_READONLY, 0, 0, nullptr);
+		LPVOID buffer = MapViewOfFile (hmap, FILE_MAP_READ, 0, 0, 0);
 
-		if (hmap)
+		if (buffer)
 		{
-			LPVOID buffer = MapViewOfFile (hmap, FILE_MAP_READ, 0, 0, 0);
+			CopyMemory (result, buffer, (size_t)size);
 
-			if (buffer)
-			{
-				CopyMemory (result, buffer, (SIZE_T)size);
-				UnmapViewOfFile (buffer);
-			}
-
+			UnmapViewOfFile (buffer);
 			CloseHandle (hmap);
 
 			return true;
 		}
+
+		CloseHandle (hmap);
 	}
 
 	return false;
 }
 
-bool _r_fs_setpos (HANDLE hfile, LONGLONG pos, DWORD method)
+void _r_fs_rmdir (LPCWSTR path, bool is_recurse)
 {
-	LARGE_INTEGER lpos = {0};
-	lpos.QuadPart = pos;
+	if (_r_str_isempty (path))
+		return;
 
-	return SetFilePointerEx (hfile, lpos, nullptr, method);
+	if (is_recurse)
+	{
+		WIN32_FIND_DATA wfd = {0};
+
+		HANDLE hfind = FindFirstFile (_r_fmt (L"%s\\*.*", path), &wfd);
+
+		if (hfind != INVALID_HANDLE_VALUE)
+		{
+			do
+			{
+				if (wfd.cFileName[0] == UNICODE_NULL || (wfd.cFileName[0] == L'.' && wfd.cFileName[1] == UNICODE_NULL) || (wfd.cFileName[0] == L'.' && wfd.cFileName[1] == L'.' && wfd.cFileName[2] == UNICODE_NULL))
+					continue;
+
+				rstring full_path;
+				full_path.Format (L"%s\\%s", path, wfd.cFileName);
+
+				if ((wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY)
+				{
+					_r_fs_rmdir (full_path, true);
+				}
+				else
+				{
+					SetFileAttributes (full_path, FILE_ATTRIBUTE_NORMAL);
+					DeleteFile (full_path);
+				}
+			}
+			while (FindNextFile (hfind, &wfd));
+
+			FindClose (hfind);
+		}
+	}
+
+	RemoveDirectory (path);
 }
 
-DWORD64 _r_fs_size (HANDLE hfile)
+bool _r_fs_setpos (HANDLE hfile, LONG64 pos, DWORD method)
+{
+	LARGE_INTEGER lpos = {0};
+
+	lpos.QuadPart = pos;
+
+	return !!SetFilePointerEx (hfile, lpos, nullptr, method);
+}
+
+LONG64 _r_fs_size (HANDLE hfile)
 {
 	LARGE_INTEGER size = {0};
 
@@ -721,13 +817,16 @@ DWORD64 _r_fs_size (HANDLE hfile)
 	return size.QuadPart;
 }
 
-DWORD64 _r_fs_size (LPCWSTR path)
+LONG64 _r_fs_size (LPCWSTR path)
 {
+	if (_r_str_isempty (path))
+		return 0;
+
 	const HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
 
 	if (hfile != INVALID_HANDLE_VALUE)
 	{
-		const DWORD64 result = _r_fs_size (hfile);
+		const LONG64 result = _r_fs_size (hfile);
 
 		CloseHandle (hfile);
 		return result;
@@ -736,388 +835,430 @@ DWORD64 _r_fs_size (LPCWSTR path)
 	return 0;
 }
 
-bool _r_fs_mkdir (LPCWSTR path)
-{
-	bool result = false;
-
-	const HMODULE hlib = GetModuleHandle (L"shell32.dll");
-
-	if (hlib)
-	{
-		typedef int (WINAPI * SHCDEX) (HWND, LPCTSTR, const SECURITY_ATTRIBUTES*); // SHCreateDirectoryEx
-		const SHCDEX _SHCreateDirectoryEx = (SHCDEX)GetProcAddress (hlib, "SHCreateDirectoryExW");
-
-		if (_SHCreateDirectoryEx)
-			result = _SHCreateDirectoryEx (nullptr, path, nullptr) == ERROR_SUCCESS;
-	}
-
-	if (!result)
-	{
-		if (CreateDirectory (path, nullptr))
-			result = true;
-	}
-
-	return result;
-}
-
-void _r_fs_rmdir (LPCWSTR path)
-{
-	WIN32_FIND_DATA wfd = {0};
-
-	const HANDLE hfind = FindFirstFile (_r_fmt (L"%s\\*.*", path), &wfd);
-
-	if (hfind != INVALID_HANDLE_VALUE)
-	{
-		do
-		{
-			if ((wfd.cFileName[0] == '.' && !wfd.cFileName[1]) || (wfd.cFileName[0] == '.' && wfd.cFileName[1] == '.' && !wfd.cFileName[2]))
-				continue;
-
-			rstring full_path;
-			full_path.Format (L"%s\\%s", path, wfd.cFileName);
-
-			if (wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-			{
-				_r_fs_rmdir (full_path);
-			}
-			else
-			{
-				SetFileAttributes (full_path, FILE_ATTRIBUTE_NORMAL);
-				DeleteFile (full_path);
-			}
-		}
-		while (FindNextFile (hfind, &wfd));
-
-		FindClose (hfind);
-	}
-
-	RemoveDirectory (path);
-}
-
-bool _r_fs_move (LPCWSTR path_from, LPCWSTR path_to, DWORD flags)
-{
-	if (MoveFileEx (path_from, path_to, flags))
-		return true;
-
-	return false;
-}
-
-bool _r_fs_move_backup (LPCWSTR path, time_t timestamp)
-{
-	if (!path || !_r_fs_exists (path))
-		return false;
-
-	if (timestamp)
-		return _r_fs_move (path, _r_fmt (L"%s\\%" PRId64 L"_%s.bak", _r_path_extractdir (path).GetString (), timestamp, _r_path_extractfile (path).GetString ()), MOVEFILE_REPLACE_EXISTING);
-
-	return _r_fs_move (path, _r_fmt (L"%s.bak", path), MOVEFILE_REPLACE_EXISTING);
-}
-
-bool _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags)
-{
-	if (CopyFileEx (path_from, path_to, nullptr, nullptr, nullptr, flags))
-		return true;
-
-	return false;
-}
-
 /*
 	Paths
 */
 
-rstring _r_path_gettempfilepath (LPCWSTR directory, LPCWSTR filename)
+rstring _r_path_getdirectory (LPCWSTR path)
 {
-	WCHAR tmp_directory[MAX_PATH] = {0};
+	if (_r_str_isempty (path))
+		return nullptr;
 
-	if (!directory)
-		GetTempPath (_countof (tmp_directory), tmp_directory);
+	const size_t pos = _r_str_reversefind (path, INVALID_SIZE_T, OBJ_NAME_PATH_SEPARATOR);
 
-	if (!tmp_directory[0])
-		StringCchCopy (tmp_directory, _countof (tmp_directory), directory);
-
-	WCHAR result[MAX_PATH] = {0};
-
-	if (filename)
+	if (pos != INVALID_SIZE_T)
 	{
-		StringCchPrintf (result, _countof (result), L"%s\\%s.tmp", tmp_directory, filename);
+		rstring result (path, pos);
+		_r_str_trim (result, L"\\/");
+
+		return result;
+	}
+
+	return path;
+}
+
+LPCWSTR _r_path_getextension (LPCWSTR path)
+{
+	LPCWSTR lastpoint = nullptr;
+
+	while (!_r_str_isempty (path))
+	{
+		if (*path == L'\\' || *path == L' ')
+			lastpoint = nullptr;
+
+		else if (*path == L'.')
+			lastpoint = path;
+
+		path++;
+	}
+
+	return lastpoint;
+}
+
+
+LPCWSTR _r_path_getfilename (LPCWSTR path)
+{
+	LPCWSTR last_slash = path;
+
+	while (!_r_str_isempty (path))
+	{
+		if ((*path == L'\\' || *path == L'/' || *path == L':') && path[1] && path[1] != L'\\' && path[1] != L'/')
+			last_slash = path + 1;
+
+		path++;
+	}
+
+	return last_slash;
+}
+
+void _r_path_explore (LPCWSTR path)
+{
+	if (_r_str_isempty (path))
+		return;
+
+	if (_r_fs_exists (path))
+	{
+		_r_run (nullptr, _r_fmt (L"\"explorer.exe\" /select,\"%s\"", path));
 	}
 	else
 	{
-		GetTempFileName (tmp_directory, nullptr, 0, result);
+		LPCWSTR dir = _r_path_getdirectory (path);
+
+		if (_r_fs_exists (dir))
+			ShellExecute (nullptr, nullptr, dir, nullptr, nullptr, SW_SHOWDEFAULT);
 	}
+}
+
+rstring _r_path_compact (LPCWSTR path, UINT length)
+{
+	if (_r_str_isempty (path) || !length)
+		return nullptr;
+
+	rstring result;
+
+	PathCompactPathEx (result.GetBuffer (length), path, length, 0);
+	result.ReleaseBuffer ();
 
 	return result;
 }
 
-rstring _r_path_expand (const rstring & path)
+rstring _r_path_expand (LPCWSTR path)
 {
-	if (path.IsEmpty ())
-		return path;
+	if (_r_str_isempty (path))
+		return nullptr;
 
-	const size_t percent_pos = path.Find (L'%');
-	const size_t separator_pos = path.Find (OBJ_NAME_PATH_SEPARATOR);
+	const size_t length = _r_str_length (path);
+	const size_t percent_pos = _r_str_find (path, length, L'%');
+	const size_t separator_pos = _r_str_find (path, length, OBJ_NAME_PATH_SEPARATOR);
 
-	if (separator_pos == rstring::npos && percent_pos == rstring::npos)
+	if (separator_pos == INVALID_SIZE_T && percent_pos == INVALID_SIZE_T)
 		return path;
 
 	rstring result;
 
-	if (percent_pos != rstring::npos)
+	if (percent_pos != INVALID_SIZE_T)
 	{
-		if (!ExpandEnvironmentStrings (path, result.GetBuffer (4096), 4096))
+		if (!ExpandEnvironmentStrings (path, result.GetBuffer (1024), 1024))
+		{
+			result.Release ();
+			result = path;
+		}
+		else
 		{
 			result.ReleaseBuffer ();
-			result = path;
 		}
 	}
 	else
 	{
-		if (!PathSearchAndQualify (path, result.GetBuffer (4096), 4096))
+		if (!PathSearchAndQualify (path, result.GetBuffer (1024), 1024))
+		{
+			result.Release ();
+			return path;
+		}
+		else
 		{
 			result.ReleaseBuffer ();
-			result = path;
 		}
 	}
 
-	result.ReleaseBuffer ();
-
-	if (result.Find (L'~') != rstring::npos)
+	if (_r_str_find (result, result.GetLength (), L'~') != INVALID_SIZE_T)
 	{
-		GetLongPathName (result.GetString (), result.GetBuffer (4096), 4096);
+		GetLongPathName (result.GetString (), result.GetBuffer (1024), 1024);
 		result.ReleaseBuffer ();
 	}
 
 	return result;
 }
 
-rstring _r_path_unexpand (const rstring & path)
+rstring _r_path_unexpand (LPCWSTR path)
 {
-	if (path.IsEmpty ())
-		return path;
+	if (_r_str_isempty (path))
+		return nullptr;
 
-	if (path.Find (OBJ_NAME_PATH_SEPARATOR) == rstring::npos)
+	if (_r_str_find (path, INVALID_SIZE_T, OBJ_NAME_PATH_SEPARATOR) == INVALID_SIZE_T)
 		return path;
 
 	rstring result;
 
 	if (!PathUnExpandEnvStrings (path, result.GetBuffer (4096), 4096))
 	{
+		result.Release ();
+		return path;
+	}
+	else
+	{
 		result.ReleaseBuffer ();
-		result = path;
 	}
 
-	result.ReleaseBuffer ();
-
 	return result;
 }
 
-rstring _r_path_compact (LPCWSTR path, size_t length)
+void _r_path_makeunique (rstring& path)
 {
-	rstring result;
+	if (path.IsEmpty ())
+		return;
 
-	PathCompactPathEx (result.GetBuffer (length), path, (UINT)length, 0);
-	result.ReleaseBuffer ();
+	if (_r_str_find (path, path.GetLength (), OBJ_NAME_PATH_SEPARATOR) == INVALID_SIZE_T)
+		return;
 
-	return result;
+	rstring directory = _r_path_getdirectory (path);
+	rstring filename = _r_path_getfilename (path);
+	rstring extension = _r_path_getextension (path);
+
+	if (!extension.IsEmpty ())
+		filename.SetLength (filename.GetLength () - extension.GetLength ());
+
+	for (USHORT i = 1; i < USHRT_MAX; i++)
+	{
+		path.Format (L"%s\\%s_%" PRIu16 L"%s", directory.GetString (), filename.GetString (), i, extension.GetString ());
+
+		if (!_r_fs_exists (path))
+			break;
+	}
 }
 
-rstring _r_path_extractdir (LPCWSTR path)
+rstring _r_path_dospathfromnt (LPCWSTR path)
 {
-	rstring result = path;
-	const size_t pos = result.ReverseFind (L"\\/");
+	// "\??\" refers to \GLOBAL??\. Just remove it.
+	if (_r_str_compare (path, L"\\??\\", 4) == 0)
+	{
+		return path + 4;
+	}
+	// "\SystemRoot" means "C:\Windows".
+	else if (_r_str_compare (path, L"\\SystemRoot", 11) == 0)
+	{
+		WCHAR systemRoot[MAX_PATH] = {0};
+		GetSystemDirectory (systemRoot, _countof (systemRoot));
 
-	result.Mid (0, pos);
-	result.Trim (L"\\/");
+		return _r_fmt (L"%s\\%s", systemRoot, path + 11 + 9);
+	}
+	// "system32\" means "C:\Windows\system32\".
+	else if (_r_str_compare (path, L"system32\\", 9) == 0)
+	{
+		WCHAR systemRoot[MAX_PATH] = {0};
+		GetSystemDirectory (systemRoot, _countof (systemRoot));
 
-	return result;
-}
+		return _r_fmt (L"%s\\%s", systemRoot, path + 8);
+	}
+	else if (_r_str_compare (path, L"\\device\\", 8) == 0)
+	{
+		const size_t pathLen = _r_str_length (path);
 
-rstring _r_path_extractfile (LPCWSTR path)
-{
-	if (path && path[0])
-		return PathFindFileName (path);
+		if (_r_str_compare (path, L"\\device\\mup", 11) == 0)
+		{
+			if (pathLen != 11 && path[11] == OBJ_NAME_PATH_SEPARATOR)
+			{
+				// \path
+				return (path + 11);
+			}
+		}
+
+		// device name prefixes
+#ifndef _WIN64
+		PROCESS_DEVICEMAP_INFORMATION deviceMapInfo;
+#else
+		PROCESS_DEVICEMAP_INFORMATION_EX deviceMapInfo;
+#endif
+
+		SecureZeroMemory (&deviceMapInfo, sizeof (deviceMapInfo));
+
+		UNICODE_STRING devicePrefix;
+
+		WCHAR deviceNameBuffer[7] = L"\\??\\ :";
+		static WCHAR devicePrefixBuff[_R_DEVICE_PREFIX_LENGTH] = {0};
+
+		if (NT_SUCCESS (NtQueryInformationProcess (NtCurrentProcess (), ProcessDeviceMap, &deviceMapInfo, sizeof (deviceMapInfo), nullptr)))
+		{
+			for (DWORD i = 0; i < _R_DEVICE_COUNT; i++)
+			{
+				if (deviceMapInfo.Query.DriveMap)
+				{
+					if (!(deviceMapInfo.Query.DriveMap & (0x1 << i)))
+						continue;
+				}
+
+				OBJECT_ATTRIBUTES oa;
+				UNICODE_STRING deviceName;
+
+				deviceName.Buffer = deviceNameBuffer;
+				deviceName.Length = 6 * sizeof (WCHAR);
+
+				deviceNameBuffer[4] = L'A' + WCHAR (i);
+
+				InitializeObjectAttributes (&oa, &deviceName, OBJ_CASE_INSENSITIVE, nullptr, nullptr);
+
+				HANDLE hslink = nullptr;
+
+				if (NT_SUCCESS (NtOpenSymbolicLinkObject (&hslink, SYMBOLIC_LINK_QUERY, &oa)))
+				{
+					devicePrefix.Length = 0;
+					devicePrefix.Buffer = devicePrefixBuff;
+					devicePrefix.MaximumLength = _countof (devicePrefixBuff);
+
+					if (NT_SUCCESS (NtQuerySymbolicLinkObject (hslink, &devicePrefix, nullptr)))
+					{
+						const size_t prefixLen = devicePrefix.Length / sizeof (WCHAR);
+
+						if (prefixLen)
+						{
+							if (_r_str_compare (devicePrefix.Buffer, path, prefixLen) == 0)
+							{
+								// To ensure we match the longest prefix, make sure the next character is a
+								// backslash or the path is equal to the prefix.
+								if (pathLen == prefixLen || path[prefixLen] == OBJ_NAME_PATH_SEPARATOR)
+								{
+									NtClose (hslink);
+
+									// <letter>:path
+									return _r_fmt (L"%c:\\%s", L'A' + WCHAR (i), path + prefixLen + 1);
+								}
+							}
+						}
+					}
+
+					NtClose (hslink);
+				}
+			}
+		}
+
+		// network share prefixes
+		// https://docs.microsoft.com/en-us/windows-hardware/drivers/ifs/support-for-unc-naming-and-mup
+		HKEY hkey = nullptr;
+		rstring providerOrder;
+
+		if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, L"System\\CurrentControlSet\\Control\\NetworkProvider\\Order", 0, KEY_READ, &hkey) == ERROR_SUCCESS)
+		{
+			providerOrder = _r_reg_querystring (hkey, L"ProviderOrder");
+			RegCloseKey (hkey);
+		}
+
+		if (!providerOrder.IsEmpty ())
+		{
+			rstringvec rvc;
+			_r_str_split (providerOrder, providerOrder.GetLength (), L',', rvc);
+
+			for (size_t i = 0; i < rvc.size (); i++)
+			{
+				rstring& rlink = rvc.at (i);
+
+				if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, _r_fmt (L"System\\CurrentControlSet\\Services\\%s\\NetworkProvider", rlink.GetString ()), 0, KEY_READ, &hkey) == ERROR_SUCCESS)
+				{
+					rstring deviceName = _r_reg_querystring (hkey, L"DeviceName");
+
+					const size_t prefixLen = deviceName.GetLength ();
+
+					if (prefixLen)
+					{
+						if (_r_str_compare (deviceName.GetString (), path, prefixLen) == 0)
+						{
+							// To ensure we match the longest prefix, make sure the next character is a
+							// backslash. Don't resolve if the name *is* the prefix. Otherwise, we will end
+							// up with a useless string like "\".
+							if (pathLen != prefixLen && path[prefixLen] == OBJ_NAME_PATH_SEPARATOR)
+							{
+								RegCloseKey (hkey);
+
+								// \path
+								return (path + prefixLen);
+							}
+						}
+					}
+
+					RegCloseKey (hkey);
+				}
+			}
+		}
+	}
 
 	return path;
 }
 
-// Author: Elmue
-// https://stackoverflow.com/a/18792477
-//
-// converts
-// "\Device\HarddiskVolume3"                                -> "E:"
-// "\Device\HarddiskVolume3\Temp"                           -> "E:\Temp"
-// "\Device\HarddiskVolume3\Temp\transparent.jpeg"          -> "E:\Temp\transparent.jpeg"
-// "\Device\Harddisk1\DP(1)0-0+6\foto.jpg"                  -> "I:\foto.jpg"
-// "\Device\TrueCryptVolumeP\Data\Passwords.txt"            -> "P:\Data\Passwords.txt"
-// "\Device\Floppy0\Autoexec.bat"                           -> "A:\Autoexec.bat"
-// "\Device\CdRom1\VIDEO_TS\VTS_01_0.VOB"                   -> "H:\VIDEO_TS\VTS_01_0.VOB"
-// "\Device\Serial1"                                        -> "COM1"
-// "\Device\USBSER000"                                      -> "COM4"
-// "\Device\Mup\ComputerName\C$\Boot.ini"                   -> "\\ComputerName\C$\Boot.ini"
-// "\Device\LanmanRedirector\ComputerName\C$\Boot.ini"      -> "\\ComputerName\C$\Boot.ini"
-// "\Device\LanmanRedirector\ComputerName\Shares\Dance.m3u" -> "\\ComputerName\Shares\Dance.m3u"
-// returns an error for any other device type
-
-rstring _r_path_dospathfromnt (LPCWSTR path)
+DWORD _r_path_ntpathfromdos (rstring & path)
 {
-	rstring result = path;
+	if (path.IsEmpty ())
+		return STATUS_UNSUCCESSFUL;
 
-	// calculate device length
-	size_t device_length = rstring::npos;
+	NTSTATUS status;
 
-	for (size_t i = 0, cnt = 0; i < result.GetLength (); i++)
+	const HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+
+	if (hfile == INVALID_HANDLE_VALUE)
 	{
-		if (result.At (i) == OBJ_NAME_PATH_SEPARATOR)
-		{
-			if (++cnt >= 3)
-			{
-				device_length = i;
-				break;
-			}
-		}
-	}
-
-	if (device_length == rstring::npos)
-		return result;
-
-	if (_wcsnicmp (path, L"\\Device\\Mup\\", device_length + 1) == 0) // network share (win7+)
-	{
-		result.Format (L"\\\\%s", path + device_length + 1);
-	}
-	else if (_wcsnicmp (path, L"\\Device\\LanmanRedirector\\", device_length + 1) == 0) // network share (winxp+)
-	{
-		result.Format (L"\\\\%s", path + device_length + 1);
+		return GetLastError ();
 	}
 	else
 	{
-		WCHAR drives[128] = {0};
-		const DWORD count = GetLogicalDriveStrings (_countof (drives), drives);
+		DWORD attempts = 6;
+		DWORD bufferSize = 0x200;
 
-		if (count && count <= _countof (drives))
+		POBJECT_NAME_INFORMATION pbuffer = (POBJECT_NAME_INFORMATION)new BYTE[bufferSize];
+
+		do
 		{
-			LPWSTR drv = drives;
+			status = NtQueryObject (hfile, ObjectNameInformation, pbuffer, bufferSize, &bufferSize);
 
-			while (*drv)
+			if (status == STATUS_BUFFER_OVERFLOW || status == STATUS_INFO_LENGTH_MISMATCH || status == STATUS_BUFFER_TOO_SMALL)
 			{
-				WCHAR drive[8] = {0};
-				StringCchCopy (drive, _countof (drive), drv);
-
-				WCHAR volume[MAX_PATH] = {0};
-
-				drive[2] = 0; // the backslash is not allowed for QueryDosDevice()
-
-				// may return multiple strings!
-				// returns very weird strings for network shares
-				if (QueryDosDevice (drive, volume, _countof (volume)))
-				{
-					if (_wcsnicmp (path, volume, device_length) == 0)
-					{
-						result = drive;
-						result.Append (path + device_length);
-
-						break;
-					}
-				}
-
-				drv += _r_str_length (drv) + 1;
-			}
-		}
-	}
-
-	return result;
-}
-
-// Author: Elmue
-// https://stackoverflow.com/a/18792477
-//
-// returns
-// "\Device\HarddiskVolume3"                                (Harddisk Drive)
-// "\Device\HarddiskVolume3\Temp"                           (Harddisk Directory)
-// "\Device\HarddiskVolume3\Temp\transparent.jpeg"          (Harddisk File)
-// "\Device\Harddisk1\DP(1)0-0+6\foto.jpg"                  (USB stick)
-// "\Device\TrueCryptVolumeP\Data\Passwords.txt"            (Truecrypt Volume)
-// "\Device\Floppy0\Autoexec.bat"                           (Floppy disk)
-// "\Device\CdRom1\VIDEO_TS\VTS_01_0.VOB"                   (DVD drive)
-// "\Device\Serial1"                                        (real COM port)
-// "\Device\USBSER000"                                      (virtual COM port)
-// "\Device\Mup\ComputerName\C$\Boot.ini"                   (network drive share,  Windows 7)
-// "\Device\LanmanRedirector\ComputerName\C$\Boot.ini"      (network drive share,  Windows XP)
-// "\Device\LanmanRedirector\ComputerName\Shares\Dance.m3u" (network folder share, Windows XP)
-// "\Device\Afd"                                            (internet socket)
-// "\Device\NamedPipe\Pipename"                             (named pipe)
-// "\BaseNamedObjects\Objectname"                           (named mutex, named event, named semaphore)
-// "\REGISTRY\MACHINE\SOFTWARE\Classes\.txt"                (HKEY_CLASSES_ROOT\.txt)
-
-DWORD _r_path_ntpathfromdos (rstring & path)
-{
-	DWORD result = ERROR_BAD_ARGUMENTS;
-
-	if (!path.IsEmpty ())
-	{
-		const HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
-
-		if (hfile == INVALID_HANDLE_VALUE)
-		{
-			result = GetLastError ();
-		}
-		else
-		{
-			ULONG req_length = 0;
-			ULONG out_length = 0;
-
-			// IMPORTANT: The return value from NtQueryObject is bullshit! (driver bug?)
-			// - The function may return STATUS_NOT_SUPPORTED although it has successfully written to the buffer.
-			// - The function returns STATUS_SUCCESS although h_File == 0xFFFFFFFF
-			NTSTATUS status = NtQueryObject (hfile, ObjectNameInformation, nullptr, 0, &req_length);
-
-			if (!req_length)
-			{
-				result = ((status != ERROR_SUCCESS) ? status : ERROR_INVALID_FUNCTION); // see notice
+				SAFE_DELETE_ARRAY (pbuffer);
+				pbuffer = (POBJECT_NAME_INFORMATION)new BYTE[bufferSize];
 			}
 			else
 			{
-				PBYTE pbuffer = new BYTE[req_length];
-
-				UNICODE_STRING* pk_Info = &((OBJECT_NAME_INFORMATION*)pbuffer)->Name;
-				pk_Info->Buffer = 0;
-				pk_Info->Length = 0;
-
-				status = NtQueryObject (hfile, ObjectNameInformation, pbuffer, req_length, &out_length);
-
-				if (!pk_Info->Length || !pk_Info->Buffer || !out_length)
-				{
-					result = ((status != ERROR_SUCCESS) ? status : ERROR_INVALID_FUNCTION); // see notice
-				}
-				else
-				{
-					pk_Info->Buffer[pk_Info->Length / sizeof (WCHAR)] = 0; // trim buffer!
-
-					path = pk_Info->Buffer;
-					path.ToLower (); // lower is imoprtant!
-
-					result = ERROR_SUCCESS;
-				}
-
-				SAFE_DELETE_ARRAY (pbuffer);
+				break;
 			}
-
-			CloseHandle (hfile);
 		}
+		while (--attempts);
+
+		if (NT_SUCCESS (status) && bufferSize)
+		{
+			pbuffer->Name.Buffer[pbuffer->Name.Length / sizeof (WCHAR)] = 0; // trim buffer!
+
+			path = pbuffer->Name.Buffer;
+
+			_r_str_tolower (path.GetBuffer ()); // lower is important!
+		}
+
+		SAFE_DELETE_ARRAY (pbuffer);
+
+		CloseHandle (hfile);
 	}
 
-	return result;
+	return status;
 }
 
 /*
 	Strings
 */
 
-bool _r_str_alloc (LPWSTR * pwstr, size_t length, LPCWSTR text)
+bool _r_str_isnumeric (LPCWSTR text)
 {
-	if (!pwstr)
+	if (_r_str_isempty (text))
 		return false;
 
-	SAFE_DELETE_ARRAY (*pwstr);
+
+	while (*text != UNICODE_NULL)
+	{
+		if (iswdigit (*text) == 0)
+			return false;
+
+		text += 1;
+	}
+
+	return true;
+}
+
+bool _r_str_alloc (LPWSTR * pbuffer, size_t length, LPCWSTR text)
+{
+	if (!pbuffer)
+		return false;
+
+	SAFE_DELETE_ARRAY (*pbuffer);
+
+	if (_r_str_isempty (text))
+		return false;
+
+	if (length == INVALID_SIZE_T)
+		length = _r_str_length (text);
 
 	if (!length)
 		return false;
@@ -1126,11 +1267,215 @@ bool _r_str_alloc (LPWSTR * pwstr, size_t length, LPCWSTR text)
 
 	LPWSTR new_ptr = new WCHAR[length];
 
-	StringCchCopy (new_ptr, length, text);
-	*pwstr = new_ptr;
+	_r_str_copy (new_ptr, length, text);
+
+	*pbuffer = new_ptr;
 
 	return true;
 }
+
+void _r_str_cat (LPWSTR buffer, size_t length, LPCWSTR text, size_t max_length)
+{
+	if (!buffer || !length)
+		return;
+
+	size_t dest_length = _r_str_length (buffer);
+
+	_r_str_copy (buffer + dest_length, length - dest_length, text, max_length);
+}
+
+void _r_str_copy (LPWSTR buffer, size_t length, LPCWSTR text, size_t max_length)
+{
+	if (!buffer || !length)
+		return;
+
+	if (!max_length || _r_str_isempty (text))
+	{
+		*buffer = UNICODE_NULL;
+		return;
+	}
+
+	while (length && max_length && (*text != UNICODE_NULL))
+	{
+		*buffer++ = *text++;
+		length--;
+		max_length--;
+	}
+
+	if (!length)
+		buffer--; // truncate buffer
+
+	*buffer = UNICODE_NULL;
+}
+
+size_t _r_str_length (LPCWSTR text, size_t max_length)
+{
+	if (_r_str_isempty (text) || !max_length)
+		return 0;
+
+	size_t length = max_length;
+
+	while (max_length && *text != UNICODE_NULL)
+	{
+		text++;
+		max_length--;
+	}
+
+	if (!max_length)
+		return 0;
+
+	return length - max_length;
+}
+
+void _r_str_printf (LPWSTR buffer, size_t length, LPCWSTR text, ...)
+{
+	if (!buffer || !length)
+		return;
+
+	if (_r_str_isempty (text))
+	{
+		*buffer = UNICODE_NULL;
+		return;
+	}
+
+	va_list args;
+	va_start (args, text);
+
+	_r_str_vprintf (buffer, length, text, args);
+
+	va_end (args);
+}
+
+void _r_str_vprintf (LPWSTR buffer, size_t length, LPCWSTR text, va_list args)
+{
+	if (!buffer || !length)
+		return;
+
+	if (_r_str_isempty (text))
+	{
+		*buffer = UNICODE_NULL;
+		return;
+	}
+
+	size_t max_length = length - 1; // leave the last space for the null terminator
+
+#pragma warning(push)
+#pragma warning(disable: 4996) // _CRT_SECURE_NO_WARNINGS
+	INT res = _vsnwprintf (buffer, max_length, text, args);
+#pragma warning(pop)
+
+	if (res < 0 || size_t (res) > max_length || size_t (res) == max_length)
+	{
+		// need to null terminate the string
+		buffer += max_length;
+		*buffer = UNICODE_NULL;
+	}
+}
+
+size_t _r_str_hash (LPCWSTR text)
+{
+	if (_r_str_isempty (text))
+		return 0;
+
+#ifdef _WIN64
+#define InitialFNV 2166136261ULL
+#define FNVMultiple 16777619ULL
+#else
+#define InitialFNV 2166136261U
+#define FNVMultiple 16777619U
+#endif
+
+	size_t hash = InitialFNV;
+
+	while (*text != UNICODE_NULL)
+	{
+		hash = hash ^ (_r_str_upper (*text)); /* xor the low 8 bits */
+		hash = hash * FNVMultiple; /* multiply by the magic number */
+
+		text += 1;
+	}
+
+	return hash;
+}
+
+INT _r_str_compare (LPCWSTR str1, LPCWSTR str2, size_t length)
+{
+	if (!length)
+		return 0;
+
+	if (str1 == str2)
+		return 0;
+
+	const bool is_empty1 = _r_str_isempty (str1);
+	const bool is_empty2 = _r_str_isempty (str2);
+
+	if (is_empty1 && is_empty2)
+		return 0;
+
+	if (!is_empty1 && is_empty2)
+		return 1;
+
+	if (is_empty1 && !is_empty2)
+		return -1;
+
+	WCHAR ch1 = _r_str_upper (*str1);
+	WCHAR ch2 = _r_str_upper (*str2);
+
+	if (ch1 != ch2)
+		return ch1 > ch2 ? 1 : -1;
+
+	if (length != INVALID_SIZE_T)
+		return _wcsnicmp (str1, str2, length); // by length
+
+	return _wcsicmp (str1, str2);
+}
+
+INT _r_str_compare_logical (LPCWSTR str1, LPCWSTR str2)
+{
+	if (str1 == str2)
+		return 0;
+
+	const bool is_empty1 = _r_str_isempty (str1);
+	const bool is_empty2 = _r_str_isempty (str2);
+
+	if (is_empty1 && is_empty2)
+		return 0;
+
+	if (!is_empty1 && is_empty2)
+		return 1;
+
+	if (is_empty1 && !is_empty2)
+		return -1;
+
+	return StrCmpLogicalW (str1, str2);
+}
+
+INT _r_str_compare_unicode (LPWSTR str1, LPWSTR str2, bool is_ignorecase)
+{
+	if (str1 == str2)
+		return 0;
+
+	const bool is_empty1 = _r_str_isempty (str1);
+	const bool is_empty2 = _r_str_isempty (str2);
+
+	if (is_empty1 && is_empty2)
+		return 0;
+
+	if (!is_empty1 && is_empty2)
+		return 1;
+
+	if (is_empty1 && !is_empty2)
+		return -1;
+
+	UNICODE_STRING string1 = {0};
+	UNICODE_STRING string2 = {0};
+
+	RtlInitUnicodeString (&string1, str1);
+	RtlInitUnicodeString (&string2, str2);
+
+	return RtlCompareUnicodeString (&string1, &string2, is_ignorecase);
+}
+
 
 rstring _r_str_fromguid (const GUID & lpguid)
 {
@@ -1162,74 +1507,227 @@ rstring _r_str_fromsid (const PSID lpsid)
 	return result;
 }
 
-size_t _r_str_length (LPCWSTR str)
+size_t _r_str_find (LPCWSTR text, size_t length, WCHAR char_find, size_t start_pos)
 {
-	size_t length = 0;
-	StringCchLength (str, STRSAFE_MAX_LENGTH, &length);
+	if (_r_str_isempty (text) || !length)
+		return INVALID_SIZE_T;
 
-	return length;
+	if (length == INVALID_SIZE_T)
+		length = _r_str_length (text);
+
+	char_find = _r_str_upper (char_find);
+
+	for (size_t i = start_pos; i != length; i++)
+	{
+		if (_r_str_upper (text[i]) == char_find)
+			return i;
+	}
+
+	return INVALID_SIZE_T;
 }
 
-WCHAR _r_str_lower (WCHAR chr)
+size_t _r_str_reversefind (LPCWSTR text, size_t length, WCHAR char_find, size_t start_pos)
 {
-	WCHAR buf[] = {chr, 0};
-	CharLowerBuff (buf, _countof (buf));
+	if (_r_str_isempty (text) || !length)
+		return INVALID_SIZE_T;
 
-	return buf[0];
+	if (length == INVALID_SIZE_T)
+		length = _r_str_length (text);
+
+	char_find = _r_str_upper (char_find);
+
+	if (!start_pos || start_pos >= length)
+		start_pos = length - 1;
+
+	do
+	{
+		if (_r_str_upper (text[start_pos]) == char_find)
+			return start_pos;
+	}
+	while (start_pos--);
+
+	return INVALID_SIZE_T;
 }
 
-WCHAR _r_str_upper (WCHAR chr)
-{
-	WCHAR buf[] = {chr, 0};
-	CharUpperBuff (buf, _countof (buf));
-
-	return buf[0];
-}
-
-bool _r_str_match (LPCWSTR str, LPCWSTR pattern)
+bool _r_str_match (LPCWSTR text, LPCWSTR pattern)
 {
 	// If we reach at the end of both strings, we are done
-	if (*pattern == 0 && *str == 0)
+	if (*pattern == UNICODE_NULL && *text == UNICODE_NULL)
 		return true;
 
 	// Make sure that the characters after '*' are present
 	// in second string. This function assumes that the first
 	// string will not contain two consecutive '*'
-	if (*pattern == L'*' && *(pattern + 1) != 0 && *str == 0)
+	if (*pattern == L'*' && *(pattern + 1) != UNICODE_NULL && *text == UNICODE_NULL)
 		return false;
 
 	// If the first string contains '?', or current characters
 	// of both strings match
-	if (*pattern == L'?' || _r_str_lower (*str) == _r_str_lower (*pattern))
-		return _r_str_match (str + 1, pattern + 1);
+	if (*pattern == L'?' || _r_str_upper (*text) == _r_str_upper (*pattern))
+		return _r_str_match (text + 1, pattern + 1);
 
 	// If there is *, then there are two possibilities
 	// a) We consider current character of second string
 	// b) We ignore current character of second string.
 	if (*pattern == L'*')
-		return _r_str_match (str + 1, pattern) || _r_str_match (str, pattern + 1);
+		return _r_str_match (text + 1, pattern) || _r_str_match (text, pattern + 1);
 
 	return false;
 }
 
-size_t _r_str_hash (LPCWSTR text)
+void _r_str_replace (LPWSTR text, WCHAR char_from, WCHAR char_to)
 {
-	if (!text || !text[0])
-		return 0;
+	if (_r_str_isempty (text))
+		return;
 
-#define InitialFNV 2166136261ULL
-#define FNVMultiple 16777619
-
-	size_t hash = InitialFNV;
-	const size_t length = _r_str_length (text);
-
-	for (size_t i = 0; i < length; i++)
+	while (*text != UNICODE_NULL)
 	{
-		hash = hash ^ (_r_str_lower (text[i])); /* xor the low 8 bits */
-		hash = hash * FNVMultiple; /* multiply by the magic number */
+		if (*text == char_from)
+			*text = char_to;
+
+		text += 1;
+	}
+}
+
+void _r_str_trim (rstring& text, LPCWSTR trim)
+{
+	if (!text.IsEmpty ())
+	{
+		StrTrim (text.GetBuffer (), trim);
+		text.ReleaseBuffer ();
+	}
+}
+
+void _r_str_tolower (LPWSTR text)
+{
+	if (_r_str_isempty (text))
+		return;
+
+	while (*text != UNICODE_NULL)
+	{
+		*text = _r_str_lower (*text);
+
+		text += 1;
+	}
+}
+
+void _r_str_toupper (LPWSTR text)
+{
+	if (_r_str_isempty (text))
+		return;
+
+	while (*text != UNICODE_NULL)
+	{
+		*text = _r_str_upper (*text);
+
+		text += 1;
+	}
+}
+
+rstring _r_str_extract (LPCWSTR text, size_t length, size_t start_pos, size_t extract_length)
+{
+	if (_r_str_isempty (text) || !length)
+		return nullptr;
+
+	if (length == INVALID_SIZE_T)
+		length = _r_str_length (text);
+
+	if ((start_pos == 0) && (extract_length >= length))
+		return text;
+
+	if (start_pos >= length)
+		return nullptr;
+
+	if (extract_length > (length - start_pos))
+		extract_length = (length - start_pos);
+
+	return rstring (&text[start_pos], extract_length);
+}
+
+rstring& _r_str_extract_ref (rstring& text, size_t start_pos, size_t extract_length)
+{
+	if (text.IsEmpty ())
+		return text;
+
+	const size_t length = text.GetLength ();
+
+	if ((start_pos == 0) && (extract_length >= length))
+		return text;
+
+	if (start_pos >= length)
+	{
+		text.Release ();
+		return text;
 	}
 
-	return hash;
+	if (extract_length > (length - start_pos))
+		extract_length = (length - start_pos);
+
+	LPWSTR buff = text.GetBuffer ();
+
+	wmemmove (buff, &buff[start_pos], extract_length);
+
+	return text.SetLength (extract_length);
+}
+
+bool _r_str_multibyte2widechar (UINT cp, LPCSTR in_text, LPWSTR out_text, size_t length)
+{
+	if (!in_text || !*in_text)
+		return false;
+
+	MultiByteToWideChar (cp, 0, in_text, (DWORD)length, out_text, (DWORD)length);
+
+	return true;
+}
+
+void _r_str_split (LPCWSTR text, size_t length, WCHAR delimiter, rstringvec& rvc)
+{
+	if (_r_str_isempty (text) || !length)
+		return;
+
+	if (length == INVALID_SIZE_T)
+		length = _r_str_length (text);
+
+	LPCWSTR start = text;
+	LPCWSTR end = start;
+	LPCWSTR thisEnd = start + length;
+
+	while (end < thisEnd)
+	{
+		if (*end == delimiter)
+		{
+			if (start < end)
+				rvc.emplace_back (start, size_t (end - start));
+
+			start = end + 1;
+		}
+
+		end++;
+	}
+
+	if (start < end)
+		rvc.emplace_back (start, size_t (end - start));
+}
+
+bool _r_str_unserialize (LPCWSTR text, WCHAR delimeter, WCHAR key_delimeter, rstringmap1 * lpresult)
+{
+	if (_r_str_isempty (text) || !lpresult)
+		return false;
+
+	rstringvec rvc;
+	_r_str_split (text, INVALID_SIZE_T, delimeter, rvc);
+
+	for (size_t i = 0; i < rvc.size (); i++)
+	{
+		rstring& rlink = rvc.at (i);
+
+		const size_t pos = _r_str_find (rlink, rlink.GetLength (), key_delimeter);
+
+		if (pos != INVALID_SIZE_T)
+			(*lpresult)[_r_str_extract (rlink, rlink.GetLength (), 0, pos)] = _r_str_extract (rlink, rlink.GetLength (), pos + 1);
+	}
+
+	return true;
 }
 
 /*
@@ -1249,35 +1747,13 @@ INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2)
 	for (INT i = 0; i < _countof (oct_v1); i++)
 	{
 		if (oct_v1[i] > oct_v2[i])
-		{
 			return 1;
-		}
+
 		else if (oct_v1[i] < oct_v2[i])
-		{
 			return -1;
-		}
 	}
 
 	return 0;
-}
-
-bool _r_str_unserialize (rstring string, LPCWSTR str_delimeter, WCHAR key_delimeter, rstring::map_one * lpresult)
-{
-	if (!lpresult)
-		return false;
-
-	const rstring::rvector vc = string.AsVector (str_delimeter);
-
-	for (size_t i = 0; i < vc.size (); i++)
-	{
-		const rstring name = vc.at (i);
-		const size_t pos = name.Find (key_delimeter);
-
-		if (pos != rstring::npos)
-			(*lpresult)[name.Midded (0, pos)] = name.Midded (pos + 1);
-	}
-
-	return true;
 }
 
 /*
@@ -1297,15 +1773,17 @@ bool _r_sys_isadmin ()
 
 	PACL pacl = nullptr;
 	PSID psid = nullptr;
-	PSECURITY_DESCRIPTOR sd = nullptr;
+	PSECURITY_DESCRIPTOR psd = nullptr;
 
 	SID_IDENTIFIER_AUTHORITY sia = SECURITY_NT_AUTHORITY;
+
+	HANDLE heap = GetProcessHeap ();
 
 	__try
 	{
 		if (!OpenThreadToken (GetCurrentThread (), TOKEN_DUPLICATE | TOKEN_QUERY, TRUE, &token))
 		{
-			if (GetLastError () != ERROR_NO_TOKEN || !OpenProcessToken (GetCurrentProcess (), TOKEN_DUPLICATE | TOKEN_QUERY, &token))
+			if (GetLastError () != ERROR_NO_TOKEN || !OpenProcessToken (NtCurrentProcess (), TOKEN_DUPLICATE | TOKEN_QUERY, &token))
 				__leave;
 		}
 
@@ -1315,21 +1793,21 @@ bool _r_sys_isadmin ()
 		if (!AllocateAndInitializeSid (&sia, 2, SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &psid))
 			__leave;
 
-		sd = LocalAlloc (LPTR, SECURITY_DESCRIPTOR_MIN_LENGTH);
+		psd = (PSECURITY_DESCRIPTOR)HeapAlloc (heap, HEAP_ZERO_MEMORY, SECURITY_DESCRIPTOR_MIN_LENGTH);
 
-		if (!sd || !InitializeSecurityDescriptor (sd, SECURITY_DESCRIPTOR_REVISION))
+		if (!psd || !InitializeSecurityDescriptor (psd, SECURITY_DESCRIPTOR_REVISION))
 			__leave;
 
-		DWORD acl_size = sizeof (ACL) + sizeof (ACCESS_ALLOWED_ACE) + (size_t)GetLengthSid (psid) - sizeof (DWORD);
-		pacl = (PACL)LocalAlloc (LPTR, (SIZE_T)acl_size);
+		DWORD acl_size = sizeof (ACL) + sizeof (ACCESS_ALLOWED_ACE) + GetLengthSid (psid) - sizeof (DWORD);
+		pacl = (PACL)HeapAlloc (heap, HEAP_ZERO_MEMORY, acl_size);
 
-		if (!pacl || !InitializeAcl (pacl, acl_size, ACL_REVISION2) || !AddAccessAllowedAce (pacl, ACL_REVISION2, ACCESS_READ | ACCESS_WRITE, psid) || !SetSecurityDescriptorDacl (sd, TRUE, pacl, FALSE))
+		if (!pacl || !InitializeAcl (pacl, acl_size, ACL_REVISION2) || !AddAccessAllowedAce (pacl, ACL_REVISION2, ACCESS_READ | ACCESS_WRITE, psid) || !SetSecurityDescriptorDacl (psd, TRUE, pacl, FALSE))
 			__leave;
 
-		SetSecurityDescriptorGroup (sd, psid, FALSE);
-		SetSecurityDescriptorOwner (sd, psid, FALSE);
+		SetSecurityDescriptorGroup (psd, psid, FALSE);
+		SetSecurityDescriptorOwner (psd, psid, FALSE);
 
-		if (!IsValidSecurityDescriptor (sd))
+		if (!IsValidSecurityDescriptor (psd))
 			__leave;
 
 		gm.GenericRead = ACCESS_READ;
@@ -1337,7 +1815,7 @@ bool _r_sys_isadmin ()
 		gm.GenericExecute = 0;
 		gm.GenericAll = ACCESS_READ | ACCESS_WRITE;
 
-		if (!AccessCheck (sd, impersonation_token, ACCESS_READ, &gm, &ps, &ps_size, &status, &result))
+		if (!AccessCheck (psd, impersonation_token, ACCESS_READ, &gm, &ps, &ps_size, &status, &result))
 		{
 			result = FALSE;
 			__leave;
@@ -1346,8 +1824,8 @@ bool _r_sys_isadmin ()
 
 	__finally
 	{
-		SAFE_LOCAL_FREE (pacl);
-		SAFE_LOCAL_FREE (sd);
+		SAFE_HEAP_FREE (heap, pacl);
+		SAFE_HEAP_FREE (heap, psd);
 
 		if (psid)
 			FreeSid (psid);
@@ -1359,69 +1837,24 @@ bool _r_sys_isadmin ()
 			CloseHandle (token);
 	}
 
-	return result ? true : false;
+	return !!result;
 }
 
-ULONGLONG _r_sys_gettickcount ()
+rstring _r_sys_getsessioninfo (WTS_INFO_CLASS info)
 {
-	static LARGE_INTEGER s_frequency = {0};
-	static const bool is_qpc = QueryPerformanceFrequency (&s_frequency);
+	LPWSTR buffer;
+	DWORD length;
 
-	if (is_qpc)
+	if (WTSQuerySessionInformation (WTS_CURRENT_SERVER_HANDLE, WTS_CURRENT_SESSION, info, &buffer, &length))
 	{
-		LARGE_INTEGER now = {0};
-		QueryPerformanceCounter (&now);
+		rstring result = buffer;
 
-		return (1000LL * now.QuadPart) / s_frequency.QuadPart;
+		WTSFreeMemory (buffer);
+
+		return result;
 	}
 
-#ifdef _APP_NO_WINXP
-	return GetTickCount64 ();
-#else
-	// Try GetTickCount64 (vista+)
-	if (_r_sys_validversion (6, 0))
-	{
-		const HMODULE hlib = GetModuleHandle (L"kernel32.dll");
-
-		if (hlib)
-		{
-			typedef ULONGLONG (WINAPI * GTC64) (VOID); // GetTickCount64
-			const GTC64 _GetTickCount64 = (GTC64)GetProcAddress (hlib, "GetTickCount64");
-
-			if (_GetTickCount64)
-				return _GetTickCount64 ();
-		}
-	}
-
-	return (ULONGLONG)GetTickCount ();
-#endif // _APP_NO_WINXP
-}
-
-void _r_sys_getusername (rstring * pdomain, rstring * pusername)
-{
-	LPWSTR username = nullptr;
-	LPWSTR domain = nullptr;
-
-	DWORD username_bytes = 0;
-	DWORD domain_bytes = 0;
-
-	if (
-		WTSQuerySessionInformation (WTS_CURRENT_SERVER_HANDLE, WTS_CURRENT_SESSION, WTSUserName, &username, &username_bytes) &&
-		WTSQuerySessionInformation (WTS_CURRENT_SERVER_HANDLE, WTS_CURRENT_SESSION, WTSDomainName, &domain, &domain_bytes)
-		)
-	{
-		if (pusername)
-			*pusername = username;
-
-		if (pdomain)
-			*pdomain = domain;
-	}
-
-	if (username)
-		WTSFreeMemory (username);
-
-	if (domain)
-		WTSFreeMemory (domain);
+	return nullptr;
 }
 
 rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username)
@@ -1444,11 +1877,9 @@ rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username)
 	return result;
 }
 
-#ifndef _WIN64
 bool _r_sys_iswow64 ()
 {
-	BOOL result = FALSE;
-
+#ifndef _WIN64
 	// IsWow64Process is not available on all supported versions of Windows.
 	// Use GetModuleHandle to get a handle to the DLL that contains the function
 	// and GetProcAddress to get a pointer to the function if available.
@@ -1461,15 +1892,17 @@ bool _r_sys_iswow64 ()
 		const IW64P _IsWow64Process = (IW64P)GetProcAddress (hlib, "IsWow64Process");
 
 		if (_IsWow64Process)
-			_IsWow64Process (GetCurrentProcess (), &result);
+		{
+			BOOL result = FALSE;
 
-		if (result)
-			return true;
+			if (_IsWow64Process (NtCurrentProcess (), &result))
+				return !!result;
+		}
 	}
+#endif // _WIN64
 
 	return false;
 }
-#endif // _WIN64
 
 bool _r_sys_setprivilege (LPCWSTR privileges[], size_t count, bool is_enable)
 {
@@ -1480,7 +1913,7 @@ bool _r_sys_setprivilege (LPCWSTR privileges[], size_t count, bool is_enable)
 
 	bool result = false;
 
-	if (OpenProcessToken (GetCurrentProcess (), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token))
+	if (OpenProcessToken (NtCurrentProcess (), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token))
 	{
 		for (size_t i = 0; i < count; i++)
 		{
@@ -1503,25 +1936,24 @@ bool _r_sys_setprivilege (LPCWSTR privileges[], size_t count, bool is_enable)
 
 bool _r_sys_uacstate ()
 {
+	if (!_r_sys_validversion (6, 0))
+		return false;
+
 	HANDLE token = nullptr;
-	DWORD out_length = 0;
+	DWORD out_length;
+
 	TOKEN_ELEVATION_TYPE tet;
-	bool result = false;
 
-	if (_r_sys_validversion (6, 0))
+	if (OpenProcessToken (NtCurrentProcess (), TOKEN_QUERY, &token) && GetTokenInformation (token, TokenElevationType, &tet, sizeof (tet), &out_length) && tet == TokenElevationTypeLimited)
 	{
-		if (OpenProcessToken (GetCurrentProcess (), TOKEN_QUERY, &token) && GetTokenInformation (token, TokenElevationType, &tet, sizeof (tet), &out_length) && tet == TokenElevationTypeLimited)
-		{
-			result = true;
-		}
-
-		if (token)
-		{
-			CloseHandle (token);
-		}
+		CloseHandle (token);
+		return true;
 	}
 
-	return result;
+	if (token)
+		CloseHandle (token);
+
+	return false;
 }
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms725494(v=vs.85).aspx
@@ -1545,18 +1977,7 @@ bool _r_sys_validversion (DWORD major, DWORD minor, DWORD build, BYTE condition)
 		type_mask |= VER_BUILDNUMBER;
 	}
 
-	if (VerifyVersionInfo (&osvi, type_mask, mask))
-		return true;
-
-	return false;
-}
-
-void _r_sleep (DWORD milliseconds)
-{
-	if (!milliseconds || milliseconds == INFINITE)
-		return;
-
-	WaitForSingleObjectEx (GetCurrentThread (), milliseconds, FALSE);
+	return !!VerifyVersionInfo (&osvi, type_mask, mask);
 }
 
 /*
@@ -1575,7 +1996,7 @@ void _r_unixtime_to_filetime (time_t ut, const LPFILETIME pft)
 {
 	if (pft)
 	{
-		const LONGLONG ll = Int32x32To64 (ut, 10000000) + 116444736000000000; // 64-bit value
+		const LONG64 ll = Int32x32To64 (ut, 10000000LL) + 116444736000000000LL; // 64-bit value
 
 		pft->dwLowDateTime = DWORD (ll);
 		pft->dwHighDateTime = ll >> 32;
@@ -1613,24 +2034,90 @@ time_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst)
 }
 
 /*
-	Optimized version of WinAPI function "FillRect"
+	Device context (Draw/Calculation etc...)
 */
+
+INT _r_dc_getdpivalue (INT new_value)
+{
+	static INT cached_value = INVALID_INT;
+
+	if (new_value > 0)
+	{
+		cached_value = new_value;
+		return new_value;
+	}
+
+	if (new_value != INVALID_INT)
+	{
+		if (cached_value != INVALID_INT)
+			return cached_value;
+	}
+
+	static const bool is_win10rs1 = _r_sys_validversion (10, 0, 14393); // win10rs1+
+
+	if (is_win10rs1)
+	{
+		const HMODULE hlib = GetModuleHandle (L"user32.dll");
+
+		if (hlib)
+		{
+			typedef UINT (WINAPI * GSDFP) (HANDLE); // GetSystemDpiForProcess
+			typedef UINT (WINAPI * GDGS) (VOID); // GetDpiForSystem
+
+			const GSDFP _GetSystemDpiForProcess = (GSDFP)GetProcAddress (hlib, "GetSystemDpiForProcess"); // win10rs5+
+			const GDGS _GetDpiForSystem = (GDGS)GetProcAddress (hlib, "GetDpiForSystem"); // win10rs1+
+
+			if (_GetSystemDpiForProcess)
+			{
+				cached_value = _GetSystemDpiForProcess (NtCurrentProcess ());
+				return cached_value;
+			}
+
+			if (_GetDpiForSystem)
+			{
+				cached_value = _GetDpiForSystem ();
+				return cached_value;
+			}
+		}
+	}
+
+	HDC hdc = GetDC (nullptr);
+
+	if (hdc)
+	{
+		INT result = GetDeviceCaps (hdc, LOGPIXELSX);
+		ReleaseDC (nullptr, hdc);
+
+		cached_value = result;
+
+		return result;
+	}
+
+	cached_value = USER_DEFAULT_SCREEN_DPI;
+
+	return USER_DEFAULT_SCREEN_DPI;
+}
 
 COLORREF _r_dc_getcolorbrightness (COLORREF clr)
 {
-	ULONG r = clr & 0xff;
-	ULONG g = (clr >> 8) & 0xff;
-	ULONG b = (clr >> 16) & 0xff;
-	ULONG min = 0;
-	ULONG max = 0;
+	DWORD r = clr & 0xff;
+	DWORD g = (clr >> 8) & 0xff;
+	DWORD b = (clr >> 16) & 0xff;
 
-	min = r;
-	if (g < min) min = g;
-	if (b < min) min = b;
+	DWORD min = r;
+	DWORD max = r;
 
-	max = r;
-	if (g > max) max = g;
-	if (b > max) max = b;
+	if (g < min)
+		min = g;
+
+	if (b < min)
+		min = b;
+
+	if (g > max)
+		max = g;
+
+	if (b > max)
+		max = b;
 
 	if (((min + max) / 2) > 100)
 		return RGB (0x00, 0x00, 0x00);
@@ -1640,44 +2127,33 @@ COLORREF _r_dc_getcolorbrightness (COLORREF clr)
 
 COLORREF _r_dc_getcolorshade (COLORREF clr, INT percent)
 {
-	const COLORREF red = ((GetRValue (clr) * percent) / 100);
-	const COLORREF green = ((GetGValue (clr) * percent) / 100);
-	const COLORREF blue = ((GetBValue (clr) * percent) / 100);
+	COLORREF r = ((GetRValue (clr) * percent) / 100);
+	COLORREF g = ((GetGValue (clr) * percent) / 100);
+	COLORREF b = ((GetBValue (clr) * percent) / 100);
 
-	return RGB (red, green, blue);
+	return RGB (r, g, b);
 }
 
-void _r_dc_fillrect (HDC hdc, LPRECT lprc, COLORREF clr)
+// Optimized version of WinAPI function "FillRect"
+void _r_dc_fillrect (HDC hdc, const LPRECT lprc, COLORREF clr)
 {
-	const COLORREF clr_prev = SetBkColor (hdc, clr);
+	COLORREF clr_prev = SetBkColor (hdc, clr);
 	ExtTextOut (hdc, 0, 0, ETO_OPAQUE, lprc, nullptr, 0, nullptr);
 	SetBkColor (hdc, clr_prev);
 }
 
-int _r_dc_fontheighttosize (INT size)
-{
-	const HDC hdc = GetDC (nullptr);
-	const int result = MulDiv (-size, 72, GetDeviceCaps (hdc, LOGPIXELSY));
-	ReleaseDC (nullptr, hdc);
-
-	return result;
-}
-
-int _r_dc_fontsizetoheight (INT size)
-{
-	const HDC hdc = GetDC (nullptr);
-	const int result = -MulDiv (size, GetDeviceCaps (hdc, LOGPIXELSY), 72);
-	ReleaseDC (nullptr, hdc);
-
-	return result;
-}
-
 LONG _r_dc_fontwidth (HDC hdc, LPCWSTR text, size_t length)
 {
+	if (_r_str_isempty (text) || !length)
+		return 0;
+
+	if (length == INVALID_SIZE_T)
+		length = _r_str_length (text);
+
 	SIZE size = {0};
 
 	if (!GetTextExtentPoint32 (hdc, text, (INT)length, &size))
-		size.cx = 200;
+		return 200; // fallback
 
 	return size.cx;
 }
@@ -1729,7 +2205,7 @@ void _r_wnd_adjustwindowrect (HWND hwnd, LPRECT lprect)
 	}
 }
 
-void _r_wnd_centerwindowrect (LPRECT lprect, LPRECT lpparent)
+void _r_wnd_centerwindowrect (LPRECT lprect, const LPRECT lpparent)
 {
 	lprect->left = lpparent->left + (_R_RECT_WIDTH (lpparent) - _R_RECT_WIDTH (lprect)) / 2;
 	lprect->top = lpparent->top + (_R_RECT_HEIGHT (lpparent) - _R_RECT_HEIGHT (lprect)) / 2;
@@ -1737,7 +2213,7 @@ void _r_wnd_centerwindowrect (LPRECT lprect, LPRECT lpparent)
 
 void _r_wnd_center (HWND hwnd, HWND hparent)
 {
-	if (hparent && IsWindowVisible (hparent) && !IsIconic (hparent))
+	if (hparent && (IsWindow (hparent) && IsWindowVisible (hparent) && !IsIconic (hparent)))
 	{
 		RECT rect = {0}, parentRect = {0};
 
@@ -1747,7 +2223,7 @@ void _r_wnd_center (HWND hwnd, HWND hparent)
 		_r_wnd_centerwindowrect (&rect, &parentRect);
 		_r_wnd_adjustwindowrect (hwnd, &rect);
 
-		SetWindowPos (hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOSIZE);
+		_r_wnd_resize (nullptr, hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOSIZE);
 	}
 	else
 	{
@@ -1761,41 +2237,54 @@ void _r_wnd_center (HWND hwnd, HWND hparent)
 
 			_r_wnd_centerwindowrect (&rect, &monitorInfo.rcWork);
 
-			SetWindowPos (hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOSIZE);
+			_r_wnd_resize (nullptr, hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOSIZE);
 		}
 	}
 }
 
 void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 {
-	if (_r_sys_validversion (6, 0))
+	const HMODULE hlib = GetModuleHandle (L"user32.dll");
+
+#ifdef _APP_NO_WINXP
+	if (hlib)
 	{
-		const HMODULE hlib = GetModuleHandle (L"user32.dll");
+		typedef BOOL (WINAPI * CWMFEX) (HWND, UINT, DWORD, PVOID); // ChangeWindowMessageFilterEx
+		const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (hlib, "ChangeWindowMessageFilterEx"); // win7+
 
-		if (hlib)
+		if (_ChangeWindowMessageFilterEx)
 		{
-			typedef BOOL (WINAPI * CWMFEX) (HWND, UINT, DWORD, PVOID); // ChangeWindowMessageFilterEx
-			const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (hlib, "ChangeWindowMessageFilterEx"); // win7+
-
-			if (_ChangeWindowMessageFilterEx)
-			{
-				_ChangeWindowMessageFilterEx (hwnd, msg, action, nullptr);
-			}
-			else
-			{
-				typedef BOOL (WINAPI * CWMF) (UINT, DWORD); // ChangeWindowMessageFilter
-				const CWMF _ChangeWindowMessageFilter = (CWMF)GetProcAddress (hlib, "ChangeWindowMessageFilter"); // vista fallback
-
-				if (_ChangeWindowMessageFilter)
-					_ChangeWindowMessageFilter (msg, action);
-			}
+			if (_ChangeWindowMessageFilterEx (hwnd, msg, action, nullptr))
+				return;
 		}
 	}
+
+	ChangeWindowMessageFilter (msg, action); // vista fallback
+#else
+	if (hlib)
+	{
+		typedef BOOL (WINAPI * CWMFEX) (HWND, UINT, DWORD, PVOID); // ChangeWindowMessageFilterEx
+		const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (hlib, "ChangeWindowMessageFilterEx"); // win7+
+
+		if (_ChangeWindowMessageFilterEx)
+		{
+			_ChangeWindowMessageFilterEx (hwnd, msg, action, nullptr);
+		}
+		else
+		{
+			typedef BOOL (WINAPI * CWMF) (UINT, DWORD); // ChangeWindowMessageFilter
+			const CWMF _ChangeWindowMessageFilter = (CWMF)GetProcAddress (hlib, "ChangeWindowMessageFilter"); // vista fallback
+
+			if (_ChangeWindowMessageFilter)
+				_ChangeWindowMessageFilter (msg, action);
+		}
+	}
+#endif // _APP_NO_WINXP
 }
 
-void _r_wnd_toggle (HWND hwnd, bool show)
+void _r_wnd_toggle (HWND hwnd, bool is_show)
 {
-	if (show || !IsWindowVisible (hwnd))
+	if (is_show || !IsWindowVisible (hwnd))
 	{
 		ShowWindow (hwnd, SW_SHOW);
 
@@ -1821,7 +2310,7 @@ void _r_wnd_top (HWND hwnd, bool is_enable)
 
 bool _r_wnd_undercursor (HWND hwnd)
 {
-	if (!IsWindowVisible (hwnd))
+	if (!IsWindow (hwnd) || !IsWindowVisible (hwnd) || IsIconic (hwnd))
 		return false;
 
 	POINT pt = {0};
@@ -1830,15 +2319,18 @@ bool _r_wnd_undercursor (HWND hwnd)
 	GetCursorPos (&pt);
 	GetWindowRect (hwnd, &rect);
 
-	if (PtInRect (&rect, pt))
-		return true;
-
-	return false;
+	return !!PtInRect (&rect, pt);
 }
 
 static bool _r_wnd_isplatformfullscreenmode ()
 {
+	QUERY_USER_NOTIFICATION_STATE state = QUNS_NOT_PRESENT;
+
 	// SHQueryUserNotificationState is only available for Vista+
+#ifdef _APP_NO_WINXP
+	if (FAILED (SHQueryUserNotificationState (&state)))
+		return false;
+#else
 	if (_r_sys_validversion (6, 0))
 	{
 		const HINSTANCE hlib = GetModuleHandle (L"shell32.dll");
@@ -1850,15 +2342,14 @@ static bool _r_wnd_isplatformfullscreenmode ()
 
 			if (_SHQueryUserNotificationState)
 			{
-				QUERY_USER_NOTIFICATION_STATE state;
-
-				if (_SHQueryUserNotificationState (&state) == S_OK)
-					return (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
+				if (FAILED (_SHQueryUserNotificationState (&state)))
+					return false;
 			}
 		}
 	}
+#endif _APP_NO_WINXP
 
-	return false;
+	return (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
 }
 
 static bool _r_wnd_isfullscreenwindowmode ()
@@ -1894,16 +2385,21 @@ static bool _r_wnd_isfullscreenwindowmode ()
 	LONG_PTR style = GetWindowLongPtr (wnd, GWL_STYLE);
 	LONG_PTR ext_style = GetWindowLongPtr (wnd, GWL_EXSTYLE);
 
-	return !((style & (WS_DLGFRAME | WS_THICKFRAME)) ||
-		(ext_style & (WS_EX_WINDOWEDGE | WS_EX_TOOLWINDOW)));
+	return !((style & (WS_DLGFRAME | WS_THICKFRAME)) || (ext_style & (WS_EX_WINDOWEDGE | WS_EX_TOOLWINDOW)));
 }
 
 static bool _r_wnd_isfullscreenconsolemode ()
 {
 	// We detect this by attaching the current process to the console of the
 	// foreground window and then checking if it is in full screen mode.
+	HWND hwnd = GetForegroundWindow ();
+
+	if (!hwnd)
+		return false;
+
 	DWORD pid = 0;
-	GetWindowThreadProcessId (GetForegroundWindow (), &pid);
+	GetWindowThreadProcessId (hwnd, &pid);
+
 	if (!pid)
 		return false;
 
@@ -1919,9 +2415,7 @@ static bool _r_wnd_isfullscreenconsolemode ()
 
 bool _r_wnd_isfullscreenmode ()
 {
-	return _r_wnd_isplatformfullscreenmode () ||
-		_r_wnd_isfullscreenwindowmode () ||
-		_r_wnd_isfullscreenconsolemode ();
+	return _r_wnd_isplatformfullscreenmode () || _r_wnd_isfullscreenwindowmode () || _r_wnd_isfullscreenconsolemode ();
 }
 
 void _r_wnd_resize (HDWP * hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags)
@@ -1947,21 +2441,53 @@ BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 	if (!IsWindow (hwnd))
 		return TRUE;
 
-	const BOOL is_darktheme = (BOOL)lparam;
+	const BOOL is_darktheme = LOWORD (lparam);
 	const HMODULE huxtheme = GetModuleHandle (L"uxtheme.dll");
+
+	if (!huxtheme)
+		return FALSE;
+
+	typedef BOOL (WINAPI * ADMFW) (HWND, BOOL); // AllowDarkModeForWindow
+	const ADMFW _AllowDarkModeForWindow = (ADMFW)GetProcAddress (huxtheme, MAKEINTRESOURCEA (133));
+
+	if (!_AllowDarkModeForWindow)
+		return FALSE;
+
+	_AllowDarkModeForWindow (hwnd, is_darktheme);
+
+	return TRUE;
+}
+
+bool _r_wnd_isdarkmessage (LPARAM lparam)
+{
+	bool result = false;
+
+	const HMODULE huxtheme = GetModuleHandle (L"uxtheme.dll");
+
+	if (lparam && _r_str_compare_unicode (reinterpret_cast<LPWSTR>(lparam), L"ImmersiveColorSet", true) == 0)
+	{
+		if (huxtheme)
+		{
+			typedef VOID (WINAPI * RICPS) (VOID); // RefreshImmersiveColorPolicyState
+			const RICPS _RefreshImmersiveColorPolicyState = (RICPS)GetProcAddress (huxtheme, MAKEINTRESOURCEA (104));
+
+			if (_RefreshImmersiveColorPolicyState)
+				_RefreshImmersiveColorPolicyState ();
+		}
+
+		result = true;
+	}
 
 	if (huxtheme)
 	{
-		typedef BOOL (WINAPI * ADMFW) (HWND window, BOOL allow); // AllowDarkModeForWindow
-		const ADMFW _AllowDarkModeForWindow = (ADMFW)GetProcAddress (huxtheme, MAKEINTRESOURCEA (133));
+		typedef BOOL (WINAPI * GIICUHC) (IMMERSIVE_HC_CACHE_MODE); // GetIsImmersiveColorUsingHighContrast
+		const GIICUHC _GetIsImmersiveColorUsingHighContrast = (GIICUHC)GetProcAddress (huxtheme, MAKEINTRESOURCEA (105));
 
-		if (_AllowDarkModeForWindow)
-			_AllowDarkModeForWindow (hwnd, is_darktheme);
+		if (_GetIsImmersiveColorUsingHighContrast)
+			_GetIsImmersiveColorUsingHighContrast (IHCM_REFRESH);
 	}
 
-	InvalidateRect (hwnd, nullptr, TRUE);
-
-	return TRUE;
+	return result;
 }
 
 bool _r_wnd_isdarktheme ()
@@ -1969,27 +2495,27 @@ bool _r_wnd_isdarktheme ()
 	if (!_r_sys_validversion (10, 0, 17763)) // win10rs5+
 		return false;
 
-	HIGHCONTRAST info = {0};
-	info.cbSize = sizeof (HIGHCONTRAST);
+	HIGHCONTRAST hci = {0};
+	hci.cbSize = sizeof (hci);
 
-	if (SystemParametersInfo (SPI_GETHIGHCONTRAST, 0, &info, 0))
+	if (SystemParametersInfo (SPI_GETHIGHCONTRAST, 0, &hci, 0))
 	{
 		// no dark mode in high-contrast mode
-		if ((info.dwFlags & HCF_HIGHCONTRASTON) != 0)
+		if ((hci.dwFlags & HCF_HIGHCONTRASTON) != 0)
 			return false;
 	}
 
-	const HMODULE huxtheme = LoadLibrary (L"uxtheme.dll");
+	const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 	if (huxtheme)
 	{
-		typedef BOOL (WINAPI * SAUDM) (); // ShouldAppsUseDarkMode
+		typedef BOOL (WINAPI * SAUDM) (VOID); // ShouldAppsUseDarkMode
 		const SAUDM _ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (huxtheme, MAKEINTRESOURCEA (132));
 
 		if (_ShouldAppsUseDarkMode)
 		{
 			FreeLibrary (huxtheme);
-			return _ShouldAppsUseDarkMode ();
+			return !!_ShouldAppsUseDarkMode ();
 		}
 
 		FreeLibrary (huxtheme);
@@ -1998,64 +2524,90 @@ bool _r_wnd_isdarktheme ()
 	return false;
 }
 
+void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable)
+{
+	// Set dark window frame
+// https://social.msdn.microsoft.com/Forums/en-US/e36eb4c0-4370-4933-943d-b6fe22677e6c/dark-mode-apis?forum=windowssdk
+#ifdef _APP_NO_WINXP
+	DwmSetWindowAttribute (hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &is_enable, sizeof (is_enable));
+#else
+	const HMODULE hdwmapi = LoadLibraryEx (L"dwmapi.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+
+	if (hdwmapi)
+	{
+		typedef HRESULT (WINAPI * DSWA) (HWND, DWORD, LPCVOID, DWORD); // DwmSetWindowAttribute
+		const DSWA _DwmSetWindowAttribute = (DSWA)GetProcAddress (hdwmapi, "DwmSetWindowAttribute");
+
+		if (_DwmSetWindowAttribute)
+			_DwmSetWindowAttribute (hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &is_enable, sizeof (is_enable));
+
+		FreeLibrary (hdwmapi);
+	}
+#endif
+}
+
 void _r_wnd_setdarktheme (HWND hwnd)
 {
 	if (!_r_sys_validversion (10, 0, 17763)) // win10rs5+
 		return;
 
-	const BOOL is_darktheme = _r_wnd_isdarktheme ();
+	const BOOL is_darktheme = !!_r_wnd_isdarktheme ();
 
 	/*
-		Ordinal 104: void WINAPI RefreshImmersiveColorPolicyState()
+		Ordinal 104: VOID WINAPI RefreshImmersiveColorPolicyState()
 		Ordinal 132: BOOL WINAPI ShouldAppsUseDarkMode()
-		Ordinal 133: BOOL WINAPI AllowDarkModeForWindow(HWND__ *window, BOOL allow)
+		Ordinal 133: BOOL WINAPI AllowDarkModeForWindow(HWND, BOOL allow)
 		Ordinal 135: BOOL WINAPI AllowDarkModeForApp(bool allow)
-		Ordinal 136: void WINAPI FlushMenuThemes()
-		Ordinal 137: BOOL WINAPI IsDarkModeAllowedForWindow(HWND__ *window)
+		Ordinal 136: VOID WINAPI FlushMenuThemes()
+		Ordinal 137: BOOL WINAPI IsDarkModeAllowedForWindow(HWND)
 	*/
 
-	typedef BOOL (WINAPI * ADMFA) (BOOL allow); // AllowDarkModeForApp
-	typedef BOOL (WINAPI * ADMFW) (HWND window, BOOL allow); // AllowDarkModeForWindow
-	typedef void (WINAPI * FMT) (); // FlushMenuThemes
-	typedef HRESULT (WINAPI * DSWA) (HWND, DWORD, LPCVOID, DWORD); // DwmSetWindowAttribute
+	_r_wnd_setdarkframe (hwnd, is_darktheme);
 
-	// Set dark window frame
-	// https://social.msdn.microsoft.com/Forums/en-US/e36eb4c0-4370-4933-943d-b6fe22677e6c/dark-mode-apis?forum=windowssdk
-	const HMODULE hdwmapi = LoadLibrary (L"dwmapi.dll");
-
-	if (hdwmapi)
-	{
-		const DSWA _DwmSetWindowAttribute = (DSWA)GetProcAddress (hdwmapi, "DwmSetWindowAttribute");
-
-		if (_DwmSetWindowAttribute)
-		{
-			BOOL is_dwmdarkmode = is_darktheme;
-			_DwmSetWindowAttribute (hwnd, 0x13, &is_dwmdarkmode, sizeof (is_dwmdarkmode));
-		}
-
-		FreeLibrary (hdwmapi);
-	}
-
-	const HMODULE huxtheme = LoadLibrary (L"uxtheme.dll");
+	const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 	if (huxtheme)
 	{
-		const ADMFA _AllowDarkModeForApp = (ADMFA)GetProcAddress (huxtheme, MAKEINTRESOURCEA (135));
-		const ADMFW _AllowDarkModeForWindow = (ADMFW)GetProcAddress (huxtheme, MAKEINTRESOURCEA (133));
+		auto ord135 = GetProcAddress (huxtheme, MAKEINTRESOURCEA (135));
 
-		if (_AllowDarkModeForApp && _AllowDarkModeForWindow)
+		if (ord135)
 		{
-			_AllowDarkModeForApp (is_darktheme);
-			_AllowDarkModeForWindow (hwnd, is_darktheme);
+			typedef BOOL (WINAPI * ADMFA) (BOOL); // AllowDarkModeForApp
+			typedef PreferredAppMode (WINAPI * SPM) (PreferredAppMode); // SetPreferredAppMode
 
-			EnumChildWindows (hwnd, &DarkExplorerChildProc, is_darktheme);
+			ADMFA _AllowDarkModeForApp = nullptr;
+			SPM _SetPreferredAppMode = nullptr;
 
-			const FMT _FlushMenuThemes = (FMT)GetProcAddress (huxtheme, MAKEINTRESOURCEA (136));
+			if (_r_sys_validversion (10, 0, 18334)) // win10rs6+
+				_SetPreferredAppMode = reinterpret_cast<SPM>(ord135);
 
-			if (_FlushMenuThemes)
-				_FlushMenuThemes ();
+			else
+				_AllowDarkModeForApp = reinterpret_cast<ADMFA>(ord135);
 
-			InvalidateRect (hwnd, nullptr, FALSE); // HACK
+			if (_AllowDarkModeForApp || _SetPreferredAppMode)
+			{
+				if (_SetPreferredAppMode)
+					_SetPreferredAppMode (is_darktheme ? AllowDark : Default);
+
+				else if (_AllowDarkModeForApp)
+					_AllowDarkModeForApp (is_darktheme);
+
+				EnumChildWindows (hwnd, &DarkExplorerChildProc, MAKELPARAM (is_darktheme, 0));
+
+				typedef VOID (WINAPI * RICPS) (VOID); // RefreshImmersiveColorPolicyState
+				const RICPS _RefreshImmersiveColorPolicyState = (RICPS)GetProcAddress (huxtheme, MAKEINTRESOURCEA (104));
+
+				if (_RefreshImmersiveColorPolicyState)
+					_RefreshImmersiveColorPolicyState ();
+
+				typedef void (WINAPI * FMT) (VOID); // FlushMenuThemes
+				const FMT _FlushMenuThemes = (FMT)GetProcAddress (huxtheme, MAKEINTRESOURCEA (136));
+
+				if (_FlushMenuThemes)
+					_FlushMenuThemes ();
+
+				InvalidateRect (hwnd, nullptr, TRUE); // HACK!!!
+			}
 		}
 
 		FreeLibrary (huxtheme);
@@ -2067,34 +2619,10 @@ void _r_wnd_setdarktheme (HWND hwnd)
 	Inernet access (WinHTTP)
 */
 
-rstring _r_inet_getproxyconfiguration (LPCWSTR custom_proxy)
-{
-	rstring result;
-
-	if (custom_proxy && custom_proxy[0])
-	{
-		result = custom_proxy;
-	}
-	else
-	{
-		WINHTTP_CURRENT_USER_IE_PROXY_CONFIG proxyConfig = {0};
-		WinHttpGetIEProxyConfigForCurrentUser (&proxyConfig);
-
-		if (proxyConfig.lpszProxy && proxyConfig.lpszProxy[0])
-			result = proxyConfig.lpszProxy;
-
-		SAFE_GLOBAL_FREE (proxyConfig.lpszProxy);
-		SAFE_GLOBAL_FREE (proxyConfig.lpszProxyBypass);
-		SAFE_GLOBAL_FREE (proxyConfig.lpszAutoConfigUrl);
-	}
-
-	return result;
-}
-
-HINTERNET _r_inet_createsession (LPCWSTR useragent, rstring proxy_config)
+HINTERNET _r_inet_createsession (LPCWSTR useragent, LPCWSTR proxy_addr)
 {
 	static const bool is_win81 = _r_sys_validversion (6, 3);
-	const bool is_proxyset = !proxy_config.IsEmpty ();
+	const bool is_proxyset = !_r_str_isempty (proxy_addr);
 
 	const HINTERNET hsession = WinHttpOpen (useragent, (is_win81 && !is_proxyset) ? WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY : WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
 
@@ -2117,7 +2645,7 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent, rstring proxy_config)
 	return hsession;
 }
 
-bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, rstring proxy_config, HINTERNET * pconnect, HINTERNET * prequest, PDWORD ptotallength)
+bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, HINTERNET * pconnect, HINTERNET * prequest, PDWORD ptotallength)
 {
 	if (!hsession)
 		return false;
@@ -2159,31 +2687,31 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, rstring proxy_config, HIN
 					WCHAR proxy_pass[MAX_PATH] = {0};
 					WORD proxy_port = 0;
 
-					if (_r_inet_parseurl (proxy_config, nullptr, proxy_host, &proxy_port, nullptr, proxy_user, proxy_pass))
+					if (_r_inet_parseurl (proxy_addr, nullptr, proxy_host, &proxy_port, nullptr, proxy_user, proxy_pass))
 					{
-						WINHTTP_PROXY_INFO proxy_info = {0};
+						WINHTTP_PROXY_INFO wpi = {0};
 
-						WCHAR proxy_addr[MAX_PATH] = {0};
+						WCHAR buffer[MAX_PATH] = {0};
+						_r_str_printf (buffer, _countof (buffer), L"%s:%" PRIu16, proxy_host, proxy_port);
 
-						StringCchPrintf (proxy_addr, _countof (proxy_addr), L"%s:%d", proxy_host, proxy_port);
+						wpi.dwAccessType = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
+						wpi.lpszProxy = buffer;
+						wpi.lpszProxyBypass = nullptr;
 
-						proxy_info.dwAccessType = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
-						proxy_info.lpszProxy = proxy_addr;
-
-						WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY, &proxy_info, sizeof (proxy_info));
+						WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY, &wpi, sizeof (wpi));
 
 						// set proxy credentials (if exists)
-						if (proxy_user[0] && proxy_pass[0])
-						{
+						if (!_r_str_isempty (proxy_user))
 							WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY_USERNAME, proxy_user, (DWORD)_r_str_length (proxy_user));
+
+						if (!_r_str_isempty (proxy_pass))
 							WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY_PASSWORD, proxy_pass, (DWORD)_r_str_length (proxy_pass));
-						}
 					}
 				}
 
-				USHORT retry_count = 5;
+				DWORD attempts = 6;
 
-				while (--retry_count)
+				do
 				{
 					if (WinHttpSendRequest (hrequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH, 0))
 					{
@@ -2249,6 +2777,7 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, rstring proxy_config, HIN
 						}
 					}
 				}
+				while (--attempts);
 			}
 		}
 	}
@@ -2262,74 +2791,14 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, rstring proxy_config, HIN
 	return false;
 }
 
-bool _r_inet_parseurl (LPCWSTR url, INT * scheme_ptr, LPWSTR host_ptr, WORD * port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr)
-{
-	if (!url || !url[0] || (!scheme_ptr && !host_ptr && !port_ptr && !path_ptr && !user_ptr && !pass_ptr))
-		return false;
-
-	URL_COMPONENTS urls = {0};
-
-	WCHAR host_part[MAX_PATH] = {0};
-	WCHAR path_part[MAX_PATH] = {0};
-	WCHAR user_part[MAX_PATH] = {0};
-	WCHAR pass_part[MAX_PATH] = {0};
-
-	urls.dwStructSize = sizeof (urls);
-
-	urls.lpszHostName = host_part;
-	urls.dwHostNameLength = _countof (host_part);
-
-	urls.lpszUrlPath = path_part;
-	urls.dwUrlPathLength = _countof (path_part);
-
-	urls.lpszUserName = user_part;
-	urls.dwUserNameLength = _countof (user_part);
-
-	urls.lpszPassword = pass_part;
-	urls.dwPasswordLength = _countof (pass_part);
-
-	rstring url_copy = url;
-
-	if (!WinHttpCrackUrl (url_copy, DWORD (url_copy.GetLength ()), ICU_DECODE, &urls))
-	{
-		if (GetLastError () != ERROR_WINHTTP_UNRECOGNIZED_SCHEME)
-			return false;
-
-		url_copy.Insert (0, L"https://");
-
-		if (!WinHttpCrackUrl (url_copy, DWORD (url_copy.GetLength ()), ICU_DECODE, &urls))
-			return false;
-	}
-
-	if (host_ptr)
-		StringCchCopy (host_ptr, _countof (host_part), host_part);
-
-	if (path_ptr)
-		StringCchCopy (path_ptr, _countof (path_part), path_part);
-
-	if (user_ptr)
-		StringCchCopy (user_ptr, _countof (user_part), user_part);
-
-	if (pass_ptr)
-		StringCchCopy (pass_ptr, _countof (pass_part), pass_part);
-
-	if (scheme_ptr)
-		*scheme_ptr = urls.nScheme;
-
-	if (port_ptr)
-		*port_ptr = urls.nPort;
-
-	return true;
-}
-
 bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD preaded, PDWORD ptotalreaded)
 {
 	DWORD readed = 0;
 
+	*buffer = ANSI_NULL;
+
 	if (!WinHttpReadData (hrequest, buffer, length, &readed))
 		return false;
-
-	buffer[readed] = 0;
 
 	if (preaded)
 		*preaded = readed;
@@ -2340,17 +2809,348 @@ bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD
 	if (!readed)
 		return false;
 
+	buffer[readed] = ANSI_NULL;
+
 	return true;
+}
+
+bool _r_inet_parseurl (LPCWSTR url, INT * scheme_ptr, LPWSTR host_ptr, WORD * port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr)
+{
+	if (_r_str_isempty (url) || (!scheme_ptr && !host_ptr && !port_ptr && !path_ptr && !user_ptr && !pass_ptr))
+		return false;
+
+	URL_COMPONENTS url_comp = {0};
+	SecureZeroMemory (&url_comp, sizeof (url_comp));
+
+	WCHAR host_part[MAX_PATH] = {0};
+	WCHAR path_part[MAX_PATH] = {0};
+	WCHAR user_part[MAX_PATH] = {0};
+	WCHAR pass_part[MAX_PATH] = {0};
+
+	url_comp.dwStructSize = sizeof (url_comp);
+
+	url_comp.lpszHostName = host_part;
+	url_comp.dwHostNameLength = _countof (host_part);
+
+	url_comp.lpszUrlPath = path_part;
+	url_comp.dwUrlPathLength = _countof (path_part);
+
+	url_comp.lpszUserName = user_part;
+	url_comp.dwUserNameLength = _countof (user_part);
+
+	url_comp.lpszPassword = pass_part;
+	url_comp.dwPasswordLength = _countof (pass_part);
+
+	const size_t length = _r_str_length (url);
+
+	if (!WinHttpCrackUrl (url, DWORD (length), ICU_DECODE, &url_comp))
+	{
+		if (GetLastError () != ERROR_WINHTTP_UNRECOGNIZED_SCHEME)
+			return false;
+
+		if (!WinHttpCrackUrl (_r_fmt (L"https://%s", url), DWORD (length + 8), ICU_DECODE, &url_comp))
+			return false;
+	}
+
+	if (host_ptr)
+		_r_str_copy (host_ptr, _countof (host_part), host_part);
+
+	if (path_ptr)
+		_r_str_copy (path_ptr, _countof (path_part), path_part);
+
+	if (user_ptr)
+		_r_str_copy (user_ptr, _countof (user_part), user_part);
+
+	if (pass_ptr)
+		_r_str_copy (pass_ptr, _countof (pass_part), pass_part);
+
+	if (scheme_ptr)
+		*scheme_ptr = url_comp.nScheme;
+
+	if (port_ptr)
+		*port_ptr = url_comp.nPort;
+
+	return true;
+}
+
+bool _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, LPVOID buffer, bool is_filepath, _R_CALLBACK_HTTP_DOWNLOAD _callback, LONG_PTR lpdata)
+{
+	bool result = false;
+
+	HINTERNET hconnect = nullptr;
+	HINTERNET hrequest = nullptr;
+
+	DWORD total_length = 0;
+
+	if (_r_inet_openurl (hsession, url, proxy_addr, &hconnect, &hrequest, &total_length))
+	{
+		const size_t buffer_length = _R_BUFFER_NET_LENGTH;
+		LPSTR content_buffer_a = new CHAR[buffer_length];
+		LPWSTR content_buffer_w = nullptr;
+
+		rstring *lpbuffer = nullptr;
+		HANDLE hfile = nullptr;
+
+		if (is_filepath)
+		{
+			hfile = CreateFile ((LPCWSTR)buffer, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+
+			if (hfile != INVALID_HANDLE_VALUE)
+				result = true;
+		}
+		else
+		{
+			lpbuffer = static_cast<rstring*>(buffer);
+
+			if (lpbuffer)
+				result = true;
+		}
+
+		if (result)
+		{
+			DWORD notneed = 0;
+			DWORD readed = 0;
+			DWORD total_readed = 0;
+
+			while (true)
+			{
+				if (!_r_inet_readrequest (hrequest, content_buffer_a, buffer_length - 1, &readed, &total_readed))
+					break;
+
+				if (is_filepath)
+				{
+					WriteFile (hfile, content_buffer_a, readed, &notneed, nullptr);
+				}
+				else
+				{
+					if (lpbuffer)
+					{
+						if (!content_buffer_w)
+							content_buffer_w = new WCHAR[buffer_length];
+
+						if (_r_str_multibyte2widechar (CP_ACP, content_buffer_a, content_buffer_w, readed))
+							lpbuffer->Append (content_buffer_w);
+					}
+				}
+
+				if (_callback)
+				{
+					if (!_callback (total_readed, total_length, lpdata))
+					{
+						result = false;
+						break;
+					}
+				}
+			}
+
+			if (is_filepath)
+				CloseHandle (hfile);
+		}
+
+		SAFE_DELETE_ARRAY (content_buffer_a);
+		SAFE_DELETE_ARRAY (content_buffer_w);
+	}
+
+	if (hrequest)
+		_r_inet_close (hrequest);
+
+	if (hconnect)
+		_r_inet_close (hconnect);
+
+	return result;
+}
+
+/*
+	Registry
+*/
+
+PBYTE _r_reg_querybinary (HKEY hkey, LPCWSTR value)
+{
+	DWORD type = 0;
+	DWORD size = 0;
+
+	if (RegQueryValueEx (hkey, value, nullptr, &type, nullptr, &size) == ERROR_SUCCESS && size)
+	{
+		if (type == REG_BINARY)
+		{
+			PBYTE buffer = new BYTE[size]; // utilization required!
+
+			if (RegQueryValueEx (hkey, value, nullptr, nullptr, (LPBYTE)buffer, &size) == ERROR_SUCCESS)
+				return buffer;
+		}
+	}
+
+	return nullptr;
+}
+
+DWORD _r_reg_querydword (HKEY hkey, LPCWSTR value)
+{
+	DWORD type = 0;
+	DWORD size = 0;
+
+	if (RegQueryValueEx (hkey, value, nullptr, &type, nullptr, &size) == ERROR_SUCCESS && size)
+	{
+		if (type == REG_DWORD)
+		{
+			DWORD buffer = 0;
+
+			if (RegQueryValueEx (hkey, value, nullptr, nullptr, (LPBYTE)&buffer, &size) == ERROR_SUCCESS)
+				return buffer;
+		}
+		else if (type == REG_QWORD)
+		{
+			DWORD64 buffer = 0;
+
+			if (RegQueryValueEx (hkey, value, nullptr, nullptr, (LPBYTE)&buffer, &size) == ERROR_SUCCESS)
+				return (DWORD)buffer;
+		}
+	}
+
+	return 0;
+}
+
+DWORD64 _r_reg_querydword64 (HKEY hkey, LPCWSTR value)
+{
+	DWORD type = 0;
+	DWORD size = 0;
+
+	if (RegQueryValueEx (hkey, value, nullptr, &type, nullptr, &size) == ERROR_SUCCESS && size)
+	{
+		if (type == REG_DWORD)
+		{
+			DWORD buffer = 0;
+
+			if (RegQueryValueEx (hkey, value, nullptr, nullptr, (LPBYTE)&buffer, &size) == ERROR_SUCCESS)
+				return (DWORD64)buffer;
+		}
+		else if (type == REG_QWORD)
+		{
+			DWORD64 buffer = 0;
+
+			if (RegQueryValueEx (hkey, value, nullptr, nullptr, (LPBYTE)&buffer, &size) == ERROR_SUCCESS)
+				return buffer;
+		}
+	}
+
+	return 0;
+}
+
+rstring _r_reg_querystring (HKEY hkey, LPCWSTR value)
+{
+	rstring result;
+
+	DWORD type = 0;
+	DWORD size = 0;
+
+	if (RegQueryValueEx (hkey, value, nullptr, &type, nullptr, &size) == ERROR_SUCCESS && size)
+	{
+		if (type == REG_SZ || type == REG_EXPAND_SZ || type == REG_MULTI_SZ)
+		{
+			size_t buffer_length = size / sizeof (WCHAR);
+			DWORD rc = RegQueryValueEx (hkey, value, nullptr, nullptr, (LPBYTE)result.GetBuffer (buffer_length), &size);
+
+			if (rc == ERROR_MORE_DATA)
+			{
+				buffer_length = size / sizeof (WCHAR);
+				rc = RegQueryValueEx (hkey, value, nullptr, nullptr, (LPBYTE)result.GetBuffer (buffer_length), &size);
+			}
+
+			if (rc == ERROR_SUCCESS)
+			{
+				result.SetLength (buffer_length - 1);
+
+				if (type == REG_EXPAND_SZ)
+				{
+					rstring buffer = result;
+
+					if (ExpandEnvironmentStrings (result, buffer.GetBuffer (1024), 1024))
+					{
+						buffer.ReleaseBuffer ();
+						result = buffer;
+					}
+					else
+					{
+						buffer.Release ();
+					}
+				}
+			}
+			else
+			{
+				result.Release ();
+			}
+		}
+		else if (type == REG_DWORD)
+		{
+			DWORD buffer = 0;
+
+			if (RegQueryValueEx (hkey, value, nullptr, nullptr, (LPBYTE)&buffer, &size) == ERROR_SUCCESS)
+				result.Format (L"%" PRId32, buffer);
+		}
+		else if (type == REG_QWORD)
+		{
+			DWORD64 buffer = 0;
+
+			if (RegQueryValueEx (hkey, value, nullptr, nullptr, (LPBYTE)&buffer, &size) == ERROR_SUCCESS)
+				result.Format (L"%" PRId64, buffer);
+		}
+	}
+
+	return result;
+}
+
+DWORD _r_reg_querysubkeylength (HKEY hkey)
+{
+	DWORD result = 0;
+
+	if (RegQueryInfoKey (hkey, nullptr, nullptr, nullptr, nullptr, &result, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS)
+		return result + 1;
+
+	return 0;
+}
+
+time_t _r_reg_querytimestamp (HKEY hkey)
+{
+	FILETIME ft = {0};
+
+	if (RegQueryInfoKey (hkey, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, &ft) == ERROR_SUCCESS)
+		return _r_unixtime_from_filetime (&ft);
+
+	return 0;
 }
 
 /*
 	Other
 */
 
-HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT cx_width)
+HANDLE _r_createthread (_beginthreadex_proc_type proc, void* args, bool is_suspended, INT priority)
 {
-	HICON result = nullptr;
+	HANDLE hthread = (HANDLE)_beginthreadex (nullptr, 0, proc, args, CREATE_SUSPENDED, nullptr);
 
+	// On an error:
+	//		_beginthread returns -1L
+	//		_beginthreadex returns 0
+
+	if (!hthread || hthread == INVALID_HANDLE_VALUE)
+		return nullptr;
+
+	SetThreadPriority (hthread, priority);
+
+	if (!is_suspended)
+		ResumeThread (hthread);
+
+	return hthread;
+}
+
+HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size)
+{
+	HICON hicon;
+
+#ifdef _APP_NO_WINXP
+	if (SUCCEEDED (LoadIconWithScaleDown (hinst, name, size, size, &hicon)))
+		return hicon;
+
+	return nullptr;
+#else
 	const HMODULE hlib = GetModuleHandle (L"comctl32.dll");
 
 	if (hlib)
@@ -2359,18 +3159,91 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT cx_width)
 		const LIWSD _LoadIconWithScaleDown = (LIWSD)GetProcAddress (hlib, "LoadIconWithScaleDown");
 
 		if (_LoadIconWithScaleDown)
-			_LoadIconWithScaleDown (hinst, name, cx_width, cx_width, &result);
+		{
+			if (SUCCEEDED (_LoadIconWithScaleDown (hinst, name, size, size, &hicon)))
+				return hicon;
+		}
 	}
 
-#ifndef _APP_NO_WINXP
-	if (!result)
-		result = (HICON)LoadImage (hinst, name, IMAGE_ICON, cx_width, cx_width, 0);
+	return (HICON)LoadImage (hinst, name, IMAGE_ICON, size, size, 0);
 #endif // _APP_NO_WINXP
-
-	return result;
 }
 
-bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
+bool _r_parseini (LPCWSTR path, rstringmap2& pmap, rstringvec* psections)
+{
+	rstring section_ptr;
+	rstring value_ptr;
+
+	size_t length = 0;
+	size_t out_length;
+
+	size_t delimeter_pos;
+
+	// get sections
+	do
+	{
+		length += _R_BUFFER_LENGTH;
+
+		out_length = GetPrivateProfileSectionNames (section_ptr.GetBuffer (length), (DWORD)length, path);
+
+		if (!out_length)
+			return false;
+	}
+	while (out_length == (length - 1));
+
+	section_ptr.SetLength (out_length);
+
+	LPCWSTR sections = section_ptr.GetString ();
+
+	// get values
+	while (*sections)
+	{
+		length = 0;
+
+		if (psections)
+			psections->push_back (sections);
+
+		do
+		{
+			length += _R_BUFFER_LENGTH;
+
+			out_length = GetPrivateProfileSection (sections, value_ptr.GetBuffer (length), (DWORD)length, path);
+
+			if (!out_length)
+				break;
+		}
+		while (out_length == (length - 1));
+
+		value_ptr.SetLength (out_length);
+
+		LPCWSTR values = value_ptr.GetString ();
+
+		while (*values)
+		{
+			const size_t str_length = _r_str_length (values);
+
+			delimeter_pos = _r_str_find (values, str_length, L'=');
+
+			if (delimeter_pos != INVALID_SIZE_T)
+				pmap[sections][_r_str_extract (values, str_length, 0, delimeter_pos)] = _r_str_extract (values, str_length, delimeter_pos + 1); // set
+
+			values += str_length + 1; // go next item
+		}
+
+		sections += _r_str_length (sections) + 1; // go next section
+	}
+
+	return true;
+}
+
+DWORD _r_rand (DWORD min_number, DWORD max_number)
+{
+	static DWORD seed = 0; // save seed
+
+	return min_number + (RtlRandomEx (&seed) % (max_number - min_number + 1));
+}
+
+bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR dir, WORD show_state, DWORD flags)
 {
 	STARTUPINFO si = {0};
 	PROCESS_INFORMATION pi = {0};
@@ -2381,15 +3254,15 @@ bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 	bool result = false;
 	si.cb = sizeof (si);
 
-	if (sw != SW_SHOWDEFAULT)
+	if (show_state != SW_SHOWDEFAULT)
 	{
 		si.dwFlags |= STARTF_USESHOWWINDOW;
-		si.wShowWindow = sw;
+		si.wShowWindow = show_state;
 	}
 
-	rstring _intptr = cmdline ? cmdline : filename;
+	rstring _intptr = !_r_str_isempty (cmdline) ? cmdline : filename;
 
-	if (CreateProcess (filename, _intptr.GetBuffer (), nullptr, nullptr, FALSE, 0, nullptr, cd, &si, &pi))
+	if (CreateProcess (filename, _intptr.GetBuffer (), nullptr, nullptr, FALSE, flags, nullptr, dir, &si, &pi))
 	{
 		result = true;
 
@@ -2397,51 +3270,179 @@ bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd, WORD sw)
 		CloseHandle (pi.hProcess);
 	}
 
-	_intptr.Clear ();
+	_intptr.Release ();
 
 	return result;
 }
 
-size_t _r_rand (size_t min_number, size_t max_number)
+void _r_sleep (LONG64 milliseconds)
 {
-	size_t rnd_number = 0;
+	if (!milliseconds || milliseconds == INFINITE)
+		return;
 
-	const HMODULE hlib = GetModuleHandle (L"advapi32.dll");
+	constexpr LONG64 tps = ((1LL * 10LL) * 1000LL);
 
-	if (hlib)
-	{
-		typedef BOOLEAN (WINAPI * RGR) (PVOID, ULONG); // RtlGenRandom
-		const RGR _RtlGenRandom = (RGR)GetProcAddress (hlib, "SystemFunction036"); // RtlGenRandom
+	LARGE_INTEGER interval;
 
-		if (_RtlGenRandom)
-			_RtlGenRandom (&rnd_number, sizeof (rnd_number));
-	}
+	interval.QuadPart = -(LONG64)UInt32x32To64 (milliseconds, tps);
 
-	if (!rnd_number)
-	{
-		srand ((UINT)_r_sys_gettickcount ());
-		rnd_number = rand ();
-	}
-
-	return (min_number + (rnd_number % (max_number - min_number + 1)));
+	NtDelayExecution (FALSE, &interval);
 }
 
-HANDLE _r_createthread (_beginthreadex_proc_type proc, void* args, bool is_suspended, INT priority)
+/*
+	System tray
+*/
+
+bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR tooltip, bool is_hidden)
 {
-	const HANDLE hthread = (HANDLE)_beginthreadex (nullptr, 0, proc, args, CREATE_SUSPENDED, nullptr);
+	NOTIFYICONDATA nid = {0};
+	SecureZeroMemory (&nid, sizeof (nid));
 
-	//if (hthread == INVALID_HANDLE_VALUE) // On an error, _beginthread returns -1L
-	//	return nullptr;
+#ifdef _APP_NO_WINXP
+	nid.cbSize = sizeof (nid);
+	nid.uVersion = NOTIFYICON_VERSION_4;
+#else
+	static bool is_vistaorlater = _r_sys_validversion (6, 0);
 
-	if (!hthread) // On an error, _beginthreadex returns 0
-		return nullptr;
+	nid.cbSize = (is_vistaorlater ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
+	nid.uVersion = (is_vistaorlater ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
+#endif // _APP_NO_WINXP
 
-	SetThreadPriority (hthread, priority);
+	nid.hWnd = hwnd;
+	nid.uFlags = NIF_MESSAGE | NIF_ICON;
+	nid.uID = uid;
+	nid.uCallbackMessage = code;
+	nid.hIcon = hicon;
 
-	if (!is_suspended)
-		ResumeThread (hthread);
+	if (tooltip)
+	{
+		nid.uFlags |= NIF_SHOWTIP | NIF_TIP;
+		_r_str_copy (nid.szTip, _countof (nid.szTip), tooltip);
+	}
 
-	return hthread;
+	if (is_hidden)
+	{
+		nid.uFlags |= NIF_STATE;
+		nid.dwState = NIS_HIDDEN;
+		nid.dwStateMask = NIS_HIDDEN;
+	}
+
+	if (Shell_NotifyIcon (NIM_ADD, &nid))
+	{
+		Shell_NotifyIcon (NIM_SETVERSION, &nid);
+		return true;
+	}
+
+	return false;
+}
+
+bool _r_tray_popup (HWND hwnd, UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text)
+{
+	NOTIFYICONDATA nid = {0};
+	SecureZeroMemory (&nid, sizeof (nid));
+
+#ifdef _APP_NO_WINXP
+	nid.cbSize = sizeof (nid);
+	nid.uVersion = NOTIFYICON_VERSION_4;
+#else
+	static bool is_vistaorlater = _r_sys_validversion (6, 0);
+
+	nid.cbSize = (is_vistaorlater ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
+	nid.uVersion = (is_vistaorlater ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
+#endif // _APP_NO_WINXP
+
+	nid.uFlags = NIF_INFO | NIF_REALTIME;
+	//nid.dwInfoFlags = NIIF_LARGE_ICON | icon_id;
+	nid.dwInfoFlags = icon_id;
+	nid.hWnd = hwnd;
+	nid.uID = uid;
+
+	if (title)
+		_r_str_copy (nid.szInfoTitle, _countof (nid.szInfoTitle), title);
+
+	if (text)
+		_r_str_copy (nid.szInfo, _countof (nid.szInfo), text);
+
+	return !!Shell_NotifyIcon (NIM_MODIFY, &nid);
+}
+
+bool _r_tray_setinfo (HWND hwnd, UINT uid, HICON hicon, LPCWSTR tooltip)
+{
+	NOTIFYICONDATA nid = {0};
+	SecureZeroMemory (&nid, sizeof (nid));
+
+#ifdef _APP_NO_WINXP
+	nid.cbSize = sizeof (nid);
+	nid.uVersion = NOTIFYICON_VERSION_4;
+#else
+	static bool is_vistaorlater = _r_sys_validversion (6, 0);
+
+	nid.cbSize = (is_vistaorlater ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
+	nid.uVersion = (is_vistaorlater ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
+#endif // _APP_NO_WINXP
+
+	nid.hWnd = hwnd;
+	nid.uID = uid;
+
+	if (hicon)
+	{
+		nid.uFlags |= NIF_ICON;
+		nid.hIcon = hicon;
+	}
+
+	if (tooltip)
+	{
+		nid.uFlags |= NIF_SHOWTIP | NIF_TIP;
+		_r_str_copy (nid.szTip, _countof (nid.szTip), tooltip);
+	}
+
+	return !!Shell_NotifyIcon (NIM_MODIFY, &nid);
+}
+
+bool _r_tray_toggle (HWND hwnd, UINT uid, bool is_show)
+{
+	NOTIFYICONDATA nid = {0};
+	SecureZeroMemory (&nid, sizeof (nid));
+
+#ifdef _APP_NO_WINXP
+	nid.cbSize = sizeof (nid);
+	nid.uVersion = NOTIFYICON_VERSION_4;
+#else
+	static bool is_vistaorlater = _r_sys_validversion (6, 0);
+
+	nid.cbSize = (is_vistaorlater ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
+	nid.uVersion = (is_vistaorlater ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
+#endif // _APP_NO_WINXP
+
+	nid.uFlags = NIF_STATE;
+	nid.hWnd = hwnd;
+	nid.uID = uid;
+
+	nid.dwState = is_show ? 0 : NIS_HIDDEN;
+	nid.dwStateMask = NIS_HIDDEN;
+
+	return !!Shell_NotifyIcon (NIM_MODIFY, &nid);
+}
+
+bool _r_tray_destroy (HWND hwnd, UINT uid)
+{
+	NOTIFYICONDATA nid = {0};
+	SecureZeroMemory (&nid, sizeof (nid));
+
+#ifdef _APP_NO_WINXP
+	nid.cbSize = sizeof (nid);
+	nid.uVersion = NOTIFYICON_VERSION_4;
+#else
+	static bool is_vistaorlater = _r_sys_validversion (6, 0);
+
+	nid.cbSize = (is_vistaorlater ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
+	nid.uVersion = (is_vistaorlater ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
+#endif // _APP_NO_WINXP
+
+	nid.hWnd = hwnd;
+	nid.uID = uid;
+
+	return !!Shell_NotifyIcon (NIM_DELETE, &nid);
 }
 
 /*
@@ -2459,44 +3460,96 @@ INT _r_ctrl_isradiobuttonchecked (HWND hwnd, INT start_id, INT end_id)
 	return 0;
 }
 
-bool _r_ctrl_isenabled (HWND hwnd, INT ctrl_id)
-{
-	return IsWindowEnabled (GetDlgItem (hwnd, ctrl_id));
-}
-
-void _r_ctrl_enable (HWND hwnd, INT ctrl_id, bool is_enable)
-{
-	EnableWindow (GetDlgItem (hwnd, ctrl_id), is_enable);
-}
-
 rstring _r_ctrl_gettext (HWND hwnd, INT ctrl_id)
 {
-	rstring result = L"";
-
 	INT length = (INT)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXTLENGTH, 0, 0);
 
 	if (length)
 	{
-		length += 1;
+		rstring result;
 
-		GetDlgItemText (hwnd, ctrl_id, result.GetBuffer (length), length);
-		result.ReleaseBuffer ();
+		if (!GetDlgItemText (hwnd, ctrl_id, result.GetBuffer (length), length + 1))
+			result.Release ();
+
+		return result;
 	}
 
-	return result;
+	return nullptr;
 }
 
-void _r_ctrl_settext (HWND hwnd, INT ctrl_id, LPCWSTR str, ...)
+void _r_ctrl_settext (HWND hwnd, INT ctrl_id, LPCWSTR text, ...)
 {
 	rstring buffer;
 
 	va_list args;
-	va_start (args, str);
+	va_start (args, text);
 
-	buffer.FormatV (str, args);
+	buffer.FormatV (text, args);
 	SetDlgItemText (hwnd, ctrl_id, buffer);
 
 	va_end (args);
+}
+
+void _r_ctrl_setbuttonmargins (HWND hwnd, INT ctrl_id)
+{
+	// set button text margin
+	{
+		RECT rc = {0};
+
+		rc.left = rc.right = _r_dc_getdpi (4);
+
+		SendDlgItemMessage (hwnd, ctrl_id, BCM_SETTEXTMARGIN, 0, (LPARAM)&rc);
+	}
+
+	// set button split margin
+	if ((GetWindowLongPtr (GetDlgItem (hwnd, ctrl_id), GWL_STYLE) & BS_SPLITBUTTON) != 0)
+	{
+		BUTTON_SPLITINFO bsi = {0};
+
+		bsi.mask = BCSIF_SIZE;
+
+		bsi.size.cx = _r_dc_getdpi (_R_SIZE_ICON16) + _r_dc_getdpi (2);
+		bsi.size.cy = 0;
+
+		SendDlgItemMessage (hwnd, ctrl_id, BCM_SETSPLITINFO, 0, (LPARAM)&bsi);
+	}
+}
+
+void _r_ctrl_settabletext (HDC hdc, HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT ctrl_id2, LPCWSTR text2)
+{
+	RECT rc_wnd = {0};
+	RECT rc_ctrl = {0};
+
+	const HWND hctrl1 = GetDlgItem (hwnd, ctrl_id1);
+	const HWND hctrl2 = GetDlgItem (hwnd, ctrl_id2);
+
+	const INT wnd_spacing = _r_dc_getdpi (_R_SIZE_ICON16);
+
+	SelectObject (hdc, (HFONT)SendMessage (hctrl1, WM_GETFONT, 0, 0)); // fix
+	SelectObject (hdc, (HFONT)SendMessage (hctrl2, WM_GETFONT, 0, 0)); // fix
+
+	GetClientRect (hwnd, &rc_wnd);
+	GetWindowRect (hctrl1, &rc_ctrl);
+
+	MapWindowPoints (HWND_DESKTOP, hwnd, (LPPOINT)&rc_ctrl, 2);
+
+	const INT wnd_width = _R_RECT_WIDTH (&rc_wnd) - (wnd_spacing * 2);
+
+	INT ctrl1_width = _r_dc_fontwidth (hdc, text1, INVALID_SIZE_T);
+	INT ctrl2_width = _r_dc_fontwidth (hdc, text2, INVALID_SIZE_T);
+
+	ctrl1_width = min (ctrl1_width, wnd_width - ctrl2_width - wnd_spacing);
+	ctrl2_width = min (ctrl2_width, wnd_width - ctrl1_width - wnd_spacing);
+
+	HDWP hdefer = BeginDeferWindowPos (2);
+
+	_r_wnd_resize (&hdefer, hctrl1, nullptr, wnd_spacing, rc_ctrl.top, ctrl1_width, _R_RECT_HEIGHT (&rc_ctrl), SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE);
+	_r_wnd_resize (&hdefer, hctrl2, nullptr, wnd_width - ctrl2_width, rc_ctrl.top, ctrl2_width + wnd_spacing, _R_RECT_HEIGHT (&rc_ctrl), SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE);
+
+	EndDeferWindowPos (hdefer);
+
+	SetWindowText (hctrl1, text1);
+	SetWindowText (hctrl2, text2);
 }
 
 HWND _r_ctrl_createtip (HWND hparent)
@@ -2504,7 +3557,7 @@ HWND _r_ctrl_createtip (HWND hparent)
 	return CreateWindowEx (WS_EX_TOPMOST, TOOLTIPS_CLASS, nullptr, WS_CHILD | WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hparent, nullptr, GetModuleHandle (nullptr), nullptr);
 }
 
-bool _r_ctrl_settip (HWND htip, HWND hparent, INT ctrl_id, LPWSTR text)
+bool _r_ctrl_settip (HWND htip, HWND hparent, INT ctrl_id, LPCWSTR text)
 {
 	if (!htip)
 		return false;
@@ -2516,7 +3569,8 @@ bool _r_ctrl_settip (HWND htip, HWND hparent, INT ctrl_id, LPWSTR text)
 	ti.hwnd = hparent;
 	ti.hinst = GetModuleHandle (nullptr);
 	ti.uId = (UINT_PTR)GetDlgItem (hparent, ctrl_id);
-	ti.lpszText = text;
+	ti.lpszText = (LPWSTR)text;
+
 	GetClientRect (hparent, &ti.rect);
 
 	SendMessage (htip, TTM_SETDELAYTIME, TTDT_AUTOPOP, MAXSHORT);
@@ -2524,7 +3578,18 @@ bool _r_ctrl_settip (HWND htip, HWND hparent, INT ctrl_id, LPWSTR text)
 
 	SendMessage (htip, TTM_ACTIVATE, TRUE, 0);
 
-	return	!!SendMessage (htip, TTM_ADDTOOL, 0, (LPARAM)& ti);
+	return !!SendMessage (htip, TTM_ADDTOOL, 0, (LPARAM)&ti);
+}
+
+void _r_ctrl_settipstyle (HWND htip)
+{
+	if (!htip)
+		return;
+
+	SendMessage (htip, TTM_SETDELAYTIME, TTDT_AUTOPOP, MAXSHORT);
+	SendMessage (htip, TTM_SETMAXTIPWIDTH, 0, MAXSHORT);
+
+	_r_wnd_top (htip, true); // HACK!!!
 }
 
 bool _r_ctrl_showtip (HWND hwnd, INT ctrl_id, INT icon_id, LPCWSTR title, LPCWSTR text)
@@ -2536,7 +3601,7 @@ bool _r_ctrl_showtip (HWND hwnd, INT ctrl_id, INT icon_id, LPCWSTR title, LPCWST
 	ebt.pszText = text;
 	ebt.ttiIcon = icon_id;
 
-	return !!SendDlgItemMessage (hwnd, ctrl_id, EM_SHOWBALLOONTIP, 0, (LPARAM)& ebt);
+	return !!SendDlgItemMessage (hwnd, ctrl_id, EM_SHOWBALLOONTIP, 0, (LPARAM)&ebt);
 }
 
 /*
@@ -2565,7 +3630,7 @@ INT _r_tab_additem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image, 
 		tci.lParam = lparam;
 	}
 
-	return (INT)SendDlgItemMessage (hwnd, ctrl_id, TCM_INSERTITEM, (WPARAM)index, (LPARAM)& tci);
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, TCM_INSERTITEM, (WPARAM)index, (LPARAM)&tci);
 }
 
 INT _r_tab_setitem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image, LPARAM lparam)
@@ -2590,20 +3655,25 @@ INT _r_tab_setitem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image, 
 		tci.lParam = lparam;
 	}
 
-	return (INT)SendDlgItemMessage (hwnd, ctrl_id, TCM_SETITEM, (WPARAM)index, (LPARAM)& tci);
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, TCM_SETITEM, (WPARAM)index, (LPARAM)&tci);
 }
 
 /*
 	Control: listview
 */
 
-INT _r_listview_addcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR text, INT width, INT fmt)
+INT _r_listview_addcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR title, INT width, INT fmt)
 {
 	LVCOLUMN lvc = {0};
 
-	lvc.mask = LVCF_TEXT | LVCF_SUBITEM;
-	lvc.pszText = (LPWSTR)text;
+	lvc.mask = LVCF_SUBITEM;
 	lvc.iSubItem = column_id;
+
+	if (title)
+	{
+		lvc.mask |= LVCF_TEXT;
+		lvc.pszText = (LPWSTR)title;
+	}
 
 	if (width)
 	{
@@ -2612,7 +3682,8 @@ INT _r_listview_addcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR text, 
 			RECT rc = {0};
 			GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
 
-			width = _R_PERCENT_VAL (-width, (INT)_R_RECT_WIDTH (&rc));
+			width = -width;
+			width = _R_PERCENT_VAL (width, _R_RECT_WIDTH (&rc));
 		}
 
 		lvc.mask |= LVCF_WIDTH;
@@ -2625,14 +3696,12 @@ INT _r_listview_addcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR text, 
 		lvc.fmt = fmt;
 	}
 
-	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTCOLUMN, (WPARAM)column_id, (LPARAM)& lvc);
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTCOLUMN, (WPARAM)column_id, (LPARAM)&lvc);
 }
 
 INT _r_listview_addgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT align, UINT state)
 {
 	LVGROUP lvg = {0};
-
-	WCHAR hdr[MAX_PATH] = {0};
 
 	lvg.cbSize = sizeof (lvg);
 	lvg.mask = LVGF_GROUPID;
@@ -2641,8 +3710,7 @@ INT _r_listview_addgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, U
 	if (title)
 	{
 		lvg.mask |= LVGF_HEADER;
-		lvg.pszHeader = hdr;
-		StringCchCopy (hdr, _countof (hdr), title);
+		lvg.pszHeader = (LPWSTR)title;
 	}
 
 	if (align)
@@ -2661,7 +3729,7 @@ INT _r_listview_addgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, U
 	if (!SendDlgItemMessage (hwnd, ctrl_id, LVM_ISGROUPVIEWENABLED, 0, 0))
 		SendDlgItemMessage (hwnd, ctrl_id, LVM_ENABLEGROUPVIEW, TRUE, 0);
 
-	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTGROUP, (WPARAM)group_id, (LPARAM)& lvg);
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTGROUP, (WPARAM)group_id, (LPARAM)&lvg);
 }
 
 INT _r_listview_additem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR text, INT image, INT group_id, LPARAM lparam)
@@ -2674,8 +3742,6 @@ INT _r_listview_additem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR 
 			item -= 1;
 	}
 
-	WCHAR txt[MAX_PATH] = {0};
-
 	LVITEM lvi = {0};
 
 	lvi.iItem = item;
@@ -2684,30 +3750,31 @@ INT _r_listview_additem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR 
 	if (text)
 	{
 		lvi.mask |= LVIF_TEXT;
-		lvi.pszText = txt;
-
-		StringCchCopy (txt, _countof (txt), text);
+		lvi.pszText = (LPWSTR)text;
 	}
 
-	if (!subitem && image != INVALID_INT)
+	if (!subitem)
 	{
-		lvi.mask |= LVIF_IMAGE;
-		lvi.iImage = image;
+		if (image != INVALID_INT)
+		{
+			lvi.mask |= LVIF_IMAGE;
+			lvi.iImage = image;
+		}
+
+		if (group_id != INVALID_INT)
+		{
+			lvi.mask |= LVIF_GROUPID;
+			lvi.iGroupId = group_id;
+		}
+
+		if (lparam)
+		{
+			lvi.mask |= LVIF_PARAM;
+			lvi.lParam = lparam;
+		}
 	}
 
-	if (!subitem && group_id != INVALID_INT)
-	{
-		lvi.mask |= LVIF_GROUPID;
-		lvi.iGroupId = group_id;
-	}
-
-	if (!subitem && lparam)
-	{
-		lvi.mask |= LVIF_PARAM;
-		lvi.lParam = lparam;
-	}
-
-	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTITEM, 0, (LPARAM)& lvi);
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTITEM, 0, (LPARAM)&lvi);
 }
 
 void _r_listview_deleteallcolumns (HWND hwnd, INT ctrl_id)
@@ -2729,44 +3796,11 @@ void _r_listview_deleteallitems (HWND hwnd, INT ctrl_id)
 	SendDlgItemMessage (hwnd, ctrl_id, LVM_DELETEALLITEMS, 0, 0);
 }
 
-INT _r_listview_getitemcount (HWND hwnd, INT ctrl_id, bool list_checked)
-{
-	if (list_checked)
-	{
-		INT total_count = (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMCOUNT, 0, 0);
-		INT checks_count = 0;
-
-		for (INT i = 0; i < total_count; i++)
-		{
-			if (_r_listview_isitemchecked (hwnd, ctrl_id, i))
-				checks_count += 1;
-		}
-
-		return checks_count;
-	}
-
-	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMCOUNT, 0, 0);
-}
-
 INT _r_listview_getcolumncount (HWND hwnd, INT ctrl_id)
 {
 	const HWND hheader = (HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETHEADER, 0, 0);
 
 	return (INT)SendMessage (hheader, HDM_GETITEMCOUNT, 0, 0);
-}
-
-INT _r_listview_getcolumncurrent (HWND hwnd, INT ctrl_id)
-{
-	LVHITTESTINFO hti = {0};
-
-	SecureZeroMemory (&hti, sizeof (hti));
-
-	GetCursorPos (&hti.pt);
-	ScreenToClient (GetDlgItem (hwnd, ctrl_id), &hti.pt);
-
-	SendDlgItemMessage (hwnd, ctrl_id, LVM_SUBITEMHITTEST, 0, (LPARAM)& hti);
-
-	return std::clamp (hti.iSubItem, 0, _r_listview_getcolumncount (hwnd, ctrl_id) - 1);
 }
 
 rstring _r_listview_getcolumntext (HWND hwnd, INT ctrl_id, INT column_id)
@@ -2779,7 +3813,7 @@ rstring _r_listview_getcolumntext (HWND hwnd, INT ctrl_id, INT column_id)
 	lvc.pszText = buffer;
 	lvc.cchTextMax = _countof (buffer);
 
-	SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMN, (WPARAM)column_id, (LPARAM)& lvc);
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMN, (WPARAM)column_id, (LPARAM)&lvc);
 
 	return buffer;
 }
@@ -2792,6 +3826,26 @@ INT _r_listview_getcolumnwidth (HWND hwnd, INT ctrl_id, INT column_id)
 	return _R_PERCENT_OF ((INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMNWIDTH, (WPARAM)column_id, 0), _R_RECT_WIDTH (&rc));
 }
 
+INT _r_listview_getitemcount (HWND hwnd, INT ctrl_id, bool list_checked)
+{
+	const INT total_count = (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMCOUNT, 0, 0);
+
+	if (list_checked)
+	{
+		INT checks_count = 0;
+
+		for (INT i = 0; i < total_count; i++)
+		{
+			if (_r_listview_isitemchecked (hwnd, ctrl_id, i))
+				checks_count += 1;
+		}
+
+		return checks_count;
+	}
+
+	return total_count;
+}
+
 LPARAM _r_listview_getitemlparam (HWND hwnd, INT ctrl_id, INT item)
 {
 	LVITEM lvi = {0};
@@ -2799,7 +3853,7 @@ LPARAM _r_listview_getitemlparam (HWND hwnd, INT ctrl_id, INT item)
 	lvi.mask = LVIF_PARAM;
 	lvi.iItem = item;
 
-	SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEM, 0, (LPARAM)& lvi);
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEM, 0, (LPARAM)&lvi);
 
 	return lvi.lParam;
 }
@@ -2808,24 +3862,22 @@ rstring _r_listview_getitemtext (HWND hwnd, INT ctrl_id, INT item, INT subitem)
 {
 	rstring result;
 
-	INT length = 0;
-	INT out_length = 0;
+	INT allocatedCount = 256;
+	INT count = allocatedCount;
 
 	LVITEM lvi = {0};
 
-	lvi.iSubItem = subitem;
-
-	do
+	while (count >= allocatedCount)
 	{
-		length += _R_BUFFER_LENGTH;
+		allocatedCount *= 2;
 
-		lvi.pszText = result.GetBuffer (length);
-		lvi.cchTextMax = length;
+		lvi.iSubItem = subitem;
+		lvi.pszText = result.GetBuffer (allocatedCount);
+		lvi.cchTextMax = allocatedCount + 1;
 
-		out_length = (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMTEXT, (WPARAM)item, (LPARAM)& lvi);
-		result.ReleaseBuffer ();
+		count = (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMTEXT, (WPARAM)item, (LPARAM)&lvi);
+		result.SetLength (count);
 	}
-	while (out_length == (length - 1));
 
 	return result;
 }
@@ -2860,75 +3912,60 @@ void _r_listview_redraw (HWND hwnd, INT ctrl_id, INT start_id, INT end_id)
 
 void _r_listview_setcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR text, INT width)
 {
-	if (!text && !width)
-		return;
-
 	LVCOLUMN lvc = {0};
-	WCHAR buffer[MAX_PATH] = {0};
 
 	if (text)
 	{
-		StringCchCopy (buffer, _countof (buffer), text);
-
 		lvc.mask |= LVCF_TEXT;
-		lvc.pszText = buffer;
+		lvc.pszText = (LPWSTR)text;
 	}
 
 	if (width)
 	{
-		if (width < 0 && (width != LVSCW_AUTOSIZE && width != LVSCW_AUTOSIZE_USEHEADER))
+		if (width < 0 && width != LVSCW_AUTOSIZE && width != LVSCW_AUTOSIZE_USEHEADER)
 		{
 			RECT rc = {0};
 			GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
 
-			width = _R_PERCENT_VAL (-width, _R_RECT_WIDTH (&rc));
+			width = -width;
+			width = _R_PERCENT_VAL (width, _R_RECT_WIDTH (&rc));
 		}
 
 		lvc.mask |= LVCF_WIDTH;
 		lvc.cx = width;
 	}
 
-	if (lvc.mask)
-		SendDlgItemMessage (hwnd, ctrl_id, LVM_SETCOLUMN, (WPARAM)column_id, (LPARAM)& lvc);
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETCOLUMN, (WPARAM)column_id, (LPARAM)&lvc);
 }
 
 void _r_listview_setcolumnsortindex (HWND hwnd, INT ctrl_id, INT column_id, INT arrow)
 {
-	HWND header = (HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETHEADER, 0, 0);
+	HWND hheader = (HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETHEADER, 0, 0);
 
-	if (header)
+	if (hheader)
 	{
 		HDITEM hitem = {0};
 
 		hitem.mask = HDI_FORMAT;
 
-		if (Header_GetItem (header, column_id, &hitem))
+		if (Header_GetItem (hheader, column_id, &hitem))
 		{
 			if (arrow == 1)
-			{
 				hitem.fmt = (hitem.fmt & ~HDF_SORTDOWN) | HDF_SORTUP;
-			}
-			else if (arrow == -1)
-			{
-				hitem.fmt = (hitem.fmt & ~HDF_SORTUP) | HDF_SORTDOWN;
-			}
-			else
-			{
-				hitem.fmt = hitem.fmt & ~(HDF_SORTDOWN | HDF_SORTUP);
-			}
 
-			Header_SetItem (header, column_id, &hitem);
+			else if (arrow == -1)
+				hitem.fmt = (hitem.fmt & ~HDF_SORTUP) | HDF_SORTDOWN;
+
+			else
+				hitem.fmt = hitem.fmt & ~(HDF_SORTDOWN | HDF_SORTUP);
+
+			Header_SetItem (hheader, column_id, &hitem);
 		}
 	}
 }
 
 void _r_listview_setitem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR text, INT image, INT group_id, LPARAM lparam)
 {
-	if (!text && image == INVALID_INT && group_id == INVALID_INT && !lparam)
-		return;
-
-	WCHAR txt[MAX_PATH] = {0};
-
 	LVITEM lvi = {0};
 
 	lvi.iItem = item;
@@ -2937,9 +3974,7 @@ void _r_listview_setitem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR
 	if (text)
 	{
 		lvi.mask |= LVIF_TEXT;
-		lvi.pszText = txt;
-
-		StringCchCopy (txt, _countof (txt), text);
+		lvi.pszText = (LPWSTR)text;
 	}
 
 	if (!lvi.iSubItem && image != INVALID_INT)
@@ -2960,31 +3995,28 @@ void _r_listview_setitem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR
 		lvi.lParam = lparam;
 	}
 
-	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEM, 0, (LPARAM)& lvi);
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEM, 0, (LPARAM)&lvi);
 }
 
-bool _r_listview_setitemcheck (HWND hwnd, INT ctrl_id, INT item, bool state)
+void _r_listview_setitemcheck (HWND hwnd, INT ctrl_id, INT item, bool state)
 {
 	LVITEM lvi = {0};
 
 	lvi.stateMask = LVIS_STATEIMAGEMASK;
 	lvi.state = INDEXTOSTATEIMAGEMASK (state ? 2 : 1);
 
-	return !!SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEMSTATE, (WPARAM)item, (LPARAM)& lvi);
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEMSTATE, (WPARAM)item, (LPARAM)&lvi);
 }
 
-INT _r_listview_setgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT state, UINT state_mask)
+void _r_listview_setgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT state, UINT state_mask)
 {
 	LVGROUP lvg = {0};
 	lvg.cbSize = sizeof (lvg);
 
-	WCHAR hdr[MAX_PATH] = {0};
-
 	if (title)
 	{
 		lvg.mask |= LVGF_HEADER;
-		lvg.pszHeader = hdr;
-		StringCchCopy (hdr, _countof (hdr), title);
+		lvg.pszHeader = (LPWSTR)title;
 	}
 
 	if (state || state_mask)
@@ -2994,19 +4026,14 @@ INT _r_listview_setgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, U
 		lvg.stateMask = state_mask;
 	}
 
-	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_SETGROUPINFO, (WPARAM)group_id, (LPARAM)& lvg);
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETGROUPINFO, (WPARAM)group_id, (LPARAM)&lvg);
 }
 
 void _r_listview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle)
 {
 	SetWindowTheme (GetDlgItem (hwnd, ctrl_id), L"Explorer", nullptr);
 
-	HWND htip = (HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETTOOLTIPS, 0, 0);
-
-	_r_wnd_top (htip, true); // HACK!!!
-
-	SendMessage (htip, TTM_SETDELAYTIME, TTDT_AUTOPOP, MAXSHORT);
-	SendMessage (htip, TTM_SETMAXTIPWIDTH, 0, MAXSHORT);
+	_r_ctrl_settipstyle ((HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETTOOLTIPS, 0, 0));
 
 	if (exstyle)
 		SendDlgItemMessage (hwnd, ctrl_id, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, (LPARAM)exstyle);
@@ -3016,21 +4043,26 @@ void _r_listview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle)
 	Control: treeview
 */
 
-HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl_id, LPCWSTR text, HTREEITEM parent, INT image, LPARAM lparam)
+HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl_id, LPCWSTR text, HTREEITEM hparent, INT image, LPARAM lparam)
 {
 	TVINSERTSTRUCT tvi = {0};
 
-	tvi.itemex.mask = TVIF_TEXT | TVIF_STATE;
-	tvi.itemex.pszText = (LPWSTR)text;
+	tvi.itemex.mask = TVIF_STATE;
 	tvi.itemex.state = TVIS_EXPANDED;
 	tvi.itemex.stateMask = TVIS_EXPANDED;
 
-	if (parent)
-		tvi.hParent = parent;
+	if (text)
+	{
+		tvi.itemex.mask |= TVIF_TEXT;
+		tvi.itemex.pszText = (LPWSTR)text;
+	}
+
+	if (hparent)
+		tvi.hParent = hparent;
 
 	if (image != INVALID_INT)
 	{
-		tvi.itemex.mask |= (TVIF_IMAGE | TVIF_SELECTEDIMAGE);
+		tvi.itemex.mask |= TVIF_IMAGE | TVIF_SELECTEDIMAGE;
 		tvi.itemex.iImage = image;
 		tvi.itemex.iSelectedImage = image;
 	}
@@ -3041,7 +4073,7 @@ HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl_id, LPCWSTR text, HTREEITEM p
 		tvi.itemex.lParam = lparam;
 	}
 
-	return (HTREEITEM)SendDlgItemMessage (hwnd, ctrl_id, TVM_INSERTITEM, 0, (LPARAM)& tvi);
+	return (HTREEITEM)SendDlgItemMessage (hwnd, ctrl_id, TVM_INSERTITEM, 0, (LPARAM)&tvi);
 }
 
 LPARAM _r_treeview_getlparam (HWND hwnd, INT ctrl_id, HTREEITEM item)
@@ -3051,30 +4083,62 @@ LPARAM _r_treeview_getlparam (HWND hwnd, INT ctrl_id, HTREEITEM item)
 	tvi.mask = TVIF_PARAM;
 	tvi.hItem = item;
 
-	SendDlgItemMessage (hwnd, ctrl_id, TVM_GETITEM, 0, (LPARAM)& tvi);
+	SendDlgItemMessage (hwnd, ctrl_id, TVM_GETITEM, 0, (LPARAM)&tvi);
 
 	return tvi.lParam;
 }
 
-DWORD _r_treeview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle, INT height)
+void _r_treeview_setitem (HWND hwnd, INT ctrl_id, HTREEITEM hitem, LPCWSTR text, INT image, LPARAM lparam)
 {
-	if (height)
+	TVITEMEX tvi = {0};
+
+	tvi.hItem = hitem;
+
+	if (text)
 	{
-		SendDlgItemMessage (hwnd, ctrl_id, TVM_SETITEMHEIGHT, (WPARAM)height, 0);
+		tvi.mask |= TVIF_TEXT;
+		tvi.pszText = (LPWSTR)text;
 	}
 
+	if (image != INVALID_INT)
+	{
+		tvi.mask |= TVIF_IMAGE | TVIF_SELECTEDIMAGE;
+		tvi.iImage = image;
+		tvi.iSelectedImage = image;
+	}
+
+	if (lparam)
+	{
+		tvi.mask |= TVIF_PARAM;
+		tvi.lParam = lparam;
+	}
+
+	SendDlgItemMessage (hwnd, ctrl_id, TVM_SETITEM, 0, (LPARAM)&tvi);
+}
+
+void _r_treeview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle, INT height)
+{
 	SetWindowTheme (GetDlgItem (hwnd, ctrl_id), L"Explorer", nullptr);
 
-	return (DWORD)SendDlgItemMessage (hwnd, ctrl_id, TVM_SETEXTENDEDSTYLE, 0, (LPARAM)exstyle);
+	_r_ctrl_settipstyle ((HWND)SendDlgItemMessage (hwnd, ctrl_id, TVM_GETTOOLTIPS, 0, 0));
+
+	if (exstyle)
+		SendDlgItemMessage (hwnd, ctrl_id, TVM_SETEXTENDEDSTYLE, 0, (LPARAM)exstyle);
+
+	if (height)
+		SendDlgItemMessage (hwnd, ctrl_id, TVM_SETITEMHEIGHT, (WPARAM)height, 0);
 }
 
 /*
 	Control: statusbar
 */
 
-void _r_status_settext (HWND hwnd, INT ctrl_id, INT part, LPCWSTR text)
+void _r_status_settext (HWND hwnd, INT ctrl_id, INT idx, LPCWSTR text, LPCWSTR tooltip)
 {
-	SendDlgItemMessage (hwnd, ctrl_id, SB_SETTEXT, MAKEWPARAM (part, 0), (LPARAM)text);
+	SendDlgItemMessage (hwnd, ctrl_id, SB_SETTEXT, MAKEWPARAM (idx, 0), (LPARAM)text);
+
+	if (tooltip)
+		SendDlgItemMessage (hwnd, ctrl_id, SB_SETTIPTEXT, (WPARAM)idx, (LPARAM)tooltip);
 }
 
 void _r_status_setstyle (HWND hwnd, INT ctrl_id, INT height)
@@ -3087,40 +4151,76 @@ void _r_status_setstyle (HWND hwnd, INT ctrl_id, INT height)
 	Control: toolbar
 */
 
-void _r_toolbar_setbuttoninfo (HWND hwnd, INT ctrl_id, UINT command_id, LPCWSTR text, INT style, INT state, INT image)
+void _r_toolbar_addbutton (HWND hwnd, INT ctrl_id, UINT command_id, INT style, INT_PTR text, INT state, INT image)
 {
-	TBBUTTONINFO buttonInfo = {0};
-	WCHAR buffer[MAX_PATH] = {0};
+	TBBUTTON tbi = {0};
 
-	buttonInfo.cbSize = sizeof (buttonInfo);
+	tbi.idCommand = command_id;
+	tbi.fsStyle = (BYTE)style;
+	tbi.iString = text;
+	tbi.fsState = (BYTE)state;
+	tbi.iBitmap = image;
+
+	INT item = (INT)SendDlgItemMessage (hwnd, ctrl_id, TB_BUTTONCOUNT, 0, 0);
+
+	SendDlgItemMessage (hwnd, ctrl_id, TB_INSERTBUTTON, (WPARAM)item, (LPARAM)&tbi);
+}
+
+INT _r_toolbar_getwidth (HWND hwnd, INT ctrl_id)
+{
+	RECT rc;
+	INT width = 0;
+
+	for (INT i = 0; i < (INT)SendDlgItemMessage (hwnd, ctrl_id, TB_BUTTONCOUNT, 0, 0); i++)
+	{
+		SendDlgItemMessage (hwnd, ctrl_id, TB_GETITEMRECT, (WPARAM)i, (LPARAM)&rc);
+		width += _R_RECT_WIDTH (&rc);
+	}
+
+	return width;
+}
+
+void _r_toolbar_setbutton (HWND hwnd, INT ctrl_id, UINT command_id, LPCWSTR text, INT style, INT state, INT image)
+{
+	TBBUTTONINFO tbi = {0};
+
+	tbi.cbSize = sizeof (tbi);
 
 	if (style)
 	{
-		buttonInfo.dwMask |= TBIF_STYLE;
-		buttonInfo.fsStyle = (BYTE)style;
+		tbi.dwMask |= TBIF_STYLE;
+		tbi.fsStyle = (BYTE)style;
 	}
 
 	if (text)
 	{
-		StringCchCopy (buffer, _countof (buffer), text);
-
-		buttonInfo.dwMask |= TBIF_TEXT;
-		buttonInfo.pszText = buffer;
+		tbi.dwMask |= TBIF_TEXT;
+		tbi.pszText = (LPWSTR)text;
 	}
 
 	if (state)
 	{
-		buttonInfo.dwMask |= TBIF_STATE;
-		buttonInfo.fsState = (BYTE)state;
+		tbi.dwMask |= TBIF_STATE;
+		tbi.fsState = (BYTE)state;
 	}
 
-	if (image != INVALID_INT)
+	if (image != I_IMAGENONE)
 	{
-		buttonInfo.dwMask |= TBIF_IMAGE;
-		buttonInfo.iImage = image;
+		tbi.dwMask |= TBIF_IMAGE;
+		tbi.iImage = image;
 	}
 
-	SendDlgItemMessage (hwnd, ctrl_id, TB_SETBUTTONINFO, (WPARAM)command_id, (LPARAM)& buttonInfo);
+	SendDlgItemMessage (hwnd, ctrl_id, TB_SETBUTTONINFO, (WPARAM)command_id, (LPARAM)&tbi);
+}
+
+void _r_toolbar_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle)
+{
+	SetWindowTheme (GetDlgItem (hwnd, ctrl_id), L"Explorer", nullptr);
+
+	SendDlgItemMessage (hwnd, ctrl_id, TB_BUTTONSTRUCTSIZE, sizeof (TBBUTTON), 0);
+	SendDlgItemMessage (hwnd, ctrl_id, TB_SETEXTENDEDSTYLE, 0, (LPARAM)exstyle);
+
+	_r_ctrl_settipstyle ((HWND)SendDlgItemMessage (hwnd, ctrl_id, TB_GETTOOLTIPS, 0, 0));
 }
 
 /*

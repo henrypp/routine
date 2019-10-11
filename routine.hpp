@@ -1,4 +1,5 @@
 // routine++
+// routine++
 // Copyright (c) 2012-2019 Henry++
 
 #pragma once
@@ -11,80 +12,92 @@
 #include <windows.h>
 #include <wtsapi32.h>
 #include <shlwapi.h>
+#include <shlobj.h>
 #include <commctrl.h>
 #include <psapi.h>
 #include <uxtheme.h>
+#include <dwmapi.h>
 #include <time.h>
 #include <lm.h>
 #include <process.h>
 #include <winhttp.h>
 #include <subauth.h>
 #include <sddl.h>
+#include <stdlib.h>
 #include <inttypes.h>
 #include <assert.h>
 #include <algorithm>
 
 #include "app.hpp"
+#include "ntapi.hpp"
 #include "rconfig.hpp"
 #include "rstring.hpp"
 
+// libs
 #pragma comment(lib, "comctl32.lib")
-#pragma comment(lib, "ntdll.lib")
+#pragma comment(lib, "dwmapi.lib")
 #pragma comment(lib, "psapi.lib")
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "uxtheme.lib")
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "wtsapi32.lib")
 
-#ifndef STATUS_BUFFER_TOO_SMALL
-#define STATUS_BUFFER_TOO_SMALL 0xC0000023
-#endif // STATUS_BUFFER_TOO_SMALL
+// stdlib typedef
+typedef std::vector<rstring> rstringvec;
 
-#ifndef LVM_RESETEMPTYTEXT
-#define LVM_RESETEMPTYTEXT (LVM_FIRST + 84)
-#endif // LVM_RESETEMPTYTEXT
+typedef std::unordered_map<rstring, rstring, rstring::hash, rstring::is_equal> rstringmap1;
+typedef std::unordered_map<rstring, rstringmap1, rstring::hash, rstring::is_equal> rstringmap2;
 
-#ifndef WM_COPYGLOBALDATA
-#define WM_COPYGLOBALDATA 0x0049
-#endif // WM_COPYGLOBALDATA
-
-#ifndef OBJ_NAME_PATH_SEPARATOR
-#define OBJ_NAME_PATH_SEPARATOR ((WCHAR)L'\\')
-#endif // OBJ_NAME_PATH_SEPARATOR
+// callback functions
+typedef bool (*_R_CALLBACK_HTTP_DOWNLOAD) (DWORD total_written, DWORD total_length, LONG_PTR lpdata);
+typedef void (*_R_CALLBACK_OBJECT_CLEANUP) (PVOID pdata);
 
 // memory allocation/cleanup
 #ifndef SAFE_DELETE
-#define SAFE_DELETE(p) {if(p) { delete (p); (p)=nullptr;}}
+#define SAFE_DELETE(p) {if(p) {delete (p); (p)=nullptr;}}
 #endif
 
 #ifndef SAFE_DELETE_ARRAY
-#define SAFE_DELETE_ARRAY(p) {if(p) { delete[] (p); (p)=nullptr;}}
+#define SAFE_DELETE_ARRAY(p) {if(p) {delete[] (p); (p)=nullptr;}}
+#endif
+
+#ifndef SAFE_DELETE_OBJECT
+#define SAFE_DELETE_OBJECT(p) {if(p) {DeleteObject (p); (p)=nullptr;}}
 #endif
 
 #ifndef SAFE_LOCAL_FREE
-#define SAFE_LOCAL_FREE(p) {if(p) { LocalFree (p); (p)=nullptr;}}
+#define SAFE_LOCAL_FREE(p) {if(p) {LocalFree (p); (p)=nullptr;}}
 #endif
 
 #ifndef SAFE_GLOBAL_FREE
-#define SAFE_GLOBAL_FREE(p) {if(p) { GlobalFree (p); (p)=nullptr;}}
+#define SAFE_GLOBAL_FREE(p) {if(p) {GlobalFree (p); (p)=nullptr;}}
+#endif
+
+#ifndef SAFE_HEAP_FREE
+#define SAFE_HEAP_FREE(h,p) {if(p) {HeapFree (h, 0, p); (p)=nullptr;}}
 #endif
 
 /*
-	Shared icons ids
+	Definitions
 */
 
-#define SIH_QUESTION 32514
-#define SIH_INFORMATION 32516
+#define _R_DEBUG_HEADER L"Date,Function,Code,Description,Version\r\n"
+#define _R_DEBUG_BODY L"\"%s()\",\"0x%.8" PRIx32 "\",\"%s\""
+
+#define _R_DEVICE_COUNT 0x1A
+#define _R_DEVICE_PREFIX_LENGTH 64
+
+#define _R_STR_MAX_LENGTH (INT_MAX - 1)
 
 /*
 	Unit conversion
 */
 
-#define _R_BYTESIZE_KB (1024ul)
-#define _R_BYTESIZE_MB (1024ul * _R_BYTESIZE_KB)
+#define _R_BYTESIZE_KB (1024UL)
+#define _R_BYTESIZE_MB (1024UL * _R_BYTESIZE_KB)
 
 #define _R_SECONDSCLOCK_MSEC (1000)
-#define _R_SECONDSCLOCK_MIN(minutes)(60 * (minutes))
+#define _R_SECONDSCLOCK_MIN(mins)(60 * (mins))
 #define _R_SECONDSCLOCK_HOUR(hours)((_R_SECONDSCLOCK_MIN (1) * 60) * (hours))
 #define _R_SECONDSCLOCK_DAY(days)((_R_SECONDSCLOCK_HOUR (1) * 24) * (days))
 
@@ -92,26 +105,24 @@
 	Percentage calculation
 */
 
-#define _R_PERCENT_OF(val, total) INT(ceil((double((val)) / double((total))) * 100.0))
-#define _R_PERCENT_VAL(val, total) INT(double((total)) * double((val)) / 100.0)
+#define _R_PERCENT_OF(length, total_length) INT(ceil (double (length) / double (total_length) * 100.0))
+#define _R_PERCENT_VAL(percent, total_length) INT(double (total_length) * double (percent) / 100.0)
 
 /*
 	Rectangle
 */
 
-#define _R_RECT_WIDTH(lprect)((lprect)->right - (lprect)->left)
-#define _R_RECT_HEIGHT(lprect)((lprect)->bottom - (lprect)->top)
+#define _R_RECT_WIDTH(lprect) ((lprect)->right - (lprect)->left)
+#define _R_RECT_HEIGHT(lprect) ((lprect)->bottom - (lprect)->top)
 
 /*
-	Debug logging
+	Debugging
 */
 
 #define RDBG(a, ...) _r_dbg_print (a, __VA_ARGS__)
 
-#define _R_DBG_FORMAT L"\"%s()\",\"0x%.8lx\",\"%s\""
-
 void _r_dbg (LPCWSTR fn, DWORD errcode, LPCWSTR desc);
-void _r_dbg_print (LPCWSTR format, ...);
+void _r_dbg_print (LPCWSTR text, ...);
 void _r_dbg_write (LPCWSTR path, LPCWSTR text);
 
 rstring _r_dbg_getpath ();
@@ -120,12 +131,12 @@ rstring _r_dbg_getpath ();
 	Format strings, dates, numbers
 */
 
-rstring _r_fmt (LPCWSTR format, ...);
+rstring _r_fmt (LPCWSTR text, ...);
 
-rstring _r_fmt_date (const LPFILETIME ft, const DWORD flags = FDTF_DEFAULT); // see SHFormatDateTime flags definition
-rstring _r_fmt_date (const time_t ut, const DWORD flags = FDTF_DEFAULT);
+rstring _r_fmt_date (const LPFILETIME ft, DWORD flags = FDTF_DEFAULT); // see SHFormatDateTime flags definition
+rstring _r_fmt_date (time_t ut, DWORD flags = FDTF_DEFAULT);
 
-rstring _r_fmt_size64 (LONGLONG bytes);
+rstring _r_fmt_size64 (LONG64 bytes);
 rstring _r_fmt_interval (time_t seconds, INT digits);
 
 /*
@@ -160,13 +171,13 @@ typedef struct _R_FASTLOCK
 	{
 		if (ExclusiveWakeEvent)
 		{
-			CloseHandle (ExclusiveWakeEvent);
+			NtClose (ExclusiveWakeEvent);
 			ExclusiveWakeEvent = nullptr;
 		}
 
 		if (SharedWakeEvent)
 		{
-			CloseHandle (SharedWakeEvent);
+			NtClose (SharedWakeEvent);
 			SharedWakeEvent = nullptr;
 		}
 
@@ -178,9 +189,28 @@ typedef struct _R_FASTLOCK
 	HANDLE SharedWakeEvent = nullptr;
 } R_FASTLOCK, *P_FASTLOCK;
 
-static const DWORD _r_fastlock_getspincount ();
+FORCEINLINE DWORD _r_fastlock_getspincount ()
+{
+	SYSTEM_INFO si = {0};
+	GetNativeSystemInfo (&si);
 
-FORCEINLINE bool _r_fastlock_islocked (P_FASTLOCK plock)
+	return  (si.dwNumberOfProcessors > 1) ? 4000 : 0;
+}
+
+FORCEINLINE void _r_fastlock_ensureeventcreated (PHANDLE phandle)
+{
+	HANDLE handle;
+
+	if (*phandle != nullptr)
+		return;
+
+	NtCreateSemaphore (&handle, SEMAPHORE_ALL_ACCESS, nullptr, 0, MAXLONG);
+
+	if (InterlockedCompareExchangePointer (phandle, handle, nullptr) != nullptr)
+		NtClose (handle);
+}
+
+FORCEINLINE bool _r_fastlock_islocked (const P_FASTLOCK plock)
 {
 	bool owned;
 
@@ -205,32 +235,30 @@ bool _r_fastlock_tryacquireexclusive (P_FASTLOCK plock);
 bool _r_fastlock_tryacquireshared (P_FASTLOCK plock);
 
 /*
-	Objects referencing
+	Objects reference
 */
-
-typedef void (*OBJECT_CLEANUP_CALLBACK) (PVOID pdata);
 
 typedef struct _R_OBJECT
 {
 	PVOID pdata = nullptr;
 
+	_R_CALLBACK_OBJECT_CLEANUP cleanup_callback = nullptr;
+
 	volatile LONG ref_count = 0;
 } R_OBJECT, *PR_OBJECT;
 
-PR_OBJECT _r_obj_allocate (PVOID pdata);
+PR_OBJECT _r_obj_allocate (PVOID pdata, _R_CALLBACK_OBJECT_CLEANUP cleanup_callback);
 PR_OBJECT _r_obj_reference (PR_OBJECT pobj);
-void _r_obj_dereference (PR_OBJECT pobj, OBJECT_CLEANUP_CALLBACK cleanup_callback);
-void _r_obj_dereferenceex (PR_OBJECT pobj, LONG ref_count, OBJECT_CLEANUP_CALLBACK cleanup_callback);
+void _r_obj_dereference (PR_OBJECT pobj);
+void _r_obj_dereferenceex (PR_OBJECT pobj, LONG ref_count);
 
 /*
 	System messages
 */
 
-#define WMSG(a, ...) _r_msg (nullptr, 0, nullptr, nullptr, a, __VA_ARGS__)
-
-INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR format, ...);
+INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR text, ...);
 bool _r_msg_taskdialog (const TASKDIALOGCONFIG *ptd, INT *pbutton, INT *pradiobutton, BOOL *pcheckbox); // vista TaskDialogIndirect
-HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR ref);
+HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LONG_PTR lpdata);
 
 /*
 	Clipboard operations
@@ -243,28 +271,31 @@ void _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length);
 	Filesystem
 */
 
+#define _r_fs_copy(path_from,path_to,flags) (!!CopyFileEx ((path_from),(path_to),nullptr,nullptr,nullptr,(flags)))
+#define _r_fs_move(path_from,path_to,flags) (!!MoveFileEx ((path_from),(path_to),(flags)))
+
 bool _r_fs_delete (LPCWSTR path, bool allowundo);
 bool _r_fs_exists (LPCWSTR path);
+bool _r_fs_makebackup (LPCWSTR path, time_t timestamp);
 bool _r_fs_mkdir (LPCWSTR path);
-void _r_fs_rmdir (LPCWSTR path);
 bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size);
-bool _r_fs_setpos (HANDLE hfile, LONGLONG pos, DWORD method);
-DWORD64 _r_fs_size (HANDLE hfile);
-DWORD64 _r_fs_size (LPCWSTR path);
-bool _r_fs_move (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
-bool _r_fs_move_backup (LPCWSTR path, time_t timestamp);
-bool _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags = 0);
+void _r_fs_rmdir (LPCWSTR path, bool is_recurse);
+bool _r_fs_setpos (HANDLE hfile, LONG64 pos, DWORD method);
+LONG64 _r_fs_size (HANDLE hfile);
+LONG64 _r_fs_size (LPCWSTR path);
 
 /*
 	Paths
 */
 
-rstring _r_path_gettempfilepath (LPCWSTR directory, LPCWSTR filename);
-rstring _r_path_expand (const rstring &path);
-rstring _r_path_unexpand (const rstring &path);
-rstring _r_path_compact (LPCWSTR path, size_t length);
-rstring _r_path_extractdir (LPCWSTR path);
-rstring _r_path_extractfile (LPCWSTR path);
+rstring _r_path_getdirectory (LPCWSTR path);
+LPCWSTR _r_path_getextension (LPCWSTR path);
+LPCWSTR _r_path_getfilename (LPCWSTR path);
+void _r_path_explore (LPCWSTR path);
+rstring _r_path_compact (LPCWSTR path, UINT length);
+rstring _r_path_expand (LPCWSTR path);
+rstring _r_path_unexpand (LPCWSTR path);
+void _r_path_makeunique (rstring& path);
 rstring _r_path_dospathfromnt (LPCWSTR path);
 DWORD _r_path_ntpathfromdos (rstring &path);
 
@@ -272,39 +303,118 @@ DWORD _r_path_ntpathfromdos (rstring &path);
 	Strings
 */
 
-bool _r_str_alloc (LPWSTR *pwstr, size_t length, LPCWSTR text);
+FORCEINLINE bool _r_str_isempty (LPCWSTR text)
+{
+	return !text || !*text;
+}
+
+bool _r_str_isnumeric (LPCWSTR text);
+
+bool _r_str_alloc (LPWSTR *pbuffer, size_t length, LPCWSTR text);
+
+void _r_str_cat (LPWSTR buffer, size_t length, LPCWSTR text, size_t max_length = _R_STR_MAX_LENGTH);
+void _r_str_copy (LPWSTR buffer, size_t length, LPCWSTR text, size_t max_length = _R_STR_MAX_LENGTH);
+size_t _r_str_length (LPCWSTR text, size_t max_length = _R_STR_MAX_LENGTH);
+void _r_str_printf (LPWSTR buffer, size_t length, LPCWSTR text, ...);
+void _r_str_vprintf (LPWSTR buffer, size_t length, LPCWSTR text, va_list args);
+
+size_t _r_str_hash (LPCWSTR text);
+
+INT _r_str_compare (LPCWSTR str1, LPCWSTR str2, size_t length = INVALID_SIZE_T);
+INT _r_str_compare_logical (LPCWSTR str1, LPCWSTR str2);
+INT _r_str_compare_unicode (LPWSTR str1, LPWSTR str2, bool is_ignorecase);
 
 rstring _r_str_fromguid (const GUID &lpguid);
 rstring _r_str_fromsid (const PSID lpsid);
 
-size_t _r_str_length (LPCWSTR str);
+size_t _r_str_find (LPCWSTR text, size_t length, WCHAR char_find, size_t start_pos = 0);
+size_t _r_str_reversefind (LPCWSTR text, size_t length, WCHAR char_find, size_t start_pos = 0);
 
-WCHAR _r_str_lower (WCHAR chr);
-WCHAR _r_str_upper (WCHAR chr);
+bool _r_str_match (LPCWSTR text, LPCWSTR pattern);
+void _r_str_replace (LPWSTR text, WCHAR char_from, WCHAR char_to);
+void _r_str_trim (rstring& text, LPCWSTR trim);
 
-bool _r_str_match (LPCWSTR str, LPCWSTR pattern);
+#define _r_str_lower RtlDowncaseUnicodeChar
+#define _r_str_upper RtlUpcaseUnicodeChar
 
-size_t _r_str_hash (LPCWSTR text);
+void _r_str_tolower (LPWSTR text);
+void _r_str_toupper (LPWSTR text);
+
+rstring _r_str_extract (LPCWSTR text, size_t length, size_t start_pos, size_t extract_length = INVALID_SIZE_T);
+rstring& _r_str_extract_ref (rstring& text, size_t start_pos, size_t extract_length = INVALID_SIZE_T);
+
+bool _r_str_multibyte2widechar (UINT cp, LPCSTR in_text, LPWSTR out_text, size_t length);
+
+void _r_str_split (LPCWSTR text, size_t length, WCHAR delimiter, rstringvec& rvc);
+bool _r_str_unserialize (LPCWSTR text, WCHAR delimeter, WCHAR key_delimeter, rstringmap1 * lpresult);
+
 INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2);
-bool _r_str_unserialize (rstring string, LPCWSTR str_delimeter, WCHAR key_delimeter, rstring::map_one *lpresult);
 
 /*
 	System information
 */
 
 bool _r_sys_isadmin ();
-ULONGLONG _r_sys_gettickcount ();
-void _r_sys_getusername (rstring *pdomain, rstring *pusername);
+rstring _r_sys_getsessioninfo (WTS_INFO_CLASS info);
 rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username);
-
-#ifndef _WIN64
 bool _r_sys_iswow64 ();
-#endif // _WIN64
-
 bool _r_sys_setprivilege (LPCWSTR privileges[], size_t count, bool is_enable);
 bool _r_sys_uacstate ();
 bool _r_sys_validversion (DWORD major, DWORD minor, DWORD build = 0, BYTE condition = VER_GREATER_EQUAL);
-void _r_sleep (DWORD milliseconds);
+
+FORCEINLINE DWORD _r_sys_gettickcount ()
+{
+#ifdef _WIN64
+
+	return (DWORD)((USER_SHARED_DATA->TickCountQuad * USER_SHARED_DATA->TickCountMultiplier) >> 24);
+
+#else
+
+	ULARGE_INTEGER tickCount;
+
+	while (true)
+	{
+		tickCount.HighPart = (DWORD)USER_SHARED_DATA->TickCount.High1Time;
+		tickCount.LowPart = USER_SHARED_DATA->TickCount.LowPart;
+
+		if (tickCount.HighPart == (DWORD)USER_SHARED_DATA->TickCount.High2Time)
+			break;
+
+		YieldProcessor ();
+	}
+
+	return (DWORD)((UInt32x32To64 (tickCount.LowPart, USER_SHARED_DATA->TickCountMultiplier) >> 24) +
+				   UInt32x32To64 ((tickCount.HighPart << 8) & 0xffffffff, USER_SHARED_DATA->TickCountMultiplier));
+
+#endif
+}
+
+FORCEINLINE DWORD64 _r_sys_gettickcount64 ()
+{
+	ULARGE_INTEGER tickCount;
+
+#ifdef _WIN64
+
+	tickCount.QuadPart = USER_SHARED_DATA->TickCountQuad;
+
+#else
+
+	while (true)
+	{
+		tickCount.HighPart = (DWORD)USER_SHARED_DATA->TickCount.High1Time;
+		tickCount.LowPart = USER_SHARED_DATA->TickCount.LowPart;
+
+		if (tickCount.HighPart == (DWORD)USER_SHARED_DATA->TickCount.High2Time)
+			break;
+
+		YieldProcessor ();
+	}
+
+#endif
+
+	return (UInt32x32To64 (tickCount.LowPart, USER_SHARED_DATA->TickCountMultiplier) >> 24) +
+		(UInt32x32To64 (tickCount.HighPart, USER_SHARED_DATA->TickCountMultiplier) << 8);
+}
 
 /*
 	Unixtime
@@ -317,15 +427,29 @@ time_t _r_unixtime_from_filetime (const FILETIME *pft);
 time_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst);
 
 /*
-	Painting
+	Device context (Draw/Calculation etc...)
 */
 
+INT _r_dc_getdpivalue (INT new_value = 0);
 COLORREF _r_dc_getcolorbrightness (COLORREF clr);
 COLORREF _r_dc_getcolorshade (COLORREF clr, INT percent);
-void _r_dc_fillrect (HDC hdc, LPRECT lprc, COLORREF clr);
-int _r_dc_fontheighttosize (INT size);
-int _r_dc_fontsizetoheight (INT size);
+void _r_dc_fillrect (HDC hdc, const LPRECT lprc, COLORREF clr);
 LONG _r_dc_fontwidth (HDC hdc, LPCWSTR text, size_t length);
+
+FORCEINLINE INT _r_dc_getdpi (INT scale)
+{
+	return MulDiv (scale, _r_dc_getdpivalue (), USER_DEFAULT_SCREEN_DPI);
+}
+
+FORCEINLINE INT _r_dc_fontheighttosize (INT height)
+{
+	return MulDiv (-height, 72, _r_dc_getdpivalue ());
+}
+
+FORCEINLINE INT _r_dc_fontsizetoheight (INT size)
+{
+	return -MulDiv (size, _r_dc_getdpivalue (), 72);
+}
 
 /*
 	Window management
@@ -333,17 +457,19 @@ LONG _r_dc_fontwidth (HDC hdc, LPCWSTR text, size_t length);
 
 void _r_wnd_addstyle (HWND hwnd, INT ctrl_id, LONG_PTR mask, LONG_PTR stateMask, INT index);
 void _r_wnd_adjustwindowrect (HWND hwnd, LPRECT lprect);
-void _r_wnd_centerwindowrect (LPRECT lprect, LPRECT lpparent);
+void _r_wnd_centerwindowrect (LPRECT lprect, const LPRECT lpparent);
 void _r_wnd_center (HWND hwnd, HWND hparent);
 void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action);
-void _r_wnd_toggle (HWND hwnd, bool show);
+void _r_wnd_toggle (HWND hwnd, bool is_show);
 void _r_wnd_top (HWND hwnd, bool is_enable);
 bool _r_wnd_undercursor (HWND hwnd);
 bool _r_wnd_isfullscreenmode ();
 void _r_wnd_resize (HDWP *hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags);
 
 #ifndef _APP_NO_DARKTHEME
+bool _r_wnd_isdarkmessage (LPARAM lparam);
 bool _r_wnd_isdarktheme ();
+void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable);
 void _r_wnd_setdarktheme (HWND hwnd);
 #endif // _APP_NO_DARKTHEME
 
@@ -351,21 +477,44 @@ void _r_wnd_setdarktheme (HWND hwnd);
 	Inernet access (WinHTTP)
 */
 
-HINTERNET _r_inet_createsession (LPCWSTR useragent, rstring proxy_config);
-rstring _r_inet_getproxyconfiguration (LPCWSTR custom_proxy);
-bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, rstring proxy_config, HINTERNET *pconnect, HINTERNET *prequest, PDWORD ptotallength);
-bool _r_inet_parseurl (LPCWSTR url, INT *scheme_ptr, LPWSTR host_ptr, WORD *port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr);
+HINTERNET _r_inet_createsession (LPCWSTR useragent, LPCWSTR proxy_addr);
+bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, HINTERNET *pconnect, HINTERNET *prequest, PDWORD ptotallength);
 bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD preaded, PDWORD ptotalreaded);
-//void _r_inet_close (HINTERNET hinet);
+bool _r_inet_parseurl (LPCWSTR url, INT *scheme_ptr, LPWSTR host_ptr, WORD *port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr);
+bool _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, LPVOID buffer, bool is_filepath, _R_CALLBACK_HTTP_DOWNLOAD _callback, LONG_PTR lpdata);
 #define _r_inet_close WinHttpCloseHandle
+
+/*
+	Registry
+*/
+
+PBYTE _r_reg_querybinary (HKEY hkey, LPCWSTR value);
+DWORD _r_reg_querydword (HKEY hkey, LPCWSTR value);
+DWORD64 _r_reg_querydword64 (HKEY hkey, LPCWSTR value);
+rstring _r_reg_querystring (HKEY hkey, LPCWSTR value);
+DWORD _r_reg_querysubkeylength (HKEY hkey);
+time_t _r_reg_querytimestamp (HKEY hkey);
+
 /*
 	Other
 */
 
-HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT cx_width);
-bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR cd = nullptr, WORD sw = SW_SHOWDEFAULT);
-size_t _r_rand (size_t min_number, size_t max_number);
 HANDLE _r_createthread (_beginthreadex_proc_type proc, void *args, bool is_suspended, INT priority = THREAD_PRIORITY_NORMAL);
+HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size);
+bool _r_parseini (LPCWSTR path, rstringmap2& pmap, rstringvec* psections);
+DWORD _r_rand (DWORD min_number, DWORD max_number);
+bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR dir = nullptr, WORD show_state = SW_SHOWDEFAULT, DWORD flags = 0);
+void _r_sleep (LONG64 milliseconds);
+
+/*
+	System tray
+*/
+
+bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR tooltip, bool is_hidden);
+bool _r_tray_popup (HWND hwnd, UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text);
+bool _r_tray_setinfo (HWND hwnd, UINT uid, HICON hicon, LPCWSTR tooltip);
+bool _r_tray_toggle (HWND hwnd, UINT uid, bool is_show);
+bool _r_tray_destroy (HWND hwnd, UINT uid);
 
 /*
 	Control: common
@@ -373,15 +522,26 @@ HANDLE _r_createthread (_beginthreadex_proc_type proc, void *args, bool is_suspe
 
 INT _r_ctrl_isradiobuttonchecked (HWND hwnd, INT start_id, INT end_id);
 
-bool _r_ctrl_isenabled (HWND hwnd, INT ctrl_id);
-void _r_ctrl_enable (HWND hwnd, INT ctrl_id, bool is_enable);
-
 rstring _r_ctrl_gettext (HWND hwnd, INT ctrl_id);
-void _r_ctrl_settext (HWND hwnd, INT ctrl_id, LPCWSTR str, ...);
+void _r_ctrl_settext (HWND hwnd, INT ctrl_id, LPCWSTR text, ...);
+
+void _r_ctrl_setbuttonmargins (HWND hwnd, INT ctrl_id);
+void _r_ctrl_settabletext (HDC hdc, HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT ctrl_id2, LPCWSTR text2);
 
 HWND _r_ctrl_createtip (HWND hparent);
-bool _r_ctrl_settip (HWND htip, HWND hparent, INT ctrl_id, LPWSTR text);
+bool _r_ctrl_settip (HWND htip, HWND hparent, INT ctrl_id, LPCWSTR text);
+void _r_ctrl_settipstyle (HWND htip);
 bool _r_ctrl_showtip (HWND hwnd, INT ctrl_id, INT icon_id, LPCWSTR title, LPCWSTR text);
+
+FORCEINLINE bool _r_ctrl_isenabled (HWND hwnd, INT ctrl_id)
+{
+	return !!IsWindowEnabled (GetDlgItem (hwnd, ctrl_id));
+}
+
+FORCEINLINE void _r_ctrl_enable (HWND hwnd, INT ctrl_id, bool is_enable)
+{
+	EnableWindow (GetDlgItem (hwnd, ctrl_id), is_enable);
+}
 
 /*
 	Control: tab
@@ -394,21 +554,19 @@ INT _r_tab_setitem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image =
 	Control: listview
 */
 
-INT _r_listview_addcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR text, INT width, INT fmt);
+INT _r_listview_addcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR title, INT width, INT fmt);
 INT _r_listview_addgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT align, UINT state);
-INT _r_listview_additem (HWND hwnd, INT ctrl_id, INT item_id, INT subitem, LPCWSTR text, INT image = INVALID_INT, INT group_id = INVALID_INT, LPARAM lparam = 0);
+INT _r_listview_additem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR text, INT image = INVALID_INT, INT group_id = INVALID_INT, LPARAM lparam = 0);
 
 void _r_listview_deleteallcolumns (HWND hwnd, INT ctrl_id);
 void _r_listview_deleteallgroups (HWND hwnd, INT ctrl_id);
 void _r_listview_deleteallitems (HWND hwnd, INT ctrl_id);
 
 INT _r_listview_getcolumncount (HWND hwnd, INT ctrl_id);
-INT _r_listview_getitemcount (HWND hwnd, INT ctrl_id, bool list_checked = false);
-
-INT _r_listview_getcolumncurrent (HWND hwnd, INT ctrl_id);
 rstring _r_listview_getcolumntext (HWND hwnd, INT ctrl_id, INT column_id);
 INT _r_listview_getcolumnwidth (HWND hwnd, INT ctrl_id, INT column_id);
 
+INT _r_listview_getitemcount (HWND hwnd, INT ctrl_id, bool list_checked = false);
 LPARAM _r_listview_getitemlparam (HWND hwnd, INT ctrl_id, INT item);
 rstring _r_listview_getitemtext (HWND hwnd, INT ctrl_id, INT item, INT subitem);
 
@@ -421,29 +579,33 @@ void _r_listview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle);
 void _r_listview_setcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR text, INT width);
 void _r_listview_setcolumnsortindex (HWND hwnd, INT ctrl_id, INT column_id, INT arrow);
 void _r_listview_setitem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR text, INT image = INVALID_INT, INT group_id = INVALID_INT, LPARAM lparam = 0);
-bool _r_listview_setitemcheck (HWND hwnd, INT ctrl_id, INT item, bool state);
-INT _r_listview_setgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT state, UINT state_mask);
+void _r_listview_setitemcheck (HWND hwnd, INT ctrl_id, INT item, bool state);
+void _r_listview_setgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT state, UINT state_mask);
 
 /*
 	Control: treeview
 */
 
-HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl_id, LPCWSTR text, HTREEITEM parent = nullptr, INT image = INVALID_INT, LPARAM lparam = 0);
+HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl_id, LPCWSTR text, HTREEITEM hparent = nullptr, INT image = INVALID_INT, LPARAM lparam = 0);
 LPARAM _r_treeview_getlparam (HWND hwnd, INT ctrl_id, HTREEITEM item);
-DWORD _r_treeview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle, INT height);
+void _r_treeview_setitem (HWND hwnd, INT ctrl_id, HTREEITEM hitem, LPCWSTR text, INT image = INVALID_INT, LPARAM lparam = 0);
+void _r_treeview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle, INT height);
 
 /*
 	Control: statusbar
 */
 
-void _r_status_settext (HWND hwnd, INT ctrl_id, INT part, LPCWSTR text);
+void _r_status_settext (HWND hwnd, INT ctrl_id, INT idx, LPCWSTR text, LPCWSTR tooltip);
 void _r_status_setstyle (HWND hwnd, INT ctrl_id, INT height);
 
 /*
 	Control: toolbar
 */
 
-void _r_toolbar_setbuttoninfo (HWND hwnd, INT ctrl_id, UINT command_id, LPCWSTR text, INT style, INT state = 0, INT image = INVALID_INT);
+void _r_toolbar_addbutton (HWND hwnd, INT ctrl_id, UINT command_id, INT style, INT_PTR text = 0, INT state = 0, INT image = I_IMAGENONE);
+INT _r_toolbar_getwidth (HWND hwnd, INT ctrl_id);
+void _r_toolbar_setbutton (HWND hwnd, INT ctrl_id, UINT command_id, LPCWSTR text, INT style, INT state = 0, INT image = I_IMAGENONE);
+void _r_toolbar_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle);
 
 /*
 	Control: progress bar
@@ -451,447 +613,3 @@ void _r_toolbar_setbuttoninfo (HWND hwnd, INT ctrl_id, UINT command_id, LPCWSTR 
 
 void _r_progress_setmarquee (HWND hwnd, INT ctrl_id, BOOL is_enable);
 
-/*
-	NTDLL Definitions
-*/
-
-#ifndef STATUS_UNSUCCESSFUL
-#define STATUS_UNSUCCESSFUL 0xc0000001
-#endif
-
-// rev
-// private
-// source:http://www.microsoft.com/whdc/system/Sysinternals/MoreThan64proc.mspx
-typedef enum _SYSTEM_INFORMATION_CLASS
-{
-	SystemBasicInformation, // q: SYSTEM_BASIC_INFORMATION
-	SystemProcessorInformation, // q: SYSTEM_PROCESSOR_INFORMATION
-	SystemPerformanceInformation, // q: SYSTEM_PERFORMANCE_INFORMATION
-	SystemTimeOfDayInformation, // q: SYSTEM_TIMEOFDAY_INFORMATION
-	SystemPathInformation, // not implemented
-	SystemProcessInformation, // q: SYSTEM_PROCESS_INFORMATION
-	SystemCallCountInformation, // q: SYSTEM_CALL_COUNT_INFORMATION
-	SystemDeviceInformation, // q: SYSTEM_DEVICE_INFORMATION
-	SystemProcessorPerformanceInformation, // q: SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION
-	SystemFlagsInformation, // q: SYSTEM_FLAGS_INFORMATION
-	SystemCallTimeInformation, // not implemented // SYSTEM_CALL_TIME_INFORMATION // 10
-	SystemModuleInformation, // q: RTL_PROCESS_MODULES
-	SystemLocksInformation, // q: RTL_PROCESS_LOCKS
-	SystemStackTraceInformation, // q: RTL_PROCESS_BACKTRACES
-	SystemPagedPoolInformation, // not implemented
-	SystemNonPagedPoolInformation, // not implemented
-	SystemHandleInformation, // q: SYSTEM_HANDLE_INFORMATION
-	SystemObjectInformation, // q: SYSTEM_OBJECTTYPE_INFORMATION mixed with SYSTEM_OBJECT_INFORMATION
-	SystemPageFileInformation, // q: SYSTEM_PAGEFILE_INFORMATION
-	SystemVdmInstemulInformation, // q
-	SystemVdmBopInformation, // not implemented // 20
-	SystemFileCacheInformation, // q: SYSTEM_FILECACHE_INFORMATION; s (requires SeIncreaseQuotaPrivilege) (info for WorkingSetTypeSystemCache)
-	SystemPoolTagInformation, // q: SYSTEM_POOLTAG_INFORMATION
-	SystemInterruptInformation, // q: SYSTEM_INTERRUPT_INFORMATION
-	SystemDpcBehaviorInformation, // q: SYSTEM_DPC_BEHAVIOR_INFORMATION; s: SYSTEM_DPC_BEHAVIOR_INFORMATION (requires SeLoadDriverPrivilege)
-	SystemFullMemoryInformation, // not implemented
-	SystemLoadGdiDriverInformation, // s (kernel-mode only)
-	SystemUnloadGdiDriverInformation, // s (kernel-mode only)
-	SystemTimeAdjustmentInformation, // q: SYSTEM_QUERY_TIME_ADJUST_INFORMATION; s: SYSTEM_SET_TIME_ADJUST_INFORMATION (requires SeSystemtimePrivilege)
-	SystemSummaryMemoryInformation, // not implemented
-	SystemMirrorMemoryInformation, // s (requires license value "Kernel-MemoryMirroringSupported") (requires SeShutdownPrivilege) // 30
-	SystemPerformanceTraceInformation, // q; s: (type depends on EVENT_TRACE_INFORMATION_CLASS)
-	SystemObsolete0, // not implemented
-	SystemExceptionInformation, // q: SYSTEM_EXCEPTION_INFORMATION
-	SystemCrashDumpStateInformation, // s (requires SeDebugPrivilege)
-	SystemKernelDebuggerInformation, // q: SYSTEM_KERNEL_DEBUGGER_INFORMATION
-	SystemContextSwitchInformation, // q: SYSTEM_CONTEXT_SWITCH_INFORMATION
-	SystemRegistryQuotaInformation, // q: SYSTEM_REGISTRY_QUOTA_INFORMATION; s (requires SeIncreaseQuotaPrivilege)
-	SystemExtendServiceTableInformation, // s (requires SeLoadDriverPrivilege) // loads win32k only
-	SystemPrioritySeperation, // s (requires SeTcbPrivilege)
-	SystemVerifierAddDriverInformation, // s (requires SeDebugPrivilege) // 40
-	SystemVerifierRemoveDriverInformation, // s (requires SeDebugPrivilege)
-	SystemProcessorIdleInformation, // q: SYSTEM_PROCESSOR_IDLE_INFORMATION
-	SystemLegacyDriverInformation, // q: SYSTEM_LEGACY_DRIVER_INFORMATION
-	SystemCurrentTimeZoneInformation, // q
-	SystemLookasideInformation, // q: SYSTEM_LOOKASIDE_INFORMATION
-	SystemTimeSlipNotification, // s (requires SeSystemtimePrivilege)
-	SystemSessionCreate, // not implemented
-	SystemSessionDetach, // not implemented
-	SystemSessionInformation, // not implemented
-	SystemRangeStartInformation, // q: SYSTEM_RANGE_START_INFORMATION // 50
-	SystemVerifierInformation, // q: SYSTEM_VERIFIER_INFORMATION; s (requires SeDebugPrivilege)
-	SystemVerifierThunkExtend, // s (kernel-mode only)
-	SystemSessionProcessInformation, // q: SYSTEM_SESSION_PROCESS_INFORMATION
-	SystemLoadGdiDriverInSystemSpace, // s (kernel-mode only) (same as SystemLoadGdiDriverInformation)
-	SystemNumaProcessorMap, // q
-	SystemPrefetcherInformation, // q: PREFETCHER_INFORMATION; s: PREFETCHER_INFORMATION // PfSnQueryPrefetcherInformation
-	SystemExtendedProcessInformation, // q: SYSTEM_PROCESS_INFORMATION
-	SystemRecommendedSharedDataAlignment, // q
-	SystemComPlusPackage, // q; s
-	SystemNumaAvailableMemory, // 60
-	SystemProcessorPowerInformation, // q: SYSTEM_PROCESSOR_POWER_INFORMATION
-	SystemEmulationBasicInformation, // q
-	SystemEmulationProcessorInformation,
-	SystemExtendedHandleInformation, // q: SYSTEM_HANDLE_INFORMATION_EX
-	SystemLostDelayedWriteInformation, // q: ULONG
-	SystemBigPoolInformation, // q: SYSTEM_BIGPOOL_INFORMATION
-	SystemSessionPoolTagInformation, // q: SYSTEM_SESSION_POOLTAG_INFORMATION
-	SystemSessionMappedViewInformation, // q: SYSTEM_SESSION_MAPPED_VIEW_INFORMATION
-	SystemHotpatchInformation, // q; s
-	SystemObjectSecurityMode, // q // 70
-	SystemWatchdogTimerHandler, // s (kernel-mode only)
-	SystemWatchdogTimerInformation, // q (kernel-mode only); s (kernel-mode only)
-	SystemLogicalProcessorInformation, // q: SYSTEM_LOGICAL_PROCESSOR_INFORMATION
-	SystemWow64SharedInformationObsolete, // not implemented
-	SystemRegisterFirmwareTableInformationHandler, // s (kernel-mode only)
-	SystemFirmwareTableInformation, // SYSTEM_FIRMWARE_TABLE_INFORMATION
-	SystemModuleInformationEx, // q: RTL_PROCESS_MODULE_INFORMATION_EX
-	SystemVerifierTriageInformation, // not implemented
-	SystemSuperfetchInformation, // q; s: SUPERFETCH_INFORMATION // PfQuerySuperfetchInformation
-	SystemMemoryListInformation, // q: SYSTEM_MEMORY_LIST_INFORMATION; s: SYSTEM_MEMORY_LIST_COMMAND (requires SeProfileSingleProcessPrivilege) // 80
-	SystemFileCacheInformationEx, // q: SYSTEM_FILECACHE_INFORMATION; s (requires SeIncreaseQuotaPrivilege) (same as SystemFileCacheInformation)
-	SystemThreadPriorityClientIdInformation, // s: SYSTEM_THREAD_CID_PRIORITY_INFORMATION (requires SeIncreaseBasePriorityPrivilege)
-	SystemProcessorIdleCycleTimeInformation, // q: SYSTEM_PROCESSOR_IDLE_CYCLE_TIME_INFORMATION[]
-	SystemVerifierCancellationInformation, // not implemented // name:wow64:whNT32QuerySystemVerifierCancellationInformation
-	SystemProcessorPowerInformationEx, // not implemented
-	SystemRefTraceInformation, // q; s: SYSTEM_REF_TRACE_INFORMATION // ObQueryRefTraceInformation
-	SystemSpecialPoolInformation, // q; s (requires SeDebugPrivilege) // MmSpecialPoolTag, then MmSpecialPoolCatchOverruns != 0
-	SystemProcessIdInformation, // q: SYSTEM_PROCESS_ID_INFORMATION
-	SystemErrorPortInformation, // s (requires SeTcbPrivilege)
-	SystemBootEnvironmentInformation, // q: SYSTEM_BOOT_ENVIRONMENT_INFORMATION // 90
-	SystemHypervisorInformation, // q; s (kernel-mode only)
-	SystemVerifierInformationEx, // q; s: SYSTEM_VERIFIER_INFORMATION_EX
-	SystemTimeZoneInformation, // s (requires SeTimeZonePrivilege)
-	SystemImageFileExecutionOptionsInformation, // s: SYSTEM_IMAGE_FILE_EXECUTION_OPTIONS_INFORMATION (requires SeTcbPrivilege)
-	SystemCoverageInformation, // q; s // name:wow64:whNT32QuerySystemCoverageInformation; ExpCovQueryInformation
-	SystemPrefetchPatchInformation, // not implemented
-	SystemVerifierFaultsInformation, // s (requires SeDebugPrivilege)
-	SystemSystemPartitionInformation, // q: SYSTEM_SYSTEM_PARTITION_INFORMATION
-	SystemSystemDiskInformation, // q: SYSTEM_SYSTEM_DISK_INFORMATION
-	SystemProcessorPerformanceDistribution, // q: SYSTEM_PROCESSOR_PERFORMANCE_DISTRIBUTION // 100
-	SystemNumaProximityNodeInformation, // q
-	SystemDynamicTimeZoneInformation, // q; s (requires SeTimeZonePrivilege)
-	SystemCodeIntegrityInformation, // q: SYSTEM_CODEINTEGRITY_INFORMATION // SeCodeIntegrityQueryInformation
-	SystemProcessorMicrocodeUpdateInformation, // s
-	SystemProcessorBrandString, // q // HaliQuerySystemInformation -> HalpGetProcessorBrandString, info class 23
-	SystemVirtualAddressInformation, // q: SYSTEM_VA_LIST_INFORMATION[]; s: SYSTEM_VA_LIST_INFORMATION[] (requires SeIncreaseQuotaPrivilege) // MmQuerySystemVaInformation
-	SystemLogicalProcessorAndGroupInformation, // q: SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX // since WIN7 // KeQueryLogicalProcessorRelationship
-	SystemProcessorCycleTimeInformation, // q: SYSTEM_PROCESSOR_CYCLE_TIME_INFORMATION[]
-	SystemStoreInformation, // q; s // SmQueryStoreInformation
-	SystemRegistryAppendString, // s: SYSTEM_REGISTRY_APPEND_STRING_PARAMETERS // 110
-	SystemAitSamplingValue, // s: ULONG (requires SeProfileSingleProcessPrivilege)
-	SystemVhdBootInformation, // q: SYSTEM_VHD_BOOT_INFORMATION
-	SystemCpuQuotaInformation, // q; s // PsQueryCpuQuotaInformation
-	SystemNativeBasicInformation, // not implemented
-	SystemSpare1, // not implemented
-	SystemLowPriorityIoInformation, // q: SYSTEM_LOW_PRIORITY_IO_INFORMATION
-	SystemTpmBootEntropyInformation, // q: TPM_BOOT_ENTROPY_NT_RESULT // ExQueryTpmBootEntropyInformation
-	SystemVerifierCountersInformation, // q: SYSTEM_VERIFIER_COUNTERS_INFORMATION
-	SystemPagedPoolInformationEx, // q: SYSTEM_FILECACHE_INFORMATION; s (requires SeIncreaseQuotaPrivilege) (info for WorkingSetTypePagedPool)
-	SystemSystemPtesInformationEx, // q: SYSTEM_FILECACHE_INFORMATION; s (requires SeIncreaseQuotaPrivilege) (info for WorkingSetTypeSystemPtes) // 120
-	SystemNodeDistanceInformation, // q
-	SystemAcpiAuditInformation, // q: SYSTEM_ACPI_AUDIT_INFORMATION // HaliQuerySystemInformation -> HalpAuditQueryResults, info class 26
-	SystemBasicPerformanceInformation, // q: SYSTEM_BASIC_PERFORMANCE_INFORMATION // name:wow64:whNtQuerySystemInformation_SystemBasicPerformanceInformation
-	SystemQueryPerformanceCounterInformation, // q: SYSTEM_QUERY_PERFORMANCE_COUNTER_INFORMATION // since WIN7 SP1
-	SystemSessionBigPoolInformation, // q: SYSTEM_SESSION_POOLTAG_INFORMATION // since WIN8
-	SystemBootGraphicsInformation, // q; s: SYSTEM_BOOT_GRAPHICS_INFORMATION (kernel-mode only)
-	SystemScrubPhysicalMemoryInformation, // q; s: MEMORY_SCRUB_INFORMATION
-	SystemBadPageInformation,
-	SystemProcessorProfileControlArea, // q; s: SYSTEM_PROCESSOR_PROFILE_CONTROL_AREA
-	SystemCombinePhysicalMemoryInformation, // s: MEMORY_COMBINE_INFORMATION, MEMORY_COMBINE_INFORMATION_EX, MEMORY_COMBINE_INFORMATION_EX2 // 130
-	SystemEntropyInterruptTimingCallback,
-	SystemConsoleInformation, // q: SYSTEM_CONSOLE_INFORMATION
-	SystemPlatformBinaryInformation, // q: SYSTEM_PLATFORM_BINARY_INFORMATION
-	SystemThrottleNotificationInformation,
-	SystemHypervisorProcessorCountInformation, // q: SYSTEM_HYPERVISOR_PROCESSOR_COUNT_INFORMATION
-	SystemDeviceDataInformation, // q: SYSTEM_DEVICE_DATA_INFORMATION
-	SystemDeviceDataEnumerationInformation,
-	SystemMemoryTopologyInformation, // q: SYSTEM_MEMORY_TOPOLOGY_INFORMATION
-	SystemMemoryChannelInformation, // q: SYSTEM_MEMORY_CHANNEL_INFORMATION
-	SystemBootLogoInformation, // q: SYSTEM_BOOT_LOGO_INFORMATION // 140
-	SystemProcessorPerformanceInformationEx, // q: SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION_EX // since WINBLUE
-	SystemSpare0,
-	SystemSecureBootPolicyInformation, // q: SYSTEM_SECUREBOOT_POLICY_INFORMATION
-	SystemPageFileInformationEx, // q: SYSTEM_PAGEFILE_INFORMATION_EX
-	SystemSecureBootInformation, // q: SYSTEM_SECUREBOOT_INFORMATION
-	SystemEntropyInterruptTimingRawInformation,
-	SystemPortableWorkspaceEfiLauncherInformation, // q: SYSTEM_PORTABLE_WORKSPACE_EFI_LAUNCHER_INFORMATION
-	SystemFullProcessInformation, // q: SYSTEM_PROCESS_INFORMATION with SYSTEM_PROCESS_INFORMATION_EXTENSION (requires admin)
-	SystemKernelDebuggerInformationEx, // q: SYSTEM_KERNEL_DEBUGGER_INFORMATION_EX
-	SystemBootMetadataInformation, // 150
-	SystemSoftRebootInformation,
-	SystemElamCertificateInformation, // s: SYSTEM_ELAM_CERTIFICATE_INFORMATION
-	SystemOfflineDumpConfigInformation,
-	SystemProcessorFeaturesInformation, // q: SYSTEM_PROCESSOR_FEATURES_INFORMATION
-	SystemRegistryReconciliationInformation,
-	SystemEdidInformation,
-	SystemManufacturingInformation, // q: SYSTEM_MANUFACTURING_INFORMATION // since THRESHOLD
-	SystemEnergyEstimationConfigInformation, // q: SYSTEM_ENERGY_ESTIMATION_CONFIG_INFORMATION
-	SystemHypervisorDetailInformation, // q: SYSTEM_HYPERVISOR_DETAIL_INFORMATION
-	SystemProcessorCycleStatsInformation, // q: SYSTEM_PROCESSOR_CYCLE_STATS_INFORMATION // 160
-	SystemVmGenerationCountInformation,
-	SystemTrustedPlatformModuleInformation, // q: SYSTEM_TPM_INFORMATION
-	SystemKernelDebuggerFlags,
-	SystemCodeIntegrityPolicyInformation, // q: SYSTEM_CODEINTEGRITYPOLICY_INFORMATION
-	SystemIsolatedUserModeInformation, // q: SYSTEM_ISOLATED_USER_MODE_INFORMATION
-	SystemHardwareSecurityTestInterfaceResultsInformation,
-	SystemSingleModuleInformation, // q: SYSTEM_SINGLE_MODULE_INFORMATION
-	SystemAllowedCpuSetsInformation,
-	SystemDmaProtectionInformation, // q: SYSTEM_DMA_PROTECTION_INFORMATION
-	SystemInterruptCpuSetsInformation, // q: SYSTEM_INTERRUPT_CPU_SET_INFORMATION // 170
-	SystemSecureBootPolicyFullInformation, // q: SYSTEM_SECUREBOOT_POLICY_FULL_INFORMATION
-	SystemCodeIntegrityPolicyFullInformation,
-	SystemAffinitizedInterruptProcessorInformation,
-	SystemRootSiloInformation, // q: SYSTEM_ROOT_SILO_INFORMATION
-	SystemCpuSetInformation, // q: SYSTEM_CPU_SET_INFORMATION // since THRESHOLD2
-	SystemCpuSetTagInformation, // q: SYSTEM_CPU_SET_TAG_INFORMATION
-	SystemWin32WerStartCallout,
-	SystemSecureKernelProfileInformation, // q: SYSTEM_SECURE_KERNEL_HYPERGUARD_PROFILE_INFORMATION
-	SystemCodeIntegrityPlatformManifestInformation, // q: SYSTEM_SECUREBOOT_PLATFORM_MANIFEST_INFORMATION // since REDSTONE
-	SystemInterruptSteeringInformation, // 180
-	SystemSupportedProcessorArchitectures,
-	SystemMemoryUsageInformation, // q: SYSTEM_MEMORY_USAGE_INFORMATION
-	SystemCodeIntegrityCertificateInformation, // q: SYSTEM_CODEINTEGRITY_CERTIFICATE_INFORMATION
-	SystemPhysicalMemoryInformation, // q: SYSTEM_PHYSICAL_MEMORY_INFORMATION // since REDSTONE2
-	SystemControlFlowTransition,
-	SystemKernelDebuggingAllowed,
-	SystemActivityModerationExeState, // SYSTEM_ACTIVITY_MODERATION_EXE_STATE
-	SystemActivityModerationUserSettings, // SYSTEM_ACTIVITY_MODERATION_USER_SETTINGS
-	SystemCodeIntegrityPoliciesFullInformation,
-	SystemCodeIntegrityUnlockInformation, // SYSTEM_CODEINTEGRITY_UNLOCK_INFORMATION // 190
-	SystemIntegrityQuotaInformation,
-	SystemFlushInformation, // q: SYSTEM_FLUSH_INFORMATION
-	MaxSystemInfoClass
-} SYSTEM_INFORMATION_CLASS;
-
-typedef enum _KWAIT_REASON
-{
-	Executive,
-	FreePage,
-	PageIn,
-	PoolAllocation,
-	DelayExecution,
-	Suspended,
-	UserRequest,
-	WrExecutive,
-	WrFreePage,
-	WrPageIn,
-	WrPoolAllocation,
-	WrDelayExecution,
-	WrSuspended,
-	WrUserRequest,
-	WrEventPair,
-	WrQueue,
-	WrLpcReceive,
-	WrLpcReply,
-	WrVirtualMemory,
-	WrPageOut,
-	WrRendezvous,
-	WrKeyedEvent,
-	WrTerminated,
-	WrProcessInSwap,
-	WrCpuRateControl,
-	WrCalloutStack,
-	WrKernel,
-	WrResource,
-	WrPushLock,
-	WrMutex,
-	WrQuantumEnd,
-	WrDispatchInt,
-	WrPreempted,
-	WrYieldExecution,
-	WrFastMutex,
-	WrGuardedMutex,
-	WrRundown,
-	WrAlertByThreadId,
-	WrDeferredPreempt,
-	MaximumWaitReason
-} KWAIT_REASON, *PKWAIT_REASON;
-
-typedef struct _CLIENT_ID
-{
-	HANDLE UniqueProcess;
-	HANDLE UniqueThread;
-} CLIENT_ID, *PCLIENT_ID;
-
-typedef struct _SYSTEM_THREAD_INFORMATION
-{
-	LARGE_INTEGER KernelTime;
-	LARGE_INTEGER UserTime;
-	LARGE_INTEGER CreateTime;
-	ULONG WaitTime;
-	PVOID StartAddress;
-	CLIENT_ID ClientId;
-	LONG Priority;
-	LONG BasePriority;
-	ULONG ContextSwitches;
-	ULONG ThreadState;
-	KWAIT_REASON WaitReason;
-} SYSTEM_THREAD_INFORMATION, *PSYSTEM_THREAD_INFORMATION;
-
-typedef enum _OBJECT_INFORMATION_CLASS
-{
-	ObjectBasicInformation, // OBJECT_BASIC_INFORMATION
-	ObjectNameInformation, // OBJECT_NAME_INFORMATION
-} OBJECT_INFORMATION_CLASS;
-
-typedef struct _OBJECT_NAME_INFORMATION
-{
-	UNICODE_STRING Name; // defined in winternl.h
-	WCHAR NameBuffer;
-} OBJECT_NAME_INFORMATION, *POBJECT_NAME_INFORMATION;
-
-typedef struct _SYSTEM_PROCESS_INFORMATION
-{
-	ULONG NextEntryOffset;
-	ULONG NumberOfThreads;
-	LARGE_INTEGER WorkingSetPrivateSize; // since VISTA
-	ULONG HardFaultCount; // since WIN7
-	ULONG NumberOfThreadsHighWatermark; // since WIN7
-	ULONGLONG CycleTime; // since WIN7
-	LARGE_INTEGER CreateTime;
-	LARGE_INTEGER UserTime;
-	LARGE_INTEGER KernelTime;
-	UNICODE_STRING ImageName;
-	LONG BasePriority;
-	HANDLE UniqueProcessId;
-	HANDLE InheritedFromUniqueProcessId;
-	ULONG HandleCount;
-	ULONG SessionId;
-	ULONG_PTR UniqueProcessKey; // since VISTA (requires SystemExtendedProcessInformation)
-	SIZE_T PeakVirtualSize;
-	SIZE_T VirtualSize;
-	ULONG PageFaultCount;
-	SIZE_T PeakWorkingSetSize;
-	SIZE_T WorkingSetSize;
-	SIZE_T QuotaPeakPagedPoolUsage;
-	SIZE_T QuotaPagedPoolUsage;
-	SIZE_T QuotaPeakNonPagedPoolUsage;
-	SIZE_T QuotaNonPagedPoolUsage;
-	SIZE_T PagefileUsage;
-	SIZE_T PeakPagefileUsage;
-	SIZE_T PrivatePageCount;
-	LARGE_INTEGER ReadOperationCount;
-	LARGE_INTEGER WriteOperationCount;
-	LARGE_INTEGER OtherOperationCount;
-	LARGE_INTEGER ReadTransferCount;
-	LARGE_INTEGER WriteTransferCount;
-	LARGE_INTEGER OtherTransferCount;
-	SYSTEM_THREAD_INFORMATION Threads[1];
-} SYSTEM_PROCESS_INFORMATION, *PSYSTEM_PROCESS_INFORMATION;
-
-struct SYSTEM_CACHE_INFORMATION
-{
-	ULONG_PTR	CurrentSize;
-	ULONG_PTR	PeakSize;
-	ULONG_PTR	PageFaultCount;
-	ULONG_PTR	MinimumWorkingSet;
-	ULONG_PTR	MaximumWorkingSet;
-	ULONG_PTR	TransitionSharedPages;
-	ULONG_PTR	PeakTransitionSharedPages;
-	DWORD		Unused[2];
-};
-
-typedef enum _SYSTEM_MEMORY_LIST_COMMAND
-{
-	MemoryCaptureAccessedBits,
-	MemoryCaptureAndResetAccessedBits,
-	MemoryEmptyWorkingSets,
-	MemoryFlushModifiedList,
-	MemoryPurgeStandbyList,
-	MemoryPurgeLowPriorityStandbyList,
-	MemoryCommandMax
-} SYSTEM_MEMORY_LIST_COMMAND;
-
-typedef struct _MEMORY_COMBINE_INFORMATION_EX
-{
-	HANDLE Handle;
-	ULONG_PTR PagesCombined;
-	ULONG Flags;
-} MEMORY_COMBINE_INFORMATION_EX, *PMEMORY_COMBINE_INFORMATION_EX;
-
-#ifdef _WIN64
-typedef struct _OBJECT_ATTRIBUTES
-{
-	ULONG Length;
-	ULONG64 RootDirectory;
-	ULONG64 ObjectName;
-	ULONG Attributes;
-	ULONG64 SecurityDescriptor;
-	ULONG64 SecurityQualityOfService;
-} OBJECT_ATTRIBUTES, *POBJECT_ATTRIBUTES;
-#else
-typedef struct _OBJECT_ATTRIBUTES
-{
-	ULONG Length;
-	ULONG RootDirectory;
-	ULONG ObjectName;
-	ULONG Attributes;
-	ULONG SecurityDescriptor;
-	ULONG SecurityQualityOfService;
-} OBJECT_ATTRIBUTES, *POBJECT_ATTRIBUTES;
-#endif // _WIN64
-
-extern "C" {
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtQueryObject (
-		_In_ HANDLE Handle,
-		_In_ UINT ObjectInformationClass,
-		_Out_writes_bytes_opt_ (ObjectInformationLength) PVOID ObjectInformation,
-		_In_ ULONG ObjectInformationLength,
-		_Out_opt_ PULONG ReturnLength
-		);
-
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtQuerySystemInformation (
-		_In_ UINT SystemInformationClass,
-		_Out_writes_bytes_opt_ (SystemInformationLength) PVOID SystemInformation,
-		_In_ ULONG SystemInformationLength,
-		_Out_opt_ PULONG ReturnLength
-		);
-
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtSetSystemInformation (
-		_In_ UINT SystemInformationClass,
-		_In_reads_bytes_opt_ (SystemInformationLength) PVOID SystemInformation,
-		_In_ ULONG SystemInformationLength
-		);
-
-	NTSYSAPI
-		VOID
-		NTAPI
-		RtlInitUnicodeString (
-		_Out_ PUNICODE_STRING DestinationString,
-		_In_opt_ PWSTR SourceString
-		);
-
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		RtlCreateServiceSid (
-		_In_ PUNICODE_STRING ServiceName,
-		_Out_writes_bytes_opt_ (*ServiceSidLength) PSID ServiceSid,
-		_Inout_ PULONG ServiceSidLength
-		);
-
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtCreateSemaphore (
-		_Out_ PHANDLE SemaphoreHandle,
-		_In_ ACCESS_MASK DesiredAccess,
-		_In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
-		_In_ LONG InitialCount,
-		_In_ LONG MaximumCount
-		);
-
-	NTSYSAPI
-		DECLSPEC_NORETURN
-		VOID
-		NTAPI
-		RtlRaiseStatus (
-		_In_ NTSTATUS Status
-		);
-};
