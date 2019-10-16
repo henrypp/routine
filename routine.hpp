@@ -271,11 +271,11 @@ void _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length);
 	Filesystem
 */
 
+#define _r_fs_exists(path) (!!RtlDoesFileExists_U ((path)))
 #define _r_fs_copy(path_from,path_to,flags) (!!CopyFileEx ((path_from),(path_to),nullptr,nullptr,nullptr,(flags)))
 #define _r_fs_move(path_from,path_to,flags) (!!MoveFileEx ((path_from),(path_to),(flags)))
 
 bool _r_fs_delete (LPCWSTR path, bool allowundo);
-bool _r_fs_exists (LPCWSTR path);
 bool _r_fs_makebackup (LPCWSTR path, time_t timestamp);
 bool _r_fs_mkdir (LPCWSTR path);
 bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size);
@@ -529,9 +529,9 @@ void _r_ctrl_setbuttonmargins (HWND hwnd, INT ctrl_id);
 void _r_ctrl_settabletext (HDC hdc, HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT ctrl_id2, LPCWSTR text2);
 
 HWND _r_ctrl_createtip (HWND hparent);
-bool _r_ctrl_settip (HWND htip, HWND hparent, INT ctrl_id, LPCWSTR text);
+void _r_ctrl_settip (HWND htip, HWND hparent, INT ctrl_id, LPCWSTR text);
 void _r_ctrl_settipstyle (HWND htip);
-bool _r_ctrl_showtip (HWND hwnd, INT ctrl_id, INT icon_id, LPCWSTR title, LPCWSTR text);
+void _r_ctrl_showtip (HWND hwnd, INT ctrl_id, INT icon_id, LPCWSTR title, LPCWSTR text);
 
 FORCEINLINE bool _r_ctrl_isenabled (HWND hwnd, INT ctrl_id)
 {
@@ -595,7 +595,7 @@ void _r_treeview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle, INT height);
 	Control: statusbar
 */
 
-void _r_status_settext (HWND hwnd, INT ctrl_id, INT idx, LPCWSTR text, LPCWSTR tooltip);
+void _r_status_settext (HWND hwnd, INT ctrl_id, INT idx, LPCWSTR text);
 void _r_status_setstyle (HWND hwnd, INT ctrl_id, INT height);
 
 /*

@@ -358,8 +358,6 @@ PR_OBJECT _r_obj_allocate (PVOID pdata, _R_CALLBACK_OBJECT_CLEANUP cleanup_callb
 
 	PR_OBJECT pobj = new R_OBJECT;
 
-	SecureZeroMemory (pobj, sizeof (R_OBJECT));
-
 	InterlockedIncrement (&pobj->ref_count);
 
 	pobj->pdata = pdata;
@@ -403,7 +401,7 @@ void _r_obj_dereferenceex (PR_OBJECT pobj, LONG ref_count)
 			pobj->pdata = nullptr;
 		}
 
-		SAFE_DELETE (pobj);
+		delete pobj;
 	}
 	else if (new_count < 0)
 	{
@@ -675,15 +673,6 @@ bool _r_fs_delete (LPCWSTR path, bool allowundo)
 	return !!DeleteFile (path);
 }
 
-bool _r_fs_exists (LPCWSTR path)
-{
-	UINT prev_mode = SetErrorMode (SEM_FAILCRITICALERRORS);
-	DWORD attrs = GetFileAttributes (path);
-	SetErrorMode (prev_mode);
-
-	return attrs != INVALID_FILE_ATTRIBUTES;
-}
-
 bool _r_fs_makebackup (LPCWSTR path, time_t timestamp)
 {
 	if (_r_str_isempty (path) || !_r_fs_exists (path))
@@ -726,10 +715,7 @@ bool _r_fs_mkdir (LPCWSTR path)
 	if (SHCreateDirectoryEx (nullptr, path, nullptr) == ERROR_SUCCESS)
 		return true;
 
-	if (CreateDirectory (path, nullptr)) // fallback
-		return true;
-
-	return false;
+	return !!CreateDirectory (path, nullptr); // fallback
 }
 
 bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size)
@@ -741,13 +727,13 @@ bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size)
 
 	if (hmap)
 	{
-		LPVOID buffer = MapViewOfFile (hmap, FILE_MAP_READ, 0, 0, 0);
+		LPVOID pbuffer = MapViewOfFile (hmap, FILE_MAP_READ, 0, 0, 0);
 
-		if (buffer)
+		if (pbuffer)
 		{
-			CopyMemory (result, buffer, (size_t)size);
+			CopyMemory (result, pbuffer, (size_t)size);
 
-			UnmapViewOfFile (buffer);
+			UnmapViewOfFile (pbuffer);
 			CloseHandle (hmap);
 
 			return true;
@@ -980,7 +966,7 @@ rstring _r_path_unexpand (LPCWSTR path)
 
 	rstring result;
 
-	if (!PathUnExpandEnvStrings (path, result.GetBuffer (4096), 4096))
+	if (!PathUnExpandEnvStrings (path, result.GetBuffer (1024), 1024))
 	{
 		result.Release ();
 		return path;
@@ -1211,7 +1197,7 @@ DWORD _r_path_ntpathfromdos (rstring & path)
 
 		if (NT_SUCCESS (status) && bufferSize)
 		{
-			pbuffer->Name.Buffer[pbuffer->Name.Length / sizeof (WCHAR)] = 0; // trim buffer!
+			pbuffer->Name.Buffer[pbuffer->Name.Length / sizeof (WCHAR)] = UNICODE_NULL; // trim buffer!
 
 			path = pbuffer->Name.Buffer;
 
@@ -1235,7 +1221,6 @@ bool _r_str_isnumeric (LPCWSTR text)
 	if (_r_str_isempty (text))
 		return false;
 
-
 	while (*text != UNICODE_NULL)
 	{
 		if (iswdigit (*text) == 0)
@@ -1254,14 +1239,11 @@ bool _r_str_alloc (LPWSTR * pbuffer, size_t length, LPCWSTR text)
 
 	SAFE_DELETE_ARRAY (*pbuffer);
 
-	if (_r_str_isempty (text))
+	if (_r_str_isempty (text) || !length)
 		return false;
 
 	if (length == INVALID_SIZE_T)
 		length = _r_str_length (text);
-
-	if (!length)
-		return false;
 
 	length += 1;
 
@@ -1315,7 +1297,7 @@ size_t _r_str_length (LPCWSTR text, size_t max_length)
 
 	size_t length = max_length;
 
-	while (max_length && *text != UNICODE_NULL)
+	while (max_length && !_r_str_isempty (text))
 	{
 		text++;
 		max_length--;
@@ -1387,7 +1369,7 @@ size_t _r_str_hash (LPCWSTR text)
 
 	size_t hash = InitialFNV;
 
-	while (*text != UNICODE_NULL)
+	while (!_r_str_isempty (text))
 	{
 		hash = hash ^ (_r_str_upper (*text)); /* xor the low 8 bits */
 		hash = hash * FNVMultiple; /* multiply by the magic number */
@@ -1396,7 +1378,7 @@ size_t _r_str_hash (LPCWSTR text)
 	}
 
 	return hash;
-}
+	}
 
 INT _r_str_compare (LPCWSTR str1, LPCWSTR str2, size_t length)
 {
@@ -1476,7 +1458,6 @@ INT _r_str_compare_unicode (LPWSTR str1, LPWSTR str2, bool is_ignorecase)
 	return RtlCompareUnicodeString (&string1, &string2, is_ignorecase);
 }
 
-
 rstring _r_str_fromguid (const GUID & lpguid)
 {
 	rstring result;
@@ -1495,7 +1476,7 @@ rstring _r_str_fromguid (const GUID & lpguid)
 rstring _r_str_fromsid (const PSID lpsid)
 {
 	rstring result;
-	LPWSTR sidString = nullptr;
+	LPWSTR sidString;
 
 	if (ConvertSidToStringSid (lpsid, &sidString))
 	{
@@ -1577,10 +1558,7 @@ bool _r_str_match (LPCWSTR text, LPCWSTR pattern)
 
 void _r_str_replace (LPWSTR text, WCHAR char_from, WCHAR char_to)
 {
-	if (_r_str_isempty (text))
-		return;
-
-	while (*text != UNICODE_NULL)
+	while (!_r_str_isempty (text))
 	{
 		if (*text == char_from)
 			*text = char_to;
@@ -1600,10 +1578,7 @@ void _r_str_trim (rstring& text, LPCWSTR trim)
 
 void _r_str_tolower (LPWSTR text)
 {
-	if (_r_str_isempty (text))
-		return;
-
-	while (*text != UNICODE_NULL)
+	while (!_r_str_isempty (text))
 	{
 		*text = _r_str_lower (*text);
 
@@ -1613,10 +1588,7 @@ void _r_str_tolower (LPWSTR text)
 
 void _r_str_toupper (LPWSTR text)
 {
-	if (_r_str_isempty (text))
-		return;
-
-	while (*text != UNICODE_NULL)
+	while (!_r_str_isempty (text))
 	{
 		*text = _r_str_upper (*text);
 
@@ -1932,7 +1904,7 @@ bool _r_sys_setprivilege (LPCWSTR privileges[], size_t count, bool is_enable)
 	}
 
 	return result;
-}
+	}
 
 bool _r_sys_uacstate ()
 {
@@ -2394,7 +2366,7 @@ static bool _r_wnd_isfullscreenwindowmode ()
 	LONG_PTR ext_style = GetWindowLongPtr (wnd, GWL_EXSTYLE);
 
 	return !((style & (WS_DLGFRAME | WS_THICKFRAME)) || (ext_style & (WS_EX_WINDOWEDGE | WS_EX_TOOLWINDOW)));
-}
+		}
 
 static bool _r_wnd_isfullscreenconsolemode ()
 {
@@ -2620,7 +2592,7 @@ void _r_wnd_setdarktheme (HWND hwnd)
 
 		FreeLibrary (huxtheme);
 	}
-}
+	}
 #endif // _APP_NO_DARKTHEME
 
 /*
@@ -2981,10 +2953,10 @@ PBYTE _r_reg_querybinary (HKEY hkey, LPCWSTR value)
 	{
 		if (type == REG_BINARY)
 		{
-			PBYTE buffer = new BYTE[size]; // utilization required!
+			PBYTE pbuffer = new BYTE[size]; // utilization required!
 
-			if (RegQueryValueEx (hkey, value, nullptr, nullptr, (LPBYTE)buffer, &size) == ERROR_SUCCESS)
-				return buffer;
+			if (RegQueryValueEx (hkey, value, nullptr, nullptr, pbuffer, &size) == ERROR_SUCCESS)
+				return pbuffer;
 		}
 	}
 
@@ -3069,16 +3041,16 @@ rstring _r_reg_querystring (HKEY hkey, LPCWSTR value)
 
 				if (type == REG_EXPAND_SZ)
 				{
-					rstring buffer = result;
+					rstring buffer;
 
-					if (ExpandEnvironmentStrings (result, buffer.GetBuffer (1024), 1024))
+					if (!ExpandEnvironmentStrings (result, buffer.GetBuffer (1024), 1024))
 					{
-						buffer.ReleaseBuffer ();
-						result = buffer;
+						buffer.Release ();
 					}
 					else
 					{
-						buffer.Release ();
+						buffer.ReleaseBuffer ();
+						result = buffer;
 					}
 				}
 			}
@@ -3108,10 +3080,10 @@ rstring _r_reg_querystring (HKEY hkey, LPCWSTR value)
 
 DWORD _r_reg_querysubkeylength (HKEY hkey)
 {
-	DWORD result = 0;
+	DWORD max_subkey_length = 0;
 
-	if (RegQueryInfoKey (hkey, nullptr, nullptr, nullptr, nullptr, &result, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS)
-		return result + 1;
+	if (RegQueryInfoKey (hkey, nullptr, nullptr, nullptr, nullptr, &max_subkey_length, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS)
+		return max_subkey_length + 1;
 
 	return 0;
 }
@@ -3242,7 +3214,7 @@ bool _r_parseini (LPCWSTR path, rstringmap2& pmap, rstringvec* psections)
 	}
 
 	return true;
-}
+		}
 
 DWORD _r_rand (DWORD min_number, DWORD max_number)
 {
@@ -3326,7 +3298,7 @@ bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR toolti
 	{
 		nid.uFlags |= NIF_SHOWTIP | NIF_TIP;
 		_r_str_copy (nid.szTip, _countof (nid.szTip), tooltip);
-	}
+}
 
 	if (is_hidden)
 	{
@@ -3342,7 +3314,7 @@ bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR toolti
 	}
 
 	return false;
-}
+	}
 
 bool _r_tray_popup (HWND hwnd, UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text)
 {
@@ -3562,13 +3534,22 @@ void _r_ctrl_settabletext (HDC hdc, HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT 
 
 HWND _r_ctrl_createtip (HWND hparent)
 {
-	return CreateWindowEx (WS_EX_TOPMOST, TOOLTIPS_CLASS, nullptr, WS_CHILD | WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hparent, nullptr, GetModuleHandle (nullptr), nullptr);
+	HWND htip = CreateWindowEx (WS_EX_TOPMOST, TOOLTIPS_CLASS, nullptr, WS_CHILD | WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hparent, nullptr, GetModuleHandle (nullptr), nullptr);
+
+	if (htip)
+	{
+		_r_ctrl_settipstyle (htip);
+
+		SendMessage (htip, TTM_ACTIVATE, TRUE, 0);
+	}
+
+	return htip;
 }
 
-bool _r_ctrl_settip (HWND htip, HWND hparent, INT ctrl_id, LPCWSTR text)
+void _r_ctrl_settip (HWND htip, HWND hparent, INT ctrl_id, LPCWSTR text)
 {
 	if (!htip)
-		return false;
+		return;
 
 	TOOLINFO ti = {0};
 
@@ -3576,17 +3557,12 @@ bool _r_ctrl_settip (HWND htip, HWND hparent, INT ctrl_id, LPCWSTR text)
 	ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
 	ti.hwnd = hparent;
 	ti.hinst = GetModuleHandle (nullptr);
-	ti.uId = (UINT_PTR)GetDlgItem (hparent, ctrl_id);
+	ti.uId = reinterpret_cast<UINT_PTR>(GetDlgItem (hparent, ctrl_id));
 	ti.lpszText = (LPWSTR)text;
 
 	GetClientRect (hparent, &ti.rect);
 
-	SendMessage (htip, TTM_SETDELAYTIME, TTDT_AUTOPOP, MAXSHORT);
-	SendMessage (htip, TTM_SETMAXTIPWIDTH, 0, MAXSHORT);
-
-	SendMessage (htip, TTM_ACTIVATE, TRUE, 0);
-
-	return !!SendMessage (htip, TTM_ADDTOOL, 0, (LPARAM)&ti);
+	SendMessage (htip, TTM_ADDTOOL, 0, (LPARAM)&ti);
 }
 
 void _r_ctrl_settipstyle (HWND htip)
@@ -3600,7 +3576,7 @@ void _r_ctrl_settipstyle (HWND htip)
 	_r_wnd_top (htip, true); // HACK!!!
 }
 
-bool _r_ctrl_showtip (HWND hwnd, INT ctrl_id, INT icon_id, LPCWSTR title, LPCWSTR text)
+void _r_ctrl_showtip (HWND hwnd, INT ctrl_id, INT icon_id, LPCWSTR title, LPCWSTR text)
 {
 	EDITBALLOONTIP ebt = {0};
 
@@ -3609,7 +3585,7 @@ bool _r_ctrl_showtip (HWND hwnd, INT ctrl_id, INT icon_id, LPCWSTR title, LPCWST
 	ebt.pszText = text;
 	ebt.ttiIcon = icon_id;
 
-	return !!SendDlgItemMessage (hwnd, ctrl_id, EM_SHOWBALLOONTIP, 0, (LPARAM)&ebt);
+	SendDlgItemMessage (hwnd, ctrl_id, EM_SHOWBALLOONTIP, 0, (LPARAM)&ebt);
 }
 
 /*
@@ -4019,6 +3995,7 @@ void _r_listview_setitemcheck (HWND hwnd, INT ctrl_id, INT item, bool state)
 void _r_listview_setgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT state, UINT state_mask)
 {
 	LVGROUP lvg = {0};
+
 	lvg.cbSize = sizeof (lvg);
 
 	if (title)
@@ -4141,17 +4118,17 @@ void _r_treeview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle, INT height)
 	Control: statusbar
 */
 
-void _r_status_settext (HWND hwnd, INT ctrl_id, INT idx, LPCWSTR text, LPCWSTR tooltip)
+void _r_status_settext (HWND hwnd, INT ctrl_id, INT idx, LPCWSTR text)
 {
 	SendDlgItemMessage (hwnd, ctrl_id, SB_SETTEXT, MAKEWPARAM (idx, 0), (LPARAM)text);
-
-	if (tooltip)
-		SendDlgItemMessage (hwnd, ctrl_id, SB_SETTIPTEXT, (WPARAM)idx, (LPARAM)tooltip);
+	SendDlgItemMessage (hwnd, ctrl_id, SB_SETTIPTEXT, (WPARAM)idx, (LPARAM)text);
 }
 
 void _r_status_setstyle (HWND hwnd, INT ctrl_id, INT height)
 {
-	SendDlgItemMessage (hwnd, ctrl_id, SB_SETMINHEIGHT, (WPARAM)height, 0);
+	if (height)
+		SendDlgItemMessage (hwnd, ctrl_id, SB_SETMINHEIGHT, (WPARAM)height, 0);
+
 	SendDlgItemMessage (hwnd, ctrl_id, WM_SIZE, 0, 0);
 }
 
