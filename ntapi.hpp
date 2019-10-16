@@ -911,6 +911,13 @@ extern "C" {
 		);
 
 	NTSYSAPI
+		BOOLEAN
+		NTAPI
+		RtlDoesFileExists_U (
+		_In_ PCWSTR FileName
+		);
+
+	NTSYSAPI
 		VOID
 		NTAPI
 		RtlInitUnicodeString (
