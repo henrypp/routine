@@ -83,16 +83,11 @@
 #define _APP_GITHUB_URL L"https://github.com/henrypp"
 #define _APP_WEBSITE_URL L"https://www.henrypp.org"
 #define _APP_DONATE_URL _APP_WEBSITE_URL L"/donate?from=%s"
-#define _APP_DONATE_TXT_BTC L"blockchain.info (BTC)"
-#define _APP_DONATE_URL_BTC L"https://blockchain.info/address/1LrRTXPsvHcQWCNZotA9RcwjsGcRghG96c"
-#define _APP_DONATE_TXT_PAYPAL L"paypal.me (USD)"
-#define _APP_DONATE_URL_PAYPAL L"https://www.paypal.me/henrypp/15"
-#define _APP_UPDATE_URL _APP_GITHUB_URL L"/%s/releases/latest"
 
-#if defined(_APP_BETA) || defined(_APP_BETA_RC)
-#	define _APP_UPDATE_PERIOD _R_SECONDSCLOCK_HOUR (12) // update checking period for beta is 12 hours
+#ifdef _APP_BETA
+#	define _APP_UPDATE_PERIOD _R_SECONDSCLOCK_HOUR (12) // update checking period for pre-release is 12 hours
 #else
-#	define _APP_UPDATE_PERIOD _R_SECONDSCLOCK_HOUR (48) // update checking period for stable is 48 hours
+#	define _APP_UPDATE_PERIOD _R_SECONDSCLOCK_HOUR (48) // update checking period for stable release is 48 hours
 #endif // _APP_BETA || _APP_BETA_RC
 
 #define _APP_LANGUAGE_DEFAULT L"English (default)"
