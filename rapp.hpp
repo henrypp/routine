@@ -57,11 +57,11 @@ typedef struct _APP_UPDATE_COMPONENT
 typedef struct
 {
 	bool is_downloaded = false;
-	bool is_forced = false;
 
 	std::vector<PAPP_UPDATE_COMPONENT> components;
 
-	HWND hwnd = nullptr;
+	HWND htaskdlg = nullptr;
+	HWND hparent = nullptr;
 
 	HANDLE hthread = nullptr;
 	HANDLE hend = nullptr;
@@ -143,7 +143,7 @@ public:
 
 #ifdef _APP_HAVE_UPDATES
 	void UpdateAddComponent (LPCWSTR full_name, LPCWSTR short_name, LPCWSTR version, LPCWSTR target_path, bool is_installer);
-	bool UpdateCheck (bool is_forced);
+	void UpdateCheck (HWND hparent);
 	void UpdateInstall () const;
 #endif // _APP_HAVE_UPDATES
 
@@ -235,7 +235,7 @@ private:
 	static bool UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG_PTR lpdata);
 	static UINT WINAPI UpdateDownloadThread (LPVOID lparam);
 	static HRESULT CALLBACK UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR lpdata);
-	INT UpdateDialogNavigate (HWND hwnd, LPCWSTR main_icon, TASKDIALOG_FLAGS flags, TASKDIALOG_COMMON_BUTTON_FLAGS buttons, LPCWSTR main, LPCWSTR content, LONG_PTR lpdata);
+	INT UpdateDialogNavigate (HWND htaskdlg, LPCWSTR main_icon, TASKDIALOG_FLAGS flags, TASKDIALOG_COMMON_BUTTON_FLAGS buttons, LPCWSTR main, LPCWSTR content, LONG_PTR lpdata);
 	static UINT WINAPI UpdateCheckThread (LPVOID lparam);
 #endif // _APP_HAVE_UPDATES
 
