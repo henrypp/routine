@@ -49,7 +49,7 @@ public:
 	rstring& operator= (rstring&& other);
 	rstring& operator= (LPCWSTR text);
 
-	WCHAR& At (size_t index) const;
+	WCHAR At (size_t index) const;
 
 	bool AsBool () const;
 	INT AsInt (INT radix = 10) const;

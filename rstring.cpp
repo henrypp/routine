@@ -124,12 +124,12 @@ rstring& rstring::operator= (LPCWSTR text)
 	return *this;
 }
 
-WCHAR& rstring::At (size_t index) const
+WCHAR rstring::At (size_t index) const
 {
 	Buffer* buffer = toBuffer ();
 
-	if (index >= buffer->length)
-		index = buffer->length;
+	if (!buffer || index >= buffer->length)
+		return UNICODE_NULL;
 
 	return buffer->data[index];
 }
@@ -444,13 +444,11 @@ size_t rstring::Hash () const
 
 LPWSTR rstring::GetBuffer (size_t length)
 {
-	EnsureUnique ();
-
 	if (length)
-	{
-		Release ();
-		SetLength (length);
-	}
+		ReallocateUnique (length);
+
+	else
+		EnsureUnique ();
 
 	return data_;
 }
@@ -468,7 +466,7 @@ size_t rstring::GetLength () const
 LPCWSTR rstring::GetString () const
 {
 	if (!data_)
-		return nullptr;
+		return L"";
 
 	return data_;
 }
@@ -477,13 +475,11 @@ void rstring::ReleaseBuffer ()
 {
 	const size_t length = _r_str_length (data_);
 
-	if (!length)
-	{
-		Release ();
-		return;
-	}
+	if (length)
+		SetLength (length);
 
-	SetLength (length);
+	else
+		Release ();
 }
 
 rstring& rstring::SetLength (size_t length)
@@ -548,8 +544,8 @@ size_t rstring::allocationByteCount (size_t length)
 		if (length < minReservedCharacters)
 			return minBufferByteCount;
 
-		size_t bytesRequired = (nonTextBufferByteCount + length) * sizeof (WCHAR);
-		const size_t remainder = bytesRequired % minBufferByteCount;
+		size_t bytesRequired = nonTextBufferByteCount + (length * sizeof (WCHAR));
+		size_t remainder = bytesRequired % minBufferByteCount;
 
 		if (remainder)
 			bytesRequired += minBufferByteCount - remainder;
@@ -569,7 +565,7 @@ rstring::Buffer* rstring::allocate (size_t length)
 
 		result->referenceCount = 1;
 		result->length = length;
-		result->data[length] = 0;
+		result->data[length] = UNICODE_NULL;
 
 		return result;
 	}
@@ -592,7 +588,7 @@ rstring::Buffer* rstring::EnsureUnique ()
 			newBuffer->referenceCount = 1;
 			newBuffer->length = buffer->length;
 			wmemcpy (newBuffer->data, buffer->data, buffer->length);
-			newBuffer->data[buffer->length] = 0;
+			newBuffer->data[buffer->length] = UNICODE_NULL;
 
 			Release ();
 
@@ -627,7 +623,7 @@ rstring::Buffer* rstring::ReallocateUnique (size_t length)
 				newBuffer->length = length;
 				const size_t copyCount = min (buffer->length, length) + sizeof (WCHAR);
 				wmemcpy (newBuffer->data, buffer->data, copyCount);
-				newBuffer->data[length] = 0;
+				newBuffer->data[length] = UNICODE_NULL;
 				Release ();
 				data_ = newBuffer->data;
 
@@ -635,7 +631,7 @@ rstring::Buffer* rstring::ReallocateUnique (size_t length)
 			}
 
 			buffer->length = length;
-			buffer->data[length] = 0;
+			buffer->data[length] = UNICODE_NULL;
 		}
 	}
 	else
