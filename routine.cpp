@@ -2752,11 +2752,8 @@ DWORD _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHI
 										WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, ptotallength, &size, WINHTTP_NO_HEADER_INDEX);
 									}
 
-									if (pconnect)
-										*pconnect = hconnect;
-
-									if (prequest)
-										*prequest = hrequest;
+									*pconnect = hconnect;
+									*prequest = hrequest;
 
 									return ERROR_SUCCESS;
 								}
@@ -3102,7 +3099,7 @@ rstring _r_reg_querystring (HKEY hkey, LPCWSTR value)
 					else
 					{
 						buffer.ReleaseBuffer ();
-						result = buffer;
+						result = std::move (buffer);
 					}
 				}
 			}
@@ -3194,7 +3191,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size)
 		{
 			if (SUCCEEDED (_LoadIconWithScaleDown (hinst, name, size, size, &hicon)))
 				return hicon;
-}
+		}
 	}
 
 	return (HICON)LoadImage (hinst, name, IMAGE_ICON, size, size, 0);

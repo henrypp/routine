@@ -1529,7 +1529,7 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start)
 
 			if (is_menu)
 			{
-				AppendMenu (hsubmenu, MF_STRING, idx + id_start, name);
+				AppendMenu (hsubmenu, MF_STRING, static_cast<UINT_PTR>(idx + id_start), name);
 
 				if (is_current)
 					CheckMenuRadioItem (hsubmenu, id_start, id_start + idx, id_start + idx, MF_BYCOMMAND);
