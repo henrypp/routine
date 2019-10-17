@@ -295,7 +295,7 @@ void _r_path_explore (LPCWSTR path);
 rstring _r_path_compact (LPCWSTR path, UINT length);
 rstring _r_path_expand (LPCWSTR path);
 rstring _r_path_unexpand (LPCWSTR path);
-void _r_path_makeunique (rstring& path);
+rstring _r_path_makeunique (LPCWSTR path);
 rstring _r_path_dospathfromnt (LPCWSTR path);
 DWORD _r_path_ntpathfromdos (rstring &path);
 
@@ -478,11 +478,11 @@ void _r_wnd_setdarktheme (HWND hwnd);
 */
 
 HINTERNET _r_inet_createsession (LPCWSTR useragent, LPCWSTR proxy_addr);
-bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, HINTERNET *pconnect, HINTERNET *prequest, PDWORD ptotallength);
+DWORD _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHINTERNET pconnect, LPHINTERNET prequest, PDWORD ptotallength);
 bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD preaded, PDWORD ptotalreaded);
-bool _r_inet_parseurl (LPCWSTR url, INT *scheme_ptr, LPWSTR host_ptr, WORD *port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr);
-bool _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, LPVOID buffer, bool is_filepath, _R_CALLBACK_HTTP_DOWNLOAD _callback, LONG_PTR lpdata);
-#define _r_inet_close WinHttpCloseHandle
+DWORD _r_inet_parseurl (LPCWSTR url, INT *scheme_ptr, LPWSTR host_ptr, LPWORD port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr);
+DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, LPVOID buffer, bool is_filepath, _R_CALLBACK_HTTP_DOWNLOAD _callback, LONG_PTR lpdata);
+#define _r_inet_close(h) if(h){WinHttpCloseHandle(h);h=nullptr;}
 
 /*
 	Registry

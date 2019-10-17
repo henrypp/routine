@@ -979,13 +979,13 @@ rstring _r_path_unexpand (LPCWSTR path)
 	return result;
 }
 
-void _r_path_makeunique (rstring& path)
+rstring _r_path_makeunique (LPCWSTR path)
 {
-	if (path.IsEmpty ())
-		return;
+	if (_r_str_isempty (path))
+		return nullptr;
 
-	if (_r_str_find (path, path.GetLength (), OBJ_NAME_PATH_SEPARATOR) == INVALID_SIZE_T)
-		return;
+	if (_r_str_find (path, INVALID_SIZE_T, OBJ_NAME_PATH_SEPARATOR) == INVALID_SIZE_T)
+		return path;
 
 	rstring directory = _r_path_getdirectory (path);
 	rstring filename = _r_path_getfilename (path);
@@ -994,13 +994,17 @@ void _r_path_makeunique (rstring& path)
 	if (!extension.IsEmpty ())
 		filename.SetLength (filename.GetLength () - extension.GetLength ());
 
+	rstring result;
+
 	for (USHORT i = 1; i < USHRT_MAX; i++)
 	{
-		path.Format (L"%s\\%s_%" PRIu16 L"%s", directory.GetString (), filename.GetString (), i, extension.GetString ());
+		result.Format (L"%s\\%s_%" PRIu16 L"%s", directory.GetString (), filename.GetString (), i, extension.GetString ());
 
-		if (!_r_fs_exists (path))
-			break;
+		if (!_r_fs_exists (result))
+			return result;
 	}
+
+	return path;
 }
 
 rstring _r_path_dospathfromnt (LPCWSTR path)
@@ -1378,7 +1382,7 @@ size_t _r_str_hash (LPCWSTR text)
 	}
 
 	return hash;
-	}
+}
 
 INT _r_str_compare (LPCWSTR str1, LPCWSTR str2, size_t length)
 {
@@ -1904,7 +1908,7 @@ bool _r_sys_setprivilege (LPCWSTR privileges[], size_t count, bool is_enable)
 	}
 
 	return result;
-	}
+}
 
 bool _r_sys_uacstate ()
 {
@@ -2366,7 +2370,7 @@ static bool _r_wnd_isfullscreenwindowmode ()
 	LONG_PTR ext_style = GetWindowLongPtr (wnd, GWL_EXSTYLE);
 
 	return !((style & (WS_DLGFRAME | WS_THICKFRAME)) || (ext_style & (WS_EX_WINDOWEDGE | WS_EX_TOOLWINDOW)));
-		}
+}
 
 static bool _r_wnd_isfullscreenconsolemode ()
 {
@@ -2592,7 +2596,7 @@ void _r_wnd_setdarktheme (HWND hwnd)
 
 		FreeLibrary (huxtheme);
 	}
-	}
+}
 #endif // _APP_NO_DARKTHEME
 
 /*
@@ -2601,10 +2605,9 @@ void _r_wnd_setdarktheme (HWND hwnd)
 
 HINTERNET _r_inet_createsession (LPCWSTR useragent, LPCWSTR proxy_addr)
 {
-	static const bool is_win81 = _r_sys_validversion (6, 3);
-	const bool is_proxyset = !_r_str_isempty (proxy_addr);
+	const bool is_win81 = _r_sys_validversion (6, 3);
 
-	const HINTERNET hsession = WinHttpOpen (useragent, (is_win81 && !is_proxyset) ? WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY : WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+	HINTERNET hsession = WinHttpOpen (useragent, (is_win81 && _r_str_isempty (proxy_addr)) ? WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY : WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
 
 	if (!hsession)
 		return nullptr;
@@ -2612,46 +2615,75 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent, LPCWSTR proxy_addr)
 	// enable secure protocols
 	{
 		DWORD option = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
+
+		if (_r_sys_validversion (6, 2))
+			option |= WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3; // tls 1.3 for win8+
+
 		WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &option, sizeof (option));
+	}
+
+	// set connections per-server
+	{
+		DWORD option = 1;
+		WinHttpSetOption (hsession, WINHTTP_OPTION_MAX_CONNS_PER_SERVER, &option, sizeof (option));
 	}
 
 	// enable compression feature (win81+)
 	if (is_win81)
 	{
-		DWORD option = WINHTTP_DECOMPRESSION_FLAG_ALL;
+		DWORD option = WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE;
 		WinHttpSetOption (hsession, WINHTTP_OPTION_DECOMPRESSION, &option, sizeof (option));
+	}
+
+	// enable http2 protocol (win10rs1+)
+	if (_r_sys_validversion (10, 0, 14393))
+	{
+		DWORD option = WINHTTP_PROTOCOL_FLAG_HTTP2;
+		WinHttpSetOption (hsession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &option, sizeof (option));
 	}
 
 	return hsession;
 }
 
-bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, HINTERNET * pconnect, HINTERNET * prequest, PDWORD ptotallength)
+DWORD _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHINTERNET pconnect, LPHINTERNET prequest, PDWORD ptotallength)
 {
-	if (!hsession)
-		return false;
+	if (!hsession || !pconnect || !prequest)
+		return ERROR_BAD_ARGUMENTS;
 
 	WCHAR url_host[MAX_PATH] = {0};
 	WCHAR url_path[MAX_PATH] = {0};
 	WORD url_port = 0;
 	INT url_scheme = 0;
 
-	HINTERNET hconnect = nullptr;
-	HINTERNET hrequest = nullptr;
+	DWORD rc = _r_inet_parseurl (url, &url_scheme, url_host, &url_port, url_path, nullptr, nullptr);
 
-	if (_r_inet_parseurl (url, &url_scheme, url_host, &url_port, url_path, nullptr, nullptr))
+	if (rc != ERROR_SUCCESS)
 	{
-		hconnect = WinHttpConnect (hsession, url_host, url_port, 0);
+		return rc;
+	}
+	else
+	{
+		HINTERNET hconnect = WinHttpConnect (hsession, url_host, url_port, 0);
 
-		if (hconnect)
+		if (!hconnect)
+		{
+			return GetLastError ();
+		}
+		else
 		{
 			DWORD flags = WINHTTP_FLAG_REFRESH;
 
 			if (url_scheme == INTERNET_SCHEME_HTTPS)
 				flags |= WINHTTP_FLAG_SECURE;
 
-			hrequest = WinHttpOpenRequest (hconnect, nullptr, url_path, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
+			HINTERNET hrequest = WinHttpOpenRequest (hconnect, nullptr, url_path, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
 
-			if (hrequest)
+			if (!hrequest)
+			{
+				_r_inet_close (hconnect);
+				return GetLastError ();
+			}
+			else
 			{
 				// disable "keep-alive" feature (win7+)
 				if (_r_sys_validversion (6, 1))
@@ -2661,13 +2693,14 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, HINTE
 				}
 
 				// set proxy configuration (if available)
+				if (!_r_str_isempty (proxy_addr))
 				{
 					WCHAR proxy_host[MAX_PATH] = {0};
 					WCHAR proxy_user[MAX_PATH] = {0};
 					WCHAR proxy_pass[MAX_PATH] = {0};
 					WORD proxy_port = 0;
 
-					if (_r_inet_parseurl (proxy_addr, nullptr, proxy_host, &proxy_port, nullptr, proxy_user, proxy_pass))
+					if (_r_inet_parseurl (proxy_addr, nullptr, proxy_host, &proxy_port, nullptr, proxy_user, proxy_pass) == ERROR_SUCCESS)
 					{
 						WINHTTP_PROXY_INFO wpi = {0};
 
@@ -2690,24 +2723,33 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, HINTE
 				}
 
 				DWORD attempts = 6;
+				DWORD option, size;
 
 				do
 				{
 					if (WinHttpSendRequest (hrequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH, 0))
 					{
-						if (WinHttpReceiveResponse (hrequest, nullptr))
+						if (!WinHttpReceiveResponse (hrequest, nullptr))
 						{
-							DWORD http_code = 0;
-							DWORD length = sizeof (DWORD);
+							rc = GetLastError ();
+						}
+						else
+						{
+							option = 0;
+							size = sizeof (DWORD);
 
-							if (WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &http_code, &length, WINHTTP_NO_HEADER_INDEX))
+							if (!WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &option, &size, WINHTTP_NO_HEADER_INDEX))
 							{
-								if (http_code == HTTP_STATUS_OK)
+								rc = GetLastError ();
+							}
+							else
+							{
+								if (option == HTTP_STATUS_OK)
 								{
 									if (ptotallength)
 									{
-										length = sizeof (DWORD);
-										WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, ptotallength, &length, WINHTTP_NO_HEADER_INDEX);
+										size = sizeof (DWORD);
+										WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, ptotallength, &size, WINHTTP_NO_HEADER_INDEX);
 									}
 
 									if (pconnect)
@@ -2716,13 +2758,11 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, HINTE
 									if (prequest)
 										*prequest = hrequest;
 
-									return true;
+									return ERROR_SUCCESS;
 								}
-								else if (
-									http_code == HTTP_STATUS_DENIED ||
-									http_code == HTTP_STATUS_FORBIDDEN
-									)
+								else if (option == HTTP_STATUS_DENIED || option == HTTP_STATUS_FORBIDDEN)
 								{
+									rc = ERROR_NETWORK_ACCESS_DENIED;
 									break;
 								}
 							}
@@ -2730,27 +2770,30 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, HINTE
 					}
 					else
 					{
-						const DWORD err = GetLastError ();
+						rc = GetLastError ();
 
-						if (
-							err == ERROR_WINHTTP_SECURE_FAILURE ||
-							err == ERROR_WINHTTP_CONNECTION_ERROR
-							)
+						if (rc == ERROR_WINHTTP_CANNOT_CONNECT)
 						{
-							// allow unknown certificates
-							DWORD option = SECURITY_FLAG_IGNORE_UNKNOWN_CA |
-								SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE /*|
-								SECURITY_FLAG_IGNORE_CERT_CN_INVALID |
-								SECURITY_FLAG_IGNORE_CERT_DATE_INVALID |
-								*/;
+							break;
+						}
+						else if (rc == ERROR_WINHTTP_CONNECTION_ERROR)
+						{
+							option = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
+
+							if (!WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &option, sizeof (option)))
+								break;
+						}
+						else if (rc == ERROR_WINHTTP_RESEND_REQUEST)
+						{
+							continue;
+						}
+						else if (rc == ERROR_WINHTTP_SECURE_FAILURE)
+						{
+							option = SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE | SECURITY_FLAG_IGNORE_CERT_CN_INVALID;
 
 							if (!WinHttpSetOption (hrequest, WINHTTP_OPTION_SECURITY_FLAGS, &option, sizeof (option)))
 								break;
 						}
-						//else if(err == ERROR_WINHTTP_RESEND_REQUEST)
-						//{
-						//	continue;
-						//}
 						else
 						{
 							break;
@@ -2758,17 +2801,15 @@ bool _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, HINTE
 					}
 				}
 				while (--attempts);
+
+				_r_inet_close (hrequest);
 			}
+
+			_r_inet_close (hconnect);
 		}
 	}
 
-	if (hconnect)
-		_r_inet_close (hconnect);
-
-	if (hrequest)
-		_r_inet_close (hrequest);
-
-	return false;
+	return rc;
 }
 
 bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD preaded, PDWORD ptotalreaded)
@@ -2794,55 +2835,54 @@ bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD
 	return true;
 }
 
-bool _r_inet_parseurl (LPCWSTR url, INT * scheme_ptr, LPWSTR host_ptr, WORD * port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr)
+DWORD _r_inet_parseurl (LPCWSTR url, INT * scheme_ptr, LPWSTR host_ptr, LPWORD port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr)
 {
 	if (_r_str_isempty (url) || (!scheme_ptr && !host_ptr && !port_ptr && !path_ptr && !user_ptr && !pass_ptr))
-		return false;
+		return ERROR_BAD_ARGUMENTS;
 
 	URL_COMPONENTS url_comp = {0};
 	SecureZeroMemory (&url_comp, sizeof (url_comp));
 
-	WCHAR host_part[MAX_PATH] = {0};
-	WCHAR path_part[MAX_PATH] = {0};
-	WCHAR user_part[MAX_PATH] = {0};
-	WCHAR pass_part[MAX_PATH] = {0};
-
 	url_comp.dwStructSize = sizeof (url_comp);
 
-	url_comp.lpszHostName = host_part;
-	url_comp.dwHostNameLength = _countof (host_part);
-
-	url_comp.lpszUrlPath = path_part;
-	url_comp.dwUrlPathLength = _countof (path_part);
-
-	url_comp.lpszUserName = user_part;
-	url_comp.dwUserNameLength = _countof (user_part);
-
-	url_comp.lpszPassword = pass_part;
-	url_comp.dwPasswordLength = _countof (pass_part);
-
-	const size_t length = _r_str_length (url);
-
-	if (!WinHttpCrackUrl (url, DWORD (length), ICU_DECODE, &url_comp))
-	{
-		if (GetLastError () != ERROR_WINHTTP_UNRECOGNIZED_SCHEME)
-			return false;
-
-		if (!WinHttpCrackUrl (_r_fmt (L"https://%s", url), DWORD (length + 8), ICU_DECODE, &url_comp))
-			return false;
-	}
+	const size_t url_length = _r_str_length (url);
+	const DWORD max_length = MAX_PATH;
 
 	if (host_ptr)
-		_r_str_copy (host_ptr, _countof (host_part), host_part);
+	{
+		url_comp.lpszHostName = host_ptr;
+		url_comp.dwHostNameLength = max_length;
+	}
 
 	if (path_ptr)
-		_r_str_copy (path_ptr, _countof (path_part), path_part);
+	{
+		url_comp.lpszUrlPath = path_ptr;
+		url_comp.dwUrlPathLength = max_length;
+	}
 
 	if (user_ptr)
-		_r_str_copy (user_ptr, _countof (user_part), user_part);
+	{
+		url_comp.lpszUserName = user_ptr;
+		url_comp.dwUserNameLength = max_length;
+	}
 
 	if (pass_ptr)
-		_r_str_copy (pass_ptr, _countof (pass_part), pass_part);
+	{
+		url_comp.lpszPassword = pass_ptr;
+		url_comp.dwPasswordLength = max_length;
+	}
+
+
+	if (!WinHttpCrackUrl (url, DWORD (url_length), ICU_DECODE, &url_comp))
+	{
+		DWORD rc = GetLastError ();
+
+		if (rc != ERROR_WINHTTP_UNRECOGNIZED_SCHEME)
+			return rc;
+
+		if (!WinHttpCrackUrl (_r_fmt (L"https://%s", url), DWORD (url_length + 8), ICU_DECODE, &url_comp))
+			return GetLastError ();
+	}
 
 	if (scheme_ptr)
 		*scheme_ptr = url_comp.nScheme;
@@ -2850,11 +2890,14 @@ bool _r_inet_parseurl (LPCWSTR url, INT * scheme_ptr, LPWSTR host_ptr, WORD * po
 	if (port_ptr)
 		*port_ptr = url_comp.nPort;
 
-	return true;
+	return ERROR_SUCCESS;
 }
 
-bool _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, LPVOID buffer, bool is_filepath, _R_CALLBACK_HTTP_DOWNLOAD _callback, LONG_PTR lpdata)
+DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, LPVOID buffer, bool is_filepath, _R_CALLBACK_HTTP_DOWNLOAD _callback, LONG_PTR lpdata)
 {
+	if (!buffer)
+		return ERROR_BAD_ARGUMENTS;
+
 	bool result = false;
 
 	HINTERNET hconnect = nullptr;
@@ -2862,7 +2905,13 @@ bool _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, L
 
 	DWORD total_length = 0;
 
-	if (_r_inet_openurl (hsession, url, proxy_addr, &hconnect, &hrequest, &total_length))
+	DWORD rc = _r_inet_openurl (hsession, url, proxy_addr, &hconnect, &hrequest, &total_length);
+
+	if (rc != ERROR_SUCCESS)
+	{
+		return rc;
+	}
+	else
 	{
 		const size_t buffer_length = _R_BUFFER_NET_LENGTH;
 		LPSTR content_buffer_a = new CHAR[buffer_length];
@@ -2875,15 +2924,16 @@ bool _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, L
 		{
 			hfile = CreateFile ((LPCWSTR)buffer, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 
-			if (hfile != INVALID_HANDLE_VALUE)
+			if (hfile == INVALID_HANDLE_VALUE)
+				rc = GetLastError ();
+
+			else
 				result = true;
 		}
 		else
 		{
 			lpbuffer = static_cast<rstring*>(buffer);
-
-			if (lpbuffer)
-				result = true;
+			result = true;
 		}
 
 		if (result)
@@ -2895,7 +2945,10 @@ bool _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, L
 			while (true)
 			{
 				if (!_r_inet_readrequest (hrequest, content_buffer_a, buffer_length - 1, &readed, &total_readed))
+				{
+					rc = ERROR_SUCCESS;
 					break;
+				}
 
 				if (is_filepath)
 				{
@@ -2917,7 +2970,9 @@ bool _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, L
 				{
 					if (!_callback (total_readed, total_length, lpdata))
 					{
+						rc = ERROR_CANCELLED;
 						result = false;
+
 						break;
 					}
 				}
@@ -2931,13 +2986,10 @@ bool _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, L
 		SAFE_DELETE_ARRAY (content_buffer_w);
 	}
 
-	if (hrequest)
-		_r_inet_close (hrequest);
+	_r_inet_close (hrequest);
+	_r_inet_close (hconnect);
 
-	if (hconnect)
-		_r_inet_close (hconnect);
-
-	return result;
+	return rc;
 }
 
 /*
@@ -3142,7 +3194,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size)
 		{
 			if (SUCCEEDED (_LoadIconWithScaleDown (hinst, name, size, size, &hicon)))
 				return hicon;
-		}
+}
 	}
 
 	return (HICON)LoadImage (hinst, name, IMAGE_ICON, size, size, 0);
@@ -3214,7 +3266,7 @@ bool _r_parseini (LPCWSTR path, rstringmap2& pmap, rstringvec* psections)
 	}
 
 	return true;
-		}
+}
 
 DWORD _r_rand (DWORD min_number, DWORD max_number)
 {
@@ -3298,7 +3350,7 @@ bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR toolti
 	{
 		nid.uFlags |= NIF_SHOWTIP | NIF_TIP;
 		_r_str_copy (nid.szTip, _countof (nid.szTip), tooltip);
-}
+	}
 
 	if (is_hidden)
 	{
@@ -3314,7 +3366,7 @@ bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR toolti
 	}
 
 	return false;
-	}
+}
 
 bool _r_tray_popup (HWND hwnd, UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text)
 {

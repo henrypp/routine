@@ -1978,20 +1978,20 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 	{
 		rapp *this_ptr = static_cast<rapp*>(pupdateinfo->papp);
 
-		for (size_t i = 0; i < pupdateinfo->components.size (); i++)
+		LPCWSTR proxy_addr = this_ptr->GetProxyConfiguration ();
+		HINTERNET hsession = _r_inet_createsession (this_ptr->GetUserAgent (), proxy_addr);
+
+		if (hsession)
 		{
-			PAPP_UPDATE_COMPONENT pcomponent = pupdateinfo->components.at (i);
-
-			if (pcomponent)
+			for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 			{
-				if (pcomponent->is_haveupdates)
-				{
-					LPCWSTR proxy_addr = this_ptr->GetProxyConfiguration ();
-					const HINTERNET hsession = _r_inet_createsession (this_ptr->GetUserAgent (), proxy_addr);
+				PAPP_UPDATE_COMPONENT pcomponent = pupdateinfo->components.at (i);
 
-					if (hsession)
+				if (pcomponent)
+				{
+					if (pcomponent->is_haveupdates)
 					{
-						if (_r_inet_downloadurl (hsession, proxy_addr, pcomponent->url, pcomponent->filepath, true, &this_ptr->UpdateDownloadCallback, (LONG_PTR)pupdateinfo))
+						if (_r_inet_downloadurl (hsession, proxy_addr, pcomponent->url, pcomponent->filepath, true, &this_ptr->UpdateDownloadCallback, (LONG_PTR)pupdateinfo) == ERROR_SUCCESS)
 						{
 							pcomponent->is_downloaded = true;
 							pcomponent->is_haveupdates = false;
@@ -2001,17 +2001,14 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 							if (pcomponent->is_installer)
 							{
 								is_downloaded_installer = true;
-
-								_r_inet_close (hsession);
-
 								break;
 							}
 						}
-
-						_r_inet_close (hsession);
 					}
 				}
 			}
+
+			_r_inet_close (hsession);
 		}
 
 		// show result text
@@ -2253,11 +2250,11 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 		rstring buffer;
 
 		LPCWSTR proxy_addr = this_ptr->GetProxyConfiguration ();
-		const HINTERNET hsession = _r_inet_createsession (this_ptr->GetUserAgent (), proxy_addr);
+		HINTERNET hsession = _r_inet_createsession (this_ptr->GetUserAgent (), proxy_addr);
 
 		if (hsession)
 		{
-			if (!_r_inet_downloadurl (hsession, proxy_addr, _r_fmt (_APP_WEBSITE_URL L"/update.php?product=%s&is_beta=%d&api=3", this_ptr->app_name_short, is_beta), &buffer, false, nullptr, 0))
+			if (_r_inet_downloadurl (hsession, proxy_addr, _r_fmt (_APP_WEBSITE_URL L"/update.php?product=%s&is_beta=%d&api=3", this_ptr->app_name_short, is_beta), &buffer, false, nullptr, 0) != ERROR_SUCCESS)
 			{
 				if (pupdateinfo->hparent)
 				{
