@@ -842,6 +842,8 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			{
 				this_ptr->ConfigSet (L"WindowPosWidth", _R_RECT_WIDTH (&rc), L"window");
 				this_ptr->ConfigSet (L"WindowPosHeight", _R_RECT_HEIGHT (&rc), L"window");
+
+				RedrawWindow (hwnd, nullptr, nullptr, RDW_ERASE | RDW_INVALIDATE);
 			}
 
 			break;
@@ -859,13 +861,36 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			break;
 		}
 
+		case WM_GETDPISCALEDSIZE:
+		{
+			INT dpi = static_cast<INT>(wparam);
+			double scaling_factor = static_cast<double>(dpi) / USER_DEFAULT_SCREEN_DPI;
+
+			RECT rc_client;
+
+			if (!GetClientRect (hwnd, &rc_client))
+				return FALSE;
+
+			rc_client.right = static_cast<LONG>(rc_client.right * scaling_factor);
+			rc_client.bottom = static_cast<LONG>(rc_client.bottom * scaling_factor);
+
+			_r_wnd_adjustwindowrect (hwnd, &rc_client);
+
+			LPSIZE new_size = reinterpret_cast<LPSIZE>(lparam);
+
+			new_size->cx = _R_RECT_WIDTH (&rc_client);
+			new_size->cy = _R_RECT_HEIGHT (&rc_client);
+
+			return TRUE;
+		}
+
 		case WM_DPICHANGED:
 		{
-			_r_dc_getdpivalue (hwnd, (INT)LOWORD (wparam)); // // reset dpi cached value (required!)
+			_r_dc_getdpivalue (hwnd, static_cast<INT>(LOWORD (wparam))); // reset dpi cached value (required!)
 
 #ifdef _APP_HAVE_SETTINGS
 			if (this_ptr->GetSettingsWindow ())
-				SendDlgItemMessage (this_ptr->GetSettingsWindow (), IDC_NAV, TVM_SETITEMHEIGHT, (WPARAM)_r_dc_getdpi (hwnd, _R_SIZE_ITEMHEIGHT), 0);
+				SendDlgItemMessage (this_ptr->GetSettingsWindow (), IDC_NAV, TVM_SETITEMHEIGHT, (WPARAM)_r_dc_getdpi (this_ptr->GetSettingsWindow (), _R_SIZE_ITEMHEIGHT), 0);
 #endif // _APP_HAVE_SETTINGS
 
 			// call main callback
@@ -874,7 +899,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			// change window size and position
 			if ((GetWindowLongPtr (hwnd, GWL_STYLE) & (WS_SIZEBOX | WS_MAXIMIZEBOX)) != 0)
 			{
-				LPRECT lprcnew = (LPRECT)lparam;
+				LPRECT lprcnew = reinterpret_cast<LPRECT>(lparam);
 
 				if (lprcnew)
 				{
@@ -923,12 +948,12 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 
 		if (hlib)
 		{
-			typedef BOOL (WINAPI * MFACS) (PCWSTR, PDWORD, PDWORD); // MapFileAndCheckSumW
+			typedef DWORD (WINAPI * MFACS) (PCWSTR, PDWORD, PDWORD); // MapFileAndCheckSumW
 			const MFACS _MapFileAndCheckSumW = (MFACS)GetProcAddress (hlib, "MapFileAndCheckSumW");
 
 			if (_MapFileAndCheckSumW)
 			{
-				DWORD dwFileChecksum = 0, dwRealChecksum = 0;
+				DWORD dwFileChecksum, dwRealChecksum;
 
 				if (_MapFileAndCheckSumW (GetBinaryPath (), &dwFileChecksum, &dwRealChecksum) == ERROR_SUCCESS)
 				{
@@ -1158,7 +1183,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 	}
 
 	return result;
-}
+	}
 
 void rapp::RestoreWindowPosition (HWND hwnd, LPCWSTR window_name)
 {
@@ -1197,7 +1222,7 @@ void rapp::RestoreWindowPosition (HWND hwnd, LPCWSTR window_name)
 	_r_wnd_adjustwindowrect (nullptr, &rect_new);
 
 	SetWindowPos (hwnd, nullptr, rect_new.left, rect_new.top, _R_RECT_WIDTH (&rect_new), _R_RECT_HEIGHT (&rect_new), SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSENDCHANGING);
-}
+	}
 
 #ifdef _APP_HAVE_SETTINGS
 void rapp::CreateSettingsWindow (DLGPROC proc, INT dlg_id)
@@ -1731,6 +1756,12 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			break;
 		}
 
+		case WM_NCCREATE:
+		{
+			_r_dc_enablenonclientscaling (hwnd);
+			break;
+		}
+
 #ifndef _APP_NO_DARKTHEME
 		case WM_THEMECHANGED:
 		{
@@ -1959,9 +1990,9 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 
 				SendMessage (pupdateinfo->htaskdlg, TDM_SET_ELEMENT_TEXT, TDE_CONTENT, (LPARAM)str_content);
 				SendMessage (pupdateinfo->htaskdlg, TDM_SET_PROGRESS_BAR_POS, (WPARAM)percent, 0);
-			}
-#ifndef _APP_NO_WINXP
 		}
+#ifndef _APP_NO_WINXP
+	}
 #endif // _APP_NO_WINXP
 	}
 
@@ -2064,14 +2095,14 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 #endif // _APP_NO_WINXP
 			}
 		}
-	}
+				}
 
 	//SetEvent (pupdateinfo->hend);
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-}
+			}
 
 HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM, LONG_PTR lpdata)
 {
@@ -2217,7 +2248,7 @@ INT rapp::UpdateDialogNavigate (HWND htaskdlg, LPCWSTR main_icon, TASKDIALOG_FLA
 		_r_msg_taskdialog (&tdc, &button, nullptr, nullptr);
 
 	return button;
-}
+	}
 
 rstring format_version (rstring vers)
 {
@@ -2429,15 +2460,15 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 			}
 
 			_r_inet_close (hsession);
-		}
+					}
 
 		SetEvent (pupdateinfo->hend);
-	}
+				}
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-}
+			}
 #endif // _APP_HAVE_UPDATES
 
 #ifdef _APP_HAVE_SKIPUAC
