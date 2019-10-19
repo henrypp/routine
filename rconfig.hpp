@@ -62,7 +62,7 @@
 #define RM_ARGUMENTS (WM_USER + 6)
 #define RM_UPDATE_DONE (WM_USER + 7) // update done
 #define RM_RESET_DONE (WM_USER + 8) // reset done
-#define RM_DPICHANGED (WM_USER + 9) // reset done
+#define RM_DPICHANGED (WM_USER + 9) // dpi changed message (win81+)
 
 // Invalid types definitions
 #define INVALID_INT (INT(-1))
