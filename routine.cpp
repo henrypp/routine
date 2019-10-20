@@ -2013,6 +2013,23 @@ time_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst)
 	Device context (Draw/Calculation etc...)
 */
 
+void _r_dc_enablenonclientscaling (HWND hwnd)
+{
+	if (!_r_sys_validversion (10, 0, 14393)) // win10rs1+
+		return;
+
+	HMODULE hlib = GetModuleHandle (L"user32.dll");
+
+	if (hlib)
+	{
+		typedef BOOL (WINAPI * ENCDS) (HWND); // EnableNonClientDpiScaling
+		const ENCDS _EnableNonClientDpiScaling = (ENCDS)GetProcAddress (hlib, "EnableNonClientDpiScaling");
+
+		if (_EnableNonClientDpiScaling)
+			_EnableNonClientDpiScaling (hwnd);
+	}
+}
+
 INT _r_dc_getdpivalue (HWND hwnd, INT new_value)
 {
 	static INT cached_value = INVALID_INT;
@@ -2029,55 +2046,67 @@ INT _r_dc_getdpivalue (HWND hwnd, INT new_value)
 			return cached_value;
 	}
 
-	static const bool is_win10rs1 = _r_sys_validversion (10, 0, 14393); // win10rs1+
+	static const bool is_win81 = _r_sys_validversion (6, 3); // win81+
 
-	if (is_win10rs1)
+	if (is_win81)
 	{
-		const HMODULE hlib = GetModuleHandle (L"user32.dll");
-
-		if (hlib)
+		if (hwnd)
 		{
-			typedef UINT (WINAPI * GSDFP) (HANDLE); // GetSystemDpiForProcess
-			typedef UINT (WINAPI * GDFW) (HWND); // GetDpiForWindow
-			typedef UINT (WINAPI * GDGS) (VOID); // GetDpiForSystem
+			// GetDpiForMonitor (win81+)
+			HMODULE hshcore = LoadLibraryEx (L"shcore.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
 
-			const GSDFP _GetSystemDpiForProcess = (GSDFP)GetProcAddress (hlib, "GetSystemDpiForProcess"); // win10rs4+
-			const GDFW _GetDpiForWindow = (GDFW)GetProcAddress (hlib, "GetDpiForWindow"); // win10rs1+
-			const GDGS _GetDpiForSystem = (GDGS)GetProcAddress (hlib, "GetDpiForSystem"); // win10rs1+
-
-			if (hwnd && _GetDpiForWindow)
+			if (hshcore)
 			{
-				cached_value = _GetDpiForWindow (hwnd);
-				return cached_value;
+				HMONITOR hmon = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+
+				if (hmon)
+				{
+					UINT dpix = 0, dpiy = 0;
+
+					typedef HRESULT (WINAPI * GDFM) (HMONITOR, MONITOR_DPI_TYPE, PUINT, PUINT); // GetDpiForMonitor
+					const GDFM _GetDpiForMonitor = (GDFM)GetProcAddress (hshcore, "GetDpiForMonitor"); // win81+
+
+					if (_GetDpiForMonitor && SUCCEEDED (_GetDpiForMonitor (hmon, MDT_EFFECTIVE_DPI, &dpix, &dpiy)))
+					{
+						FreeLibrary (hshcore);
+
+						cached_value = dpix;
+						return cached_value;
+					}
+				}
+
+				FreeLibrary (hshcore);
 			}
 
-			if (_GetSystemDpiForProcess)
-			{
-				cached_value = _GetSystemDpiForProcess (NtCurrentProcess ());
-				return cached_value;
-			}
+			HMODULE huser32 = GetModuleHandle (L"user32.dll");
 
-			if (_GetDpiForSystem)
+			if (huser32)
 			{
-				cached_value = _GetDpiForSystem ();
-				return cached_value;
+				// GetDpiForWindow (win10rs1+)
+				typedef UINT (WINAPI * GDFW) (HWND); // GetDpiForWindow
+				const GDFW _GetDpiForWindow = (GDFW)GetProcAddress (huser32, "GetDpiForWindow"); // win10rs1+
+
+				if (_GetDpiForWindow)
+				{
+					cached_value = _GetDpiForWindow (hwnd);
+					return cached_value;
+				}
 			}
 		}
 	}
 
-	HDC hdc = GetDC (hwnd);
+	// fallback
+	HDC hdc = GetDC (nullptr);
 
 	if (hdc)
 	{
 		INT result = GetDeviceCaps (hdc, LOGPIXELSX);
-		ReleaseDC (hwnd, hdc);
+		ReleaseDC (nullptr, hdc);
 
 		cached_value = result;
 
 		return result;
 	}
-
-	cached_value = USER_DEFAULT_SCREEN_DPI;
 
 	return USER_DEFAULT_SCREEN_DPI;
 }
@@ -3552,8 +3581,6 @@ void _r_ctrl_settabletext (HDC hdc, HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT 
 	const HWND hctrl1 = GetDlgItem (hwnd, ctrl_id1);
 	const HWND hctrl2 = GetDlgItem (hwnd, ctrl_id2);
 
-	const INT wnd_spacing = _r_dc_getdpi (hwnd, _R_SIZE_ICON16);
-
 	SelectObject (hdc, (HFONT)SendMessage (hctrl1, WM_GETFONT, 0, 0)); // fix
 	SelectObject (hdc, (HFONT)SendMessage (hctrl2, WM_GETFONT, 0, 0)); // fix
 
@@ -3562,6 +3589,7 @@ void _r_ctrl_settabletext (HDC hdc, HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT 
 
 	MapWindowPoints (HWND_DESKTOP, hwnd, (LPPOINT)&rc_ctrl, 2);
 
+	const INT wnd_spacing = rc_ctrl.left;
 	const INT wnd_width = _R_RECT_WIDTH (&rc_wnd) - (wnd_spacing * 2);
 
 	INT ctrl1_width = _r_dc_fontwidth (hdc, text1, INVALID_SIZE_T);
@@ -3570,15 +3598,15 @@ void _r_ctrl_settabletext (HDC hdc, HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT 
 	ctrl1_width = min (ctrl1_width, wnd_width - ctrl2_width - wnd_spacing);
 	ctrl2_width = min (ctrl2_width, wnd_width - ctrl1_width - wnd_spacing);
 
-	HDWP hdefer = BeginDeferWindowPos (2);
-
-	_r_wnd_resize (&hdefer, hctrl1, nullptr, wnd_spacing, rc_ctrl.top, ctrl1_width, _R_RECT_HEIGHT (&rc_ctrl), SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE);
-	_r_wnd_resize (&hdefer, hctrl2, nullptr, wnd_width - ctrl2_width, rc_ctrl.top, ctrl2_width + wnd_spacing, _R_RECT_HEIGHT (&rc_ctrl), SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE);
-
-	EndDeferWindowPos (hdefer);
-
 	SetWindowText (hctrl1, text1);
 	SetWindowText (hctrl2, text2);
+
+	HDWP hdefer = BeginDeferWindowPos (2);
+
+	_r_wnd_resize (&hdefer, hctrl1, nullptr, wnd_spacing, rc_ctrl.top, ctrl1_width, _R_RECT_HEIGHT (&rc_ctrl), SWP_FRAMECHANGED);
+	_r_wnd_resize (&hdefer, hctrl2, nullptr, wnd_width - ctrl2_width, rc_ctrl.top, ctrl2_width + wnd_spacing, _R_RECT_HEIGHT (&rc_ctrl), SWP_FRAMECHANGED);
+
+	EndDeferWindowPos (hdefer);
 }
 
 HWND _r_ctrl_createtip (HWND hparent)

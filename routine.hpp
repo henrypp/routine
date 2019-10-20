@@ -13,6 +13,7 @@
 #include <wtsapi32.h>
 #include <shlwapi.h>
 #include <shlobj.h>
+#include <shellscalingapi.h>
 #include <commctrl.h>
 #include <psapi.h>
 #include <uxtheme.h>
@@ -430,6 +431,7 @@ time_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst);
 	Device context (Draw/Calculation etc...)
 */
 
+void _r_dc_enablenonclientscaling (HWND hwnd);
 INT _r_dc_getdpivalue (HWND hwnd, INT new_value = 0);
 COLORREF _r_dc_getcolorbrightness (COLORREF clr);
 COLORREF _r_dc_getcolorshade (COLORREF clr, INT percent);
