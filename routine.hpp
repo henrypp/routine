@@ -66,6 +66,10 @@ typedef void (*_R_CALLBACK_OBJECT_CLEANUP) (PVOID pdata);
 #define SAFE_DELETE_OBJECT(p) {if(p) {DeleteObject (p); (p)=nullptr;}}
 #endif
 
+#ifndef SAFE_DELETE_ICON
+#define SAFE_DELETE_ICON(p) {if(p) {DestroyIcon (p); (p)=nullptr;}}
+#endif
+
 #ifndef SAFE_LOCAL_FREE
 #define SAFE_LOCAL_FREE(p) {if(p) {LocalFree (p); (p)=nullptr;}}
 #endif
