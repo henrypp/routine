@@ -484,15 +484,22 @@ void rstring::ReleaseBuffer ()
 
 rstring& rstring::SetLength (size_t length)
 {
-	Buffer* buffer = toBuffer ();
-
-	if (buffer && buffer->length != length)
+	if (!length)
 	{
-		ReallocateUnique (length);
+		Release ();
 	}
-	else if (length)
+	else
 	{
-		ReallocateUnique (length);
+		Buffer* buffer = toBuffer ();
+
+		if (buffer && buffer->length != length)
+		{
+			ReallocateUnique (length);
+		}
+		else if (length)
+		{
+			ReallocateUnique (length);
+		}
 	}
 
 	return *this;
