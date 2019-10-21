@@ -91,12 +91,9 @@ private:
 	{
 		volatile LONG64 referenceCount = 0;
 		size_t length = 0;
-		WCHAR data[128];
+		WCHAR buff[128];
 	};
 
-	static const size_t nonTextBufferByteCount = offsetof (Buffer, data) + sizeof (WCHAR);
-	static const size_t minBufferByteCount = 64;
-	static const size_t minReservedCharacters = (minBufferByteCount - nonTextBufferByteCount) / sizeof (WCHAR);
 
 	Buffer* toBuffer () const;
 
