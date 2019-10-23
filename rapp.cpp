@@ -84,10 +84,9 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 
 					if (!_r_fs_exists (app_config_path))
 					{
-						const HANDLE hfile = CreateFile (app_config_path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+						HANDLE hfile = CreateFile (app_config_path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 
-						if (hfile != INVALID_HANDLE_VALUE)
-							CloseHandle (hfile);
+						SAFE_DELETE_HANDLE (hfile);
 					}
 				}
 			}
@@ -136,9 +135,8 @@ bool rapp::MutexDestroy ()
 	if (app_mutex)
 	{
 		ReleaseMutex (app_mutex);
-		CloseHandle (app_mutex);
 
-		app_mutex = nullptr;
+		SAFE_DELETE_HANDLE (app_mutex);
 
 		return true;
 	}
@@ -151,9 +149,9 @@ bool rapp::MutexIsExists (bool activate_window)
 	bool result = false;
 
 #ifndef _APP_NO_MUTEX
-	const HANDLE hmutex = CreateMutex (nullptr, FALSE, app_name_short);
+	HANDLE hmutex = CreateMutex (nullptr, FALSE, app_name_short);
 #else
-	const HANDLE hmutex = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%" PR_SIZE_T L"_%" PR_SIZE_T, app_name_short, _r_str_hash (GetBinaryPath ()), _r_str_hash (GetCommandLine ())));
+	HANDLE hmutex = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%" PR_SIZE_T L"_%" PR_SIZE_T, app_name_short, _r_str_hash (GetBinaryPath ()), _r_str_hash (GetCommandLine ())));
 #endif // _APP_NO_MUTEX
 
 	if (GetLastError () == ERROR_ALREADY_EXISTS)
@@ -169,8 +167,7 @@ bool rapp::MutexIsExists (bool activate_window)
 			ReleaseMutex (hmutex);
 	}
 
-	if (hmutex)
-		CloseHandle (hmutex);
+	SAFE_DELETE_HANDLE (hmutex);
 
 	return result;
 }
@@ -472,7 +469,6 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 
 	INT result = 0;
 
-#ifdef _APP_NO_WINXP
 #ifdef IDS_QUESTION_FLAG_CHK
 	const rstring flag_text = LocaleString (IDS_QUESTION_FLAG_CHK, nullptr);
 #else
@@ -480,6 +476,7 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 #pragma _R_WARNING(IDS_QUESTION_FLAG_CHK)
 #endif // IDS_QUESTION_FLAG_CHK
 
+#ifdef _APP_NO_WINXP
 	TASKDIALOGCONFIG tdc = {0};
 
 	WCHAR str_title[64] = {0};
@@ -514,13 +511,6 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 #else // _APP_NO_WINXP
 	if (IsVistaOrLater ())
 	{
-#ifdef IDS_QUESTION_FLAG_CHK
-		const rstring flag_text = LocaleString (IDS_QUESTION_FLAG_CHK, nullptr);
-#else // IDS_QUESTION_FLAG_CHK
-		const rstring flag_text = L"Do not ask again";
-#pragma _R_WARNING(IDS_QUESTION_FLAG_CHK)
-#endif // IDS_QUESTION_FLAG_CHK
-
 		TASKDIALOGCONFIG tdc = {0};
 
 		WCHAR str_title[64] = {0};
@@ -594,7 +584,7 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 #ifndef _APP_NO_ABOUT
 void rapp::CreateAboutWindow (HWND hwnd)
 {
-	const HANDLE hmutex = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%d_%d", app_name_short, GetCurrentProcessId (), __LINE__));
+	HANDLE hmutex = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%d_%d", app_name_short, GetCurrentProcessId (), __LINE__));
 
 	if (GetLastError () != ERROR_ALREADY_EXISTS)
 	{
@@ -693,8 +683,7 @@ void rapp::CreateAboutWindow (HWND hwnd)
 			ReleaseMutex (hmutex);
 	}
 
-	if (hmutex)
-		CloseHandle (hmutex);
+	SAFE_DELETE_HANDLE (hmutex);
 }
 #endif // _APP_NO_ABOUT
 
@@ -1227,7 +1216,7 @@ void rapp::RestoreWindowPosition (HWND hwnd, LPCWSTR window_name)
 #ifdef _APP_HAVE_SETTINGS
 void rapp::CreateSettingsWindow (DLGPROC proc, INT dlg_id)
 {
-	const HANDLE hmutex = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%d_%d", app_name_short, GetCurrentProcessId (), __LINE__));
+	HANDLE hmutex = CreateMutex (nullptr, FALSE, _r_fmt (L"%s_%d_%d", app_name_short, GetCurrentProcessId (), __LINE__));
 
 	if (GetLastError () == ERROR_ALREADY_EXISTS)
 	{
@@ -1251,8 +1240,7 @@ void rapp::CreateSettingsWindow (DLGPROC proc, INT dlg_id)
 			ReleaseMutex (hmutex);
 	}
 
-	if (hmutex)
-		CloseHandle (hmutex);
+	SAFE_DELETE_HANDLE (hmutex);
 }
 
 INT rapp::SettingsAddPage (INT dlg_id, UINT locale_id, INT group_id)
@@ -1613,15 +1601,17 @@ void rapp::LocaleInit ()
 	{
 		for (auto &p : app_locale_array)
 		{
-			if (app_locale_array[p.first].find (L"000") != app_locale_array[p.first].end ())
+			rstringmap1& rmap = app_locale_array[p.first];
+
+			if (rmap.find (L"000") != rmap.end ())
 			{
-				const time_t timestamp = app_locale_array[p.first][L"000"].AsLonglong ();
+				const time_t timestamp = rmap[L"000"].AsLonglong ();
 
 				if (app_locale_timetamp < timestamp)
 					app_locale_timetamp = timestamp;
 			}
 
-			for (auto &p2 : app_locale_array[p.first])
+			for (auto &p2 : rmap)
 			{
 				p2.second.Replace (L"\\t", L"\t");
 				p2.second.Replace (L"\\r", L"\r");
@@ -2022,18 +2012,28 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 				{
 					if (pcomponent->is_haveupdates)
 					{
-						if (_r_inet_downloadurl (hsession, proxy_addr, pcomponent->url, pcomponent->filepath, true, &this_ptr->UpdateDownloadCallback, (LONG_PTR)pupdateinfo) == ERROR_SUCCESS)
+						HANDLE hfile = CreateFile (pcomponent->filepath, GENERIC_WRITE | GENERIC_READ, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+
+						if (hfile != INVALID_HANDLE_VALUE)
 						{
-							pcomponent->is_downloaded = true;
-							pcomponent->is_haveupdates = false;
-
-							is_downloaded = true;
-
-							if (pcomponent->is_installer)
+							if (_r_inet_downloadurl (hsession, proxy_addr, pcomponent->url, (LONG_PTR)hfile, true, &this_ptr->UpdateDownloadCallback, (LONG_PTR)pupdateinfo) == ERROR_SUCCESS)
 							{
-								is_downloaded_installer = true;
-								break;
+								pcomponent->is_downloaded = true;
+								pcomponent->is_haveupdates = false;
+
+								is_downloaded = true;
+
+								if (pcomponent->is_installer)
+								{
+									SAFE_DELETE_HANDLE (hfile);
+
+									is_downloaded_installer = true;
+
+									break;
+								}
 							}
+
+							SAFE_DELETE_HANDLE (hfile);
 						}
 					}
 				}
@@ -2144,9 +2144,7 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 			if (pupdateinfo->hthread)
 			{
 				TerminateThread (pupdateinfo->hthread, 0);
-				CloseHandle (pupdateinfo->hthread);
-
-				pupdateinfo->hthread = nullptr;
+				SAFE_DELETE_HANDLE (pupdateinfo->hthread);
 			}
 
 			break;
@@ -2285,7 +2283,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 		if (hsession)
 		{
-			if (_r_inet_downloadurl (hsession, proxy_addr, _r_fmt (_APP_WEBSITE_URL L"/update.php?product=%s&is_beta=%d&api=3", this_ptr->app_name_short, is_beta), &buffer, false, nullptr, 0) != ERROR_SUCCESS)
+			if (_r_inet_downloadurl (hsession, proxy_addr, _r_fmt (_APP_WEBSITE_URL L"/update.php?product=%s&is_beta=%d&api=3", this_ptr->app_name_short, is_beta), (LONG_PTR)&buffer, false, nullptr, 0) != ERROR_SUCCESS)
 			{
 				if (pupdateinfo->hparent)
 				{

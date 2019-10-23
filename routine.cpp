@@ -35,7 +35,7 @@ void _r_dbg_print (LPCWSTR text, ...)
 void _r_dbg_write (LPCWSTR path, LPCWSTR text)
 {
 	SetFileAttributes (path, FILE_ATTRIBUTE_NORMAL); // HACK!!!
-	const HANDLE hfile = CreateFile (path, GENERIC_WRITE | GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+	HANDLE hfile = CreateFile (path, GENERIC_WRITE | GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 
 	if (hfile != INVALID_HANDLE_VALUE)
 	{
@@ -57,7 +57,7 @@ void _r_dbg_write (LPCWSTR path, LPCWSTR text)
 
 		WriteFile (hfile, text, DWORD (_r_str_length (text) * sizeof (WCHAR)), &written, nullptr);
 
-		CloseHandle (hfile);
+		SAFE_DELETE_HANDLE (hfile);
 	}
 }
 
@@ -723,7 +723,7 @@ bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size)
 	if (!hfile || hfile == INVALID_HANDLE_VALUE)
 		return false;
 
-	const HANDLE hmap = CreateFileMapping (hfile, nullptr, PAGE_READONLY, 0, 0, nullptr);
+	HANDLE hmap = CreateFileMapping (hfile, nullptr, PAGE_READONLY, 0, 0, nullptr);
 
 	if (hmap)
 	{
@@ -734,12 +734,12 @@ bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size)
 			CopyMemory (result, pbuffer, (size_t)size);
 
 			UnmapViewOfFile (pbuffer);
-			CloseHandle (hmap);
+			SAFE_DELETE_HANDLE (hmap);
 
 			return true;
 		}
 
-		CloseHandle (hmap);
+		SAFE_DELETE_HANDLE (hmap);
 	}
 
 	return false;
@@ -808,13 +808,13 @@ LONG64 _r_fs_size (LPCWSTR path)
 	if (_r_str_isempty (path))
 		return 0;
 
-	const HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+	HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
 
 	if (hfile != INVALID_HANDLE_VALUE)
 	{
 		const LONG64 result = _r_fs_size (hfile);
 
-		CloseHandle (hfile);
+		SAFE_DELETE_HANDLE (hfile);
 		return result;
 	}
 
@@ -849,7 +849,7 @@ LPCWSTR _r_path_getextension (LPCWSTR path)
 
 	while (!_r_str_isempty (path))
 	{
-		if (*path == L'\\' || *path == L' ')
+		if (*path == OBJ_NAME_PATH_SEPARATOR || *path == L' ')
 			lastpoint = nullptr;
 
 		else if (*path == L'.')
@@ -868,7 +868,7 @@ LPCWSTR _r_path_getfilename (LPCWSTR path)
 
 	while (!_r_str_isempty (path))
 	{
-		if ((*path == L'\\' || *path == L'/' || *path == L':') && path[1] && path[1] != L'\\' && path[1] != L'/')
+		if ((*path == OBJ_NAME_PATH_SEPARATOR || *path == L'/' || *path == L':') && path[1] && path[1] != OBJ_NAME_PATH_SEPARATOR && path[1] != L'/')
 			last_slash = path + 1;
 
 		path++;
@@ -947,12 +947,6 @@ rstring _r_path_expand (LPCWSTR path)
 		}
 	}
 
-	if (_r_str_find (result, result.GetLength (), L'~') != INVALID_SIZE_T)
-	{
-		GetLongPathName (result.GetString (), result.GetBuffer (1024), 1024);
-		result.ReleaseBuffer ();
-	}
-
 	return result;
 }
 
@@ -984,6 +978,9 @@ rstring _r_path_makeunique (LPCWSTR path)
 	if (_r_str_isempty (path))
 		return nullptr;
 
+	if (!_r_fs_exists (path))
+		return path;
+
 	if (_r_str_find (path, INVALID_SIZE_T, OBJ_NAME_PATH_SEPARATOR) == INVALID_SIZE_T)
 		return path;
 
@@ -998,7 +995,7 @@ rstring _r_path_makeunique (LPCWSTR path)
 
 	for (USHORT i = 1; i < USHRT_MAX; i++)
 	{
-		result.Format (L"%s\\%s_%" PRIu16 L"%s", directory.GetString (), filename.GetString (), i, extension.GetString ());
+		result.Format (L"%s\\%s-%" PRIu16 L"%s", directory.GetString (), filename.GetString (), i, extension.GetString ());
 
 		if (!_r_fs_exists (result))
 			return result;
@@ -1170,7 +1167,7 @@ DWORD _r_path_ntpathfromdos (rstring & path)
 
 	NTSTATUS status;
 
-	const HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+	HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
 
 	if (hfile == INVALID_HANDLE_VALUE)
 	{
@@ -1210,7 +1207,7 @@ DWORD _r_path_ntpathfromdos (rstring & path)
 
 		SAFE_DELETE_ARRAY (pbuffer);
 
-		CloseHandle (hfile);
+		SAFE_DELETE_HANDLE (hfile);
 	}
 
 	return status;
@@ -1806,11 +1803,8 @@ bool _r_sys_isadmin ()
 		if (psid)
 			FreeSid (psid);
 
-		if (impersonation_token)
-			CloseHandle (impersonation_token);
-
-		if (token)
-			CloseHandle (token);
+		SAFE_DELETE_HANDLE (impersonation_token);
+		SAFE_DELETE_HANDLE (token);
 	}
 
 	return !!result;
@@ -1904,7 +1898,7 @@ bool _r_sys_setprivilege (LPCWSTR privileges[], size_t count, bool is_enable)
 			}
 		}
 
-		CloseHandle (token);
+		SAFE_DELETE_HANDLE (token);
 	}
 
 	return result;
@@ -1922,12 +1916,11 @@ bool _r_sys_uacstate ()
 
 	if (OpenProcessToken (NtCurrentProcess (), TOKEN_QUERY, &token) && GetTokenInformation (token, TokenElevationType, &tet, sizeof (tet), &out_length) && tet == TokenElevationTypeLimited)
 	{
-		CloseHandle (token);
+		SAFE_DELETE_HANDLE (token);
 		return true;
 	}
 
-	if (token)
-		CloseHandle (token);
+	SAFE_DELETE_HANDLE (token);
 
 	return false;
 }
@@ -2919,9 +2912,9 @@ DWORD _r_inet_parseurl (LPCWSTR url, INT * scheme_ptr, LPWSTR host_ptr, LPWORD p
 	return ERROR_SUCCESS;
 }
 
-DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, LPVOID buffer, bool is_filepath, _R_CALLBACK_HTTP_DOWNLOAD _callback, LONG_PTR lpdata)
+DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, LONG_PTR lpdest, bool is_filepath, _R_CALLBACK_HTTP_DOWNLOAD _callback, LONG_PTR lpdata)
 {
-	if (!buffer)
+	if (!lpdest)
 		return ERROR_BAD_ARGUMENTS;
 
 	bool result = false;
@@ -2943,22 +2936,16 @@ DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, 
 		LPSTR content_buffer_a = new CHAR[buffer_length];
 		LPWSTR content_buffer_w = nullptr;
 
-		rstring *lpbuffer = nullptr;
-		HANDLE hfile = nullptr;
+		rstring *lpbuffer = reinterpret_cast<rstring*>(lpdest);
+		HANDLE hfile = reinterpret_cast<HANDLE>(lpdest);
 
 		if (is_filepath)
 		{
-			hfile = CreateFile ((LPCWSTR)buffer, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-
-			if (hfile == INVALID_HANDLE_VALUE)
-				rc = GetLastError ();
-
-			else
+			if (hfile != INVALID_HANDLE_VALUE)
 				result = true;
 		}
 		else
 		{
-			lpbuffer = static_cast<rstring*>(buffer);
 			result = true;
 		}
 
@@ -2978,7 +2965,11 @@ DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, 
 
 				if (is_filepath)
 				{
-					WriteFile (hfile, content_buffer_a, readed, &notneed, nullptr);
+					if (!WriteFile (hfile, content_buffer_a, readed, &notneed, nullptr))
+					{
+						rc = GetLastError ();
+						break;
+					}
 				}
 				else
 				{
@@ -3003,9 +2994,6 @@ DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, 
 					}
 				}
 			}
-
-			if (is_filepath)
-				CloseHandle (hfile);
 		}
 
 		SAFE_DELETE_ARRAY (content_buffer_a);
@@ -3230,66 +3218,55 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size)
 bool _r_parseini (LPCWSTR path, rstringmap2& pmap, rstringvec* psections)
 {
 	rstring section_ptr;
-	rstring value_ptr;
-
-	size_t length = 0;
-	size_t out_length;
 
 	size_t delimeter_pos;
 
-	// get sections
-	do
+	// get section names
+	size_t alloc_length = 2048;
+	size_t out_length = GetPrivateProfileSectionNames (section_ptr.GetBuffer (alloc_length), (DWORD)alloc_length, path);
+
+	if (!out_length)
 	{
-		length += _R_BUFFER_LENGTH;
-
-		out_length = GetPrivateProfileSectionNames (section_ptr.GetBuffer (length), (DWORD)length, path);
-
-		if (!out_length)
-			return false;
+		section_ptr.Release ();
+		return false;
 	}
-	while (out_length == (length - 1));
 
 	section_ptr.SetLength (out_length);
 
-	LPCWSTR sections = section_ptr.GetString ();
+	LPCWSTR section_name = section_ptr.GetString ();
 
-	// get values
-	while (*sections)
+	alloc_length = 0x00007FFF; // maximum length for GetPrivateProfileSection
+	LPWSTR value_buff = new WCHAR[alloc_length];
+
+	// get section values
+	while (!_r_str_isempty (section_name))
 	{
-		length = 0;
-
 		if (psections)
-			psections->push_back (sections);
+			psections->push_back (section_name);
 
-		do
+		out_length = GetPrivateProfileSection (section_name, value_buff, (DWORD)alloc_length, path);
+
+		if (out_length && !_r_str_isempty (value_buff))
 		{
-			length += _R_BUFFER_LENGTH;
+			LPCWSTR values = value_buff;
 
-			out_length = GetPrivateProfileSection (sections, value_ptr.GetBuffer (length), (DWORD)length, path);
+			while (!_r_str_isempty (values))
+			{
+				const size_t values_length = _r_str_length (values);
 
-			if (!out_length)
-				break;
-		}
-		while (out_length == (length - 1));
+				delimeter_pos = _r_str_find (values, values_length, L'=');
 
-		value_ptr.SetLength (out_length);
+				if (delimeter_pos != INVALID_SIZE_T)
+					pmap[section_name][_r_str_extract (values, values_length, 0, delimeter_pos)] = _r_str_extract (values, values_length, delimeter_pos + 1); // set
 
-		LPCWSTR values = value_ptr.GetString ();
-
-		while (*values)
-		{
-			const size_t str_length = _r_str_length (values);
-
-			delimeter_pos = _r_str_find (values, str_length, L'=');
-
-			if (delimeter_pos != INVALID_SIZE_T)
-				pmap[sections][_r_str_extract (values, str_length, 0, delimeter_pos)] = _r_str_extract (values, str_length, delimeter_pos + 1); // set
-
-			values += str_length + 1; // go next item
+				values += values_length + 1; // go next item
+			}
 		}
 
-		sections += _r_str_length (sections) + 1; // go next section
+		section_name += _r_str_length (section_name) + 1; // go next section
 	}
+
+	SAFE_DELETE_ARRAY (value_buff);
 
 	return true;
 }
@@ -3324,8 +3301,8 @@ bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR dir, WORD show_state, DW
 	{
 		result = true;
 
-		CloseHandle (pi.hThread);
-		CloseHandle (pi.hProcess);
+		SAFE_DELETE_HANDLE (pi.hThread);
+		SAFE_DELETE_HANDLE (pi.hProcess);
 	}
 
 	_intptr.Release ();
@@ -3923,21 +3900,28 @@ rstring _r_listview_getitemtext (HWND hwnd, INT ctrl_id, INT item, INT subitem)
 {
 	rstring result;
 
-	INT allocatedCount = 256;
-	INT count = allocatedCount;
+	INT alloc_length = 256;
+	INT out_length = alloc_length;
 
 	LVITEM lvi = {0};
 
-	while (count >= allocatedCount)
+	while (out_length >= alloc_length)
 	{
-		allocatedCount *= 2;
+		alloc_length += 256;
 
 		lvi.iSubItem = subitem;
-		lvi.pszText = result.GetBuffer (allocatedCount);
-		lvi.cchTextMax = allocatedCount + 1;
+		lvi.pszText = result.GetBuffer (alloc_length);
+		lvi.cchTextMax = alloc_length + 1;
 
-		count = (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMTEXT, (WPARAM)item, (LPARAM)&lvi);
-		result.SetLength (count);
+		out_length = (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMTEXT, (WPARAM)item, (LPARAM)&lvi);
+
+		if (!out_length)
+		{
+			result.Release ();
+			break;
+		}
+
+		result.SetLength (out_length);
 	}
 
 	return result;

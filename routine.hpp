@@ -46,8 +46,8 @@
 // stdlib typedef
 typedef std::vector<rstring> rstringvec;
 
-typedef std::unordered_map<rstring, rstring, rstring::hash, rstring::is_equal> rstringmap1;
-typedef std::unordered_map<rstring, rstringmap1, rstring::hash, rstring::is_equal> rstringmap2;
+typedef std::unordered_map<rstring, rstring, rstring_hash, rstring_is_equal> rstringmap1;
+typedef std::unordered_map<rstring, rstringmap1, rstring_hash, rstring_is_equal> rstringmap2;
 
 // callback functions
 typedef bool (*_R_CALLBACK_HTTP_DOWNLOAD) (DWORD total_written, DWORD total_length, LONG_PTR lpdata);
@@ -64,6 +64,10 @@ typedef void (*_R_CALLBACK_OBJECT_CLEANUP) (PVOID pdata);
 
 #ifndef SAFE_DELETE_OBJECT
 #define SAFE_DELETE_OBJECT(p) {if(p) {DeleteObject (p); (p)=nullptr;}}
+#endif
+
+#ifndef SAFE_DELETE_HANDLE
+#define SAFE_DELETE_HANDLE(p) {if(p && p != INVALID_HANDLE_VALUE) {CloseHandle (p); (p)=nullptr;}}
 #endif
 
 #ifndef SAFE_DELETE_ICON
@@ -487,7 +491,7 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent, LPCWSTR proxy_addr);
 DWORD _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHINTERNET pconnect, LPHINTERNET prequest, PDWORD ptotallength);
 bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD preaded, PDWORD ptotalreaded);
 DWORD _r_inet_parseurl (LPCWSTR url, INT *scheme_ptr, LPWSTR host_ptr, LPWORD port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr);
-DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, LPVOID buffer, bool is_filepath, _R_CALLBACK_HTTP_DOWNLOAD _callback, LONG_PTR lpdata);
+DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, LONG_PTR lpdest, bool is_filepath, _R_CALLBACK_HTTP_DOWNLOAD _callback, LONG_PTR lpdata);
 #define _r_inet_close(h) if(h){WinHttpCloseHandle(h);h=nullptr;}
 
 /*
