@@ -1172,7 +1172,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 	}
 
 	return result;
-	}
+}
 
 void rapp::RestoreWindowPosition (HWND hwnd, LPCWSTR window_name)
 {
@@ -1211,7 +1211,7 @@ void rapp::RestoreWindowPosition (HWND hwnd, LPCWSTR window_name)
 	_r_wnd_adjustwindowrect (nullptr, &rect_new);
 
 	SetWindowPos (hwnd, nullptr, rect_new.left, rect_new.top, _R_RECT_WIDTH (&rect_new), _R_RECT_HEIGHT (&rect_new), SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSENDCHANGING);
-	}
+}
 
 #ifdef _APP_HAVE_SETTINGS
 void rapp::CreateSettingsWindow (DLGPROC proc, INT dlg_id)
@@ -1542,7 +1542,7 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start)
 
 			if (is_menu)
 			{
-				AppendMenu (hsubmenu, MF_STRING, static_cast<UINT_PTR>(idx + id_start), name);
+				AppendMenu (hsubmenu, MF_STRING, static_cast<UINT_PTR>(idx) + static_cast<UINT_PTR>(id_start), name);
 
 				if (is_current)
 					CheckMenuRadioItem (hsubmenu, id_start, id_start + idx, id_start + idx, MF_BYCOMMAND);
@@ -1980,9 +1980,9 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 
 				SendMessage (pupdateinfo->htaskdlg, TDM_SET_ELEMENT_TEXT, TDE_CONTENT, (LPARAM)str_content);
 				SendMessage (pupdateinfo->htaskdlg, TDM_SET_PROGRESS_BAR_POS, (WPARAM)percent, 0);
-		}
+			}
 #ifndef _APP_NO_WINXP
-	}
+		}
 #endif // _APP_NO_WINXP
 	}
 
@@ -2095,14 +2095,14 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 #endif // _APP_NO_WINXP
 			}
 		}
-				}
+	}
 
 	//SetEvent (pupdateinfo->hend);
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-			}
+}
 
 HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM, LONG_PTR lpdata)
 {
@@ -2246,7 +2246,7 @@ INT rapp::UpdateDialogNavigate (HWND htaskdlg, LPCWSTR main_icon, TASKDIALOG_FLA
 		_r_msg_taskdialog (&tdc, &button, nullptr, nullptr);
 
 	return button;
-	}
+}
 
 rstring format_version (rstring vers)
 {
@@ -2458,15 +2458,15 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 			}
 
 			_r_inet_close (hsession);
-					}
+		}
 
 		SetEvent (pupdateinfo->hend);
-				}
+	}
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-			}
+}
 #endif // _APP_HAVE_UPDATES
 
 #ifdef _APP_HAVE_SKIPUAC
