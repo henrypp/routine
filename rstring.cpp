@@ -15,7 +15,9 @@ rstring::rstring (const rstring& other) : data_ (nullptr)
 	{
 		data_ = other.data_;
 		Buffer* buffer = toBuffer ();
-		InterlockedIncrement64 (&buffer->referenceCount);
+
+		if (buffer)
+			InterlockedIncrement64 (&buffer->referenceCount);
 	}
 }
 
@@ -31,10 +33,13 @@ rstring::rstring (LPCWSTR text) : data_ (nullptr)
 	{
 		const size_t length = _r_str_length (text);
 
-		ReallocateUnique (length);
+		if (length)
+		{
+			ReallocateUnique (length);
 
-		if (data_)
-			wmemcpy (data_, text, length);
+			if (data_)
+				wmemcpy (data_, text, length);
+		}
 	}
 }
 
@@ -60,18 +65,17 @@ rstring::rstring (LPCWSTR text, size_t length) : data_ (nullptr)
 
 rstring::~rstring ()
 {
-	if (data_)
-		Release ();
+	Release ();
 }
 
 rstring::operator LPCWSTR () const
 {
-	return GetString ();
+	return data_;
 }
 
 rstring::operator bool () const
 {
-	return GetLength () != 0;
+	return data_ != nullptr;
 }
 
 rstring& rstring::operator= (const rstring& other)
@@ -445,9 +449,11 @@ size_t rstring::Hash () const
 
 LPWSTR rstring::GetBuffer (size_t length)
 {
-	EnsureUnique ();
-
-	if (length)
+	if (!length)
+	{
+		EnsureUnique ();
+	}
+	else
 	{
 		Release ();
 		ReallocateUnique (length);
@@ -468,24 +474,7 @@ size_t rstring::GetLength () const
 
 LPCWSTR rstring::GetString () const
 {
-	if (!data_)
-		return L"";
-
 	return data_;
-}
-
-void rstring::ReleaseBuffer ()
-{
-	size_t length = _r_str_length (data_);
-
-	if (!length)
-	{
-		Release ();
-	}
-	else
-	{
-		SetLength (length);
-	}
 }
 
 rstring& rstring::SetLength (size_t length)
@@ -497,6 +486,43 @@ rstring& rstring::SetLength (size_t length)
 	else
 	{
 		ReallocateUnique (length);
+	}
+
+	return *this;
+}
+
+rstring& rstring::ReleaseBuffer ()
+{
+	size_t length = _r_str_length (data_);
+
+	if (!length)
+	{
+		Release ();
+	}
+	else
+	{
+		ReallocateUnique (length);
+	}
+
+	return *this;
+}
+
+rstring& rstring::Release ()
+{
+	Buffer* buffer = toBuffer ();
+
+	if (buffer)
+	{
+		const LONG64 res = InterlockedDecrement64 (&buffer->referenceCount);
+
+		if (res == 0)
+		{
+			char* bytes = (char*)buffer;
+
+			delete[] bytes;
+		}
+
+		data_ = nullptr;
 	}
 
 	return *this;
@@ -525,27 +551,6 @@ void rstring::AddRef (const rstring& other)
 				InterlockedIncrement64 (&buffer->referenceCount);
 		}
 	}
-}
-
-rstring& rstring::Release ()
-{
-	Buffer* buffer = toBuffer ();
-
-	if (buffer)
-	{
-		const LONG64 res = InterlockedDecrement64 (&buffer->referenceCount);
-
-		if (res == 0)
-		{
-			char* bytes = (char*)buffer;
-
-			delete[] bytes;
-		}
-
-		data_ = nullptr;
-	}
-
-	return *this;
 }
 
 size_t rstring::allocationByteCount (size_t length)

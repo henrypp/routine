@@ -7,21 +7,40 @@
 
 #include <windows.h>
 
-#include <unordered_map>
-#include <vector>
-
 #include "rconfig.hpp"
 
 class rstring
 {
 
+private:
+
+	LPWSTR data_ = nullptr;
+
+	struct Buffer
+	{
+		volatile LONG64 referenceCount = 0;
+		size_t length = 0;
+		WCHAR buff[128];
+	};
+
+
+	Buffer* toBuffer () const;
+
+	static size_t allocationByteCount (size_t length);
+	static Buffer* allocate (size_t length);
+
+	Buffer* EnsureUnique ();
+	Buffer* ReallocateUnique (size_t length);
+
+	void AddRef (const rstring& other);
+
 public:
 
 	rstring ();
 	rstring (const rstring& other);
+	rstring (rstring&& other);
 	rstring (LPCWSTR text);
 	rstring (LPCWSTR text, size_t length);
-	rstring (rstring&& other);
 
 	~rstring ();
 
@@ -62,31 +81,9 @@ public:
 	size_t GetLength () const;
 	LPCWSTR GetString () const;
 
-	void ReleaseBuffer ();
 	rstring& SetLength (size_t length);
+	rstring& ReleaseBuffer ();
 	rstring& Release ();
-
-private:
-
-	LPWSTR data_ = nullptr;
-
-	struct Buffer
-	{
-		volatile LONG64 referenceCount = 0;
-		size_t length = 0;
-		WCHAR buff[128];
-	};
-
-
-	Buffer* toBuffer () const;
-
-	static size_t allocationByteCount (size_t length);
-	static Buffer* allocate (size_t length);
-
-	Buffer* EnsureUnique ();
-	Buffer* ReallocateUnique (size_t length);
-
-	void AddRef (const rstring& other);
 };
 
 struct rstring_hash
