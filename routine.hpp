@@ -28,6 +28,8 @@
 #include <inttypes.h>
 #include <assert.h>
 #include <algorithm>
+#include <unordered_map>
+#include <vector>
 
 #include "app.hpp"
 #include "ntapi.hpp"
