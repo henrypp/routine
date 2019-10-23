@@ -12,27 +12,10 @@
 
 #include "rconfig.hpp"
 
-#pragma pack(push, 8)
-
 class rstring
 {
 
 public:
-
-	struct hash
-	{
-		size_t operator() (const rstring& k) const
-		{
-			return k.Hash ();
-		}
-	};
-	struct is_equal
-	{
-		bool operator() (const rstring& lhs, const rstring& rhs) const
-		{
-			return _wcsicmp (lhs, rhs) == 0;
-		}
-	};
 
 	rstring ();
 	rstring (const rstring& other);
@@ -106,4 +89,18 @@ private:
 	void AddRef (const rstring& other);
 };
 
-#pragma pack(pop)
+struct rstring_hash
+{
+	size_t operator() (const rstring& k) const
+	{
+		return k.Hash ();
+	}
+};
+
+struct rstring_is_equal
+{
+	bool operator() (const rstring& lhs, const rstring& rhs) const
+	{
+		return _wcsicmp (lhs.GetString (), rhs.GetString ()) == 0;
+	}
+};
