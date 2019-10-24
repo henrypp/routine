@@ -711,86 +711,13 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 #ifdef _APP_HAVE_TRAY
 	if (msg == WM_TASKBARCREATED)
 	{
-		SendMessage (hwnd, RM_UNINITIALIZE, 0, 0);
-		SendMessage (hwnd, RM_INITIALIZE, 0, 0);
-
+		SendMessage (hwnd, RM_TASKBARCREATED, 0, 0);
 		return FALSE;
 	}
 #endif // _APP_HAVE_TRAY
 
 	switch (msg)
 	{
-		case WM_THEMECHANGED:
-		{
-			this_ptr->is_classic = !IsThemeActive () || this_ptr->ConfigGet (L"ClassicUI", _APP_CLASSICUI).AsBool ();
-
-#ifndef _APP_NO_DARKTHEME
-			_r_wnd_setdarktheme (hwnd);
-#endif // _APP_NO_DARKTHEME
-
-			SendMessage (hwnd, RM_LOCALIZE, 0, 0);
-
-			break;
-		}
-
-		case WM_SHOWWINDOW:
-		{
-			if (this_ptr->is_needmaximize)
-			{
-				ShowWindow (hwnd, SW_MAXIMIZE);
-				this_ptr->is_needmaximize = false;
-			}
-
-			break;
-		}
-
-#ifndef _APP_NO_DARKTHEME
-		//case WM_CTLCOLOREDIT:
-		//{
-		//	if (_r_wnd_isdarktheme ())
-		//	{
-		//		// while the edit control gets the style "SearchBoxEditComposited", that's not
-		//		// enough: the text color still stays black. So we have to change that here.
-		//		SetTextColor ((HDC)wparam, GetSysColor (COLOR_WINDOW));
-		//		return TRUE;
-		//	}
-
-		//	break;
-		//}
-
-		//case WM_ERASEBKGND:
-		//{
-		//	HDC hDC = (HDC)wparam;
-		//	RECT rc = {0};
-		//	GetClientRect (hwnd, &rc);
-
-		//	if (this_ptr->IsDarkUI ())
-		//	{
-		//		// in dark mode, just paint the whole background in black
-		//		_r_dc_fillrect (hDC, &rc, GetSysColor (COLOR_WINDOWTEXT));
-		//		return TRUE;
-		//	}
-
-		//	break;
-		//}
-
-		case WM_SETTINGCHANGE:
-		{
-			if (_r_wnd_isdarkmessage (lparam))
-				SendMessage (hwnd, WM_THEMECHANGED, 0, 0);
-
-			break;
-		}
-#endif // _APP_NO_DARKTHEME
-
-		case WM_CTLCOLORSTATIC:
-		case WM_CTLCOLORDLG:
-		case WM_CTLCOLORBTN:
-		{
-			SetBkMode ((HDC)wparam, TRANSPARENT); // HACK!!!
-			break;
-		}
-
 		case WM_DESTROY:
 		{
 			if ((GetWindowLongPtr (hwnd, GWL_STYLE) & WS_MAXIMIZEBOX) != 0)
@@ -807,6 +734,61 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		{
 			SetWindowLongPtr (hwnd, DWLP_MSGRESULT, TRUE);
 			return TRUE;
+		}
+
+		case WM_SYSCOMMAND:
+		{
+#ifdef _APP_HAVE_TRAY
+			if (wparam == SC_CLOSE)
+			{
+				_r_wnd_toggle (hwnd, false);
+				return TRUE;
+			}
+#endif // _APP_HAVE_TRAY
+
+			break;
+		}
+
+		case WM_SHOWWINDOW:
+		{
+			if (this_ptr->is_needmaximize)
+			{
+				ShowWindow (hwnd, SW_MAXIMIZE);
+				this_ptr->is_needmaximize = false;
+			}
+
+			break;
+		}
+
+		case WM_THEMECHANGED:
+		{
+			this_ptr->is_classic = !IsThemeActive () || this_ptr->ConfigGet (L"ClassicUI", _APP_CLASSICUI).AsBool ();
+
+#ifndef _APP_NO_DARKTHEME
+			_r_wnd_setdarktheme (hwnd);
+#endif // _APP_NO_DARKTHEME
+
+			SendMessage (hwnd, RM_LOCALIZE, 0, 0);
+
+			break;
+		}
+
+#ifndef _APP_NO_DARKTHEME
+		case WM_SETTINGCHANGE:
+		{
+			if (_r_wnd_isdarkmessage (lparam))
+				SendMessage (hwnd, WM_THEMECHANGED, 0, 0);
+
+			break;
+		}
+#endif // _APP_NO_DARKTHEME
+
+		case WM_CTLCOLORDLG:
+		case WM_CTLCOLORBTN:
+		case WM_CTLCOLORSTATIC:
+		{
+			SetBkMode ((HDC)wparam, TRANSPARENT); // HACK!!!
+			break;
 		}
 
 		case WM_GETMINMAXINFO:
@@ -850,28 +832,28 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			break;
 		}
 
-		case WM_GETDPISCALEDSIZE:
-		{
-			INT dpi = static_cast<INT>(wparam);
-			double scaling_factor = static_cast<double>(dpi) / USER_DEFAULT_SCREEN_DPI;
+		//case WM_GETDPISCALEDSIZE:
+		//{
+		//	INT dpi = static_cast<INT>(wparam);
+		//	double scaling_factor = static_cast<double>(dpi) / USER_DEFAULT_SCREEN_DPI;
 
-			RECT rc_client;
+		//	RECT rc_client;
 
-			if (!GetClientRect (hwnd, &rc_client))
-				return FALSE;
+		//	if (!GetClientRect (hwnd, &rc_client))
+		//		return FALSE;
 
-			rc_client.right = static_cast<LONG>(rc_client.right * scaling_factor);
-			rc_client.bottom = static_cast<LONG>(rc_client.bottom * scaling_factor);
+		//	rc_client.right = static_cast<LONG>(rc_client.right * scaling_factor);
+		//	rc_client.bottom = static_cast<LONG>(rc_client.bottom * scaling_factor);
 
-			_r_wnd_adjustwindowrect (hwnd, &rc_client);
+		//	_r_wnd_adjustwindowrect (hwnd, &rc_client);
 
-			LPSIZE new_size = reinterpret_cast<LPSIZE>(lparam);
+		//	LPSIZE new_size = reinterpret_cast<LPSIZE>(lparam);
 
-			new_size->cx = _R_RECT_WIDTH (&rc_client);
-			new_size->cy = _R_RECT_HEIGHT (&rc_client);
+		//	new_size->cx = _R_RECT_WIDTH (&rc_client);
+		//	new_size->cy = _R_RECT_HEIGHT (&rc_client);
 
-			return TRUE;
-		}
+		//	return TRUE;
+		//}
 
 		case WM_DPICHANGED:
 		{
@@ -901,19 +883,6 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 					SendMessage (hwnd, WM_EXITSIZEMOVE, 0, 0); // reset size and pos
 				}
 			}
-
-			break;
-		}
-
-		case WM_SYSCOMMAND:
-		{
-#ifdef _APP_HAVE_TRAY
-			if (wparam == SC_CLOSE)
-			{
-				_r_wnd_toggle (hwnd, false);
-				return TRUE;
-			}
-#endif // _APP_HAVE_TRAY
 
 			break;
 		}
@@ -994,7 +963,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 		if (RunAsAdmin ())
 			return false;
 
-		_r_msg (nullptr, MB_OK | MB_ICONEXCLAMATION, app_name, L"Warning!", L"%s administrative privileges is required!", app_name);
+		_r_msg (nullptr, MB_OK | MB_ICONEXCLAMATION, app_name, L"Warning!", L"%s administrative privileges are required!", app_name);
 		return false;
 	}
 #elif _APP_HAVE_SKIPUAC
@@ -1002,15 +971,13 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 		return false;
 #endif // _APP_NO_GUEST
 
-#ifndef _DEBUG
-#ifndef _WIN64
+#if !defined(_DEBUG) && !defined(_WIN64)
 	if (_r_sys_iswow64 ())
 	{
 		if (!ConfirmMessage (nullptr, L"Warning!", _r_fmt (L"You are attempting to run the 32-bit version of %s on 64-bit Windows.\r\nPlease run the 64-bit version of %s instead.", app_name, app_name), L"ConfirmWOW64"))
 			return false;
 	}
-#endif // _WIN64
-#endif // _DEBUG
+#endif // _DEBUG && _WIN64
 
 	MutexCreate ();
 
@@ -1919,7 +1886,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 							SendMessage (this_ptr->GetHWND (), WM_EXITSIZEMOVE, 0, 0); // reset size and pos
 
-							SendMessage (this_ptr->GetHWND (), RM_RESET_DONE, 0, (LPARAM)current_timestamp);
+							SendMessage (this_ptr->GetHWND (), RM_CONFIG_RESET, 0, (LPARAM)current_timestamp);
 
 							DrawMenuBar (this_ptr->GetHWND ());
 						}
@@ -2424,7 +2391,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 										if (this_ptr->GetHWND ())
 										{
-											SendMessage (this_ptr->GetHWND (), RM_UPDATE_DONE, 0, 0);
+											SendMessage (this_ptr->GetHWND (), RM_CONFIG_UPDATE, 0, 0);
 											SendMessage (this_ptr->GetHWND (), RM_INITIALIZE, 0, 0);
 											SendMessage (this_ptr->GetHWND (), RM_LOCALIZE, 0, 0);
 

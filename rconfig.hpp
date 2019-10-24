@@ -60,9 +60,10 @@
 #define RM_MESSAGE (WM_USER + 4)
 #define RM_LOCALIZE (WM_USER + 5)
 #define RM_ARGUMENTS (WM_USER + 6)
-#define RM_UPDATE_DONE (WM_USER + 7) // update done
-#define RM_RESET_DONE (WM_USER + 8) // reset done
-#define RM_DPICHANGED (WM_USER + 9) // dpi changed message (win81+)
+#define RM_CONFIG_UPDATE (WM_USER + 7) // update done
+#define RM_CONFIG_RESET (WM_USER + 8) // reset done
+#define RM_TASKBARCREATED (WM_USER + 9) // explorer restarted
+#define RM_DPICHANGED (WM_USER + 10) // dpi changed message (win81+)
 
 // Invalid types definitions
 #define INVALID_INT (INT(-1))

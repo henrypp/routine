@@ -828,19 +828,19 @@ LONG64 _r_fs_size (LPCWSTR path)
 rstring _r_path_getdirectory (LPCWSTR path)
 {
 	if (_r_str_isempty (path))
-		return nullptr;
+		return path;
 
-	const size_t pos = _r_str_reversefind (path, INVALID_SIZE_T, OBJ_NAME_PATH_SEPARATOR);
+	rstring result = path;
+
+	const size_t pos = _r_str_reversefind (result, result.GetLength (), OBJ_NAME_PATH_SEPARATOR);
 
 	if (pos != INVALID_SIZE_T)
 	{
-		rstring result (path, pos);
+		result.SetLength (pos);
 		_r_str_trim (result, L"\\/");
-
-		return result;
 	}
 
-	return path;
+	return result;
 }
 
 LPCWSTR _r_path_getextension (LPCWSTR path)
@@ -860,7 +860,6 @@ LPCWSTR _r_path_getextension (LPCWSTR path)
 
 	return lastpoint;
 }
-
 
 LPCWSTR _r_path_getfilename (LPCWSTR path)
 {
@@ -897,7 +896,10 @@ void _r_path_explore (LPCWSTR path)
 
 rstring _r_path_compact (LPCWSTR path, UINT length)
 {
-	if (_r_str_isempty (path) || !length)
+	if (_r_str_isempty (path))
+		return path;
+
+	if (!length)
 		return nullptr;
 
 	rstring result;
@@ -1849,7 +1851,7 @@ rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username)
 
 bool _r_sys_iswow64 ()
 {
-#ifndef _WIN64
+#if !defined(_DEBUG) && !defined(_WIN64)
 	// IsWow64Process is not available on all supported versions of Windows.
 	// Use GetModuleHandle to get a handle to the DLL that contains the function
 	// and GetProcAddress to get a pointer to the function if available.
@@ -1869,7 +1871,7 @@ bool _r_sys_iswow64 ()
 				return !!result;
 		}
 	}
-#endif // _WIN64
+#endif // _DEBUG && _WIN64
 
 	return false;
 }
@@ -2283,8 +2285,8 @@ void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
 
 			if (_ChangeWindowMessageFilter)
 				_ChangeWindowMessageFilter (msg, action);
-		}
 	}
+}
 #endif // _APP_NO_WINXP
 }
 
@@ -2973,14 +2975,11 @@ DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, 
 				}
 				else
 				{
-					if (lpbuffer)
-					{
-						if (!content_buffer_w)
-							content_buffer_w = new WCHAR[buffer_length];
+					if (!content_buffer_w)
+						content_buffer_w = new WCHAR[buffer_length];
 
-						if (_r_str_multibyte2widechar (CP_ACP, content_buffer_a, content_buffer_w, readed))
-							lpbuffer->Append (content_buffer_w);
-					}
+					if (_r_str_multibyte2widechar (CP_ACP, content_buffer_a, content_buffer_w, readed))
+						lpbuffer->Append (content_buffer_w);
 				}
 
 				if (_callback)
@@ -3209,7 +3208,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size)
 			if (SUCCEEDED (_LoadIconWithScaleDown (hinst, name, size, size, &hicon)))
 				return hicon;
 		}
-	}
+}
 
 	return (HICON)LoadImage (hinst, name, IMAGE_ICON, size, size, 0);
 #endif // _APP_NO_WINXP
