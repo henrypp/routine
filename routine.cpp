@@ -887,7 +887,7 @@ void _r_path_explore (LPCWSTR path)
 	}
 	else
 	{
-		LPCWSTR dir = _r_path_getdirectory (path);
+		rstring dir = _r_path_getdirectory (path);
 
 		if (_r_fs_exists (dir))
 			ShellExecute (nullptr, nullptr, dir, nullptr, nullptr, SW_SHOWDEFAULT);
@@ -977,10 +977,7 @@ rstring _r_path_unexpand (LPCWSTR path)
 
 rstring _r_path_makeunique (LPCWSTR path)
 {
-	if (_r_str_isempty (path))
-		return nullptr;
-
-	if (!_r_fs_exists (path))
+	if (_r_str_isempty (path) || !_r_fs_exists (path))
 		return path;
 
 	if (_r_str_find (path, INVALID_SIZE_T, OBJ_NAME_PATH_SEPARATOR) == INVALID_SIZE_T)
@@ -1435,7 +1432,7 @@ INT _r_str_compare_logical (LPCWSTR str1, LPCWSTR str2)
 	return StrCmpLogicalW (str1, str2);
 }
 
-INT _r_str_compare_unicode (LPWSTR str1, LPWSTR str2, bool is_ignorecase)
+INT _r_str_compare_unicode (LPCWSTR str1, LPCWSTR str2, bool is_ignorecase)
 {
 	if (str1 == str2)
 		return 0;
@@ -1455,8 +1452,8 @@ INT _r_str_compare_unicode (LPWSTR str1, LPWSTR str2, bool is_ignorecase)
 	UNICODE_STRING string1 = {0};
 	UNICODE_STRING string2 = {0};
 
-	RtlInitUnicodeString (&string1, str1);
-	RtlInitUnicodeString (&string2, str2);
+	RtlInitUnicodeString (&string1, const_cast<LPWSTR>(str1));
+	RtlInitUnicodeString (&string2, const_cast<LPWSTR>(str2));
 
 	return RtlCompareUnicodeString (&string1, &string2, is_ignorecase);
 }
@@ -1849,9 +1846,9 @@ rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username)
 	return result;
 }
 
+#if !defined(_DEBUG) && !defined(_WIN64)
 bool _r_sys_iswow64 ()
 {
-#if !defined(_DEBUG) && !defined(_WIN64)
 	// IsWow64Process is not available on all supported versions of Windows.
 	// Use GetModuleHandle to get a handle to the DLL that contains the function
 	// and GetProcAddress to get a pointer to the function if available.
@@ -1871,12 +1868,12 @@ bool _r_sys_iswow64 ()
 				return !!result;
 		}
 	}
-#endif // _DEBUG && _WIN64
 
 	return false;
 }
+#endif // _DEBUG && _WIN64
 
-bool _r_sys_setprivilege (LPCWSTR privileges[], size_t count, bool is_enable)
+bool _r_sys_setprivilege (LPCWSTR* pprivileges, size_t count, bool is_enable)
 {
 	HANDLE token = nullptr;
 
@@ -1889,7 +1886,7 @@ bool _r_sys_setprivilege (LPCWSTR privileges[], size_t count, bool is_enable)
 	{
 		for (size_t i = 0; i < count; i++)
 		{
-			if (LookupPrivilegeValue (nullptr, privileges[i], &luid))
+			if (LookupPrivilegeValue (nullptr, pprivileges[i], &luid))
 			{
 				tp.PrivilegeCount = 1;
 				tp.Privileges[0].Luid = luid;
@@ -2025,22 +2022,8 @@ void _r_dc_enablenonclientscaling (HWND hwnd)
 	}
 }
 
-INT _r_dc_getdpivalue (HWND hwnd, INT new_value)
+INT _r_dc_getdpivalue (HWND hwnd)
 {
-	static INT cached_value = INVALID_INT;
-
-	if (new_value > 0)
-	{
-		cached_value = new_value;
-		return new_value;
-	}
-
-	if (new_value != INVALID_INT)
-	{
-		if (cached_value != INVALID_INT)
-			return cached_value;
-	}
-
 	static const bool is_win81 = _r_sys_validversion (6, 3); // win81+
 
 	if (is_win81)
@@ -2064,9 +2047,7 @@ INT _r_dc_getdpivalue (HWND hwnd, INT new_value)
 					if (_GetDpiForMonitor && SUCCEEDED (_GetDpiForMonitor (hmon, MDT_EFFECTIVE_DPI, &dpix, &dpiy)))
 					{
 						FreeLibrary (hshcore);
-
-						cached_value = dpix;
-						return cached_value;
+						return dpix;
 					}
 				}
 
@@ -2082,10 +2063,7 @@ INT _r_dc_getdpivalue (HWND hwnd, INT new_value)
 				const GDFW _GetDpiForWindow = (GDFW)GetProcAddress (huser32, "GetDpiForWindow"); // win10rs1+
 
 				if (_GetDpiForWindow)
-				{
-					cached_value = _GetDpiForWindow (hwnd);
-					return cached_value;
-				}
+					return _GetDpiForWindow (hwnd);
 			}
 		}
 	}
@@ -2097,8 +2075,6 @@ INT _r_dc_getdpivalue (HWND hwnd, INT new_value)
 	{
 		INT result = GetDeviceCaps (hdc, LOGPIXELSX);
 		ReleaseDC (nullptr, hdc);
-
-		cached_value = result;
 
 		return result;
 	}
@@ -2250,43 +2226,47 @@ void _r_wnd_center (HWND hwnd, HWND hparent)
 	}
 }
 
-void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action)
+void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD action)
 {
 	const HMODULE hlib = GetModuleHandle (L"user32.dll");
 
+	if (!hlib)
+		return;
+
 #ifdef _APP_NO_WINXP
-	if (hlib)
-	{
-		typedef BOOL (WINAPI * CWMFEX) (HWND, UINT, DWORD, PVOID); // ChangeWindowMessageFilterEx
-		const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (hlib, "ChangeWindowMessageFilterEx"); // win7+
+	typedef BOOL (WINAPI * CWMFEX) (HWND, UINT, DWORD, PVOID); // ChangeWindowMessageFilterEx
+	const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (hlib, "ChangeWindowMessageFilterEx"); // win7+
 
-		if (_ChangeWindowMessageFilterEx)
-		{
-			if (_ChangeWindowMessageFilterEx (hwnd, msg, action, nullptr))
-				return;
-		}
+	if (_ChangeWindowMessageFilterEx)
+	{
+		for (size_t i = 0; i < count; i++)
+			_ChangeWindowMessageFilterEx (hwnd, pmsg[i], action, nullptr);
+
+		return;
 	}
 
-	ChangeWindowMessageFilter (msg, action); // vista fallback
+	for (size_t i = 0; i < count; i++)
+		ChangeWindowMessageFilter (pmsg[i], action); // vista fallback
 #else
-	if (hlib)
+	typedef BOOL (WINAPI * CWMFEX) (HWND, UINT, DWORD, PVOID); // ChangeWindowMessageFilterEx
+	const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (hlib, "ChangeWindowMessageFilterEx"); // win7+
+
+	if (_ChangeWindowMessageFilterEx)
 	{
-		typedef BOOL (WINAPI * CWMFEX) (HWND, UINT, DWORD, PVOID); // ChangeWindowMessageFilterEx
-		const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (hlib, "ChangeWindowMessageFilterEx"); // win7+
-
-		if (_ChangeWindowMessageFilterEx)
-		{
-			_ChangeWindowMessageFilterEx (hwnd, msg, action, nullptr);
-		}
-		else
-		{
-			typedef BOOL (WINAPI * CWMF) (UINT, DWORD); // ChangeWindowMessageFilter
-			const CWMF _ChangeWindowMessageFilter = (CWMF)GetProcAddress (hlib, "ChangeWindowMessageFilter"); // vista fallback
-
-			if (_ChangeWindowMessageFilter)
-				_ChangeWindowMessageFilter (msg, action);
+		for (size_t i = 0; i < count; i++)
+			_ChangeWindowMessageFilterEx (hwnd, pmsg[i], action, nullptr);
 	}
-}
+	else
+	{
+		typedef BOOL (WINAPI * CWMF) (UINT, DWORD); // ChangeWindowMessageFilter
+		const CWMF _ChangeWindowMessageFilter = (CWMF)GetProcAddress (hlib, "ChangeWindowMessageFilter"); // vista fallback
+
+		if (_ChangeWindowMessageFilter)
+		{
+			for (size_t i = 0; i < count; i++)
+				_ChangeWindowMessageFilter (pmsg[i], action);
+		}
+	}
 #endif // _APP_NO_WINXP
 }
 
@@ -2472,7 +2452,7 @@ bool _r_wnd_isdarkmessage (LPARAM lparam)
 
 	const HMODULE huxtheme = GetModuleHandle (L"uxtheme.dll");
 
-	if (lparam && _r_str_compare_unicode (reinterpret_cast<LPWSTR>(lparam), L"ImmersiveColorSet", true) == 0)
+	if (lparam && _r_str_compare_unicode (reinterpret_cast<LPCWSTR>(lparam), L"ImmersiveColorSet", true) == 0)
 	{
 		if (huxtheme)
 		{
@@ -3114,8 +3094,7 @@ rstring _r_reg_querystring (HKEY hkey, LPCWSTR value)
 					}
 					else
 					{
-						buffer.ReleaseBuffer ();
-						result = std::move (buffer);
+						result = std::move (buffer.ReleaseBuffer ());
 					}
 				}
 			}
@@ -3208,13 +3187,13 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size)
 			if (SUCCEEDED (_LoadIconWithScaleDown (hinst, name, size, size, &hicon)))
 				return hicon;
 		}
-}
+	}
 
 	return (HICON)LoadImage (hinst, name, IMAGE_ICON, size, size, 0);
 #endif // _APP_NO_WINXP
 }
 
-bool _r_parseini (LPCWSTR path, rstringmap2& pmap, rstringvec* psections)
+bool _r_parseini (LPCWSTR path, rstringmap2 & pmap, rstringvec * psections)
 {
 	rstring section_ptr;
 
@@ -3611,7 +3590,7 @@ void _r_ctrl_settip (HWND htip, HWND hparent, INT ctrl_id, LPCWSTR text)
 	ti.hwnd = hparent;
 	ti.hinst = GetModuleHandle (nullptr);
 	ti.uId = reinterpret_cast<UINT_PTR>(GetDlgItem (hparent, ctrl_id));
-	ti.lpszText = (LPWSTR)text;
+	ti.lpszText = const_cast<LPWSTR>(text);
 
 	GetClientRect (hparent, &ti.rect);
 
@@ -3652,7 +3631,7 @@ INT _r_tab_additem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image, 
 	if (text)
 	{
 		tci.mask |= TCIF_TEXT;
-		tci.pszText = (LPWSTR)text;
+		tci.pszText = const_cast<LPWSTR>(text);
 	}
 
 	if (image != INVALID_INT)
@@ -3677,7 +3656,7 @@ INT _r_tab_setitem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image, 
 	if (text)
 	{
 		tci.mask |= TCIF_TEXT;
-		tci.pszText = (LPWSTR)text;
+		tci.pszText = const_cast<LPWSTR>(text);
 	}
 
 	if (image != INVALID_INT)
@@ -3709,7 +3688,7 @@ INT _r_listview_addcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR title,
 	if (title)
 	{
 		lvc.mask |= LVCF_TEXT;
-		lvc.pszText = (LPWSTR)title;
+		lvc.pszText = const_cast<LPWSTR>(title);
 	}
 
 	if (width)
@@ -3747,7 +3726,7 @@ INT _r_listview_addgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, U
 	if (title)
 	{
 		lvg.mask |= LVGF_HEADER;
-		lvg.pszHeader = (LPWSTR)title;
+		lvg.pszHeader = const_cast<LPWSTR>(title);
 	}
 
 	if (align)
@@ -3787,7 +3766,7 @@ INT _r_listview_additem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR 
 	if (text)
 	{
 		lvi.mask |= LVIF_TEXT;
-		lvi.pszText = (LPWSTR)text;
+		lvi.pszText = const_cast<LPWSTR>(text);
 	}
 
 	if (!subitem)
@@ -3961,7 +3940,7 @@ void _r_listview_setcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR text,
 	if (text)
 	{
 		lvc.mask |= LVCF_TEXT;
-		lvc.pszText = (LPWSTR)text;
+		lvc.pszText = const_cast<LPWSTR>(text);
 	}
 
 	if (width)
@@ -4018,7 +3997,7 @@ void _r_listview_setitem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR
 	if (text)
 	{
 		lvi.mask |= LVIF_TEXT;
-		lvi.pszText = (LPWSTR)text;
+		lvi.pszText = const_cast<LPWSTR>(text);
 	}
 
 	if (!lvi.iSubItem && image != INVALID_INT)
@@ -4061,7 +4040,7 @@ void _r_listview_setgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, 
 	if (title)
 	{
 		lvg.mask |= LVGF_HEADER;
-		lvg.pszHeader = (LPWSTR)title;
+		lvg.pszHeader = const_cast<LPWSTR>(title);
 	}
 
 	if (state || state_mask)
@@ -4099,7 +4078,7 @@ HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl_id, LPCWSTR text, HTREEITEM h
 	if (text)
 	{
 		tvi.itemex.mask |= TVIF_TEXT;
-		tvi.itemex.pszText = (LPWSTR)text;
+		tvi.itemex.pszText = const_cast<LPWSTR>(text);
 	}
 
 	if (hparent)
@@ -4142,7 +4121,7 @@ void _r_treeview_setitem (HWND hwnd, INT ctrl_id, HTREEITEM hitem, LPCWSTR text,
 	if (text)
 	{
 		tvi.mask |= TVIF_TEXT;
-		tvi.pszText = (LPWSTR)text;
+		tvi.pszText = const_cast<LPWSTR>(text);
 	}
 
 	if (image != INVALID_INT)
@@ -4240,7 +4219,7 @@ void _r_toolbar_setbutton (HWND hwnd, INT ctrl_id, UINT command_id, LPCWSTR text
 	if (text)
 	{
 		tbi.dwMask |= TBIF_TEXT;
-		tbi.pszText = (LPWSTR)text;
+		tbi.pszText = const_cast<LPWSTR>(text);
 	}
 
 	if (state)

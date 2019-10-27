@@ -55,8 +55,7 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 
 	// get paths
 	GetModuleFileName (GetHINSTANCE (), app_binary, _countof (app_binary));
-	_r_str_copy (app_directory, _countof (app_directory), app_binary);
-	PathRemoveFileSpec (app_directory);
+	_r_str_copy (app_directory, _countof (app_directory), _r_path_getdirectory (app_binary));
 
 	// parse command line
 	INT numargs = 0;
@@ -857,8 +856,6 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 
 		case WM_DPICHANGED:
 		{
-			_r_dc_getdpivalue (hwnd, static_cast<INT>(LOWORD (wparam))); // reset dpi cached value (required!)
-
 #ifdef _APP_HAVE_SETTINGS
 			if (this_ptr->GetSettingsWindow ())
 				SendDlgItemMessage (this_ptr->GetSettingsWindow (), IDC_NAV, TVM_SETITEMHEIGHT, (WPARAM)_r_dc_getdpi (this_ptr->GetSettingsWindow (), _R_SIZE_ITEMHEIGHT), 0);
@@ -876,10 +873,10 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 				{
 					_r_wnd_resize (0, hwnd, nullptr, lprcnew->left, lprcnew->top, _R_RECT_WIDTH (lprcnew), _R_RECT_HEIGHT (lprcnew), 0);
 
-					RECT rc = {0};
-					GetClientRect (hwnd, &rc);
+					RECT rc_client = {0};
+					GetClientRect (hwnd, &rc_client);
 
-					SendMessage (hwnd, WM_SIZE, SIZE_RESTORED, MAKELPARAM (_R_RECT_WIDTH (&rc), _R_RECT_HEIGHT (&rc)));
+					SendMessage (hwnd, WM_SIZE, SIZE_RESTORED, MAKELPARAM (_R_RECT_WIDTH (&rc_client), _R_RECT_HEIGHT (&rc_client)));
 					SendMessage (hwnd, WM_EXITSIZEMOVE, 0, 0); // reset size and pos
 				}
 			}
@@ -897,8 +894,6 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 
 bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 {
-	bool result = false;
-
 	// check checksum
 #ifndef _DEBUG
 	{
@@ -927,6 +922,8 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 		}
 	}
 #endif // _DEBUG
+
+	bool result = false;
 
 	// initialize controls
 	{
@@ -1032,26 +1029,23 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 
 		if (app_hwnd)
 		{
-			// enable messages bypass uipi
-#ifdef _APP_HAVE_TRAY
+			// enable messages bypass uipi (vista+)
 #ifndef _APP_NO_WINXP
 			if (IsVistaOrLater ())
 			{
 #endif // _APP_NO_WINXP
-				_r_wnd_changemessagefilter (GetHWND (), WM_TASKBARCREATED, MSGFLT_ALLOW);
-#ifndef _APP_NO_WINXP
-			}
-#endif // _APP_NO_WINXP
-#endif // _APP_HAVE_TRAY
 
-			// uipi fix (vista+)
-#ifndef _APP_NO_WINXP
-			if (IsVistaOrLater ())
-			{
-#endif // _APP_NO_WINXP
-				_r_wnd_changemessagefilter (GetHWND (), WM_DROPFILES, MSGFLT_ALLOW);
-				_r_wnd_changemessagefilter (GetHWND (), WM_COPYDATA, MSGFLT_ALLOW);
-				_r_wnd_changemessagefilter (GetHWND (), WM_COPYGLOBALDATA, MSGFLT_ALLOW);
+				UINT messages[] = {
+					WM_COPYDATA,
+					WM_COPYGLOBALDATA,
+					WM_DROPFILES,
+#ifdef _APP_HAVE_TRAY
+					WM_TASKBARCREATED,
+#endif // _APP_HAVE_TRAY
+				};
+
+				_r_wnd_changemessagefilter (GetHWND (), messages, _countof (messages), MSGFLT_ALLOW);
+
 #ifndef _APP_NO_WINXP
 			}
 #endif // _APP_NO_WINXP

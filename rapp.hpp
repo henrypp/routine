@@ -9,14 +9,11 @@
 #ifdef _APP_HAVE_SKIPUAC
 #include <comdef.h>
 #include <taskschd.h>
+
+#pragma comment(lib, "taskschd.lib")
 #endif // _APP_HAVE_SKIPUAC
 
 #include "rconfig.hpp"
-
-// libs
-#ifdef _APP_HAVE_SKIPUAC
-#pragma comment(lib, "taskschd.lib")
-#endif // _APP_HAVE_SKIPUAC
 
 /*
 	Structures

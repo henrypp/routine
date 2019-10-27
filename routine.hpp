@@ -333,7 +333,7 @@ size_t _r_str_hash (LPCWSTR text);
 
 INT _r_str_compare (LPCWSTR str1, LPCWSTR str2, size_t length = INVALID_SIZE_T);
 INT _r_str_compare_logical (LPCWSTR str1, LPCWSTR str2);
-INT _r_str_compare_unicode (LPWSTR str1, LPWSTR str2, bool is_ignorecase);
+INT _r_str_compare_unicode (LPCWSTR str1, LPCWSTR str2, bool is_ignorecase);
 
 rstring _r_str_fromguid (const GUID &lpguid);
 rstring _r_str_fromsid (const PSID lpsid);
@@ -368,8 +368,12 @@ INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2);
 bool _r_sys_isadmin ();
 rstring _r_sys_getsessioninfo (WTS_INFO_CLASS info);
 rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username);
+
+#if !defined(_DEBUG) && !defined(_WIN64)
 bool _r_sys_iswow64 ();
-bool _r_sys_setprivilege (LPCWSTR privileges[], size_t count, bool is_enable);
+#endif // _DEBUG && _WIN64
+
+bool _r_sys_setprivilege (LPCWSTR* pprivileges, size_t count, bool is_enable);
 bool _r_sys_uacstate ();
 bool _r_sys_validversion (DWORD major, DWORD minor, DWORD build = 0, BYTE condition = VER_GREATER_EQUAL);
 
@@ -442,7 +446,7 @@ time_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst);
 */
 
 void _r_dc_enablenonclientscaling (HWND hwnd);
-INT _r_dc_getdpivalue (HWND hwnd, INT new_value = 0);
+INT _r_dc_getdpivalue (HWND hwnd);
 COLORREF _r_dc_getcolorbrightness (COLORREF clr);
 COLORREF _r_dc_getcolorshade (COLORREF clr, INT percent);
 void _r_dc_fillrect (HDC hdc, const LPRECT lprc, COLORREF clr);
@@ -471,7 +475,7 @@ void _r_wnd_addstyle (HWND hwnd, INT ctrl_id, LONG_PTR mask, LONG_PTR stateMask,
 void _r_wnd_adjustwindowrect (HWND hwnd, LPRECT lprect);
 void _r_wnd_centerwindowrect (LPRECT lprect, const LPRECT lpparent);
 void _r_wnd_center (HWND hwnd, HWND hparent);
-void _r_wnd_changemessagefilter (HWND hwnd, UINT msg, DWORD action);
+void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD action);
 void _r_wnd_toggle (HWND hwnd, bool is_show);
 void _r_wnd_top (HWND hwnd, bool is_enable);
 bool _r_wnd_undercursor (HWND hwnd);
