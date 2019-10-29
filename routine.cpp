@@ -2011,6 +2011,8 @@ INT _r_dc_getdpivalue (HWND hwnd)
 
 	if (is_win81)
 	{
+		static const bool is_win10rs1 = _r_sys_validversion (10, 0, 14393); //win10rs1+
+
 		HMODULE huser32 = GetModuleHandle (L"user32.dll");
 
 		if (hwnd)
@@ -2039,7 +2041,7 @@ INT _r_dc_getdpivalue (HWND hwnd)
 				FreeLibrary (hshcore);
 			}
 
-			if (huser32)
+			if (is_win10rs1 && huser32)
 			{
 				// GetDpiForWindow (win10rs1+)
 				typedef UINT (WINAPI * GDFW) (HWND); // GetDpiForWindow
@@ -2050,7 +2052,7 @@ INT _r_dc_getdpivalue (HWND hwnd)
 			}
 		}
 
-		if (huser32)
+		if (is_win10rs1 && huser32)
 		{
 			// GetDpiForSystem (win10rs1+)
 			typedef UINT (WINAPI * GDFS) (); // GetDpiForSystem
