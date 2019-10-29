@@ -2005,23 +2005,6 @@ time_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst)
 	Device context (Draw/Calculation etc...)
 */
 
-void _r_dc_enablenonclientscaling (HWND hwnd)
-{
-	if (!_r_sys_validversion (10, 0, 14393)) // win10rs1+
-		return;
-
-	HMODULE hlib = GetModuleHandle (L"user32.dll");
-
-	if (hlib)
-	{
-		typedef BOOL (WINAPI * ENCDS) (HWND); // EnableNonClientDpiScaling
-		const ENCDS _EnableNonClientDpiScaling = (ENCDS)GetProcAddress (hlib, "EnableNonClientDpiScaling");
-
-		if (_EnableNonClientDpiScaling)
-			_EnableNonClientDpiScaling (hwnd);
-	}
-}
-
 INT _r_dc_getdpivalue (HWND hwnd)
 {
 	static const bool is_win81 = _r_sys_validversion (6, 3); // win81+
@@ -2116,6 +2099,32 @@ COLORREF _r_dc_getcolorshade (COLORREF clr, INT percent)
 	COLORREF b = ((GetBValue (clr) * percent) / 100);
 
 	return RGB (r, g, b);
+}
+
+INT _r_dc_getsystemmetrics (HWND hwnd, INT index)
+{
+	static const bool is_win10rs1 = _r_sys_validversion (10, 0, 14393); // win10rs1+
+
+	if (is_win10rs1 && hwnd)
+	{
+		const HMODULE hlib = GetModuleHandle (L"user32.dll");
+
+		if (hlib)
+		{
+			typedef INT (WINAPI * GSMFD) (INT, UINT); // GetSystemMetricsForDpi
+			const GSMFD _GetSystemMetricsForDpi = (GSMFD)GetProcAddress (hlib, "GetSystemMetricsForDpi"); // win10rs1+
+
+			if (_GetSystemMetricsForDpi)
+			{
+				INT metrics = _GetSystemMetricsForDpi (index, _r_dc_getdpivalue (hwnd));
+
+				if (metrics)
+					return metrics;
+			}
+		}
+	}
+
+	return GetSystemMetrics (index);
 }
 
 // Optimized version of WinAPI function "FillRect"
@@ -2265,9 +2274,26 @@ void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD acti
 		{
 			for (size_t i = 0; i < count; i++)
 				_ChangeWindowMessageFilter (pmsg[i], action);
-		}
-	}
+}
+}
 #endif // _APP_NO_WINXP
+}
+
+void _r_wnd_enablenonclientscaling (HWND hwnd)
+{
+	if (!_r_sys_validversion (10, 0, 14393)) // win10rs1+
+		return;
+
+	HMODULE hlib = GetModuleHandle (L"user32.dll");
+
+	if (hlib)
+	{
+		typedef BOOL (WINAPI * ENCDS) (HWND); // EnableNonClientDpiScaling
+		const ENCDS _EnableNonClientDpiScaling = (ENCDS)GetProcAddress (hlib, "EnableNonClientDpiScaling");
+
+		if (_EnableNonClientDpiScaling)
+			_EnableNonClientDpiScaling (hwnd);
+	}
 }
 
 void _r_wnd_toggle (HWND hwnd, bool is_show)
@@ -2332,7 +2358,7 @@ static bool _r_wnd_isplatformfullscreenmode ()
 			{
 				if (FAILED (_SHQueryUserNotificationState (&state)))
 					return false;
-			}
+}
 		}
 	}
 #endif _APP_NO_WINXP
@@ -2530,7 +2556,7 @@ void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable)
 			_DwmSetWindowAttribute (hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &is_enable, sizeof (is_enable));
 
 		FreeLibrary (hdwmapi);
-	}
+}
 #endif
 }
 
@@ -3187,7 +3213,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size)
 			if (SUCCEEDED (_LoadIconWithScaleDown (hinst, name, size, size, &hicon)))
 				return hicon;
 		}
-	}
+}
 
 	return (HICON)LoadImage (hinst, name, IMAGE_ICON, size, size, 0);
 #endif // _APP_NO_WINXP

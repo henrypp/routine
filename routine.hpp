@@ -64,6 +64,10 @@ typedef void (*_R_CALLBACK_OBJECT_CLEANUP) (PVOID pdata);
 #define SAFE_DELETE_ARRAY(p) {if(p) {delete[] (p); (p)=nullptr;}}
 #endif
 
+#ifndef SAFE_DELETE_DC
+#define SAFE_DELETE_DC(p) {if(p) {DeleteDC (p); (p)=nullptr;}}
+#endif
+
 #ifndef SAFE_DELETE_OBJECT
 #define SAFE_DELETE_OBJECT(p) {if(p) {DeleteObject (p); (p)=nullptr;}}
 #endif
@@ -445,10 +449,10 @@ time_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst);
 	Device context (Draw/Calculation etc...)
 */
 
-void _r_dc_enablenonclientscaling (HWND hwnd);
 INT _r_dc_getdpivalue (HWND hwnd);
 COLORREF _r_dc_getcolorbrightness (COLORREF clr);
 COLORREF _r_dc_getcolorshade (COLORREF clr, INT percent);
+INT _r_dc_getsystemmetrics (HWND hwnd, INT index);
 void _r_dc_fillrect (HDC hdc, const LPRECT lprc, COLORREF clr);
 LONG _r_dc_fontwidth (HDC hdc, LPCWSTR text, size_t length);
 
@@ -476,6 +480,7 @@ void _r_wnd_adjustwindowrect (HWND hwnd, LPRECT lprect);
 void _r_wnd_centerwindowrect (LPRECT lprect, const LPRECT lpparent);
 void _r_wnd_center (HWND hwnd, HWND hparent);
 void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD action);
+void _r_wnd_enablenonclientscaling (HWND hwnd);
 void _r_wnd_toggle (HWND hwnd, bool is_show);
 void _r_wnd_top (HWND hwnd, bool is_enable);
 bool _r_wnd_undercursor (HWND hwnd);

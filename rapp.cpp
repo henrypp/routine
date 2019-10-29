@@ -1709,7 +1709,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 		case WM_NCCREATE:
 		{
-			_r_dc_enablenonclientscaling (hwnd);
+			_r_wnd_enablenonclientscaling (hwnd);
 			break;
 		}
 
@@ -1742,7 +1742,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			// shift "x" position
 			MapWindowPoints (HWND_DESKTOP, hwnd, (LPPOINT)&rc, 2);
-			pos_x += rc.left + GetSystemMetrics (SM_CYBORDER);
+			pos_x += rc.left + _r_dc_getsystemmetrics (hwnd, SM_CXBORDER);
 
 			// calculate "y" position
 			GetClientRect (hwnd, &rc);
