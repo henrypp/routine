@@ -163,6 +163,7 @@ rstring _r_fmt_interval (time_t seconds, INT digits);
 	https://github.com/processhacker2/processhacker
 */
 
+#ifndef _APP_NO_WINXP
 #define _R_FASTLOCK_OWNED 0x1
 #define _R_FASTLOCK_EXCLUSIVE_WAKING 0x2
 
@@ -225,19 +226,6 @@ FORCEINLINE void _r_fastlock_ensureeventcreated (PHANDLE phandle)
 		NtClose (handle);
 }
 
-FORCEINLINE bool _r_fastlock_islocked (const P_FASTLOCK plock)
-{
-	bool owned;
-
-	// Need two memory barriers because we don't want the compiler re-ordering the following check
-	// in either direction.
-	MemoryBarrier ();
-	owned = (plock->Value & _R_FASTLOCK_OWNED);
-	MemoryBarrier ();
-
-	return owned;
-}
-
 void _r_fastlock_initialize (P_FASTLOCK plock);
 
 void _r_fastlock_acquireexclusive (P_FASTLOCK plock);
@@ -248,6 +236,41 @@ void _r_fastlock_releaseshared (P_FASTLOCK plock);
 
 bool _r_fastlock_tryacquireexclusive (P_FASTLOCK plock);
 bool _r_fastlock_tryacquireshared (P_FASTLOCK plock);
+
+#else
+
+#define _R_FASTLOCK SRWLOCK
+#define P_FASTLOCK PSRWLOCK
+
+#define _r_fastlock_initialize InitializeSRWLock
+
+#define _r_fastlock_acquireexclusive AcquireSRWLockExclusive
+#define _r_fastlock_acquireshared AcquireSRWLockShared
+
+#define _r_fastlock_releaseexclusive ReleaseSRWLockExclusive
+#define _r_fastlock_releaseshared ReleaseSRWLockShared
+
+#define _r_fastlock_tryacquireexclusive TryAcquireSRWLockExclusive
+#define _r_fastlock_tryacquireshared TryAcquireSRWLockShared
+#endif // _APP_NO_WINXP
+
+FORCEINLINE bool _r_fastlock_islocked (const P_FASTLOCK plock)
+{
+	bool owned;
+
+	// Need two memory barriers because we don't want the compiler re-ordering the following check
+	// in either direction.
+	MemoryBarrier ();
+
+#ifdef _R_FASTLOCK_OWNED
+	owned = (plock->Value & _R_FASTLOCK_OWNED);
+#else
+	owned = !!(plock->Ptr);
+#endif // _R_FASTLOCK_OWNED
+	MemoryBarrier ();
+
+	return owned;
+}
 
 /*
 	Objects reference

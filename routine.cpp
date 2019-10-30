@@ -169,6 +169,7 @@ rstring _r_fmt_interval (time_t seconds, INT digits)
 	https://github.com/processhacker2/processhacker
 */
 
+#ifndef _APP_NO_WINXP
 void _r_fastlock_initialize (P_FASTLOCK plock)
 {
 	plock->Value = 0;
@@ -346,6 +347,7 @@ bool _r_fastlock_tryacquireshared (P_FASTLOCK plock)
 
 	return false;
 }
+#endif // _APP_NO_WINXP
 
 /*
 	Objects reference
@@ -919,7 +921,7 @@ rstring _r_path_expand (LPCWSTR path)
 	const size_t percent_pos = _r_str_find (path, length, L'%');
 	const size_t separator_pos = _r_str_find (path, length, OBJ_NAME_PATH_SEPARATOR);
 
-	if (separator_pos == INVALID_SIZE_T && percent_pos == INVALID_SIZE_T)
+	if (percent_pos == INVALID_SIZE_T && separator_pos == INVALID_SIZE_T)
 		return path;
 
 	rstring result;
@@ -929,7 +931,7 @@ rstring _r_path_expand (LPCWSTR path)
 		if (!ExpandEnvironmentStrings (path, result.GetBuffer (1024), 1024))
 		{
 			result.Release ();
-			result = path;
+			return path;
 		}
 		else
 		{
