@@ -2656,33 +2656,35 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent, LPCWSTR proxy_addr)
 	if (!hsession)
 		return nullptr;
 
+	DWORD option;
+
 	// enable secure protocols
 	{
-		DWORD option = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
+		option = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
 
-		if (_r_sys_validversion (6, 2))
-			option |= WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3; // tls 1.3 for win8+
+		if (is_win81)
+			option |= WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3; // tls 1.3 for win81+
 
 		WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &option, sizeof (option));
 	}
 
 	// set connections per-server
 	{
-		DWORD option = 1;
+		option = 1;
 		WinHttpSetOption (hsession, WINHTTP_OPTION_MAX_CONNS_PER_SERVER, &option, sizeof (option));
 	}
 
 	// enable compression feature (win81+)
 	if (is_win81)
 	{
-		DWORD option = WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE;
+		option = WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE;
 		WinHttpSetOption (hsession, WINHTTP_OPTION_DECOMPRESSION, &option, sizeof (option));
 	}
 
 	// enable http2 protocol (win10rs1+)
 	if (_r_sys_validversion (10, 0, 14393))
 	{
-		DWORD option = WINHTTP_PROTOCOL_FLAG_HTTP2;
+		option = WINHTTP_PROTOCOL_FLAG_HTTP2;
 		WinHttpSetOption (hsession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &option, sizeof (option));
 	}
 
