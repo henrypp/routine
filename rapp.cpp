@@ -293,12 +293,13 @@ void rapp::UpdateCheck (HWND hparent)
 	if (!hparent && (!ConfigGet (L"CheckUpdates", true).AsBool () || (_r_unixtime_now () - ConfigGet (L"CheckUpdatesLast", 0LL).AsLonglong ()) <= _APP_UPDATE_PERIOD))
 		return;
 
+	const HANDLE hthread = _r_createthread (&UpdateCheckThread, (LPVOID)pupdateinfo, true);
+
+	if (!hthread)
+		return;
+
 	pupdateinfo->htaskdlg = nullptr;
 	pupdateinfo->hparent = hparent;
-	pupdateinfo->hthread = _r_createthread (&UpdateCheckThread, (LPVOID)pupdateinfo, true);
-
-	if (!pupdateinfo->hthread)
-		return;
 
 	if (hparent)
 	{
@@ -315,6 +316,8 @@ void rapp::UpdateCheck (HWND hparent)
 #pragma _R_WARNING(IDS_UPDATE_INIT)
 #endif // IDS_UPDATE_INIT
 
+			pupdateinfo->hthread = hthread;
+
 			UpdateDialogNavigate (nullptr, nullptr, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 
 			return;
@@ -324,7 +327,7 @@ void rapp::UpdateCheck (HWND hparent)
 #endif // _APP_NO_WINXP
 	}
 
-	ResumeThread (pupdateinfo->hthread);
+	ResumeThread (hthread);
 }
 #endif // _APP_HAVE_UPDATES
 
@@ -1174,7 +1177,7 @@ void rapp::RestoreWindowPosition (HWND hwnd, LPCWSTR window_name)
 
 	_r_wnd_adjustwindowrect (nullptr, &rect_new);
 
-	SetWindowPos (hwnd, nullptr, rect_new.left, rect_new.top, _R_RECT_WIDTH (&rect_new), _R_RECT_HEIGHT (&rect_new), SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSENDCHANGING);
+	_r_wnd_resize (nullptr, hwnd, nullptr, rect_new.left, rect_new.top, _R_RECT_WIDTH (&rect_new), _R_RECT_HEIGHT (&rect_new), 0);
 }
 
 #ifdef _APP_HAVE_SETTINGS
@@ -1963,7 +1966,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 	{
 		rapp *this_ptr = static_cast<rapp*>(pupdateinfo->papp);
 
-		LPCWSTR proxy_addr = this_ptr->GetProxyConfiguration ();
+		rstring proxy_addr = this_ptr->GetProxyConfiguration ();
 		HINTERNET hsession = _r_inet_createsession (this_ptr->GetUserAgent (), proxy_addr);
 
 		if (hsession)
@@ -1974,7 +1977,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 
 				if (pcomponent)
 				{
-					if (pcomponent->is_haveupdates)
+					if (pcomponent->is_haveupdates && !pcomponent->is_downloaded)
 					{
 						HANDLE hfile = CreateFile (pcomponent->filepath, GENERIC_WRITE | GENERIC_READ, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 
@@ -2061,8 +2064,6 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 		}
 	}
 
-	//SetEvent (pupdateinfo->hend);
-
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
@@ -2092,9 +2093,6 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 
 		case TDN_DIALOG_CONSTRUCTED:
 		{
-			if (pupdateinfo->hparent)
-				_r_wnd_top (hwnd, true);
-
 			if (pupdateinfo->hthread)
 				ResumeThread (pupdateinfo->hthread);
 
@@ -2242,7 +2240,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 		rstring buffer;
 
-		LPCWSTR proxy_addr = this_ptr->GetProxyConfiguration ();
+		rstring proxy_addr = this_ptr->GetProxyConfiguration ();
 		HINTERNET hsession = _r_inet_createsession (this_ptr->GetUserAgent (), proxy_addr);
 
 		if (hsession)
@@ -2315,9 +2313,10 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 									}
 									else
 									{
-										LPCWSTR path = _r_fmt (L"%s\\%s-%s.tmp", _r_path_expand (L"%temp%\\").GetString (), pcomponent->short_name, new_version.GetString ());
+										rstring path;
+										path.Format (L"%s\\%s-%s-%s.tmp", _r_path_expand (L"%temp%\\").GetString (), this_ptr->app_name_short, pcomponent->short_name, new_version.GetString ());
 
-										_r_str_alloc (&pcomponent->filepath, INVALID_SIZE_T, path);
+										_r_str_alloc (&pcomponent->filepath, path.GetLength (), path);
 										_r_str_alloc (&pcomponent->version, new_version.GetLength (), new_version);
 									}
 
@@ -2382,7 +2381,8 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 								{
 									if (!pcomponent->is_installer)
 									{
-										_r_fs_move (pcomponent->filepath, pcomponent->target_path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+										SetFileAttributes (pcomponent->target_path, FILE_ATTRIBUTE_NORMAL);
+										_r_fs_move (pcomponent->filepath, pcomponent->target_path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
 
 										this_ptr->ConfigInit (); // reload configuration
 
@@ -2423,8 +2423,6 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 			_r_inet_close (hsession);
 		}
-
-		SetEvent (pupdateinfo->hend);
 	}
 
 	_endthreadex (ERROR_SUCCESS);
