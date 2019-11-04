@@ -3563,7 +3563,7 @@ void _r_ctrl_setbuttonmargins (HWND hwnd, INT ctrl_id)
 
 		bsi.mask = BCSIF_SIZE;
 
-		bsi.size.cx = _r_dc_getdpi (hwnd, _R_SIZE_ICON16) + _r_dc_getdpi (hwnd, 2);
+		bsi.size.cx = _r_dc_getsystemmetrics (hwnd, SM_CXSMICON) + _r_dc_getdpi (hwnd, 2);
 		bsi.size.cy = 0;
 
 		SendDlgItemMessage (hwnd, ctrl_id, BCM_SETSPLITINFO, 0, (LPARAM)&bsi);

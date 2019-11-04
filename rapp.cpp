@@ -1119,8 +1119,8 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 			// set icons
 			if (icon_id)
 			{
-				SendMessage (GetHWND (), WM_SETICON, ICON_SMALL, (LPARAM)GetSharedImage (GetHINSTANCE (), icon_id, _r_dc_getdpi (GetHWND (), _R_SIZE_ICON16)));
-				SendMessage (GetHWND (), WM_SETICON, ICON_BIG, (LPARAM)GetSharedImage (GetHINSTANCE (), icon_id, _r_dc_getdpi (GetHWND (), _R_SIZE_ICON32)));
+				SendMessage (GetHWND (), WM_SETICON, ICON_SMALL, (LPARAM)GetSharedImage (GetHINSTANCE (), icon_id, _r_dc_getsystemmetrics (GetHWND (), SM_CXSMICON)));
+				SendMessage (GetHWND (), WM_SETICON, ICON_BIG, (LPARAM)GetSharedImage (GetHINSTANCE (), icon_id, _r_dc_getsystemmetrics (GetHWND (), SM_CXICON)));
 			}
 
 			// common initialization
@@ -1666,8 +1666,8 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 #endif // _APP_NO_DARKTHEME
 
 #ifdef IDI_MAIN
-			SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)this_ptr->GetSharedImage (this_ptr->GetHINSTANCE (), IDI_MAIN, _r_dc_getdpi (hwnd, _R_SIZE_ICON16)));
-			SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)this_ptr->GetSharedImage (this_ptr->GetHINSTANCE (), IDI_MAIN, _r_dc_getdpi (hwnd, _R_SIZE_ICON32)));
+			SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)this_ptr->GetSharedImage (this_ptr->GetHINSTANCE (), IDI_MAIN, _r_dc_getsystemmetrics (hwnd, SM_CXSMICON)));
+			SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)this_ptr->GetSharedImage (this_ptr->GetHINSTANCE (), IDI_MAIN, _r_dc_getsystemmetrics (hwnd, SM_CXICON)));
 #else
 #pragma _R_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
