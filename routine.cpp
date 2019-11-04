@@ -2019,6 +2019,16 @@ INT _r_dc_getdpivalue (HWND hwnd)
 
 		if (hwnd)
 		{
+			// GetDpiForWindow (win10rs1+)
+			if (is_win10rs1 && huser32)
+			{
+				typedef UINT (WINAPI * GDFW) (HWND); // GetDpiForWindow (win10rs1+)
+				const GDFW _GetDpiForWindow = (GDFW)GetProcAddress (huser32, "GetDpiForWindow");
+
+				if (_GetDpiForWindow)
+					return _GetDpiForWindow (hwnd);
+			}
+
 			// GetDpiForMonitor (win81+)
 			HMODULE hshcore = LoadLibraryEx (L"shcore.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
 
@@ -2041,16 +2051,6 @@ INT _r_dc_getdpivalue (HWND hwnd)
 				}
 
 				FreeLibrary (hshcore);
-			}
-
-			if (is_win10rs1 && huser32)
-			{
-				// GetDpiForWindow (win10rs1+)
-				typedef UINT (WINAPI * GDFW) (HWND); // GetDpiForWindow
-				const GDFW _GetDpiForWindow = (GDFW)GetProcAddress (huser32, "GetDpiForWindow"); // win10rs1+
-
-				if (_GetDpiForWindow)
-					return _GetDpiForWindow (hwnd);
 			}
 		}
 
@@ -2288,8 +2288,8 @@ void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD acti
 		{
 			for (size_t i = 0; i < count; i++)
 				_ChangeWindowMessageFilter (pmsg[i], action);
-}
-}
+		}
+	}
 #endif // _APP_NO_WINXP
 }
 
@@ -2372,7 +2372,7 @@ static bool _r_wnd_isplatformfullscreenmode ()
 			{
 				if (FAILED (_SHQueryUserNotificationState (&state)))
 					return false;
-}
+			}
 		}
 	}
 #endif _APP_NO_WINXP
@@ -2570,7 +2570,7 @@ void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable)
 			_DwmSetWindowAttribute (hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &is_enable, sizeof (is_enable));
 
 		FreeLibrary (hdwmapi);
-}
+	}
 #endif
 }
 
@@ -3229,7 +3229,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size)
 			if (SUCCEEDED (_LoadIconWithScaleDown (hinst, name, size, size, &hicon)))
 				return hicon;
 		}
-}
+	}
 
 	return (HICON)LoadImage (hinst, name, IMAGE_ICON, size, size, 0);
 #endif // _APP_NO_WINXP
@@ -3570,7 +3570,7 @@ void _r_ctrl_setbuttonmargins (HWND hwnd, INT ctrl_id)
 	}
 }
 
-void _r_ctrl_settabletext (HDC hdc, HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT ctrl_id2, LPCWSTR text2)
+void _r_ctrl_settabletext (HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT ctrl_id2, LPCWSTR text2)
 {
 	RECT rc_wnd = {0};
 	RECT rc_ctrl = {0};
@@ -3578,8 +3578,14 @@ void _r_ctrl_settabletext (HDC hdc, HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT 
 	const HWND hctrl1 = GetDlgItem (hwnd, ctrl_id1);
 	const HWND hctrl2 = GetDlgItem (hwnd, ctrl_id2);
 
-	SelectObject (hdc, (HFONT)SendMessage (hctrl1, WM_GETFONT, 0, 0)); // fix
-	SelectObject (hdc, (HFONT)SendMessage (hctrl2, WM_GETFONT, 0, 0)); // fix
+	const HDC hdc1 = GetDC (hctrl1);
+	const HDC hdc2 = GetDC (hctrl2);
+
+	if (hdc1)
+		SelectObject (hdc1, (HFONT)SendMessage (hctrl1, WM_GETFONT, 0, 0)); // fix
+
+	if (hdc2)
+		SelectObject (hdc2, (HFONT)SendMessage (hctrl2, WM_GETFONT, 0, 0)); // fix
 
 	GetClientRect (hwnd, &rc_wnd);
 	GetWindowRect (hctrl1, &rc_ctrl);
@@ -3589,11 +3595,11 @@ void _r_ctrl_settabletext (HDC hdc, HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT 
 	const INT wnd_spacing = rc_ctrl.left;
 	const INT wnd_width = _R_RECT_WIDTH (&rc_wnd) - (wnd_spacing * 2);
 
-	INT ctrl1_width = _r_dc_fontwidth (hdc, text1, INVALID_SIZE_T);
-	INT ctrl2_width = _r_dc_fontwidth (hdc, text2, INVALID_SIZE_T);
+	const INT text1_width = _r_dc_fontwidth (hdc1, text1, INVALID_SIZE_T);
+	const INT text2_width = _r_dc_fontwidth (hdc2, text2, INVALID_SIZE_T);
 
-	ctrl1_width = min (ctrl1_width, wnd_width - ctrl2_width - wnd_spacing);
-	ctrl2_width = min (ctrl2_width, wnd_width - ctrl1_width - wnd_spacing);
+	const INT ctrl1_width = (std::min) (text1_width, wnd_width - text2_width - wnd_spacing);
+	const INT ctrl2_width = (std::min) (text2_width, wnd_width - text1_width - wnd_spacing);
 
 	SetWindowText (hctrl1, text1);
 	SetWindowText (hctrl2, text2);
@@ -3604,6 +3610,12 @@ void _r_ctrl_settabletext (HDC hdc, HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT 
 	_r_wnd_resize (&hdefer, hctrl2, nullptr, wnd_width - ctrl2_width, rc_ctrl.top, ctrl2_width + wnd_spacing, _R_RECT_HEIGHT (&rc_ctrl), SWP_FRAMECHANGED);
 
 	EndDeferWindowPos (hdefer);
+
+	if (hdc1)
+		ReleaseDC (hctrl1, hdc1);
+
+	if (hdc2)
+		ReleaseDC (hctrl2, hdc2);
 }
 
 HWND _r_ctrl_createtip (HWND hparent)

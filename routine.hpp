@@ -570,7 +570,7 @@ rstring _r_ctrl_gettext (HWND hwnd, INT ctrl_id);
 void _r_ctrl_settext (HWND hwnd, INT ctrl_id, LPCWSTR text, ...);
 
 void _r_ctrl_setbuttonmargins (HWND hwnd, INT ctrl_id);
-void _r_ctrl_settabletext (HDC hdc, HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT ctrl_id2, LPCWSTR text2);
+void _r_ctrl_settabletext (HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT ctrl_id2, LPCWSTR text2);
 
 HWND _r_ctrl_createtip (HWND hparent);
 void _r_ctrl_settip (HWND htip, HWND hparent, INT ctrl_id, LPCWSTR text);
