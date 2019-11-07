@@ -14,8 +14,6 @@ rapp::rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright
 	is_vistaorlater = _r_sys_validversion (6, 0);
 #endif // _APP_NO_WINXP
 
-	is_admin = _r_sys_isadmin ();
-
 #ifdef _APP_HAVE_UPDATES
 	pupdateinfo = nullptr;
 #endif // _APP_HAVE_UPDATES
@@ -692,11 +690,6 @@ void rapp::CreateAboutWindow (HWND hwnd)
 }
 #endif // _APP_NO_ABOUT
 
-bool rapp::IsAdmin () const
-{
-	return is_admin;
-}
-
 bool rapp::IsClassicUI () const
 {
 	return is_classic;
@@ -960,8 +953,8 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 	if (MutexIsExists (true))
 		return false;
 
-#ifdef _APP_NO_GUEST
-	if (!IsAdmin ())
+#if defined(_APP_NO_GUEST)
+	if (!_r_sys_iselevated ())
 	{
 		if (RunAsAdmin ())
 			return false;
@@ -969,8 +962,8 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 		_r_msg (nullptr, MB_OK | MB_ICONEXCLAMATION, app_name, L"Warning!", L"%s administrative privileges are required!", app_name);
 		return false;
 	}
-#elif _APP_HAVE_SKIPUAC
-	if (!IsAdmin () && SkipUacRun ())
+#elif defined(_APP_HAVE_SKIPUAC)
+	if (!_r_sys_iselevated () && SkipUacRun ())
 		return false;
 #endif // _APP_NO_GUEST
 
@@ -2142,9 +2135,8 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 				this_ptr->UpdateInstall ();
 
 				DestroyWindow (this_ptr->GetHWND ());
-				ExitProcess (ERROR_SUCCESS);
 
-				//return S_FALSE;
+				return S_FALSE;
 			}
 
 			break;
@@ -2450,11 +2442,10 @@ bool rapp::SkipUacEnable (bool is_enable)
 #endif // _APP_NO_WINXP
 
 	bool result = false;
-	bool action_result = false;
 
 	ITaskService *service = nullptr;
 	ITaskFolder *folder = nullptr;
-	ITaskDefinition *task = nullptr;
+	ITaskDefinition *taskdef = nullptr;
 	IRegistrationInfo *reginfo = nullptr;
 	IPrincipal *principal = nullptr;
 	ITaskSettings *settings = nullptr;
@@ -2479,49 +2470,58 @@ bool rapp::SkipUacEnable (bool is_enable)
 		{
 			if (SUCCEEDED (service->GetFolder (root, &folder)))
 			{
-				// create task
 				if (is_enable)
 				{
-					if (SUCCEEDED (service->NewTask (0, &task)))
+					// create task
+					if (SUCCEEDED (service->NewTask (0, &taskdef)))
 					{
-						if (SUCCEEDED (task->get_RegistrationInfo (&reginfo)))
+						if (SUCCEEDED (taskdef->get_RegistrationInfo (&reginfo)))
 						{
 							reginfo->put_Author (author);
 							reginfo->Release ();
 						}
 
-						if (SUCCEEDED (task->get_Principal (&principal)))
+						if (SUCCEEDED (taskdef->get_Principal (&principal)))
 						{
 							principal->put_RunLevel (TASK_RUNLEVEL_HIGHEST);
 							principal->Release ();
 						}
 
-						if (SUCCEEDED (task->get_Settings (&settings)))
+						if (SUCCEEDED (taskdef->get_Settings (&settings)))
 						{
-							settings->put_AllowHardTerminate (VARIANT_BOOL (FALSE));
-							settings->put_StartWhenAvailable (VARIANT_BOOL (FALSE));
-							settings->put_DisallowStartIfOnBatteries (VARIANT_BOOL (FALSE));
-							settings->put_StopIfGoingOnBatteries (VARIANT_BOOL (FALSE));
-							settings->put_MultipleInstances (TASK_INSTANCES_PARALLEL);
+							settings->put_AllowHardTerminate (VARIANT_TRUE);
+							settings->put_DisallowStartIfOnBatteries (VARIANT_FALSE);
+							settings->put_StartWhenAvailable (VARIANT_FALSE);
+							settings->put_StopIfGoingOnBatteries (VARIANT_FALSE);
 							settings->put_ExecutionTimeLimit (timelimit);
+							settings->put_MultipleInstances (TASK_INSTANCES_PARALLEL);
+							settings->put_Priority (4); // NORMAL_PRIORITY_CLASS
+
+							// set compatibility (win7+)
+							if (_r_sys_validversion (6, 1))
+							{
+								// TASK_COMPATIBILITY_V2_2 - win8
+								// TASK_COMPATIBILITY_V2_1 - win7
+
+								for (INT i = TASK_COMPATIBILITY_V2_4; i != TASK_COMPATIBILITY_V1; i--)
+								{
+									if (SUCCEEDED (settings->put_Compatibility ((TASK_COMPATIBILITY)i)))
+										break;
+								}
+							}
 
 							settings->Release ();
 						}
 
-						if (SUCCEEDED (task->get_Actions (&action_collection)))
+						if (SUCCEEDED (taskdef->get_Actions (&action_collection)))
 						{
 							if (SUCCEEDED (action_collection->Create (TASK_ACTION_EXEC, &action)))
 							{
 								if (SUCCEEDED (action->QueryInterface (IID_IExecAction, (LPVOID *)&exec_action)))
 								{
-									if (
-										SUCCEEDED (exec_action->put_Path (path)) &&
-										SUCCEEDED (exec_action->put_WorkingDirectory (directory)) &&
-										SUCCEEDED (exec_action->put_Arguments (args))
-										)
-									{
-										action_result = true;
-									}
+									exec_action->put_Path (path);
+									exec_action->put_WorkingDirectory (directory);
+									exec_action->put_Arguments (args);
 
 									exec_action->Release ();
 								}
@@ -2532,27 +2532,15 @@ bool rapp::SkipUacEnable (bool is_enable)
 							action_collection->Release ();
 						}
 
-						if (action_result)
+						if (SUCCEEDED (folder->RegisterTaskDefinition (name, taskdef, TASK_CREATE_OR_UPDATE, vtEmpty, vtEmpty, TASK_LOGON_INTERACTIVE_TOKEN, vtEmpty, &registered_task)))
 						{
-							if (SUCCEEDED (folder->RegisterTaskDefinition (
-								name,
-								task,
-								TASK_CREATE_OR_UPDATE,
-								vtEmpty,
-								vtEmpty,
-								TASK_LOGON_INTERACTIVE_TOKEN,
-								vtEmpty,
-								&registered_task)
-								))
-							{
-								ConfigSet (L"SkipUacIsEnabled", true);
-								result = true;
+							ConfigSet (L"SkipUacIsEnabled", true);
+							result = true;
 
-								registered_task->Release ();
-							}
-
-							task->Release ();
+							registered_task->Release ();
 						}
+
+						taskdef->Release ();
 					}
 				}
 				else
@@ -2639,7 +2627,7 @@ bool rapp::SkipUacRun ()
 
 										variant_t ticker = args;
 
-										if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_AS_SELF, 0, nullptr, &running_task)))
+										if (SUCCEEDED (registered_task->RunEx (ticker, TASK_RUN_AS_SELF | TASK_RUN_IGNORE_CONSTRAINTS, 0, nullptr, &running_task)))
 										{
 											DWORD attempts = 6;
 
@@ -2696,51 +2684,43 @@ bool rapp::SkipUacRun ()
 
 bool rapp::RunAsAdmin ()
 {
-	bool result = false;
-
-	if (!IsAdmin ())
-	{
 #ifdef _APP_HAVE_SKIPUAC
-		result = SkipUacRun ();
+	if (SkipUacRun ())
+		return true;
 #endif // _APP_HAVE_SKIPUAC
 
-		if (!result)
-		{
-			SHELLEXECUTEINFO shex = {0};
+	SHELLEXECUTEINFO shex = {0};
 
-			WCHAR path[MAX_PATH] = {0};
-			_r_str_copy (path, _countof (path), GetBinaryPath ());
+	WCHAR path[MAX_PATH] = {0};
+	_r_str_copy (path, _countof (path), GetBinaryPath ());
 
-			WCHAR directory[MAX_PATH] = {0};
-			_r_str_copy (directory, _countof (directory), GetDirectory ());
+	WCHAR directory[MAX_PATH] = {0};
+	_r_str_copy (directory, _countof (directory), GetDirectory ());
 
-			WCHAR args[MAX_PATH] = {0};
-			_r_str_copy (args, _countof (args), GetCommandLine ());
+	WCHAR args[MAX_PATH] = {0};
+	_r_str_copy (args, _countof (args), GetCommandLine ());
 
-			shex.cbSize = sizeof (shex);
-			shex.fMask = SEE_MASK_UNICODE | SEE_MASK_NOZONECHECKS | SEE_MASK_FLAG_NO_UI;
-			shex.lpVerb = L"runas";
-			shex.nShow = SW_NORMAL;
-			shex.lpFile = path;
-			shex.lpDirectory = directory;
-			shex.lpParameters = args;
+	shex.cbSize = sizeof (shex);
+	shex.fMask = SEE_MASK_UNICODE | SEE_MASK_NOZONECHECKS | SEE_MASK_FLAG_NO_UI;
+	shex.lpVerb = L"runas";
+	shex.nShow = SW_NORMAL;
+	shex.lpFile = path;
+	shex.lpDirectory = directory;
+	shex.lpParameters = args;
 
-			const bool is_mutexdestroyed = MutexDestroy ();
+	const bool is_mutexdestroyed = MutexDestroy ();
 
-			if (ShellExecuteEx (&shex))
-			{
-				result = true;
-			}
-			else
-			{
-				if (is_mutexdestroyed)
-					MutexCreate ();
-			}
+	if (ShellExecuteEx (&shex))
+	{
+		return true;
+	}
+	else
+	{
+		if (is_mutexdestroyed)
+			MutexCreate ();
 
-			if (!result)
-				_r_sleep (250);
-		}
+		_r_sleep (250);
 	}
 
-	return result;
+	return false;
 }

@@ -199,7 +199,6 @@ public:
 	HWND GetHWND () const;
 	HICON GetSharedImage (HINSTANCE hinst, INT icon_id, INT icon_size);
 
-	bool IsAdmin () const;
 	bool IsClassicUI () const;
 
 #ifndef _APP_NO_WINXP
@@ -254,7 +253,6 @@ private:
 #endif // _APP_NO_WINXP
 
 	bool is_classic = false;
-	bool is_admin = false;
 	bool is_needmaximize = false;
 
 	LONG max_width = 0;

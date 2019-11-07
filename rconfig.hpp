@@ -90,4 +90,4 @@
 #endif // _APP_BETA || _APP_BETA_RC
 
 #define _APP_LANGUAGE_DEFAULT L"English (default)"
-#define _APP_TASKSCHD_NAME L"%sSkipUac"
+#define _APP_TASKSCHD_NAME L"%sSkipUAC"
