@@ -65,7 +65,7 @@ rstring _r_dbg_getpath ()
 {
 	WCHAR result[MAX_PATH] = {0};
 
-	if (_r_sys_uacstate ())
+	if (!_r_sys_iselevated ())
 	{
 		GetTempPath (_countof (result), result);
 	}
@@ -733,7 +733,7 @@ bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size)
 
 		if (pbuffer)
 		{
-			CopyMemory (result, pbuffer, (size_t)size);
+			RtlCopyMemory (result, pbuffer, (size_t)size);
 
 			UnmapViewOfFile (pbuffer);
 			SAFE_DELETE_HANDLE (hmap);
@@ -1734,81 +1734,51 @@ INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2)
 	System information
 */
 
-bool _r_sys_isadmin ()
+bool _r_sys_iselevated ()
 {
-	BOOL result = FALSE;
-	DWORD status = 0, ps_size = sizeof (PRIVILEGE_SET);
+	static bool is_initialized = false;
+	static bool is_elevated = false;
 
-	HANDLE token = nullptr;
-	HANDLE impersonation_token = nullptr;
-
-	PRIVILEGE_SET ps = {0};
-	GENERIC_MAPPING gm = {0};
-
-	PACL pacl = nullptr;
-	PSID psid = nullptr;
-	PSECURITY_DESCRIPTOR psd = nullptr;
-
-	SID_IDENTIFIER_AUTHORITY sia = SECURITY_NT_AUTHORITY;
-
-	HANDLE heap = GetProcessHeap ();
-
-	__try
+	if (!is_initialized)
 	{
-		if (!OpenThreadToken (GetCurrentThread (), TOKEN_DUPLICATE | TOKEN_QUERY, TRUE, &token))
+
+#if !defined(_APP_NO_WINXP)
+		// winxp compatibility
+		if (!_r_sys_validversion (6, 0))
 		{
-			if (GetLastError () != ERROR_NO_TOKEN || !OpenProcessToken (NtCurrentProcess (), TOKEN_DUPLICATE | TOKEN_QUERY, &token))
-				__leave;
+			is_initialized = true;
+			is_elevated = !!IsUserAnAdmin ();
+
+			return is_elevated;
+		}
+#endif // _APP_NO_WINXP
+
+		const bool is_win8 = _r_sys_validversion (6, 2);
+
+		HANDLE htoken;
+
+		// win8+
+		if (is_win8)
+			htoken = NtCurrentProcessToken ();
+
+		else
+			OpenProcessToken (NtCurrentProcess (), TOKEN_QUERY, &htoken);
+
+		TOKEN_ELEVATION elevation;
+		ULONG returnLength;
+
+		if (NT_SUCCESS (NtQueryInformationToken (htoken, TokenElevation, &elevation, sizeof (TOKEN_ELEVATION), &returnLength)))
+		{
+			is_elevated = !!elevation.TokenIsElevated;
 		}
 
-		if (!DuplicateToken (token, SecurityImpersonation, &impersonation_token))
-			__leave;
+		if (!is_win8)
+			SAFE_DELETE_HANDLE (htoken);
 
-		if (!AllocateAndInitializeSid (&sia, 2, SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &psid))
-			__leave;
-
-		psd = (PSECURITY_DESCRIPTOR)HeapAlloc (heap, HEAP_ZERO_MEMORY, SECURITY_DESCRIPTOR_MIN_LENGTH);
-
-		if (!psd || !InitializeSecurityDescriptor (psd, SECURITY_DESCRIPTOR_REVISION))
-			__leave;
-
-		DWORD acl_size = sizeof (ACL) + sizeof (ACCESS_ALLOWED_ACE) + GetLengthSid (psid) - sizeof (DWORD);
-		pacl = (PACL)HeapAlloc (heap, HEAP_ZERO_MEMORY, acl_size);
-
-		if (!pacl || !InitializeAcl (pacl, acl_size, ACL_REVISION2) || !AddAccessAllowedAce (pacl, ACL_REVISION2, ACCESS_READ | ACCESS_WRITE, psid) || !SetSecurityDescriptorDacl (psd, TRUE, pacl, FALSE))
-			__leave;
-
-		SetSecurityDescriptorGroup (psd, psid, FALSE);
-		SetSecurityDescriptorOwner (psd, psid, FALSE);
-
-		if (!IsValidSecurityDescriptor (psd))
-			__leave;
-
-		gm.GenericRead = ACCESS_READ;
-		gm.GenericWrite = ACCESS_WRITE;
-		gm.GenericExecute = 0;
-		gm.GenericAll = ACCESS_READ | ACCESS_WRITE;
-
-		if (!AccessCheck (psd, impersonation_token, ACCESS_READ, &gm, &ps, &ps_size, &status, &result))
-		{
-			result = FALSE;
-			__leave;
-		}
+		is_initialized = true;
 	}
 
-	__finally
-	{
-		SAFE_HEAP_FREE (heap, pacl);
-		SAFE_HEAP_FREE (heap, psd);
-
-		if (psid)
-			FreeSid (psid);
-
-		SAFE_DELETE_HANDLE (impersonation_token);
-		SAFE_DELETE_HANDLE (token);
-	}
-
-	return !!result;
+	return is_elevated;
 }
 
 rstring _r_sys_getsessioninfo (WTS_INFO_CLASS info)
@@ -1848,7 +1818,7 @@ rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username)
 	return result;
 }
 
-#if !defined(_DEBUG) && !defined(_WIN64)
+#if !defined(_WIN64)
 bool _r_sys_iswow64 ()
 {
 	// IsWow64Process is not available on all supported versions of Windows.
@@ -1873,7 +1843,7 @@ bool _r_sys_iswow64 ()
 
 	return false;
 }
-#endif // _DEBUG && _WIN64
+#endif // _WIN64
 
 bool _r_sys_setprivilege (LPCWSTR* pprivileges, size_t count, bool is_enable)
 {
@@ -1903,27 +1873,6 @@ bool _r_sys_setprivilege (LPCWSTR* pprivileges, size_t count, bool is_enable)
 	}
 
 	return result;
-}
-
-bool _r_sys_uacstate ()
-{
-	if (!_r_sys_validversion (6, 0))
-		return false;
-
-	HANDLE token = nullptr;
-	DWORD out_length;
-
-	TOKEN_ELEVATION_TYPE tet;
-
-	if (OpenProcessToken (NtCurrentProcess (), TOKEN_QUERY, &token) && GetTokenInformation (token, TokenElevationType, &tet, sizeof (tet), &out_length) && tet == TokenElevationTypeLimited)
-	{
-		SAFE_DELETE_HANDLE (token);
-		return true;
-	}
-
-	SAFE_DELETE_HANDLE (token);
-
-	return false;
 }
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms725494(v=vs.85).aspx

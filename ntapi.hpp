@@ -615,6 +615,12 @@ typedef struct _PROCESS_DEVICEMAP_INFORMATION_EX
 #define ZwCurrentSession() NtCurrentSession()
 #define NtCurrentPeb() (NtCurrentTeb()->ProcessEnvironmentBlock)
 
+// Windows 8 and above
+#define NtCurrentProcessToken() ((HANDLE)(LONG_PTR)-4)
+#define NtCurrentThreadToken() ((HANDLE)(LONG_PTR)-5)
+#define NtCurrentEffectiveToken() ((HANDLE)(LONG_PTR)-6)
+#define NtCurrentSilo() ((HANDLE)(LONG_PTR)-1)
+
 #define InitializeObjectAttributes(p, n, a, r, s) { \
     (p)->Length = sizeof(OBJECT_ATTRIBUTES); \
     (p)->RootDirectory = r; \
@@ -906,18 +912,48 @@ extern "C" {
 	NTSYSCALLAPI
 		NTSTATUS
 		NTAPI
+		NtCreateToken (
+		_Out_ PHANDLE TokenHandle,
+		_In_ ACCESS_MASK DesiredAccess,
+		_In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
+		_In_ TOKEN_TYPE TokenType,
+		_In_ PLUID AuthenticationId,
+		_In_ PLARGE_INTEGER ExpirationTime,
+		_In_ PTOKEN_USER User,
+		_In_ PTOKEN_GROUPS Groups,
+		_In_ PTOKEN_PRIVILEGES Privileges,
+		_In_opt_ PTOKEN_OWNER Owner,
+		_In_ PTOKEN_PRIMARY_GROUP PrimaryGroup,
+		_In_opt_ PTOKEN_DEFAULT_DACL DefaultDacl,
+		_In_ PTOKEN_SOURCE TokenSource
+		);
+
+	NTSYSCALLAPI
+		NTSTATUS
+		NTAPI
+		NtQueryInformationToken (
+		_In_ HANDLE TokenHandle,
+		_In_ TOKEN_INFORMATION_CLASS TokenInformationClass,
+		_Out_writes_bytes_ (TokenInformationLength) PVOID TokenInformation,
+		_In_ ULONG TokenInformationLength,
+		_Out_ PULONG ReturnLength
+		);
+
+	NTSYSCALLAPI
+		NTSTATUS
+		NTAPI
 		NtClose (
 		_In_ HANDLE Handle
 		);
 
-	NTSYSAPI
+	NTSYSCALLAPI
 		BOOLEAN
 		NTAPI
 		RtlDoesFileExists_U (
 		_In_ PCWSTR FileName
 		);
 
-	NTSYSAPI
+	NTSYSCALLAPI
 		VOID
 		NTAPI
 		RtlInitUnicodeString (
@@ -925,14 +961,14 @@ extern "C" {
 		_In_opt_ PWSTR SourceString
 		);
 
-	NTSYSAPI
+	NTSYSCALLAPI
 		VOID
 		NTAPI
 		RtlFreeUnicodeString (
 		_In_ PUNICODE_STRING UnicodeString
 		);
 
-	NTSYSAPI
+	NTSYSCALLAPI
 		LONG
 		NTAPI
 		RtlCompareUnicodeString (
@@ -941,14 +977,14 @@ extern "C" {
 		_In_ BOOLEAN CaseInSensitive
 		);
 
-	NTSYSAPI
+	NTSYSCALLAPI
 		WCHAR
 		NTAPI
 		RtlUpcaseUnicodeChar (
 		_In_ WCHAR SourceCharacter
 		);
 
-	NTSYSAPI
+	NTSYSCALLAPI
 		WCHAR
 		NTAPI
 		RtlDowncaseUnicodeChar (
@@ -964,7 +1000,7 @@ extern "C" {
 		_Inout_ PULONG ServiceSidLength
 		);
 
-	NTSYSAPI
+	NTSYSCALLAPI
 		DWORD
 		NTAPI
 		RtlRandomEx (
@@ -991,7 +1027,7 @@ extern "C" {
 		_Out_opt_ PLONG PreviousCount
 		);
 
-	NTSYSAPI
+	NTSYSCALLAPI
 		DECLSPEC_NORETURN
 		VOID
 		NTAPI

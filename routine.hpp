@@ -392,16 +392,16 @@ INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2);
 	System information
 */
 
-bool _r_sys_isadmin ();
+bool _r_sys_iselevated ();
+
 rstring _r_sys_getsessioninfo (WTS_INFO_CLASS info);
 rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username);
 
-#if !defined(_DEBUG) && !defined(_WIN64)
+#if !defined(_WIN64)
 bool _r_sys_iswow64 ();
-#endif // _DEBUG && _WIN64
+#endif // _WIN64
 
 bool _r_sys_setprivilege (LPCWSTR* pprivileges, size_t count, bool is_enable);
-bool _r_sys_uacstate ();
 bool _r_sys_validversion (DWORD major, DWORD minor, DWORD build = 0, BYTE condition = VER_GREATER_EQUAL);
 
 FORCEINLINE DWORD _r_sys_gettickcount ()
