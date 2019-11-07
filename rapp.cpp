@@ -1207,7 +1207,7 @@ INT rapp::SettingsAddPage (INT dlg_id, UINT locale_id, INT group_id)
 {
 	PAPP_SETTINGS_PAGE ptr_page = new APP_SETTINGS_PAGE;
 
-	SecureZeroMemory (ptr_page, sizeof (APP_SETTINGS_PAGE));
+	RtlSecureZeroMemory (ptr_page, sizeof (APP_SETTINGS_PAGE));
 
 	ptr_page->dlg_id = dlg_id;
 	ptr_page->group_id = group_id;

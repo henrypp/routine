@@ -1048,7 +1048,7 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 		PROCESS_DEVICEMAP_INFORMATION_EX deviceMapInfo;
 #endif
 
-		SecureZeroMemory (&deviceMapInfo, sizeof (deviceMapInfo));
+		RtlSecureZeroMemory (&deviceMapInfo, sizeof (deviceMapInfo));
 
 		UNICODE_STRING devicePrefix;
 
@@ -2833,7 +2833,7 @@ DWORD _r_inet_parseurl (LPCWSTR url, INT * scheme_ptr, LPWSTR host_ptr, LPWORD p
 		return ERROR_BAD_ARGUMENTS;
 
 	URL_COMPONENTS url_comp = {0};
-	SecureZeroMemory (&url_comp, sizeof (url_comp));
+	RtlSecureZeroMemory (&url_comp, sizeof (url_comp));
 
 	url_comp.dwStructSize = sizeof (url_comp);
 
@@ -3252,8 +3252,8 @@ bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR dir, WORD show_state, DW
 	STARTUPINFO si = {0};
 	PROCESS_INFORMATION pi = {0};
 
-	SecureZeroMemory (&si, sizeof (si));
-	SecureZeroMemory (&pi, sizeof (pi));
+	RtlSecureZeroMemory (&si, sizeof (si));
+	RtlSecureZeroMemory (&pi, sizeof (pi));
 
 	bool result = false;
 	si.cb = sizeof (si);
@@ -3300,7 +3300,7 @@ void _r_sleep (LONG64 milliseconds)
 bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR tooltip, bool is_hidden)
 {
 	NOTIFYICONDATA nid = {0};
-	SecureZeroMemory (&nid, sizeof (nid));
+	RtlSecureZeroMemory (&nid, sizeof (nid));
 
 #ifdef _APP_NO_WINXP
 	nid.cbSize = sizeof (nid);
@@ -3343,7 +3343,7 @@ bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR toolti
 bool _r_tray_popup (HWND hwnd, UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text)
 {
 	NOTIFYICONDATA nid = {0};
-	SecureZeroMemory (&nid, sizeof (nid));
+	RtlSecureZeroMemory (&nid, sizeof (nid));
 
 #ifdef _APP_NO_WINXP
 	nid.cbSize = sizeof (nid);
@@ -3373,7 +3373,7 @@ bool _r_tray_popup (HWND hwnd, UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR t
 bool _r_tray_setinfo (HWND hwnd, UINT uid, HICON hicon, LPCWSTR tooltip)
 {
 	NOTIFYICONDATA nid = {0};
-	SecureZeroMemory (&nid, sizeof (nid));
+	RtlSecureZeroMemory (&nid, sizeof (nid));
 
 #ifdef _APP_NO_WINXP
 	nid.cbSize = sizeof (nid);
@@ -3406,7 +3406,7 @@ bool _r_tray_setinfo (HWND hwnd, UINT uid, HICON hicon, LPCWSTR tooltip)
 bool _r_tray_toggle (HWND hwnd, UINT uid, bool is_show)
 {
 	NOTIFYICONDATA nid = {0};
-	SecureZeroMemory (&nid, sizeof (nid));
+	RtlSecureZeroMemory (&nid, sizeof (nid));
 
 #ifdef _APP_NO_WINXP
 	nid.cbSize = sizeof (nid);
@@ -3431,7 +3431,7 @@ bool _r_tray_toggle (HWND hwnd, UINT uid, bool is_show)
 bool _r_tray_destroy (HWND hwnd, UINT uid)
 {
 	NOTIFYICONDATA nid = {0};
-	SecureZeroMemory (&nid, sizeof (nid));
+	RtlSecureZeroMemory (&nid, sizeof (nid));
 
 #ifdef _APP_NO_WINXP
 	nid.cbSize = sizeof (nid);
