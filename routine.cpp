@@ -403,7 +403,7 @@ void _r_obj_dereferenceex (PR_OBJECT pobj, LONG ref_count)
 			pobj->pdata = nullptr;
 		}
 
-		delete pobj;
+		SAFE_DELETE (pobj);
 	}
 	else if (new_count < 0)
 	{
