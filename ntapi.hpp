@@ -969,15 +969,6 @@ extern "C" {
 		);
 
 	NTSYSCALLAPI
-		LONG
-		NTAPI
-		RtlCompareUnicodeString (
-		_In_ PUNICODE_STRING String1,
-		_In_ PUNICODE_STRING String2,
-		_In_ BOOLEAN CaseInSensitive
-		);
-
-	NTSYSCALLAPI
 		WCHAR
 		NTAPI
 		RtlUpcaseUnicodeChar (
