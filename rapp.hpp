@@ -35,6 +35,17 @@ typedef struct _APP_SETTINGS_PAGE
 #ifdef _APP_HAVE_UPDATES
 typedef struct _APP_UPDATE_COMPONENT
 {
+	~_APP_UPDATE_COMPONENT ()
+	{
+		SAFE_DELETE_ARRAY (full_name);
+		SAFE_DELETE_ARRAY (short_name);
+		SAFE_DELETE_ARRAY (version);
+		SAFE_DELETE_ARRAY (new_version);
+		SAFE_DELETE_ARRAY (target_path);
+		SAFE_DELETE_ARRAY (url);
+		SAFE_DELETE_ARRAY (filepath);
+	}
+
 	bool is_downloaded = false;
 	bool is_installer = false;
 	bool is_haveupdates = false;
@@ -51,7 +62,7 @@ typedef struct _APP_UPDATE_COMPONENT
 	HANDLE hend = nullptr;
 } *PAPP_UPDATE_COMPONENT, APP_UPDATE_COMPONENT;
 
-typedef struct
+typedef struct _APP_UPDATE_INFO
 {
 	bool is_downloaded = false;
 

@@ -1228,7 +1228,7 @@ bool _r_str_isnumeric (LPCWSTR text)
 		if (iswdigit (*text) == 0)
 			return false;
 
-		text += 1;
+		++text;
 	}
 
 	return true;
@@ -1241,11 +1241,12 @@ bool _r_str_alloc (LPWSTR * pbuffer, size_t length, LPCWSTR text)
 
 	SAFE_DELETE_ARRAY (*pbuffer);
 
-	if (_r_str_isempty (text) || !length)
+	if (!length)
 		return false;
 
 	if (length == INVALID_SIZE_T)
 		length = _r_str_length (text);
+
 
 	length += 1;
 
@@ -1258,57 +1259,56 @@ bool _r_str_alloc (LPWSTR * pbuffer, size_t length, LPCWSTR text)
 	return true;
 }
 
-void _r_str_cat (LPWSTR buffer, size_t length, LPCWSTR text, size_t max_length)
+void _r_str_cat (LPWSTR buffer, size_t length, LPCWSTR text)
 {
 	if (!buffer || !length)
 		return;
 
-	size_t dest_length = _r_str_length (buffer);
+	if (length <= _R_STR_MAX_LENGTH)
+	{
+		size_t dest_length = _r_str_length (buffer);
 
-	_r_str_copy (buffer + dest_length, length - dest_length, text, max_length);
+		_r_str_copy (buffer + dest_length, length - dest_length, text);
+	}
 }
 
-void _r_str_copy (LPWSTR buffer, size_t length, LPCWSTR text, size_t max_length)
+void _r_str_copy (LPWSTR buffer, size_t length, LPCWSTR text)
 {
 	if (!buffer || !length)
 		return;
 
-	if (!max_length || _r_str_isempty (text))
+	if (length <= _R_STR_MAX_LENGTH)
 	{
-		*buffer = UNICODE_NULL;
-		return;
-	}
+		if (!_r_str_isempty (text))
+		{
+			while (length && (*text != UNICODE_NULL))
+			{
+				*buffer++ = *text++;
+				++length;
+			}
 
-	while (length && max_length && (*text != UNICODE_NULL))
-	{
-		*buffer++ = *text++;
-		length--;
-		max_length--;
+			if (!length)
+				--buffer; // truncate buffer
+		}
 	}
-
-	if (!length)
-		buffer--; // truncate buffer
 
 	*buffer = UNICODE_NULL;
 }
 
-size_t _r_str_length (LPCWSTR text, size_t max_length)
+size_t _r_str_length (LPCWSTR text)
 {
-	if (_r_str_isempty (text) || !max_length)
+	if (_r_str_isempty (text))
 		return 0;
 
-	size_t length = max_length;
+	size_t length = 0;
 
-	while (max_length && !_r_str_isempty (text))
+	while (*text != UNICODE_NULL)
 	{
-		text++;
-		max_length--;
+		++text;
+		++length;
 	}
 
-	if (!max_length)
-		return 0;
-
-	return length - max_length;
+	return length;
 }
 
 void _r_str_printf (LPWSTR buffer, size_t length, LPCWSTR text, ...)
@@ -1316,7 +1316,7 @@ void _r_str_printf (LPWSTR buffer, size_t length, LPCWSTR text, ...)
 	if (!buffer || !length)
 		return;
 
-	if (_r_str_isempty (text))
+	if (_r_str_isempty (text) || (length > _R_STR_MAX_LENGTH))
 	{
 		*buffer = UNICODE_NULL;
 		return;
@@ -1335,7 +1335,7 @@ void _r_str_vprintf (LPWSTR buffer, size_t length, LPCWSTR text, va_list args)
 	if (!buffer || !length)
 		return;
 
-	if (_r_str_isempty (text))
+	if (_r_str_isempty (text) || (length > _R_STR_MAX_LENGTH))
 	{
 		*buffer = UNICODE_NULL;
 		return;
@@ -1348,7 +1348,7 @@ void _r_str_vprintf (LPWSTR buffer, size_t length, LPCWSTR text, va_list args)
 	INT res = _vsnwprintf (buffer, max_length, text, args);
 #pragma warning(pop)
 
-	if (res < 0 || size_t (res) > max_length || size_t (res) == max_length)
+	if (res < 0 || size_t (res) >= max_length)
 	{
 		// need to null terminate the string
 		buffer += max_length;
@@ -1371,12 +1371,12 @@ size_t _r_str_hash (LPCWSTR text)
 
 	size_t hash = InitialFNV;
 
-	while (!_r_str_isempty (text))
+	while (*text != UNICODE_NULL)
 	{
 		hash = hash ^ (_r_str_upper (*text)); /* xor the low 8 bits */
 		hash = hash * FNVMultiple; /* multiply by the magic number */
 
-		text += 1;
+		++text;
 	}
 
 	return hash;
@@ -1839,7 +1839,7 @@ bool _r_sys_iswow64 ()
 			if (_IsWow64Process (NtCurrentProcess (), &result))
 				return !!result;
 		}
-	}
+}
 
 	return false;
 }
@@ -2215,7 +2215,7 @@ void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD acti
 			_ChangeWindowMessageFilterEx (hwnd, pmsg[i], action, nullptr);
 
 		return;
-	}
+}
 
 	for (size_t i = 0; i < count; i++)
 		ChangeWindowMessageFilter (pmsg[i], action); // vista fallback
@@ -2327,7 +2327,7 @@ static bool _r_wnd_isplatformfullscreenmode ()
 #endif _APP_NO_WINXP
 
 	return (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
-}
+	}
 
 static bool _r_wnd_isfullscreenwindowmode ()
 {
@@ -3313,14 +3313,31 @@ bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR toolti
 #endif // _APP_NO_WINXP
 
 	nid.hWnd = hwnd;
-	nid.uFlags = NIF_MESSAGE | NIF_ICON;
 	nid.uID = uid;
-	nid.uCallbackMessage = code;
-	nid.hIcon = hicon;
+
+	if (code)
+	{
+		nid.uFlags |= NIF_MESSAGE;
+		nid.uCallbackMessage = code;
+	}
+
+	if (hicon)
+	{
+		nid.uFlags |= NIF_ICON;
+		nid.hIcon = hicon;
+	}
 
 	if (tooltip)
 	{
+#if defined(_APP_NO_WINXP)
 		nid.uFlags |= NIF_SHOWTIP | NIF_TIP;
+#else
+		nid.uFlags |= NIF_TIP;
+
+		if (is_vistaorlater)
+			nid.uFlags |= NIF_SHOWTIP;
+#endif // _APP_NO_WINXP
+
 		_r_str_copy (nid.szTip, _countof (nid.szTip), tooltip);
 	}
 
@@ -3338,7 +3355,7 @@ bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR toolti
 	}
 
 	return false;
-}
+	}
 
 bool _r_tray_popup (HWND hwnd, UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text)
 {
@@ -3396,12 +3413,20 @@ bool _r_tray_setinfo (HWND hwnd, UINT uid, HICON hicon, LPCWSTR tooltip)
 
 	if (tooltip)
 	{
+#if defined(_APP_NO_WINXP)
 		nid.uFlags |= NIF_SHOWTIP | NIF_TIP;
+#else
+		nid.uFlags |= NIF_TIP;
+
+		if (is_vistaorlater)
+			nid.uFlags |= NIF_SHOWTIP;
+#endif // _APP_NO_WINXP
+
 		_r_str_copy (nid.szTip, _countof (nid.szTip), tooltip);
 	}
 
 	return !!Shell_NotifyIcon (NIM_MODIFY, &nid);
-}
+	}
 
 bool _r_tray_toggle (HWND hwnd, UINT uid, bool is_show)
 {
@@ -4160,10 +4185,10 @@ void _r_treeview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle, INT height)
 	Control: statusbar
 */
 
-void _r_status_settext (HWND hwnd, INT ctrl_id, INT idx, LPCWSTR text)
+void _r_status_settext (HWND hwnd, INT ctrl_id, INT part, LPCWSTR text)
 {
-	SendDlgItemMessage (hwnd, ctrl_id, SB_SETTEXT, MAKEWPARAM (idx, 0), (LPARAM)text);
-	SendDlgItemMessage (hwnd, ctrl_id, SB_SETTIPTEXT, (WPARAM)idx, (LPARAM)text);
+	SendDlgItemMessage (hwnd, ctrl_id, SB_SETTEXT, MAKEWPARAM (part, 0), (LPARAM)text);
+	SendDlgItemMessage (hwnd, ctrl_id, SB_SETTIPTEXT, (WPARAM)part, (LPARAM)text);
 }
 
 void _r_status_setstyle (HWND hwnd, INT ctrl_id, INT height)

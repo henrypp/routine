@@ -343,16 +343,16 @@ DWORD _r_path_ntpathfromdos (rstring &path);
 
 FORCEINLINE bool _r_str_isempty (LPCWSTR text)
 {
-	return !text || !*text;
+	return !text || (*text == UNICODE_NULL);
 }
 
 bool _r_str_isnumeric (LPCWSTR text);
 
 bool _r_str_alloc (LPWSTR *pbuffer, size_t length, LPCWSTR text);
 
-void _r_str_cat (LPWSTR buffer, size_t length, LPCWSTR text, size_t max_length = _R_STR_MAX_LENGTH);
-void _r_str_copy (LPWSTR buffer, size_t length, LPCWSTR text, size_t max_length = _R_STR_MAX_LENGTH);
-size_t _r_str_length (LPCWSTR text, size_t max_length = _R_STR_MAX_LENGTH);
+void _r_str_cat (LPWSTR buffer, size_t length, LPCWSTR text);
+void _r_str_copy (LPWSTR buffer, size_t length, LPCWSTR text);
+size_t _r_str_length (LPCWSTR text);
 void _r_str_printf (LPWSTR buffer, size_t length, LPCWSTR text, ...);
 void _r_str_vprintf (LPWSTR buffer, size_t length, LPCWSTR text, va_list args);
 
@@ -639,7 +639,7 @@ void _r_treeview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle, INT height);
 	Control: statusbar
 */
 
-void _r_status_settext (HWND hwnd, INT ctrl_id, INT idx, LPCWSTR text);
+void _r_status_settext (HWND hwnd, INT ctrl_id, INT part, LPCWSTR text);
 void _r_status_setstyle (HWND hwnd, INT ctrl_id, INT height);
 
 /*

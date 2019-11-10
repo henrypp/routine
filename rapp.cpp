@@ -271,11 +271,12 @@ void rapp::UpdateAddComponent (LPCWSTR full_name, LPCWSTR short_name, LPCWSTR ve
 	if (pupdateinfo)
 	{
 		PAPP_UPDATE_COMPONENT pcomponent = new APP_UPDATE_COMPONENT;
+		RtlSecureZeroMemory (pcomponent, sizeof (APP_UPDATE_COMPONENT));
 
-		_r_str_alloc (&pcomponent->full_name, INVALID_SIZE_T, full_name);
-		_r_str_alloc (&pcomponent->short_name, INVALID_SIZE_T, short_name);
-		_r_str_alloc (&pcomponent->version, INVALID_SIZE_T, version);
-		_r_str_alloc (&pcomponent->target_path, INVALID_SIZE_T, target_path);
+		_r_str_alloc (&pcomponent->full_name, _r_str_length (full_name), full_name);
+		_r_str_alloc (&pcomponent->short_name, _r_str_length (short_name), short_name);
+		_r_str_alloc (&pcomponent->version, _r_str_length (version), version);
+		_r_str_alloc (&pcomponent->target_path, _r_str_length (target_path), target_path);
 
 		pcomponent->is_installer = is_installer;
 
@@ -384,7 +385,7 @@ rstring rapp::ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 {
 	rstring cfg_name;
 
-	if (!name)
+	if (_r_str_isempty (name))
 		cfg_name = app_name_short;
 	else
 		cfg_name.Format (L"%s\\%s", app_name_short, name);
@@ -441,12 +442,12 @@ bool rapp::ConfigSet (LPCWSTR key, ULONG64 val, LPCWSTR name)
 
 bool rapp::ConfigSet (LPCWSTR key, LPCWSTR val, LPCWSTR name)
 {
-	if (!_r_fs_exists (app_profile_directory))
-		_r_fs_mkdir (app_profile_directory);
+	if (!_r_fs_exists (GetProfileDirectory ()))
+		_r_fs_mkdir (GetProfileDirectory ());
 
 	rstring cfg_name;
 
-	if (!name)
+	if (_r_str_isempty (name))
 		cfg_name = app_name_short;
 	else
 		cfg_name.Format (L"%s\\%s", app_name_short, name);
@@ -564,7 +565,7 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 
 				RegDeleteValue (hkey, cfg_string);
 				RegCloseKey (hkey);
-			}
+}
 		}
 	}
 #endif // _APP_NO_WINXP
@@ -684,10 +685,10 @@ void rapp::CreateAboutWindow (HWND hwnd)
 
 		if (hmutex)
 			ReleaseMutex (hmutex);
-	}
+			}
 
 	SAFE_DELETE_HANDLE (hmutex);
-}
+		}
 #endif // _APP_NO_ABOUT
 
 bool rapp::IsClassicUI () const
@@ -918,8 +919,8 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 			}
 
 			FreeLibrary (hlib);
-		}
-	}
+}
+}
 #endif // _DEBUG
 
 	bool result = false;
@@ -1128,7 +1129,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 #endif // _APP_HAVE_UPDATES
 
 			result = true;
-		}
+	}
 	}
 
 	return result;
@@ -2016,7 +2017,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					_r_str_copy (str_content, _countof (str_content), L"Update available, do you want to install them?");
 #pragma _R_WARNING(IDS_UPDATE_INSTALL)
 #endif // IDS_UPDATE_INSTALL
-				}
+			}
 				else
 				{
 #ifdef IDS_UPDATE_DONE
@@ -2025,8 +2026,8 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					_r_str_copy (str_content, _countof (str_content), L"Downloading update finished.");
 #pragma _R_WARNING(IDS_UPDATE_DONE)
 #endif // IDS_UPDATE_DONE
-				}
-			}
+		}
+	}
 			else
 			{
 #ifdef IDS_UPDATE_ERROR
@@ -2035,7 +2036,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 				_r_str_copy (str_content, _countof (str_content), L"Update server connection error");
 #pragma _R_WARNING(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
-			}
+}
 
 			if (pupdateinfo->hparent)
 			{
@@ -2175,7 +2176,7 @@ INT rapp::UpdateDialogNavigate (HWND htaskdlg, LPCWSTR main_icon, TASKDIALOG_FLA
 		tdc.pszMainIcon = TD_INFORMATION_ICON;
 #pragma _R_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
-	}
+}
 
 	_r_str_copy (str_title, _countof (str_title), app_name);
 
@@ -2301,7 +2302,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 									if (pcomponent->is_installer)
 									{
-										_r_str_alloc (&pcomponent->filepath, INVALID_SIZE_T, this_ptr->GetUpdatePath ());
+										_r_str_alloc (&pcomponent->filepath, _r_str_length (this_ptr->GetUpdatePath ()), this_ptr->GetUpdatePath ());
 									}
 									else
 									{
@@ -2359,9 +2360,9 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 								{
 									ResumeThread (pupdateinfo->hthread);
 									WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
-								}
-							}
-						}
+					}
+				}
+			}
 #endif // _APP_NO_WINXP
 						for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 						{
@@ -2392,7 +2393,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 								}
 							}
 						}
-					}
+		}
 					else
 					{
 						if (pupdateinfo->htaskdlg)
@@ -2408,10 +2409,10 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							this_ptr->UpdateDialogNavigate (pupdateinfo->htaskdlg, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 						}
 					}
-				}
+	}
 
 				this_ptr->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
-			}
+}
 
 			_r_inet_close (hsession);
 		}
