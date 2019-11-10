@@ -735,18 +735,18 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			return TRUE;
 		}
 
+#ifdef _APP_HAVE_TRAY
 		case WM_SYSCOMMAND:
 		{
-#ifdef _APP_HAVE_TRAY
 			if (wparam == SC_CLOSE)
 			{
 				_r_wnd_toggle (hwnd, false);
 				return TRUE;
 			}
-#endif // _APP_HAVE_TRAY
 
 			break;
 		}
+#endif // _APP_HAVE_TRAY
 
 		case WM_SHOWWINDOW:
 		{
@@ -761,11 +761,11 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 
 		case WM_THEMECHANGED:
 		{
-			this_ptr->is_classic = !IsThemeActive () || this_ptr->ConfigGet (L"ClassicUI", _APP_CLASSICUI).AsBool ();
-
 #ifndef _APP_NO_DARKTHEME
 			_r_wnd_setdarktheme (hwnd);
 #endif // _APP_NO_DARKTHEME
+
+			this_ptr->is_classic = !IsThemeActive () || this_ptr->ConfigGet (L"ClassicUI", _APP_CLASSICUI).AsBool ();
 
 			SendMessage (hwnd, RM_LOCALIZE, 0, 0);
 
@@ -775,7 +775,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 #ifndef _APP_NO_DARKTHEME
 		case WM_SETTINGCHANGE:
 		{
-			if (_r_wnd_isdarkmessage (lparam))
+			if (_r_wnd_isdarkmessage (reinterpret_cast<LPCWSTR>(lparam)))
 				SendMessage (hwnd, WM_THEMECHANGED, 0, 0);
 
 			break;
@@ -1722,7 +1722,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 		case WM_SETTINGCHANGE:
 		{
-			if (_r_wnd_isdarkmessage (lparam))
+			if (_r_wnd_isdarkmessage (reinterpret_cast<LPCWSTR>(lparam)))
 				SendMessage (hwnd, WM_THEMECHANGED, 0, 0);
 
 			break;

@@ -360,7 +360,6 @@ size_t _r_str_hash (LPCWSTR text);
 
 INT _r_str_compare (LPCWSTR str1, LPCWSTR str2, size_t length = INVALID_SIZE_T);
 INT _r_str_compare_logical (LPCWSTR str1, LPCWSTR str2);
-INT _r_str_compare_unicode (LPCWSTR str1, LPCWSTR str2, bool is_ignorecase);
 
 rstring _r_str_fromguid (const GUID &lpguid);
 rstring _r_str_fromsid (const PSID lpsid);
@@ -511,7 +510,7 @@ bool _r_wnd_isfullscreenmode ();
 void _r_wnd_resize (HDWP *hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags);
 
 #ifndef _APP_NO_DARKTHEME
-bool _r_wnd_isdarkmessage (LPARAM lparam);
+bool _r_wnd_isdarkmessage (LPCWSTR type);
 bool _r_wnd_isdarktheme ();
 void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable);
 void _r_wnd_setdarktheme (HWND hwnd);

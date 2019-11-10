@@ -1434,32 +1434,6 @@ INT _r_str_compare_logical (LPCWSTR str1, LPCWSTR str2)
 	return StrCmpLogicalW (str1, str2);
 }
 
-INT _r_str_compare_unicode (LPCWSTR str1, LPCWSTR str2, bool is_ignorecase)
-{
-	if (str1 == str2)
-		return 0;
-
-	const bool is_empty1 = _r_str_isempty (str1);
-	const bool is_empty2 = _r_str_isempty (str2);
-
-	if (is_empty1 && is_empty2)
-		return 0;
-
-	if (!is_empty1 && is_empty2)
-		return 1;
-
-	if (is_empty1 && !is_empty2)
-		return -1;
-
-	UNICODE_STRING string1 = {0};
-	UNICODE_STRING string2 = {0};
-
-	RtlInitUnicodeString (&string1, const_cast<LPWSTR>(str1));
-	RtlInitUnicodeString (&string2, const_cast<LPWSTR>(str2));
-
-	return RtlCompareUnicodeString (&string1, &string2, is_ignorecase);
-}
-
 rstring _r_str_fromguid (const GUID & lpguid)
 {
 	rstring result;
@@ -1839,7 +1813,7 @@ bool _r_sys_iswow64 ()
 			if (_IsWow64Process (NtCurrentProcess (), &result))
 				return !!result;
 		}
-}
+	}
 
 	return false;
 }
@@ -2215,7 +2189,7 @@ void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD acti
 			_ChangeWindowMessageFilterEx (hwnd, pmsg[i], action, nullptr);
 
 		return;
-}
+	}
 
 	for (size_t i = 0; i < count; i++)
 		ChangeWindowMessageFilter (pmsg[i], action); // vista fallback
@@ -2327,7 +2301,7 @@ static bool _r_wnd_isplatformfullscreenmode ()
 #endif _APP_NO_WINXP
 
 	return (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
-	}
+}
 
 static bool _r_wnd_isfullscreenwindowmode ()
 {
@@ -2435,36 +2409,36 @@ BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 	return TRUE;
 }
 
-bool _r_wnd_isdarkmessage (LPARAM lparam)
+bool _r_wnd_isdarkmessage (LPCWSTR type)
 {
-	bool result = false;
+	if (!_r_sys_validversion (10, 0, 17763)) // win10rs5+
+		return false;
 
-	const HMODULE huxtheme = GetModuleHandle (L"uxtheme.dll");
-
-	if (lparam && _r_str_compare_unicode (reinterpret_cast<LPCWSTR>(lparam), L"ImmersiveColorSet", true) == 0)
+	if (_r_str_compare (type, L"ImmersiveColorSet") == 0)
 	{
+		const HMODULE huxtheme = GetModuleHandle (L"uxtheme.dll");
+
 		if (huxtheme)
 		{
-			typedef VOID (WINAPI * RICPS) (VOID); // RefreshImmersiveColorPolicyState
+			// RefreshImmersiveColorPolicyState
+			typedef VOID (WINAPI * RICPS) (VOID);
 			const RICPS _RefreshImmersiveColorPolicyState = (RICPS)GetProcAddress (huxtheme, MAKEINTRESOURCEA (104));
 
 			if (_RefreshImmersiveColorPolicyState)
 				_RefreshImmersiveColorPolicyState ();
+
+			// GetIsImmersiveColorUsingHighContrast
+			typedef BOOL (WINAPI * GIICUHC) (IMMERSIVE_HC_CACHE_MODE);
+			const GIICUHC _GetIsImmersiveColorUsingHighContrast = (GIICUHC)GetProcAddress (huxtheme, MAKEINTRESOURCEA (106));
+
+			if (_GetIsImmersiveColorUsingHighContrast)
+				_GetIsImmersiveColorUsingHighContrast (IHCM_REFRESH);
 		}
 
-		result = true;
+		return true;
 	}
 
-	if (huxtheme)
-	{
-		typedef BOOL (WINAPI * GIICUHC) (IMMERSIVE_HC_CACHE_MODE); // GetIsImmersiveColorUsingHighContrast
-		const GIICUHC _GetIsImmersiveColorUsingHighContrast = (GIICUHC)GetProcAddress (huxtheme, MAKEINTRESOURCEA (105));
-
-		if (_GetIsImmersiveColorUsingHighContrast)
-			_GetIsImmersiveColorUsingHighContrast (IHCM_REFRESH);
-	}
-
-	return result;
+	return false;
 }
 
 bool _r_wnd_isdarktheme ()
@@ -2491,8 +2465,10 @@ bool _r_wnd_isdarktheme ()
 
 		if (_ShouldAppsUseDarkMode)
 		{
+			const bool result = !!_ShouldAppsUseDarkMode ();
 			FreeLibrary (huxtheme);
-			return !!_ShouldAppsUseDarkMode ();
+
+			return result;
 		}
 
 		FreeLibrary (huxtheme);
@@ -2505,7 +2481,7 @@ void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable)
 {
 	// Set dark window frame
 // https://social.msdn.microsoft.com/Forums/en-US/e36eb4c0-4370-4933-943d-b6fe22677e6c/dark-mode-apis?forum=windowssdk
-#ifdef _APP_NO_WINXP
+#if defined(_APP_NO_WINXP)
 	DwmSetWindowAttribute (hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &is_enable, sizeof (is_enable));
 #else
 	const HMODULE hdwmapi = LoadLibraryEx (L"dwmapi.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
@@ -2520,7 +2496,7 @@ void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable)
 
 		FreeLibrary (hdwmapi);
 	}
-#endif
+#endif // _APP_NO_WINXP
 }
 
 void _r_wnd_setdarktheme (HWND hwnd)
@@ -2528,10 +2504,11 @@ void _r_wnd_setdarktheme (HWND hwnd)
 	if (!_r_sys_validversion (10, 0, 17763)) // win10rs5+
 		return;
 
-	const BOOL is_darktheme = !!_r_wnd_isdarktheme ();
+	const BOOL is_darktheme = _r_wnd_isdarktheme ();
 
 	/*
 		Ordinal 104: VOID WINAPI RefreshImmersiveColorPolicyState()
+		Ordinal 106: BOOL WINAPI GetIsImmersiveColorUsingHighContrast(IMMERSIVE_HC_CACHE_MODE mode)
 		Ordinal 132: BOOL WINAPI ShouldAppsUseDarkMode()
 		Ordinal 133: BOOL WINAPI AllowDarkModeForWindow(HWND, BOOL allow)
 		Ordinal 135: BOOL WINAPI AllowDarkModeForApp(bool allow)
@@ -3355,7 +3332,7 @@ bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR toolti
 	}
 
 	return false;
-	}
+}
 
 bool _r_tray_popup (HWND hwnd, UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text)
 {
@@ -3426,7 +3403,7 @@ bool _r_tray_setinfo (HWND hwnd, UINT uid, HICON hicon, LPCWSTR tooltip)
 	}
 
 	return !!Shell_NotifyIcon (NIM_MODIFY, &nid);
-	}
+}
 
 bool _r_tray_toggle (HWND hwnd, UINT uid, bool is_show)
 {
