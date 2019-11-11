@@ -442,11 +442,6 @@ rstring& rstring::FormatV (LPCWSTR text, va_list args)
 	return *this;
 }
 
-size_t rstring::Hash () const
-{
-	return _r_str_hash (GetString ());
-}
-
 LPWSTR rstring::GetBuffer (size_t length)
 {
 	if (!length)

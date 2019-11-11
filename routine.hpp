@@ -356,9 +356,9 @@ size_t _r_str_length (LPCWSTR text);
 void _r_str_printf (LPWSTR buffer, size_t length, LPCWSTR text, ...);
 void _r_str_vprintf (LPWSTR buffer, size_t length, LPCWSTR text, va_list args);
 
-size_t _r_str_hash (LPCWSTR text);
-
-INT _r_str_compare (LPCWSTR str1, LPCWSTR str2, size_t length = INVALID_SIZE_T);
+// moved to rstring.hpp
+// size_t _r_str_hash (LPCWSTR text);
+//INT _r_str_compare (LPCWSTR str1, LPCWSTR str2, size_t length = INVALID_SIZE_T);
 INT _r_str_compare_logical (LPCWSTR str1, LPCWSTR str2);
 
 rstring _r_str_fromguid (const GUID &lpguid);

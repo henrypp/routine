@@ -9,6 +9,9 @@
 
 #include "rconfig.hpp"
 
+size_t _r_str_hash (LPCWSTR text);
+INT _r_str_compare (LPCWSTR str1, LPCWSTR str2, size_t length = INVALID_SIZE_T);
+
 class rstring
 {
 
@@ -75,8 +78,6 @@ public:
 	rstring& Format (LPCWSTR text, ...);
 	rstring& FormatV (LPCWSTR text, va_list args);
 
-	size_t Hash () const;
-
 	LPWSTR GetBuffer (size_t length = 0);
 	size_t GetLength () const;
 	LPCWSTR GetString () const;
@@ -90,7 +91,7 @@ struct rstring_hash
 {
 	size_t operator() (const rstring& k) const
 	{
-		return k.Hash ();
+		return _r_str_hash (k);
 	}
 };
 
@@ -98,6 +99,6 @@ struct rstring_is_equal
 {
 	bool operator() (const rstring& lhs, const rstring& rhs) const
 	{
-		return _wcsicmp (lhs.GetString (), rhs.GetString ()) == 0;
+		return _r_str_compare (lhs.GetString (), rhs.GetString ()) == 0;
 	}
 };
