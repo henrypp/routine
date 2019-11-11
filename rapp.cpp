@@ -565,7 +565,7 @@ bool rapp::ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config
 
 				RegDeleteValue (hkey, cfg_string);
 				RegCloseKey (hkey);
-}
+			}
 		}
 	}
 #endif // _APP_NO_WINXP
@@ -685,10 +685,10 @@ void rapp::CreateAboutWindow (HWND hwnd)
 
 		if (hmutex)
 			ReleaseMutex (hmutex);
-			}
+	}
 
 	SAFE_DELETE_HANDLE (hmutex);
-		}
+}
 #endif // _APP_NO_ABOUT
 
 bool rapp::IsClassicUI () const
@@ -919,8 +919,8 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 			}
 
 			FreeLibrary (hlib);
-}
-}
+		}
+	}
 #endif // _DEBUG
 
 	bool result = false;
@@ -1129,7 +1129,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 #endif // _APP_HAVE_UPDATES
 
 			result = true;
-	}
+		}
 	}
 
 	return result;
@@ -1792,7 +1792,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 		{
 			LPNMHDR lphdr = (LPNMHDR)lparam;
 
-			const INT ctrl_id = PtrToInt ((void*)lphdr->idFrom);
+			const INT ctrl_id = static_cast<INT>(lphdr->idFrom);
 
 			if (ctrl_id != IDC_NAV)
 				break;
@@ -2017,7 +2017,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					_r_str_copy (str_content, _countof (str_content), L"Update available, do you want to install them?");
 #pragma _R_WARNING(IDS_UPDATE_INSTALL)
 #endif // IDS_UPDATE_INSTALL
-			}
+				}
 				else
 				{
 #ifdef IDS_UPDATE_DONE
@@ -2026,8 +2026,8 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 					_r_str_copy (str_content, _countof (str_content), L"Downloading update finished.");
 #pragma _R_WARNING(IDS_UPDATE_DONE)
 #endif // IDS_UPDATE_DONE
-		}
-	}
+				}
+			}
 			else
 			{
 #ifdef IDS_UPDATE_ERROR
@@ -2036,7 +2036,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 				_r_str_copy (str_content, _countof (str_content), L"Update server connection error");
 #pragma _R_WARNING(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
-}
+			}
 
 			if (pupdateinfo->hparent)
 			{
@@ -2176,7 +2176,7 @@ INT rapp::UpdateDialogNavigate (HWND htaskdlg, LPCWSTR main_icon, TASKDIALOG_FLA
 		tdc.pszMainIcon = TD_INFORMATION_ICON;
 #pragma _R_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
-}
+	}
 
 	_r_str_copy (str_title, _countof (str_title), app_name);
 
@@ -2360,9 +2360,9 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 								{
 									ResumeThread (pupdateinfo->hthread);
 									WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
-					}
-				}
-			}
+								}
+							}
+						}
 #endif // _APP_NO_WINXP
 						for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 						{
@@ -2393,7 +2393,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 								}
 							}
 						}
-		}
+					}
 					else
 					{
 						if (pupdateinfo->htaskdlg)
@@ -2409,10 +2409,10 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							this_ptr->UpdateDialogNavigate (pupdateinfo->htaskdlg, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 						}
 					}
-	}
+				}
 
 				this_ptr->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
-}
+			}
 
 			_r_inet_close (hsession);
 		}
