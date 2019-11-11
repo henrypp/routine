@@ -123,7 +123,7 @@ rstring _r_fmt_date (time_t ut, DWORD flags)
 	return _r_fmt_date (&ft, flags);
 }
 
-rstring _r_fmt_size64 (LONG64 bytes)
+rstring _r_fmt_size64 (ULONG64 bytes)
 {
 	WCHAR buffer[128] = {0};
 
@@ -145,7 +145,7 @@ rstring _r_fmt_size64 (LONG64 bytes)
 		}
 	}
 
-	if (StrFormatByteSizeW (bytes, buffer, _countof (buffer))) // fallback
+	if (StrFormatByteSizeW ((LONG64)bytes, buffer, _countof (buffer))) // fallback
 		return buffer;
 #endif // _APP_NO_WINXP
 
@@ -1284,7 +1284,7 @@ void _r_str_copy (LPWSTR buffer, size_t length, LPCWSTR text)
 			while (length && (*text != UNICODE_NULL))
 			{
 				*buffer++ = *text++;
-				++length;
+				--length;
 			}
 
 			if (!length)

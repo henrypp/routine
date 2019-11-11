@@ -151,7 +151,7 @@ rstring _r_fmt (LPCWSTR text, ...);
 rstring _r_fmt_date (const LPFILETIME ft, DWORD flags = FDTF_DEFAULT); // see SHFormatDateTime flags definition
 rstring _r_fmt_date (time_t ut, DWORD flags = FDTF_DEFAULT);
 
-rstring _r_fmt_size64 (LONG64 bytes);
+rstring _r_fmt_size64 (ULONG64 bytes);
 rstring _r_fmt_interval (time_t seconds, INT digits);
 
 /*
