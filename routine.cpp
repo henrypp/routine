@@ -3704,7 +3704,7 @@ INT _r_listview_addcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR title,
 			GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
 
 			width = -width;
-			width = _R_PERCENT_VAL (width, _R_RECT_WIDTH (&rc));
+			width = (INT)_R_PERCENT_VAL (width, _R_RECT_WIDTH (&rc));
 		}
 
 		lvc.mask |= LVCF_WIDTH;
@@ -3844,7 +3844,7 @@ INT _r_listview_getcolumnwidth (HWND hwnd, INT ctrl_id, INT column_id)
 	RECT rc = {0};
 	GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
 
-	return _R_PERCENT_OF ((INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMNWIDTH, (WPARAM)column_id, 0), _R_RECT_WIDTH (&rc));
+	return (INT)_R_PERCENT_OF ((INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETCOLUMNWIDTH, (WPARAM)column_id, 0), _R_RECT_WIDTH (&rc));
 }
 
 INT _r_listview_getitemcount (HWND hwnd, INT ctrl_id, bool list_checked)
@@ -3956,7 +3956,7 @@ void _r_listview_setcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR text,
 			GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
 
 			width = -width;
-			width = _R_PERCENT_VAL (width, _R_RECT_WIDTH (&rc));
+			width = (INT)_R_PERCENT_VAL (width, _R_RECT_WIDTH (&rc));
 		}
 
 		lvc.mask |= LVCF_WIDTH;

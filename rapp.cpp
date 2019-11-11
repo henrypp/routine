@@ -1922,7 +1922,7 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 	{
 		rapp *this_ptr = static_cast<rapp*>(pupdateinfo->papp);
 
-		const DWORD percent = _R_PERCENT_OF (total_written, total_length);
+		const DWORD percent = (DWORD)_R_PERCENT_OF (total_written, total_length);
 
 #ifndef _APP_NO_WINXP
 		if (this_ptr->IsVistaOrLater ())

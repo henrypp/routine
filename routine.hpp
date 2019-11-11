@@ -120,8 +120,8 @@ typedef void (*_R_CALLBACK_OBJECT_CLEANUP) (PVOID pdata);
 	Percentage calculation
 */
 
-#define _R_PERCENT_OF(length, total_length) INT(ceil (double (length) / double (total_length) * 100.0))
-#define _R_PERCENT_VAL(percent, total_length) INT(double (total_length) * double (percent) / 100.0)
+#define _R_PERCENT_OF(length, total_length) (ceil (double (length) / double (total_length) * 100.0))
+#define _R_PERCENT_VAL(percent, total_length) (double (total_length) * double (percent) / 100.0)
 
 /*
 	Rectangle
