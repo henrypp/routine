@@ -54,16 +54,18 @@
 #endif
 
 // Callback message codes
-#define RM_INITIALIZE (WM_USER + 1)
-#define RM_UNINITIALIZE (WM_USER + 2)
-#define RM_CLOSE (WM_USER + 3)
-#define RM_MESSAGE (WM_USER + 4)
-#define RM_LOCALIZE (WM_USER + 5)
-#define RM_ARGUMENTS (WM_USER + 6)
-#define RM_CONFIG_UPDATE (WM_USER + 7) // update done
-#define RM_CONFIG_RESET (WM_USER + 8) // reset done
-#define RM_TASKBARCREATED (WM_USER + 9) // explorer restarted
-#define RM_DPICHANGED (WM_USER + 10) // dpi changed message (win81+)
+#define RM_INITIALIZE (WM_APP + 1)
+#define RM_UNINITIALIZE (WM_APP + 2)
+#define RM_CLOSE (WM_APP + 3)
+#define RM_MESSAGE (WM_APP + 4)
+#define RM_LOCALIZE (WM_APP + 5)
+#define RM_ARGUMENTS (WM_APP + 6)
+#define RM_CONFIG_UPDATE (WM_APP + 7) // update done
+#define RM_CONFIG_RESET (WM_APP + 8) // reset done
+#define RM_TASKBARCREATED (WM_APP + 9) // explorer restarted
+#define RM_DPICHANGED (WM_APP + 10) // dpi changed message (win81+)
+
+#define WM_TRAYICON (WM_APP + 11)
 
 // Invalid types definitions
 #define INVALID_INT (INT(-1))
