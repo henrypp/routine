@@ -1352,11 +1352,7 @@ void _r_str_vprintf (LPWSTR buffer, size_t length, LPCWSTR text, va_list args)
 #pragma warning(pop)
 
 	if (res < 0 || size_t (res) >= max_length)
-	{
-		// need to null terminate the string
-		buffer += max_length;
-		*buffer = UNICODE_NULL;
-	}
+		buffer[max_length] = UNICODE_NULL; // need to null terminate the string
 }
 
 size_t _r_str_hash (LPCWSTR text)
@@ -1753,10 +1749,10 @@ bool _r_sys_iselevated ()
 			SAFE_DELETE_HANDLE (htoken);
 
 		is_initialized = true;
-	}
+		}
 
 	return is_elevated;
-}
+	}
 
 rstring _r_sys_getsessioninfo (WTS_INFO_CLASS info)
 {
@@ -3332,7 +3328,7 @@ bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR toolti
 	}
 
 	return false;
-}
+	}
 
 bool _r_tray_popup (HWND hwnd, UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text)
 {
@@ -3403,7 +3399,7 @@ bool _r_tray_setinfo (HWND hwnd, UINT uid, HICON hicon, LPCWSTR tooltip)
 	}
 
 	return !!Shell_NotifyIcon (NIM_MODIFY, &nid);
-}
+	}
 
 bool _r_tray_toggle (HWND hwnd, UINT uid, bool is_show)
 {
