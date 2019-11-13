@@ -1306,6 +1306,9 @@ size_t _r_str_length (LPCWSTR text)
 	{
 		++text;
 		++length;
+
+		if (length > _R_STR_MAX_LENGTH)
+			return _R_STR_MAX_LENGTH; // prevent overflow
 	}
 
 	return length;
@@ -2699,7 +2702,38 @@ DWORD _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHI
 
 				do
 				{
-					if (WinHttpSendRequest (hrequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH, 0))
+					if (!WinHttpSendRequest (hrequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH, 0))
+					{
+						rc = GetLastError ();
+
+						if (rc == ERROR_WINHTTP_CANNOT_CONNECT)
+						{
+							break;
+						}
+						else if (rc == ERROR_WINHTTP_CONNECTION_ERROR)
+						{
+							option = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
+
+							if (!WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &option, sizeof (option)))
+								break;
+						}
+						else if (rc == ERROR_WINHTTP_RESEND_REQUEST)
+						{
+							continue;
+						}
+						else if (rc == ERROR_WINHTTP_SECURE_FAILURE)
+						{
+							option = SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE | SECURITY_FLAG_IGNORE_CERT_CN_INVALID;
+
+							if (!WinHttpSetOption (hrequest, WINHTTP_OPTION_SECURITY_FLAGS, &option, sizeof (option)))
+								break;
+						}
+						else
+						{
+							break;
+						}
+					}
+					else
 					{
 						if (!WinHttpReceiveResponse (hrequest, nullptr))
 						{
@@ -2737,37 +2771,6 @@ DWORD _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHI
 							}
 						}
 					}
-					else
-					{
-						rc = GetLastError ();
-
-						if (rc == ERROR_WINHTTP_CANNOT_CONNECT)
-						{
-							break;
-						}
-						else if (rc == ERROR_WINHTTP_CONNECTION_ERROR)
-						{
-							option = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
-
-							if (!WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &option, sizeof (option)))
-								break;
-						}
-						else if (rc == ERROR_WINHTTP_RESEND_REQUEST)
-						{
-							continue;
-						}
-						else if (rc == ERROR_WINHTTP_SECURE_FAILURE)
-						{
-							option = SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE | SECURITY_FLAG_IGNORE_CERT_CN_INVALID;
-
-							if (!WinHttpSetOption (hrequest, WINHTTP_OPTION_SECURITY_FLAGS, &option, sizeof (option)))
-								break;
-						}
-						else
-						{
-							break;
-						}
-					}
 				}
 				while (--attempts);
 
@@ -2787,7 +2790,7 @@ bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD
 
 	*buffer = ANSI_NULL;
 
-	if (!WinHttpReadData (hrequest, buffer, length, &readed))
+	if (!WinHttpReadData (hrequest, buffer, length, &readed) || !readed)
 		return false;
 
 	if (preaded)
@@ -2795,9 +2798,6 @@ bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD
 
 	if (ptotalreaded)
 		*ptotalreaded += readed;
-
-	if (!readed)
-		return false;
 
 	buffer[readed] = ANSI_NULL;
 
