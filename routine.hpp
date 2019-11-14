@@ -369,6 +369,7 @@ size_t _r_str_reversefind (LPCWSTR text, size_t length, WCHAR char_find, size_t 
 
 bool _r_str_match (LPCWSTR text, LPCWSTR pattern);
 void _r_str_replace (LPWSTR text, WCHAR char_from, WCHAR char_to);
+void _r_str_trim (LPWSTR text, LPCWSTR trim);
 void _r_str_trim (rstring& text, LPCWSTR trim);
 
 #define _r_str_lower RtlDowncaseUnicodeChar

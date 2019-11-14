@@ -1546,9 +1546,15 @@ void _r_str_trim (rstring& text, LPCWSTR trim)
 {
 	if (!text.IsEmpty ())
 	{
-		StrTrim (text.GetBuffer (), trim);
+		_r_str_trim (text.GetBuffer (), trim);
 		text.ReleaseBuffer ();
 	}
+}
+
+void _r_str_trim (LPWSTR text, LPCWSTR trim)
+{
+	if (!_r_str_isempty(text))
+		StrTrim (text, trim);
 }
 
 void _r_str_tolower (LPWSTR text)
