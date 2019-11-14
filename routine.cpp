@@ -1614,20 +1614,24 @@ rstring& _r_str_extract_ref (rstring& text, size_t start_pos, size_t extract_len
 	return text.SetLength (extract_length);
 }
 
-bool _r_str_multibyte2widechar (UINT codepage, LPCSTR in_text, INT in_length, LPWSTR out_text, INT out_length)
+LPWSTR _r_str_multibyte2widechar (UINT codepage, LPCSTR in_text)
 {
-	if ((!in_text || !*in_text) || !in_length)
-		return false;
+	if ((!in_text || !*in_text))
+		return nullptr;
 
-	INT truncated_length = (std::min) (in_length, out_length);
-	INT ret_length = MultiByteToWideChar (codepage, 0, in_text, truncated_length, out_text, truncated_length);
+	const size_t length = strlen (in_text);
+	INT ret_length = MultiByteToWideChar (codepage, 0, in_text, static_cast<INT>(length), nullptr, 0);
 
-	if (ret_length > out_length)
-		ret_length = out_length;
+	if (!ret_length)
+		return nullptr;
 
-	out_text[ret_length] = UNICODE_NULL;
+	LPWSTR buffer = new WCHAR[ret_length + 1];
 
-	return (ret_length > 0);
+	ret_length = MultiByteToWideChar (codepage, 0, in_text, static_cast<INT>(length), buffer, ret_length);
+
+	buffer[ret_length] = UNICODE_NULL;
+
+	return buffer;
 }
 
 void _r_str_split (LPCWSTR text, size_t length, WCHAR delimiter, rstringvec& rvc)
@@ -2764,12 +2768,8 @@ DWORD _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHI
 
 bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD buffer_length, PDWORD preaded, PDWORD ptotalreaded)
 {
-	*buffer = ANSI_NULL;
-
 	DWORD readed = 0;
-	bool is_readed = !!WinHttpReadData (hrequest, buffer, buffer_length, &readed);
-
-	buffer[readed] = ANSI_NULL;
+	const bool is_readed = !!WinHttpReadData (hrequest, buffer, buffer_length, &readed);
 
 	if (preaded)
 		*preaded = readed;
@@ -2858,8 +2858,7 @@ DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, 
 	{
 		const size_t buffer_length = _R_BUFFER_NET_LENGTH;
 
-		LPSTR content_buffer_a = new CHAR[buffer_length];
-		LPWSTR content_buffer_w = nullptr;
+		LPSTR content_buffer = new CHAR[buffer_length];
 
 		rstring* lpbuffer = reinterpret_cast<rstring*>(lpdest);
 		HANDLE hfile = reinterpret_cast<HANDLE>(lpdest);
@@ -2868,7 +2867,7 @@ DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, 
 		DWORD readed = 0;
 		DWORD total_readed = 0;
 
-		while (_r_inet_readrequest (hrequest, content_buffer_a, buffer_length - 1, &readed, &total_readed))
+		while (_r_inet_readrequest (hrequest, content_buffer, buffer_length - 1, &readed, &total_readed))
 		{
 			if (!readed)
 			{
@@ -2878,7 +2877,7 @@ DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, 
 
 			if (is_filepath)
 			{
-				if (!WriteFile (hfile, content_buffer_a, readed, &notneed, nullptr))
+				if (!WriteFile (hfile, content_buffer, readed, &notneed, nullptr))
 				{
 					rc = GetLastError ();
 					break;
@@ -2886,11 +2885,19 @@ DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, 
 			}
 			else
 			{
-				if (!content_buffer_w)
-					content_buffer_w = new WCHAR[buffer_length];
+				content_buffer[readed] = ANSI_NULL;
 
-				if (_r_str_multibyte2widechar (CP_UTF8, content_buffer_a, readed, content_buffer_w, buffer_length))
-					lpbuffer->Append (content_buffer_w);
+				LPWSTR buffer = _r_str_multibyte2widechar (CP_UTF8, content_buffer);
+
+				if (!buffer)
+				{
+					rc = GetLastError ();
+					break;
+				}
+
+				lpbuffer->Append (buffer);
+
+				SAFE_DELETE_ARRAY (buffer);
 			}
 
 			if (_callback && !_callback (total_readed, total_length, lpdata))
@@ -2900,8 +2907,7 @@ DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, 
 			}
 		}
 
-		SAFE_DELETE_ARRAY (content_buffer_a);
-		SAFE_DELETE_ARRAY (content_buffer_w);
+		SAFE_DELETE_ARRAY (content_buffer);
 	}
 
 	_r_inet_close (hrequest);
