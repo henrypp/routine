@@ -1576,9 +1576,6 @@ rstring _r_str_extract (LPCWSTR text, size_t length, size_t start_pos, size_t ex
 	if (_r_str_isempty (text) || !length)
 		return nullptr;
 
-	if (length == INVALID_SIZE_T)
-		length = _r_str_length (text);
-
 	if ((start_pos == 0) && (extract_length >= length))
 		return text;
 
@@ -1617,14 +1614,20 @@ rstring& _r_str_extract_ref (rstring& text, size_t start_pos, size_t extract_len
 	return text.SetLength (extract_length);
 }
 
-bool _r_str_multibyte2widechar (UINT cp, LPCSTR in_text, LPWSTR out_text, size_t length)
+bool _r_str_multibyte2widechar (UINT codepage, LPCSTR in_text, INT in_length, LPWSTR out_text, INT out_length)
 {
-	if (!in_text || !*in_text)
+	if ((!in_text || !*in_text) || !in_length)
 		return false;
 
-	MultiByteToWideChar (cp, 0, in_text, (DWORD)length, out_text, (DWORD)length);
+	INT truncated_length = (std::min) (in_length, out_length);
+	INT ret_length = MultiByteToWideChar (codepage, 0, in_text, truncated_length, out_text, truncated_length);
 
-	return true;
+	if (ret_length > out_length)
+		ret_length = out_length;
+
+	out_text[ret_length] = UNICODE_NULL;
+
+	return (ret_length > 0);
 }
 
 void _r_str_split (LPCWSTR text, size_t length, WCHAR delimiter, rstringvec& rvc)
@@ -1691,7 +1694,7 @@ INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2)
 	swscanf_s (v1, L"%d.%d.%d.%d", &oct_v1[0], &oct_v1[1], &oct_v1[2], &oct_v1[3]);
 	swscanf_s (v2, L"%d.%d.%d.%d", &oct_v2[0], &oct_v2[1], &oct_v2[2], &oct_v2[3]);
 
-	for (INT i = 0; i < _countof (oct_v1); i++)
+	for (size_t i = 0; i < _countof (oct_v1); i++)
 	{
 		if (oct_v1[i] > oct_v2[i])
 			return 1;
@@ -1749,10 +1752,10 @@ bool _r_sys_iselevated ()
 			SAFE_DELETE_HANDLE (htoken);
 
 		is_initialized = true;
-		}
+	}
 
 	return is_elevated;
-	}
+}
 
 rstring _r_sys_getsessioninfo (WTS_INFO_CLASS info)
 {
@@ -2702,11 +2705,7 @@ DWORD _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHI
 					{
 						rc = GetLastError ();
 
-						if (rc == ERROR_WINHTTP_CANNOT_CONNECT)
-						{
-							break;
-						}
-						else if (rc == ERROR_WINHTTP_CONNECTION_ERROR)
+						if (rc == ERROR_WINHTTP_CONNECTION_ERROR)
 						{
 							option = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
 
@@ -2726,6 +2725,7 @@ DWORD _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHI
 						}
 						else
 						{
+							// ERROR_WINHTTP_CANNOT_CONNECT etc.
 							break;
 						}
 					}
@@ -2737,34 +2737,16 @@ DWORD _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHI
 						}
 						else
 						{
-							option = 0;
-							size = sizeof (DWORD);
-
-							if (!WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &option, &size, WINHTTP_NO_HEADER_INDEX))
+							if (ptotallength)
 							{
-								rc = GetLastError ();
+								size = sizeof (DWORD);
+								WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, ptotallength, &size, WINHTTP_NO_HEADER_INDEX);
 							}
-							else
-							{
-								if (option == HTTP_STATUS_OK)
-								{
-									if (ptotallength)
-									{
-										size = sizeof (DWORD);
-										WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, ptotallength, &size, WINHTTP_NO_HEADER_INDEX);
-									}
 
-									*pconnect = hconnect;
-									*prequest = hrequest;
+							*pconnect = hconnect;
+							*prequest = hrequest;
 
-									return ERROR_SUCCESS;
-								}
-								else if (option == HTTP_STATUS_DENIED || option == HTTP_STATUS_FORBIDDEN)
-								{
-									rc = ERROR_NETWORK_ACCESS_DENIED;
-									break;
-								}
-							}
+							return ERROR_SUCCESS;
 						}
 					}
 				}
@@ -2780,14 +2762,14 @@ DWORD _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHI
 	return rc;
 }
 
-bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD preaded, PDWORD ptotalreaded)
+bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD buffer_length, PDWORD preaded, PDWORD ptotalreaded)
 {
-	DWORD readed = 0;
-
 	*buffer = ANSI_NULL;
 
-	if (!WinHttpReadData (hrequest, buffer, length, &readed) || !readed)
-		return false;
+	DWORD readed = 0;
+	bool is_readed = !!WinHttpReadData (hrequest, buffer, buffer_length, &readed);
+
+	buffer[readed] = ANSI_NULL;
 
 	if (preaded)
 		*preaded = readed;
@@ -2795,9 +2777,7 @@ bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD
 	if (ptotalreaded)
 		*ptotalreaded += readed;
 
-	buffer[readed] = ANSI_NULL;
-
-	return true;
+	return is_readed;
 }
 
 DWORD _r_inet_parseurl (LPCWSTR url, INT * scheme_ptr, LPWSTR host_ptr, LPWORD port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr)
@@ -2860,10 +2840,8 @@ DWORD _r_inet_parseurl (LPCWSTR url, INT * scheme_ptr, LPWSTR host_ptr, LPWORD p
 
 DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, LONG_PTR lpdest, bool is_filepath, _R_CALLBACK_HTTP_DOWNLOAD _callback, LONG_PTR lpdata)
 {
-	if (!lpdest)
+	if (!hsession || !lpdest)
 		return ERROR_BAD_ARGUMENTS;
-
-	bool result = false;
 
 	HINTERNET hconnect = nullptr;
 	HINTERNET hrequest = nullptr;
@@ -2879,63 +2857,46 @@ DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, 
 	else
 	{
 		const size_t buffer_length = _R_BUFFER_NET_LENGTH;
+
 		LPSTR content_buffer_a = new CHAR[buffer_length];
 		LPWSTR content_buffer_w = nullptr;
 
-		rstring *lpbuffer = reinterpret_cast<rstring*>(lpdest);
+		rstring* lpbuffer = reinterpret_cast<rstring*>(lpdest);
 		HANDLE hfile = reinterpret_cast<HANDLE>(lpdest);
 
-		if (is_filepath)
-		{
-			if (hfile != INVALID_HANDLE_VALUE)
-				result = true;
-		}
-		else
-		{
-			result = true;
-		}
+		DWORD notneed = 0;
+		DWORD readed = 0;
+		DWORD total_readed = 0;
 
-		if (result)
+		while (_r_inet_readrequest (hrequest, content_buffer_a, buffer_length - 1, &readed, &total_readed))
 		{
-			DWORD notneed = 0;
-			DWORD readed = 0;
-			DWORD total_readed = 0;
-
-			while (true)
+			if (!readed)
 			{
-				if (!_r_inet_readrequest (hrequest, content_buffer_a, buffer_length - 1, &readed, &total_readed))
+				rc = ERROR_SUCCESS;
+				break;
+			}
+
+			if (is_filepath)
+			{
+				if (!WriteFile (hfile, content_buffer_a, readed, &notneed, nullptr))
 				{
-					rc = ERROR_SUCCESS;
+					rc = GetLastError ();
 					break;
 				}
+			}
+			else
+			{
+				if (!content_buffer_w)
+					content_buffer_w = new WCHAR[buffer_length];
 
-				if (is_filepath)
-				{
-					if (!WriteFile (hfile, content_buffer_a, readed, &notneed, nullptr))
-					{
-						rc = GetLastError ();
-						break;
-					}
-				}
-				else
-				{
-					if (!content_buffer_w)
-						content_buffer_w = new WCHAR[buffer_length];
+				if (_r_str_multibyte2widechar (CP_UTF8, content_buffer_a, readed, content_buffer_w, buffer_length))
+					lpbuffer->Append (content_buffer_w);
+			}
 
-					if (_r_str_multibyte2widechar (CP_ACP, content_buffer_a, content_buffer_w, readed))
-						lpbuffer->Append (content_buffer_w);
-				}
-
-				if (_callback)
-				{
-					if (!_callback (total_readed, total_length, lpdata))
-					{
-						rc = ERROR_CANCELLED;
-						result = false;
-
-						break;
-					}
-				}
+			if (_callback && !_callback (total_readed, total_length, lpdata))
+			{
+				rc = ERROR_CANCELLED;
+				break;
 			}
 		}
 
@@ -3159,6 +3120,9 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size)
 
 bool _r_parseini (LPCWSTR path, rstringmap2 & pmap, rstringvec * psections)
 {
+	if (_r_str_isempty (path) || !_r_fs_exists (path))
+		return false;
+
 	rstring section_ptr;
 
 	size_t delimeter_pos;
@@ -3328,7 +3292,7 @@ bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR toolti
 	}
 
 	return false;
-	}
+}
 
 bool _r_tray_popup (HWND hwnd, UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text)
 {
@@ -3399,7 +3363,7 @@ bool _r_tray_setinfo (HWND hwnd, UINT uid, HICON hicon, LPCWSTR tooltip)
 	}
 
 	return !!Shell_NotifyIcon (NIM_MODIFY, &nid);
-	}
+}
 
 bool _r_tray_toggle (HWND hwnd, UINT uid, bool is_show)
 {

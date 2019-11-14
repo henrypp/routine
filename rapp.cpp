@@ -1969,33 +1969,30 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 			{
 				PAPP_UPDATE_COMPONENT pcomponent = pupdateinfo->components.at (i);
 
-				if (pcomponent)
+				if (pcomponent && pcomponent->is_haveupdates && !pcomponent->is_downloaded)
 				{
-					if (pcomponent->is_haveupdates && !pcomponent->is_downloaded)
+					HANDLE hfile = CreateFile (pcomponent->filepath, GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+
+					if (hfile != INVALID_HANDLE_VALUE)
 					{
-						HANDLE hfile = CreateFile (pcomponent->filepath, GENERIC_WRITE | GENERIC_READ, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-
-						if (hfile != INVALID_HANDLE_VALUE)
+						if (_r_inet_downloadurl (hsession, proxy_addr, pcomponent->url, (LONG_PTR)hfile, true, &this_ptr->UpdateDownloadCallback, (LONG_PTR)pupdateinfo) == ERROR_SUCCESS)
 						{
-							if (_r_inet_downloadurl (hsession, proxy_addr, pcomponent->url, (LONG_PTR)hfile, true, &this_ptr->UpdateDownloadCallback, (LONG_PTR)pupdateinfo) == ERROR_SUCCESS)
+							pcomponent->is_downloaded = true;
+							pcomponent->is_haveupdates = false;
+
+							is_downloaded = true;
+
+							if (pcomponent->is_installer)
 							{
-								pcomponent->is_downloaded = true;
-								pcomponent->is_haveupdates = false;
+								SAFE_DELETE_HANDLE (hfile);
 
-								is_downloaded = true;
+								is_downloaded_installer = true;
 
-								if (pcomponent->is_installer)
-								{
-									SAFE_DELETE_HANDLE (hfile);
-
-									is_downloaded_installer = true;
-
-									break;
-								}
+								break;
 							}
-
-							SAFE_DELETE_HANDLE (hfile);
 						}
+
+						SAFE_DELETE_HANDLE (hfile);
 					}
 				}
 			}
@@ -2231,13 +2228,13 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 		const bool is_beta = this_ptr->ConfigGet (L"CheckUpdatesBeta", false).AsBool ();
 #endif // _APP_BETA
 
-		rstring buffer;
-
 		rstring proxy_addr = this_ptr->GetProxyConfiguration ();
 		HINTERNET hsession = _r_inet_createsession (this_ptr->GetUserAgent (), proxy_addr);
 
 		if (hsession)
 		{
+			rstring buffer;
+
 			if (_r_inet_downloadurl (hsession, proxy_addr, _r_fmt (_APP_WEBSITE_URL L"/update.php?product=%s&is_beta=%d&api=3", this_ptr->app_name_short, is_beta), (LONG_PTR)&buffer, false, nullptr, 0) != ERROR_SUCCESS)
 			{
 				if (pupdateinfo->hparent)
@@ -2278,50 +2275,46 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 					{
 						PAPP_UPDATE_COMPONENT pcomponent = pupdateinfo->components.at (i);
 
-						if (pcomponent)
+						if (pcomponent && !_r_str_isempty (pcomponent->short_name) && result.find (pcomponent->short_name) != result.end ())
 						{
-							if (!_r_str_isempty (pcomponent->short_name) && result.find (pcomponent->short_name) != result.end ())
+							const rstring& rlink = result[pcomponent->short_name];
+							const size_t split_pos = _r_str_find (rlink, rlink.GetLength (), L'|');
+
+							if (split_pos == INVALID_SIZE_T)
+								continue;
+
+							const rstring new_version = _r_str_extract (rlink, rlink.GetLength (), 0, split_pos);
+							const rstring new_url = _r_str_extract (rlink, rlink.GetLength (), split_pos + 1);
+
+							if (!new_version.IsEmpty () && !new_url.IsEmpty () && (_r_str_isnumeric (new_version) ? (wcstoll (pcomponent->version, nullptr, 10) < new_version.AsLonglong ()) : (_r_str_versioncompare (pcomponent->version, new_version) == -1)))
 							{
-								const rstring& rlink = result[pcomponent->short_name];
-								const size_t split_pos = _r_str_find (rlink, rlink.GetLength (), L'|');
+								is_updateavailable = true;
 
-								if (split_pos == INVALID_SIZE_T)
-									continue;
+								_r_str_alloc (&pcomponent->new_version, new_version.GetLength (), new_version);
+								_r_str_alloc (&pcomponent->url, new_url.GetLength (), new_url);
 
-								const rstring new_version = _r_str_extract (rlink, rlink.GetLength (), 0, split_pos);
-								const rstring new_url = _r_str_extract (rlink, rlink.GetLength (), split_pos + 1);
+								pcomponent->is_haveupdates = true;
 
-								if (!new_version.IsEmpty () && !new_url.IsEmpty () && (_r_str_isnumeric (new_version) ? (wcstoll (pcomponent->version, nullptr, 10) < new_version.AsLonglong ()) : (_r_str_versioncompare (pcomponent->version, new_version) == -1)))
+								if (pcomponent->is_installer)
 								{
-									is_updateavailable = true;
-
-									_r_str_alloc (&pcomponent->new_version, new_version.GetLength (), new_version);
-									_r_str_alloc (&pcomponent->url, new_url.GetLength (), new_url);
-
-									pcomponent->is_haveupdates = true;
-
-									if (pcomponent->is_installer)
-									{
-										_r_str_alloc (&pcomponent->filepath, _r_str_length (this_ptr->GetUpdatePath ()), this_ptr->GetUpdatePath ());
-									}
-									else
-									{
-										rstring path;
-										path.Format (L"%s\\%s-%s-%s.tmp", _r_path_expand (L"%temp%\\").GetString (), this_ptr->app_name_short, pcomponent->short_name, new_version.GetString ());
-
-										_r_str_alloc (&pcomponent->filepath, path.GetLength (), path);
-										_r_str_alloc (&pcomponent->version, new_version.GetLength (), new_version);
-									}
-
-									updates_text.AppendFormat (L"- %s %s\r\n", pcomponent->full_name, format_version (new_version).GetString ());
-
-									// do not check components when new version of application available
-									if (pcomponent->is_installer)
-										break;
+									_r_str_alloc (&pcomponent->filepath, _r_str_length (this_ptr->GetUpdatePath ()), this_ptr->GetUpdatePath ());
 								}
+								else
+								{
+									rstring path;
+									path.Format (L"%s\\%s-%s-%s.tmp", _r_path_expand (L"%temp%\\").GetString (), this_ptr->app_name_short, pcomponent->short_name, new_version.GetString ());
+
+									_r_str_alloc (&pcomponent->filepath, path.GetLength (), path);
+									_r_str_alloc (&pcomponent->version, new_version.GetLength (), new_version);
+								}
+
+								updates_text.AppendFormat (L"%s %s\r\n", pcomponent->full_name, format_version (new_version).GetString ());
+
+								// do not check components when new version of application available
+								if (pcomponent->is_installer)
+									break;
 							}
 						}
-
 					}
 
 					if (is_updateavailable)
@@ -2376,6 +2369,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 									{
 										SetFileAttributes (pcomponent->target_path, FILE_ATTRIBUTE_NORMAL);
 										_r_fs_move (pcomponent->filepath, pcomponent->target_path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
+										_r_fs_delete (pcomponent->filepath, false);
 
 										this_ptr->ConfigInit (); // reload configuration
 
@@ -2387,8 +2381,6 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 											DrawMenuBar (this_ptr->GetHWND ());
 										}
-
-										_r_fs_delete (pcomponent->filepath, false);
 									}
 								}
 							}

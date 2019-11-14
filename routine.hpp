@@ -380,7 +380,7 @@ void _r_str_toupper (LPWSTR text);
 rstring _r_str_extract (LPCWSTR text, size_t length, size_t start_pos, size_t extract_length = INVALID_SIZE_T);
 rstring& _r_str_extract_ref (rstring& text, size_t start_pos, size_t extract_length = INVALID_SIZE_T);
 
-bool _r_str_multibyte2widechar (UINT cp, LPCSTR in_text, LPWSTR out_text, size_t length);
+bool _r_str_multibyte2widechar (UINT codepage, LPCSTR in_text, INT in_length, LPWSTR out_text, INT out_length);
 
 void _r_str_split (LPCWSTR text, size_t length, WCHAR delimiter, rstringvec& rvc);
 bool _r_str_unserialize (LPCWSTR text, WCHAR delimeter, WCHAR key_delimeter, rstringmap1 * lpresult);
@@ -522,7 +522,7 @@ void _r_wnd_setdarktheme (HWND hwnd);
 
 HINTERNET _r_inet_createsession (LPCWSTR useragent, LPCWSTR proxy_addr);
 DWORD _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHINTERNET pconnect, LPHINTERNET prequest, PDWORD ptotallength);
-bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD length, PDWORD preaded, PDWORD ptotalreaded);
+bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD buffer_length, PDWORD preaded, PDWORD ptotalreaded);
 DWORD _r_inet_parseurl (LPCWSTR url, INT *scheme_ptr, LPWSTR host_ptr, LPWORD port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr);
 DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, LONG_PTR lpdest, bool is_filepath, _R_CALLBACK_HTTP_DOWNLOAD _callback, LONG_PTR lpdata);
 #define _r_inet_close(h) if(h){WinHttpCloseHandle(h);h=nullptr;}
