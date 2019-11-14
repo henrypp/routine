@@ -48,7 +48,7 @@ typedef struct _APP_UPDATE_COMPONENT
 
 	bool is_downloaded = false;
 	bool is_installer = false;
-	bool is_haveupdates = false;
+	bool is_haveupdate = false;
 
 	LPWSTR full_name = nullptr;
 	LPWSTR short_name = nullptr;

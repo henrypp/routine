@@ -292,9 +292,9 @@ void rapp::UpdateCheck (HWND hparent)
 	if (!hparent && (!ConfigGet (L"CheckUpdates", true).AsBool () || (_r_unixtime_now () - ConfigGet (L"CheckUpdatesLast", 0LL).AsLonglong ()) <= _APP_UPDATE_PERIOD))
 		return;
 
-	const HANDLE hthread = _r_createthread (&UpdateCheckThread, (LPVOID)pupdateinfo, true);
+	pupdateinfo->hthread = _r_createthread (&UpdateCheckThread, (LPVOID)pupdateinfo, true);
 
-	if (!hthread)
+	if (!pupdateinfo->hthread)
 		return;
 
 	pupdateinfo->htaskdlg = nullptr;
@@ -315,8 +315,6 @@ void rapp::UpdateCheck (HWND hparent)
 #pragma _R_WARNING(IDS_UPDATE_INIT)
 #endif // IDS_UPDATE_INIT
 
-			pupdateinfo->hthread = hthread;
-
 			UpdateDialogNavigate (nullptr, nullptr, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 
 			return;
@@ -326,7 +324,7 @@ void rapp::UpdateCheck (HWND hparent)
 #endif // _APP_NO_WINXP
 	}
 
-	ResumeThread (hthread);
+	ResumeThread (pupdateinfo->hthread);
 }
 #endif // _APP_HAVE_UPDATES
 
@@ -999,7 +997,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc)
 
 #ifdef _APP_HAVE_UPDATES
 		UpdateAddComponent (app_name, app_name_short, app_version, GetDirectory (), true);
-		UpdateAddComponent (L"Language pack", L"language", _r_fmt (L"%" PRId64, LocaleGetVersion ()), GetLocalePath (), false);
+		UpdateAddComponent (L"Language pack", L"language", _r_fmt (L"%" PRIi64, LocaleGetVersion ()), GetLocalePath (), false);
 #endif _APP_HAVE_UPDATES
 
 		app_hwnd = CreateDialog (nullptr, MAKEINTRESOURCE (dlg_id), nullptr, proc);
@@ -1946,7 +1944,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 			{
 				PAPP_UPDATE_COMPONENT pcomponent = pupdateinfo->components.at (i);
 
-				if (pcomponent && pcomponent->is_haveupdates && !pcomponent->is_downloaded)
+				if (pcomponent && pcomponent->is_haveupdate && !pcomponent->is_downloaded)
 				{
 					HANDLE hfile = CreateFile (pcomponent->filepath, GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 
@@ -1955,7 +1953,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 						if (_r_inet_downloadurl (hsession, proxy_addr, pcomponent->url, (LONG_PTR)hfile, true, &this_ptr->UpdateDownloadCallback, (LONG_PTR)pupdateinfo) == ERROR_SUCCESS)
 						{
 							pcomponent->is_downloaded = true;
-							pcomponent->is_haveupdates = false;
+							pcomponent->is_haveupdate = false;
 
 							is_downloaded = true;
 
@@ -2070,13 +2068,6 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 		case TDN_DESTROYED:
 		{
 			SetEvent (pupdateinfo->hend);
-
-			if (pupdateinfo->hthread)
-			{
-				TerminateThread (pupdateinfo->hthread, 0);
-				SAFE_DELETE_HANDLE (pupdateinfo->hthread);
-			}
-
 			break;
 		}
 
@@ -2267,10 +2258,10 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							{
 								is_updateavailable = true;
 
+								pcomponent->is_haveupdate = true;
+
 								_r_str_alloc (&pcomponent->new_version, new_version.GetLength (), new_version);
 								_r_str_alloc (&pcomponent->url, new_url.GetLength (), new_url);
-
-								pcomponent->is_haveupdates = true;
 
 								if (pcomponent->is_installer)
 								{
@@ -2282,7 +2273,6 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 									path.Format (L"%s\\%s-%s-%s.tmp", _r_path_expand (L"%temp%\\").GetString (), this_ptr->app_name_short, pcomponent->short_name, new_version.GetString ());
 
 									_r_str_alloc (&pcomponent->filepath, path.GetLength (), path);
-									_r_str_alloc (&pcomponent->version, new_version.GetLength (), new_version);
 								}
 
 								updates_text.AppendFormat (L"%s %s\r\n", pcomponent->full_name, format_version (new_version).GetString ());
@@ -2309,13 +2299,11 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 #ifdef _APP_NO_WINXP
 						this_ptr->UpdateDialogNavigate (pupdateinfo->htaskdlg, nullptr, 0, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, str_main, updates_text, (LONG_PTR)pupdateinfo);
-
 						WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
 #else
 						if (this_ptr->IsVistaOrLater ())
 						{
 							this_ptr->UpdateDialogNavigate (pupdateinfo->htaskdlg, nullptr, 0, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, str_main, updates_text, (LONG_PTR)pupdateinfo);
-
 							WaitForSingleObjectEx (pupdateinfo->hend, INFINITE, FALSE);
 						}
 						else
@@ -2334,32 +2322,45 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							}
 						}
 #endif // _APP_NO_WINXP
+						bool is_updated = false;
+
 						for (size_t i = 0; i < pupdateinfo->components.size (); i++)
 						{
 							PAPP_UPDATE_COMPONENT pcomponent = pupdateinfo->components.at (i);
 
-							if (pcomponent)
+							if (pcomponent && pcomponent->is_downloaded)
 							{
-								if (pcomponent->is_downloaded)
+								if (!pcomponent->is_installer)
 								{
-									if (!pcomponent->is_installer)
+									// set new version
 									{
-										SetFileAttributes (pcomponent->target_path, FILE_ATTRIBUTE_NORMAL);
-										_r_fs_move (pcomponent->filepath, pcomponent->target_path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
-										_r_fs_delete (pcomponent->filepath, false);
+										SAFE_DELETE_ARRAY (pcomponent->version);
 
-										this_ptr->ConfigInit (); // reload configuration
-
-										if (this_ptr->GetHWND ())
-										{
-											SendMessage (this_ptr->GetHWND (), RM_CONFIG_UPDATE, 0, 0);
-											SendMessage (this_ptr->GetHWND (), RM_INITIALIZE, 0, 0);
-											SendMessage (this_ptr->GetHWND (), RM_LOCALIZE, 0, 0);
-
-											DrawMenuBar (this_ptr->GetHWND ());
-										}
+										pcomponent->version = pcomponent->new_version;
+										pcomponent->new_version = nullptr;
 									}
+
+									SetFileAttributes (pcomponent->target_path, FILE_ATTRIBUTE_NORMAL);
+
+									_r_fs_move (pcomponent->filepath, pcomponent->target_path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
+									_r_fs_delete (pcomponent->filepath, false);
+
+									is_updated = true;
 								}
+							}
+						}
+
+						if (is_updated)
+						{
+							this_ptr->ConfigInit (); // reload configuration
+
+							if (this_ptr->GetHWND ())
+							{
+								SendMessage (this_ptr->GetHWND (), RM_CONFIG_UPDATE, 0, 0);
+								SendMessage (this_ptr->GetHWND (), RM_INITIALIZE, 0, 0);
+								SendMessage (this_ptr->GetHWND (), RM_LOCALIZE, 0, 0);
+
+								DrawMenuBar (this_ptr->GetHWND ());
 							}
 						}
 					}
