@@ -381,7 +381,7 @@ void _r_str_toupper (LPWSTR text);
 rstring _r_str_extract (LPCWSTR text, size_t length, size_t start_pos, size_t extract_length = INVALID_SIZE_T);
 rstring& _r_str_extract_ref (rstring& text, size_t start_pos, size_t extract_length = INVALID_SIZE_T);
 
-LPWSTR _r_str_multibyte2widechar (UINT codepage, LPCSTR in_text);
+LPWSTR _r_str_utf8_to_utf16 (LPCSTR text);
 
 void _r_str_split (LPCWSTR text, size_t length, WCHAR delimiter, rstringvec& rvc);
 bool _r_str_unserialize (LPCWSTR text, WCHAR delimeter, WCHAR key_delimeter, rstringmap1 * lpresult);

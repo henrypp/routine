@@ -1620,20 +1620,20 @@ rstring& _r_str_extract_ref (rstring& text, size_t start_pos, size_t extract_len
 	return text.SetLength (extract_length);
 }
 
-LPWSTR _r_str_multibyte2widechar (UINT codepage, LPCSTR in_text)
+LPWSTR _r_str_utf8_to_utf16 (LPCSTR text)
 {
-	if ((!in_text || !*in_text))
+	if ((!text || !*text))
 		return nullptr;
 
-	const size_t length = strlen (in_text);
-	INT ret_length = MultiByteToWideChar (codepage, 0, in_text, static_cast<INT>(length), nullptr, 0);
+	const INT length = static_cast<INT>(strlen (text));
+	INT ret_length = MultiByteToWideChar (CP_UTF8, 0, text, length, nullptr, 0);
 
 	if (!ret_length)
 		return nullptr;
 
 	LPWSTR buffer = new WCHAR[ret_length + 1];
 
-	ret_length = MultiByteToWideChar (codepage, 0, in_text, static_cast<INT>(length), buffer, ret_length);
+	ret_length = MultiByteToWideChar (CP_UTF8, 0, text, length, buffer, ret_length);
 
 	buffer[ret_length] = UNICODE_NULL;
 
@@ -2893,7 +2893,7 @@ DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, 
 			{
 				content_buffer[readed] = ANSI_NULL;
 
-				LPWSTR buffer = _r_str_multibyte2widechar (CP_UTF8, content_buffer);
+				LPWSTR buffer = _r_str_utf8_to_utf16 (content_buffer);
 
 				if (!buffer)
 				{
