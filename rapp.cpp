@@ -831,29 +831,6 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			break;
 		}
 
-		//case WM_GETDPISCALEDSIZE:
-		//{
-		//	INT dpi = static_cast<INT>(wparam);
-		//	double scaling_factor = static_cast<double>(dpi) / USER_DEFAULT_SCREEN_DPI;
-
-		//	RECT rc_client;
-
-		//	if (!GetClientRect (hwnd, &rc_client))
-		//		return FALSE;
-
-		//	rc_client.right = static_cast<LONG>(rc_client.right * scaling_factor);
-		//	rc_client.bottom = static_cast<LONG>(rc_client.bottom * scaling_factor);
-
-		//	_r_wnd_adjustwindowrect (hwnd, &rc_client);
-
-		//	LPSIZE new_size = reinterpret_cast<LPSIZE>(lparam);
-
-		//	new_size->cx = _R_RECT_WIDTH (&rc_client);
-		//	new_size->cy = _R_RECT_HEIGHT (&rc_client);
-
-		//	return TRUE;
-		//}
-
 		case WM_DPICHANGED:
 		{
 #ifdef _APP_HAVE_SETTINGS

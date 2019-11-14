@@ -1622,7 +1622,7 @@ rstring& _r_str_extract_ref (rstring& text, size_t start_pos, size_t extract_len
 
 LPWSTR _r_str_utf8_to_utf16 (LPCSTR text)
 {
-	if ((!text || !*text))
+	if (!text || *text == ANSI_NULL)
 		return nullptr;
 
 	const INT length = static_cast<INT>(strlen (text));
@@ -1631,7 +1631,7 @@ LPWSTR _r_str_utf8_to_utf16 (LPCSTR text)
 	if (!ret_length)
 		return nullptr;
 
-	LPWSTR buffer = new WCHAR[ret_length + 1];
+	LPWSTR buffer = new WCHAR[ret_length + 1]; // utilization required!
 
 	ret_length = MultiByteToWideChar (CP_UTF8, 0, text, length, buffer, ret_length);
 
