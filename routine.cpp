@@ -1553,7 +1553,7 @@ void _r_str_trim (rstring& text, LPCWSTR trim)
 
 void _r_str_trim (LPWSTR text, LPCWSTR trim)
 {
-	if (!_r_str_isempty(text))
+	if (!_r_str_isempty (text))
 		StrTrim (text, trim);
 }
 
@@ -2089,9 +2089,6 @@ LONG _r_dc_fontwidth (HDC hdc, LPCWSTR text, size_t length)
 	if (_r_str_isempty (text) || !length)
 		return 0;
 
-	if (length == INVALID_SIZE_T)
-		length = _r_str_length (text);
-
 	SIZE size = {0};
 
 	if (!GetTextExtentPoint32 (hdc, text, (INT)length, &size))
@@ -2165,7 +2162,7 @@ void _r_wnd_center (HWND hwnd, HWND hparent)
 		_r_wnd_centerwindowrect (&rect, &parentRect);
 		_r_wnd_adjustwindowrect (hwnd, &rect);
 
-		_r_wnd_resize (nullptr, hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOSIZE);
+		_r_wnd_resize (nullptr, hwnd, nullptr, rect.left, rect.top, 0, 0, 0);
 	}
 	else
 	{
@@ -2179,7 +2176,7 @@ void _r_wnd_center (HWND hwnd, HWND hparent)
 
 			_r_wnd_centerwindowrect (&rect, &monitorInfo.rcWork);
 
-			_r_wnd_resize (nullptr, hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOSIZE);
+			_r_wnd_resize (nullptr, hwnd, nullptr, rect.left, rect.top, 0, 0, 0);
 		}
 	}
 }
@@ -2381,7 +2378,7 @@ bool _r_wnd_isfullscreenmode ()
 	return _r_wnd_isplatformfullscreenmode () || _r_wnd_isfullscreenwindowmode () || _r_wnd_isfullscreenconsolemode ();
 }
 
-void _r_wnd_resize (HDWP * hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags)
+void _r_wnd_resize (HDWP* hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags)
 {
 	flags |= SWP_NOACTIVATE;
 
@@ -3518,8 +3515,8 @@ void _r_ctrl_settabletext (HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT ctrl_id2,
 	const INT wnd_spacing = rc_ctrl.left;
 	const INT wnd_width = _R_RECT_WIDTH (&rc_wnd) - (wnd_spacing * 2);
 
-	INT ctrl1_width = _r_dc_fontwidth (hdc1, text1, INVALID_SIZE_T);
-	INT ctrl2_width = _r_dc_fontwidth (hdc2, text2, INVALID_SIZE_T);
+	INT ctrl1_width = _r_dc_fontwidth (hdc1, text1, _r_str_length (text1));
+	INT ctrl2_width = _r_dc_fontwidth (hdc2, text2, _r_str_length (text2));
 
 	ctrl2_width = (std::min) (ctrl2_width, wnd_width - ctrl1_width - wnd_spacing);
 	ctrl1_width = (std::min) (ctrl1_width, wnd_width - ctrl2_width - wnd_spacing); // note: changed order for correct priority!
