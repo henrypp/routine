@@ -3515,8 +3515,8 @@ void _r_ctrl_settabletext (HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT ctrl_id2,
 	const INT wnd_spacing = rc_ctrl.left;
 	const INT wnd_width = _R_RECT_WIDTH (&rc_wnd) - (wnd_spacing * 2);
 
-	INT ctrl1_width = _r_dc_fontwidth (hdc1, text1, _r_str_length (text1));
-	INT ctrl2_width = _r_dc_fontwidth (hdc2, text2, _r_str_length (text2));
+	INT ctrl1_width = _r_dc_fontwidth (hdc1, text1, _r_str_length (text1)) + wnd_spacing;
+	INT ctrl2_width = _r_dc_fontwidth (hdc2, text2, _r_str_length (text2)) + wnd_spacing;
 
 	ctrl2_width = (std::min) (ctrl2_width, wnd_width - ctrl1_width - wnd_spacing);
 	ctrl1_width = (std::min) (ctrl1_width, wnd_width - ctrl2_width - wnd_spacing); // note: changed order for correct priority!
