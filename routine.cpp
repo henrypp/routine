@@ -4229,7 +4229,7 @@ void _r_toolbar_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle)
 
 void _r_progress_setmarquee (HWND hwnd, INT ctrl_id, BOOL is_enable)
 {
-	SendDlgItemMessage (hwnd, ctrl_id, PBM_SETMARQUEE, (WPARAM)is_enable, (LPARAM)18);
+	SendDlgItemMessage (hwnd, ctrl_id, PBM_SETMARQUEE, (WPARAM)is_enable, (LPARAM)10);
 
 	_r_wnd_addstyle (hwnd, ctrl_id, is_enable ? PBS_MARQUEE : 0, PBS_MARQUEE, GWL_STYLE);
 }
