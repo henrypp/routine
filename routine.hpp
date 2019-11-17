@@ -348,7 +348,7 @@ FORCEINLINE bool _r_str_isempty (LPCWSTR text)
 
 bool _r_str_isnumeric (LPCWSTR text);
 
-bool _r_str_alloc (LPWSTR *pbuffer, size_t length, LPCWSTR text);
+bool _r_str_alloc (LPWSTR* pbuffer, size_t length, LPCWSTR text);
 
 void _r_str_cat (LPWSTR buffer, size_t length, LPCWSTR text);
 void _r_str_copy (LPWSTR buffer, size_t length, LPCWSTR text);

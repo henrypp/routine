@@ -1234,7 +1234,7 @@ bool _r_str_isnumeric (LPCWSTR text)
 	return true;
 }
 
-bool _r_str_alloc (LPWSTR * pbuffer, size_t length, LPCWSTR text)
+bool _r_str_alloc (LPWSTR* pbuffer, size_t length, LPCWSTR text)
 {
 	if (!pbuffer)
 		return false;
@@ -1246,7 +1246,6 @@ bool _r_str_alloc (LPWSTR * pbuffer, size_t length, LPCWSTR text)
 
 	if (length == INVALID_SIZE_T)
 		length = _r_str_length (text);
-
 
 	length += 1;
 
@@ -1533,12 +1532,15 @@ bool _r_str_match (LPCWSTR text, LPCWSTR pattern)
 
 void _r_str_replace (LPWSTR text, WCHAR char_from, WCHAR char_to)
 {
-	while (!_r_str_isempty (text))
+	if (_r_str_isempty (text))
+		return;
+
+	while (*text != UNICODE_NULL)
 	{
 		if (*text == char_from)
 			*text = char_to;
 
-		text += 1;
+		++text;
 	}
 }
 
