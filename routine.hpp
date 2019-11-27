@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <assert.h>
+#include <smmintrin.h>
 #include <algorithm>
 #include <unordered_map>
 #include <vector>
@@ -361,7 +362,7 @@ void _r_str_vprintf (LPWSTR buffer, size_t length, LPCWSTR text, va_list args);
 //INT _r_str_compare (LPCWSTR str1, LPCWSTR str2, size_t length = INVALID_SIZE_T);
 INT _r_str_compare_logical (LPCWSTR str1, LPCWSTR str2);
 
-rstring _r_str_fromguid (const GUID &lpguid);
+rstring _r_str_fromguid (const GUID& lpguid);
 rstring _r_str_fromsid (const PSID lpsid);
 
 size_t _r_str_find (LPCWSTR text, size_t length, WCHAR char_find, size_t start_pos = 0);
@@ -524,7 +525,7 @@ void _r_wnd_setdarktheme (HWND hwnd);
 HINTERNET _r_inet_createsession (LPCWSTR useragent, LPCWSTR proxy_addr);
 DWORD _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHINTERNET pconnect, LPHINTERNET prequest, PDWORD ptotallength);
 bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD buffer_length, PDWORD preaded, PDWORD ptotalreaded);
-DWORD _r_inet_parseurl (LPCWSTR url, INT *scheme_ptr, LPWSTR host_ptr, LPWORD port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr);
+DWORD _r_inet_parseurl (LPCWSTR url, PINT scheme_ptr, LPWSTR host_ptr, LPWORD port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr);
 DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, LONG_PTR lpdest, bool is_filepath, _R_CALLBACK_HTTP_DOWNLOAD _callback, LONG_PTR lpdata);
 #define _r_inet_close(h) if(h){WinHttpCloseHandle(h);h=nullptr;}
 
@@ -545,6 +546,7 @@ time_t _r_reg_querytimestamp (HKEY hkey);
 
 HANDLE _r_createthread (_beginthreadex_proc_type proc, void *args, bool is_suspended, INT priority = THREAD_PRIORITY_NORMAL);
 HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size);
+LPVOID _r_loadresource (HINSTANCE hinst, LPCWSTR res, LPCWSTR type, PDWORD psize);
 bool _r_parseini (LPCWSTR path, rstringmap2& pmap, rstringvec* psections);
 DWORD _r_rand (DWORD min_number, DWORD max_number);
 bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR dir = nullptr, WORD show_state = SW_SHOWDEFAULT, DWORD flags = 0);
@@ -592,7 +594,9 @@ FORCEINLINE void _r_ctrl_enable (HWND hwnd, INT ctrl_id, bool is_enable)
 */
 
 INT _r_tab_additem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image = INVALID_INT, LPARAM lparam = 0);
+LPARAM _r_tab_getlparam (HWND hwnd, INT ctrl_id, INT index);
 INT _r_tab_setitem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image = INVALID_INT, LPARAM lparam = 0);
+void _r_tab_selectitem (HWND hwnd, INT ctrl_id, INT index);
 
 /*
 	Control: listview
@@ -630,9 +634,9 @@ void _r_listview_setgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, 
 	Control: treeview
 */
 
-HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl_id, LPCWSTR text, HTREEITEM hparent = nullptr, INT image = INVALID_INT, LPARAM lparam = 0);
-LPARAM _r_treeview_getlparam (HWND hwnd, INT ctrl_id, HTREEITEM item);
-void _r_treeview_setitem (HWND hwnd, INT ctrl_id, HTREEITEM hitem, LPCWSTR text, INT image = INVALID_INT, LPARAM lparam = 0);
+HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl_id, LPCWSTR text, HTREEITEM hparent = nullptr, INT image = I_IMAGENONE, LPARAM lparam = 0);
+LPARAM _r_treeview_getlparam (HWND hwnd, INT ctrl_id, HTREEITEM hitem);
+void _r_treeview_setitem (HWND hwnd, INT ctrl_id, HTREEITEM hitem, LPCWSTR text, INT image = I_IMAGENONE, LPARAM lparam = 0);
 void _r_treeview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle, INT height);
 
 /*

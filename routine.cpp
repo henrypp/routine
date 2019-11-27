@@ -849,7 +849,7 @@ LPCWSTR _r_path_getextension (LPCWSTR path)
 {
 	LPCWSTR lastpoint = nullptr;
 
-	while (!_r_str_isempty (path))
+	while (*path != UNICODE_NULL)
 	{
 		if (*path == OBJ_NAME_PATH_SEPARATOR || *path == L' ')
 			lastpoint = nullptr;
@@ -867,7 +867,7 @@ LPCWSTR _r_path_getfilename (LPCWSTR path)
 {
 	LPCWSTR last_slash = path;
 
-	while (!_r_str_isempty (path))
+	while (*path != UNICODE_NULL)
 	{
 		if ((*path == OBJ_NAME_PATH_SEPARATOR || *path == L'/' || *path == L':') && path[1] && path[1] != OBJ_NAME_PATH_SEPARATOR && path[1] != L'/')
 			last_slash = path + 1;
@@ -1161,7 +1161,7 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 	return path;
 }
 
-DWORD _r_path_ntpathfromdos (rstring & path)
+DWORD _r_path_ntpathfromdos (rstring& path)
 {
 	if (path.IsEmpty ())
 		return STATUS_UNSUCCESSFUL;
@@ -1296,21 +1296,48 @@ void _r_str_copy (LPWSTR buffer, size_t length, LPCWSTR text)
 
 size_t _r_str_length (LPCWSTR text)
 {
-	if (_r_str_isempty (text))
+	if (!text)
 		return 0;
 
-	size_t length = 0;
-
-	while (*text != UNICODE_NULL)
+	if (IsProcessorFeaturePresent (PF_XMMI64_INSTRUCTIONS_AVAILABLE)) // check sse2 feature
 	{
-		++text;
-		++length;
+		LPWSTR p = (LPWSTR)((ULONG_PTR)text & ~0xE); // string should be 2 byte aligned
+		DWORD unaligned = PtrToUlong (text) & 0xF;
 
-		if (length > _R_STR_MAX_LENGTH)
-			return _R_STR_MAX_LENGTH; // prevent overflow
+		__m128i b;
+		__m128i z = _mm_setzero_si128 ();
+
+		ULONG index;
+		ULONG mask;
+
+		if (unaligned != 0)
+		{
+			b = _mm_load_si128 ((__m128i*)p);
+			b = _mm_cmpeq_epi16 (b, z);
+			mask = _mm_movemask_epi8 (b) >> unaligned;
+
+			if (_BitScanForward (&index, mask))
+				return index / sizeof (WCHAR);
+
+			p += 16 / sizeof (WCHAR);
+		}
+
+		while (true)
+		{
+			b = _mm_load_si128 ((__m128i*)p);
+			b = _mm_cmpeq_epi16 (b, z);
+			mask = _mm_movemask_epi8 (b);
+
+			if (_BitScanForward (&index, mask))
+				return (size_t)(p - text) + index / sizeof (WCHAR);
+
+			p += 0x10 / sizeof (WCHAR);
+		}
 	}
-
-	return length;
+	else
+	{
+		return wcsnlen_s (text, _R_STR_MAX_LENGTH);
+	}
 }
 
 void _r_str_printf (LPWSTR buffer, size_t length, LPCWSTR text, ...)
@@ -1432,7 +1459,7 @@ INT _r_str_compare_logical (LPCWSTR str1, LPCWSTR str2)
 	return StrCmpLogicalW (str1, str2);
 }
 
-rstring _r_str_fromguid (const GUID & lpguid)
+rstring _r_str_fromguid (const GUID& lpguid)
 {
 	rstring result;
 	OLECHAR* guidString = nullptr;
@@ -1474,6 +1501,9 @@ size_t _r_str_find (LPCWSTR text, size_t length, WCHAR char_find, size_t start_p
 
 	for (size_t i = start_pos; i != length; i++)
 	{
+		if(text[i] == UNICODE_NULL)
+			return INVALID_SIZE_T;
+
 		if (_r_str_upper (text[i]) == char_find)
 			return i;
 	}
@@ -1506,6 +1536,9 @@ size_t _r_str_reversefind (LPCWSTR text, size_t length, WCHAR char_find, size_t 
 
 bool _r_str_match (LPCWSTR text, LPCWSTR pattern)
 {
+	if (!text || !pattern)
+		return false;
+
 	// If we reach at the end of both strings, we are done
 	if (*pattern == UNICODE_NULL && *text == UNICODE_NULL)
 		return true;
@@ -1532,7 +1565,7 @@ bool _r_str_match (LPCWSTR text, LPCWSTR pattern)
 
 void _r_str_replace (LPWSTR text, WCHAR char_from, WCHAR char_to)
 {
-	if (_r_str_isempty (text))
+	if (!text)
 		return;
 
 	while (*text != UNICODE_NULL)
@@ -1561,21 +1594,27 @@ void _r_str_trim (LPWSTR text, LPCWSTR trim)
 
 void _r_str_tolower (LPWSTR text)
 {
-	while (!_r_str_isempty (text))
+	if (!text)
+		return;
+
+	while (*text != UNICODE_NULL)
 	{
 		*text = _r_str_lower (*text);
 
-		text += 1;
+		++text;
 	}
 }
 
 void _r_str_toupper (LPWSTR text)
 {
-	while (!_r_str_isempty (text))
+	if (!text)
+		return;
+
+	while (*text != UNICODE_NULL)
 	{
 		*text = _r_str_upper (*text);
 
-		text += 1;
+		++text;
 	}
 }
 
@@ -1627,7 +1666,7 @@ LPWSTR _r_str_utf8_to_utf16 (LPCSTR text)
 	if (!text || *text == ANSI_NULL)
 		return nullptr;
 
-	const INT length = static_cast<INT>(strlen (text));
+	const INT length = static_cast<INT>(strnlen_s (text, _R_STR_MAX_LENGTH));
 	INT ret_length = MultiByteToWideChar (CP_UTF8, 0, text, length, nullptr, 0);
 
 	if (!ret_length)
@@ -2596,20 +2635,12 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent, LPCWSTR proxy_addr)
 	DWORD option;
 
 	// enable secure protocols
-	{
-		option = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
+	option = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
 
-		if (is_win81)
-			option |= WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3; // tls 1.3 for win81+
+	if (is_win81)
+		option |= WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3; // tls 1.3 for win81+
 
-		WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &option, sizeof (option));
-	}
-
-	// set connections per-server
-	{
-		option = 1;
-		WinHttpSetOption (hsession, WINHTTP_OPTION_MAX_CONNS_PER_SERVER, &option, sizeof (option));
-	}
+	WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &option, sizeof (option));
 
 	// enable compression feature (win81+)
 	if (is_win81)
@@ -2624,6 +2655,10 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent, LPCWSTR proxy_addr)
 		option = WINHTTP_PROTOCOL_FLAG_HTTP2;
 		WinHttpSetOption (hsession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &option, sizeof (option));
 	}
+
+	// set connections per-server
+	option = 1;
+	WinHttpSetOption (hsession, WINHTTP_OPTION_MAX_CONNS_PER_SERVER, &option, sizeof (option));
 
 	return hsession;
 }
@@ -2659,7 +2694,7 @@ DWORD _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHI
 			if (url_scheme == INTERNET_SCHEME_HTTPS)
 				flags |= WINHTTP_FLAG_SECURE;
 
-			HINTERNET hrequest = WinHttpOpenRequest (hconnect, nullptr, url_path, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
+			HINTERNET hrequest = WinHttpOpenRequest (hconnect, L"GET", url_path, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
 
 			if (!hrequest)
 			{
@@ -2785,7 +2820,7 @@ bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD buffer_length,
 	return is_readed;
 }
 
-DWORD _r_inet_parseurl (LPCWSTR url, INT * scheme_ptr, LPWSTR host_ptr, LPWORD port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr)
+DWORD _r_inet_parseurl (LPCWSTR url, PINT scheme_ptr, LPWSTR host_ptr, LPWORD port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr)
 {
 	if (_r_str_isempty (url) || (!scheme_ptr && !host_ptr && !port_ptr && !path_ptr && !user_ptr && !pass_ptr))
 		return ERROR_BAD_ARGUMENTS;
@@ -2821,7 +2856,6 @@ DWORD _r_inet_parseurl (LPCWSTR url, INT * scheme_ptr, LPWSTR host_ptr, LPWORD p
 		url_comp.lpszPassword = pass_ptr;
 		url_comp.dwPasswordLength = max_length;
 	}
-
 
 	if (!WinHttpCrackUrl (url, DWORD (url_length), ICU_DECODE, &url_comp))
 	{
@@ -2905,7 +2939,7 @@ DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, 
 				SAFE_DELETE_ARRAY (buffer);
 			}
 
-			if (_callback && !_callback (total_readed, total_length, lpdata))
+			if (_callback && !_callback (total_readed, (std::max) (total_readed, total_length), lpdata))
 			{
 				rc = ERROR_CANCELLED;
 				break;
@@ -3129,7 +3163,33 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size)
 #endif // _APP_NO_WINXP
 }
 
-bool _r_parseini (LPCWSTR path, rstringmap2 & pmap, rstringvec * psections)
+LPVOID _r_loadresource (HINSTANCE hinst, LPCWSTR res, LPCWSTR type, PDWORD psize)
+{
+	HRSRC hres = FindResource (hinst, res, type);
+
+	if (hres)
+	{
+		HGLOBAL hloaded = LoadResource (hinst, hres);
+
+		if (hloaded)
+		{
+			LPVOID pLockedResource = LockResource (hloaded);
+
+			if (pLockedResource)
+			{
+				*psize = SizeofResource (hinst, hres);
+
+				UnlockResource (pLockedResource);
+
+				return pLockedResource;
+			}
+		}
+	}
+
+	return nullptr;
+}
+
+bool _r_parseini (LPCWSTR path, rstringmap2& pmap, rstringvec * psections)
 {
 	if (_r_str_isempty (path) || !_r_fs_exists (path))
 		return false;
@@ -3625,6 +3685,17 @@ INT _r_tab_additem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image, 
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, TCM_INSERTITEM, (WPARAM)index, (LPARAM)&tci);
 }
 
+LPARAM _r_tab_getlparam (HWND hwnd, INT ctrl_id, INT index)
+{
+	TCITEM tci = {0};
+
+	tci.mask = TCIF_PARAM;
+
+	SendDlgItemMessage (hwnd, ctrl_id, TCM_GETITEM, (WPARAM)index, (LPARAM)&tci);
+
+	return tci.lParam;
+}
+
 INT _r_tab_setitem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image, LPARAM lparam)
 {
 	TCITEM tci = {0};
@@ -3648,6 +3719,22 @@ INT _r_tab_setitem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image, 
 	}
 
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, TCM_SETITEM, (WPARAM)index, (LPARAM)&tci);
+}
+
+void _r_tab_selectitem (HWND hwnd, INT ctrl_id, INT index)
+{
+	NMHDR hdr = {0};
+
+	hdr.hwndFrom = GetDlgItem (hwnd, ctrl_id);
+	hdr.idFrom = ctrl_id;
+
+	hdr.code = TCN_SELCHANGING;
+	SendMessage (hwnd, WM_NOTIFY, 0, (LPARAM)&hdr);
+
+	SendDlgItemMessage (hwnd, ctrl_id, TCM_SETCURSEL, (WPARAM)index, 0);
+
+	hdr.code = TCN_SELCHANGE;
+	SendMessage (hwnd, WM_NOTIFY, 0, (LPARAM)&hdr);
 }
 
 /*
@@ -4060,7 +4147,7 @@ HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl_id, LPCWSTR text, HTREEITEM h
 	if (hparent)
 		tvi.hParent = hparent;
 
-	if (image != INVALID_INT)
+	if (image != I_IMAGENONE)
 	{
 		tvi.itemex.mask |= TVIF_IMAGE | TVIF_SELECTEDIMAGE;
 		tvi.itemex.iImage = image;
@@ -4076,12 +4163,12 @@ HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl_id, LPCWSTR text, HTREEITEM h
 	return (HTREEITEM)SendDlgItemMessage (hwnd, ctrl_id, TVM_INSERTITEM, 0, (LPARAM)&tvi);
 }
 
-LPARAM _r_treeview_getlparam (HWND hwnd, INT ctrl_id, HTREEITEM item)
+LPARAM _r_treeview_getlparam (HWND hwnd, INT ctrl_id, HTREEITEM hitem)
 {
 	TVITEMEX tvi = {0};
 
 	tvi.mask = TVIF_PARAM;
-	tvi.hItem = item;
+	tvi.hItem = hitem;
 
 	SendDlgItemMessage (hwnd, ctrl_id, TVM_GETITEM, 0, (LPARAM)&tvi);
 
@@ -4100,7 +4187,7 @@ void _r_treeview_setitem (HWND hwnd, INT ctrl_id, HTREEITEM hitem, LPCWSTR text,
 		tvi.pszText = const_cast<LPWSTR>(text);
 	}
 
-	if (image != INVALID_INT)
+	if (image != I_IMAGENONE)
 	{
 		tvi.mask |= TVIF_IMAGE | TVIF_SELECTEDIMAGE;
 		tvi.iImage = image;
