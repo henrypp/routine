@@ -24,7 +24,6 @@
 //#define _APP_HAVE_AUTORUN // enable autorun feature
 //#define _APP_HAVE_SKIPUAC // enable skip uac feature
 //#define _APP_HAVE_TRAY // enable tray icon feature
-//#define _APP_HAVE_SRWLOCK // srw locks (vista+)
 //#define _APP_HAVE_MINSIZE // change minimum size of main window
 //#define _APP_HAVE_DARKTHEME_SUBCLASS // enable dark theme own draw (win10rs5+)
 
@@ -85,7 +84,7 @@
 #define _APP_WEBSITE_URL L"https://www.henrypp.org"
 #define _APP_DONATE_URL _APP_WEBSITE_URL L"/donate?from=%s"
 
-#ifdef _APP_BETA
+#if defined(_DEBUG) || defined(_APP_BETA)
 #	define _APP_UPDATE_PERIOD _R_SECONDSCLOCK_HOUR (12) // update checking period for pre-release is 12 hours
 #else
 #	define _APP_UPDATE_PERIOD _R_SECONDSCLOCK_HOUR (48) // update checking period for stable release is 48 hours
