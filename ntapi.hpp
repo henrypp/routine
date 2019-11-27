@@ -79,6 +79,30 @@
 #define STATUS_BUFFER_TOO_SMALL 0xC0000023L
 #endif
 
+#include <pshpack1.h>
+typedef struct _DLGTEMPLATEEX
+{
+	USHORT dlgVer;
+	USHORT signature;
+	ULONG helpID;
+	ULONG exStyle;
+	ULONG style;
+	USHORT cDlgItems;
+	SHORT x;
+	SHORT y;
+	SHORT cx;
+	SHORT cy;
+	//sz_Or_Ord menu;
+	//sz_Or_Ord windowClass;
+	//WCHAR title[titleLen];
+	//USHORT pointsize;
+	//USHORT weight;
+	//BYTE italic;
+	//BYTE charset;
+	//WCHAR typeface[stringLen];
+} DLGTEMPLATEEX, *PDLGTEMPLATEEX;
+#include <poppack.h>
+
 enum IMMERSIVE_HC_CACHE_MODE
 {
 	IHCM_USE_CACHED_VALUE,
