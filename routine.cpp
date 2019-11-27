@@ -1501,7 +1501,7 @@ size_t _r_str_find (LPCWSTR text, size_t length, WCHAR char_find, size_t start_p
 
 	for (size_t i = start_pos; i != length; i++)
 	{
-		if(text[i] == UNICODE_NULL)
+		if (text[i] == UNICODE_NULL)
 			return INVALID_SIZE_T;
 
 		if (_r_str_upper (text[i]) == char_find)
@@ -3177,7 +3177,8 @@ LPVOID _r_loadresource (HINSTANCE hinst, LPCWSTR res, LPCWSTR type, PDWORD psize
 
 			if (pLockedResource)
 			{
-				*psize = SizeofResource (hinst, hres);
+				if (psize)
+					*psize = SizeofResource (hinst, hres);
 
 				UnlockResource (pLockedResource);
 
