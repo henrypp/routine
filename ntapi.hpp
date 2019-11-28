@@ -87,7 +87,7 @@ typedef struct _DLGTEMPLATEEX
 	ULONG helpID;
 	ULONG exStyle;
 	ULONG style;
-	USHORT cDlgItems;
+	USHORT cdit;
 	SHORT x;
 	SHORT y;
 	SHORT cx;
@@ -101,6 +101,21 @@ typedef struct _DLGTEMPLATEEX
 	//BYTE charset;
 	//WCHAR typeface[stringLen];
 } DLGTEMPLATEEX, *PDLGTEMPLATEEX;
+
+typedef struct
+{
+	DWORD helpID;
+	DWORD exStyle;
+	DWORD style;
+	SHORT x;
+	SHORT y;
+	SHORT cx;
+	SHORT cy;
+	DWORD id;
+	WORD windowClass;
+	//LPWSTR title;
+	//WORD      extraCount;
+} DLGITEMTEMPLATEEX;
 #include <poppack.h>
 
 enum IMMERSIVE_HC_CACHE_MODE
@@ -465,6 +480,28 @@ typedef struct _MEMORY_COMBINE_INFORMATION_EX
 	ULONG_PTR PagesCombined;
 	ULONG Flags;
 } MEMORY_COMBINE_INFORMATION_EX, *PMEMORY_COMBINE_INFORMATION_EX;
+
+// private
+typedef struct _PROCESS_MITIGATION_POLICY_INFORMATION
+{
+	PROCESS_MITIGATION_POLICY Policy;
+	union
+	{
+		PROCESS_MITIGATION_ASLR_POLICY ASLRPolicy;
+		PROCESS_MITIGATION_STRICT_HANDLE_CHECK_POLICY StrictHandleCheckPolicy;
+		PROCESS_MITIGATION_SYSTEM_CALL_DISABLE_POLICY SystemCallDisablePolicy;
+		PROCESS_MITIGATION_EXTENSION_POINT_DISABLE_POLICY ExtensionPointDisablePolicy;
+		PROCESS_MITIGATION_DYNAMIC_CODE_POLICY DynamicCodePolicy;
+		PROCESS_MITIGATION_CONTROL_FLOW_GUARD_POLICY ControlFlowGuardPolicy;
+		PROCESS_MITIGATION_BINARY_SIGNATURE_POLICY SignaturePolicy;
+		PROCESS_MITIGATION_FONT_DISABLE_POLICY FontDisablePolicy;
+		PROCESS_MITIGATION_IMAGE_LOAD_POLICY ImageLoadPolicy;
+		PROCESS_MITIGATION_SYSTEM_CALL_FILTER_POLICY SystemCallFilterPolicy;
+		PROCESS_MITIGATION_PAYLOAD_RESTRICTION_POLICY PayloadRestrictionPolicy;
+		PROCESS_MITIGATION_CHILD_PROCESS_POLICY ChildProcessPolicy;
+		PROCESS_MITIGATION_SIDE_CHANNEL_ISOLATION_POLICY SideChannelIsolationPolicy;
+	};
+} PROCESS_MITIGATION_POLICY_INFORMATION, *PPROCESS_MITIGATION_POLICY_INFORMATION;
 
 typedef enum _PROCESSINFOCLASS
 {
@@ -961,6 +998,16 @@ extern "C" {
 		_Out_writes_bytes_ (TokenInformationLength) PVOID TokenInformation,
 		_In_ ULONG TokenInformationLength,
 		_Out_ PULONG ReturnLength
+		);
+
+	NTSYSCALLAPI
+		NTSTATUS
+		NTAPI
+		NtSetInformationProcess (
+		_In_ HANDLE ProcessHandle,
+		_In_ PROCESSINFOCLASS ProcessInformationClass,
+		_In_reads_bytes_ (ProcessInformationLength) PVOID ProcessInformation,
+		_In_ ULONG ProcessInformationLength
 		);
 
 	NTSYSCALLAPI
