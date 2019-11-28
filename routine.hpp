@@ -366,7 +366,7 @@ rstring _r_str_fromguid (const GUID& lpguid);
 rstring _r_str_fromsid (const PSID lpsid);
 
 size_t _r_str_find (LPCWSTR text, size_t length, WCHAR char_find, size_t start_pos = 0);
-size_t _r_str_reversefind (LPCWSTR text, size_t length, WCHAR char_find, size_t start_pos = 0);
+size_t _r_str_findlast (LPCWSTR text, size_t length, WCHAR char_find, size_t start_pos = 0);
 
 bool _r_str_match (LPCWSTR text, LPCWSTR pattern);
 void _r_str_replace (LPWSTR text, WCHAR char_from, WCHAR char_to);

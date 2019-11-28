@@ -834,7 +834,7 @@ rstring _r_path_getdirectory (LPCWSTR path)
 
 	rstring result = path;
 
-	const size_t pos = _r_str_reversefind (result, result.GetLength (), OBJ_NAME_PATH_SEPARATOR);
+	const size_t pos = _r_str_findlast (result, result.GetLength (), OBJ_NAME_PATH_SEPARATOR);
 
 	if (pos != INVALID_SIZE_T)
 	{
@@ -1296,7 +1296,7 @@ void _r_str_copy (LPWSTR buffer, size_t length, LPCWSTR text)
 
 size_t _r_str_length (LPCWSTR text)
 {
-	if (!text)
+	if (_r_str_isempty (text))
 		return 0;
 
 	if (IsProcessorFeaturePresent (PF_XMMI64_INSTRUCTIONS_AVAILABLE)) // check sse2 feature
@@ -1497,6 +1497,9 @@ size_t _r_str_find (LPCWSTR text, size_t length, WCHAR char_find, size_t start_p
 	if (length == INVALID_SIZE_T)
 		length = _r_str_length (text);
 
+	if (start_pos >= length)
+		return INVALID_SIZE_T;
+
 	char_find = _r_str_upper (char_find);
 
 	for (size_t i = start_pos; i != length; i++)
@@ -1511,7 +1514,7 @@ size_t _r_str_find (LPCWSTR text, size_t length, WCHAR char_find, size_t start_p
 	return INVALID_SIZE_T;
 }
 
-size_t _r_str_reversefind (LPCWSTR text, size_t length, WCHAR char_find, size_t start_pos)
+size_t _r_str_findlast (LPCWSTR text, size_t length, WCHAR char_find, size_t start_pos)
 {
 	if (_r_str_isempty (text) || !length)
 		return INVALID_SIZE_T;
@@ -1519,13 +1522,16 @@ size_t _r_str_reversefind (LPCWSTR text, size_t length, WCHAR char_find, size_t 
 	if (length == INVALID_SIZE_T)
 		length = _r_str_length (text);
 
-	char_find = _r_str_upper (char_find);
-
 	if (!start_pos || start_pos >= length)
 		start_pos = length - 1;
 
+	char_find = _r_str_upper (char_find);
+
 	do
 	{
+		if (text[start_pos] == UNICODE_NULL)
+			return INVALID_SIZE_T;
+
 		if (_r_str_upper (text[start_pos]) == char_find)
 			return start_pos;
 	}
@@ -1573,7 +1579,7 @@ void _r_str_replace (LPWSTR text, WCHAR char_from, WCHAR char_to)
 		if (*text == char_from)
 			*text = char_to;
 
-		++text;
+		text += 1;
 	}
 }
 
@@ -1601,7 +1607,7 @@ void _r_str_tolower (LPWSTR text)
 	{
 		*text = _r_str_lower (*text);
 
-		++text;
+		text += 1;
 	}
 }
 
@@ -1614,7 +1620,7 @@ void _r_str_toupper (LPWSTR text)
 	{
 		*text = _r_str_upper (*text);
 
-		++text;
+		text += 1;
 	}
 }
 
@@ -1669,7 +1675,7 @@ LPWSTR _r_str_utf8_to_utf16 (LPCSTR text)
 	const INT length = static_cast<INT>(strnlen_s (text, _R_STR_MAX_LENGTH));
 	INT ret_length = MultiByteToWideChar (CP_UTF8, 0, text, length, nullptr, 0);
 
-	if (!ret_length)
+	if (ret_length <= 0)
 		return nullptr;
 
 	LPWSTR buffer = new WCHAR[ret_length + 1]; // utilization required!
@@ -3348,7 +3354,7 @@ bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR toolti
 #endif // _APP_NO_WINXP
 
 		_r_str_copy (nid.szTip, _countof (nid.szTip), tooltip);
-	}
+}
 
 	if (is_hidden)
 	{
@@ -3432,7 +3438,7 @@ bool _r_tray_setinfo (HWND hwnd, UINT uid, HICON hicon, LPCWSTR tooltip)
 #endif // _APP_NO_WINXP
 
 		_r_str_copy (nid.szTip, _countof (nid.szTip), tooltip);
-	}
+}
 
 	return !!Shell_NotifyIcon (NIM_MODIFY, &nid);
 }
