@@ -123,6 +123,45 @@ rstring _r_fmt_date (time_t ut, DWORD flags)
 	return _r_fmt_date (&ft, flags);
 }
 
+rstring _r_fmt_interval (time_t seconds, INT digits)
+{
+	WCHAR buffer[128] = {0};
+	StrFromTimeInterval (buffer, _countof (buffer), DWORD (seconds) * 1000UL, digits);
+
+	return buffer;
+}
+
+rstring _r_fmt_number (LONG64 number, WCHAR sep)
+{
+	WCHAR input_text[128] = {0};
+	_r_str_printf (input_text, _countof (input_text), L"%" PRId64, number);
+
+	WCHAR thousandSeparator[4];
+
+	thousandSeparator[0] = sep;
+	thousandSeparator[1] = UNICODE_NULL;
+
+	static WCHAR decimalSeparator[4];
+
+	decimalSeparator[0] = L'.';
+	decimalSeparator[1] = UNICODE_NULL;
+
+	NUMBERFMT format;
+	RtlSecureZeroMemory (&format, sizeof (format));
+
+	format.Grouping = 3;
+	format.lpThousandSep = thousandSeparator;
+	format.lpDecimalSep = decimalSeparator;
+	format.NegativeOrder = 1;
+
+	WCHAR out_text[128] = {0};
+
+	if (GetNumberFormat (LOCALE_USER_DEFAULT, 0, input_text, &format, out_text, _countof (out_text)) <= 0)
+		return input_text;
+
+	return out_text;
+}
+
 rstring _r_fmt_size64 (ULONG64 bytes)
 {
 	WCHAR buffer[128] = {0};
@@ -150,14 +189,6 @@ rstring _r_fmt_size64 (ULONG64 bytes)
 #endif // _APP_NO_WINXP
 
 	return nullptr;
-}
-
-rstring _r_fmt_interval (time_t seconds, INT digits)
-{
-	WCHAR buffer[128] = {0};
-	StrFromTimeInterval (buffer, _countof (buffer), DWORD (seconds) * 1000UL, digits);
-
-	return buffer;
 }
 
 /*
@@ -1667,7 +1698,7 @@ rstring& _r_str_extract_ref (rstring& text, size_t start_pos, size_t extract_len
 	return text.SetLength (extract_length);
 }
 
-LPWSTR _r_str_utf8_to_utf16 (LPCSTR text)
+LPWSTR _r_str_utf8_to_utf16 (LPCSTR text, PINT pout_length)
 {
 	if (!text || *text == ANSI_NULL)
 		return nullptr;
@@ -1683,6 +1714,32 @@ LPWSTR _r_str_utf8_to_utf16 (LPCSTR text)
 	ret_length = MultiByteToWideChar (CP_UTF8, 0, text, length, buffer, ret_length);
 
 	buffer[ret_length] = UNICODE_NULL;
+
+	if (pout_length)
+		*pout_length = ret_length;
+
+	return buffer;
+}
+
+LPSTR _r_str_utf16_to_utf8 (LPCWSTR text, PINT pout_length)
+{
+	if (_r_str_isempty (text))
+		return nullptr;
+
+	const INT length = static_cast<INT>(_r_str_length (text));
+	INT ret_length = WideCharToMultiByte (CP_UTF8, 0, text, length, nullptr, 0, nullptr, nullptr);
+
+	if (ret_length <= 0)
+		return nullptr;
+
+	LPSTR buffer = new CHAR[ret_length + 1]; // utilization required!
+
+	ret_length = WideCharToMultiByte (CP_UTF8, 0, text, length, buffer, ret_length, nullptr, nullptr);
+
+	buffer[ret_length] = ANSI_NULL;
+
+	if (pout_length)
+		*pout_length = ret_length;
 
 	return buffer;
 }
@@ -1871,7 +1928,7 @@ bool _r_sys_iswow64 ()
 
 			if (_IsWow64Process (NtCurrentProcess (), &result))
 				return !!result;
-		}
+}
 	}
 
 	return false;
@@ -2932,7 +2989,7 @@ DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, 
 			{
 				content_buffer[readed] = ANSI_NULL;
 
-				LPWSTR buffer = _r_str_utf8_to_utf16 (content_buffer);
+				LPWSTR buffer = _r_str_utf8_to_utf16 (content_buffer, nullptr);
 
 				if (!buffer)
 				{
@@ -3354,7 +3411,7 @@ bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR toolti
 #endif // _APP_NO_WINXP
 
 		_r_str_copy (nid.szTip, _countof (nid.szTip), tooltip);
-}
+	}
 
 	if (is_hidden)
 	{
@@ -3438,7 +3495,7 @@ bool _r_tray_setinfo (HWND hwnd, UINT uid, HICON hicon, LPCWSTR tooltip)
 #endif // _APP_NO_WINXP
 
 		_r_str_copy (nid.szTip, _countof (nid.szTip), tooltip);
-}
+	}
 
 	return !!Shell_NotifyIcon (NIM_MODIFY, &nid);
 }

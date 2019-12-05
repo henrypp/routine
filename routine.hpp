@@ -152,8 +152,9 @@ rstring _r_fmt (LPCWSTR text, ...);
 rstring _r_fmt_date (const LPFILETIME ft, DWORD flags = FDTF_DEFAULT); // see SHFormatDateTime flags definition
 rstring _r_fmt_date (time_t ut, DWORD flags = FDTF_DEFAULT);
 
-rstring _r_fmt_size64 (ULONG64 bytes);
 rstring _r_fmt_interval (time_t seconds, INT digits);
+rstring _r_fmt_number (LONG64 number, WCHAR sep = L',');
+rstring _r_fmt_size64 (ULONG64 bytes);
 
 /*
 	FastLock is a port of FastResourceLock from PH 1.x.
@@ -382,7 +383,8 @@ void _r_str_toupper (LPWSTR text);
 rstring _r_str_extract (LPCWSTR text, size_t length, size_t start_pos, size_t extract_length = INVALID_SIZE_T);
 rstring& _r_str_extract_ref (rstring& text, size_t start_pos, size_t extract_length = INVALID_SIZE_T);
 
-LPWSTR _r_str_utf8_to_utf16 (LPCSTR text);
+LPWSTR _r_str_utf8_to_utf16 (LPCSTR text, PINT pout_length);
+LPSTR _r_str_utf16_to_utf8 (LPCWSTR text, PINT pout_length);
 
 void _r_str_split (LPCWSTR text, size_t length, WCHAR delimiter, rstringvec& rvc);
 bool _r_str_unserialize (LPCWSTR text, WCHAR delimeter, WCHAR key_delimeter, rstringmap1 * lpresult);
