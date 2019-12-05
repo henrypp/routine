@@ -12,7 +12,6 @@
 
 //#define _APP_BETA // app has pre-release status
 
-//#define _APP_NO_ABOUT // disable about dialog feature
 //#define _APP_NO_GUEST // disable "guest" mode, running without admin rights; see _APP_HAVE_SKIPUAC
 //#define _APP_NO_WINXP // disable winxp support
 //#define _APP_NO_MUTEX // disable mutex
