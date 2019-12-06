@@ -114,14 +114,18 @@ rstring& rstring::operator= (LPCWSTR text)
 
 				EnsureUnique ();
 				text = data_ + offset;
+
 				wmemmove (data_, text, length);
+
 				ReallocateUnique (length);
 			}
 			else
 			{
 				const size_t length = _r_str_length (text);
 				ReallocateUnique (length);
-				wmemcpy (data_, text, length);
+
+				if (data_)
+					wmemcpy (data_, text, length);
 			}
 		}
 	}
@@ -233,7 +237,7 @@ rstring& rstring::Append (const rstring& other)
 
 			if (thisBuffer == otherBuffer)
 			{
-				thisBuffer = ReallocateUnique (thisBuffer->length + thisBuffer->length);
+				thisBuffer = ReallocateUnique (oldLength + oldLength);
 				wmemcpy (&thisBuffer->buff[oldLength], thisBuffer->buff, oldLength);
 			}
 			else
