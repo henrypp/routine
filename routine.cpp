@@ -2518,7 +2518,7 @@ BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 
 bool _r_wnd_isdarkmessage (LPCWSTR type)
 {
-	if (!_r_sys_validversion (10, 0, 17763)) // win10rs5+
+	if (!_r_sys_validversion (10, 0, 17763)) // 1809+
 		return false;
 
 	if (_r_str_compare (type, L"ImmersiveColorSet") == 0)
@@ -2550,7 +2550,7 @@ bool _r_wnd_isdarkmessage (LPCWSTR type)
 
 bool _r_wnd_isdarktheme ()
 {
-	if (!_r_sys_validversion (10, 0, 17763)) // win10rs5+
+	if (!_r_sys_validversion (10, 0, 17763)) // 1809+
 		return false;
 
 	HIGHCONTRAST hci = {0};
@@ -2570,8 +2570,8 @@ bool _r_wnd_isdarktheme ()
 		typedef BOOL (WINAPI* SAUDM) (VOID); // ShouldAppsUseDarkMode / ShouldSystemUseDarkMode
 		SAUDM _ShouldAppsUseDarkMode = nullptr;
 
-		if (_r_sys_validversion (10, 0, 18362)) // win10 1903+
-			_ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (huxtheme, MAKEINTRESOURCEA (138)); //  win10 1903+
+		if (_r_sys_validversion (10, 0, 18362)) // 1903+
+			_ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (huxtheme, MAKEINTRESOURCEA (138));
 		else
 			_ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (huxtheme, MAKEINTRESOURCEA (132));
 
@@ -2591,7 +2591,7 @@ bool _r_wnd_isdarktheme ()
 
 void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable)
 {
-	if (_r_sys_validversion (10, 0, 18362)) // win10 1903+
+	if (_r_sys_validversion (10, 0, 18362)) // 1903+
 	{
 		const HMODULE huser32 = GetModuleHandle (L"user32.dll");
 
@@ -2636,7 +2636,7 @@ void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable)
 
 void _r_wnd_setdarktheme (HWND hwnd)
 {
-	if (!_r_sys_validversion (10, 0, 17763)) // win10rs5+
+	if (!_r_sys_validversion (10, 0, 17763)) // 1809+
 		return;
 
 	const BOOL is_darktheme = _r_wnd_isdarktheme ();
@@ -2667,7 +2667,7 @@ void _r_wnd_setdarktheme (HWND hwnd)
 			ADMFA _AllowDarkModeForApp = nullptr;
 			SPM _SetPreferredAppMode = nullptr;
 
-			if (_r_sys_validversion (10, 0, 18362)) // win10 1903+
+			if (_r_sys_validversion (10, 0, 18362)) // 1903+
 				_SetPreferredAppMode = reinterpret_cast<SPM>(ord135);
 
 			else
