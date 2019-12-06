@@ -2063,7 +2063,7 @@ INT _r_dc_getdpivalue (HWND hwnd)
 			}
 
 			// GetDpiForMonitor (win81+)
-			HMODULE hshcore = LoadLibraryEx (L"shcore.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+			HMODULE hshcore = LoadLibraryEx (L"shcore.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 			if (hshcore)
 			{
@@ -2576,7 +2576,7 @@ bool _r_wnd_isdarktheme ()
 			return false;
 	}
 
-	const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+	const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 	if (huxtheme)
 	{
@@ -2647,7 +2647,7 @@ void _r_wnd_setdarktheme (HWND hwnd)
 
 	_r_wnd_setdarkframe (hwnd, is_darktheme);
 
-	const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+	const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 	if (huxtheme)
 	{
