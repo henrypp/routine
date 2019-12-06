@@ -59,7 +59,7 @@
 #endif
 
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
-#define DWMWA_USE_IMMERSIVE_DARK_MODE 19
+#define DWMWA_USE_IMMERSIVE_DARK_MODE 0x13
 #endif
 
 // NT error codes

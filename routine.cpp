@@ -2496,22 +2496,35 @@ void _r_wnd_resize (HDWP* hdefer, HWND hwnd, HWND hwnd_after, INT left, INT righ
 #ifndef _APP_NO_DARKTHEME
 BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 {
-	if (!IsWindow (hwnd))
-		return TRUE;
-
 	const BOOL is_darktheme = LOWORD (lparam);
-	const HMODULE huxtheme = GetModuleHandle (L"uxtheme.dll");
 
-	if (!huxtheme)
-		return FALSE;
+	WCHAR class_name[128] = {0};
 
-	typedef BOOL (WINAPI* ADMFW) (HWND, BOOL); // AllowDarkModeForWindow
-	const ADMFW _AllowDarkModeForWindow = (ADMFW)GetProcAddress (huxtheme, MAKEINTRESOURCEA (133));
+	if (GetClassName (hwnd, class_name, _countof (class_name)))
+	{
+		if (_r_str_compare (class_name, WC_LISTVIEW) == 0)
+		{
+			HWND htip = (HWND)SendMessage (hwnd, LVM_GETTOOLTIPS, 0, 0);
 
-	if (!_AllowDarkModeForWindow)
-		return FALSE;
+			if (htip)
+				SetWindowTheme (htip, is_darktheme ? L"DarkMode_Explorer" : L"", nullptr);
+		}
+		else if (_r_str_compare (class_name, WC_TREEVIEW) == 0)
+		{
+			HWND htip = (HWND)SendMessage (hwnd, TVM_GETTOOLTIPS, 0, 0);
 
-	_AllowDarkModeForWindow (hwnd, is_darktheme);
+			if (htip)
+				SetWindowTheme (htip, is_darktheme ? L"DarkMode_Explorer" : L"", nullptr);
+		}
+		else if (_r_str_compare (class_name, TOOLTIPS_CLASS) == 0)
+		{
+			SetWindowTheme (hwnd, is_darktheme ? L"DarkMode_Explorer" : L"", nullptr);
+		}
+		else if (_r_str_compare (class_name, WC_SCROLLBAR) == 0)
+		{
+			SetWindowTheme (hwnd, is_darktheme ? L"DarkMode_Explorer" : L"", nullptr);
+		}
+	}
 
 	return TRUE;
 }
@@ -2614,24 +2627,7 @@ void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable)
 		}
 	}
 
-	// Set dark window frame
-	// https://social.msdn.microsoft.com/Forums/en-US/e36eb4c0-4370-4933-943d-b6fe22677e6c/dark-mode-apis?forum=windowssdk
-#if defined(_APP_NO_WINXP)
-	DwmSetWindowAttribute (hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &is_enable, sizeof (is_enable));
-#else
-	const HMODULE hdwmapi = LoadLibraryEx (L"dwmapi.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
-
-	if (hdwmapi)
-	{
-		typedef HRESULT (WINAPI* DSWA) (HWND, DWORD, LPCVOID, DWORD); // DwmSetWindowAttribute
-		const DSWA _DwmSetWindowAttribute = (DSWA)GetProcAddress (hdwmapi, "DwmSetWindowAttribute");
-
-		if (_DwmSetWindowAttribute)
-			_DwmSetWindowAttribute (hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &is_enable, sizeof (is_enable));
-
-		FreeLibrary (hdwmapi);
-	}
-#endif // _APP_NO_WINXP
+	SetProp (hwnd, L"UseImmersiveDarkModeColors", (HANDLE)(LONG_PTR)is_enable);
 }
 
 void _r_wnd_setdarktheme (HWND hwnd)
@@ -2641,15 +2637,13 @@ void _r_wnd_setdarktheme (HWND hwnd)
 
 	const BOOL is_darktheme = _r_wnd_isdarktheme ();
 
-	/*
-		Ordinal 104: VOID WINAPI RefreshImmersiveColorPolicyState()
-		Ordinal 106: BOOL WINAPI GetIsImmersiveColorUsingHighContrast(IMMERSIVE_HC_CACHE_MODE mode)
-		Ordinal 132: BOOL WINAPI ShouldAppsUseDarkMode()
-		Ordinal 133: BOOL WINAPI AllowDarkModeForWindow(HWND, BOOL allow)
-		Ordinal 135: BOOL WINAPI AllowDarkModeForApp(bool allow)
-		Ordinal 136: VOID WINAPI FlushMenuThemes()
-		Ordinal 137: BOOL WINAPI IsDarkModeAllowedForWindow(HWND)
-	*/
+	// Ordinal 104: VOID WINAPI RefreshImmersiveColorPolicyState(VOID)
+	// Ordinal 106: BOOL WINAPI GetIsImmersiveColorUsingHighContrast(IMMERSIVE_HC_CACHE_MODE mode)
+	// Ordinal 132: BOOL WINAPI ShouldAppsUseDarkMode(VOID)
+	// Ordinal 135: BOOL WINAPI AllowDarkModeForApp(BOOL allow)
+	// Ordinal 135: BOOL WINAPI SetPreferredAppMode(PreferredAppMode mode) // win10 1903+
+	// Ordinal 136: VOID WINAPI FlushMenuThemes(VOID)
+	// Ordinal 138: BOOL WINAPI ShouldSystemUseDarkMode(VOID) // win10 1903+
 
 	_r_wnd_setdarkframe (hwnd, is_darktheme);
 
@@ -2674,7 +2668,7 @@ void _r_wnd_setdarktheme (HWND hwnd)
 				_AllowDarkModeForApp = reinterpret_cast<ADMFA>(ord135);
 
 			if (_SetPreferredAppMode)
-				_SetPreferredAppMode (is_darktheme ? AllowDark : Default);
+				_SetPreferredAppMode (is_darktheme ? ForceDark : Default);
 
 			else if (_AllowDarkModeForApp)
 				_AllowDarkModeForApp (is_darktheme);
@@ -2693,7 +2687,7 @@ void _r_wnd_setdarktheme (HWND hwnd)
 			if (_FlushMenuThemes)
 				_FlushMenuThemes ();
 
-			InvalidateRect (hwnd, nullptr, TRUE); // HACK!!!
+			InvalidateRect (hwnd, nullptr, FALSE); // HACK!!!
 		}
 
 		FreeLibrary (huxtheme);
