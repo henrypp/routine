@@ -174,7 +174,7 @@ rstring _r_fmt_size64 (ULONG64 bytes)
 
 	if (hlib)
 	{
-		typedef HRESULT (WINAPI * SFBSE) (ULONG64, SFBS_FLAGS, PWSTR, UINT); // StrFormatByteSizeEx
+		typedef HRESULT (WINAPI* SFBSE) (ULONG64, SFBS_FLAGS, PWSTR, UINT); // StrFormatByteSizeEx
 		const SFBSE _StrFormatByteSizeEx = (SFBSE)GetProcAddress (hlib, "StrFormatByteSizeEx");
 
 		if (_StrFormatByteSizeEx)
@@ -564,7 +564,7 @@ bool _r_msg_taskdialog (const TASKDIALOGCONFIG * ptd, INT * pbutton, INT * pradi
 
 	if (hlib)
 	{
-		typedef HRESULT (WINAPI * TDI) (const TASKDIALOGCONFIG*, INT*, INT*, BOOL*); // TaskDialogIndirect
+		typedef HRESULT (WINAPI* TDI) (const TASKDIALOGCONFIG*, INT*, INT*, BOOL*); // TaskDialogIndirect
 		const TDI _TaskDialogIndirect = (TDI)GetProcAddress (hlib, "TaskDialogIndirect");
 
 		if (_TaskDialogIndirect)
@@ -1913,7 +1913,7 @@ bool _r_sys_iswow64 ()
 
 	if (hlib)
 	{
-		typedef BOOL (WINAPI * IW64P) (HANDLE, PBOOL); // IsWow64Process
+		typedef BOOL (WINAPI* IW64P) (HANDLE, PBOOL); // IsWow64Process
 		const IW64P _IsWow64Process = (IW64P)GetProcAddress (hlib, "IsWow64Process");
 
 		if (_IsWow64Process)
@@ -1922,7 +1922,7 @@ bool _r_sys_iswow64 ()
 
 			if (_IsWow64Process (NtCurrentProcess (), &result))
 				return !!result;
-}
+		}
 	}
 
 	return false;
@@ -2055,7 +2055,7 @@ INT _r_dc_getdpivalue (HWND hwnd)
 			// GetDpiForWindow (win10rs1+)
 			if (is_win10rs1 && huser32)
 			{
-				typedef UINT (WINAPI * GDFW) (HWND); // GetDpiForWindow (win10rs1+)
+				typedef UINT (WINAPI* GDFW) (HWND); // GetDpiForWindow (win10rs1+)
 				const GDFW _GetDpiForWindow = (GDFW)GetProcAddress (huser32, "GetDpiForWindow");
 
 				if (_GetDpiForWindow)
@@ -2073,7 +2073,7 @@ INT _r_dc_getdpivalue (HWND hwnd)
 				{
 					UINT dpix = 0, dpiy = 0;
 
-					typedef HRESULT (WINAPI * GDFM) (HMONITOR, MONITOR_DPI_TYPE, PUINT, PUINT); // GetDpiForMonitor
+					typedef HRESULT (WINAPI* GDFM) (HMONITOR, MONITOR_DPI_TYPE, PUINT, PUINT); // GetDpiForMonitor
 					const GDFM _GetDpiForMonitor = (GDFM)GetProcAddress (hshcore, "GetDpiForMonitor"); // win81+
 
 					if (_GetDpiForMonitor && SUCCEEDED (_GetDpiForMonitor (hmon, MDT_EFFECTIVE_DPI, &dpix, &dpiy)))
@@ -2090,7 +2090,7 @@ INT _r_dc_getdpivalue (HWND hwnd)
 		if (is_win10rs1 && huser32)
 		{
 			// GetDpiForSystem (win10rs1+)
-			typedef UINT (WINAPI * GDFS) (); // GetDpiForSystem
+			typedef UINT (WINAPI* GDFS) (); // GetDpiForSystem
 			const GDFS _GetDpiForSystem = (GDFS)GetProcAddress (huser32, "GetDpiForSystem"); // win10rs1+
 
 			if (_GetDpiForSystem)
@@ -2158,7 +2158,7 @@ INT _r_dc_getsystemmetrics (HWND hwnd, INT index)
 
 		if (hlib)
 		{
-			typedef INT (WINAPI * GSMFD) (INT, UINT); // GetSystemMetricsForDpi
+			typedef INT (WINAPI* GSMFD) (INT, UINT); // GetSystemMetricsForDpi
 			const GSMFD _GetSystemMetricsForDpi = (GSMFD)GetProcAddress (hlib, "GetSystemMetricsForDpi"); // win10rs1+
 
 			if (_GetSystemMetricsForDpi)
@@ -2287,7 +2287,7 @@ void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD acti
 		return;
 
 #ifdef _APP_NO_WINXP
-	typedef BOOL (WINAPI * CWMFEX) (HWND, UINT, DWORD, PVOID); // ChangeWindowMessageFilterEx
+	typedef BOOL (WINAPI* CWMFEX) (HWND, UINT, DWORD, PVOID); // ChangeWindowMessageFilterEx
 	const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (hlib, "ChangeWindowMessageFilterEx"); // win7+
 
 	if (_ChangeWindowMessageFilterEx)
@@ -2301,7 +2301,7 @@ void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD acti
 	for (size_t i = 0; i < count; i++)
 		ChangeWindowMessageFilter (pmsg[i], action); // vista fallback
 #else
-	typedef BOOL (WINAPI * CWMFEX) (HWND, UINT, DWORD, PVOID); // ChangeWindowMessageFilterEx
+	typedef BOOL (WINAPI* CWMFEX) (HWND, UINT, DWORD, PVOID); // ChangeWindowMessageFilterEx
 	const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (hlib, "ChangeWindowMessageFilterEx"); // win7+
 
 	if (_ChangeWindowMessageFilterEx)
@@ -2311,7 +2311,7 @@ void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD acti
 	}
 	else
 	{
-		typedef BOOL (WINAPI * CWMF) (UINT, DWORD); // ChangeWindowMessageFilter
+		typedef BOOL (WINAPI* CWMF) (UINT, DWORD); // ChangeWindowMessageFilter
 		const CWMF _ChangeWindowMessageFilter = (CWMF)GetProcAddress (hlib, "ChangeWindowMessageFilter"); // vista fallback
 
 		if (_ChangeWindowMessageFilter)
@@ -2332,7 +2332,7 @@ void _r_wnd_enablenonclientscaling (HWND hwnd)
 
 	if (hlib)
 	{
-		typedef BOOL (WINAPI * ENCDS) (HWND); // EnableNonClientDpiScaling
+		typedef BOOL (WINAPI* ENCDS) (HWND); // EnableNonClientDpiScaling
 		const ENCDS _EnableNonClientDpiScaling = (ENCDS)GetProcAddress (hlib, "EnableNonClientDpiScaling");
 
 		if (_EnableNonClientDpiScaling)
@@ -2395,7 +2395,7 @@ static bool _r_wnd_isplatformfullscreenmode ()
 
 		if (hlib)
 		{
-			typedef HRESULT (WINAPI * SHQueryUserNotificationStatePtr)(QUERY_USER_NOTIFICATION_STATE * state);
+			typedef HRESULT (WINAPI* SHQueryUserNotificationStatePtr)(QUERY_USER_NOTIFICATION_STATE * state);
 			const SHQueryUserNotificationStatePtr _SHQueryUserNotificationState = (SHQueryUserNotificationStatePtr)GetProcAddress (hlib, "SHQueryUserNotificationState");
 
 			if (_SHQueryUserNotificationState)
@@ -2505,7 +2505,7 @@ BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 	if (!huxtheme)
 		return FALSE;
 
-	typedef BOOL (WINAPI * ADMFW) (HWND, BOOL); // AllowDarkModeForWindow
+	typedef BOOL (WINAPI* ADMFW) (HWND, BOOL); // AllowDarkModeForWindow
 	const ADMFW _AllowDarkModeForWindow = (ADMFW)GetProcAddress (huxtheme, MAKEINTRESOURCEA (133));
 
 	if (!_AllowDarkModeForWindow)
@@ -2528,14 +2528,14 @@ bool _r_wnd_isdarkmessage (LPCWSTR type)
 		if (huxtheme)
 		{
 			// RefreshImmersiveColorPolicyState
-			typedef VOID (WINAPI * RICPS) (VOID);
+			typedef VOID (WINAPI* RICPS) (VOID);
 			const RICPS _RefreshImmersiveColorPolicyState = (RICPS)GetProcAddress (huxtheme, MAKEINTRESOURCEA (104));
 
 			if (_RefreshImmersiveColorPolicyState)
 				_RefreshImmersiveColorPolicyState ();
 
 			// GetIsImmersiveColorUsingHighContrast
-			typedef BOOL (WINAPI * GIICUHC) (IMMERSIVE_HC_CACHE_MODE);
+			typedef BOOL (WINAPI* GIICUHC) (IMMERSIVE_HC_CACHE_MODE);
 			const GIICUHC _GetIsImmersiveColorUsingHighContrast = (GIICUHC)GetProcAddress (huxtheme, MAKEINTRESOURCEA (106));
 
 			if (_GetIsImmersiveColorUsingHighContrast)
@@ -2559,7 +2559,7 @@ bool _r_wnd_isdarktheme ()
 	if (SystemParametersInfo (SPI_GETHIGHCONTRAST, 0, &hci, 0))
 	{
 		// no dark mode in high-contrast mode
-		if ((hci.dwFlags & HCF_HIGHCONTRASTON) != 0)
+		if ((hci.dwFlags & HCF_HIGHCONTRASTON) == HCF_HIGHCONTRASTON)
 			return false;
 	}
 
@@ -2567,8 +2567,13 @@ bool _r_wnd_isdarktheme ()
 
 	if (huxtheme)
 	{
-		typedef BOOL (WINAPI * SAUDM) (VOID); // ShouldAppsUseDarkMode
-		const SAUDM _ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (huxtheme, MAKEINTRESOURCEA (132));
+		typedef BOOL (WINAPI* SAUDM) (VOID); // ShouldAppsUseDarkMode / ShouldSystemUseDarkMode
+		SAUDM _ShouldAppsUseDarkMode = nullptr;
+
+		if (_r_sys_validversion (10, 0, 18362)) // win10 1903+
+			_ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (huxtheme, MAKEINTRESOURCEA (138)); //  win10 1903+
+		else
+			_ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (huxtheme, MAKEINTRESOURCEA (132));
 
 		if (_ShouldAppsUseDarkMode)
 		{
@@ -2586,8 +2591,31 @@ bool _r_wnd_isdarktheme ()
 
 void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable)
 {
+	if (_r_sys_validversion (10, 0, 18362)) // win10 1903+
+	{
+		const HMODULE huser32 = GetModuleHandle (L"user32.dll");
+
+		if (huser32)
+		{
+			typedef BOOL (WINAPI* SWCA) (HWND, WINDOWCOMPOSITIONATTRIBDATA*); // SetWindowCompositionAttribute
+			const SWCA _SetWindowCompositionAttribute = (SWCA)GetProcAddress (huser32, "SetWindowCompositionAttribute");
+
+			if (_SetWindowCompositionAttribute)
+			{
+				WINDOWCOMPOSITIONATTRIBDATA data;
+
+				data.Attrib = WCA_USEDARKMODECOLORS;
+				data.pvData = &is_enable;
+				data.cbData = sizeof (is_enable);
+
+				if (_SetWindowCompositionAttribute (hwnd, &data))
+					return;
+			}
+		}
+	}
+
 	// Set dark window frame
-// https://social.msdn.microsoft.com/Forums/en-US/e36eb4c0-4370-4933-943d-b6fe22677e6c/dark-mode-apis?forum=windowssdk
+	// https://social.msdn.microsoft.com/Forums/en-US/e36eb4c0-4370-4933-943d-b6fe22677e6c/dark-mode-apis?forum=windowssdk
 #if defined(_APP_NO_WINXP)
 	DwmSetWindowAttribute (hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &is_enable, sizeof (is_enable));
 #else
@@ -2595,7 +2623,7 @@ void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable)
 
 	if (hdwmapi)
 	{
-		typedef HRESULT (WINAPI * DSWA) (HWND, DWORD, LPCVOID, DWORD); // DwmSetWindowAttribute
+		typedef HRESULT (WINAPI* DSWA) (HWND, DWORD, LPCVOID, DWORD); // DwmSetWindowAttribute
 		const DSWA _DwmSetWindowAttribute = (DSWA)GetProcAddress (hdwmapi, "DwmSetWindowAttribute");
 
 		if (_DwmSetWindowAttribute)
@@ -2633,42 +2661,39 @@ void _r_wnd_setdarktheme (HWND hwnd)
 
 		if (ord135)
 		{
-			typedef BOOL (WINAPI * ADMFA) (BOOL); // AllowDarkModeForApp
-			typedef PreferredAppMode (WINAPI * SPM) (PreferredAppMode); // SetPreferredAppMode
+			typedef BOOL (WINAPI* ADMFA) (BOOL); // AllowDarkModeForApp
+			typedef PreferredAppMode (WINAPI* SPM) (PreferredAppMode); // SetPreferredAppMode
 
 			ADMFA _AllowDarkModeForApp = nullptr;
 			SPM _SetPreferredAppMode = nullptr;
 
-			if (_r_sys_validversion (10, 0, 18334)) // win10rs6+
+			if (_r_sys_validversion (10, 0, 18362)) // win10 1903+
 				_SetPreferredAppMode = reinterpret_cast<SPM>(ord135);
 
 			else
 				_AllowDarkModeForApp = reinterpret_cast<ADMFA>(ord135);
 
-			if (_AllowDarkModeForApp || _SetPreferredAppMode)
-			{
-				if (_SetPreferredAppMode)
-					_SetPreferredAppMode (is_darktheme ? AllowDark : Default);
+			if (_SetPreferredAppMode)
+				_SetPreferredAppMode (is_darktheme ? AllowDark : Default);
 
-				else if (_AllowDarkModeForApp)
-					_AllowDarkModeForApp (is_darktheme);
+			else if (_AllowDarkModeForApp)
+				_AllowDarkModeForApp (is_darktheme);
 
-				EnumChildWindows (hwnd, &DarkExplorerChildProc, MAKELPARAM (is_darktheme, 0));
+			EnumChildWindows (hwnd, &DarkExplorerChildProc, MAKELPARAM (is_darktheme, 0));
 
-				typedef VOID (WINAPI * RICPS) (VOID); // RefreshImmersiveColorPolicyState
-				const RICPS _RefreshImmersiveColorPolicyState = (RICPS)GetProcAddress (huxtheme, MAKEINTRESOURCEA (104));
+			typedef VOID (WINAPI* RICPS) (VOID); // RefreshImmersiveColorPolicyState
+			const RICPS _RefreshImmersiveColorPolicyState = (RICPS)GetProcAddress (huxtheme, MAKEINTRESOURCEA (104));
 
-				if (_RefreshImmersiveColorPolicyState)
-					_RefreshImmersiveColorPolicyState ();
+			if (_RefreshImmersiveColorPolicyState)
+				_RefreshImmersiveColorPolicyState ();
 
-				typedef void (WINAPI * FMT) (VOID); // FlushMenuThemes
-				const FMT _FlushMenuThemes = (FMT)GetProcAddress (huxtheme, MAKEINTRESOURCEA (136));
+			typedef void (WINAPI* FMT) (VOID); // FlushMenuThemes
+			const FMT _FlushMenuThemes = (FMT)GetProcAddress (huxtheme, MAKEINTRESOURCEA (136));
 
-				if (_FlushMenuThemes)
-					_FlushMenuThemes ();
+			if (_FlushMenuThemes)
+				_FlushMenuThemes ();
 
-				InvalidateRect (hwnd, nullptr, TRUE); // HACK!!!
-			}
+			InvalidateRect (hwnd, nullptr, TRUE); // HACK!!!
 		}
 
 		FreeLibrary (huxtheme);
@@ -3206,7 +3231,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size)
 
 	if (hlib)
 	{
-		typedef HRESULT (WINAPI * LIWSD) (HINSTANCE, PCWSTR, INT, INT, HICON*); // LoadIconWithScaleDown
+		typedef HRESULT (WINAPI* LIWSD) (HINSTANCE, PCWSTR, INT, INT, HICON*); // LoadIconWithScaleDown
 		const LIWSD _LoadIconWithScaleDown = (LIWSD)GetProcAddress (hlib, "LoadIconWithScaleDown");
 
 		if (_LoadIconWithScaleDown)
