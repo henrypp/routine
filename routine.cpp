@@ -880,7 +880,7 @@ LPCWSTR _r_path_getextension (LPCWSTR path)
 {
 	LPCWSTR lastpoint = nullptr;
 
-	while (*path != UNICODE_NULL)
+	while (!_r_str_isempty (path))
 	{
 		if (*path == OBJ_NAME_PATH_SEPARATOR || *path == L' ')
 			lastpoint = nullptr;
@@ -898,7 +898,7 @@ LPCWSTR _r_path_getfilename (LPCWSTR path)
 {
 	LPCWSTR last_slash = path;
 
-	while (*path != UNICODE_NULL)
+	while (!_r_str_isempty (path))
 	{
 		if ((*path == OBJ_NAME_PATH_SEPARATOR || *path == L'/' || *path == L':') && path[1] && path[1] != OBJ_NAME_PATH_SEPARATOR && path[1] != L'/')
 			last_slash = path + 1;
@@ -1631,10 +1631,7 @@ void _r_str_trim (LPWSTR text, LPCWSTR trim)
 
 void _r_str_tolower (LPWSTR text)
 {
-	if (!text)
-		return;
-
-	while (*text != UNICODE_NULL)
+	while (!_r_str_isempty (text))
 	{
 		*text = _r_str_lower (*text);
 
@@ -1644,10 +1641,7 @@ void _r_str_tolower (LPWSTR text)
 
 void _r_str_toupper (LPWSTR text)
 {
-	if (!text)
-		return;
-
-	while (*text != UNICODE_NULL)
+	while (!_r_str_isempty (text))
 	{
 		*text = _r_str_upper (*text);
 
