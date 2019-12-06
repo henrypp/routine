@@ -82,27 +82,30 @@
 #include <pshpack1.h>
 typedef struct _DLGTEMPLATEEX
 {
-	USHORT dlgVer;
-	USHORT signature;
-	ULONG helpID;
-	ULONG exStyle;
-	ULONG style;
-	USHORT cdit;
+	WORD dlgVer;
+	WORD signature;
+	DWORD helpID;
+	DWORD exStyle;
+	DWORD style;
+	WORD cdit;
 	SHORT x;
 	SHORT y;
 	SHORT cx;
 	SHORT cy;
-	//sz_Or_Ord menu;
-	//sz_Or_Ord windowClass;
-	//WCHAR title[titleLen];
-	//USHORT pointsize;
-	//USHORT weight;
-	//BYTE italic;
-	//BYTE charset;
-	//WCHAR typeface[stringLen];
-} DLGTEMPLATEEX, *PDLGTEMPLATEEX;
 
-typedef struct
+	// Everything else in this structure is variable length,
+	// and therefore must be determined dynamically
+
+	// sz_Or_Ord menu;			// name or ordinal of a menu resource
+	// sz_Or_Ord windowClass;	// name or ordinal of a window class
+	// WCHAR title[titleLen];	// title string of the dialog box
+	// SHORT pointsize;			// only if DS_SETFONT is set
+	// SHORT weight;			// only if DS_SETFONT is set
+	// SHORT bItalic;			// only if DS_SETFONT is set
+	// WCHAR font[fontLen];		// typeface name, if DS_SETFONT is set
+} DLGTEMPLATEEX, *LPDLGTEMPLATEEX;
+
+typedef struct _DLGITEMTEMPLATEEX
 {
 	DWORD helpID;
 	DWORD exStyle;
@@ -112,10 +115,14 @@ typedef struct
 	SHORT cx;
 	SHORT cy;
 	DWORD id;
-	WORD windowClass;
-	//LPWSTR title;
-	//WORD      extraCount;
-} DLGITEMTEMPLATEEX;
+
+	// Everything else in this structure is variable length,
+	// and therefore must be determined dynamically
+
+	// sz_Or_Ord windowClass;	// name or ordinal of a window class
+	// sz_Or_Ord title;			// title string or ordinal of a resource
+	// WORD extraCount;			// bytes following creation data
+} DLGITEMTEMPLATEEX, *LPDLGITEMTEMPLATEEX;
 #include <poppack.h>
 
 enum IMMERSIVE_HC_CACHE_MODE
