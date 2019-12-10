@@ -29,6 +29,8 @@ void _r_dbg_print (LPCWSTR text, ...)
 
 	va_end (args);
 
+	buffer.Append (L"\r\n");
+
 	OutputDebugString (buffer);
 }
 
