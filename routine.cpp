@@ -729,7 +729,7 @@ bool _r_fs_makebackup (LPCWSTR path, time_t timestamp)
 		dest_path.Format (L"%s\\%s-%s.bak", _r_path_getdirectory (path).GetString (), date_format, _r_path_getfilename (path));
 
 		if (_r_fs_exists (dest_path))
-			_r_path_makeunique (dest_path);
+			dest_path = _r_path_makeunique (dest_path);
 
 		return _r_fs_move (path, dest_path, 0);
 	}
@@ -737,7 +737,7 @@ bool _r_fs_makebackup (LPCWSTR path, time_t timestamp)
 	dest_path.Format (L"%s.bak", path);
 
 	if (_r_fs_exists (dest_path))
-		_r_path_makeunique (dest_path);
+		dest_path = _r_path_makeunique (dest_path);
 
 	return _r_fs_move (path, dest_path, 0);
 }
@@ -2210,7 +2210,7 @@ void _r_wnd_addstyle (HWND hwnd, INT ctrl_id, LONG_PTR mask, LONG_PTR stateMask,
 
 	SetWindowLongPtr (hwnd, index, style);
 
-	SetWindowPos (hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+	SetWindowPos (hwnd, nullptr, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
 }
 
 void _r_wnd_adjustwindowrect (HWND hwnd, LPRECT lprect)
@@ -2262,7 +2262,7 @@ void _r_wnd_center (HWND hwnd, HWND hparent)
 		_r_wnd_centerwindowrect (&rect, &parentRect);
 		_r_wnd_adjustwindowrect (hwnd, &rect);
 
-		_r_wnd_resize (nullptr, hwnd, nullptr, rect.left, rect.top, 0, 0, 0);
+		_r_wnd_resize (nullptr, hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOZORDER | SWP_NOOWNERZORDER);
 	}
 	else
 	{
@@ -2276,7 +2276,7 @@ void _r_wnd_center (HWND hwnd, HWND hparent)
 
 			_r_wnd_centerwindowrect (&rect, &monitorInfo.rcWork);
 
-			_r_wnd_resize (nullptr, hwnd, nullptr, rect.left, rect.top, 0, 0, 0);
+			_r_wnd_resize (nullptr, hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOZORDER | SWP_NOOWNERZORDER);
 		}
 	}
 }
@@ -2478,21 +2478,20 @@ bool _r_wnd_isfullscreenmode ()
 	return _r_wnd_isplatformfullscreenmode () || _r_wnd_isfullscreenwindowmode () || _r_wnd_isfullscreenconsolemode ();
 }
 
-void _r_wnd_resize (HDWP* hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags)
+bool _r_wnd_resize (HDWP* hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags)
 {
 	flags |= SWP_NOACTIVATE;
 
 	if (!width && !height)
 		flags |= SWP_NOSIZE;
 
-	if (!hwnd_after)
-		flags |= SWP_NOZORDER | SWP_NOOWNERZORDER;
-
 	if (hdefer && *hdefer)
+	{
 		*hdefer = DeferWindowPos (*hdefer, hwnd, hwnd_after, left, right, width, height, flags);
+		return true;
+	}
 
-	else
-		SetWindowPos (hwnd, hwnd_after, left, right, width, height, flags);
+	return !!SetWindowPos (hwnd, hwnd_after, left, right, width, height, flags);
 }
 
 #ifndef _APP_NO_DARKTHEME
@@ -2725,18 +2724,14 @@ HINTERNET _r_inet_createsession (LPCWSTR useragent, LPCWSTR proxy_addr)
 	{
 		option = WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE;
 		WinHttpSetOption (hsession, WINHTTP_OPTION_DECOMPRESSION, &option, sizeof (option));
-	}
 
-	// enable http2 protocol (win10rs1+)
-	if (_r_sys_validversion (10, 0, 14393))
-	{
-		option = WINHTTP_PROTOCOL_FLAG_HTTP2;
-		WinHttpSetOption (hsession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &option, sizeof (option));
+		// enable http2 protocol (win10rs1+)
+		if (_r_sys_validversion (10, 0, 14393))
+		{
+			option = WINHTTP_PROTOCOL_FLAG_HTTP2;
+			WinHttpSetOption (hsession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &option, sizeof (option));
+		}
 	}
-
-	// set connections per-server
-	option = 1;
-	WinHttpSetOption (hsession, WINHTTP_OPTION_MAX_CONNS_PER_SERVER, &option, sizeof (option));
 
 	return hsession;
 }
@@ -2772,7 +2767,7 @@ DWORD _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHI
 			if (url_scheme == INTERNET_SCHEME_HTTPS)
 				flags |= WINHTTP_FLAG_SECURE;
 
-			HINTERNET hrequest = WinHttpOpenRequest (hconnect, L"GET", url_path, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
+			HINTERNET hrequest = WinHttpOpenRequest (hconnect, nullptr, url_path, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
 
 			if (!hrequest)
 			{
@@ -3667,8 +3662,8 @@ void _r_ctrl_settabletext (HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT ctrl_id2,
 
 	HDWP hdefer = BeginDeferWindowPos (2);
 
-	_r_wnd_resize (&hdefer, hctrl1, nullptr, wnd_spacing, rc_ctrl.top, ctrl1_width, _R_RECT_HEIGHT (&rc_ctrl), SWP_FRAMECHANGED);
-	_r_wnd_resize (&hdefer, hctrl2, nullptr, wnd_width - ctrl2_width, rc_ctrl.top, ctrl2_width + wnd_spacing, _R_RECT_HEIGHT (&rc_ctrl), SWP_FRAMECHANGED);
+	_r_wnd_resize (&hdefer, hctrl1, nullptr, wnd_spacing, rc_ctrl.top, ctrl1_width, _R_RECT_HEIGHT (&rc_ctrl), SWP_NOZORDER | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
+	_r_wnd_resize (&hdefer, hctrl2, nullptr, wnd_width - ctrl2_width, rc_ctrl.top, ctrl2_width + wnd_spacing, _R_RECT_HEIGHT (&rc_ctrl), SWP_NOZORDER | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
 
 	EndDeferWindowPos (hdefer);
 
@@ -3714,9 +3709,6 @@ void _r_ctrl_settip (HWND htip, HWND hparent, INT ctrl_id, LPCWSTR text)
 
 void _r_ctrl_settipstyle (HWND htip)
 {
-	if (!htip)
-		return;
-
 	SendMessage (htip, TTM_SETDELAYTIME, TTDT_AUTOPOP, MAXSHORT);
 	SendMessage (htip, TTM_SETMAXTIPWIDTH, 0, MAXSHORT);
 
@@ -4199,7 +4191,10 @@ void _r_listview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle)
 {
 	SetWindowTheme (GetDlgItem (hwnd, ctrl_id), L"Explorer", nullptr);
 
-	_r_ctrl_settipstyle ((HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETTOOLTIPS, 0, 0));
+	HWND htip = (HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETTOOLTIPS, 0, 0);
+
+	if (htip)
+		_r_ctrl_settipstyle (htip);
 
 	if (exstyle)
 		SendDlgItemMessage (hwnd, ctrl_id, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, (LPARAM)exstyle);
@@ -4282,17 +4277,23 @@ void _r_treeview_setitem (HWND hwnd, INT ctrl_id, HTREEITEM hitem, LPCWSTR text,
 	SendDlgItemMessage (hwnd, ctrl_id, TVM_SETITEM, 0, (LPARAM)&tvi);
 }
 
-void _r_treeview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle, INT height)
+void _r_treeview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle, INT height, INT indent)
 {
 	SetWindowTheme (GetDlgItem (hwnd, ctrl_id), L"Explorer", nullptr);
 
-	_r_ctrl_settipstyle ((HWND)SendDlgItemMessage (hwnd, ctrl_id, TVM_GETTOOLTIPS, 0, 0));
+	HWND htip = (HWND)SendDlgItemMessage (hwnd, ctrl_id, TVM_GETTOOLTIPS, 0, 0);
+
+	if (htip)
+		_r_ctrl_settipstyle (htip);
 
 	if (exstyle)
 		SendDlgItemMessage (hwnd, ctrl_id, TVM_SETEXTENDEDSTYLE, 0, (LPARAM)exstyle);
 
 	if (height)
 		SendDlgItemMessage (hwnd, ctrl_id, TVM_SETITEMHEIGHT, (WPARAM)height, 0);
+
+	if (indent)
+		SendDlgItemMessage (hwnd, ctrl_id, TVM_SETINDENT, (WPARAM)indent, 0);
 }
 
 /*
@@ -4383,10 +4384,13 @@ void _r_toolbar_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle)
 {
 	SetWindowTheme (GetDlgItem (hwnd, ctrl_id), L"Explorer", nullptr);
 
+	HWND htip = (HWND)SendDlgItemMessage (hwnd, ctrl_id, TB_GETTOOLTIPS, 0, 0);
+
+	if (htip)
+		_r_ctrl_settipstyle (htip);
+
 	SendDlgItemMessage (hwnd, ctrl_id, TB_BUTTONSTRUCTSIZE, sizeof (TBBUTTON), 0);
 	SendDlgItemMessage (hwnd, ctrl_id, TB_SETEXTENDEDSTYLE, 0, (LPARAM)exstyle);
-
-	_r_ctrl_settipstyle ((HWND)SendDlgItemMessage (hwnd, ctrl_id, TB_GETTOOLTIPS, 0, 0));
 }
 
 /*

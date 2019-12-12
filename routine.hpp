@@ -511,7 +511,7 @@ void _r_wnd_toggle (HWND hwnd, bool is_show);
 void _r_wnd_top (HWND hwnd, bool is_enable);
 bool _r_wnd_undercursor (HWND hwnd);
 bool _r_wnd_isfullscreenmode ();
-void _r_wnd_resize (HDWP *hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags);
+bool _r_wnd_resize (HDWP *hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags);
 
 #ifndef _APP_NO_DARKTHEME
 bool _r_wnd_isdarkmessage (LPCWSTR type);
@@ -639,7 +639,7 @@ void _r_listview_setgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, 
 HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl_id, LPCWSTR text, HTREEITEM hparent = nullptr, INT image = I_IMAGENONE, LPARAM lparam = 0);
 LPARAM _r_treeview_getlparam (HWND hwnd, INT ctrl_id, HTREEITEM hitem);
 void _r_treeview_setitem (HWND hwnd, INT ctrl_id, HTREEITEM hitem, LPCWSTR text, INT image = I_IMAGENONE, LPARAM lparam = 0);
-void _r_treeview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle, INT height);
+void _r_treeview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle, INT height, INT indent);
 
 /*
 	Control: statusbar
