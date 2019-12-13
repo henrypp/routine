@@ -3690,9 +3690,6 @@ HWND _r_ctrl_createtip (HWND hparent)
 
 void _r_ctrl_settip (HWND htip, HWND hparent, INT ctrl_id, LPCWSTR text)
 {
-	if (!htip)
-		return;
-
 	TOOLINFO ti = {0};
 
 	ti.cbSize = sizeof (ti);
