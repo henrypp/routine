@@ -606,7 +606,7 @@ void _r_tab_selectitem (HWND hwnd, INT ctrl_id, INT index);
 
 INT _r_listview_addcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR title, INT width, INT fmt);
 INT _r_listview_addgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT align, UINT state);
-INT _r_listview_additem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR text, INT image = INVALID_INT, INT group_id = INVALID_INT, LPARAM lparam = 0);
+INT _r_listview_additem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR text, INT image = I_IMAGENONE, INT group_id = I_GROUPIDNONE, LPARAM lparam = 0);
 
 void _r_listview_deleteallcolumns (HWND hwnd, INT ctrl_id);
 void _r_listview_deleteallgroups (HWND hwnd, INT ctrl_id);
@@ -628,7 +628,7 @@ void _r_listview_redraw (HWND hwnd, INT ctrl_id, INT start_id = INVALID_INT, INT
 void _r_listview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle);
 void _r_listview_setcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR text, INT width);
 void _r_listview_setcolumnsortindex (HWND hwnd, INT ctrl_id, INT column_id, INT arrow);
-void _r_listview_setitem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR text, INT image = INVALID_INT, INT group_id = INVALID_INT, LPARAM lparam = 0);
+void _r_listview_setitem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR text, INT image = I_IMAGENONE, INT group_id = I_GROUPIDNONE, LPARAM lparam = 0);
 void _r_listview_setitemcheck (HWND hwnd, INT ctrl_id, INT item, bool state);
 void _r_listview_setgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT state, UINT state_mask);
 

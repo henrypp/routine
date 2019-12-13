@@ -590,9 +590,9 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 
 			_r_wnd_center (hwnd, GetParent (hwnd));
 
-#ifndef _APP_NO_DARKTHEME
+#if !defined(_APP_NO_DARKTHEME)
 			_r_wnd_setdarktheme (hwnd);
-#endif // _APP_NO_DARKTHEME
+#endif // !_APP_NO_DARKTHEME
 
 			break;
 		}
@@ -2494,7 +2494,7 @@ bool _r_wnd_resize (HDWP* hdefer, HWND hwnd, HWND hwnd_after, INT left, INT righ
 	return !!SetWindowPos (hwnd, hwnd_after, left, right, width, height, flags);
 }
 
-#ifndef _APP_NO_DARKTHEME
+#if !defined(_APP_NO_DARKTHEME)
 BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 {
 	const BOOL is_darktheme = LOWORD (lparam);
@@ -2694,7 +2694,7 @@ void _r_wnd_setdarktheme (HWND hwnd)
 		FreeLibrary (huxtheme);
 	}
 }
-#endif // _APP_NO_DARKTHEME
+#endif // !_APP_NO_DARKTHEME
 
 /*
 	Inernet access (WinHTTP)
@@ -3905,13 +3905,13 @@ INT _r_listview_additem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR 
 
 	if (!subitem)
 	{
-		if (image != INVALID_INT)
+		if (image != I_IMAGENONE)
 		{
 			lvi.mask |= LVIF_IMAGE;
 			lvi.iImage = image;
 		}
 
-		if (group_id != INVALID_INT)
+		if (group_id != I_GROUPIDNONE)
 		{
 			lvi.mask |= LVIF_GROUPID;
 			lvi.iGroupId = group_id;
@@ -4134,22 +4134,25 @@ void _r_listview_setitem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR
 		lvi.pszText = const_cast<LPWSTR>(text);
 	}
 
-	if (!lvi.iSubItem && image != INVALID_INT)
+	if (!subitem)
 	{
-		lvi.mask |= LVIF_IMAGE;
-		lvi.iImage = image;
-	}
+		if (image != I_IMAGENONE)
+		{
+			lvi.mask |= LVIF_IMAGE;
+			lvi.iImage = image;
+		}
 
-	if (!lvi.iSubItem && group_id != INVALID_INT)
-	{
-		lvi.mask |= LVIF_GROUPID;
-		lvi.iGroupId = group_id;
-	}
+		if (group_id != I_GROUPIDNONE)
+		{
+			lvi.mask |= LVIF_GROUPID;
+			lvi.iGroupId = group_id;
+		}
 
-	if (!lvi.iSubItem && lparam)
-	{
-		lvi.mask |= LVIF_PARAM;
-		lvi.lParam = lparam;
+		if (lparam)
+		{
+			lvi.mask |= LVIF_PARAM;
+			lvi.lParam = lparam;
+		}
 	}
 
 	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEM, 0, (LPARAM)&lvi);
