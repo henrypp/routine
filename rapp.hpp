@@ -1,12 +1,12 @@
 // routine++
-// Copyright (c) 2012-2019 Henry++
+// Copyright (c) 2012-2020 Henry++
 
 #pragma once
 
 #include "routine.hpp"
 #include "resource.hpp"
 
-#ifdef _APP_HAVE_SKIPUAC
+#if defined(_APP_HAVE_SKIPUAC)
 #include <comdef.h>
 #include <taskschd.h>
 
@@ -19,20 +19,18 @@
 	Structures
 */
 
-#ifndef _APP_NO_SETTINGS
+#if defined(_APP_HAVE_SETTINGS)
 typedef struct _APP_SETTINGS_PAGE
 {
-	HTREEITEM hitem = nullptr;
 	HWND hwnd = nullptr;
 
 	INT dlg_id = 0;
 	UINT locale_id = 0;
 
-	INT group_id = 0;
 } *PAPP_SETTINGS_PAGE, APP_SETTINGS_PAGE;
-#endif // _APP_NO_SETTINGS
+#endif // _APP_HAVE_SETTINGS
 
-#ifdef _APP_HAVE_UPDATES
+#if defined(_APP_HAVE_UPDATES)
 typedef struct _APP_UPDATE_COMPONENT
 {
 	~_APP_UPDATE_COMPONENT ()
@@ -46,10 +44,6 @@ typedef struct _APP_UPDATE_COMPONENT
 		SAFE_DELETE_ARRAY (filepath);
 	}
 
-	bool is_downloaded = false;
-	bool is_installer = false;
-	bool is_haveupdate = false;
-
 	LPWSTR full_name = nullptr;
 	LPWSTR short_name = nullptr;
 	LPWSTR version = nullptr;
@@ -60,10 +54,20 @@ typedef struct _APP_UPDATE_COMPONENT
 
 	HANDLE hthread = nullptr;
 	HANDLE hend = nullptr;
+
+	bool is_downloaded = false;
+	bool is_installer = false;
+	bool is_haveupdate = false;
 } *PAPP_UPDATE_COMPONENT, APP_UPDATE_COMPONENT;
 
 typedef struct _APP_UPDATE_INFO
 {
+	~_APP_UPDATE_INFO ()
+	{
+		for (size_t i = 0; i < components.size (); i++)
+			SAFE_DELETE (components.at (i));
+	}
+
 	bool is_downloaded = false;
 
 	std::vector<PAPP_UPDATE_COMPONENT> components;
@@ -78,7 +82,7 @@ typedef struct _APP_UPDATE_INFO
 } *PAPP_UPDATE_INFO, APP_UPDATE_INFO;
 #endif // _APP_HAVE_UPDATES
 
-#ifdef _APP_HAVE_SKIPUAC
+#if defined(_APP_HAVE_SKIPUAC)
 struct MBSTR
 {
 	MBSTR (LPCWSTR asString = nullptr)
@@ -138,18 +142,21 @@ class rapp
 
 public:
 
-	rapp (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright);
+	rapp ();
+	~rapp ();
+
+	bool Initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright);
 
 	bool MutexCreate ();
 	bool MutexDestroy ();
 	bool MutexIsExists (bool activate_window);
 
-#ifdef _APP_HAVE_AUTORUN
+#if defined(_APP_HAVE_AUTORUN)
 	bool AutorunIsEnabled ();
 	bool AutorunEnable (bool is_enable);
 #endif // _APP_HAVE_AUTORUN
 
-#ifdef _APP_HAVE_UPDATES
+#if defined(_APP_HAVE_UPDATES)
 	void UpdateAddComponent (LPCWSTR full_name, LPCWSTR short_name, LPCWSTR version, LPCWSTR target_path, bool is_installer);
 	void UpdateCheck (HWND hparent);
 	void UpdateInstall () const;
@@ -177,19 +184,18 @@ public:
 
 	bool ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config_cfg);
 
-#ifndef _APP_NO_ABOUT
+#if !defined(_APP_CONSOLE)
 	void CreateAboutWindow (HWND hwnd);
-#endif // _APP_NO_ABOUT
 
-	bool CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC proc);
+	bool CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc);
 	void RestoreWindowPosition (HWND hwnd, LPCWSTR window_name);
+#endif // _APP_CONSOLE
 
-#ifdef _APP_HAVE_SETTINGS
-	void CreateSettingsWindow (DLGPROC proc, INT dlg_id = INVALID_INT);
+#if defined(_APP_HAVE_SETTINGS)
+	void CreateSettingsWindow (HWND hwnd, DLGPROC dlg_proc, INT dlg_id = 0);
+	void SettingsAddPage (INT dlg_id, UINT locale_id);
 
-	INT SettingsAddPage (INT dlg_id, UINT locale_id, INT group_id = INVALID_INT);
 	HWND GetSettingsWindow ();
-	void SettingsInitialize ();
 #endif // _APP_HAVE_SETTINGS
 
 	LPCWSTR GetBinaryPath () const;
@@ -197,9 +203,12 @@ public:
 	LPCWSTR GetProfileDirectory () const;
 
 	LPCWSTR GetConfigPath () const;
-	LPCWSTR GetLocalePath () const;
 
-#ifdef _APP_HAVE_UPDATES
+#if !defined(_APP_CONSOLE)
+	LPCWSTR GetLocalePath () const;
+#endif // !_APP_CONSOLE
+
+#if defined(_APP_HAVE_UPDATES)
 	LPCWSTR GetUpdatePath () const;
 #endif // _APP_HAVE_UPDATES
 
@@ -212,54 +221,58 @@ public:
 
 	bool IsClassicUI () const;
 
-#ifndef _APP_NO_WINXP
+#if !defined(_APP_NO_WINXP)
 	bool IsVistaOrLater () const;
 #endif // _APP_NO_WINXP
 
+#if !defined(_APP_CONSOLE)
+#if defined(_APP_HAVE_SETTINGS)
 	void LocaleApplyFromControl (HWND hwnd, INT ctrl_id);
+#endif // _APP_HAVE_SETTINGS
+
 	void LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id);
+
 	void LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start);
 	size_t LocaleGetCount () const;
 	time_t LocaleGetVersion () const;
 	rstring LocaleString (UINT uid, LPCWSTR append);
 	void LocaleMenu (HMENU hmenu, UINT uid, UINT item, bool by_position, LPCWSTR append);
+#endif // !_APP_CONSOLE
 
-#ifdef _APP_HAVE_SKIPUAC
+#if defined(_APP_HAVE_SKIPUAC) && !defined(_APP_CONSOLE)
 	bool SkipUacIsEnabled ();
 	bool SkipUacEnable (bool is_enable);
 	bool SkipUacRun ();
-#endif // _APP_HAVE_SKIPUAC
+#endif // _APP_HAVE_SKIPUAC && !_APP_CONSOLE
 
 	bool RunAsAdmin ();
 
 private:
 
-#ifdef _APP_HAVE_SETTINGS
+#if defined(_APP_HAVE_SETTINGS)
 	static INT_PTR CALLBACK SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 #endif // _APP_HAVE_SETTINGS
 
-#ifdef _APP_HAVE_UPDATES
+#if defined(_APP_HAVE_UPDATES)
 	static bool UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG_PTR lpdata);
 	static UINT WINAPI UpdateDownloadThread (LPVOID lparam);
 	static HRESULT CALLBACK UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR lpdata);
-	INT UpdateDialogNavigate (HWND htaskdlg, LPCWSTR main_icon, TASKDIALOG_FLAGS flags, TASKDIALOG_COMMON_BUTTON_FLAGS buttons, LPCWSTR main, LPCWSTR content, LONG_PTR lpdata);
 	static UINT WINAPI UpdateCheckThread (LPVOID lparam);
+	INT UpdateDialogNavigate (HWND htaskdlg, LPCWSTR main_icon, TASKDIALOG_FLAGS flags, TASKDIALOG_COMMON_BUTTON_FLAGS buttons, LPCWSTR main, LPCWSTR content, LONG_PTR lpdata);
 #endif // _APP_HAVE_UPDATES
 
+#if !defined(_APP_CONSOLE)
 	static LRESULT CALLBACK MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 	static BOOL CALLBACK ActivateWindowCallback (HWND hwnd, LPARAM lparam);
 
 	void LocaleInit ();
+#endif
 
-#ifdef _APP_HAVE_UPDATES
-	PAPP_UPDATE_INFO pupdateinfo;
+#if defined(_APP_HAVE_UPDATES)
+	PAPP_UPDATE_INFO pupdateinfo = nullptr;
 #endif // _APP_HAVE_UPDATES
 
-#ifdef _APP_HAVE_DARKTHEME
-	bool is_darktheme = false;
-#endif // _APP_HAVE_DARKTHEME
-
-#ifndef _APP_NO_WINXP
+#if !defined(_APP_NO_WINXP)
 	bool is_vistaorlater = false;
 #endif // _APP_NO_WINXP
 
@@ -279,29 +292,32 @@ private:
 	WCHAR app_profile_directory[MAX_PATH];
 	WCHAR app_config_path[MAX_PATH];
 
-	WCHAR app_name[MAX_PATH];
-	WCHAR app_name_short[MAX_PATH];
-	WCHAR app_version[MAX_PATH];
-	WCHAR app_copyright[MAX_PATH];
-	WCHAR app_localepath[MAX_PATH];
+	LPWSTR app_name = nullptr;
+	LPWSTR app_name_short = nullptr;
+	LPWSTR app_version = nullptr;
+	LPWSTR app_copyright = nullptr;
 
-#ifdef _APP_HAVE_UPDATES
-	WCHAR app_updatepath[MAX_PATH];
+#if defined(_APP_HAVE_UPDATES)
+	LPWSTR app_updatepath = nullptr;
 #endif // _APP_HAVE_UPDATES
 
-	WCHAR locale_default[LOCALE_NAME_MAX_LENGTH];
-	WCHAR locale_current[LOCALE_NAME_MAX_LENGTH];
+#if !defined(_APP_CONSOLE)
+	LPWSTR app_localepath = nullptr;
+	LPWSTR app_locale_current = nullptr;
 
-	rstringmap2 app_config_array;
+	WCHAR locale_default[LOCALE_NAME_MAX_LENGTH];
+
 	rstringmap2 app_locale_array;
 	rstringvec app_locale_names;
-	std::vector<PAPP_SHARED_IMAGE> app_shared_icons;
 
 	time_t app_locale_timetamp = 0;
+#endif // !_APP_CONSOLE
 
-#ifdef _APP_HAVE_SETTINGS
+	rstringmap2 app_config_array;
+	std::vector<PAPP_SHARED_IMAGE> app_shared_icons;
+
+#if defined(_APP_HAVE_SETTINGS)
 	std::vector<PAPP_SETTINGS_PAGE> app_settings_pages;
-	size_t settings_page_id = 0;
 	HWND settings_hwnd = nullptr;
 	DLGPROC app_settings_proc = nullptr;
 #endif // _APP_HAVE_SETTINGS
