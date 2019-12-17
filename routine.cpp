@@ -1434,7 +1434,7 @@ size_t _r_str_hash (LPCWSTR text)
 		hash = hash ^ (_r_str_upper (*text)); /* xor the low 8 bits */
 		hash = hash * FNVMultiple; /* multiply by the magic number */
 
-		++text;
+		text += 1;
 	}
 
 	return hash;
@@ -1604,7 +1604,7 @@ bool _r_str_match (LPCWSTR text, LPCWSTR pattern)
 
 void _r_str_replace (LPWSTR text, WCHAR char_from, WCHAR char_to)
 {
-	if (!text)
+	if (_r_str_isempty (text))
 		return;
 
 	while (*text != UNICODE_NULL)
@@ -2854,16 +2854,22 @@ DWORD _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHI
 						}
 						else
 						{
-							if (ptotallength)
+							size = sizeof (option);
+							WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, nullptr, &option, &size, nullptr);
+
+							if (option >= HTTP_STATUS_OK && option <= HTTP_STATUS_PARTIAL_CONTENT)
 							{
-								size = sizeof (DWORD);
-								WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, ptotallength, &size, WINHTTP_NO_HEADER_INDEX);
+								if (ptotallength)
+								{
+									size = sizeof (DWORD);
+									WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, ptotallength, &size, WINHTTP_NO_HEADER_INDEX);
+								}
+
+								*pconnect = hconnect;
+								*prequest = hrequest;
+
+								return ERROR_SUCCESS;
 							}
-
-							*pconnect = hconnect;
-							*prequest = hrequest;
-
-							return ERROR_SUCCESS;
 						}
 					}
 				}
