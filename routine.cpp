@@ -2262,7 +2262,7 @@ void _r_wnd_center (HWND hwnd, HWND hparent)
 		_r_wnd_centerwindowrect (&rect, &parentRect);
 		_r_wnd_adjustwindowrect (hwnd, &rect);
 
-		_r_wnd_resize (nullptr, hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOZORDER | SWP_NOOWNERZORDER);
+		SetWindowPos (hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
 	}
 	else
 	{
@@ -2276,7 +2276,7 @@ void _r_wnd_center (HWND hwnd, HWND hparent)
 
 			_r_wnd_centerwindowrect (&rect, &monitorInfo.rcWork);
 
-			_r_wnd_resize (nullptr, hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOZORDER | SWP_NOOWNERZORDER);
+			SetWindowPos (hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
 		}
 	}
 }
