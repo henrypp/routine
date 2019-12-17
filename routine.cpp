@@ -890,7 +890,7 @@ LPCWSTR _r_path_getextension (LPCWSTR path)
 		else if (*path == L'.')
 			lastpoint = path;
 
-		path++;
+		path += 1;
 	}
 
 	return lastpoint;
@@ -905,7 +905,7 @@ LPCWSTR _r_path_getfilename (LPCWSTR path)
 		if ((*path == OBJ_NAME_PATH_SEPARATOR || *path == L'/' || *path == L':') && path[1] && path[1] != OBJ_NAME_PATH_SEPARATOR && path[1] != L'/')
 			last_slash = path + 1;
 
-		path++;
+		path += 1;
 	}
 
 	return last_slash;
