@@ -3585,8 +3585,8 @@ rstring _r_ctrl_gettext (HWND hwnd, INT ctrl_id)
 	{
 		rstring result;
 
-		if (!GetDlgItemText (hwnd, ctrl_id, result.GetBuffer (length), length + 1))
-			result.Release ();
+		INT out_length = (INT)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXT, length + 1, (LPARAM)result.GetBuffer (length));
+		result.SetLength (out_length);
 
 		return result;
 	}
