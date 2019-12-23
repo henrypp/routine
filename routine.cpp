@@ -2988,10 +2988,7 @@ DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, 
 		while (_r_inet_readrequest (hrequest, content_buffer, buffer_length - 1, &readed, &total_readed))
 		{
 			if (!readed)
-			{
-				rc = ERROR_SUCCESS;
 				break;
-			}
 
 			if (is_filepath)
 			{
