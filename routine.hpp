@@ -306,7 +306,7 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 */
 
 rstring _r_clipboard_get (HWND hwnd);
-void _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length);
+void _r_clipboard_set (HWND hwnd, LPCWSTR text, size_t length);
 
 /*
 	Filesystem

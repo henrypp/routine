@@ -655,27 +655,34 @@ rstring _r_clipboard_get (HWND hwnd)
 	return nullptr;
 }
 
-void _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length)
+void _r_clipboard_set (HWND hwnd, LPCWSTR text, size_t length)
 {
+	if (_r_str_isempty (text) || !length)
+		return;
+
 	if (OpenClipboard (hwnd))
 	{
 		if (EmptyClipboard ())
 		{
-			if (!_r_str_isempty (text) && length)
+			size_t byte_size = length * sizeof (WCHAR);
+			HGLOBAL hmemory = GlobalAlloc (GMEM_MOVEABLE | GMEM_ZEROINIT, byte_size + sizeof (WCHAR));
+
+			if (hmemory)
 			{
-				size_t byte_size = length * sizeof (WCHAR);
-				HGLOBAL hmemory = GlobalAlloc (GMEM_MOVEABLE | GMEM_ZEROINIT, byte_size + sizeof (WCHAR));
+				LPVOID ptr_lock = GlobalLock (hmemory);
 
-				if (hmemory)
+				if (ptr_lock)
 				{
-					LPVOID ptr_lock = GlobalLock (hmemory);
-
 					memcpy (ptr_lock, text, byte_size);
 					*(PWCHAR)PTR_ADD_OFFSET (ptr_lock, byte_size) = UNICODE_NULL; // terminate
 
 					GlobalUnlock (ptr_lock);
 
 					SetClipboardData (CF_UNICODETEXT, hmemory);
+				}
+				else
+				{
+					GlobalFree (hmemory);
 				}
 			}
 		}
