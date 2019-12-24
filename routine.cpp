@@ -36,7 +36,6 @@ void _r_dbg_print (LPCWSTR text, ...)
 
 void _r_dbg_write (LPCWSTR path, LPCWSTR text)
 {
-	SetFileAttributes (path, FILE_ATTRIBUTE_NORMAL); // HACK!!!
 	HANDLE hfile = CreateFile (path, GENERIC_WRITE | GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 
 	if (hfile != INVALID_HANDLE_VALUE)
@@ -700,6 +699,8 @@ bool _r_fs_delete (LPCWSTR path, bool allowundo)
 	if (_r_str_isempty (path))
 		return false;
 
+	SetFileAttributes (path, FILE_ATTRIBUTE_NORMAL);
+
 	if (allowundo)
 	{
 		SHFILEOPSTRUCT op = {0};
@@ -712,7 +713,7 @@ bool _r_fs_delete (LPCWSTR path, bool allowundo)
 			return true;
 	}
 
-	return !!DeleteFile (path);
+	return !!DeleteFile (path); // fallback
 }
 
 bool _r_fs_makebackup (LPCWSTR path, time_t timestamp)
@@ -730,7 +731,6 @@ bool _r_fs_makebackup (LPCWSTR path, time_t timestamp)
 		SystemTimeToTzSpecificLocalTime (nullptr, &st, &st);
 
 		WCHAR date_format[128] = {0};
-
 		GetDateFormat (LOCALE_USER_DEFAULT, 0, &st, L"yyyy-MM-dd", date_format, _countof (date_format));
 
 		dest_path.Format (L"%s\\%s-%s.bak", _r_path_getdirectory (path).GetString (), date_format, _r_path_getfilename (path));
@@ -808,14 +808,13 @@ void _r_fs_rmdir (LPCWSTR path, bool is_recurse)
 				rstring full_path;
 				full_path.Format (L"%s\\%s", path, wfd.cFileName);
 
-				if ((wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY)
+				if ((wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
 				{
-					_r_fs_rmdir (full_path, true);
+					_r_fs_rmdir (full_path, is_recurse);
 				}
 				else
 				{
-					SetFileAttributes (full_path, FILE_ATTRIBUTE_NORMAL);
-					DeleteFile (full_path);
+					_r_fs_delete (full_path, false);
 				}
 			}
 			while (FindNextFile (hfind, &wfd));
@@ -1207,7 +1206,6 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 		return STATUS_UNSUCCESSFUL;
 
 	NTSTATUS status;
-
 	HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
 
 	if (hfile == INVALID_HANDLE_VALUE)
@@ -1268,7 +1266,7 @@ bool _r_str_isnumeric (LPCWSTR text)
 		if (iswdigit (*text) == 0)
 			return false;
 
-		++text;
+		text += 1;
 	}
 
 	return true;
@@ -1426,22 +1424,13 @@ size_t _r_str_hash (LPCWSTR text)
 	if (_r_str_isempty (text))
 		return 0;
 
-#ifdef _WIN64
-#define InitialFNV 2166136261ULL
-#define FNVMultiple 16777619ULL
-#else
-#define InitialFNV 2166136261U
-#define FNVMultiple 16777619U
-#endif
+	size_t hash = 0x811C9DC5; // FNV_offset_basis
 
-	size_t hash = InitialFNV;
-
+	// FNV-1a hash
 	while (*text != UNICODE_NULL)
 	{
-		hash = hash ^ (_r_str_upper (*text)); /* xor the low 8 bits */
-		hash = hash * FNVMultiple; /* multiply by the magic number */
-
-		text += 1;
+		hash ^= (size_t)_r_str_upper (*text++);
+		hash *= 0x01000193; // FNV_prime
 	}
 
 	return hash;
@@ -1769,7 +1758,7 @@ void _r_str_split (LPCWSTR text, size_t length, WCHAR delimiter, rstringvec& rvc
 			start = end + 1;
 		}
 
-		end++;
+		end += 1;
 	}
 
 	if (start < end)
