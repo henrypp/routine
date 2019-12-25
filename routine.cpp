@@ -765,7 +765,7 @@ bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size)
 	if (!hfile || hfile == INVALID_HANDLE_VALUE)
 		return false;
 
-	HANDLE hmap = CreateFileMapping (hfile, nullptr, PAGE_READONLY, 0, 0, nullptr);
+	HANDLE hmap = CreateFileMapping (hfile, nullptr, PAGE_READONLY, 0, (DWORD)size, nullptr);
 
 	if (hmap)
 	{
