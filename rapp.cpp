@@ -483,10 +483,10 @@ void rapp::UpdateAddComponent (LPCWSTR full_name, LPCWSTR short_name, LPCWSTR ve
 		PAPP_UPDATE_COMPONENT pcomponent = new APP_UPDATE_COMPONENT;
 		RtlSecureZeroMemory (pcomponent, sizeof (APP_UPDATE_COMPONENT));
 
-		_r_str_alloc (&pcomponent->full_name, _r_str_length (full_name), full_name);
-		_r_str_alloc (&pcomponent->short_name, _r_str_length (short_name), short_name);
-		_r_str_alloc (&pcomponent->version, _r_str_length (version), version);
-		_r_str_alloc (&pcomponent->target_path, _r_str_length (target_path), target_path);
+		_r_str_alloc (&pcomponent->full_name, INVALID_SIZE_T, full_name);
+		_r_str_alloc (&pcomponent->short_name, INVALID_SIZE_T, short_name);
+		_r_str_alloc (&pcomponent->version, INVALID_SIZE_T, version);
+		_r_str_alloc (&pcomponent->target_path, INVALID_SIZE_T, target_path);
 
 		pcomponent->is_installer = is_installer;
 
@@ -1499,7 +1499,7 @@ void rapp::LocaleApplyFromControl (HWND hwnd, INT ctrl_id)
 	}
 	else
 	{
-		_r_str_alloc (&app_locale_current, _r_str_length (text), text);
+		_r_str_alloc (&app_locale_current, INVALID_SIZE_T, text);
 	}
 
 	ConfigSet (L"Language", text);
@@ -1534,7 +1534,7 @@ void rapp::LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id)
 		GetMenuString (hmenu, selected_id, name, _countof (name), MF_BYCOMMAND);
 
 		ConfigSet (L"Language", name);
-		_r_str_alloc (&app_locale_current, _r_str_length (name), name);
+		_r_str_alloc (&app_locale_current, INVALID_SIZE_T, name);
 	}
 
 	// redraw main window
@@ -1681,7 +1681,7 @@ void rapp::LocaleInit ()
 
 	if (!name.IsEmpty ())
 	{
-		_r_str_alloc (&app_locale_current, _r_str_length (name), name);
+		_r_str_alloc (&app_locale_current, INVALID_SIZE_T, name);
 	}
 	else
 	{
@@ -2354,7 +2354,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 								if (pcomponent->is_installer)
 								{
-									_r_str_alloc (&pcomponent->filepath, _r_str_length (this_ptr->GetUpdatePath ()), this_ptr->GetUpdatePath ());
+									_r_str_alloc (&pcomponent->filepath, INVALID_SIZE_T, this_ptr->GetUpdatePath ());
 								}
 								else
 								{
