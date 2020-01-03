@@ -153,7 +153,7 @@ public:
 
 #if defined(_APP_HAVE_AUTORUN)
 	bool AutorunIsEnabled ();
-	bool AutorunEnable (bool is_enable);
+	LSTATUS AutorunEnable (HWND hwnd, bool is_enable);
 #endif // _APP_HAVE_AUTORUN
 
 #if defined(_APP_HAVE_UPDATES)
@@ -241,7 +241,7 @@ public:
 
 #if defined(_APP_HAVE_SKIPUAC) && !defined(_APP_CONSOLE)
 	bool SkipUacIsEnabled ();
-	bool SkipUacEnable (bool is_enable);
+	HRESULT SkipUacEnable (HWND hwnd, bool is_enable);
 	bool SkipUacRun ();
 #endif // _APP_HAVE_SKIPUAC && !_APP_CONSOLE
 

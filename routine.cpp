@@ -576,6 +576,66 @@ bool _r_msg_taskdialog (const TASKDIALOGCONFIG * ptd, INT * pbutton, INT * pradi
 #endif // _APP_NO_WINXP
 }
 
+void _r_msg_showerror (HWND hwnd, LPCWSTR title, DWORD errcode, HINSTANCE hmodule)
+{
+	HLOCAL buffer = nullptr;
+	FormatMessage (FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, hmodule, errcode, 0, (LPWSTR)&buffer, 0, nullptr);
+
+	TASKDIALOGCONFIG tdc = {0};
+	TASKDIALOG_BUTTON td_buttons[2] = {0};
+
+	WCHAR str_main[128] = {0};
+	WCHAR str_content[512] = {0};
+	WCHAR str_flag[64] = {0};
+
+	WCHAR button1[64] = {0};
+	WCHAR button2[64] = {0};
+
+	tdc.cbSize = sizeof (tdc);
+	tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_NO_SET_FOREGROUND | TDF_SIZE_TO_CONTENT;
+	tdc.hwndParent = hwnd;
+	tdc.hInstance = GetModuleHandle (nullptr);
+	tdc.pszMainIcon = TD_WARNING_ICON;
+	tdc.pszWindowTitle = title;
+	tdc.pszMainInstruction = str_main;
+	tdc.pszContent = str_content;
+	tdc.pszVerificationText = str_flag;
+	tdc.pfCallback = &_r_msg_callback;
+	tdc.lpCallbackData = MAKELONG (0, 1);
+
+	tdc.pButtons = td_buttons;
+	tdc.cButtons = _countof (td_buttons);
+
+	td_buttons[0].nButtonID = IDYES;
+	td_buttons[0].pszButtonText = button1;
+
+	td_buttons[1].nButtonID = IDCLOSE;
+	td_buttons[1].pszButtonText = button2;
+
+	tdc.nDefaultButton = IDCLOSE;
+
+	LPWSTR text = (LPWSTR)buffer;
+
+	_r_str_trim (text, L"\r\n "); // trim trailing whitespaces
+
+	_r_str_copy (str_main, _countof (str_main), L"This information may provide clues as to what went wrong and how to fix it.");
+	_r_str_printf (str_content, _countof (str_content), L"%s (0x%08" PRIX32 L")", _r_str_isempty (text) ? L"n/a" : text, errcode);
+
+	_r_str_copy (button1, _countof (button1), L"Copy");
+	_r_str_copy (button2, _countof (button2), L"Close");
+
+	INT result = 0;
+
+	if (_r_msg_taskdialog (&tdc, &result, nullptr, nullptr))
+	{
+		if (result == td_buttons[0].nButtonID)
+			_r_clipboard_set (nullptr, str_content, _r_str_length (str_content));
+	}
+
+	SAFE_LOCAL_FREE (buffer);
+}
+
+
 HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LONG_PTR lpdata)
 {
 	switch (msg)

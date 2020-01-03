@@ -299,6 +299,7 @@ void _r_obj_dereferenceex (PR_OBJECT pobj, LONG ref_count);
 
 INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR text, ...);
 bool _r_msg_taskdialog (const TASKDIALOGCONFIG *ptd, INT *pbutton, INT *pradiobutton, BOOL *pcheckbox); // vista TaskDialogIndirect
+void _r_msg_showerror (HWND hwnd, LPCWSTR title, DWORD errcode, HINSTANCE hmodule);
 HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LONG_PTR lpdata);
 
 /*

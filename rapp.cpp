@@ -434,34 +434,40 @@ bool rapp::AutorunIsEnabled ()
 	return ConfigGet (L"AutorunIsEnabled", false).AsBool ();
 }
 
-bool rapp::AutorunEnable (bool is_enable)
+LSTATUS rapp::AutorunEnable (HWND hwnd, bool is_enable)
 {
-	bool result = false;
-
 	HKEY hkey = nullptr;
+	LONG result = RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_ALL_ACCESS, &hkey);
 
-	if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_ALL_ACCESS, &hkey) == ERROR_SUCCESS)
+	if (result == ERROR_SUCCESS)
 	{
 		if (is_enable)
 		{
 			WCHAR buffer[MAX_PATH] = {0};
 			_r_str_printf (buffer, _countof (buffer), L"\"%s\" /minimized", GetBinaryPath ());
 
-			result = (RegSetValueEx (hkey, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((_r_str_length (buffer) + 1) * sizeof (WCHAR))) == ERROR_SUCCESS);
+			result = RegSetValueEx (hkey, app_name, 0, REG_SZ, (LPBYTE)buffer, DWORD ((_r_str_length (buffer) + 1) * sizeof (WCHAR)));
 
-			if (result)
-				ConfigSet (L"AutorunIsEnabled", true);
+			ConfigSet (L"AutorunIsEnabled", !!(result == ERROR_SUCCESS));
 		}
 		else
 		{
-			RegDeleteValue (hkey, app_name);
-			ConfigSet (L"AutorunIsEnabled", false);
+			result = RegDeleteValue (hkey, app_name);
 
-			result = true;
+			if (result == ERROR_SUCCESS || result == ERROR_FILE_NOT_FOUND)
+			{
+				ConfigSet (L"AutorunIsEnabled", false);
+
+				if (result == ERROR_FILE_NOT_FOUND)
+					result = ERROR_SUCCESS;
+			}
 		}
 
 		RegCloseKey (hkey);
 	}
+
+	if (hwnd && result != ERROR_SUCCESS)
+		_r_msg_showerror (hwnd, app_name, result, nullptr);
 
 	return result;
 }
@@ -1170,13 +1176,13 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 	// update autorun settings
 #ifdef _APP_HAVE_AUTORUN
 	if (AutorunIsEnabled ())
-		AutorunEnable (true);
+		AutorunEnable (nullptr, true);
 #endif // _APP_HAVE_AUTORUN
 
 	// update uac settings (vista+)
 #if defined(_APP_HAVE_SKIPUAC)
 	if (SkipUacIsEnabled ())
-		SkipUacEnable (true);
+		SkipUacEnable (nullptr, true);
 #endif // _APP_HAVE_SKIPUAC
 
 	// set window on top
@@ -1995,11 +2001,11 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 						this_ptr->ConfigInit ();
 
 #ifdef _APP_HAVE_AUTORUN
-						this_ptr->AutorunEnable (false);
+						this_ptr->AutorunEnable (nullptr, false);
 #endif // _APP_HAVE_AUTORUN
 
 #ifdef _APP_HAVE_SKIPUAC
-						this_ptr->SkipUacEnable (false);
+						this_ptr->SkipUacEnable (nullptr, false);
 #endif // _APP_HAVE_SKIPUAC
 
 						// reinitialize application
@@ -2552,14 +2558,12 @@ bool rapp::SkipUacIsEnabled ()
 	return ConfigGet (L"SkipUacIsEnabled", false).AsBool ();
 }
 
-bool rapp::SkipUacEnable (bool is_enable)
+HRESULT rapp::SkipUacEnable (HWND hwnd, bool is_enable)
 {
 #ifndef _APP_NO_WINXP
 	if (!IsVistaOrLater ())
 		return false;
 #endif // _APP_NO_WINXP
-
-	bool result = false;
 
 	ITaskService *service = nullptr;
 	ITaskFolder *folder = nullptr;
@@ -2582,16 +2586,24 @@ bool rapp::SkipUacEnable (bool is_enable)
 
 	VARIANT vtEmpty = {VT_EMPTY};
 
-	if (SUCCEEDED (CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID *)&service)))
+	HRESULT result = CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service);
+
+	if (SUCCEEDED (result))
 	{
-		if (SUCCEEDED (service->Connect (vtEmpty, vtEmpty, vtEmpty, vtEmpty)))
+		result = service->Connect (vtEmpty, vtEmpty, vtEmpty, vtEmpty);
+
+		if (SUCCEEDED (result))
 		{
-			if (SUCCEEDED (service->GetFolder (root, &folder)))
+			result = service->GetFolder (root, &folder);
+
+			if (SUCCEEDED (result))
 			{
 				if (is_enable)
 				{
 					// create task
-					if (SUCCEEDED (service->NewTask (0, &taskdef)))
+					result = service->NewTask (0, &taskdef);
+
+					if (SUCCEEDED (result))
 					{
 						if (SUCCEEDED (taskdef->get_RegistrationInfo (&reginfo)))
 						{
@@ -2618,6 +2630,8 @@ bool rapp::SkipUacEnable (bool is_enable)
 							// set compatibility (win7+)
 							if (_r_sys_validversion (6, 1))
 							{
+								// TASK_COMPATIBILITY_V2_4 - win10
+								// TASK_COMPATIBILITY_V2_3 - win8.1
 								// TASK_COMPATIBILITY_V2_2 - win8
 								// TASK_COMPATIBILITY_V2_1 - win7
 
@@ -2650,10 +2664,11 @@ bool rapp::SkipUacEnable (bool is_enable)
 							action_collection->Release ();
 						}
 
-						if (SUCCEEDED (folder->RegisterTaskDefinition (name, taskdef, TASK_CREATE_OR_UPDATE, vtEmpty, vtEmpty, TASK_LOGON_INTERACTIVE_TOKEN, vtEmpty, &registered_task)))
+						result = folder->RegisterTaskDefinition (name, taskdef, TASK_CREATE_OR_UPDATE, vtEmpty, vtEmpty, TASK_LOGON_INTERACTIVE_TOKEN, vtEmpty, &registered_task);
+
+						if (SUCCEEDED (result))
 						{
 							ConfigSet (L"SkipUacIsEnabled", true);
-							result = true;
 
 							registered_task->Release ();
 						}
@@ -2664,7 +2679,7 @@ bool rapp::SkipUacEnable (bool is_enable)
 				else
 				{
 					// remove task
-					result = SUCCEEDED (folder->DeleteTask (name, 0));
+					result = folder->DeleteTask (name, 0);
 
 					ConfigSet (L"SkipUacIsEnabled", false);
 				}
@@ -2675,6 +2690,9 @@ bool rapp::SkipUacEnable (bool is_enable)
 
 		service->Release ();
 	}
+
+	if (hwnd && FAILED (result))
+		_r_msg_showerror (hwnd, app_name, result, nullptr);
 
 	return result;
 }
