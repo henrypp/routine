@@ -2681,7 +2681,13 @@ HRESULT rapp::SkipUacEnable (HWND hwnd, bool is_enable)
 					// remove task
 					result = folder->DeleteTask (name, 0);
 
-					ConfigSet (L"SkipUacIsEnabled", false);
+					if (SUCCEEDED (result) || result == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND))
+					{
+						ConfigSet (L"SkipUacIsEnabled", false);
+
+						if (result == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND))
+							result = S_OK;
+					}
 				}
 
 				folder->Release ();
