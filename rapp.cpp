@@ -1338,7 +1338,7 @@ void rapp::CreateSettingsWindow (HWND hwnd, DLGPROC dlg_proc, INT dlg_id)
 
 	rhelper::template_writevar (&pPtr, DWORD (0), sizeof (DWORD)); // helpID
 	rhelper::template_writevar (&pPtr, DWORD (WS_EX_APPWINDOW | WS_EX_CONTROLPARENT), sizeof (DWORD)); // exStyle
-	rhelper::template_writevar (&pPtr, DWORD (WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP | WS_BORDER | WS_SYSMENU | WS_CAPTION | DS_SHELLFONT | DS_MODALFRAME), sizeof (DWORD)); // style
+	rhelper::template_writevar (&pPtr, DWORD (WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP | WS_BORDER | WS_SYSMENU | WS_CAPTION | DS_SHELLFONT | DS_MODALFRAME), sizeof (DWORD)); // style
 
 	rhelper::template_write (&pPtr, &controls, sizeof (controls)); // cdit
 
