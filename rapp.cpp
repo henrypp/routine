@@ -12,7 +12,7 @@ namespace rhelper
 #if defined(_APP_HAVE_SETTINGS)
 	void template_write (BYTE **pPtr, const void* data, size_t size)
 	{
-		memcpy (*pPtr, data, size);
+		RtlCopyMemory (*pPtr, data, size);
 		*pPtr += size;
 	}
 
@@ -431,7 +431,23 @@ BOOL CALLBACK rapp::ActivateWindowCallback (HWND hwnd, LPARAM lparam)
 #ifdef _APP_HAVE_AUTORUN
 bool rapp::AutorunIsEnabled ()
 {
-	return ConfigGet (L"AutorunIsEnabled", false).AsBool ();
+	if (ConfigGet (L"AutorunIsEnabled", false).AsBool ())
+	{
+		HKEY hkey = nullptr;
+
+		if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_READ, &hkey) == ERROR_SUCCESS)
+		{
+			if (RegQueryValueEx (hkey, app_name, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS)
+			{
+				RegCloseKey (hkey);
+				return true;
+			}
+
+			RegCloseKey (hkey);
+		}
+	}
+
+	return false;
 }
 
 LSTATUS rapp::AutorunEnable (HWND hwnd, bool is_enable)
@@ -885,7 +901,7 @@ void rapp::CreateAboutWindow (HWND hwnd)
 #endif
 
 			_r_str_copy (str_main, _countof (str_main), app_name);
-			_r_str_printf (str_content, _countof (str_content), L"Version %s, %u-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", app_version, architecture, app_copyright, _APP_WEBSITE_URL, _APP_WEBSITE_URL + 8, _APP_GITHUB_URL, _APP_GITHUB_URL + 8);
+			_r_str_printf (str_content, _countof (str_content), L"Version %s, %" PRIu32 L"-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>", app_version, architecture, app_copyright, _APP_WEBSITE_URL, _APP_WEBSITE_URL + 8, _APP_GITHUB_URL, _APP_GITHUB_URL + 8);
 			_r_str_copy (str_footer, _countof (str_footer), L"This program is free software; you can redistribute it and/or modify it under the terms of the <a href=\"https://www.gnu.org/licenses/gpl-3.0.html\">GNU General Public License 3</a> as published by the Free Software Foundation.");
 
 			if (_r_msg_taskdialog (&tdc, &result, nullptr, nullptr))
@@ -897,7 +913,7 @@ void rapp::CreateAboutWindow (HWND hwnd)
 		}
 		else
 		{
-			_r_msg (hwnd, MB_OK | MB_USERICON | MB_TOPMOST, title, app_name, L"Version %s, %u-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + 8, _APP_GITHUB_URL + 8);
+			_r_msg (hwnd, MB_OK | MB_USERICON | MB_TOPMOST, title, app_name, L"Version %s, %" PRIu32 L"-bit (Unicode)\r\n%s\r\n\r\n%s | %s", app_version, architecture, app_copyright, _APP_WEBSITE_URL + 8, _APP_GITHUB_URL + 8);
 		}
 #endif // _APP_NO_WINXP
 
