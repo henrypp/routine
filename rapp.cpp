@@ -1869,7 +1869,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 				{
 					_r_treeview_setitem (hwnd, IDC_NAV, hitem, this_ptr->LocaleString (ptr_page->locale_id, nullptr));
 
-					if (IsWindowVisible (ptr_page->hwnd))
+					if (ptr_page->hwnd && IsWindowVisible (ptr_page->hwnd))
 						PostMessage (ptr_page->hwnd, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
 				}
 
