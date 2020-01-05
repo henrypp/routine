@@ -75,7 +75,7 @@
 #define _R_BUFFER_NET_LENGTH (_R_BUFFER_LENGTH * 4)
 
 #define _R_SIZE_TREEINDENT 12
-#define _R_SIZE_ITEMHEIGHT 20
+#define _R_SIZE_ITEMHEIGHT 18
 #define _R_SIZE_FOOTERHEIGHT 48
 
 // Project information
