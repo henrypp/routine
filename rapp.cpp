@@ -1066,13 +1066,6 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 
 		case WM_DPICHANGED:
 		{
-#if defined(_APP_HAVE_SETTINGS)
-			const HWND hsettings = this_ptr->GetSettingsWindow ();
-
-			if (hsettings)
-				PostMessage (hsettings, RM_LOCALIZE, 0, 0);
-#endif // _APP_HAVE_SETTINGS
-
 			// call main callback
 			SendMessage (hwnd, RM_DPICHANGED, 0, 0);
 
@@ -1901,6 +1894,12 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 			break;
 		}
 #endif // !_APP_NO_DARKTHEME
+
+		case WM_DPICHANGED:
+		{
+			PostMessage (hwnd, RM_LOCALIZE, 0, 0);
+			break;
+		}
 
 		case WM_CLOSE:
 		{
