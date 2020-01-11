@@ -21,6 +21,9 @@ void _r_dbg (LPCWSTR fn, DWORD errcode, LPCWSTR desc)
 
 void _r_dbg_print (LPCWSTR text, ...)
 {
+	if (_r_str_isempty (text))
+		return;
+
 	va_list args;
 	va_start (args, text);
 
@@ -43,7 +46,7 @@ void _r_dbg_write (LPCWSTR path, LPCWSTR text)
 		if (GetLastError () != ERROR_ALREADY_EXISTS)
 		{
 			DWORD written = 0;
-			static const BYTE bom[] = {0xFF, 0xFE};
+			const BYTE bom[] = {0xFF, 0xFE};
 
 			WriteFile (hfile, bom, sizeof (bom), &written, nullptr); // write utf-16 le byte order mask
 
@@ -137,12 +140,12 @@ rstring _r_fmt_number (LONG64 number, WCHAR sep)
 	WCHAR input_text[128] = {0};
 	_r_str_printf (input_text, _countof (input_text), L"%" PRId64, number);
 
-	WCHAR thousandSeparator[4];
+	WCHAR thousandSeparator[2];
 
 	thousandSeparator[0] = sep;
 	thousandSeparator[1] = UNICODE_NULL;
 
-	static WCHAR decimalSeparator[4];
+	WCHAR decimalSeparator[2];
 
 	decimalSeparator[0] = L'.';
 	decimalSeparator[1] = UNICODE_NULL;
