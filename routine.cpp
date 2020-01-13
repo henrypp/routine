@@ -2644,9 +2644,9 @@ bool _r_wnd_isdarktheme ()
 		SAUDM _ShouldAppsUseDarkMode = nullptr;
 
 		if (_r_sys_validversion (10, 0, 18362)) // 1903+
-			_ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (huxtheme, MAKEINTRESOURCEA (138));
+			_ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (huxtheme, MAKEINTRESOURCEA (138)); // ShouldSystemUseDarkMode
 		else
-			_ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (huxtheme, MAKEINTRESOURCEA (132));
+			_ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (huxtheme, MAKEINTRESOURCEA (132)); // ShouldAppsUseDarkMode
 
 		if (_ShouldAppsUseDarkMode)
 		{
