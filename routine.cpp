@@ -111,12 +111,12 @@ rstring _r_fmt (LPCWSTR text, ...)
 
 rstring _r_fmt_date (const LPFILETIME ft, DWORD flags)
 {
-	DWORD pflags = flags;
 	WCHAR buffer[128] = {0};
 
-	SHFormatDateTime (ft, &pflags, buffer, _countof (buffer));
+	if (SHFormatDateTime (ft, &flags, buffer, _countof (buffer)) > 0)
+		return buffer;
 
-	return buffer;
+	return nullptr;
 }
 
 rstring _r_fmt_date (time_t ut, DWORD flags)
@@ -2279,39 +2279,42 @@ void _r_wnd_adjustwindowrect (HWND hwnd, LPRECT lprect)
 
 	const HMONITOR hmonitor = hwnd ? MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST) : MonitorFromRect (lprect, MONITOR_DEFAULTTONEAREST);
 
-	if (GetMonitorInfo (hmonitor, &monitorInfo))
+	if (hmonitor)
 	{
-		LPRECT lpbounds = &monitorInfo.rcWork;
+		if (GetMonitorInfo (hmonitor, &monitorInfo))
+		{
+			LPRECT lpbounds = &monitorInfo.rcWork;
 
-		const int original_width = _R_RECT_WIDTH (lprect);
-		const int original_height = _R_RECT_HEIGHT (lprect);
+			const LONG original_width = _R_RECT_WIDTH (lprect);
+			const LONG original_height = _R_RECT_HEIGHT (lprect);
 
-		if (lprect->left + original_width > lpbounds->left + _R_RECT_WIDTH (lpbounds))
-			lprect->left = lpbounds->left + _R_RECT_WIDTH (lpbounds) - original_width;
+			if (lprect->left + original_width > lpbounds->left + _R_RECT_WIDTH (lpbounds))
+				lprect->left = lpbounds->left + _R_RECT_WIDTH (lpbounds) - original_width;
 
-		if (lprect->top + original_height > lpbounds->top + _R_RECT_HEIGHT (lpbounds))
-			lprect->top = lpbounds->top + _R_RECT_HEIGHT (lpbounds) - original_height;
+			if (lprect->top + original_height > lpbounds->top + _R_RECT_HEIGHT (lpbounds))
+				lprect->top = lpbounds->top + _R_RECT_HEIGHT (lpbounds) - original_height;
 
-		if (lprect->left < lpbounds->left)
-			lprect->left = lpbounds->left;
+			if (lprect->left < lpbounds->left)
+				lprect->left = lpbounds->left;
 
-		if (lprect->top < lpbounds->top)
-			lprect->top = lpbounds->top;
+			if (lprect->top < lpbounds->top)
+				lprect->top = lpbounds->top;
 
-		lprect->right = lprect->left + original_width;
-		lprect->bottom = lprect->top + original_height;
+			lprect->right = lprect->left + original_width;
+			lprect->bottom = lprect->top + original_height;
+		}
 	}
 }
 
 void _r_wnd_centerwindowrect (LPRECT lprect, const LPRECT lpparent)
 {
-	lprect->left = lpparent->left + (_R_RECT_WIDTH (lpparent) - _R_RECT_WIDTH (lprect)) / 2;
-	lprect->top = lpparent->top + (_R_RECT_HEIGHT (lpparent) - _R_RECT_HEIGHT (lprect)) / 2;
+	lprect->left = lpparent->left + ((_R_RECT_WIDTH (lpparent) - _R_RECT_WIDTH (lprect)) / 2);
+	lprect->top = lpparent->top + ((_R_RECT_HEIGHT (lpparent) - _R_RECT_HEIGHT (lprect)) / 2);
 }
 
 void _r_wnd_center (HWND hwnd, HWND hparent)
 {
-	if (hparent && (IsWindow (hparent) && IsWindowVisible (hparent) && !IsIconic (hparent)))
+	if (hparent && IsWindow (hparent) && IsWindowVisible (hparent) && !IsIconic (hparent))
 	{
 		RECT rect = {0}, parentRect = {0};
 
@@ -2328,14 +2331,19 @@ void _r_wnd_center (HWND hwnd, HWND hparent)
 		MONITORINFO monitorInfo = {0};
 		monitorInfo.cbSize = sizeof (monitorInfo);
 
-		if (GetMonitorInfo (MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST), &monitorInfo))
+		const HMONITOR hmonitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+
+		if (hmonitor)
 		{
-			RECT rect = {0};
-			GetWindowRect (hwnd, &rect);
+			if (GetMonitorInfo (hmonitor, &monitorInfo))
+			{
+				RECT rect = {0};
+				GetWindowRect (hwnd, &rect);
 
-			_r_wnd_centerwindowrect (&rect, &monitorInfo.rcWork);
+				_r_wnd_centerwindowrect (&rect, &monitorInfo.rcWork);
 
-			SetWindowPos (hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
+				SetWindowPos (hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
+			}
 		}
 	}
 }
