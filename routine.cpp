@@ -1504,9 +1504,6 @@ INT _r_str_compare (LPCWSTR str1, LPCWSTR str2, size_t length)
 	if (!length)
 		return 0;
 
-	if (str1 == str2)
-		return 0;
-
 	const bool is_empty1 = _r_str_isempty (str1);
 	const bool is_empty2 = _r_str_isempty (str2);
 
@@ -1518,6 +1515,9 @@ INT _r_str_compare (LPCWSTR str1, LPCWSTR str2, size_t length)
 
 	if (is_empty1 && !is_empty2)
 		return -1;
+
+	if (str1 == str2)
+		return 0;
 
 	WCHAR ch1 = _r_str_upper (*str1);
 	WCHAR ch2 = _r_str_upper (*str2);
@@ -1533,9 +1533,6 @@ INT _r_str_compare (LPCWSTR str1, LPCWSTR str2, size_t length)
 
 INT _r_str_compare_logical (LPCWSTR str1, LPCWSTR str2)
 {
-	if (str1 == str2)
-		return 0;
-
 	const bool is_empty1 = _r_str_isempty (str1);
 	const bool is_empty2 = _r_str_isempty (str2);
 
@@ -1547,6 +1544,9 @@ INT _r_str_compare_logical (LPCWSTR str1, LPCWSTR str2)
 
 	if (is_empty1 && !is_empty2)
 		return -1;
+
+	if (str1 == str2)
+		return 0;
 
 	return StrCmpLogicalW (str1, str2);
 }
@@ -2602,33 +2602,31 @@ bool _r_wnd_isdarkmessage (LPCWSTR type)
 	if (!_r_sys_validversion (10, 0, 17763)) // 1809+
 		return false;
 
-	if (_r_str_compare (type, L"ImmersiveColorSet") == 0)
+	if (_r_str_compare (type, L"ImmersiveColorSet") != 0)
+		return false;
+
+	const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+
+	if (huxtheme)
 	{
-		const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+		// RefreshImmersiveColorPolicyState
+		typedef VOID (WINAPI* RICPS) (VOID);
+		const RICPS _RefreshImmersiveColorPolicyState = (RICPS)GetProcAddress (huxtheme, MAKEINTRESOURCEA (104));
 
-		if (huxtheme)
-		{
-			// RefreshImmersiveColorPolicyState
-			typedef VOID (WINAPI* RICPS) (VOID);
-			const RICPS _RefreshImmersiveColorPolicyState = (RICPS)GetProcAddress (huxtheme, MAKEINTRESOURCEA (104));
+		if (_RefreshImmersiveColorPolicyState)
+			_RefreshImmersiveColorPolicyState ();
 
-			if (_RefreshImmersiveColorPolicyState)
-				_RefreshImmersiveColorPolicyState ();
+		// GetIsImmersiveColorUsingHighContrast
+		typedef BOOL (WINAPI* GIICUHC) (IMMERSIVE_HC_CACHE_MODE);
+		const GIICUHC _GetIsImmersiveColorUsingHighContrast = (GIICUHC)GetProcAddress (huxtheme, MAKEINTRESOURCEA (106));
 
-			// GetIsImmersiveColorUsingHighContrast
-			typedef BOOL (WINAPI* GIICUHC) (IMMERSIVE_HC_CACHE_MODE);
-			const GIICUHC _GetIsImmersiveColorUsingHighContrast = (GIICUHC)GetProcAddress (huxtheme, MAKEINTRESOURCEA (106));
+		if (_GetIsImmersiveColorUsingHighContrast)
+			_GetIsImmersiveColorUsingHighContrast (IHCM_REFRESH);
 
-			if (_GetIsImmersiveColorUsingHighContrast)
-				_GetIsImmersiveColorUsingHighContrast (IHCM_REFRESH);
-
-			FreeLibrary (huxtheme);
-		}
-
-		return true;
+		FreeLibrary (huxtheme);
 	}
 
-	return false;
+	return true;
 }
 
 bool _r_wnd_isdarktheme ()
@@ -2756,7 +2754,7 @@ void _r_wnd_setdarktheme (HWND hwnd)
 			if (_RefreshImmersiveColorPolicyState)
 				_RefreshImmersiveColorPolicyState ();
 
-			typedef void (WINAPI* FMT) (VOID); // FlushMenuThemes
+			typedef VOID (WINAPI* FMT) (VOID); // FlushMenuThemes
 			const FMT _FlushMenuThemes = (FMT)GetProcAddress (huxtheme, MAKEINTRESOURCEA (136));
 
 			if (_FlushMenuThemes)
