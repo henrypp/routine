@@ -2604,7 +2604,7 @@ bool _r_wnd_isdarkmessage (LPCWSTR type)
 
 	if (_r_str_compare (type, L"ImmersiveColorSet") == 0)
 	{
-		const HMODULE huxtheme = GetModuleHandle (L"uxtheme.dll");
+		const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 		if (huxtheme)
 		{
@@ -2621,6 +2621,8 @@ bool _r_wnd_isdarkmessage (LPCWSTR type)
 
 			if (_GetIsImmersiveColorUsingHighContrast)
 				_GetIsImmersiveColorUsingHighContrast (IHCM_REFRESH);
+
+			FreeLibrary (huxtheme);
 		}
 
 		return true;
@@ -2640,7 +2642,7 @@ bool _r_wnd_isdarktheme ()
 	if (SystemParametersInfo (SPI_GETHIGHCONTRAST, 0, &hci, 0))
 	{
 		// no dark mode in high-contrast mode
-		if ((hci.dwFlags & HCF_HIGHCONTRASTON) == HCF_HIGHCONTRASTON)
+		if ((hci.dwFlags & HCF_HIGHCONTRASTON) != 0)
 			return false;
 	}
 
@@ -2674,7 +2676,7 @@ void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable)
 {
 	if (_r_sys_validversion (10, 0, 18362)) // 1903+
 	{
-		const HMODULE huser32 = GetModuleHandle (L"user32.dll");
+		const HMODULE huser32 = LoadLibraryEx (L"user32.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 		if (huser32)
 		{
@@ -2690,8 +2692,13 @@ void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable)
 				data.cbData = sizeof (is_enable);
 
 				if (_SetWindowCompositionAttribute (hwnd, &data))
+				{
+					FreeLibrary (huser32);
 					return;
+				}
 			}
+
+			FreeLibrary (huser32);
 		}
 	}
 
