@@ -170,7 +170,7 @@ rstring _r_fmt_size64 (ULONG64 bytes)
 {
 	WCHAR buffer[128] = {0};
 
-#ifdef _APP_NO_WINXP
+#if defined(_APP_NO_WINXP)
 	if (SUCCEEDED (StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, _countof (buffer)))) // vista (sp1)+
 		return buffer;
 #else
@@ -204,7 +204,7 @@ rstring _r_fmt_size64 (ULONG64 bytes)
 	https://github.com/processhacker2/processhacker
 */
 
-#ifndef _APP_NO_WINXP
+#if !defined(_APP_NO_WINXP)
 void _r_fastlock_initialize (P_FASTLOCK plock)
 {
 	plock->Value = 0;
@@ -382,7 +382,7 @@ bool _r_fastlock_tryacquireshared (P_FASTLOCK plock)
 
 	return false;
 }
-#endif // _APP_NO_WINXP
+#endif // !_APP_NO_WINXP
 
 /*
 	Objects reference
@@ -466,10 +466,10 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR text, .
 		va_end (args);
 	}
 
-#ifndef _APP_NO_WINXP
+#if !defined(_APP_NO_WINXP)
 	if (_r_sys_validversion (6, 0))
 	{
-#endif // _APP_NO_WINXP
+#endif // !_APP_NO_WINXP
 		TASKDIALOGCONFIG tdc = {0};
 
 		tdc.cbSize = sizeof (tdc);
@@ -524,11 +524,11 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR text, .
 
 		if (_r_msg_taskdialog (&tdc, &result, nullptr, nullptr))
 			return result;
-#ifndef _APP_NO_WINXP
+#if !defined(_APP_NO_WINXP)
 	}
-#endif // _APP_NO_WINXP
+#endif // !_APP_NO_WINXP
 
-#ifndef _APP_NO_WINXP
+#if !defined(_APP_NO_WINXP)
 	if (!result)
 	{
 		MSGBOXPARAMS mbp = {0};
@@ -554,14 +554,14 @@ INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR text, .
 
 		return MessageBoxIndirect (&mbp);
 	}
-#endif // _APP_NO_WINXP
+#endif // !_APP_NO_WINXP
 
 	return 0;
 }
 
 bool _r_msg_taskdialog (const TASKDIALOGCONFIG * ptd, INT * pbutton, INT * pradiobutton, BOOL * pcheckbox)
 {
-#ifdef _APP_NO_WINXP
+#if defined(_APP_NO_WINXP)
 	return SUCCEEDED (TaskDialogIndirect (ptd, pbutton, pradiobutton, pcheckbox));
 #else
 	const HMODULE hlib = GetModuleHandle (L"comctl32.dll");
@@ -2355,7 +2355,7 @@ void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD acti
 	if (!hlib)
 		return;
 
-#ifdef _APP_NO_WINXP
+#if defined(_APP_NO_WINXP)
 	typedef BOOL (WINAPI* CWMFEX) (HWND, UINT, DWORD, PVOID); // ChangeWindowMessageFilterEx
 	const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (hlib, "ChangeWindowMessageFilterEx"); // win7+
 
@@ -2454,7 +2454,7 @@ static bool _r_wnd_isplatformfullscreenmode ()
 	QUERY_USER_NOTIFICATION_STATE state = QUNS_NOT_PRESENT;
 
 	// SHQueryUserNotificationState is only available for Vista+
-#ifdef _APP_NO_WINXP
+#if defined(_APP_NO_WINXP)
 	if (FAILED (SHQueryUserNotificationState (&state)))
 		return false;
 #else
@@ -2474,7 +2474,7 @@ static bool _r_wnd_isplatformfullscreenmode ()
 			}
 		}
 	}
-#endif _APP_NO_WINXP
+#endif // _APP_NO_WINXP
 
 	return (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
 }
@@ -3282,7 +3282,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size)
 {
 	HICON hicon;
 
-#ifdef _APP_NO_WINXP
+#if defined(_APP_NO_WINXP)
 	if (SUCCEEDED (LoadIconWithScaleDown (hinst, name, size, size, &hicon)))
 		return hicon;
 
@@ -3454,7 +3454,7 @@ bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR toolti
 	NOTIFYICONDATA nid = {0};
 	RtlSecureZeroMemory (&nid, sizeof (nid));
 
-#ifdef _APP_NO_WINXP
+#if defined(_APP_NO_WINXP)
 	nid.cbSize = sizeof (nid);
 	nid.uVersion = NOTIFYICON_VERSION_4;
 #else
@@ -3514,7 +3514,7 @@ bool _r_tray_popup (HWND hwnd, UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR t
 	NOTIFYICONDATA nid = {0};
 	RtlSecureZeroMemory (&nid, sizeof (nid));
 
-#ifdef _APP_NO_WINXP
+#if defined(_APP_NO_WINXP)
 	nid.cbSize = sizeof (nid);
 	nid.uVersion = NOTIFYICON_VERSION_4;
 #else
@@ -3544,7 +3544,7 @@ bool _r_tray_setinfo (HWND hwnd, UINT uid, HICON hicon, LPCWSTR tooltip)
 	NOTIFYICONDATA nid = {0};
 	RtlSecureZeroMemory (&nid, sizeof (nid));
 
-#ifdef _APP_NO_WINXP
+#if defined(_APP_NO_WINXP)
 	nid.cbSize = sizeof (nid);
 	nid.uVersion = NOTIFYICON_VERSION_4;
 #else
@@ -3585,7 +3585,7 @@ bool _r_tray_toggle (HWND hwnd, UINT uid, bool is_show)
 	NOTIFYICONDATA nid = {0};
 	RtlSecureZeroMemory (&nid, sizeof (nid));
 
-#ifdef _APP_NO_WINXP
+#if defined(_APP_NO_WINXP)
 	nid.cbSize = sizeof (nid);
 	nid.uVersion = NOTIFYICON_VERSION_4;
 #else
@@ -3610,7 +3610,7 @@ bool _r_tray_destroy (HWND hwnd, UINT uid)
 	NOTIFYICONDATA nid = {0};
 	RtlSecureZeroMemory (&nid, sizeof (nid));
 
-#ifdef _APP_NO_WINXP
+#if defined(_APP_NO_WINXP)
 	nid.cbSize = sizeof (nid);
 	nid.uVersion = NOTIFYICON_VERSION_4;
 #else

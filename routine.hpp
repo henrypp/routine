@@ -4,10 +4,10 @@
 
 #pragma once
 
-#ifndef _APP_NO_WINXP
+#if !defined(_APP_NO_WINXP)
 #undef PSAPI_VERSION
 #define PSAPI_VERSION 1
-#endif // _APP_NO_WINXP
+#endif // !_APP_NO_WINXP
 
 #include <windows.h>
 #include <wtsapi32.h>
@@ -166,7 +166,24 @@ rstring _r_fmt_size64 (ULONG64 bytes);
 	https://github.com/processhacker2/processhacker
 */
 
-#ifndef _APP_NO_WINXP
+#if defined(_APP_NO_WINXP)
+
+#define _R_FASTLOCK RTL_SRWLOCK
+#define P_FASTLOCK PRTL_SRWLOCK
+
+#define _r_fastlock_initialize RtlInitializeSRWLock
+
+#define _r_fastlock_acquireexclusive RtlAcquireSRWLockExclusive
+#define _r_fastlock_acquireshared RtlAcquireSRWLockShared
+
+#define _r_fastlock_releaseexclusive RtlReleaseSRWLockExclusive
+#define _r_fastlock_releaseshared RtlReleaseSRWLockShared
+
+#define _r_fastlock_tryacquireexclusive RtlTryAcquireSRWLockExclusive
+#define _r_fastlock_tryacquireshared RtlTryAcquireSRWLockShared
+
+#else
+
 #define _R_FASTLOCK_OWNED 0x1
 #define _R_FASTLOCK_EXCLUSIVE_WAKING 0x2
 
@@ -240,21 +257,6 @@ void _r_fastlock_releaseshared (P_FASTLOCK plock);
 bool _r_fastlock_tryacquireexclusive (P_FASTLOCK plock);
 bool _r_fastlock_tryacquireshared (P_FASTLOCK plock);
 
-#else
-
-#define _R_FASTLOCK SRWLOCK
-#define P_FASTLOCK PSRWLOCK
-
-#define _r_fastlock_initialize InitializeSRWLock
-
-#define _r_fastlock_acquireexclusive AcquireSRWLockExclusive
-#define _r_fastlock_acquireshared AcquireSRWLockShared
-
-#define _r_fastlock_releaseexclusive ReleaseSRWLockExclusive
-#define _r_fastlock_releaseshared ReleaseSRWLockShared
-
-#define _r_fastlock_tryacquireexclusive TryAcquireSRWLockExclusive
-#define _r_fastlock_tryacquireshared TryAcquireSRWLockShared
 #endif // _APP_NO_WINXP
 
 FORCEINLINE bool _r_fastlock_islocked (const P_FASTLOCK plock)
@@ -265,7 +267,7 @@ FORCEINLINE bool _r_fastlock_islocked (const P_FASTLOCK plock)
 	// in either direction.
 	MemoryBarrier ();
 
-#ifdef _R_FASTLOCK_OWNED
+#if defined(_R_FASTLOCK_OWNED)
 	owned = (plock->Value & _R_FASTLOCK_OWNED);
 #else
 	owned = !!(plock->Ptr);
