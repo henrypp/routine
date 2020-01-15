@@ -168,6 +168,17 @@ rstring _r_fmt_size64 (ULONG64 bytes);
 
 #if defined(_APP_NO_WINXP)
 
+#define RTL_SRWLOCK_OWNED_BIT   0
+#define RTL_SRWLOCK_CONTENDED_BIT   1
+#define RTL_SRWLOCK_SHARED_BIT  2
+#define RTL_SRWLOCK_CONTENTION_LOCK_BIT 3
+#define RTL_SRWLOCK_OWNED   (1 << RTL_SRWLOCK_OWNED_BIT)
+#define RTL_SRWLOCK_CONTENDED   (1 << RTL_SRWLOCK_CONTENDED_BIT)
+#define RTL_SRWLOCK_SHARED  (1 << RTL_SRWLOCK_SHARED_BIT)
+#define RTL_SRWLOCK_CONTENTION_LOCK (1 << RTL_SRWLOCK_CONTENTION_LOCK_BIT)
+#define RTL_SRWLOCK_MASK    (RTL_SRWLOCK_OWNED | RTL_SRWLOCK_CONTENDED | RTL_SRWLOCK_SHARED | RTL_SRWLOCK_CONTENTION_LOCK)
+#define RTL_SRWLOCK_BITS    4
+
 #define _R_FASTLOCK RTL_SRWLOCK
 #define P_FASTLOCK PRTL_SRWLOCK
 
@@ -267,11 +278,12 @@ FORCEINLINE bool _r_fastlock_islocked (const P_FASTLOCK plock)
 	// in either direction.
 	MemoryBarrier ();
 
-#if defined(_R_FASTLOCK_OWNED)
-	owned = (plock->Value & _R_FASTLOCK_OWNED);
+#if defined(_APP_NO_WINXP)
+	owned = ((*(volatile LONG_PTR*)&plock->Ptr) & RTL_SRWLOCK_OWNED);
 #else
-	owned = !!(plock->Ptr);
-#endif // _R_FASTLOCK_OWNED
+	owned = (plock->Value & _R_FASTLOCK_OWNED);
+#endif // _APP_NO_WINXP
+
 	MemoryBarrier ();
 
 	return owned;
