@@ -1142,4 +1142,60 @@ extern "C" {
 		RtlRaiseStatus (
 		_In_ NTSTATUS Status
 		);
+
+	// winbase:InitializeSRWLock
+	NTSYSAPI
+		VOID
+		NTAPI
+		RtlInitializeSRWLock (
+		_Out_ PRTL_SRWLOCK SRWLock
+		);
+
+	// winbase:AcquireSRWLockExclusive
+	NTSYSAPI
+		VOID
+		NTAPI
+		RtlAcquireSRWLockExclusive (
+		_Inout_ PRTL_SRWLOCK SRWLock
+		);
+
+	// winbase:AcquireSRWLockShared
+	NTSYSAPI
+		VOID
+		NTAPI
+		RtlAcquireSRWLockShared (
+		_Inout_ PRTL_SRWLOCK SRWLock
+		);
+
+	// winbase:ReleaseSRWLockExclusive
+	NTSYSAPI
+		VOID
+		NTAPI
+		RtlReleaseSRWLockExclusive (
+		_Inout_ PRTL_SRWLOCK SRWLock
+		);
+
+	// winbase:ReleaseSRWLockShared
+	NTSYSAPI
+		VOID
+		NTAPI
+		RtlReleaseSRWLockShared (
+		_Inout_ PRTL_SRWLOCK SRWLock
+		);
+
+	// winbase:TryAcquireSRWLockExclusive
+	NTSYSAPI
+		BOOLEAN
+		NTAPI
+		RtlTryAcquireSRWLockExclusive (
+		_Inout_ PRTL_SRWLOCK SRWLock
+		);
+
+	// winbase:TryAcquireSRWLockShared
+	NTSYSAPI
+		BOOLEAN
+		NTAPI
+		RtlTryAcquireSRWLockShared (
+		_Inout_ PRTL_SRWLOCK SRWLock
+		);
 };
