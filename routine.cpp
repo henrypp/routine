@@ -2597,12 +2597,17 @@ BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 	return TRUE;
 }
 
-bool _r_wnd_isdarkmessage (LPCWSTR type)
+bool _r_wnd_isdarkmessage (HWND hwnd, WPARAM wparam, LPARAM lparam)
 {
+	LPCWSTR type = reinterpret_cast<LPCWSTR>(lparam);
+
+	if (_r_str_isempty (type))
+		return false;
+
 	if (!_r_sys_validversion (10, 0, 17763)) // 1809+
 		return false;
 
-	if (_r_str_compare (type, L"ImmersiveColorSet") != 0)
+	if (_r_str_compare (type, L"ImmersiveColorSet", 17) != 0)
 		return false;
 
 	const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
@@ -2625,6 +2630,10 @@ bool _r_wnd_isdarkmessage (LPCWSTR type)
 
 		FreeLibrary (huxtheme);
 	}
+
+	_r_wnd_setdarktheme (hwnd);
+
+	PostMessage (hwnd, WM_THEMECHANGED, 0, 0);
 
 	return true;
 }

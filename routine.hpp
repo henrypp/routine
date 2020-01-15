@@ -530,7 +530,7 @@ bool _r_wnd_isfullscreenmode ();
 bool _r_wnd_resize (HDWP *hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags);
 
 #ifndef _APP_NO_DARKTHEME
-bool _r_wnd_isdarkmessage (LPCWSTR type);
+bool _r_wnd_isdarkmessage (HWND hwnd, WPARAM wparam, LPARAM lparam);
 bool _r_wnd_isdarktheme ();
 void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable);
 void _r_wnd_setdarktheme (HWND hwnd);
