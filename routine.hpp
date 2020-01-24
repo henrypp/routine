@@ -1,5 +1,4 @@
 // routine++
-// routine++
 // Copyright (c) 2012-2020 Henry++
 
 #pragma once
@@ -75,23 +74,23 @@ typedef void (*_R_CALLBACK_OBJECT_CLEANUP) (PVOID pdata);
 #endif
 
 #ifndef SAFE_DELETE_HANDLE
-#define SAFE_DELETE_HANDLE(p) {if(p && p != INVALID_HANDLE_VALUE) {CloseHandle (p); (p)=nullptr;}}
+#define SAFE_DELETE_HANDLE(p) {if((p) && (p) != INVALID_HANDLE_VALUE) {CloseHandle ((p)); (p)=nullptr;}}
 #endif
 
 #ifndef SAFE_DELETE_ICON
-#define SAFE_DELETE_ICON(p) {if(p) {DestroyIcon (p); (p)=nullptr;}}
+#define SAFE_DELETE_ICON(p) {if((p)) {DestroyIcon ((p)); (p)=nullptr;}}
 #endif
 
 #ifndef SAFE_LOCAL_FREE
-#define SAFE_LOCAL_FREE(p) {if(p) {LocalFree (p); (p)=nullptr;}}
+#define SAFE_LOCAL_FREE(p) {if((p)) {LocalFree ((p)); ((p))=nullptr;}}
 #endif
 
 #ifndef SAFE_GLOBAL_FREE
-#define SAFE_GLOBAL_FREE(p) {if(p) {GlobalFree (p); (p)=nullptr;}}
+#define SAFE_GLOBAL_FREE(p) {if((p)) {GlobalFree ((p)); (p)=nullptr;}}
 #endif
 
 #ifndef SAFE_HEAP_FREE
-#define SAFE_HEAP_FREE(h,p) {if(p) {HeapFree (h, 0, p); (p)=nullptr;}}
+#define SAFE_HEAP_FREE(h,p) {if((p)) {HeapFree ((h), 0, (p)); (p)=nullptr;}}
 #endif
 
 /*
@@ -311,9 +310,7 @@ void _r_obj_dereferenceex (PR_OBJECT pobj, LONG ref_count);
 	System messages
 */
 
-INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR text, ...);
-bool _r_msg_taskdialog (const TASKDIALOGCONFIG *ptd, INT *pbutton, INT *pradiobutton, BOOL *pcheckbox); // vista TaskDialogIndirect
-void _r_msg_showerror (HWND hwnd, LPCWSTR title, DWORD errcode, HINSTANCE hmodule);
+bool _r_msg_taskdialog (const TASKDIALOGCONFIG* ptd, PINT pbutton, PINT pradiobutton, LPBOOL pcheckbox); // vista TaskDialogIndirect
 HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LONG_PTR lpdata);
 
 /*
@@ -331,11 +328,14 @@ void _r_clipboard_set (HWND hwnd, LPCWSTR text, size_t length);
 #define _r_fs_copy(path_from,path_to,flags) (!!CopyFileEx ((path_from),(path_to),nullptr,nullptr,nullptr,(flags)))
 #define _r_fs_move(path_from,path_to,flags) (!!MoveFileEx ((path_from),(path_to),(flags)))
 
-bool _r_fs_delete (LPCWSTR path, bool allowundo);
+#define RFS_ALLOWUNDO 0x01
+#define RFS_FORCEREMOVE 0x02
+#define RFS_USERECURSION 0x04
+
 bool _r_fs_makebackup (LPCWSTR path, time_t timestamp);
 bool _r_fs_mkdir (LPCWSTR path);
-bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size);
-void _r_fs_rmdir (LPCWSTR path, bool is_recurse);
+bool _r_fs_readfile (HANDLE hfile, LPVOID result, size_t size);
+bool _r_fs_remove (LPCWSTR path, USHORT flags);
 bool _r_fs_setpos (HANDLE hfile, LONG64 pos, DWORD method);
 LONG64 _r_fs_size (HANDLE hfile);
 LONG64 _r_fs_size (LPCWSTR path);
@@ -418,9 +418,9 @@ rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username);
 
 #if !defined(_WIN64)
 bool _r_sys_iswow64 ();
-#endif // _WIN64
+#endif // !_WIN64
 
-bool _r_sys_setprivilege (LPCWSTR* pprivileges, size_t count, bool is_enable);
+void _r_sys_setprivilege (const LPDWORD privileges_arr, DWORD count, bool is_enable);
 bool _r_sys_validversion (DWORD major, DWORD minor, DWORD build = 0, BYTE condition = VER_GREATER_EQUAL);
 
 FORCEINLINE DWORD _r_sys_gettickcount ()
@@ -522,19 +522,19 @@ void _r_wnd_adjustwindowrect (HWND hwnd, LPRECT lprect);
 void _r_wnd_centerwindowrect (LPRECT lprect, const LPRECT lpparent);
 void _r_wnd_center (HWND hwnd, HWND hparent);
 void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD action);
+void _r_wnd_changesettings (HWND hwnd, WPARAM wparam, LPARAM lparam);
 void _r_wnd_enablenonclientscaling (HWND hwnd);
+bool _r_wnd_isfullscreenmode ();
+bool _r_wnd_isundercursor (HWND hwnd);
+bool _r_wnd_resize (HDWP *hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags);
 void _r_wnd_toggle (HWND hwnd, bool is_show);
 void _r_wnd_top (HWND hwnd, bool is_enable);
-bool _r_wnd_undercursor (HWND hwnd);
-bool _r_wnd_isfullscreenmode ();
-bool _r_wnd_resize (HDWP *hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags);
 
-#ifndef _APP_NO_DARKTHEME
-bool _r_wnd_isdarkmessage (HWND hwnd, WPARAM wparam, LPARAM lparam);
+#if !defined(_APP_NO_DARKTHEME)
 bool _r_wnd_isdarktheme ();
 void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable);
 void _r_wnd_setdarktheme (HWND hwnd);
-#endif // _APP_NO_DARKTHEME
+#endif // !_APP_NO_DARKTHEME
 
 /*
 	Inernet access (WinHTTP)

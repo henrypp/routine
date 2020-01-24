@@ -61,7 +61,7 @@ void _r_dbg_write (LPCWSTR path, LPCWSTR text)
 
 		WriteFile (hfile, text, DWORD (_r_str_length (text) * sizeof (WCHAR)), &written, nullptr);
 
-		SAFE_DELETE_HANDLE (hfile);
+		CloseHandle (hfile);
 	}
 }
 
@@ -80,12 +80,12 @@ rstring _r_dbg_getpath ()
 	}
 
 	_r_str_cat (result, _countof (result), L"\\");
-#ifdef APP_NAME_SHORT
+#if defined(APP_NAME_SHORT)
 	_r_str_cat (result, _countof (result), APP_NAME_SHORT);
 #else
 	_r_str_cat (result, _countof (result), L"unnamed");
 #pragma _R_WARNING(APP_NAME_SHORT)
-#endif
+#endif // APP_NAME_SHORT
 	_r_str_cat (result, _countof (result), L"_debug.log");
 
 	return result;
@@ -450,116 +450,7 @@ void _r_obj_dereferenceex (PR_OBJECT pobj, LONG ref_count)
 	System messages
 */
 
-INT _r_msg (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR text, ...)
-{
-	rstring buffer;
-
-	INT result = 0;
-
-	if (text)
-	{
-		va_list args;
-		va_start (args, text);
-
-		buffer.FormatV (text, args);
-
-		va_end (args);
-	}
-
-#if !defined(_APP_NO_WINXP)
-	if (_r_sys_validversion (6, 0))
-	{
-#endif // !_APP_NO_WINXP
-		TASKDIALOGCONFIG tdc = {0};
-
-		tdc.cbSize = sizeof (tdc);
-		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
-		tdc.hwndParent = hwnd;
-		tdc.hInstance = GetModuleHandle (nullptr);
-		tdc.pfCallback = &_r_msg_callback;
-		tdc.pszWindowTitle = title;
-		tdc.pszMainInstruction = main;
-
-		if (!buffer.IsEmpty ())
-			tdc.pszContent = buffer;
-
-		// default buttons
-		if ((flags & MB_DEFMASK) == MB_DEFBUTTON2)
-			tdc.nDefaultButton = IDNO;
-
-		// buttons
-		if ((flags & MB_TYPEMASK) == MB_YESNO)
-			tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
-
-		else if ((flags & MB_TYPEMASK) == MB_YESNOCANCEL)
-			tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON | TDCBF_CANCEL_BUTTON;
-
-		else if ((flags & MB_TYPEMASK) == MB_OKCANCEL)
-			tdc.dwCommonButtons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
-
-		else if ((flags & MB_TYPEMASK) == MB_RETRYCANCEL)
-			tdc.dwCommonButtons = TDCBF_RETRY_BUTTON | TDCBF_CANCEL_BUTTON;
-
-		else
-			tdc.dwCommonButtons = TDCBF_OK_BUTTON;
-
-		// icons
-		if ((flags & MB_ICONMASK) == MB_USERICON)
-			tdc.pszMainIcon = MAKEINTRESOURCE (100);
-
-		else if ((flags & MB_ICONMASK) == MB_ICONASTERISK)
-			tdc.pszMainIcon = TD_INFORMATION_ICON;
-
-		else if ((flags & MB_ICONMASK) == MB_ICONEXCLAMATION)
-			tdc.pszMainIcon = TD_WARNING_ICON;
-
-		else if ((flags & MB_ICONMASK) == MB_ICONQUESTION)
-			tdc.pszMainIcon = TD_INFORMATION_ICON;
-
-		else if ((flags & MB_ICONMASK) == MB_ICONHAND)
-			tdc.pszMainIcon = TD_ERROR_ICON;
-
-		if ((flags & MB_TOPMOST) != 0)
-			tdc.lpCallbackData = MAKELONG (0, TRUE);
-
-		if (_r_msg_taskdialog (&tdc, &result, nullptr, nullptr))
-			return result;
-#if !defined(_APP_NO_WINXP)
-	}
-#endif // !_APP_NO_WINXP
-
-#if !defined(_APP_NO_WINXP)
-	if (!result)
-	{
-		MSGBOXPARAMS mbp = {0};
-
-		if (main)
-		{
-			if (buffer.IsEmpty ())
-				buffer = main;
-
-			else
-				buffer.InsertFormat (0, L"%s\r\n\r\n", main);
-		}
-
-		mbp.cbSize = sizeof (mbp);
-		mbp.hwndOwner = hwnd;
-		mbp.hInstance = GetModuleHandle (nullptr);
-		mbp.dwStyle = flags;
-		mbp.lpszCaption = title;
-		mbp.lpszText = buffer;
-
-		if ((flags & MB_ICONMASK) == MB_USERICON)
-			mbp.lpszIcon = MAKEINTRESOURCE (100);
-
-		return MessageBoxIndirect (&mbp);
-	}
-#endif // !_APP_NO_WINXP
-
-	return 0;
-}
-
-bool _r_msg_taskdialog (const TASKDIALOGCONFIG * ptd, INT * pbutton, INT * pradiobutton, BOOL * pcheckbox)
+bool _r_msg_taskdialog (const TASKDIALOGCONFIG* ptd, PINT pbutton, PINT pradiobutton, LPBOOL pcheckbox)
 {
 #if defined(_APP_NO_WINXP)
 	return SUCCEEDED (TaskDialogIndirect (ptd, pbutton, pradiobutton, pcheckbox));
@@ -568,7 +459,7 @@ bool _r_msg_taskdialog (const TASKDIALOGCONFIG * ptd, INT * pbutton, INT * pradi
 
 	if (hlib)
 	{
-		typedef HRESULT (WINAPI* TDI) (const TASKDIALOGCONFIG*, INT*, INT*, BOOL*); // TaskDialogIndirect
+		typedef HRESULT (WINAPI* TDI) (const TASKDIALOGCONFIG*, PINT, PINT, LPBOOL); // TaskDialogIndirect
 		const TDI _TaskDialogIndirect = (TDI)GetProcAddress (hlib, "TaskDialogIndirect");
 
 		if (_TaskDialogIndirect)
@@ -578,66 +469,6 @@ bool _r_msg_taskdialog (const TASKDIALOGCONFIG * ptd, INT * pbutton, INT * pradi
 	return false;
 #endif // _APP_NO_WINXP
 }
-
-void _r_msg_showerror (HWND hwnd, LPCWSTR title, DWORD errcode, HINSTANCE hmodule)
-{
-	HLOCAL buffer = nullptr;
-	FormatMessage (FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, hmodule, errcode, 0, (LPWSTR)&buffer, 0, nullptr);
-
-	TASKDIALOGCONFIG tdc = {0};
-	TASKDIALOG_BUTTON td_buttons[2] = {0};
-
-	WCHAR str_main[128] = {0};
-	WCHAR str_content[512] = {0};
-	WCHAR str_flag[64] = {0};
-
-	WCHAR button1[64] = {0};
-	WCHAR button2[64] = {0};
-
-	tdc.cbSize = sizeof (tdc);
-	tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_NO_SET_FOREGROUND | TDF_SIZE_TO_CONTENT;
-	tdc.hwndParent = hwnd;
-	tdc.hInstance = GetModuleHandle (nullptr);
-	tdc.pszMainIcon = TD_WARNING_ICON;
-	tdc.pszWindowTitle = title;
-	tdc.pszMainInstruction = str_main;
-	tdc.pszContent = str_content;
-	tdc.pszVerificationText = str_flag;
-	tdc.pfCallback = &_r_msg_callback;
-	tdc.lpCallbackData = MAKELONG (0, 1);
-
-	tdc.pButtons = td_buttons;
-	tdc.cButtons = _countof (td_buttons);
-
-	td_buttons[0].nButtonID = IDYES;
-	td_buttons[0].pszButtonText = button1;
-
-	td_buttons[1].nButtonID = IDCLOSE;
-	td_buttons[1].pszButtonText = button2;
-
-	tdc.nDefaultButton = IDCLOSE;
-
-	LPWSTR text = (LPWSTR)buffer;
-
-	_r_str_trim (text, L"\r\n "); // trim trailing whitespaces
-
-	_r_str_copy (str_main, _countof (str_main), L"This information may provide clues as to what went wrong and how to fix it.");
-	_r_str_printf (str_content, _countof (str_content), L"%s (0x%08" PRIX32 L")", _r_str_isempty (text) ? L"n/a" : text, errcode);
-
-	_r_str_copy (button1, _countof (button1), L"Copy");
-	_r_str_copy (button2, _countof (button2), L"Close");
-
-	INT result = 0;
-
-	if (_r_msg_taskdialog (&tdc, &result, nullptr, nullptr))
-	{
-		if (result == td_buttons[0].nButtonID)
-			_r_clipboard_set (nullptr, str_content, _r_str_length (str_content));
-	}
-
-	SAFE_LOCAL_FREE (buffer);
-}
-
 
 HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LONG_PTR lpdata)
 {
@@ -661,25 +492,16 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 
 		case TDN_DIALOG_CONSTRUCTED:
 		{
-			const BOOL is_donotdrawicon = LOWORD (lpdata);
-
-			if (!is_donotdrawicon)
-			{
-				HWND hparent = GetParent (hwnd);
-
-				if (hparent)
-				{
-					SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)SendMessage (hparent, WM_GETICON, ICON_SMALL, 0));
-					SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)SendMessage (hparent, WM_GETICON, ICON_BIG, 0));
-				}
-			}
+			// remove window icon
+			SendMessage (hwnd, WM_SETICON, ICON_SMALL, NULL);
+			SendMessage (hwnd, WM_SETICON, ICON_BIG, NULL);
 
 			break;
 		}
 
 		case TDN_HYPERLINK_CLICKED:
 		{
-			ShellExecute (hwnd, nullptr, (LPCWSTR)lparam, nullptr, nullptr, SW_SHOWDEFAULT);
+			ShellExecute (hwnd, nullptr, (LPCWSTR)lparam, nullptr, nullptr, SW_SHOWNORMAL);
 			break;
 		}
 	}
@@ -757,28 +579,6 @@ void _r_clipboard_set (HWND hwnd, LPCWSTR text, size_t length)
 	Filesystem
 */
 
-bool _r_fs_delete (LPCWSTR path, bool allowundo)
-{
-	if (_r_str_isempty (path))
-		return false;
-
-	SetFileAttributes (path, FILE_ATTRIBUTE_NORMAL);
-
-	if (allowundo)
-	{
-		SHFILEOPSTRUCT op = {0};
-
-		op.wFunc = FO_DELETE;
-		op.pFrom = path;
-		op.fFlags = FOF_NO_UI | FOF_ALLOWUNDO;
-
-		if (SHFileOperation (&op) == ERROR_SUCCESS)
-			return true;
-	}
-
-	return !!DeleteFile (path); // fallback
-}
-
 bool _r_fs_makebackup (LPCWSTR path, time_t timestamp)
 {
 	if (_r_str_isempty (path) || !_r_fs_exists (path))
@@ -823,12 +623,12 @@ bool _r_fs_mkdir (LPCWSTR path)
 	return !!CreateDirectory (path, nullptr); // fallback
 }
 
-bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size)
+bool _r_fs_readfile (HANDLE hfile, LPVOID result, size_t size)
 {
 	if (!hfile || hfile == INVALID_HANDLE_VALUE)
 		return false;
 
-	HANDLE hmap = CreateFileMapping (hfile, nullptr, PAGE_READONLY, 0, (DWORD)size, nullptr);
+	const HANDLE hmap = CreateFileMapping (hfile, nullptr, PAGE_READONLY, 0, (DWORD)size, nullptr);
 
 	if (hmap)
 	{
@@ -836,57 +636,50 @@ bool _r_fs_readfile (HANDLE hfile, LPVOID result, DWORD64 size)
 
 		if (pbuffer)
 		{
-			RtlCopyMemory (result, pbuffer, (size_t)size);
+			RtlCopyMemory (result, pbuffer, size);
 
 			UnmapViewOfFile (pbuffer);
-			SAFE_DELETE_HANDLE (hmap);
+			CloseHandle (hmap);
 
 			return true;
 		}
 
-		SAFE_DELETE_HANDLE (hmap);
+		CloseHandle (hmap);
 	}
 
 	return false;
 }
 
-void _r_fs_rmdir (LPCWSTR path, bool is_recurse)
+bool _r_fs_remove (LPCWSTR path, USHORT flags)
 {
 	if (_r_str_isempty (path))
-		return;
+		return false;
 
-	if (is_recurse)
+	if ((flags & RFS_FORCEREMOVE) == RFS_FORCEREMOVE)
+		SetFileAttributes (path, FILE_ATTRIBUTE_NORMAL);
+
+	if ((flags & (RFS_ALLOWUNDO | RFS_USERECURSION)) != 0)
 	{
-		WIN32_FIND_DATA wfd = {0};
+		SHFILEOPSTRUCT op = {0};
 
-		HANDLE hfind = FindFirstFile (_r_fmt (L"%s\\*.*", path), &wfd);
+		op.wFunc = FO_DELETE;
+		op.pFrom = path;
+		op.fFlags = FOF_NO_UI;
 
-		if (hfind != INVALID_HANDLE_VALUE)
-		{
-			do
-			{
-				if (wfd.cFileName[0] == UNICODE_NULL || (wfd.cFileName[0] == L'.' && wfd.cFileName[1] == UNICODE_NULL) || (wfd.cFileName[0] == L'.' && wfd.cFileName[1] == L'.' && wfd.cFileName[2] == UNICODE_NULL))
-					continue;
+		if ((flags & RFS_ALLOWUNDO) == RFS_ALLOWUNDO)
+			op.fFlags |= FOF_ALLOWUNDO;
 
-				rstring full_path;
-				full_path.Format (L"%s\\%s", path, wfd.cFileName);
+		if ((flags & RFS_USERECURSION) == 0)
+			op.fFlags |= FOF_NORECURSION;
 
-				if ((wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
-				{
-					_r_fs_rmdir (full_path, is_recurse);
-				}
-				else
-				{
-					_r_fs_delete (full_path, false);
-				}
-			}
-			while (FindNextFile (hfind, &wfd));
-
-			FindClose (hfind);
-		}
+		if (SHFileOperation (&op) == ERROR_SUCCESS)
+			return true;
 	}
 
-	RemoveDirectory (path);
+	if ((GetFileAttributes (path) & FILE_ATTRIBUTE_DIRECTORY) != 0)
+		return !!RemoveDirectory (path); // delete folder (fallback!)
+
+	return !!DeleteFile (path); // delete file (fallback!)
 }
 
 bool _r_fs_setpos (HANDLE hfile, LONG64 pos, DWORD method)
@@ -917,8 +710,8 @@ LONG64 _r_fs_size (LPCWSTR path)
 	if (hfile != INVALID_HANDLE_VALUE)
 	{
 		const LONG64 result = _r_fs_size (hfile);
+		CloseHandle (hfile);
 
-		SAFE_DELETE_HANDLE (hfile);
 		return result;
 	}
 
@@ -994,7 +787,7 @@ void _r_path_explore (LPCWSTR path)
 		rstring dir = _r_path_getdirectory (path);
 
 		if (_r_fs_exists (dir))
-			ShellExecute (nullptr, nullptr, dir, nullptr, nullptr, SW_SHOWDEFAULT);
+			ShellExecute (nullptr, nullptr, dir, nullptr, nullptr, SW_SHOWNORMAL);
 	}
 }
 
@@ -1309,7 +1102,7 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 
 		SAFE_DELETE_ARRAY (pbuffer);
 
-		SAFE_DELETE_HANDLE (hfile);
+		CloseHandle (hfile);
 	}
 
 	return status;
@@ -1886,41 +1679,30 @@ bool _r_sys_iselevated ()
 
 	if (!is_initialized)
 	{
+		is_initialized = true;
 
 #if !defined(_APP_NO_WINXP)
 		// winxp compatibility
 		if (!_r_sys_validversion (6, 0))
 		{
-			is_initialized = true;
 			is_elevated = !!IsUserAnAdmin ();
 
 			return is_elevated;
 		}
-#endif // _APP_NO_WINXP
+#endif // !_APP_NO_WINXP
 
-		const bool is_win8 = _r_sys_validversion (6, 2);
+		HANDLE htoken = nullptr;
 
-		HANDLE htoken;
-
-		// win8+
-		if (is_win8)
-			htoken = NtCurrentProcessToken ();
-
-		else
-			OpenProcessToken (NtCurrentProcess (), TOKEN_QUERY, &htoken);
-
-		TOKEN_ELEVATION elevation;
-		ULONG returnLength;
-
-		if (NT_SUCCESS (NtQueryInformationToken (htoken, TokenElevation, &elevation, sizeof (TOKEN_ELEVATION), &returnLength)))
+		if (OpenProcessToken (NtCurrentProcess (), TOKEN_QUERY, &htoken))
 		{
-			is_elevated = !!elevation.TokenIsElevated;
+			TOKEN_ELEVATION elevation = {0};
+			ULONG returnLength = 0;
+
+			if (NT_SUCCESS (NtQueryInformationToken (htoken, TokenElevation, &elevation, sizeof (elevation), &returnLength)))
+				is_elevated = !!elevation.TokenIsElevated;
+
+			CloseHandle (htoken);
 		}
-
-		if (!is_win8)
-			SAFE_DELETE_HANDLE (htoken);
-
-		is_initialized = true;
 	}
 
 	return is_elevated;
@@ -1974,7 +1756,7 @@ bool _r_sys_iswow64 ()
 
 	if (hlib)
 	{
-		typedef BOOL (WINAPI* IW64P) (HANDLE, PBOOL); // IsWow64Process
+		typedef BOOL (WINAPI* IW64P) (HANDLE, LPBOOL); // IsWow64Process
 		const IW64P _IsWow64Process = (IW64P)GetProcAddress (hlib, "IsWow64Process");
 
 		if (_IsWow64Process)
@@ -1990,40 +1772,37 @@ bool _r_sys_iswow64 ()
 }
 #endif // _WIN64
 
-bool _r_sys_setprivilege (LPCWSTR* pprivileges, size_t count, bool is_enable)
+void _r_sys_setprivilege (const LPDWORD privileges_arr, DWORD count, bool is_enable)
 {
-	HANDLE token = nullptr;
+	HANDLE htoken = nullptr;
 
-	LUID luid = {0};
-	TOKEN_PRIVILEGES tp = {0};
-
-	bool result = false;
-
-	if (OpenProcessToken (NtCurrentProcess (), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token))
+	if (OpenProcessToken (NtCurrentProcess (), TOKEN_ADJUST_PRIVILEGES, &htoken))
 	{
-		for (size_t i = 0; i < count; i++)
-		{
-			if (LookupPrivilegeValue (nullptr, pprivileges[i], &luid))
-			{
-				tp.PrivilegeCount = 1;
-				tp.Privileges[0].Luid = luid;
-				tp.Privileges[0].Attributes = is_enable ? SE_PRIVILEGE_ENABLED : SE_PRIVILEGE_REMOVED;
+		LPSTR privilegesBuffer = new CHAR[FIELD_OFFSET (TOKEN_PRIVILEGES, Privileges) + (sizeof (LUID_AND_ATTRIBUTES) * count)];
+		PTOKEN_PRIVILEGES privileges = (PTOKEN_PRIVILEGES)privilegesBuffer;
 
-				if (AdjustTokenPrivileges (token, FALSE, &tp, sizeof (tp), nullptr, nullptr))
-					result = true;
-			}
+		privileges->PrivilegeCount = count;
+
+		for (DWORD i = 0; i < count; i++)
+		{
+			privileges->Privileges[i].Luid.LowPart = privileges_arr[i];
+			privileges->Privileges[i].Luid.HighPart = 0;
+			privileges->Privileges[i].Attributes = is_enable ? SE_PRIVILEGE_ENABLED : SE_PRIVILEGE_REMOVED;
 		}
 
-		SAFE_DELETE_HANDLE (token);
-	}
+		NtAdjustPrivilegesToken (htoken, FALSE, privileges, 0, nullptr, nullptr);
 
-	return result;
+		SAFE_DELETE_ARRAY (privilegesBuffer);
+
+		CloseHandle (htoken);
+	}
 }
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms725494(v=vs.85).aspx
 bool _r_sys_validversion (DWORD major, DWORD minor, DWORD build, BYTE condition)
 {
 	OSVERSIONINFOEX osvi = {0};
+
 	DWORDLONG mask = 0;
 	DWORD type_mask = VER_MAJORVERSION | VER_MINORVERSION;
 
@@ -2038,6 +1817,7 @@ bool _r_sys_validversion (DWORD major, DWORD minor, DWORD build, BYTE condition)
 	if (build)
 	{
 		VER_SET_CONDITION (mask, VER_BUILDNUMBER, condition);
+
 		type_mask |= VER_BUILDNUMBER;
 	}
 
@@ -2314,7 +2094,7 @@ void _r_wnd_centerwindowrect (LPRECT lprect, const LPRECT lpparent)
 
 void _r_wnd_center (HWND hwnd, HWND hparent)
 {
-	if (hparent && IsWindow (hparent) && IsWindowVisible (hparent) && !IsIconic (hparent))
+	if (hparent && IsWindowVisible (hparent) && !IsIconic (hparent))
 	{
 		RECT rect = {0}, parentRect = {0};
 
@@ -2392,61 +2172,69 @@ void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD acti
 #endif // _APP_NO_WINXP
 }
 
+void _r_wnd_changesettings (HWND hwnd, WPARAM wparam, LPARAM lparam)
+{
+	LPCWSTR type = reinterpret_cast<LPCWSTR>(lparam);
+
+	if (_r_str_isempty (type))
+		return;
+
+	if (_r_str_compare (type, L"WindowMetrics") == 0)
+	{
+		SendMessage (hwnd, RM_LOCALIZE, 0, 0);
+		SendMessage (hwnd, WM_THEMECHANGED, 0, 0);
+	}
+#if !defined(_APP_NO_DARKTHEME)
+	else if (_r_str_compare (type, L"ImmersiveColorSet") == 0)
+	{
+		if (!_r_sys_validversion (10, 0, 17763)) // 1809+
+			return;
+
+		const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+
+		if (huxtheme)
+		{
+			// RefreshImmersiveColorPolicyState
+			typedef VOID (WINAPI* RICPS) (VOID);
+			const RICPS _RefreshImmersiveColorPolicyState = (RICPS)GetProcAddress (huxtheme, MAKEINTRESOURCEA (104));
+
+			if (_RefreshImmersiveColorPolicyState)
+				_RefreshImmersiveColorPolicyState ();
+
+			// GetIsImmersiveColorUsingHighContrast
+			typedef BOOL (WINAPI* GIICUHC) (IMMERSIVE_HC_CACHE_MODE);
+			const GIICUHC _GetIsImmersiveColorUsingHighContrast = (GIICUHC)GetProcAddress (huxtheme, MAKEINTRESOURCEA (106));
+
+			if (_GetIsImmersiveColorUsingHighContrast)
+				_GetIsImmersiveColorUsingHighContrast (IHCM_REFRESH);
+
+			FreeLibrary (huxtheme);
+		}
+
+		_r_wnd_setdarktheme (hwnd);
+
+		SendMessage (hwnd, WM_THEMECHANGED, 0, 0);
+	}
+#endif // !_APP_NO_DARKTHEME
+}
+
 void _r_wnd_enablenonclientscaling (HWND hwnd)
 {
 	if (!_r_sys_validversion (10, 0, 14393)) // win10rs1+
 		return;
 
-	HMODULE hlib = GetModuleHandle (L"user32.dll");
+	const HMODULE huser32 = LoadLibraryEx (L"user32.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
-	if (hlib)
+	if (huser32)
 	{
 		typedef BOOL (WINAPI* ENCDS) (HWND); // EnableNonClientDpiScaling
-		const ENCDS _EnableNonClientDpiScaling = (ENCDS)GetProcAddress (hlib, "EnableNonClientDpiScaling");
+		const ENCDS _EnableNonClientDpiScaling = (ENCDS)GetProcAddress (huser32, "EnableNonClientDpiScaling");
 
 		if (_EnableNonClientDpiScaling)
 			_EnableNonClientDpiScaling (hwnd);
+
+		FreeLibrary (huser32);
 	}
-}
-
-void _r_wnd_toggle (HWND hwnd, bool is_show)
-{
-	if (is_show || !IsWindowVisible (hwnd))
-	{
-		ShowWindow (hwnd, SW_SHOW);
-
-		if (GetLastError () == ERROR_ACCESS_DENIED)
-			SendMessage (hwnd, WM_SYSCOMMAND, SC_RESTORE, 0); // uipi fix
-
-		SetForegroundWindow (hwnd);
-		SwitchToThisWindow (hwnd, TRUE);
-	}
-	else
-	{
-		ShowWindow (hwnd, SW_HIDE);
-	}
-}
-
-void _r_wnd_top (HWND hwnd, bool is_enable)
-{
-	SetWindowPos (hwnd, (is_enable ? HWND_TOPMOST : HWND_NOTOPMOST), 0, 0, 0, 0, SWP_NOOWNERZORDER | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-}
-
-// Author: Mikhail
-// https://stackoverflow.com/a/9126096
-
-bool _r_wnd_undercursor (HWND hwnd)
-{
-	if (!IsWindow (hwnd) || !IsWindowVisible (hwnd) || IsIconic (hwnd))
-		return false;
-
-	POINT pt = {0};
-	RECT rect = {0};
-
-	GetCursorPos (&pt);
-	GetWindowRect (hwnd, &rect);
-
-	return !!PtInRect (&rect, pt);
 }
 
 static bool _r_wnd_isplatformfullscreenmode ()
@@ -2458,20 +2246,20 @@ static bool _r_wnd_isplatformfullscreenmode ()
 	if (FAILED (SHQueryUserNotificationState (&state)))
 		return false;
 #else
-	if (_r_sys_validversion (6, 0))
+	if (!_r_sys_validversion (6, 0))
+		return false;
+
+	const HINSTANCE hlib = GetModuleHandle (L"shell32.dll");
+
+	if (hlib)
 	{
-		const HINSTANCE hlib = GetModuleHandle (L"shell32.dll");
+		typedef HRESULT (WINAPI* SHQueryUserNotificationStatePtr)(QUERY_USER_NOTIFICATION_STATE* state);
+		const SHQueryUserNotificationStatePtr _SHQueryUserNotificationState = (SHQueryUserNotificationStatePtr)GetProcAddress (hlib, "SHQueryUserNotificationState");
 
-		if (hlib)
+		if (_SHQueryUserNotificationState)
 		{
-			typedef HRESULT (WINAPI* SHQueryUserNotificationStatePtr)(QUERY_USER_NOTIFICATION_STATE * state);
-			const SHQueryUserNotificationStatePtr _SHQueryUserNotificationState = (SHQueryUserNotificationStatePtr)GetProcAddress (hlib, "SHQueryUserNotificationState");
-
-			if (_SHQueryUserNotificationState)
-			{
-				if (FAILED (_SHQueryUserNotificationState (&state)))
-					return false;
-			}
+			if (FAILED (_SHQueryUserNotificationState (&state)))
+				return false;
 		}
 	}
 #endif // _APP_NO_WINXP
@@ -2482,19 +2270,26 @@ static bool _r_wnd_isplatformfullscreenmode ()
 static bool _r_wnd_isfullscreenwindowmode ()
 {
 	// Get the foreground window which the user is currently working on.
-	HWND wnd = GetForegroundWindow ();
-	if (!wnd)
+	HWND hwnd = GetForegroundWindow ();
+
+	if (!hwnd)
 		return false;
 
 	// Get the monitor where the window is located.
 	RECT wnd_rect;
-	if (!GetWindowRect (wnd, &wnd_rect))
+
+	if (!GetWindowRect (hwnd, &wnd_rect))
 		return false;
-	HMONITOR monitor = MonitorFromRect (&wnd_rect, MONITOR_DEFAULTTONULL);
-	if (!monitor)
+
+	HMONITOR hmonitor = MonitorFromRect (&wnd_rect, MONITOR_DEFAULTTONULL);
+
+	if (!hmonitor)
 		return false;
-	MONITORINFO monitor_info = {sizeof (monitor_info)};
-	if (!GetMonitorInfo (monitor, &monitor_info))
+
+	MONITORINFO monitor_info = {0};
+	monitor_info.cbSize = sizeof (monitor_info);
+
+	if (!GetMonitorInfo (hmonitor, &monitor_info))
 		return false;
 
 	// It should be the main monitor.
@@ -2504,15 +2299,16 @@ static bool _r_wnd_isfullscreenwindowmode ()
 	// The window should be at least as large as the monitor.
 	if (!IntersectRect (&wnd_rect, &wnd_rect, &monitor_info.rcMonitor))
 		return false;
+
 	if (!EqualRect (&wnd_rect, &monitor_info.rcMonitor))
 		return false;
 
 	// At last, the window style should not have WS_DLGFRAME and WS_THICKFRAME and
 	// its extended style should not have WS_EX_WINDOWEDGE and WS_EX_TOOLWINDOW.
-	LONG_PTR style = GetWindowLongPtr (wnd, GWL_STYLE);
-	LONG_PTR ext_style = GetWindowLongPtr (wnd, GWL_EXSTYLE);
+	LONG_PTR style = GetWindowLongPtr (hwnd, GWL_STYLE);
+	LONG_PTR ex_style = GetWindowLongPtr (hwnd, GWL_EXSTYLE);
 
-	return !((style & (WS_DLGFRAME | WS_THICKFRAME)) || (ext_style & (WS_EX_WINDOWEDGE | WS_EX_TOOLWINDOW)));
+	return !((style & (WS_DLGFRAME | WS_THICKFRAME)) || (ex_style & (WS_EX_WINDOWEDGE | WS_EX_TOOLWINDOW)));
 }
 
 static bool _r_wnd_isfullscreenconsolemode ()
@@ -2545,6 +2341,23 @@ bool _r_wnd_isfullscreenmode ()
 	return _r_wnd_isplatformfullscreenmode () || _r_wnd_isfullscreenwindowmode () || _r_wnd_isfullscreenconsolemode ();
 }
 
+// Author: Mikhail
+// https://stackoverflow.com/a/9126096
+
+bool _r_wnd_isundercursor (HWND hwnd)
+{
+	if (!hwnd || !IsWindowVisible (hwnd) || IsIconic (hwnd))
+		return false;
+
+	POINT pt = {0};
+	RECT rect = {0};
+
+	GetCursorPos (&pt);
+	GetWindowRect (hwnd, &rect);
+
+	return !!PtInRect (&rect, pt);
+}
+
 bool _r_wnd_resize (HDWP* hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags)
 {
 	flags |= SWP_NOACTIVATE;
@@ -2561,25 +2374,48 @@ bool _r_wnd_resize (HDWP* hdefer, HWND hwnd, HWND hwnd_after, INT left, INT righ
 	return !!SetWindowPos (hwnd, hwnd_after, left, right, width, height, flags);
 }
 
+void _r_wnd_toggle (HWND hwnd, bool is_show)
+{
+	if (is_show || !IsWindowVisible (hwnd))
+	{
+		ShowWindow (hwnd, SW_SHOW);
+
+		if (GetLastError () == ERROR_ACCESS_DENIED)
+			SendMessage (hwnd, WM_SYSCOMMAND, SC_RESTORE, 0); // uipi fix
+
+		SetForegroundWindow (hwnd);
+		SwitchToThisWindow (hwnd, TRUE);
+	}
+	else
+	{
+		ShowWindow (hwnd, SW_HIDE);
+	}
+}
+
+void _r_wnd_top (HWND hwnd, bool is_enable)
+{
+	SetWindowPos (hwnd, (is_enable ? HWND_TOPMOST : HWND_NOTOPMOST), 0, 0, 0, 0, SWP_NOOWNERZORDER | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+}
+
 #if !defined(_APP_NO_DARKTHEME)
 BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 {
-	const BOOL is_darktheme = LOWORD (lparam);
+	WCHAR class_name[64] = {0};
 
-	WCHAR class_name[128] = {0};
-
-	if (GetClassName (hwnd, class_name, _countof (class_name)))
+	if (GetClassName (hwnd, class_name, _countof (class_name)) > 0)
 	{
+		const BOOL is_darktheme = LOWORD (lparam);
+
 		if (_r_str_compare (class_name, WC_LISTVIEW) == 0)
 		{
-			HWND htip = (HWND)SendMessage (hwnd, LVM_GETTOOLTIPS, 0, 0);
+			const HWND htip = (HWND)SendMessage (hwnd, LVM_GETTOOLTIPS, 0, 0);
 
 			if (htip)
 				SetWindowTheme (htip, is_darktheme ? L"DarkMode_Explorer" : L"", nullptr);
 		}
 		else if (_r_str_compare (class_name, WC_TREEVIEW) == 0)
 		{
-			HWND htip = (HWND)SendMessage (hwnd, TVM_GETTOOLTIPS, 0, 0);
+			const HWND htip = (HWND)SendMessage (hwnd, TVM_GETTOOLTIPS, 0, 0);
 
 			if (htip)
 				SetWindowTheme (htip, is_darktheme ? L"DarkMode_Explorer" : L"", nullptr);
@@ -2595,47 +2431,6 @@ BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 	}
 
 	return TRUE;
-}
-
-bool _r_wnd_isdarkmessage (HWND hwnd, WPARAM wparam, LPARAM lparam)
-{
-	LPCWSTR type = reinterpret_cast<LPCWSTR>(lparam);
-
-	if (_r_str_isempty (type))
-		return false;
-
-	if (!_r_sys_validversion (10, 0, 17763)) // 1809+
-		return false;
-
-	if (_r_str_compare (type, L"ImmersiveColorSet", 17) != 0)
-		return false;
-
-	const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
-
-	if (huxtheme)
-	{
-		// RefreshImmersiveColorPolicyState
-		typedef VOID (WINAPI* RICPS) (VOID);
-		const RICPS _RefreshImmersiveColorPolicyState = (RICPS)GetProcAddress (huxtheme, MAKEINTRESOURCEA (104));
-
-		if (_RefreshImmersiveColorPolicyState)
-			_RefreshImmersiveColorPolicyState ();
-
-		// GetIsImmersiveColorUsingHighContrast
-		typedef BOOL (WINAPI* GIICUHC) (IMMERSIVE_HC_CACHE_MODE);
-		const GIICUHC _GetIsImmersiveColorUsingHighContrast = (GIICUHC)GetProcAddress (huxtheme, MAKEINTRESOURCEA (106));
-
-		if (_GetIsImmersiveColorUsingHighContrast)
-			_GetIsImmersiveColorUsingHighContrast (IHCM_REFRESH);
-
-		FreeLibrary (huxtheme);
-	}
-
-	_r_wnd_setdarktheme (hwnd);
-
-	PostMessage (hwnd, WM_THEMECHANGED, 0, 0);
-
-	return true;
 }
 
 bool _r_wnd_isdarktheme ()
@@ -2657,7 +2452,7 @@ bool _r_wnd_isdarktheme ()
 
 	if (huxtheme)
 	{
-		typedef BOOL (WINAPI* SAUDM) (VOID); // ShouldAppsUseDarkMode / ShouldSystemUseDarkMode
+		typedef BOOL (WINAPI* SAUDM) (VOID);
 		SAUDM _ShouldAppsUseDarkMode = nullptr;
 
 		if (_r_sys_validversion (10, 0, 18362)) // 1903+
@@ -2709,7 +2504,7 @@ void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable)
 		}
 	}
 
-	SetProp (hwnd, L"UseImmersiveDarkModeColors", (HANDLE)(LONG_PTR)is_enable);
+	SetProp (hwnd, L"UseImmersiveDarkModeColors", (HANDLE)(LONG_PTR)is_enable); // 1809 fallback
 }
 
 void _r_wnd_setdarktheme (HWND hwnd)
@@ -2986,7 +2781,6 @@ DWORD _r_inet_parseurl (LPCWSTR url, PINT scheme_ptr, LPWSTR host_ptr, LPWORD po
 		return ERROR_BAD_ARGUMENTS;
 
 	URL_COMPONENTS url_comp = {0};
-	RtlSecureZeroMemory (&url_comp, sizeof (url_comp));
 
 	url_comp.dwStructSize = sizeof (url_comp);
 
@@ -3314,7 +3108,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size)
 			if (SUCCEEDED (_LoadIconWithScaleDown (hinst, name, size, size, &hicon)))
 				return hicon;
 		}
-	}
+}
 
 	return (HICON)LoadImage (hinst, name, IMAGE_ICON, size, size, 0);
 #endif // _APP_NO_WINXP
@@ -3347,7 +3141,7 @@ LPVOID _r_loadresource (HINSTANCE hinst, LPCWSTR res, LPCWSTR type, PDWORD psize
 	return nullptr;
 }
 
-bool _r_parseini (LPCWSTR path, rstringmap2& pmap, rstringvec * psections)
+bool _r_parseini (LPCWSTR path, rstringmap2& pmap, rstringvec* psections)
 {
 	if (_r_str_isempty (path) || !_r_fs_exists (path))
 		return false;
@@ -3357,8 +3151,8 @@ bool _r_parseini (LPCWSTR path, rstringmap2& pmap, rstringvec * psections)
 	size_t delimeter_pos;
 
 	// get section names
-	size_t alloc_length = 2048;
-	size_t out_length = GetPrivateProfileSectionNames (section_ptr.GetBuffer (alloc_length), (DWORD)alloc_length, path);
+	DWORD alloc_length = 0x0800;
+	DWORD out_length = GetPrivateProfileSectionNames (section_ptr.GetBuffer (alloc_length), alloc_length, path);
 
 	if (!out_length)
 	{
@@ -3379,7 +3173,7 @@ bool _r_parseini (LPCWSTR path, rstringmap2& pmap, rstringvec * psections)
 		if (psections)
 			psections->push_back (section_name);
 
-		out_length = GetPrivateProfileSection (section_name, value_buff, (DWORD)alloc_length, path);
+		out_length = GetPrivateProfileSection (section_name, value_buff, alloc_length, path);
 
 		if (out_length && !_r_str_isempty (value_buff))
 		{
@@ -3418,10 +3212,6 @@ bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR dir, WORD show_state, DW
 	STARTUPINFO si = {0};
 	PROCESS_INFORMATION pi = {0};
 
-	RtlSecureZeroMemory (&si, sizeof (si));
-	RtlSecureZeroMemory (&pi, sizeof (pi));
-
-	bool result = false;
 	si.cb = sizeof (si);
 
 	if (show_state != SW_SHOWDEFAULT)
@@ -3430,19 +3220,22 @@ bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR dir, WORD show_state, DW
 		si.wShowWindow = show_state;
 	}
 
-	rstring _intptr = !_r_str_isempty (cmdline) ? cmdline : filename;
+	LPWSTR command_line = nullptr;
+	_r_str_alloc (&command_line, INVALID_SIZE_T, !_r_str_isempty (cmdline) ? cmdline : filename);
 
-	if (CreateProcess (filename, _intptr.GetBuffer (), nullptr, nullptr, FALSE, flags, nullptr, dir, &si, &pi))
+	if (CreateProcess (filename, command_line, nullptr, nullptr, FALSE, flags, nullptr, dir, &si, &pi))
 	{
-		result = true;
+		SAFE_DELETE_ARRAY (command_line);
 
 		SAFE_DELETE_HANDLE (pi.hThread);
 		SAFE_DELETE_HANDLE (pi.hProcess);
+
+		return true;
 	}
 
-	_intptr.Release ();
+	SAFE_DELETE_ARRAY (command_line);
 
-	return result;
+	return false;
 }
 
 void _r_sleep (LONG64 milliseconds)
@@ -3453,7 +3246,6 @@ void _r_sleep (LONG64 milliseconds)
 	constexpr LONG64 tps = ((1LL * 10LL) * 1000LL);
 
 	LARGE_INTEGER interval;
-
 	interval.QuadPart = -(LONG64)UInt32x32To64 (milliseconds, tps);
 
 	NtDelayExecution (FALSE, &interval);
@@ -3466,7 +3258,6 @@ void _r_sleep (LONG64 milliseconds)
 bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR tooltip, bool is_hidden)
 {
 	NOTIFYICONDATA nid = {0};
-	RtlSecureZeroMemory (&nid, sizeof (nid));
 
 #if defined(_APP_NO_WINXP)
 	nid.cbSize = sizeof (nid);
@@ -3510,6 +3301,7 @@ bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR toolti
 	if (is_hidden)
 	{
 		nid.uFlags |= NIF_STATE;
+
 		nid.dwState = NIS_HIDDEN;
 		nid.dwStateMask = NIS_HIDDEN;
 	}
@@ -3526,7 +3318,6 @@ bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR toolti
 bool _r_tray_popup (HWND hwnd, UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text)
 {
 	NOTIFYICONDATA nid = {0};
-	RtlSecureZeroMemory (&nid, sizeof (nid));
 
 #if defined(_APP_NO_WINXP)
 	nid.cbSize = sizeof (nid);
@@ -3539,7 +3330,6 @@ bool _r_tray_popup (HWND hwnd, UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR t
 #endif // _APP_NO_WINXP
 
 	nid.uFlags = NIF_INFO | NIF_REALTIME;
-	//nid.dwInfoFlags = NIIF_LARGE_ICON | icon_id;
 	nid.dwInfoFlags = icon_id;
 	nid.hWnd = hwnd;
 	nid.uID = uid;
@@ -3556,7 +3346,6 @@ bool _r_tray_popup (HWND hwnd, UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR t
 bool _r_tray_setinfo (HWND hwnd, UINT uid, HICON hicon, LPCWSTR tooltip)
 {
 	NOTIFYICONDATA nid = {0};
-	RtlSecureZeroMemory (&nid, sizeof (nid));
 
 #if defined(_APP_NO_WINXP)
 	nid.cbSize = sizeof (nid);
@@ -3597,7 +3386,6 @@ bool _r_tray_setinfo (HWND hwnd, UINT uid, HICON hicon, LPCWSTR tooltip)
 bool _r_tray_toggle (HWND hwnd, UINT uid, bool is_show)
 {
 	NOTIFYICONDATA nid = {0};
-	RtlSecureZeroMemory (&nid, sizeof (nid));
 
 #if defined(_APP_NO_WINXP)
 	nid.cbSize = sizeof (nid);
@@ -3622,7 +3410,6 @@ bool _r_tray_toggle (HWND hwnd, UINT uid, bool is_show)
 bool _r_tray_destroy (HWND hwnd, UINT uid)
 {
 	NOTIFYICONDATA nid = {0};
-	RtlSecureZeroMemory (&nid, sizeof (nid));
 
 #if defined(_APP_NO_WINXP)
 	nid.cbSize = sizeof (nid);
@@ -3913,8 +3700,7 @@ INT _r_listview_addcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR title,
 			RECT rc = {0};
 			GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
 
-			width = -width;
-			width = (INT)_R_PERCENT_VAL (width, _R_RECT_WIDTH (&rc));
+			width = (INT)_R_PERCENT_VAL (-width, _R_RECT_WIDTH (&rc));
 		}
 
 		lvc.mask |= LVCF_WIDTH;
@@ -4165,8 +3951,7 @@ void _r_listview_setcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR text,
 			RECT rc = {0};
 			GetClientRect (GetDlgItem (hwnd, ctrl_id), &rc);
 
-			width = -width;
-			width = (INT)_R_PERCENT_VAL (width, _R_RECT_WIDTH (&rc));
+			width = (INT)_R_PERCENT_VAL (-width, _R_RECT_WIDTH (&rc));
 		}
 
 		lvc.mask |= LVCF_WIDTH;
