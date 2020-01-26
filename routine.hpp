@@ -324,6 +324,11 @@ void _r_clipboard_set (HWND hwnd, LPCWSTR text, size_t length);
 	Filesystem
 */
 
+FORCEINLINE bool _r_fs_isvalidhandle (HANDLE handle)
+{
+	return handle != nullptr && handle != INVALID_HANDLE_VALUE;
+}
+
 #define _r_fs_exists(path) (!!RtlDoesFileExists_U ((path)))
 #define _r_fs_copy(path_from,path_to,flags) (!!CopyFileEx ((path_from),(path_to),nullptr,nullptr,nullptr,(flags)))
 #define _r_fs_move(path_from,path_to,flags) (!!MoveFileEx ((path_from),(path_to),(flags)))

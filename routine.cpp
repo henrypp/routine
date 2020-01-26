@@ -41,7 +41,7 @@ void _r_dbg_write (LPCWSTR path, LPCWSTR text)
 {
 	HANDLE hfile = CreateFile (path, GENERIC_WRITE | GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 
-	if (hfile != INVALID_HANDLE_VALUE)
+	if (_r_fs_isvalidhandle (hfile))
 	{
 		if (GetLastError () != ERROR_ALREADY_EXISTS)
 		{
@@ -625,7 +625,7 @@ bool _r_fs_mkdir (LPCWSTR path)
 
 bool _r_fs_readfile (HANDLE hfile, LPVOID result, size_t size)
 {
-	if (!hfile || hfile == INVALID_HANDLE_VALUE)
+	if (!_r_fs_isvalidhandle (hfile))
 		return false;
 
 	const HANDLE hmap = CreateFileMapping (hfile, nullptr, PAGE_READONLY, 0, (DWORD)size, nullptr);
@@ -705,9 +705,9 @@ LONG64 _r_fs_size (LPCWSTR path)
 	if (_r_str_isempty (path))
 		return 0;
 
-	HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+	const HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
 
-	if (hfile != INVALID_HANDLE_VALUE)
+	if (_r_fs_isvalidhandle (hfile))
 	{
 		const LONG64 result = _r_fs_size (hfile);
 		CloseHandle (hfile);
@@ -1064,7 +1064,7 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 	NTSTATUS status;
 	HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
 
-	if (hfile == INVALID_HANDLE_VALUE)
+	if (!_r_fs_isvalidhandle (hfile))
 	{
 		return GetLastError ();
 	}
@@ -3075,7 +3075,7 @@ HANDLE _r_createthread (_beginthreadex_proc_type proc, void* args, bool is_suspe
 	//		_beginthread returns -1L
 	//		_beginthreadex returns 0
 
-	if (!hthread || hthread == INVALID_HANDLE_VALUE)
+	if (!_r_fs_isvalidhandle (hthread))
 		return nullptr;
 
 	SetThreadPriority (hthread, priority);
@@ -3108,7 +3108,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size)
 			if (SUCCEEDED (_LoadIconWithScaleDown (hinst, name, size, size, &hicon)))
 				return hicon;
 		}
-}
+	}
 
 	return (HICON)LoadImage (hinst, name, IMAGE_ICON, size, size, 0);
 #endif // _APP_NO_WINXP
