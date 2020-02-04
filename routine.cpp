@@ -7,18 +7,6 @@
 	Debugging
 */
 
-void _r_dbg (LPCWSTR fn, DWORD errcode, LPCWSTR desc)
-{
-	static const rstring path = _r_dbg_getpath ();
-
-	rstring write_buffer;
-	write_buffer.Format (L"\"%s\"," _R_DEBUG_BODY L",\"%s\"\r\n", _r_fmt_date (_r_unixtime_now (), FDTF_SHORTDATE | FDTF_LONGTIME).GetString (), fn, errcode, desc, APP_VERSION);
-
-	_r_dbg_print (L"%s", write_buffer.GetString ());
-
-	_r_dbg_write (path, write_buffer);
-}
-
 void _r_dbg_print (LPCWSTR text, ...)
 {
 	if (_r_str_isempty (text))
@@ -35,34 +23,6 @@ void _r_dbg_print (LPCWSTR text, ...)
 	buffer.Append (L"\r\n");
 
 	OutputDebugString (buffer);
-}
-
-void _r_dbg_write (LPCWSTR path, LPCWSTR text)
-{
-	HANDLE hfile = CreateFile (path, GENERIC_WRITE | GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-
-	if (_r_fs_isvalidhandle (hfile))
-	{
-		if (GetLastError () != ERROR_ALREADY_EXISTS)
-		{
-			DWORD written = 0;
-			const BYTE bom[] = {0xFF, 0xFE};
-
-			WriteFile (hfile, bom, sizeof (bom), &written, nullptr); // write utf-16 le byte order mask
-
-			WriteFile (hfile, _R_DEBUG_HEADER, DWORD (_r_str_length (_R_DEBUG_HEADER) * sizeof (WCHAR)), &written, nullptr); // adds csv header
-		}
-		else
-		{
-			_r_fs_setpos (hfile, 0, FILE_END);
-		}
-
-		DWORD written = 0;
-
-		WriteFile (hfile, text, DWORD (_r_str_length (text) * sizeof (WCHAR)), &written, nullptr);
-
-		CloseHandle (hfile);
-	}
 }
 
 rstring _r_dbg_getpath ()
@@ -2358,22 +2318,6 @@ bool _r_wnd_isundercursor (HWND hwnd)
 	return !!PtInRect (&rect, pt);
 }
 
-bool _r_wnd_resize (HDWP* hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags)
-{
-	flags |= SWP_NOACTIVATE;
-
-	if (!width && !height)
-		flags |= SWP_NOSIZE;
-
-	if (hdefer && *hdefer)
-	{
-		*hdefer = DeferWindowPos (*hdefer, hwnd, hwnd_after, left, right, width, height, flags);
-		return true;
-	}
-
-	return !!SetWindowPos (hwnd, hwnd_after, left, right, width, height, flags);
-}
-
 void _r_wnd_toggle (HWND hwnd, bool is_show)
 {
 	if (is_show || !IsWindowVisible (hwnd))
@@ -3261,12 +3205,10 @@ bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR toolti
 
 #if defined(_APP_NO_WINXP)
 	nid.cbSize = sizeof (nid);
-	nid.uVersion = NOTIFYICON_VERSION_4;
 #else
 	static bool is_vistaorlater = _r_sys_validversion (6, 0);
 
 	nid.cbSize = (is_vistaorlater ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
-	nid.uVersion = (is_vistaorlater ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
 #endif // _APP_NO_WINXP
 
 	nid.hWnd = hwnd;
@@ -3308,7 +3250,14 @@ bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR toolti
 
 	if (Shell_NotifyIcon (NIM_ADD, &nid))
 	{
+#if defined(_APP_NO_WINXP)
+		nid.uVersion = NOTIFYICON_VERSION_4;
+#else
+		nid.uVersion = (is_vistaorlater ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
+#endif // _APP_NO_WINXP
+
 		Shell_NotifyIcon (NIM_SETVERSION, &nid);
+
 		return true;
 	}
 
@@ -3321,12 +3270,10 @@ bool _r_tray_popup (HWND hwnd, UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR t
 
 #if defined(_APP_NO_WINXP)
 	nid.cbSize = sizeof (nid);
-	nid.uVersion = NOTIFYICON_VERSION_4;
 #else
 	static bool is_vistaorlater = _r_sys_validversion (6, 0);
 
 	nid.cbSize = (is_vistaorlater ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
-	nid.uVersion = (is_vistaorlater ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
 #endif // _APP_NO_WINXP
 
 	nid.uFlags = NIF_INFO | NIF_REALTIME;
@@ -3349,12 +3296,10 @@ bool _r_tray_setinfo (HWND hwnd, UINT uid, HICON hicon, LPCWSTR tooltip)
 
 #if defined(_APP_NO_WINXP)
 	nid.cbSize = sizeof (nid);
-	nid.uVersion = NOTIFYICON_VERSION_4;
 #else
 	static bool is_vistaorlater = _r_sys_validversion (6, 0);
 
 	nid.cbSize = (is_vistaorlater ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
-	nid.uVersion = (is_vistaorlater ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
 #endif // _APP_NO_WINXP
 
 	nid.hWnd = hwnd;
@@ -3389,12 +3334,10 @@ bool _r_tray_toggle (HWND hwnd, UINT uid, bool is_show)
 
 #if defined(_APP_NO_WINXP)
 	nid.cbSize = sizeof (nid);
-	nid.uVersion = NOTIFYICON_VERSION_4;
 #else
 	static bool is_vistaorlater = _r_sys_validversion (6, 0);
 
 	nid.cbSize = (is_vistaorlater ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
-	nid.uVersion = (is_vistaorlater ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
 #endif // _APP_NO_WINXP
 
 	nid.uFlags = NIF_STATE;
@@ -3413,12 +3356,10 @@ bool _r_tray_destroy (HWND hwnd, UINT uid)
 
 #if defined(_APP_NO_WINXP)
 	nid.cbSize = sizeof (nid);
-	nid.uVersion = NOTIFYICON_VERSION_4;
 #else
 	static bool is_vistaorlater = _r_sys_validversion (6, 0);
 
 	nid.cbSize = (is_vistaorlater ? sizeof (nid) : NOTIFYICONDATA_V3_SIZE);
-	nid.uVersion = (is_vistaorlater ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
 #endif // _APP_NO_WINXP
 
 	nid.hWnd = hwnd;
@@ -3505,14 +3446,13 @@ void _r_ctrl_settabletext (HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT ctrl_id2,
 	const HWND hctrl1 = GetDlgItem (hwnd, ctrl_id1);
 	const HWND hctrl2 = GetDlgItem (hwnd, ctrl_id2);
 
-	const HDC hdc1 = GetDC (hctrl1);
-	const HDC hdc2 = GetDC (hctrl2);
+	const HDC hdc = GetDC (hwnd);
 
-	if (hdc1)
-		SelectObject (hdc1, (HFONT)SendMessage (hctrl1, WM_GETFONT, 0, 0)); // fix
-
-	if (hdc2)
-		SelectObject (hdc2, (HFONT)SendMessage (hctrl2, WM_GETFONT, 0, 0)); // fix
+	if (hdc)
+	{
+		SelectObject (hdc, (HFONT)SendMessage (hctrl1, WM_GETFONT, 0, 0)); // fix
+		SelectObject (hdc, (HFONT)SendMessage (hctrl2, WM_GETFONT, 0, 0)); // fix
+	}
 
 	GetClientRect (hwnd, &rc_wnd);
 	GetWindowRect (hctrl1, &rc_ctrl);
@@ -3522,8 +3462,8 @@ void _r_ctrl_settabletext (HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT ctrl_id2,
 	const INT wnd_spacing = rc_ctrl.left;
 	const INT wnd_width = _R_RECT_WIDTH (&rc_wnd) - (wnd_spacing * 2);
 
-	INT ctrl1_width = _r_dc_fontwidth (hdc1, text1, _r_str_length (text1)) + wnd_spacing;
-	INT ctrl2_width = _r_dc_fontwidth (hdc2, text2, _r_str_length (text2)) + wnd_spacing;
+	INT ctrl1_width = _r_dc_fontwidth (hdc, text1, _r_str_length (text1)) + wnd_spacing;
+	INT ctrl2_width = _r_dc_fontwidth (hdc, text2, _r_str_length (text2)) + wnd_spacing;
 
 	ctrl2_width = (std::min) (ctrl2_width, wnd_width - ctrl1_width - wnd_spacing);
 	ctrl1_width = (std::min) (ctrl1_width, wnd_width - ctrl2_width - wnd_spacing); // note: changed order for correct priority!
@@ -3533,16 +3473,13 @@ void _r_ctrl_settabletext (HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT ctrl_id2,
 
 	HDWP hdefer = BeginDeferWindowPos (2);
 
-	_r_wnd_resize (&hdefer, hctrl1, nullptr, wnd_spacing, rc_ctrl.top, ctrl1_width, _R_RECT_HEIGHT (&rc_ctrl), SWP_NOZORDER | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
-	_r_wnd_resize (&hdefer, hctrl2, nullptr, wnd_width - ctrl2_width, rc_ctrl.top, ctrl2_width + wnd_spacing, _R_RECT_HEIGHT (&rc_ctrl), SWP_NOZORDER | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
+	hdefer = DeferWindowPos (hdefer, hctrl1, nullptr, wnd_spacing, rc_ctrl.top, ctrl1_width, _R_RECT_HEIGHT (&rc_ctrl), SWP_NOZORDER | SWP_NOREDRAW | SWP_NOOWNERZORDER);
+	hdefer = DeferWindowPos (hdefer, hctrl2, nullptr, wnd_width - ctrl2_width, rc_ctrl.top, ctrl2_width + wnd_spacing, _R_RECT_HEIGHT (&rc_ctrl), SWP_NOZORDER | SWP_NOREDRAW | SWP_NOOWNERZORDER);
 
 	EndDeferWindowPos (hdefer);
 
-	if (hdc1)
-		ReleaseDC (hctrl1, hdc1);
-
-	if (hdc2)
-		ReleaseDC (hctrl2, hdc2);
+	if (hdc)
+		ReleaseDC (hwnd, hdc);
 }
 
 HWND _r_ctrl_createtip (HWND hparent)

@@ -74,7 +74,7 @@ typedef void (*_R_CALLBACK_OBJECT_CLEANUP) (PVOID pdata);
 #endif
 
 #ifndef SAFE_DELETE_HANDLE
-#define SAFE_DELETE_HANDLE(p) {if((p) && (p) != INVALID_HANDLE_VALUE) {CloseHandle ((p)); (p)=nullptr;}}
+#define SAFE_DELETE_HANDLE(p) {if(_r_fs_isvalidhandle ((p))) {CloseHandle ((p)); (p)=nullptr;}}
 #endif
 
 #ifndef SAFE_DELETE_ICON
@@ -98,10 +98,10 @@ typedef void (*_R_CALLBACK_OBJECT_CLEANUP) (PVOID pdata);
 */
 
 #define _R_DEBUG_HEADER L"Date,Function,Code,Description,Version\r\n"
-#define _R_DEBUG_BODY L"\"%s()\",\"0x%.8" PRIx32 "\",\"%s\""
+#define _R_DEBUG_BODY L"\"%s()\",\"0x%08" PRIX32 "\",\"%s\""
 
 #define _R_DEVICE_COUNT 0x1A
-#define _R_DEVICE_PREFIX_LENGTH 64
+#define _R_DEVICE_PREFIX_LENGTH 0x40
 
 #define _R_STR_MAX_LENGTH (INT_MAX - 1)
 
@@ -137,11 +137,7 @@ typedef void (*_R_CALLBACK_OBJECT_CLEANUP) (PVOID pdata);
 
 #define RDBG(a, ...) _r_dbg_print (a, __VA_ARGS__)
 
-void _r_dbg (LPCWSTR fn, DWORD errcode, LPCWSTR desc);
 void _r_dbg_print (LPCWSTR text, ...);
-void _r_dbg_write (LPCWSTR path, LPCWSTR text);
-
-rstring _r_dbg_getpath ();
 
 /*
 	Format strings, dates, numbers
@@ -531,7 +527,6 @@ void _r_wnd_changesettings (HWND hwnd, WPARAM wparam, LPARAM lparam);
 void _r_wnd_enablenonclientscaling (HWND hwnd);
 bool _r_wnd_isfullscreenmode ();
 bool _r_wnd_isundercursor (HWND hwnd);
-bool _r_wnd_resize (HDWP *hdefer, HWND hwnd, HWND hwnd_after, INT left, INT right, INT width, INT height, UINT flags);
 void _r_wnd_toggle (HWND hwnd, bool is_show);
 void _r_wnd_top (HWND hwnd, bool is_enable);
 
