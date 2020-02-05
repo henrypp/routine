@@ -1737,7 +1737,7 @@ bool _r_sys_iswow64 ()
 			if (_IsWow64Process (NtCurrentProcess (), &result))
 				return !!result;
 		}
-}
+	}
 
 	return false;
 }
@@ -2236,7 +2236,7 @@ static bool _r_wnd_isplatformfullscreenmode ()
 #endif // _APP_NO_WINXP
 
 	return (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
-	}
+}
 
 static bool _r_wnd_isfullscreenwindowmode ()
 {
@@ -3063,7 +3063,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size)
 			if (SUCCEEDED (_LoadIconWithScaleDown (hinst, name, size, size, &hicon)))
 				return hicon;
 		}
-}
+	}
 
 	return (HICON)LoadImage (hinst, name, IMAGE_ICON, size, size, 0);
 #endif // _APP_NO_WINXP
@@ -3235,7 +3235,7 @@ bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR toolti
 	{
 		nid.uFlags |= NIF_ICON;
 		nid.hIcon = hicon;
-}
+	}
 
 	if (tooltip)
 	{
@@ -3320,7 +3320,7 @@ bool _r_tray_setinfo (HWND hwnd, UINT uid, HICON hicon, LPCWSTR tooltip)
 	{
 		nid.uFlags |= NIF_ICON;
 		nid.hIcon = hicon;
-}
+	}
 
 	if (tooltip)
 	{
