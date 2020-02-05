@@ -55,8 +55,8 @@ typedef struct _APP_UPDATE_COMPONENT
 	HANDLE hthread = nullptr;
 	HANDLE hend = nullptr;
 
-	bool is_downloaded = false;
 	bool is_installer = false;
+	bool is_downloaded = false;
 	bool is_haveupdate = false;
 } *PAPP_UPDATE_COMPONENT, APP_UPDATE_COMPONENT;
 
@@ -147,9 +147,11 @@ public:
 
 	bool Initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright);
 
+#if !defined(_APP_CONSOLE)
 	bool MutexCreate ();
 	bool MutexDestroy ();
 	bool MutexIsExists (bool activate_window);
+#endif // _APP_CONSOLE
 
 #if defined(_APP_HAVE_AUTORUN)
 	bool AutorunIsEnabled ();
@@ -162,14 +164,14 @@ public:
 	void UpdateInstall () const;
 #endif // _APP_HAVE_UPDATES
 
-	rstring ConfigGet (LPCWSTR key, bool def, LPCWSTR name = nullptr);
-	rstring ConfigGet (LPCWSTR key, INT def, LPCWSTR name = nullptr);
-	rstring ConfigGet (LPCWSTR key, UINT def, LPCWSTR name = nullptr);
-	rstring ConfigGet (LPCWSTR key, LONG def, LPCWSTR name = nullptr);
-	rstring ConfigGet (LPCWSTR key, ULONG def, LPCWSTR name = nullptr);
-	rstring ConfigGet (LPCWSTR key, LONG64 def, LPCWSTR name = nullptr);
-	rstring ConfigGet (LPCWSTR key, ULONG64 def, LPCWSTR name = nullptr);
-	rstring ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name = nullptr);
+	rstring ConfigGet (LPCWSTR key, bool def, LPCWSTR name = nullptr) const;
+	rstring ConfigGet (LPCWSTR key, INT def, LPCWSTR name = nullptr) const;
+	rstring ConfigGet (LPCWSTR key, UINT def, LPCWSTR name = nullptr) const;
+	rstring ConfigGet (LPCWSTR key, LONG def, LPCWSTR name = nullptr) const;
+	rstring ConfigGet (LPCWSTR key, ULONG def, LPCWSTR name = nullptr) const;
+	rstring ConfigGet (LPCWSTR key, LONG64 def, LPCWSTR name = nullptr) const;
+	rstring ConfigGet (LPCWSTR key, ULONG64 def, LPCWSTR name = nullptr) const;
+	rstring ConfigGet (LPCWSTR key, LPCWSTR def, LPCWSTR name = nullptr) const;
 
 	bool ConfigSet (LPCWSTR key, bool val, LPCWSTR name = nullptr);
 	bool ConfigSet (LPCWSTR key, INT val, LPCWSTR name = nullptr);
@@ -182,9 +184,13 @@ public:
 
 	void ConfigInit ();
 
-	bool ConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config_cfg);
+	void LogError (LPCWSTR fn, DWORD errcode, LPCWSTR desc, UINT tray_id);
 
 #if !defined(_APP_CONSOLE)
+	bool ShowConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR config_cfg);
+	void ShowErrorMessage (HWND hwnd, LPCWSTR main, DWORD errcode, HINSTANCE hmodule);
+	INT ShowMessage (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCWSTR content) const;
+
 	void CreateAboutWindow (HWND hwnd);
 
 	bool CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc);
@@ -203,6 +209,7 @@ public:
 	LPCWSTR GetProfileDirectory () const;
 
 	LPCWSTR GetConfigPath () const;
+	LPCWSTR GetLogPath () const;
 
 #if !defined(_APP_CONSOLE)
 	LPCWSTR GetLocalePath () const;
@@ -212,14 +219,16 @@ public:
 	LPCWSTR GetUpdatePath () const;
 #endif // _APP_HAVE_UPDATES
 
-	rstring GetProxyConfiguration ();
+	rstring GetProxyConfiguration () const;
 	rstring GetUserAgent ();
 
 	HINSTANCE GetHINSTANCE () const;
 	HWND GetHWND () const;
 	HICON GetSharedImage (HINSTANCE hinst, INT icon_id, INT icon_size);
 
+#if !defined(_APP_CONSOLE)
 	bool IsClassicUI () const;
+#endif // !_APP_CONSOLE
 
 #if !defined(_APP_NO_WINXP)
 	bool IsVistaOrLater () const;
@@ -236,16 +245,19 @@ public:
 	size_t LocaleGetCount () const;
 	time_t LocaleGetVersion () const;
 	rstring LocaleString (UINT uid, LPCWSTR append);
-	void LocaleMenu (HMENU hmenu, UINT uid, UINT item, bool by_position, LPCWSTR append);
+	void LocaleMenu (HMENU hmenu, UINT uid, UINT item, BOOL by_position, LPCWSTR append);
 #endif // !_APP_CONSOLE
 
 #if defined(_APP_HAVE_SKIPUAC) && !defined(_APP_CONSOLE)
-	bool SkipUacIsEnabled ();
+	bool SkipUacIsEnabled () const;
 	HRESULT SkipUacEnable (HWND hwnd, bool is_enable);
 	bool SkipUacRun ();
 #endif // _APP_HAVE_SKIPUAC && !_APP_CONSOLE
 
+#if !defined(_APP_CONSOLE)
+	void Restart (HWND hwnd);
 	bool RunAsAdmin ();
+#endif // !_APP_CONSOLE
 
 private:
 
@@ -263,7 +275,6 @@ private:
 
 #if !defined(_APP_CONSOLE)
 	static LRESULT CALLBACK MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
-	static BOOL CALLBACK ActivateWindowCallback (HWND hwnd, LPARAM lparam);
 
 	void LocaleInit ();
 #endif
@@ -274,9 +285,8 @@ private:
 
 #if !defined(_APP_NO_WINXP)
 	bool is_vistaorlater = false;
-#endif // _APP_NO_WINXP
+#endif // !_APP_NO_WINXP
 
-	bool is_classic = false;
 	bool is_needmaximize = false;
 
 	LONG max_width = 0;
@@ -284,11 +294,14 @@ private:
 
 	WNDPROC app_wndproc = nullptr;
 	HWND app_hwnd = nullptr;
+
+#if !defined(_APP_CONSOLE)
 	HANDLE app_mutex = nullptr;
+#endif // _APP_CONSOLE
+
 	HINSTANCE app_hinstance = nullptr;
 
 	WCHAR app_binary[MAX_PATH];
-	WCHAR app_directory[MAX_PATH];
 	WCHAR app_profile_directory[MAX_PATH];
 	WCHAR app_config_path[MAX_PATH];
 
@@ -296,6 +309,9 @@ private:
 	LPWSTR app_name_short = nullptr;
 	LPWSTR app_version = nullptr;
 	LPWSTR app_copyright = nullptr;
+
+	LPWSTR app_directory = nullptr;
+	LPWSTR app_logpath = nullptr;
 
 #if defined(_APP_HAVE_UPDATES)
 	LPWSTR app_updatepath = nullptr;
