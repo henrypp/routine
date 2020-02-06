@@ -2375,6 +2375,13 @@ BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 			if (htip)
 				SetWindowTheme (htip, is_darktheme ? L"DarkMode_Explorer" : L"", nullptr);
 		}
+		else if (_r_str_compare (class_name, TOOLBARCLASSNAME) == 0)
+		{
+			const HWND htip = (HWND)SendMessage (hwnd, TB_GETTOOLTIPS, 0, 0);
+
+			if (htip)
+				SetWindowTheme (htip, is_darktheme ? L"DarkMode_Explorer" : L"", nullptr);
+		}
 		else if (_r_str_compare (class_name, TOOLTIPS_CLASS) == 0)
 		{
 			SetWindowTheme (hwnd, is_darktheme ? L"DarkMode_Explorer" : L"", nullptr);
