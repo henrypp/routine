@@ -533,6 +533,7 @@ void _r_wnd_top (HWND hwnd, bool is_enable);
 #if !defined(_APP_NO_DARKTHEME)
 bool _r_wnd_isdarktheme ();
 void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable);
+void _r_wnd_setdarkwindow (HWND hwnd, BOOL is_enable);
 void _r_wnd_setdarktheme (HWND hwnd);
 #endif // !_APP_NO_DARKTHEME
 

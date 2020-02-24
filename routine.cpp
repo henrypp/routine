@@ -2355,11 +2355,16 @@ void _r_wnd_top (HWND hwnd, bool is_enable)
 #if !defined(_APP_NO_DARKTHEME)
 BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 {
+	if (!IsWindow (hwnd))
+		return TRUE;
+
 	WCHAR class_name[64] = {0};
 
 	if (GetClassName (hwnd, class_name, _countof (class_name)) > 0)
 	{
 		const BOOL is_darktheme = LOWORD (lparam);
+
+		_r_wnd_setdarkwindow (hwnd, is_darktheme);
 
 		if (_r_str_compare (class_name, WC_LISTVIEW) == 0)
 		{
@@ -2415,19 +2420,19 @@ bool _r_wnd_isdarktheme ()
 	if (huxtheme)
 	{
 		typedef BOOL (WINAPI* SAUDM) (VOID);
-		SAUDM _ShouldAppsUseDarkMode = nullptr;
+		SAUDM _ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (huxtheme, MAKEINTRESOURCEA (132)); // ShouldAppsUseDarkMode
 
-		if (_r_sys_validversion (10, 0, 18362)) // 1903+
-			_ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (huxtheme, MAKEINTRESOURCEA (138)); // ShouldSystemUseDarkMode
-		else
-			_ShouldAppsUseDarkMode = (SAUDM)GetProcAddress (huxtheme, MAKEINTRESOURCEA (132)); // ShouldAppsUseDarkMode
+		// Seems the undocumented ShouldAppsUseDarkMode() API does not return a proper bool.
+		// Only the first bit of the returned value indicates true/false.
+		// https://github.com/stefankueng/tools/issues/14#issuecomment-495864391
 
 		if (_ShouldAppsUseDarkMode)
 		{
-			const bool result = !!_ShouldAppsUseDarkMode ();
-			FreeLibrary (huxtheme);
-
-			return result;
+			if ((_ShouldAppsUseDarkMode () & 0x01) != 0)
+			{
+				FreeLibrary (huxtheme);
+				return true;
+			}
 		}
 
 		FreeLibrary (huxtheme);
@@ -2469,6 +2474,22 @@ void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable)
 	SetProp (hwnd, L"UseImmersiveDarkModeColors", (HANDLE)(LONG_PTR)is_enable); // 1809 fallback
 }
 
+void _r_wnd_setdarkwindow (HWND hwnd, BOOL is_enable)
+{
+	const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+
+	if (huxtheme)
+	{
+		typedef BOOL (WINAPI* ADMFW) (HWND, BOOL);
+		ADMFW _AllowDarkModeForWindow = (ADMFW)GetProcAddress (huxtheme, MAKEINTRESOURCEA (133)); // AllowDarkModeForWindow
+
+		if (_AllowDarkModeForWindow)
+			_AllowDarkModeForWindow (hwnd, is_enable);
+
+		FreeLibrary (huxtheme);
+	}
+}
+
 void _r_wnd_setdarktheme (HWND hwnd)
 {
 	if (!_r_sys_validversion (10, 0, 17763)) // 1809+
@@ -2480,9 +2501,7 @@ void _r_wnd_setdarktheme (HWND hwnd)
 	// Ordinal 106: BOOL WINAPI GetIsImmersiveColorUsingHighContrast(IMMERSIVE_HC_CACHE_MODE mode)
 	// Ordinal 132: BOOL WINAPI ShouldAppsUseDarkMode(VOID)
 	// Ordinal 135: BOOL WINAPI AllowDarkModeForApp(BOOL allow)
-	// Ordinal 135: BOOL WINAPI SetPreferredAppMode(PreferredAppMode mode) // win10 1903+
-	// Ordinal 136: VOID WINAPI FlushMenuThemes(VOID)
-	// Ordinal 138: BOOL WINAPI ShouldSystemUseDarkMode(VOID) // win10 1903+
+	// Ordinal 135: BOOL WINAPI SetPreferredAppMode(PreferredAppMode mode) // 1903+
 
 	_r_wnd_setdarkframe (hwnd, is_darktheme);
 
@@ -2502,12 +2521,11 @@ void _r_wnd_setdarktheme (HWND hwnd)
 
 			if (_r_sys_validversion (10, 0, 18362)) // 1903+
 				_SetPreferredAppMode = reinterpret_cast<SPM>(ord135);
-
 			else
 				_AllowDarkModeForApp = reinterpret_cast<ADMFA>(ord135);
 
 			if (_SetPreferredAppMode)
-				_SetPreferredAppMode (is_darktheme ? ForceDark : Default);
+				_SetPreferredAppMode (is_darktheme ? AllowDark : Default);
 
 			else if (_AllowDarkModeForApp)
 				_AllowDarkModeForApp (is_darktheme);
@@ -2519,12 +2537,6 @@ void _r_wnd_setdarktheme (HWND hwnd)
 
 			if (_RefreshImmersiveColorPolicyState)
 				_RefreshImmersiveColorPolicyState ();
-
-			typedef VOID (WINAPI* FMT) (VOID); // FlushMenuThemes
-			const FMT _FlushMenuThemes = (FMT)GetProcAddress (huxtheme, MAKEINTRESOURCEA (136));
-
-			if (_FlushMenuThemes)
-				_FlushMenuThemes ();
 
 			InvalidateRect (hwnd, nullptr, FALSE); // HACK!!!
 		}
@@ -3189,8 +3201,11 @@ bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR dir, WORD show_state, DW
 	{
 		SAFE_DELETE_ARRAY (command_line);
 
-		SAFE_DELETE_HANDLE (pi.hThread);
-		SAFE_DELETE_HANDLE (pi.hProcess);
+		if (pi.hProcess)
+			NtClose (pi.hProcess);
+
+		if (pi.hThread)
+			NtClose (pi.hThread);
 
 		return true;
 	}
