@@ -1856,11 +1856,16 @@ INT _r_dc_getdpivalue (HWND hwnd)
 {
 	static const bool is_win81 = _r_sys_validversion (6, 3); // win81+
 
+	INT result = USER_DEFAULT_SCREEN_DPI;
+
+	HMODULE huser32 = nullptr;
+	HMODULE hshcore = nullptr;
+
 	if (is_win81)
 	{
 		static const bool is_win10rs1 = _r_sys_validversion (10, 0, 14393); //win10rs1+
 
-		HMODULE huser32 = GetModuleHandle (L"user32.dll");
+		huser32 = LoadLibraryEx (L"user32.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 		if (hwnd)
 		{
@@ -1871,11 +1876,14 @@ INT _r_dc_getdpivalue (HWND hwnd)
 				const GDFW _GetDpiForWindow = (GDFW)GetProcAddress (huser32, "GetDpiForWindow");
 
 				if (_GetDpiForWindow)
-					return _GetDpiForWindow (hwnd);
+				{
+					result = _GetDpiForWindow (hwnd);
+					goto CleanupExit;
+				}
 			}
 
 			// GetDpiForMonitor (win81+)
-			HMODULE hshcore = LoadLibraryEx (L"shcore.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+			hshcore = LoadLibraryEx (L"shcore.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 			if (hshcore)
 			{
@@ -1890,12 +1898,10 @@ INT _r_dc_getdpivalue (HWND hwnd)
 
 					if (_GetDpiForMonitor && SUCCEEDED (_GetDpiForMonitor (hmon, MDT_EFFECTIVE_DPI, &dpix, &dpiy)))
 					{
-						FreeLibrary (hshcore);
-						return dpix;
+						result = dpix;
+						goto CleanupExit;
 					}
 				}
-
-				FreeLibrary (hshcore);
 			}
 		}
 
@@ -1906,7 +1912,10 @@ INT _r_dc_getdpivalue (HWND hwnd)
 			const GDFS _GetDpiForSystem = (GDFS)GetProcAddress (huser32, "GetDpiForSystem");
 
 			if (_GetDpiForSystem)
-				return _GetDpiForSystem ();
+			{
+				result = _GetDpiForSystem ();
+				goto CleanupExit;
+			}
 		}
 	}
 
@@ -1915,13 +1924,19 @@ INT _r_dc_getdpivalue (HWND hwnd)
 
 	if (hdc)
 	{
-		INT result = GetDeviceCaps (hdc, LOGPIXELSX);
+		result = GetDeviceCaps (hdc, LOGPIXELSX);
 		ReleaseDC (nullptr, hdc);
-
-		return result;
 	}
 
-	return USER_DEFAULT_SCREEN_DPI;
+CleanupExit:
+
+	if (huser32)
+		FreeLibrary (huser32);
+
+	if (hshcore)
+		FreeLibrary (hshcore);
+
+	return result;
 }
 
 COLORREF _r_dc_getcolorbrightness (COLORREF clr)
@@ -1966,20 +1981,22 @@ INT _r_dc_getsystemmetrics (HWND hwnd, INT index)
 
 	if (is_win10rs1 && hwnd)
 	{
-		const HMODULE hlib = GetModuleHandle (L"user32.dll");
+		HMODULE huser32 = LoadLibraryEx (L"user32.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
-		if (hlib)
+		if (huser32)
 		{
 			using GSMFD = decltype (&GetSystemMetricsForDpi); // win10rs1+
-			const GSMFD _GetSystemMetricsForDpi = (GSMFD)GetProcAddress (hlib, "GetSystemMetricsForDpi");
+			const GSMFD _GetSystemMetricsForDpi = (GSMFD)GetProcAddress (huser32, "GetSystemMetricsForDpi");
 
 			if (_GetSystemMetricsForDpi)
 			{
 				INT metrics = _GetSystemMetricsForDpi (index, _r_dc_getdpivalue (hwnd));
+				FreeLibrary (huser32);
 
-				if (metrics)
-					return metrics;
+				return metrics;
 			}
+
+			FreeLibrary (huser32);
 		}
 	}
 
@@ -2101,7 +2118,7 @@ void _r_wnd_center (HWND hwnd, HWND hparent)
 
 void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD action)
 {
-	const HMODULE hlib = GetModuleHandle (L"user32.dll");
+	const HMODULE hlib = LoadLibraryEx (L"user32.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 	if (!hlib)
 		return;
@@ -2115,6 +2132,7 @@ void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD acti
 		for (size_t i = 0; i < count; i++)
 			_ChangeWindowMessageFilterEx (hwnd, pmsg[i], action, nullptr);
 
+		FreeLibrary (hlib);
 		return;
 	}
 
@@ -2140,6 +2158,8 @@ void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD acti
 				_ChangeWindowMessageFilter (pmsg[i], action);
 		}
 	}
+
+	FreeLibrary (hlib);
 #endif // _APP_NO_WINXP
 }
 
