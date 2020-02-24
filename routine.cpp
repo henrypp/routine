@@ -138,7 +138,7 @@ rstring _r_fmt_size64 (ULONG64 bytes)
 
 	if (hlib)
 	{
-		typedef HRESULT (WINAPI* SFBSE) (ULONG64, SFBS_FLAGS, PWSTR, UINT); // StrFormatByteSizeEx
+		using SFBSE = decltype (&StrFormatByteSizeEx); // vista+
 		const SFBSE _StrFormatByteSizeEx = (SFBSE)GetProcAddress (hlib, "StrFormatByteSizeEx");
 
 		if (_StrFormatByteSizeEx)
@@ -419,7 +419,7 @@ bool _r_msg_taskdialog (const TASKDIALOGCONFIG* ptd, PINT pbutton, PINT pradiobu
 
 	if (hlib)
 	{
-		typedef HRESULT (WINAPI* TDI) (const TASKDIALOGCONFIG*, PINT, PINT, LPBOOL); // TaskDialogIndirect
+		using TDI = decltype (&TaskDialogIndirect); // vista+
 		const TDI _TaskDialogIndirect = (TDI)GetProcAddress (hlib, "TaskDialogIndirect");
 
 		if (_TaskDialogIndirect)
@@ -1727,7 +1727,7 @@ bool _r_sys_iswow64 ()
 
 	if (hlib)
 	{
-		typedef BOOL (WINAPI* IW64P) (HANDLE, LPBOOL); // IsWow64Process
+		using IW64P = decltype (&IsWow64Process);
 		const IW64P _IsWow64Process = (IW64P)GetProcAddress (hlib, "IsWow64Process");
 
 		if (_IsWow64Process)
@@ -1867,7 +1867,7 @@ INT _r_dc_getdpivalue (HWND hwnd)
 			// GetDpiForWindow (win10rs1+)
 			if (is_win10rs1 && huser32)
 			{
-				typedef UINT (WINAPI* GDFW) (HWND); // GetDpiForWindow (win10rs1+)
+				using GDFW = decltype (&GetDpiForWindow); // win10rs1+
 				const GDFW _GetDpiForWindow = (GDFW)GetProcAddress (huser32, "GetDpiForWindow");
 
 				if (_GetDpiForWindow)
@@ -1885,8 +1885,8 @@ INT _r_dc_getdpivalue (HWND hwnd)
 				{
 					UINT dpix = 0, dpiy = 0;
 
-					typedef HRESULT (WINAPI* GDFM) (HMONITOR, MONITOR_DPI_TYPE, PUINT, PUINT); // GetDpiForMonitor
-					const GDFM _GetDpiForMonitor = (GDFM)GetProcAddress (hshcore, "GetDpiForMonitor"); // win81+
+					using GDFM = decltype (&GetDpiForMonitor); // win81+
+					const GDFM _GetDpiForMonitor = (GDFM)GetProcAddress (hshcore, "GetDpiForMonitor");
 
 					if (_GetDpiForMonitor && SUCCEEDED (_GetDpiForMonitor (hmon, MDT_EFFECTIVE_DPI, &dpix, &dpiy)))
 					{
@@ -1899,11 +1899,11 @@ INT _r_dc_getdpivalue (HWND hwnd)
 			}
 		}
 
+		// GetDpiForSystem (win10rs1+)
 		if (is_win10rs1 && huser32)
 		{
-			// GetDpiForSystem (win10rs1+)
-			typedef UINT (WINAPI* GDFS) (); // GetDpiForSystem
-			const GDFS _GetDpiForSystem = (GDFS)GetProcAddress (huser32, "GetDpiForSystem"); // win10rs1+
+			using GDFS = decltype (&GetDpiForSystem); // win10rs1+
+			const GDFS _GetDpiForSystem = (GDFS)GetProcAddress (huser32, "GetDpiForSystem");
 
 			if (_GetDpiForSystem)
 				return _GetDpiForSystem ();
@@ -1970,8 +1970,8 @@ INT _r_dc_getsystemmetrics (HWND hwnd, INT index)
 
 		if (hlib)
 		{
-			typedef INT (WINAPI* GSMFD) (INT, UINT); // GetSystemMetricsForDpi
-			const GSMFD _GetSystemMetricsForDpi = (GSMFD)GetProcAddress (hlib, "GetSystemMetricsForDpi"); // win10rs1+
+			using GSMFD = decltype (&GetSystemMetricsForDpi); // win10rs1+
+			const GSMFD _GetSystemMetricsForDpi = (GSMFD)GetProcAddress (hlib, "GetSystemMetricsForDpi");
 
 			if (_GetSystemMetricsForDpi)
 			{
@@ -2107,8 +2107,8 @@ void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD acti
 		return;
 
 #if defined(_APP_NO_WINXP)
-	typedef BOOL (WINAPI* CWMFEX) (HWND, UINT, DWORD, PVOID); // ChangeWindowMessageFilterEx
-	const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (hlib, "ChangeWindowMessageFilterEx"); // win7+
+	using CWMFEX = decltype (&ChangeWindowMessageFilterEx); // win7+
+	const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (hlib, "ChangeWindowMessageFilterEx");
 
 	if (_ChangeWindowMessageFilterEx)
 	{
@@ -2121,8 +2121,8 @@ void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD acti
 	for (size_t i = 0; i < count; i++)
 		ChangeWindowMessageFilter (pmsg[i], action); // vista fallback
 #else
-	typedef BOOL (WINAPI* CWMFEX) (HWND, UINT, DWORD, PVOID); // ChangeWindowMessageFilterEx
-	const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (hlib, "ChangeWindowMessageFilterEx"); // win7+
+	using CWMFEX = decltype (&ChangeWindowMessageFilterEx); // win7+
+	const CWMFEX _ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (hlib, "ChangeWindowMessageFilterEx");
 
 	if (_ChangeWindowMessageFilterEx)
 	{
@@ -2131,8 +2131,8 @@ void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD acti
 	}
 	else
 	{
-		typedef BOOL (WINAPI* CWMF) (UINT, DWORD); // ChangeWindowMessageFilter
-		const CWMF _ChangeWindowMessageFilter = (CWMF)GetProcAddress (hlib, "ChangeWindowMessageFilter"); // vista fallback
+		using CWMF = decltype (&ChangeWindowMessageFilter); // vista fallback
+		const CWMF _ChangeWindowMessageFilter = (CWMF)GetProcAddress (hlib, "ChangeWindowMessageFilter");
 
 		if (_ChangeWindowMessageFilter)
 		{
@@ -2198,7 +2198,7 @@ void _r_wnd_enablenonclientscaling (HWND hwnd)
 
 	if (huser32)
 	{
-		typedef BOOL (WINAPI* ENCDS) (HWND); // EnableNonClientDpiScaling
+		using ENCDS = decltype (&EnableNonClientDpiScaling); // win10rs1+
 		const ENCDS _EnableNonClientDpiScaling = (ENCDS)GetProcAddress (huser32, "EnableNonClientDpiScaling");
 
 		if (_EnableNonClientDpiScaling)
@@ -2224,8 +2224,8 @@ static bool _r_wnd_isplatformfullscreenmode ()
 
 	if (hlib)
 	{
-		typedef HRESULT (WINAPI* SHQueryUserNotificationStatePtr)(QUERY_USER_NOTIFICATION_STATE* state);
-		const SHQueryUserNotificationStatePtr _SHQueryUserNotificationState = (SHQueryUserNotificationStatePtr)GetProcAddress (hlib, "SHQueryUserNotificationState");
+		using SHQUNS = decltype (&SHQueryUserNotificationState); // vista+
+		const SHQUNS _SHQueryUserNotificationState = (SHQUNS)GetProcAddress (hlib, "SHQueryUserNotificationState");
 
 		if (_SHQueryUserNotificationState)
 		{
@@ -3074,7 +3074,7 @@ HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size)
 
 	if (hlib)
 	{
-		typedef HRESULT (WINAPI* LIWSD) (HINSTANCE, PCWSTR, INT, INT, HICON*); // LoadIconWithScaleDown
+		using LIWSD = decltype (&LoadIconWithScaleDown); // vista+
 		const LIWSD _LoadIconWithScaleDown = (LIWSD)GetProcAddress (hlib, "LoadIconWithScaleDown");
 
 		if (_LoadIconWithScaleDown)
