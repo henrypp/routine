@@ -2534,7 +2534,7 @@ void _r_wnd_setdarktheme (HWND hwnd)
 		if (ord135)
 		{
 			typedef BOOL (WINAPI* ADMFA) (BOOL); // AllowDarkModeForApp
-			typedef PreferredAppMode (WINAPI* SPM) (PreferredAppMode); // SetPreferredAppMode
+			typedef PreferredAppMode (WINAPI* SPM) (PreferredAppMode); // SetPreferredAppMode (1903+)
 
 			ADMFA _AllowDarkModeForApp = nullptr;
 			SPM _SetPreferredAppMode = nullptr;
@@ -2917,6 +2917,8 @@ PBYTE _r_reg_querybinary (HKEY hkey, LPCWSTR value)
 
 			if (RegQueryValueEx (hkey, value, nullptr, nullptr, pbuffer, &size) == ERROR_SUCCESS)
 				return pbuffer;
+
+			delete[] pbuffer; // cleanup
 		}
 	}
 
