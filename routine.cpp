@@ -991,11 +991,9 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 			rstringvec rvc;
 			_r_str_split (providerOrder, providerOrder.GetLength (), L',', rvc);
 
-			for (size_t i = 0; i < rvc.size (); i++)
+			for (auto& p : rvc)
 			{
-				rstring& rlink = rvc.at (i);
-
-				if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, _r_fmt (L"System\\CurrentControlSet\\Services\\%s\\NetworkProvider", rlink.GetString ()), 0, KEY_READ, &hkey) == ERROR_SUCCESS)
+				if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, _r_fmt (L"System\\CurrentControlSet\\Services\\%s\\NetworkProvider", p.GetString ()), 0, KEY_READ, &hkey) == ERROR_SUCCESS)
 				{
 					rstring deviceName = _r_reg_querystring (hkey, L"DeviceName");
 
@@ -1600,14 +1598,12 @@ bool _r_str_unserialize (LPCWSTR text, WCHAR delimeter, WCHAR key_delimeter, rst
 	rstringvec rvc;
 	_r_str_split (text, INVALID_SIZE_T, delimeter, rvc);
 
-	for (size_t i = 0; i < rvc.size (); i++)
+	for (auto& p : rvc)
 	{
-		rstring& rlink = rvc.at (i);
-
-		const size_t pos = _r_str_find (rlink, rlink.GetLength (), key_delimeter);
+		const size_t pos = _r_str_find (p, p.GetLength (), key_delimeter);
 
 		if (pos != INVALID_SIZE_T)
-			(*lpresult)[_r_str_extract (rlink, rlink.GetLength (), 0, pos)] = _r_str_extract (rlink, rlink.GetLength (), pos + 1);
+			(*lpresult)[_r_str_extract (p, p.GetLength (), 0, pos)] = _r_str_extract (p, p.GetLength (), pos + 1);
 	}
 
 	return true;
