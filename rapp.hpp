@@ -26,7 +26,6 @@ typedef struct _APP_SETTINGS_PAGE
 
 	INT dlg_id = 0;
 	UINT locale_id = 0;
-
 } *PAPP_SETTINGS_PAGE, APP_SETTINGS_PAGE;
 #endif // _APP_HAVE_SETTINGS
 
@@ -39,24 +38,20 @@ typedef struct _APP_UPDATE_COMPONENT
 		SAFE_DELETE_ARRAY (short_name);
 		SAFE_DELETE_ARRAY (version);
 		SAFE_DELETE_ARRAY (new_version);
+		SAFE_DELETE_ARRAY (temp_path);
 		SAFE_DELETE_ARRAY (target_path);
 		SAFE_DELETE_ARRAY (url);
-		SAFE_DELETE_ARRAY (filepath);
 	}
 
 	LPWSTR full_name = nullptr;
 	LPWSTR short_name = nullptr;
 	LPWSTR version = nullptr;
 	LPWSTR new_version = nullptr;
+	LPWSTR temp_path = nullptr;
 	LPWSTR target_path = nullptr;
 	LPWSTR url = nullptr;
-	LPWSTR filepath = nullptr;
-
-	HANDLE hthread = nullptr;
-	HANDLE hend = nullptr;
 
 	bool is_installer = false;
-	bool is_downloaded = false;
 	bool is_haveupdate = false;
 } *PAPP_UPDATE_COMPONENT, APP_UPDATE_COMPONENT;
 
@@ -64,8 +59,8 @@ typedef struct _APP_UPDATE_INFO
 {
 	~_APP_UPDATE_INFO ()
 	{
-		for (size_t i = 0; i < components.size (); i++)
-			SAFE_DELETE (components.at (i));
+		for (auto &p : components)
+			delete p;
 	}
 
 	bool is_downloaded = false;
@@ -76,7 +71,6 @@ typedef struct _APP_UPDATE_INFO
 	HWND hparent = nullptr;
 
 	HANDLE hthread = nullptr;
-	HANDLE hend = nullptr;
 
 	LPVOID papp = nullptr;
 } *PAPP_UPDATE_INFO, APP_UPDATE_INFO;
@@ -222,11 +216,11 @@ public:
 	rstring GetProxyConfiguration () const;
 	rstring GetUserAgent ();
 
+#if !defined(_APP_CONSOLE)
 	HINSTANCE GetHINSTANCE () const;
 	HWND GetHWND () const;
 	HICON GetSharedImage (HINSTANCE hinst, INT icon_id, INT icon_size);
 
-#if !defined(_APP_CONSOLE)
 	bool IsClassicUI () const;
 #endif // !_APP_CONSOLE
 
@@ -234,11 +228,11 @@ public:
 	bool IsVistaOrLater () const;
 #endif // _APP_NO_WINXP
 
-#if !defined(_APP_CONSOLE)
 #if defined(_APP_HAVE_SETTINGS)
 	void LocaleApplyFromControl (HWND hwnd, INT ctrl_id);
 #endif // _APP_HAVE_SETTINGS
 
+#if !defined(_APP_CONSOLE)
 	void LocaleApplyFromMenu (HMENU hmenu, UINT selected_id, UINT default_id);
 
 	void LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start);
@@ -248,11 +242,11 @@ public:
 	void LocaleMenu (HMENU hmenu, UINT uid, UINT item, BOOL by_position, LPCWSTR append);
 #endif // !_APP_CONSOLE
 
-#if defined(_APP_HAVE_SKIPUAC) && !defined(_APP_CONSOLE)
+#if defined(_APP_HAVE_SKIPUAC)
 	bool SkipUacIsEnabled () const;
 	HRESULT SkipUacEnable (HWND hwnd, bool is_enable);
 	bool SkipUacRun ();
-#endif // _APP_HAVE_SKIPUAC && !_APP_CONSOLE
+#endif // _APP_HAVE_SKIPUAC
 
 #if !defined(_APP_CONSOLE)
 	void Restart (HWND hwnd);
@@ -320,6 +314,8 @@ private:
 #if !defined(_APP_CONSOLE)
 	LPWSTR app_localepath = nullptr;
 	LPWSTR app_locale_current = nullptr;
+
+	LPWSTR app_mutex_name = nullptr;
 
 	WCHAR locale_default[LOCALE_NAME_MAX_LENGTH];
 
