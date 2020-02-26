@@ -991,7 +991,7 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 			rstringvec rvc;
 			_r_str_split (providerOrder, providerOrder.GetLength (), L',', rvc);
 
-			for (auto& p : rvc)
+			for (auto &p : rvc)
 			{
 				if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, _r_fmt (L"System\\CurrentControlSet\\Services\\%s\\NetworkProvider", p.GetString ()), 0, KEY_READ, &hkey) == ERROR_SUCCESS)
 				{
@@ -1598,7 +1598,7 @@ bool _r_str_unserialize (LPCWSTR text, WCHAR delimeter, WCHAR key_delimeter, rst
 	rstringvec rvc;
 	_r_str_split (text, INVALID_SIZE_T, delimeter, rvc);
 
-	for (auto& p : rvc)
+	for (auto &p : rvc)
 	{
 		const size_t pos = _r_str_find (p, p.GetLength (), key_delimeter);
 
