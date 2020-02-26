@@ -129,7 +129,7 @@ bool rapp::Initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWST
 	// win7+
 	if (_r_sys_validversion (6, 1))
 	{
-		HMODULE hlib = LoadLibraryEx (L"kernel32.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+		HMODULE hlib = LoadLibraryEx (L"kernel32.dll", nullptr, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 		if (hlib)
 		{
@@ -138,6 +138,13 @@ bool rapp::Initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWST
 
 			if (_SetSearchPathMode)
 				_SetSearchPathMode (BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
+
+			// Check for SetDefaultDllDirectories since it requires KB2533623.
+			using SDDD = decltype (&SetDefaultDllDirectories);
+			const SDDD _SetDefaultDllDirectories = (SDDD)GetProcAddress (hlib, "SetDefaultDllDirectories");
+
+			if (_SetDefaultDllDirectories)
+				_SetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 		}
 
 		FreeLibrary (hlib);
@@ -306,7 +313,7 @@ bool rapp::Initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWST
 
 	// get default system locale
 #if !defined(_APP_CONSOLE)
-	GetLocaleInfo (LOCALE_SYSTEM_DEFAULT, LOCALE_SENGLISHLANGUAGENAME, locale_default, _countof (locale_default));
+	GetLocaleInfo (LOCALE_USER_DEFAULT, LOCALE_SENGLISHLANGUAGENAME, locale_default, _countof (locale_default));
 #endif // !_APP_CONSOLE
 
 	// read config
@@ -399,7 +406,7 @@ bool rapp::AutorunIsEnabled ()
 LSTATUS rapp::AutorunEnable (HWND hwnd, bool is_enable)
 {
 	HKEY hkey = nullptr;
-	LONG result = RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_ALL_ACCESS, &hkey);
+	LONG result = RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE, &hkey);
 
 	if (result == ERROR_SUCCESS)
 	{
@@ -1806,6 +1813,8 @@ void rapp::LocaleInit ()
 	// clear
 	app_locale_array.clear ();
 	app_locale_names.clear ();
+
+	app_locale_timetamp = 0;
 
 	_r_parseini (GetLocalePath (), app_locale_array, &app_locale_names);
 

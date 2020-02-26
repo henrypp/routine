@@ -25,32 +25,6 @@ void _r_dbg_print (LPCWSTR text, ...)
 	OutputDebugString (buffer);
 }
 
-rstring _r_dbg_getpath ()
-{
-	WCHAR result[MAX_PATH] = {0};
-
-	if (!_r_sys_iselevated ())
-	{
-		GetTempPath (_countof (result), result);
-	}
-	else
-	{
-		GetModuleFileName (GetModuleHandle (nullptr), result, _countof (result));
-		PathRemoveFileSpec (result);
-	}
-
-	_r_str_cat (result, _countof (result), L"\\");
-#if defined(APP_NAME_SHORT)
-	_r_str_cat (result, _countof (result), APP_NAME_SHORT);
-#else
-	_r_str_cat (result, _countof (result), L"unnamed");
-#pragma _R_WARNING(APP_NAME_SHORT)
-#endif // APP_NAME_SHORT
-	_r_str_cat (result, _countof (result), L"_debug.log");
-
-	return result;
-}
-
 /*
 	Format strings, dates, numbers
 */
@@ -90,16 +64,13 @@ rstring _r_fmt_date (time_t ut, DWORD flags)
 rstring _r_fmt_interval (time_t seconds, INT digits)
 {
 	WCHAR buffer[128] = {0};
-	StrFromTimeInterval (buffer, _countof (buffer), DWORD (seconds) * 1000UL, digits);
+	StrFromTimeInterval (buffer, _countof (buffer), DWORD (seconds) * 1000, digits);
 
 	return buffer;
 }
 
 rstring _r_fmt_number (LONG64 number, WCHAR sep)
 {
-	WCHAR input_text[128] = {0};
-	_r_str_printf (input_text, _countof (input_text), L"%" PRId64, number);
-
 	WCHAR thousandSeparator[2];
 
 	thousandSeparator[0] = sep;
@@ -118,12 +89,15 @@ rstring _r_fmt_number (LONG64 number, WCHAR sep)
 	format.lpDecimalSep = decimalSeparator;
 	format.NegativeOrder = 1;
 
+	WCHAR in_text[128] = {0};
 	WCHAR out_text[128] = {0};
 
-	if (GetNumberFormat (LOCALE_USER_DEFAULT, 0, input_text, &format, out_text, _countof (out_text)) <= 0)
-		return input_text;
+	_r_str_printf (in_text, _countof (in_text), L"%" PRId64, number);
 
-	return out_text;
+	if (GetNumberFormat (LOCALE_USER_DEFAULT, 0, in_text, &format, out_text, _countof (out_text)) > 0)
+		return out_text;
+
+	return in_text;
 }
 
 rstring _r_fmt_size64 (ULONG64 bytes)
@@ -1861,7 +1835,7 @@ INT _r_dc_getdpivalue (HWND hwnd)
 	{
 		static const bool is_win10rs1 = _r_sys_validversion (10, 0, 14393); //win10rs1+
 
-		huser32 = LoadLibraryEx (L"user32.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+		huser32 = LoadLibraryEx (L"user32.dll", nullptr, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 		if (hwnd)
 		{
@@ -1879,7 +1853,7 @@ INT _r_dc_getdpivalue (HWND hwnd)
 			}
 
 			// GetDpiForMonitor (win81+)
-			hshcore = LoadLibraryEx (L"shcore.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+			hshcore = LoadLibraryEx (L"shcore.dll", nullptr, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 			if (hshcore)
 			{
@@ -1977,7 +1951,7 @@ INT _r_dc_getsystemmetrics (HWND hwnd, INT index)
 
 	if (is_win10rs1 && hwnd)
 	{
-		HMODULE huser32 = LoadLibraryEx (L"user32.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+		HMODULE huser32 = LoadLibraryEx (L"user32.dll", nullptr, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 		if (huser32)
 		{
@@ -2114,7 +2088,7 @@ void _r_wnd_center (HWND hwnd, HWND hparent)
 
 void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD action)
 {
-	const HMODULE hlib = LoadLibraryEx (L"user32.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+	const HMODULE hlib = LoadLibraryEx (L"user32.dll", nullptr, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 	if (!hlib)
 		return;
@@ -2177,7 +2151,7 @@ void _r_wnd_changesettings (HWND hwnd, WPARAM wparam, LPARAM lparam)
 		if (!_r_sys_validversion (10, 0, 17763)) // 1809+
 			return;
 
-		const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+		const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 		if (huxtheme)
 		{
@@ -2210,7 +2184,7 @@ void _r_wnd_enablenonclientscaling (HWND hwnd)
 	if (!_r_sys_validversion (10, 0, 14393)) // win10rs1+
 		return;
 
-	const HMODULE huser32 = LoadLibraryEx (L"user32.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+	const HMODULE huser32 = LoadLibraryEx (L"user32.dll", nullptr, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 	if (huser32)
 	{
@@ -2431,7 +2405,7 @@ bool _r_wnd_isdarktheme ()
 			return false;
 	}
 
-	const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+	const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 	if (huxtheme)
 	{
@@ -2461,7 +2435,7 @@ void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable)
 {
 	if (_r_sys_validversion (10, 0, 18362)) // 1903+
 	{
-		const HMODULE huser32 = LoadLibraryEx (L"user32.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+		const HMODULE huser32 = LoadLibraryEx (L"user32.dll", nullptr, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 		if (huser32)
 		{
@@ -2492,7 +2466,7 @@ void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable)
 
 void _r_wnd_setdarkwindow (HWND hwnd, BOOL is_enable)
 {
-	const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+	const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 	if (huxtheme)
 	{
@@ -2521,7 +2495,7 @@ void _r_wnd_setdarktheme (HWND hwnd)
 
 	_r_wnd_setdarkframe (hwnd, is_darktheme);
 
-	const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+	const HMODULE huxtheme = LoadLibraryEx (L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 	if (huxtheme)
 	{
