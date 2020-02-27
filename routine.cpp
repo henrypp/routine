@@ -427,8 +427,8 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 		case TDN_DIALOG_CONSTRUCTED:
 		{
 			// remove window icon
-			SendMessage (hwnd, WM_SETICON, ICON_SMALL, NULL);
-			SendMessage (hwnd, WM_SETICON, ICON_BIG, NULL);
+			SendMessage (hwnd, WM_SETICON, ICON_SMALL, 0);
+			SendMessage (hwnd, WM_SETICON, ICON_BIG, 0);
 
 			break;
 		}
@@ -480,28 +480,26 @@ void _r_clipboard_set (HWND hwnd, LPCWSTR text, size_t length)
 
 	if (OpenClipboard (hwnd))
 	{
-		if (EmptyClipboard ())
+		size_t byte_size = length * sizeof (WCHAR);
+		HGLOBAL hmemory = GlobalAlloc (GMEM_MOVEABLE | GMEM_ZEROINIT, byte_size + sizeof (WCHAR));
+
+		if (hmemory)
 		{
-			size_t byte_size = length * sizeof (WCHAR);
-			HGLOBAL hmemory = GlobalAlloc (GMEM_MOVEABLE | GMEM_ZEROINIT, byte_size + sizeof (WCHAR));
+			LPVOID ptr_lock = GlobalLock (hmemory);
 
-			if (hmemory)
+			if (ptr_lock)
 			{
-				LPVOID ptr_lock = GlobalLock (hmemory);
+				RtlCopyMemory (ptr_lock, text, byte_size);
+				*(PWCHAR)PTR_ADD_OFFSET (ptr_lock, byte_size) = UNICODE_NULL; // terminate
 
-				if (ptr_lock)
-				{
-					memcpy (ptr_lock, text, byte_size);
-					*(PWCHAR)PTR_ADD_OFFSET (ptr_lock, byte_size) = UNICODE_NULL; // terminate
+				GlobalUnlock (ptr_lock);
 
-					GlobalUnlock (ptr_lock);
-
-					SetClipboardData (CF_UNICODETEXT, hmemory);
-				}
-				else
-				{
-					GlobalFree (hmemory);
-				}
+				EmptyClipboard ();
+				SetClipboardData (CF_UNICODETEXT, hmemory);
+			}
+			else
+			{
+				GlobalFree (hmemory);
 			}
 		}
 
