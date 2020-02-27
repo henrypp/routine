@@ -55,6 +55,130 @@ namespace rhelper
 		return text;
 	}
 
+	bool initialize_mitigation_policy (LPCWSTR path, LPCWSTR dir)
+	{
+		if (!_r_sys_validversion (10, 0, 15063)) // win10rs2+
+			return true;
+
+		DWORD64 default_flags = PROCESS_CREATION_MITIGATION_POLICY_HEAP_TERMINATE_ALWAYS_ON |
+			PROCESS_CREATION_MITIGATION_POLICY_BOTTOM_UP_ASLR_ALWAYS_ON |
+			PROCESS_CREATION_MITIGATION_POLICY_HIGH_ENTROPY_ASLR_ALWAYS_ON |
+			PROCESS_CREATION_MITIGATION_POLICY_EXTENSION_POINT_DISABLE_ALWAYS_ON |
+			PROCESS_CREATION_MITIGATION_POLICY_PROHIBIT_DYNAMIC_CODE_ALWAYS_ON |
+			PROCESS_CREATION_MITIGATION_POLICY_CONTROL_FLOW_GUARD_ALWAYS_ON |
+			//PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON |
+			PROCESS_CREATION_MITIGATION_POLICY_IMAGE_LOAD_NO_REMOTE_ALWAYS_ON |
+			PROCESS_CREATION_MITIGATION_POLICY_IMAGE_LOAD_NO_LOW_LABEL_ALWAYS_ON;
+
+		// PROCESS_CREATION_MITIGATION_POLICY2_MODULE_TAMPERING_PROTECTION_ALWAYS_ON |
+		// PROCESS_CREATION_MITIGATION_POLICY2_RESTRICT_INDIRECT_BRANCH_PREDICTION_ALWAYS_ON |
+		// PROCESS_CREATION_MITIGATION_POLICY2_ALLOW_DOWNGRADE_DYNAMIC_CODE_POLICY_ALWAYS_ON |
+		// PROCESS_CREATION_MITIGATION_POLICY2_SPECULATIVE_STORE_BYPASS_DISABLE_ALWAYS_ON |
+
+		bool is_success = true;
+
+		STARTUPINFOEX startupInfo = {0};
+		startupInfo.StartupInfo.cb = sizeof (STARTUPINFOEX);
+
+		PROCESS_INFORMATION pi = {0};
+
+		LPWSTR command_line = nullptr;
+
+#if !defined(_APP_NO_WINXP)
+		HMODULE hkernel32 = LoadLibraryEx (L"kernel32.dll", nullptr, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+#endif // _APP_NO_WINXP
+
+		HMODULE hntdll = LoadLibraryEx (L"ntdll.dll", nullptr, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+
+		if (!hntdll)
+			goto CleanupExit;
+
+		PPS_SYSTEM_DLL_INIT_BLOCK _LdrSystemDllInitBlock = (PPS_SYSTEM_DLL_INIT_BLOCK)GetProcAddress (hntdll, "LdrSystemDllInitBlock");
+
+		if (!_LdrSystemDllInitBlock)
+			goto CleanupExit;
+
+		if (!RTL_CONTAINS_FIELD (_LdrSystemDllInitBlock, _LdrSystemDllInitBlock->Size, MitigationOptionsMap))
+			goto CleanupExit;
+
+		if ((_LdrSystemDllInitBlock->MitigationOptionsMap.Map[0] & default_flags) == default_flags)
+			goto CleanupExit;
+
+		SIZE_T attributeListLength;
+
+#if defined(_APP_NO_WINXP)
+		if (!InitializeProcThreadAttributeList (nullptr, 1, 0, &attributeListLength) && GetLastError () != ERROR_INSUFFICIENT_BUFFER)
+			goto CleanupExit;
+#else
+		using IPTAL = decltype (&InitializeProcThreadAttributeList);
+		const IPTAL _InitializeProcThreadAttributeList = (IPTAL)GetProcAddress (hkernel32, "InitializeProcThreadAttributeList");
+
+		if (!_InitializeProcThreadAttributeList || (!_InitializeProcThreadAttributeList (nullptr, 1, 0, &attributeListLength) && GetLastError () != ERROR_INSUFFICIENT_BUFFER))
+			goto CleanupExit;
+#endif // _APP_NO_WINXP
+
+		startupInfo.lpAttributeList = (LPPROC_THREAD_ATTRIBUTE_LIST)new BYTE[attributeListLength];
+
+#if defined(_APP_NO_WINXP)
+		if (!InitializeProcThreadAttributeList (startupInfo.lpAttributeList, 1, 0, &attributeListLength))
+			goto CleanupExit;
+#else
+		if (!_InitializeProcThreadAttributeList || !_InitializeProcThreadAttributeList (startupInfo.lpAttributeList, 1, 0, &attributeListLength))
+			goto CleanupExit;
+#endif // _APP_NO_WINXP
+
+#if defined(_APP_NO_WINXP)
+		if (!UpdateProcThreadAttribute (startupInfo.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY, &default_flags, sizeof (default_flags), nullptr, nullptr))
+			goto CleanupExit;
+#else
+		using UPTAL = decltype (&UpdateProcThreadAttribute);
+		const UPTAL _UpdateProcThreadAttribute = (UPTAL)GetProcAddress (hkernel32, "UpdateProcThreadAttribute");
+
+		if (!_UpdateProcThreadAttribute || !_UpdateProcThreadAttribute (startupInfo.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY, &default_flags, sizeof (default_flags), nullptr, nullptr))
+			goto CleanupExit;
+#endif // _APP_NO_WINXP
+
+		_r_str_alloc (&command_line, INVALID_SIZE_T, GetCommandLine ());
+
+		if (CreateProcess (path, command_line, nullptr, nullptr, FALSE, CREATE_BREAKAWAY_FROM_JOB | EXTENDED_STARTUPINFO_PRESENT, nullptr, dir, &startupInfo.StartupInfo, &pi))
+			is_success = false;
+
+		if (pi.hProcess)
+			NtClose (pi.hProcess);
+
+		if (pi.hThread)
+			NtClose (pi.hThread);
+
+CleanupExit:
+
+		SAFE_DELETE_ARRAY (command_line);
+
+		if (startupInfo.lpAttributeList)
+		{
+#if defined(_APP_NO_WINXP)
+			DeleteProcThreadAttributeList (startupInfo.lpAttributeList);
+#else
+			using DPTAL = decltype (&DeleteProcThreadAttributeList);
+			const DPTAL _DeleteProcThreadAttributeList = (DPTAL)GetProcAddress (hkernel32, "DeleteProcThreadAttributeList");
+
+			if (_DeleteProcThreadAttributeList)
+				_DeleteProcThreadAttributeList (startupInfo.lpAttributeList);
+#endif // _APP_NO_WINXP
+
+			delete[] LPBYTE (startupInfo.lpAttributeList);
+		}
+
+#if !defined(_APP_NO_WINXP)
+		if (hkernel32)
+			FreeLibrary (hkernel32);
+#endif // !_APP_NO_WINXP
+
+		if (hntdll)
+			FreeLibrary (hntdll);
+
+		return is_success;
+	}
+
 	BOOL CALLBACK activate_window_callback (HWND hwnd, LPARAM lparam)
 	{
 		LPCWSTR app_name = (LPCWSTR)lparam;
@@ -231,6 +355,11 @@ bool rapp::Initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWST
 #endif // _APP_NO_GUEST
 #endif // !_APP_CONSOLE
 
+#if !defined(_DEBUG) && !defined(_APP_CONSOLE)
+	if (!rhelper::initialize_mitigation_policy (app_binary, app_directory))
+		return false;
+#endif // !_DEBUG && !_APP_CONSOLE
+
 	// set running flag
 #if !defined(_APP_CONSOLE)
 	MutexCreate ();
@@ -326,7 +455,7 @@ bool rapp::Initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWST
 #endif // !_APP_CONSOLE
 
 	return true;
-}
+	}
 
 #if !defined(_APP_CONSOLE)
 bool rapp::MutexCreate ()
@@ -1084,8 +1213,8 @@ void rapp::CreateAboutWindow (HWND hwnd)
 #endif // !_APP_NO_WINXP
 
 		guard -= 1;
+		}
 	}
-}
 
 bool rapp::IsClassicUI () const
 {
@@ -1410,7 +1539,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 #endif // _APP_HAVE_UPDATES
 
 	return true;
-}
+		}
 
 void rapp::RestoreWindowPosition (HWND hwnd, LPCWSTR window_name)
 {
@@ -2189,10 +2318,10 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			break;
 		}
-	}
+		}
 
 	return FALSE;
-}
+	}
 #endif // _APP_HAVE_SETTINGS
 
 #if defined(_APP_HAVE_UPDATES)
@@ -2365,12 +2494,12 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 				SendMessage (hmain, RM_LOCALIZE, 0, 0);
 			}
 		}
-	}
+		}
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-}
+			}
 
 HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM, LONG_PTR lpdata)
 {
@@ -2391,11 +2520,18 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 				_r_wnd_top (hwnd, true);
 			}
 
+#if !defined(_APP_NO_DARKTHEME)
+			_r_wnd_setdarktheme (hwnd);
+#endif // !_APP_NO_DARKTHEME
+
 			break;
 		}
 
 		case TDN_DIALOG_CONSTRUCTED:
 		{
+			SendMessage (hwnd, WM_SETICON, ICON_SMALL, 0);
+			SendMessage (hwnd, WM_SETICON, ICON_BIG, 0);
+
 			if (_r_fs_isvalidhandle (pupdateinfo->hthread))
 				ResumeThread (pupdateinfo->hthread);
 
@@ -2495,14 +2631,14 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 					if (this_ptr->IsVistaOrLater ())
 					{
 						this_ptr->UpdateDialogNavigate (pupdateinfo->htaskdlg, TD_WARNING_ICON, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
-					}
+				}
 					else
 					{
 						this_ptr->ShowMessage (pupdateinfo->hparent, MB_OK | MB_ICONWARNING, nullptr, nullptr, str_content);
 					}
 #endif // _APP_NO_WINXP
-				}
 			}
+		}
 			else
 			{
 				rstringmap1 result;
@@ -2570,7 +2706,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 						if (this_ptr->IsVistaOrLater ())
 						{
 							this_ptr->UpdateDialogNavigate (pupdateinfo->htaskdlg, nullptr, 0, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, str_main, updates_text, (LONG_PTR)pupdateinfo);
-						}
+					}
 						else
 						{
 							const INT msg_id = this_ptr->ShowMessage (pupdateinfo->hparent, MB_YESNO | MB_USERICON, nullptr, str_main, updates_text.GetString ());
@@ -2579,7 +2715,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 								pupdateinfo->hthread = _r_createthread (&this_ptr->UpdateDownloadThread, (LPVOID)pupdateinfo, false);
 						}
 #endif // _APP_NO_WINXP
-					}
+				}
 					else
 					{
 						if (pupdateinfo->htaskdlg)
@@ -2594,20 +2730,20 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 							this_ptr->UpdateDialogNavigate (pupdateinfo->htaskdlg, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 						}
+						}
 					}
-				}
 
 				this_ptr->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
 			}
 
 			_r_inet_close (hsession);
-		}
 	}
+}
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-}
+		}
 
 INT rapp::UpdateDialogNavigate (HWND htaskdlg, LPCWSTR main_icon, TASKDIALOG_FLAGS flags, TASKDIALOG_COMMON_BUTTON_FLAGS buttons, LPCWSTR main, LPCWSTR content, LONG_PTR lpdata)
 {
@@ -2664,7 +2800,7 @@ INT rapp::UpdateDialogNavigate (HWND htaskdlg, LPCWSTR main_icon, TASKDIALOG_FLA
 		_r_msg_taskdialog (&tdc, &button, nullptr, nullptr);
 
 	return button;
-}
+	}
 #endif // _APP_HAVE_UPDATES
 
 #if defined(_APP_HAVE_SKIPUAC)
