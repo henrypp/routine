@@ -455,7 +455,7 @@ bool rapp::Initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWST
 #endif // !_APP_CONSOLE
 
 	return true;
-	}
+}
 
 #if !defined(_APP_CONSOLE)
 bool rapp::MutexCreate ()
@@ -577,24 +577,20 @@ void rapp::UpdateAddComponent (LPCWSTR full_name, LPCWSTR short_name, LPCWSTR ve
 	if (!pupdateinfo)
 	{
 		pupdateinfo = new APP_UPDATE_INFO;
-
 		pupdateinfo->papp = this;
 	}
 
-	if (pupdateinfo)
-	{
-		PAPP_UPDATE_COMPONENT pcomponent = new APP_UPDATE_COMPONENT;
-		RtlSecureZeroMemory (pcomponent, sizeof (APP_UPDATE_COMPONENT));
+	PAPP_UPDATE_COMPONENT pcomponent = new APP_UPDATE_COMPONENT;
+	RtlSecureZeroMemory (pcomponent, sizeof (APP_UPDATE_COMPONENT));
 
-		_r_str_alloc (&pcomponent->full_name, INVALID_SIZE_T, full_name);
-		_r_str_alloc (&pcomponent->short_name, INVALID_SIZE_T, short_name);
-		_r_str_alloc (&pcomponent->version, INVALID_SIZE_T, version);
-		_r_str_alloc (&pcomponent->target_path, INVALID_SIZE_T, target_path);
+	_r_str_alloc (&pcomponent->full_name, INVALID_SIZE_T, full_name);
+	_r_str_alloc (&pcomponent->short_name, INVALID_SIZE_T, short_name);
+	_r_str_alloc (&pcomponent->version, INVALID_SIZE_T, version);
+	_r_str_alloc (&pcomponent->target_path, INVALID_SIZE_T, target_path);
 
-		pcomponent->is_installer = is_installer;
+	pcomponent->is_installer = is_installer;
 
-		pupdateinfo->components.push_back (pcomponent);
-	}
+	pupdateinfo->components.push_back (pcomponent);
 }
 
 void rapp::UpdateCheck (HWND hparent)
@@ -1213,8 +1209,8 @@ void rapp::CreateAboutWindow (HWND hwnd)
 #endif // !_APP_NO_WINXP
 
 		guard -= 1;
-		}
 	}
+}
 
 bool rapp::IsClassicUI () const
 {
@@ -1539,7 +1535,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 #endif // _APP_HAVE_UPDATES
 
 	return true;
-		}
+}
 
 void rapp::RestoreWindowPosition (HWND hwnd, LPCWSTR window_name)
 {
@@ -2318,10 +2314,10 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 			break;
 		}
-		}
+	}
 
 	return FALSE;
-	}
+}
 #endif // _APP_HAVE_SETTINGS
 
 #if defined(_APP_HAVE_UPDATES)
@@ -2494,12 +2490,12 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 				SendMessage (hmain, RM_LOCALIZE, 0, 0);
 			}
 		}
-		}
+	}
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-			}
+}
 
 HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM, LONG_PTR lpdata)
 {
@@ -2631,14 +2627,14 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 					if (this_ptr->IsVistaOrLater ())
 					{
 						this_ptr->UpdateDialogNavigate (pupdateinfo->htaskdlg, TD_WARNING_ICON, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
-				}
+					}
 					else
 					{
 						this_ptr->ShowMessage (pupdateinfo->hparent, MB_OK | MB_ICONWARNING, nullptr, nullptr, str_content);
 					}
 #endif // _APP_NO_WINXP
+				}
 			}
-		}
 			else
 			{
 				rstringmap1 result;
@@ -2706,7 +2702,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 						if (this_ptr->IsVistaOrLater ())
 						{
 							this_ptr->UpdateDialogNavigate (pupdateinfo->htaskdlg, nullptr, 0, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, str_main, updates_text, (LONG_PTR)pupdateinfo);
-					}
+						}
 						else
 						{
 							const INT msg_id = this_ptr->ShowMessage (pupdateinfo->hparent, MB_YESNO | MB_USERICON, nullptr, str_main, updates_text.GetString ());
@@ -2715,7 +2711,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 								pupdateinfo->hthread = _r_createthread (&this_ptr->UpdateDownloadThread, (LPVOID)pupdateinfo, false);
 						}
 #endif // _APP_NO_WINXP
-				}
+					}
 					else
 					{
 						if (pupdateinfo->htaskdlg)
@@ -2730,20 +2726,20 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 
 							this_ptr->UpdateDialogNavigate (pupdateinfo->htaskdlg, nullptr, 0, TDCBF_CLOSE_BUTTON, nullptr, str_content, (LONG_PTR)pupdateinfo);
 						}
-						}
 					}
+				}
 
 				this_ptr->ConfigSet (L"CheckUpdatesLast", _r_unixtime_now ());
 			}
 
 			_r_inet_close (hsession);
+		}
 	}
-}
 
 	_endthreadex (ERROR_SUCCESS);
 
 	return ERROR_SUCCESS;
-		}
+}
 
 INT rapp::UpdateDialogNavigate (HWND htaskdlg, LPCWSTR main_icon, TASKDIALOG_FLAGS flags, TASKDIALOG_COMMON_BUTTON_FLAGS buttons, LPCWSTR main, LPCWSTR content, LONG_PTR lpdata)
 {
@@ -2800,7 +2796,7 @@ INT rapp::UpdateDialogNavigate (HWND htaskdlg, LPCWSTR main_icon, TASKDIALOG_FLA
 		_r_msg_taskdialog (&tdc, &button, nullptr, nullptr);
 
 	return button;
-	}
+}
 #endif // _APP_HAVE_UPDATES
 
 #if defined(_APP_HAVE_SKIPUAC)
@@ -2832,14 +2828,6 @@ HRESULT rapp::SkipUacEnable (HWND hwnd, bool is_enable)
 	IExecAction *exec_action = nullptr;
 	IRegisteredTask *registered_task = nullptr;
 
-	MBSTR root (L"\\");
-	MBSTR name (_r_fmt (_APP_TASKSCHD_NAME, app_name_short));
-	MBSTR author (_APP_AUTHOR);
-	MBSTR path (GetBinaryPath ());
-	MBSTR directory (GetDirectory ());
-	MBSTR args (L"$(Arg0)");
-	MBSTR timelimit (L"PT0S");
-
 	HRESULT result = CoCreateInstance (CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskService, (LPVOID*)&service);
 
 	if (SUCCEEDED (result))
@@ -2848,12 +2836,22 @@ HRESULT rapp::SkipUacEnable (HWND hwnd, bool is_enable)
 
 		if (SUCCEEDED (result))
 		{
+			MBSTR root (L"\\");
+
 			result = service->GetFolder (root, &folder);
 
 			if (SUCCEEDED (result))
 			{
+				MBSTR name (_r_fmt (_APP_TASKSCHD_NAME, app_name_short));
+
 				if (is_enable)
 				{
+					MBSTR author (_APP_AUTHOR);
+					MBSTR path (GetBinaryPath ());
+					MBSTR directory (GetDirectory ());
+					MBSTR args (L"$(Arg0)");
+					MBSTR timelimit (L"PT0S");
+
 					// create task
 					result = service->NewTask (0, &taskdef);
 
