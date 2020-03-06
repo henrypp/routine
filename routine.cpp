@@ -870,12 +870,20 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 	{
 		const size_t pathLen = _r_str_length (path);
 
-		if (_r_str_compare (path, L"\\device\\mup", 11) == 0)
+		if (_r_str_compare (path, L"\\device\\mup", 11) == 0) // network share (win7+)
 		{
 			if (pathLen != 11 && path[11] == OBJ_NAME_PATH_SEPARATOR)
 			{
-				// \path
-				return (path + 11);
+				// \\path
+				return _r_fmt (L"%c%s", OBJ_NAME_PATH_SEPARATOR , path + 11);
+			}
+		}
+		else if (_r_str_compare (path, L"\\device\\lanmanredirector", 24) == 0) // network share (winxp+)
+		{
+			if (pathLen != 24 && path[24] == OBJ_NAME_PATH_SEPARATOR)
+			{
+				// \\path
+				return _r_fmt (L"%c%s", OBJ_NAME_PATH_SEPARATOR , path + 24);
 			}
 		}
 
@@ -2337,7 +2345,7 @@ void _r_wnd_toggle (HWND hwnd, bool is_show)
 
 void _r_wnd_top (HWND hwnd, bool is_enable)
 {
-	SetWindowPos (hwnd, (is_enable ? HWND_TOPMOST : HWND_NOTOPMOST), 0, 0, 0, 0, SWP_NOOWNERZORDER | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+	SetWindowPos (hwnd, (is_enable ? HWND_TOPMOST : HWND_NOTOPMOST), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOREDRAW | SWP_NOACTIVATE);
 }
 
 #if !defined(_APP_NO_DARKTHEME)
