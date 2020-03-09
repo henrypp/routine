@@ -340,10 +340,8 @@ bool rapp::Initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWST
 #if defined(_APP_NO_GUEST)
 	if (!_r_sys_iselevated ())
 	{
-		if (RunAsAdmin ())
-			return false;
-
-		ShowErrorMessage (nullptr, L"Administrative privileges are required!", ERROR_DS_INSUFF_ACCESS_RIGHTS, nullptr);
+		if (!RunAsAdmin ())
+			ShowErrorMessage (nullptr, L"Administrative privileges are required!", ERROR_DS_INSUFF_ACCESS_RIGHTS, nullptr);
 
 		return false;
 	}
@@ -1271,12 +1269,12 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			return TRUE;
 		}
 
-#ifdef _APP_HAVE_TRAY
+#if defined(_APP_HAVE_TRAY)
 		case WM_SYSCOMMAND:
 		{
 			if (wparam == SC_CLOSE)
 			{
-				_r_wnd_toggle (hwnd, false);
+				ShowWindowAsync (hwnd, SW_HIDE);
 				return TRUE;
 			}
 
@@ -1288,7 +1286,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		{
 			if (this_ptr->is_needmaximize)
 			{
-				ShowWindow (hwnd, SW_MAXIMIZE);
+				ShowWindowAsync (hwnd, SW_MAXIMIZE);
 				this_ptr->is_needmaximize = false;
 			}
 
@@ -1334,7 +1332,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		case WM_SIZE:
 		{
 			if (wparam == SIZE_MINIMIZED)
-				_r_wnd_toggle (hwnd, false);
+				ShowWindowAsync (hwnd, SW_HIDE);
 
 			break;
 		}
@@ -1423,9 +1421,8 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 	// enable messages bypass uipi (vista+)
 #if !defined(_APP_NO_WINXP)
 	if (IsVistaOrLater ())
-	{
 #endif // !_APP_NO_WINXP
-
+	{
 		UINT messages[] = {
 			WM_COPYDATA,
 			WM_COPYGLOBALDATA,
@@ -1436,10 +1433,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 		};
 
 		_r_wnd_changemessagefilter (app_hwnd, messages, _countof (messages), MSGFLT_ALLOW);
-
-#if !defined(_APP_NO_WINXP)
 	}
-#endif // !_APP_NO_WINXP
 
 	// set window prop
 	SetProp (app_hwnd, app_name, "sync-1.02; iris fucyo; none of your damn business.");
@@ -1488,7 +1482,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 		RECT rc_client = {0};
 
 		GetClientRect (app_hwnd, &rc_client);
-		SendMessage (app_hwnd, WM_SIZE, 0, MAKELPARAM (_R_RECT_WIDTH (&rc_client), _R_RECT_HEIGHT (&rc_client)));
+		SendMessage (app_hwnd, WM_SIZE, SIZE_RESTORED, MAKELPARAM (_R_RECT_WIDTH (&rc_client), _R_RECT_HEIGHT (&rc_client)));
 	}
 
 	// set window icon
@@ -1500,27 +1494,55 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 
 	// set window visibility (or not?)
 	{
-		INT show_code = SW_SHOW;
+		bool is_windowhidden = false;
+		INT show_code = SW_SHOWNORMAL;
+
+		STARTUPINFO si = {0};
+		RtlSecureZeroMemory (&si, sizeof (si));
+
+		si.cb = sizeof (si);
+
+		GetStartupInfo (&si);
+
+		if ((si.dwFlags & STARTF_USESHOWWINDOW) != 0)
+			show_code = si.wShowWindow;
 
 		// show window minimized
 #if defined(_APP_HAVE_TRAY)
 #if defined(_APP_STARTMINIMIZED)
-		show_code = SW_HIDE;
+		is_windowhidden = true;
 #else
 		// if window have tray - check arguments
 		if (wcsstr (GetCommandLine (), L"/minimized") || ConfigGet (L"IsStartMinimized", false).AsBool ())
-			show_code = SW_HIDE;
+			is_windowhidden = true;
 #endif // _APP_STARTMINIMIZED
 #endif // _APP_HAVE_TRAY
 
-		if ((GetWindowLongPtr (app_hwnd, GWL_STYLE) & WS_MAXIMIZEBOX) != 0 && ConfigGet (L"IsWindowZoomed", false, L"window").AsBool ())
-		{
-			if (show_code == SW_HIDE)
-				is_needmaximize = true;
+		if (show_code == SW_HIDE || show_code == SW_MINIMIZE || show_code == SW_SHOWMINNOACTIVE || show_code == SW_FORCEMINIMIZE)
+			is_windowhidden = true;
 
-			else
-				show_code = SW_SHOWMAXIMIZED;
+		if ((GetWindowLongPtr (app_hwnd, GWL_STYLE) & WS_MAXIMIZEBOX) != 0)
+		{
+			if (ConfigGet (L"IsWindowZoomed", false, L"window").AsBool ())
+			{
+				if (is_windowhidden)
+					is_needmaximize = true;
+
+				else
+					show_code = SW_MAXIMIZE;
+			}
 		}
+		else
+		{
+			if (show_code == SW_MAXIMIZE)
+			{
+				ShowWindow (app_hwnd, SW_HIDE); // HACK!!!
+				show_code = SW_SHOWNORMAL;
+			}
+		}
+
+		if (is_windowhidden)
+			show_code = SW_HIDE;
 
 		ShowWindow (app_hwnd, show_code);
 	}
@@ -1565,9 +1587,10 @@ void rapp::RestoreWindowPosition (HWND hwnd, LPCWSTR window_name)
 	_r_wnd_adjustwindowrect (nullptr, &rect_new);
 
 	if (is_resizeable)
-		SetWindowPos (hwnd, nullptr, rect_new.left, rect_new.top, _R_RECT_WIDTH (&rect_new), _R_RECT_HEIGHT (&rect_new), SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
+		SetWindowPos (hwnd, nullptr, rect_new.left, rect_new.top, _R_RECT_WIDTH (&rect_new), _R_RECT_HEIGHT (&rect_new), SWP_NOZORDER | SWP_NOREDRAW | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+
 	else
-		SetWindowPos (hwnd, nullptr, rect_new.left, rect_new.top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
+		SetWindowPos (hwnd, nullptr, rect_new.left, rect_new.top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOREDRAW | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
 }
 #endif // !(_APP_CONSOLE
 
@@ -2213,7 +2236,7 @@ INT_PTR CALLBACK rapp::SettingsWndProc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 					const PAPP_SETTINGS_PAGE ptr_page_new = (PAPP_SETTINGS_PAGE)lptv->itemNew.lParam;
 
 					if (ptr_page_old && ptr_page_old->hwnd && IsWindowVisible (ptr_page_old->hwnd))
-						SetWindowPos (ptr_page_old->hwnd, nullptr, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_HIDEWINDOW | SWP_NOOWNERZORDER);
+						ShowWindow (ptr_page_old->hwnd, SW_HIDE);
 
 					if (!ptr_page_new || IsWindowVisible (ptr_page_new->hwnd))
 						break;
@@ -3102,7 +3125,7 @@ void rapp::Restart (HWND hwnd)
 
 	const bool is_mutexdestroyed = MutexDestroy ();
 
-	if (!_r_run (path, args, directory, SW_SHOW))
+	if (!_r_run (path, args, directory, SW_SHOWNORMAL))
 	{
 		if (is_mutexdestroyed)
 			MutexCreate (); // restore mutex on error
@@ -3143,7 +3166,7 @@ bool rapp::RunAsAdmin ()
 	shex.cbSize = sizeof (shex);
 	shex.fMask = SEE_MASK_UNICODE | SEE_MASK_NOZONECHECKS | SEE_MASK_FLAG_NO_UI | SEE_MASK_NOASYNC;
 	shex.lpVerb = L"runas";
-	shex.nShow = SW_NORMAL;
+	shex.nShow = SW_SHOWNORMAL;
 	shex.lpFile = path;
 	shex.lpDirectory = directory;
 	shex.lpParameters = args;
