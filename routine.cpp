@@ -2336,10 +2336,11 @@ void _r_wnd_toggle (HWND hwnd, bool is_show)
 {
 	if (is_show || !IsWindowVisible (hwnd))
 	{
-		ShowWindow (hwnd, SW_SHOW);
-
-		if (GetLastError () == ERROR_ACCESS_DENIED)
-			SendMessage (hwnd, WM_SYSCOMMAND, SC_RESTORE, 0); // uipi fix
+		if (!ShowWindow (hwnd, SW_SHOW))
+		{
+			if (GetLastError () == ERROR_ACCESS_DENIED)
+				SendMessage (hwnd, WM_SYSCOMMAND, SC_RESTORE, 0); // uipi fix
+		}
 
 		SetForegroundWindow (hwnd);
 		SwitchToThisWindow (hwnd, TRUE);
