@@ -435,7 +435,11 @@ HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LO
 
 		case TDN_HYPERLINK_CLICKED:
 		{
-			ShellExecute (hwnd, nullptr, (LPCWSTR)lparam, nullptr, nullptr, SW_SHOWNORMAL);
+			LPCWSTR lpszlink = (LPCWSTR)lparam;
+
+			if (!_r_str_isempty (lpszlink))
+				ShellExecute (hwnd, nullptr, lpszlink, nullptr, nullptr, SW_SHOWNORMAL);
+
 			break;
 		}
 	}
@@ -875,7 +879,7 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 			if (pathLen != 11 && path[11] == OBJ_NAME_PATH_SEPARATOR)
 			{
 				// \\path
-				return _r_fmt (L"%c%s", OBJ_NAME_PATH_SEPARATOR , path + 11);
+				return _r_fmt (L"%c%s", OBJ_NAME_PATH_SEPARATOR, path + 11);
 			}
 		}
 		else if (_r_str_compare (path, L"\\device\\lanmanredirector", 24) == 0) // network share (winxp+)
@@ -883,7 +887,7 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 			if (pathLen != 24 && path[24] == OBJ_NAME_PATH_SEPARATOR)
 			{
 				// \\path
-				return _r_fmt (L"%c%s", OBJ_NAME_PATH_SEPARATOR , path + 24);
+				return _r_fmt (L"%c%s", OBJ_NAME_PATH_SEPARATOR, path + 24);
 			}
 		}
 
@@ -2058,36 +2062,39 @@ void _r_wnd_centerwindowrect (LPRECT lprect, const LPRECT lpparent)
 
 void _r_wnd_center (HWND hwnd, HWND hparent)
 {
-	if (hparent && IsWindowVisible (hparent) && !IsIconic (hparent))
+	if (hparent)
 	{
-		RECT rect = {0}, parentRect = {0};
-
-		GetWindowRect (hwnd, &rect);
-		GetWindowRect (hparent, &parentRect);
-
-		_r_wnd_centerwindowrect (&rect, &parentRect);
-		_r_wnd_adjustwindowrect (hwnd, &rect);
-
-		SetWindowPos (hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
-	}
-	else
-	{
-		MONITORINFO monitorInfo = {0};
-		monitorInfo.cbSize = sizeof (monitorInfo);
-
-		const HMONITOR hmonitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
-
-		if (hmonitor)
+		if (IsWindowVisible (hparent) && !IsIconic (hparent))
 		{
-			if (GetMonitorInfo (hmonitor, &monitorInfo))
-			{
-				RECT rect = {0};
-				GetWindowRect (hwnd, &rect);
+			RECT rect = {0}, parentRect = {0};
 
-				_r_wnd_centerwindowrect (&rect, &monitorInfo.rcWork);
+			GetWindowRect (hwnd, &rect);
+			GetWindowRect (hparent, &parentRect);
 
-				SetWindowPos (hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
-			}
+			_r_wnd_centerwindowrect (&rect, &parentRect);
+			_r_wnd_adjustwindowrect (hwnd, &rect);
+
+			SetWindowPos (hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOREDRAW | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+
+			return;
+		}
+	}
+
+	MONITORINFO monitorInfo = {0};
+	monitorInfo.cbSize = sizeof (monitorInfo);
+
+	const HMONITOR hmonitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+
+	if (hmonitor)
+	{
+		if (GetMonitorInfo (hmonitor, &monitorInfo))
+		{
+			RECT rect = {0};
+			GetWindowRect (hwnd, &rect);
+
+			_r_wnd_centerwindowrect (&rect, &monitorInfo.rcWork);
+
+			SetWindowPos (hwnd, nullptr, rect.left, rect.top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOREDRAW | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
 		}
 	}
 }
