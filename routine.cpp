@@ -2353,7 +2353,7 @@ void _r_wnd_toggle (HWND hwnd, bool is_show)
 
 void _r_wnd_top (HWND hwnd, bool is_enable)
 {
-	SetWindowPos (hwnd, (is_enable ? HWND_TOPMOST : HWND_NOTOPMOST), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOREDRAW | SWP_NOACTIVATE);
+	SetWindowPos (hwnd, (is_enable ? HWND_TOPMOST : HWND_NOTOPMOST), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOREDRAW | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
 }
 
 #if !defined(_APP_NO_DARKTHEME)
