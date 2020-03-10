@@ -351,26 +351,24 @@ bool rapp::Initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWST
 	if (!_r_sys_iselevated () && SkipUacRun ())
 		return false;
 #endif // _APP_NO_GUEST
-#endif // !_APP_CONSOLE
 
-#if !defined(_DEBUG) && !defined(_APP_CONSOLE)
+#if !defined(_DEBUG)
 	if (!rhelper::initialize_mitigation_policy (app_binary, app_directory))
 		return false;
-#endif // !_DEBUG && !_APP_CONSOLE
+#endif // !_DEBUG
 
 	// set running flag
-#if !defined(_APP_CONSOLE)
 	MutexCreate ();
-#endif // !_APP_CONSOLE
 
 	// check for wow64 working and show warning if it is true!
-#if !defined(_DEBUG) && !defined(_APP_CONSOLE) && !defined(_WIN64)
+#if !defined(_DEBUG) && !defined(_WIN64)
 	if (_r_sys_iswow64 ())
 	{
 		if (!ShowConfirmMessage (nullptr, L"Warning!", _r_fmt (L"You are attempting to run the 32-bit version of %s on 64-bit Windows.\r\nPlease run the 64-bit version of %s instead.", app_name, app_name), L"ConfirmWOW64"))
 			return false;
 	}
-#endif // !_DEBUG && !_APP_CONSOLE && !_WIN64
+#endif // !_DEBUG && !_WIN64
+#endif // !_APP_CONSOLE
 
 	// parse command line
 	INT numargs = 0;
@@ -1270,11 +1268,19 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		}
 
 #if defined(_APP_HAVE_TRAY)
+		case WM_SIZE:
+		{
+			if (wparam == SIZE_MINIMIZED)
+				ShowWindow (hwnd, SW_HIDE);
+
+			break;
+		}
+
 		case WM_SYSCOMMAND:
 		{
 			if (wparam == SC_CLOSE)
 			{
-				ShowWindowAsync (hwnd, SW_HIDE);
+				ShowWindow (hwnd, SW_HIDE);
 				return TRUE;
 			}
 
@@ -1284,9 +1290,9 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 
 		case WM_SHOWWINDOW:
 		{
-			if (this_ptr->is_needmaximize)
+			if (wparam && this_ptr->is_needmaximize)
 			{
-				ShowWindowAsync (hwnd, SW_MAXIMIZE);
+				ShowWindow (hwnd, SW_MAXIMIZE);
 				this_ptr->is_needmaximize = false;
 			}
 
@@ -1303,8 +1309,11 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		{
 			LPMINMAXINFO lpmmi = (LPMINMAXINFO)lparam;
 
-			lpmmi->ptMinTrackSize.x = this_ptr->max_width;
-			lpmmi->ptMinTrackSize.y = this_ptr->max_height;
+			if (lpmmi)
+			{
+				lpmmi->ptMinTrackSize.x = this_ptr->max_width;
+				lpmmi->ptMinTrackSize.y = this_ptr->max_height;
+			}
 
 			break;
 		}
@@ -1327,16 +1336,6 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 
 			break;
 		}
-
-#if defined(_APP_HAVE_TRAY)
-		case WM_SIZE:
-		{
-			if (wparam == SIZE_MINIMIZED)
-				ShowWindowAsync (hwnd, SW_HIDE);
-
-			break;
-		}
-#endif // _APP_HAVE_TRAY
 
 		case WM_DPICHANGED:
 		{
@@ -1495,7 +1494,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 	// set window visibility (or not?)
 	{
 		bool is_windowhidden = false;
-		INT show_code = SW_SHOWNORMAL;
+		INT show_code = SW_SHOW;
 
 		STARTUPINFO si = {0};
 		RtlSecureZeroMemory (&si, sizeof (si));
@@ -1537,7 +1536,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 			if (show_code == SW_MAXIMIZE)
 			{
 				ShowWindow (app_hwnd, SW_HIDE); // HACK!!!
-				show_code = SW_SHOWNORMAL;
+				show_code = SW_SHOW;
 			}
 		}
 
@@ -3125,7 +3124,7 @@ void rapp::Restart (HWND hwnd)
 
 	const bool is_mutexdestroyed = MutexDestroy ();
 
-	if (!_r_run (path, args, directory, SW_SHOWNORMAL))
+	if (!_r_run (path, args, directory, SW_SHOW))
 	{
 		if (is_mutexdestroyed)
 			MutexCreate (); // restore mutex on error
@@ -3166,7 +3165,7 @@ bool rapp::RunAsAdmin ()
 	shex.cbSize = sizeof (shex);
 	shex.fMask = SEE_MASK_UNICODE | SEE_MASK_NOZONECHECKS | SEE_MASK_FLAG_NO_UI | SEE_MASK_NOASYNC;
 	shex.lpVerb = L"runas";
-	shex.nShow = SW_SHOWNORMAL;
+	shex.nShow = SW_SHOW;
 	shex.lpFile = path;
 	shex.lpDirectory = directory;
 	shex.lpParameters = args;
