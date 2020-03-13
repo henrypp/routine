@@ -488,9 +488,10 @@ bool rapp::MutexIsExists (bool activate_window)
 
 	if (GetLastError () == ERROR_ALREADY_EXISTS)
 	{
-		SAFE_DELETE_HANDLE (hmutex);
+		if (_r_fs_isvalidhandle (hmutex))
+			CloseHandle (hmutex);
 
-		if (activate_window && !wcsstr (GetCommandLine (), L"/minimized"))
+		if (activate_window)
 			EnumWindows (&rhelper::activate_window_callback, (LPARAM)this->app_name);
 
 		return true;
@@ -1267,15 +1268,35 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			return TRUE;
 		}
 
-#if defined(_APP_HAVE_TRAY)
 		case WM_SIZE:
 		{
-			if (wparam == SIZE_MINIMIZED)
+			if (wparam == SIZE_MAXIMIZED)
+			{
+				// prevent windows without maximize button to be maximized (dirty hack!!!)
+				if ((GetWindowLongPtr (hwnd, GWL_STYLE) & WS_MAXIMIZEBOX) == 0)
+				{
+					WINDOWPLACEMENT wpl = {0};
+
+					wpl.length = sizeof (wpl);
+					GetWindowPlacement (hwnd, &wpl);
+
+					wpl.showCmd = SW_RESTORE;
+					SetWindowPlacement (hwnd, &wpl);
+
+					return FALSE;
+				}
+			}
+#if defined(_APP_HAVE_TRAY)
+			else if (wparam == SIZE_MINIMIZED)
+			{
 				ShowWindow (hwnd, SW_HIDE);
+			}
+#endif // _APP_HAVE_TRAY
 
 			break;
 		}
 
+#if defined(_APP_HAVE_TRAY)
 		case WM_SYSCOMMAND:
 		{
 			if (wparam == SC_CLOSE)
@@ -1292,7 +1313,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		{
 			if (wparam && this_ptr->is_needmaximize)
 			{
-				ShowWindow (hwnd, SW_MAXIMIZE);
+				ShowWindow (hwnd, SW_SHOWMAXIMIZED);
 				this_ptr->is_needmaximize = false;
 			}
 
@@ -1330,9 +1351,9 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 			{
 				this_ptr->ConfigSet (L"WindowPosWidth", _R_RECT_WIDTH (&rc), L"window");
 				this_ptr->ConfigSet (L"WindowPosHeight", _R_RECT_HEIGHT (&rc), L"window");
-
-				RedrawWindow (hwnd, nullptr, nullptr, RDW_ERASE | RDW_INVALIDATE);
 			}
+
+			InvalidateRect (hwnd, nullptr, TRUE); // redraw window content when resizing ends (HACK!!!)
 
 			break;
 		}
@@ -1494,7 +1515,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 	// set window visibility (or not?)
 	{
 		bool is_windowhidden = false;
-		INT show_code = SW_SHOW;
+		INT show_code = SW_SHOWNORMAL;
 
 		STARTUPINFO si = {0};
 		RtlSecureZeroMemory (&si, sizeof (si));
@@ -1528,15 +1549,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 					is_needmaximize = true;
 
 				else
-					show_code = SW_MAXIMIZE;
-			}
-		}
-		else
-		{
-			if (show_code == SW_MAXIMIZE)
-			{
-				ShowWindow (app_hwnd, SW_HIDE); // HACK!!!
-				show_code = SW_SHOW;
+					show_code = SW_SHOWMAXIMIZED;
 			}
 		}
 
