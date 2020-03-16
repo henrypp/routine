@@ -2023,12 +2023,14 @@ rstring rapp::LocaleString (UINT uid, LPCWSTR append)
 		if (!_r_str_isempty (app_locale_current))
 		{
 			// check key is exists
-			if (
-				app_locale_array.find (app_locale_current) != app_locale_array.end () &&
-				app_locale_array[app_locale_current].find (key_name) != app_locale_array[app_locale_current].end ()
-				)
+			if (app_locale_array.find (app_locale_current) != app_locale_array.end ())
 			{
-				result = app_locale_array[app_locale_current][key_name];
+				rstringmap1& rmap = app_locale_array[app_locale_current];
+
+				if (rmap.find (key_name) != rmap.end ())
+				{
+					result = rmap[key_name];
+				}
 			}
 		}
 
