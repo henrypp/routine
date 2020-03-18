@@ -78,7 +78,7 @@ namespace rhelper
 		bool is_success = true;
 
 		STARTUPINFOEX startupInfo = {0};
-		startupInfo.StartupInfo.cb = sizeof (STARTUPINFOEX);
+		startupInfo.StartupInfo.cb = sizeof (startupInfo);
 
 		PROCESS_INFORMATION pi = {0};
 
@@ -95,10 +95,7 @@ namespace rhelper
 
 		PPS_SYSTEM_DLL_INIT_BLOCK _LdrSystemDllInitBlock = (PPS_SYSTEM_DLL_INIT_BLOCK)GetProcAddress (hntdll, "LdrSystemDllInitBlock");
 
-		if (!_LdrSystemDllInitBlock)
-			goto CleanupExit;
-
-		if (!RTL_CONTAINS_FIELD (_LdrSystemDllInitBlock, _LdrSystemDllInitBlock->Size, MitigationOptionsMap))
+		if (!_LdrSystemDllInitBlock || !RTL_CONTAINS_FIELD (_LdrSystemDllInitBlock, _LdrSystemDllInitBlock->Size, MitigationOptionsMap))
 			goto CleanupExit;
 
 		if ((_LdrSystemDllInitBlock->MitigationOptionsMap.Map[0] & default_flags) == default_flags)
@@ -117,13 +114,16 @@ namespace rhelper
 			goto CleanupExit;
 #endif // _APP_NO_WINXP
 
-		startupInfo.lpAttributeList = (LPPROC_THREAD_ATTRIBUTE_LIST)new BYTE[attributeListLength];
+		startupInfo.lpAttributeList = (LPPROC_THREAD_ATTRIBUTE_LIST)HeapAlloc (GetProcessHeap (), HEAP_ZERO_MEMORY, attributeListLength);
+
+		if (!startupInfo.lpAttributeList)
+			goto CleanupExit;
 
 #if defined(_APP_NO_WINXP)
 		if (!InitializeProcThreadAttributeList (startupInfo.lpAttributeList, 1, 0, &attributeListLength))
 			goto CleanupExit;
 #else
-		if (!_InitializeProcThreadAttributeList || !_InitializeProcThreadAttributeList (startupInfo.lpAttributeList, 1, 0, &attributeListLength))
+		if (!_InitializeProcThreadAttributeList (startupInfo.lpAttributeList, 1, 0, &attributeListLength))
 			goto CleanupExit;
 #endif // _APP_NO_WINXP
 
@@ -163,9 +163,9 @@ CleanupExit:
 
 			if (_DeleteProcThreadAttributeList)
 				_DeleteProcThreadAttributeList (startupInfo.lpAttributeList);
-#endif // _APP_NO_WINXP
 
-			delete[] LPBYTE (startupInfo.lpAttributeList);
+			HeapFree (GetProcessHeap (), 0, startupInfo.lpAttributeList);
+#endif // _APP_NO_WINXP
 		}
 
 #if !defined(_APP_NO_WINXP)
