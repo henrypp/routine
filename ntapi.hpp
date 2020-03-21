@@ -1026,7 +1026,110 @@ C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, XState) == 0x3d8);
 
 #define USER_SHARED_DATA ((KUSER_SHARED_DATA * const)0x7ffe0000)
 
+// Heaps
+typedef NTSTATUS (NTAPI *PRTL_HEAP_COMMIT_ROUTINE)(
+	_In_ PVOID Base,
+	_Inout_ PVOID *CommitAddress,
+	_Inout_ PSIZE_T CommitSize
+	);
+
+typedef struct _RTL_HEAP_PARAMETERS
+{
+	ULONG Length;
+	SIZE_T SegmentReserve;
+	SIZE_T SegmentCommit;
+	SIZE_T DeCommitFreeBlockThreshold;
+	SIZE_T DeCommitTotalFreeThreshold;
+	SIZE_T MaximumAllocationSize;
+	SIZE_T VirtualMemoryThreshold;
+	SIZE_T InitialCommit;
+	SIZE_T InitialReserve;
+	PRTL_HEAP_COMMIT_ROUTINE CommitRoutine;
+	SIZE_T Reserved[2];
+} RTL_HEAP_PARAMETERS, *PRTL_HEAP_PARAMETERS;
+
+typedef enum _HEAP_COMPATIBILITY_MODE
+{
+	HEAP_COMPATIBILITY_STANDARD = 0UL,
+	HEAP_COMPATIBILITY_LAL = 1UL,
+	HEAP_COMPATIBILITY_LFH = 2UL,
+} HEAP_COMPATIBILITY_MODE;
+
+#define HEAP_SETTABLE_USER_VALUE 0x00000100
+#define HEAP_SETTABLE_USER_FLAG1 0x00000200
+#define HEAP_SETTABLE_USER_FLAG2 0x00000400
+#define HEAP_SETTABLE_USER_FLAG3 0x00000800
+#define HEAP_SETTABLE_USER_FLAGS 0x00000e00
+
+#define HEAP_CLASS_0 0x00000000 // Process heap
+#define HEAP_CLASS_1 0x00001000 // Private heap
+#define HEAP_CLASS_2 0x00002000 // Kernel heap
+#define HEAP_CLASS_3 0x00003000 // GDI heap
+#define HEAP_CLASS_4 0x00004000 // User heap
+#define HEAP_CLASS_5 0x00005000 // Console heap
+#define HEAP_CLASS_6 0x00006000 // User desktop heap
+#define HEAP_CLASS_7 0x00007000 // CSR shared heap
+#define HEAP_CLASS_8 0x00008000 // CSR port heap
+#define HEAP_CLASS_MASK 0x0000f000
+
 extern "C" {
+	NTSYSAPI
+		PVOID
+		NTAPI
+		RtlCreateHeap (
+		_In_ ULONG Flags,
+		_In_opt_ PVOID HeapBase,
+		_In_opt_ SIZE_T ReserveSize,
+		_In_opt_ SIZE_T CommitSize,
+		_In_opt_ PVOID Lock,
+		_In_opt_ PRTL_HEAP_PARAMETERS Parameters
+		);
+
+	NTSYSAPI
+		PVOID
+		NTAPI
+		RtlDestroyHeap (
+		_In_ _Post_invalid_ PVOID HeapHandle
+		);
+
+	NTSYSAPI
+		PVOID
+		NTAPI
+		RtlAllocateHeap (
+		_In_ PVOID HeapHandle,
+		_In_opt_ ULONG Flags,
+		_In_ SIZE_T Size
+		);
+
+	NTSYSAPI
+		PVOID
+		NTAPI
+		RtlReAllocateHeap (
+		_In_ PVOID HeapHandle,
+		_In_ ULONG Flags,
+		_Frees_ptr_opt_ PVOID BaseAddress,
+		_In_ SIZE_T Size
+		);
+
+	NTSYSAPI
+		BOOLEAN
+		NTAPI
+		RtlFreeHeap (
+		_In_ PVOID HeapHandle,
+		_In_opt_ ULONG Flags,
+		_Frees_ptr_opt_ PVOID BaseAddress
+		);
+
+	NTSYSAPI
+		NTSTATUS
+		NTAPI
+		RtlSetHeapInformation (
+		_In_ PVOID HeapHandle,
+		_In_ HEAP_INFORMATION_CLASS HeapInformationClass,
+		_In_opt_ PVOID HeapInformation,
+		_In_opt_ SIZE_T HeapInformationLength
+		);
+
 	NTSYSCALLAPI
 		NTSTATUS
 		NTAPI
