@@ -319,6 +319,25 @@ bool _r_fastlock_tryacquireshared (P_FASTLOCK plock)
 #endif // !_APP_NO_WINXP
 
 /*
+	Memory allocation reference
+*/
+
+void* _r_mem_alloc (size_t bytes_count)
+{
+	return _r_mem_allocex (bytes_count, HEAP_GENERATE_EXCEPTIONS);
+}
+
+void* _r_mem_realloc (void* pmemory, size_t bytes_count)
+{
+	return RtlReAllocateHeap (rinternal::hProcessHeap, HEAP_GENERATE_EXCEPTIONS, pmemory, bytes_count);
+}
+
+void _r_mem_free (void* pmemory)
+{
+	RtlFreeHeap (rinternal::hProcessHeap, 0, pmemory);
+}
+
+/*
 	Objects reference
 */
 
@@ -1026,7 +1045,7 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 		DWORD attempts = 6;
 		DWORD bufferSize = 0x200;
 
-		POBJECT_NAME_INFORMATION pbuffer = (POBJECT_NAME_INFORMATION)new BYTE[bufferSize];
+		POBJECT_NAME_INFORMATION pbuffer = (POBJECT_NAME_INFORMATION)_r_mem_alloc (bufferSize);
 
 		do
 		{
@@ -1034,8 +1053,7 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 
 			if (status == STATUS_BUFFER_OVERFLOW || status == STATUS_INFO_LENGTH_MISMATCH || status == STATUS_BUFFER_TOO_SMALL)
 			{
-				SAFE_DELETE_ARRAY (pbuffer);
-				pbuffer = (POBJECT_NAME_INFORMATION)new BYTE[bufferSize];
+				pbuffer = (POBJECT_NAME_INFORMATION)_r_mem_realloc (pbuffer, bufferSize);
 			}
 			else
 			{
@@ -1053,7 +1071,7 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 			_r_str_tolower (path.GetBuffer ()); // lower is important!
 		}
 
-		SAFE_DELETE_ARRAY (pbuffer);
+		_r_mem_free (pbuffer);
 
 		CloseHandle (hfile);
 	}
@@ -1678,22 +1696,27 @@ rstring _r_sys_getsessioninfo (WTS_INFO_CLASS info)
 
 rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username)
 {
-	rstring result;
-
 	DWORD sid_length = SECURITY_MAX_SID_SIZE;
-	PBYTE psid = new BYTE[sid_length];
+	PSID psid = _r_mem_allocex (sid_length, 0);
 
-	WCHAR ref_domain[MAX_PATH] = {0};
-	DWORD ref_length = _countof (ref_domain);
+	if (psid)
+	{
+		WCHAR ref_domain[MAX_PATH] = {0};
+		DWORD ref_length = _countof (ref_domain);
 
-	SID_NAME_USE name_use;
+		SID_NAME_USE name_use;
 
-	if (LookupAccountName (domain, username, psid, &sid_length, ref_domain, &ref_length, &name_use))
-		result = _r_str_fromsid (psid);
+		rstring result;
 
-	SAFE_DELETE_ARRAY (psid);
+		if (LookupAccountName (domain, username, psid, &sid_length, ref_domain, &ref_length, &name_use))
+			result = _r_str_fromsid (psid);
 
-	return result;
+		_r_mem_free (psid);
+
+		return result;
+	}
+
+	return nullptr;
 }
 
 #if !defined(_WIN64)
@@ -1729,21 +1752,25 @@ void _r_sys_setprivilege (const LPDWORD privileges_arr, DWORD count, bool is_ena
 
 	if (OpenProcessToken (NtCurrentProcess (), TOKEN_ADJUST_PRIVILEGES, &htoken))
 	{
-		LPSTR privilegesBuffer = new CHAR[FIELD_OFFSET (TOKEN_PRIVILEGES, Privileges) + (sizeof (LUID_AND_ATTRIBUTES) * count)];
-		PTOKEN_PRIVILEGES privileges = (PTOKEN_PRIVILEGES)privilegesBuffer;
+		PVOID privilegesBuffer = _r_mem_allocex (FIELD_OFFSET (TOKEN_PRIVILEGES, Privileges) + (sizeof (LUID_AND_ATTRIBUTES) * count), HEAP_ZERO_MEMORY);
 
-		privileges->PrivilegeCount = count;
-
-		for (DWORD i = 0; i < count; i++)
+		if (privilegesBuffer)
 		{
-			privileges->Privileges[i].Luid.LowPart = privileges_arr[i];
-			privileges->Privileges[i].Luid.HighPart = 0;
-			privileges->Privileges[i].Attributes = is_enable ? SE_PRIVILEGE_ENABLED : SE_PRIVILEGE_REMOVED;
+			PTOKEN_PRIVILEGES privileges = (PTOKEN_PRIVILEGES)privilegesBuffer;
+
+			privileges->PrivilegeCount = count;
+
+			for (DWORD i = 0; i < count; i++)
+			{
+				privileges->Privileges[i].Luid.LowPart = privileges_arr[i];
+				privileges->Privileges[i].Luid.HighPart = 0;
+				privileges->Privileges[i].Attributes = is_enable ? SE_PRIVILEGE_ENABLED : SE_PRIVILEGE_REMOVED;
+			}
+
+			NtAdjustPrivilegesToken (htoken, FALSE, privileges, 0, nullptr, nullptr);
+
+			_r_mem_free (privilegesBuffer);
 		}
-
-		NtAdjustPrivilegesToken (htoken, FALSE, privileges, 0, nullptr, nullptr);
-
-		SAFE_DELETE_ARRAY (privilegesBuffer);
 
 		CloseHandle (htoken);
 	}
@@ -2897,12 +2924,15 @@ PBYTE _r_reg_querybinary (HKEY hkey, LPCWSTR value)
 	{
 		if (type == REG_BINARY)
 		{
-			PBYTE pbuffer = new BYTE[size]; // utilization required!
+			LPBYTE pbuffer = (LPBYTE)_r_mem_allocex (size, 0); // utilization required!
 
-			if (RegQueryValueEx (hkey, value, nullptr, nullptr, pbuffer, &size) == ERROR_SUCCESS)
-				return pbuffer;
+			if (pbuffer)
+			{
+				if (RegQueryValueEx (hkey, value, nullptr, nullptr, pbuffer, &size) == ERROR_SUCCESS)
+					return pbuffer;
 
-			delete[] pbuffer; // cleanup
+				_r_mem_free (pbuffer); // cleanup
+			}
 		}
 	}
 

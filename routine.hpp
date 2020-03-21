@@ -46,6 +46,12 @@
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "wtsapi32.lib")
 
+// global internal variables namespace
+namespace rinternal
+{
+	inline HANDLE hProcessHeap;
+};
+
 // stdlib typedef
 typedef std::vector<rstring> rstringvec;
 
@@ -87,10 +93,6 @@ typedef void (*_R_CALLBACK_OBJECT_CLEANUP) (PVOID pdata);
 
 #ifndef SAFE_GLOBAL_FREE
 #define SAFE_GLOBAL_FREE(p) {if((p)) {GlobalFree ((p)); (p)=nullptr;}}
-#endif
-
-#ifndef SAFE_HEAP_FREE
-#define SAFE_HEAP_FREE(h,p) {if((p)) {HeapFree ((h), 0, (p)); (p)=nullptr;}}
 #endif
 
 /*
@@ -283,6 +285,19 @@ FORCEINLINE bool _r_fastlock_islocked (const P_FASTLOCK plock)
 
 	return owned;
 }
+
+/*
+	Memory allocation reference
+*/
+
+FORCEINLINE void* _r_mem_allocex (size_t bytes_count, DWORD flags)
+{
+	return RtlAllocateHeap (rinternal::hProcessHeap, flags, bytes_count);
+}
+
+void* _r_mem_alloc (size_t bytes_count);
+void* _r_mem_realloc (void* pmemory, size_t bytes_count);
+void _r_mem_free (void* pmemory);
 
 /*
 	Objects reference
