@@ -295,9 +295,17 @@ FORCEINLINE void* _r_mem_allocex (size_t bytes_count, DWORD flags)
 	return RtlAllocateHeap (rinternal::hProcessHeap, flags, bytes_count);
 }
 
-void* _r_mem_alloc (size_t bytes_count);
+FORCEINLINE void* _r_mem_alloc (size_t bytes_count)
+{
+	return _r_mem_allocex (bytes_count, HEAP_GENERATE_EXCEPTIONS);
+}
+
+FORCEINLINE void _r_mem_free (void* pmemory)
+{
+	RtlFreeHeap (rinternal::hProcessHeap, 0, pmemory);
+}
+
 void* _r_mem_realloc (void* pmemory, size_t bytes_count);
-void _r_mem_free (void* pmemory);
 
 /*
 	Objects reference
