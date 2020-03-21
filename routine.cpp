@@ -322,19 +322,18 @@ bool _r_fastlock_tryacquireshared (P_FASTLOCK plock)
 	Memory allocation reference
 */
 
-void* _r_mem_alloc (size_t bytes_count)
-{
-	return _r_mem_allocex (bytes_count, HEAP_GENERATE_EXCEPTIONS);
-}
-
 void* _r_mem_realloc (void* pmemory, size_t bytes_count)
 {
-	return RtlReAllocateHeap (rinternal::hProcessHeap, HEAP_GENERATE_EXCEPTIONS, pmemory, bytes_count);
-}
+	// If RtlReAllocateHeap fails, the original memory is not freed, and the original handle and pointer are still valid.
+	// https://docs.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heaprealloc
 
-void _r_mem_free (void* pmemory)
-{
-	RtlFreeHeap (rinternal::hProcessHeap, 0, pmemory);
+	void* poriginal = pmemory;
+	void* pallocated = RtlReAllocateHeap (rinternal::hProcessHeap, 0, pmemory, bytes_count);
+
+	if (pallocated)
+		return pallocated;
+
+	return poriginal;
 }
 
 /*
