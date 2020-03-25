@@ -78,7 +78,11 @@ namespace rhelper
 		bool is_success = true;
 
 		STARTUPINFOEX startupInfo = {0};
-		startupInfo.StartupInfo.cb = sizeof (startupInfo);
+
+		startupInfo.StartupInfo.cb = sizeof (startupInfo.StartupInfo);
+		GetStartupInfo (&startupInfo.StartupInfo);
+
+		startupInfo.StartupInfo.cb = sizeof (startupInfo); // reset structure size
 
 		PROCESS_INFORMATION pi = {0};
 
@@ -86,6 +90,9 @@ namespace rhelper
 
 #if !defined(_APP_NO_WINXP)
 		HMODULE hkernel32 = LoadLibraryEx (L"kernel32.dll", nullptr, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+
+		if (!hkernel32)
+			goto CleanupExit;
 #endif // _APP_NO_WINXP
 
 		HMODULE hntdll = LoadLibraryEx (L"ntdll.dll", nullptr, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
@@ -114,7 +121,7 @@ namespace rhelper
 			goto CleanupExit;
 #endif // _APP_NO_WINXP
 
-		startupInfo.lpAttributeList = (LPPROC_THREAD_ATTRIBUTE_LIST)HeapAlloc (GetProcessHeap (), HEAP_ZERO_MEMORY, attributeListLength);
+		startupInfo.lpAttributeList = (LPPROC_THREAD_ATTRIBUTE_LIST)_r_mem_alloc (attributeListLength);
 
 		if (!startupInfo.lpAttributeList)
 			goto CleanupExit;
@@ -163,9 +170,9 @@ CleanupExit:
 
 			if (_DeleteProcThreadAttributeList)
 				_DeleteProcThreadAttributeList (startupInfo.lpAttributeList);
-
-			HeapFree (GetProcessHeap (), 0, startupInfo.lpAttributeList);
 #endif // _APP_NO_WINXP
+
+			_r_mem_free (startupInfo.lpAttributeList);
 		}
 
 #if !defined(_APP_NO_WINXP)
@@ -247,6 +254,25 @@ rapp::~rapp ()
 
 bool rapp::Initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright)
 {
+	// initialize process heap
+	rinternal::hProcessHeap = RtlCreateHeap (HEAP_GROWABLE | HEAP_CLASS_1, nullptr, 2 * _R_BYTESIZE_MB, 1 * _R_BYTESIZE_MB, nullptr, nullptr);
+
+	if (!rinternal::hProcessHeap)
+	{
+#if defined(_APP_CONSOLE)
+		wprintf (L"Error! Private heap object initialization failed 0x%08" PRIX32 L"!\r\n", GetLastError ());
+#else
+		ShowErrorMessage (nullptr, L"Private heap object initialization failed!", GetLastError (), nullptr);
+#endif // _APP_CONSOLE
+
+		return false;
+	}
+	else
+	{
+		ULONG hci = HEAP_COMPATIBILITY_LFH;
+		RtlSetHeapInformation (rinternal::hProcessHeap, HeapCompatibilityInformation, &hci, sizeof (hci));
+	}
+
 	// safe dll loading
 	SetDllDirectory (L"");
 
@@ -937,7 +963,7 @@ void rapp::ShowErrorMessage (HWND hwnd, LPCWSTR main, DWORD errcode, HINSTANCE h
 		WCHAR btn_2[64] = {0};
 
 		tdc.cbSize = sizeof (tdc);
-		tdc.dwFlags = TDF_NO_SET_FOREGROUND | TDF_SIZE_TO_CONTENT;
+		tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_NO_SET_FOREGROUND | TDF_SIZE_TO_CONTENT;
 		tdc.hwndParent = hwnd;
 		tdc.hInstance = GetHINSTANCE ();
 		tdc.pszWindowTitle = app_name;
@@ -1650,10 +1676,12 @@ void rapp::CreateSettingsWindow (HWND hwnd, DLGPROC dlg_proc, INT dlg_id)
 
 	constexpr size_t size = ((sizeof (DLGTEMPLATEEX) + (sizeof (WORD) * 8)) + ((sizeof (DLGITEMTEMPLATEEX) + (sizeof (WORD) * 3)) * controls)) + 128;
 
-	LPBYTE lpbuffer = new BYTE[size];
-	RtlSecureZeroMemory (lpbuffer, size);
+	LPVOID lpbuffer = _r_mem_allocex (size, HEAP_ZERO_MEMORY);
 
-	LPBYTE pPtr = lpbuffer;
+	if (!lpbuffer)
+		return;
+
+	LPBYTE pPtr = (LPBYTE)lpbuffer;
 
 	// fill DLGTEMPLATEEX
 	rhelper::template_writevar (&pPtr, WORD (1), sizeof (WORD)); // dlgVer
@@ -1687,7 +1715,7 @@ void rapp::CreateSettingsWindow (HWND hwnd, DLGPROC dlg_proc, INT dlg_id)
 
 	DialogBoxIndirectParam (GetHINSTANCE (), (LPCDLGTEMPLATE)lpbuffer, hwnd, &SettingsWndProc, (LPARAM)this);
 
-	SAFE_DELETE_ARRAY (lpbuffer);
+	_r_mem_free (lpbuffer);
 }
 
 void rapp::SettingsAddPage (INT dlg_id, UINT locale_id)
