@@ -378,10 +378,10 @@ bool rapp::Initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWST
 		return false;
 #endif // _APP_NO_GUEST
 
-#if !defined(_DEBUG)
-	if (!rhelper::initialize_mitigation_policy (app_binary, app_directory))
-		return false;
-#endif // !_DEBUG
+//#if !defined(_DEBUG)
+//	if (!rhelper::initialize_mitigation_policy (app_binary, app_directory))
+//		return false;
+//#endif // !_DEBUG
 
 	// set running flag
 	MutexCreate ();
