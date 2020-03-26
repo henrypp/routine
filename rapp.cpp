@@ -233,25 +233,6 @@ rapp::rapp ()
 #endif // !_APP_CONSOLE
 }
 
-rapp::~rapp ()
-{
-	SAFE_DELETE_ARRAY (app_name);
-	SAFE_DELETE_ARRAY (app_name_short);
-	SAFE_DELETE_ARRAY (app_version);
-	SAFE_DELETE_ARRAY (app_copyright);
-
-#if !defined(_APP_CONSOLE)
-	SAFE_DELETE_ARRAY (app_localepath);
-	SAFE_DELETE_ARRAY (app_locale_current);
-	SAFE_DELETE_ARRAY (app_mutex_name);
-#endif // !_APP_CONSOLE
-
-#if defined(_APP_HAVE_UPDATES)
-	SAFE_DELETE_ARRAY (app_updatepath);
-	SAFE_DELETE (pupdateinfo);
-#endif // _APP_HAVE_UPDATES
-}
-
 bool rapp::Initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright)
 {
 	// initialize process heap

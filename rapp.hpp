@@ -32,17 +32,6 @@ typedef struct _APP_SETTINGS_PAGE
 #if defined(_APP_HAVE_UPDATES)
 typedef struct _APP_UPDATE_COMPONENT
 {
-	~_APP_UPDATE_COMPONENT ()
-	{
-		SAFE_DELETE_ARRAY (full_name);
-		SAFE_DELETE_ARRAY (short_name);
-		SAFE_DELETE_ARRAY (version);
-		SAFE_DELETE_ARRAY (new_version);
-		SAFE_DELETE_ARRAY (temp_path);
-		SAFE_DELETE_ARRAY (target_path);
-		SAFE_DELETE_ARRAY (url);
-	}
-
 	LPWSTR full_name = nullptr;
 	LPWSTR short_name = nullptr;
 	LPWSTR version = nullptr;
@@ -57,14 +46,6 @@ typedef struct _APP_UPDATE_COMPONENT
 
 typedef struct _APP_UPDATE_INFO
 {
-	~_APP_UPDATE_INFO ()
-	{
-		for (auto &p : components)
-			delete p;
-	}
-
-	bool is_downloaded = false;
-
 	std::vector<PAPP_UPDATE_COMPONENT> components;
 
 	HWND htaskdlg = nullptr;
@@ -73,6 +54,8 @@ typedef struct _APP_UPDATE_INFO
 	HANDLE hthread = nullptr;
 
 	LPVOID papp = nullptr;
+
+	bool is_downloaded = false;
 } *PAPP_UPDATE_INFO, APP_UPDATE_INFO;
 #endif // _APP_HAVE_UPDATES
 
@@ -114,6 +97,7 @@ struct MBSTR
 			ms_bstr = nullptr;
 		}
 	}
+
 protected:
 	BSTR ms_bstr = nullptr;
 };
@@ -137,7 +121,6 @@ class rapp
 public:
 
 	rapp ();
-	~rapp ();
 
 	bool Initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWSTR copyright);
 
