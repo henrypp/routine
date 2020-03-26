@@ -1550,7 +1550,7 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 
 		if ((GetWindowLongPtr (app_hwnd, GWL_STYLE) & WS_MAXIMIZEBOX) != 0)
 		{
-			if (ConfigGet (L"IsWindowZoomed", false, L"window").AsBool ())
+			if (show_code == SW_SHOWMAXIMIZED || ConfigGet (L"IsWindowZoomed", false, L"window").AsBool ())
 			{
 				if (is_windowhidden)
 					is_needmaximize = true;
