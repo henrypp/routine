@@ -359,11 +359,6 @@ bool rapp::Initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LPCWST
 		return false;
 #endif // _APP_NO_GUEST
 
-//#if !defined(_DEBUG)
-//	if (!rhelper::initialize_mitigation_policy (app_binary, app_directory))
-//		return false;
-//#endif // !_DEBUG
-
 	// set running flag
 	MutexCreate ();
 
@@ -1296,7 +1291,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 #if defined(_APP_HAVE_TRAY)
 			else if (wparam == SIZE_MINIMIZED)
 			{
-				ShowWindow (hwnd, SW_HIDE);
+				ShowWindowAsync (hwnd, SW_HIDE);
 			}
 #endif // _APP_HAVE_TRAY
 
@@ -1308,7 +1303,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		{
 			if (wparam == SC_CLOSE)
 			{
-				ShowWindow (hwnd, SW_HIDE);
+				ShowWindowAsync (hwnd, SW_HIDE);
 				return TRUE;
 			}
 
@@ -1320,7 +1315,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		{
 			if (wparam && this_ptr->is_needmaximize)
 			{
-				ShowWindow (hwnd, SW_SHOWMAXIMIZED);
+				ShowWindowAsync (hwnd, SW_SHOWMAXIMIZED);
 				this_ptr->is_needmaximize = false;
 			}
 
@@ -1563,12 +1558,12 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 		if (is_windowhidden)
 			show_code = SW_HIDE;
 
-		ShowWindow (app_hwnd, show_code);
+		ShowWindowAsync (app_hwnd, show_code);
 	}
 
 	// common initialization
 	SendMessage (app_hwnd, RM_INITIALIZE, 0, 0);
-	SendMessage (app_hwnd, RM_LOCALIZE, 0, 0);
+	PostMessage (app_hwnd, RM_LOCALIZE, 0, 0);
 
 #if defined(_APP_HAVE_UPDATES)
 	if (ConfigGet (L"CheckUpdates", true).AsBool ())
