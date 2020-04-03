@@ -647,6 +647,7 @@ FORCEINLINE void _r_ctrl_enable (HWND hwnd, INT ctrl_id, bool is_enable)
 	Control: tab
 */
 
+void _r_tab_adjustchild (HWND hwnd, INT tab_id, HWND hchild);
 INT _r_tab_additem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image = INVALID_INT, LPARAM lparam = 0);
 LPARAM _r_tab_getlparam (HWND hwnd, INT ctrl_id, INT index);
 INT _r_tab_setitem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image = INVALID_INT, LPARAM lparam = 0);

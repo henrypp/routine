@@ -3628,6 +3628,25 @@ void _r_ctrl_showtip (HWND hwnd, INT ctrl_id, INT icon_id, LPCWSTR title, LPCWST
 	Control: tab
 */
 
+void _r_tab_adjustchild (HWND hwnd, INT tab_id, HWND hchild)
+{
+	HWND htab = GetDlgItem (hwnd, tab_id);
+
+	RECT rc_tab = {0};
+	RECT rc_listview = {0};
+
+	GetWindowRect (htab, &rc_tab);
+	MapWindowPoints (nullptr, hwnd, (LPPOINT)&rc_tab, 2);
+
+	GetClientRect (htab, &rc_listview);
+
+	SetRect (&rc_listview, rc_listview.left + rc_tab.left, rc_listview.top + rc_tab.top, rc_listview.right + rc_tab.left, rc_listview.bottom + rc_tab.top);
+
+	SendMessage (htab, TCM_ADJUSTRECT, FALSE, (LPARAM)&rc_listview);
+
+	SetWindowPos (hchild, nullptr, rc_listview.left, rc_listview.top, _R_RECT_WIDTH (&rc_listview), _R_RECT_HEIGHT (&rc_listview), SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+}
+
 INT _r_tab_additem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image, LPARAM lparam)
 {
 	TCITEM tci = {0};
