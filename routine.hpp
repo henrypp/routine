@@ -50,6 +50,13 @@
 namespace rinternal
 {
 	inline HANDLE hProcessHeap;
+
+	inline COLORREF black_bg = RGB (32, 32, 32);
+	inline COLORREF black_bg_edit = RGB (62, 62, 62);
+	inline COLORREF black_text = RGB (255, 255, 255);
+
+	inline COLORREF white_bg = RGB (255, 255, 255);
+	inline COLORREF white_text = RGB (0, 0, 0);
 };
 
 // stdlib typedef

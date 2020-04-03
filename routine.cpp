@@ -2398,6 +2398,14 @@ BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 
 		if (_r_str_compare (class_name, WC_LISTVIEW) == 0)
 		{
+			// general
+			//SendMessage (hwnd, LVM_SETBKCOLOR, 0, is_darktheme ? rinternal::black_bg : rinternal::white_bg);
+			//SendMessage (hwnd, LVM_SETTEXTBKCOLOR, 0, is_darktheme ? rinternal::black_bg : rinternal::white_bg);
+			//SendMessage (hwnd, LVM_SETTEXTCOLOR, 0, is_darktheme ? rinternal::black_text : rinternal::white_text);
+
+			//SetWindowTheme (hwnd, is_darktheme ? L"DarkMode_Explorer" : L"Explorer", nullptr);
+
+			// tooltips
 			const HWND htip = (HWND)SendMessage (hwnd, LVM_GETTOOLTIPS, 0, 0);
 
 			if (htip)
@@ -2405,6 +2413,13 @@ BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 		}
 		else if (_r_str_compare (class_name, WC_TREEVIEW) == 0)
 		{
+			// general
+			//SendMessage (hwnd, TVM_SETBKCOLOR, 0, is_darktheme ? rinternal::black_bg : rinternal::white_bg);
+			//SendMessage (hwnd, TVM_SETTEXTCOLOR, 0, is_darktheme ? rinternal::black_text : rinternal::white_text);
+
+			//SetWindowTheme (hwnd, is_darktheme ? L"DarkMode_Explorer" : L"Explorer", nullptr);
+
+			// tooltips
 			const HWND htip = (HWND)SendMessage (hwnd, TVM_GETTOOLTIPS, 0, 0);
 
 			if (htip)
@@ -2417,6 +2432,13 @@ BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 			if (htip)
 				SetWindowTheme (htip, is_darktheme ? L"DarkMode_Explorer" : L"", nullptr);
 		}
+		else if (_r_str_compare (class_name, WC_TABCONTROL) == 0)
+		{
+			const HWND htip = (HWND)SendMessage (hwnd, TCM_GETTOOLTIPS, 0, 0);
+
+			if (htip)
+				SetWindowTheme (htip, is_darktheme ? L"DarkMode_Explorer" : L"", nullptr);
+		}
 		else if (_r_str_compare (class_name, TOOLTIPS_CLASS) == 0)
 		{
 			SetWindowTheme (hwnd, is_darktheme ? L"DarkMode_Explorer" : L"", nullptr);
@@ -2425,6 +2447,8 @@ BOOL CALLBACK DarkExplorerChildProc (HWND hwnd, LPARAM lparam)
 		{
 			SetWindowTheme (hwnd, is_darktheme ? L"DarkMode_Explorer" : L"", nullptr);
 		}
+
+		SetWindowPos (hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER); // HACK!!!
 	}
 
 	return TRUE;
@@ -2568,7 +2592,7 @@ void _r_wnd_setdarktheme (HWND hwnd)
 			if (_RefreshImmersiveColorPolicyState)
 				_RefreshImmersiveColorPolicyState ();
 
-			InvalidateRect (hwnd, nullptr, FALSE); // HACK!!!
+			InvalidateRect (hwnd, nullptr, TRUE); // HACK!!!
 		}
 
 		FreeLibrary (huxtheme);
