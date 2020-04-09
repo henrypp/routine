@@ -3674,6 +3674,14 @@ INT _r_tab_additem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image, 
 
 LPARAM _r_tab_getlparam (HWND hwnd, INT ctrl_id, INT index)
 {
+	if (index == INVALID_INT)
+	{
+		index = (INT)SendDlgItemMessage (hwnd, ctrl_id, TCM_GETCURSEL, 0, 0);
+
+		if (index == INVALID_INT)
+			return 0;
+	}
+
 	TCITEM tci = {0};
 
 	tci.mask = TCIF_PARAM;
