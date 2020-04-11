@@ -3628,7 +3628,19 @@ void _r_ctrl_showtip (HWND hwnd, INT ctrl_id, INT icon_id, LPCWSTR title, LPCWST
 	Menu
 */
 
-void _r_menu_enable (HMENU hmenu, UINT command_id, UINT position_flag, bool is_enable)
+void _r_menu_checkitem (HMENU hmenu, UINT command_id_start, UINT command_id_end, UINT position_flag, UINT check_id)
+{
+	if (command_id_end)
+	{
+		CheckMenuRadioItem (hmenu, (std::min)(command_id_start, command_id_end), (std::max)(command_id_start, command_id_end), check_id, position_flag);
+	}
+	else
+	{
+		CheckMenuItem (hmenu, command_id_start, position_flag | ((check_id != 0) ? MF_CHECKED : MF_UNCHECKED));
+	}
+}
+
+void _r_menu_enableitem (HMENU hmenu, UINT command_id, UINT position_flag, bool is_enable)
 {
 	EnableMenuItem (hmenu, command_id, position_flag | (is_enable ? MF_ENABLED : MF_DISABLED | MF_GRAYED));
 }

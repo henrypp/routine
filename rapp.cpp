@@ -1894,7 +1894,7 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start)
 		}
 
 		AppendMenu (hsubmenu, MF_STRING, static_cast<UINT_PTR>(id_start), _APP_LANGUAGE_DEFAULT);
-		CheckMenuRadioItem (hsubmenu, id_start, id_start, id_start, MF_BYCOMMAND);
+		_r_menu_checkitem (hsubmenu, id_start, id_start, MF_BYCOMMAND, id_start);
 	}
 	else
 	{
@@ -1911,7 +1911,7 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start)
 
 		if (is_menu)
 		{
-			_r_menu_enable (hmenu, ctrl_id, MF_BYPOSITION, true);
+			_r_menu_enableitem (hmenu, ctrl_id, MF_BYPOSITION, true);
 			AppendMenu (hsubmenu, MF_SEPARATOR, 0, nullptr);
 		}
 		else
@@ -1928,7 +1928,7 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start)
 				AppendMenu (hsubmenu, MF_STRING, static_cast<UINT_PTR>(idx) + static_cast<UINT_PTR>(id_start), name);
 
 				if (is_current)
-					CheckMenuRadioItem (hsubmenu, id_start, id_start + idx, id_start + idx, MF_BYCOMMAND);
+					_r_menu_checkitem (hsubmenu, id_start, id_start + idx, MF_BYCOMMAND, id_start + idx);
 			}
 			else
 			{
@@ -1945,7 +1945,7 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start)
 	{
 		if (is_menu)
 		{
-			_r_menu_enable (hmenu, ctrl_id, MF_BYPOSITION, false);
+			_r_menu_enableitem (hmenu, ctrl_id, MF_BYPOSITION, false);
 		}
 		else
 		{

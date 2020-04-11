@@ -647,7 +647,8 @@ FORCEINLINE void _r_ctrl_enable (HWND hwnd, INT ctrl_id, bool is_enable)
 	Control: menu
 */
 
-void _r_menu_enable (HMENU hmenu, UINT command_id, UINT position_flag, bool is_enable);
+void _r_menu_checkitem (HMENU hmenu, UINT command_id_start, UINT command_id_end, UINT position_flag, UINT check_id);
+void _r_menu_enableitem (HMENU hmenu, UINT command_id, UINT position_flag, bool is_enable);
 INT _r_menu_popup (HMENU hmenu, HWND hwnd, LPPOINT lpmouse, bool is_sendmessage);
 
 /*
