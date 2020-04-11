@@ -3686,7 +3686,7 @@ void _r_tab_adjustchild (HWND hwnd, INT tab_id, HWND hchild)
 
 	SendMessage (htab, TCM_ADJUSTRECT, FALSE, (LPARAM)&rc_listview);
 
-	SetWindowPos (hchild, nullptr, rc_listview.left, rc_listview.top, _R_RECT_WIDTH (&rc_listview), _R_RECT_HEIGHT (&rc_listview), SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+	SetWindowPos (hchild, nullptr, rc_listview.left, rc_listview.top, _R_RECT_WIDTH (&rc_listview), _R_RECT_HEIGHT (&rc_listview), SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
 }
 
 INT _r_tab_additem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image, LPARAM lparam)
