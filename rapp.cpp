@@ -1911,7 +1911,7 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start)
 
 		if (is_menu)
 		{
-			EnableMenuItem (hmenu, ctrl_id, MF_BYPOSITION | MF_ENABLED);
+			_r_menu_enable (hmenu, ctrl_id, MF_BYPOSITION, true);
 			AppendMenu (hsubmenu, MF_SEPARATOR, 0, nullptr);
 		}
 		else
@@ -1945,7 +1945,7 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start)
 	{
 		if (is_menu)
 		{
-			EnableMenuItem (hmenu, ctrl_id, MF_BYPOSITION | MF_DISABLED | MF_GRAYED);
+			_r_menu_enable (hmenu, ctrl_id, MF_BYPOSITION, false);
 		}
 		else
 		{

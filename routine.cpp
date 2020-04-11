@@ -3625,6 +3625,36 @@ void _r_ctrl_showtip (HWND hwnd, INT ctrl_id, INT icon_id, LPCWSTR title, LPCWST
 }
 
 /*
+	Menu
+*/
+
+void _r_menu_enable (HMENU hmenu, UINT command_id, UINT position_flag, bool is_enable)
+{
+	EnableMenuItem (hmenu, command_id, position_flag | (is_enable ? MF_ENABLED : MF_DISABLED | MF_GRAYED));
+}
+
+INT _r_menu_popup (HMENU hmenu, HWND hwnd, LPPOINT lpmouse, bool is_sendmessage)
+{
+	POINT pt;
+
+	if (!lpmouse)
+	{
+		lpmouse = &pt;
+		GetCursorPos (&pt);
+	}
+
+	INT command_id = TrackPopupMenu (hmenu, TPM_NONOTIFY | TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_LEFTBUTTON, lpmouse->x, lpmouse->y, 0, hwnd, nullptr);
+
+	if (command_id && is_sendmessage)
+	{
+		if (hwnd)
+			PostMessage (hwnd, WM_COMMAND, MAKEWPARAM (command_id, 0), 0);
+	}
+
+	return command_id;
+}
+
+/*
 	Control: tab
 */
 

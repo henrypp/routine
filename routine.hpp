@@ -644,6 +644,13 @@ FORCEINLINE void _r_ctrl_enable (HWND hwnd, INT ctrl_id, bool is_enable)
 }
 
 /*
+	Control: menu
+*/
+
+void _r_menu_enable (HMENU hmenu, UINT command_id, UINT position_flag, bool is_enable);
+INT _r_menu_popup (HMENU hmenu, HWND hwnd, LPPOINT lpmouse, bool is_sendmessage);
+
+/*
 	Control: tab
 */
 
