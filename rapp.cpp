@@ -1830,7 +1830,7 @@ void rapp::LocaleApplyFromControl (HWND hwnd, INT ctrl_id)
 	}
 	else
 	{
-		_r_str_alloc (&app_locale_current, INVALID_SIZE_T, text);
+		_r_str_alloc (&app_locale_current, text.GetLength (), text);
 	}
 
 	ConfigSet (L"Language", text);
@@ -1907,7 +1907,7 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start)
 
 	if (!app_locale_array.empty ())
 	{
-		UINT idx = 1;
+		UINT index = 1;
 
 		if (is_menu)
 		{
@@ -1925,20 +1925,20 @@ void rapp::LocaleEnum (HWND hwnd, INT ctrl_id, bool is_menu, UINT id_start)
 
 			if (is_menu)
 			{
-				AppendMenu (hsubmenu, MF_STRING, static_cast<UINT_PTR>(idx) + static_cast<UINT_PTR>(id_start), name);
+				AppendMenu (hsubmenu, MF_STRING, static_cast<UINT_PTR>(index) + static_cast<UINT_PTR>(id_start), name.GetString ());
 
 				if (is_current)
-					_r_menu_checkitem (hsubmenu, id_start, id_start + idx, MF_BYCOMMAND, id_start + idx);
+					_r_menu_checkitem (hsubmenu, id_start, id_start + index, MF_BYCOMMAND, id_start + index);
 			}
 			else
 			{
-				SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, (WPARAM)idx, (LPARAM)name.GetString ());
+				SendDlgItemMessage (hwnd, ctrl_id, CB_INSERTSTRING, (WPARAM)index, (LPARAM)name.GetString ());
 
 				if (is_current)
-					SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, (WPARAM)idx, 0);
+					SendDlgItemMessage (hwnd, ctrl_id, CB_SETCURSEL, (WPARAM)index, 0);
 			}
 
-			idx += 1;
+			index += 1;
 		}
 	}
 	else
@@ -1986,17 +1986,15 @@ void rapp::LocaleInit ()
 	{
 		for (auto &p : app_locale_array)
 		{
-			rstringmap1& rmap = app_locale_array[p.first];
-
-			if (rmap.find (L"000") != rmap.end ())
+			if (p.second.find (L"000") != p.second.end ())
 			{
-				const time_t timestamp = rmap[L"000"].AsLonglong ();
+				const time_t timestamp = p.second[L"000"].AsLonglong ();
 
 				if (app_locale_timetamp < timestamp)
 					app_locale_timetamp = timestamp;
 			}
 
-			for (auto &p2 : rmap)
+			for (auto &p2 : p.second)
 			{
 				p2.second.Replace (L"\\t", L"\t");
 				p2.second.Replace (L"\\r", L"\r");
@@ -2007,7 +2005,7 @@ void rapp::LocaleInit ()
 
 	if (!name.IsEmpty ())
 	{
-		_r_str_alloc (&app_locale_current, INVALID_SIZE_T, name);
+		_r_str_alloc (&app_locale_current, name.GetLength (), name);
 	}
 	else
 	{
