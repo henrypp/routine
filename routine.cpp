@@ -1983,9 +1983,8 @@ COLORREF _r_dc_getcolorshade (COLORREF clr, INT percent)
 
 INT _r_dc_getsystemmetrics (HWND hwnd, INT index)
 {
-	static const bool is_win10rs1 = _r_sys_validversion (10, 0, 14393); // win10rs1+
-
-	if (is_win10rs1 && hwnd)
+	// win10rs1+
+	if (hwnd && _r_sys_validversion (10, 0, 14393) )
 	{
 		HMODULE huser32 = LoadLibraryEx (L"user32.dll", nullptr, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
