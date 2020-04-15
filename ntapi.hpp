@@ -567,6 +567,21 @@ typedef struct _MEMORY_COMBINE_INFORMATION_EX
 	ULONG Flags;
 } MEMORY_COMBINE_INFORMATION_EX, *PMEMORY_COMBINE_INFORMATION_EX;
 
+typedef enum _SC_SERVICE_TAG_QUERY_TYPE
+{
+	ServiceNameFromTagInformation = 1,
+	ServiceNamesReferencingModuleInformation,
+	ServiceNameTagMappingInformation
+} SC_SERVICE_TAG_QUERY_TYPE, *PSC_SERVICE_TAG_QUERY_TYPE;
+
+typedef struct _SC_SERVICE_TAG_QUERY
+{
+	ULONG ProcessId;
+	ULONG ServiceTag;
+	ULONG Unknown;
+	PVOID Buffer;
+} SC_SERVICE_TAG_QUERY, *PSC_SERVICE_TAG_QUERY;
+
 // private
 typedef struct _PROCESS_MITIGATION_POLICY_INFORMATION
 {
