@@ -342,9 +342,6 @@ void* _r_mem_reallocex (void* pmemory, size_t bytes_count, DWORD flags)
 
 PR_OBJECT _r_obj_allocate (PVOID pdata, _R_CALLBACK_OBJECT_CLEANUP cleanup_callback)
 {
-	if (!cleanup_callback)
-		return nullptr;
-
 	PR_OBJECT pobj = (PR_OBJECT)_r_mem_allocex (sizeof (R_OBJECT), HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY);
 
 	InterlockedIncrement (&pobj->ref_count);
@@ -386,6 +383,8 @@ void _r_obj_dereferenceex (PR_OBJECT pobj, LONG ref_count)
 		{
 			if (pobj->cleanup_callback)
 				pobj->cleanup_callback (pobj->pdata);
+			else
+				_r_mem_free (pobj->pdata);
 
 			pobj->pdata = nullptr;
 		}
