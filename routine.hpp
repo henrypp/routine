@@ -686,7 +686,7 @@ bool _r_listview_isitemvisible (HWND hwnd, INT ctrl_id, INT item);
 
 void _r_listview_redraw (HWND hwnd, INT ctrl_id, INT start_id = INVALID_INT, INT end_id = INVALID_INT);
 
-void _r_listview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle);
+void _r_listview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle, BOOL is_groupview);
 void _r_listview_setcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR text, INT width);
 void _r_listview_setcolumnsortindex (HWND hwnd, INT ctrl_id, INT column_id, INT arrow);
 void _r_listview_setitem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR text, INT image = I_IMAGENONE, INT group_id = I_GROUPIDNONE, LPARAM lparam = 0);

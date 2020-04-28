@@ -3839,9 +3839,6 @@ INT _r_listview_addgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, U
 		lvg.stateMask = state;
 	}
 
-	if (!SendDlgItemMessage (hwnd, ctrl_id, LVM_ISGROUPVIEWENABLED, 0, 0))
-		SendDlgItemMessage (hwnd, ctrl_id, LVM_ENABLEGROUPVIEW, TRUE, 0);
-
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTGROUP, (WPARAM)group_id, (LPARAM)&lvg);
 }
 
@@ -3901,7 +3898,6 @@ void _r_listview_deleteallcolumns (HWND hwnd, INT ctrl_id)
 void _r_listview_deleteallgroups (HWND hwnd, INT ctrl_id)
 {
 	SendDlgItemMessage (hwnd, ctrl_id, LVM_REMOVEALLGROUPS, 0, 0);
-	SendDlgItemMessage (hwnd, ctrl_id, LVM_ENABLEGROUPVIEW, FALSE, 0);
 }
 
 void _r_listview_deleteallitems (HWND hwnd, INT ctrl_id)
@@ -4152,7 +4148,7 @@ void _r_listview_setgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, 
 	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETGROUPINFO, (WPARAM)group_id, (LPARAM)&lvg);
 }
 
-void _r_listview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle)
+void _r_listview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle, BOOL is_groupview)
 {
 	SetWindowTheme (GetDlgItem (hwnd, ctrl_id), L"Explorer", nullptr);
 
@@ -4163,6 +4159,8 @@ void _r_listview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle)
 
 	if (exstyle)
 		SendDlgItemMessage (hwnd, ctrl_id, LVM_SETEXTENDEDLISTVIEWSTYLE, 0, (LPARAM)exstyle);
+
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_ENABLEGROUPVIEW, is_groupview, 0);
 }
 
 /*
