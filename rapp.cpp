@@ -1601,10 +1601,10 @@ void rapp::RestoreWindowPosition (HWND hwnd, LPCWSTR window_name)
 	_r_wnd_adjustwindowrect (nullptr, &rect_new);
 
 	if (is_resizeable)
-		SetWindowPos (hwnd, nullptr, rect_new.left, rect_new.top, _R_RECT_WIDTH (&rect_new), _R_RECT_HEIGHT (&rect_new), SWP_NOZORDER | SWP_NOREDRAW | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+		SetWindowPos (hwnd, nullptr, rect_new.left, rect_new.top, _R_RECT_WIDTH (&rect_new), _R_RECT_HEIGHT (&rect_new), SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
 
 	else
-		SetWindowPos (hwnd, nullptr, rect_new.left, rect_new.top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOREDRAW | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+		SetWindowPos (hwnd, nullptr, rect_new.left, rect_new.top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
 }
 #endif // !(_APP_CONSOLE
 
