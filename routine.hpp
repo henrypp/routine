@@ -666,7 +666,7 @@ void _r_tab_selectitem (HWND hwnd, INT ctrl_id, INT index);
 */
 
 INT _r_listview_addcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR title, INT width, INT fmt);
-INT _r_listview_addgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT align, UINT state);
+INT _r_listview_addgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT align, UINT state, UINT state_mask);
 INT _r_listview_additem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR text, INT image = I_IMAGENONE, INT group_id = I_GROUPIDNONE, LPARAM lparam = 0);
 
 void _r_listview_deleteallcolumns (HWND hwnd, INT ctrl_id);

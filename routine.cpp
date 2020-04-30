@@ -3812,7 +3812,7 @@ INT _r_listview_addcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR title,
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTCOLUMN, (WPARAM)column_id, (LPARAM)&lvc);
 }
 
-INT _r_listview_addgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT align, UINT state)
+INT _r_listview_addgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT align, UINT state, UINT state_mask)
 {
 	LVGROUP lvg = {0};
 
@@ -3832,11 +3832,11 @@ INT _r_listview_addgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, U
 		lvg.uAlign = align;
 	}
 
-	if (state)
+	if (state || state_mask)
 	{
 		lvg.mask |= LVGF_STATE;
 		lvg.state = state;
-		lvg.stateMask = state;
+		lvg.stateMask = state_mask;
 	}
 
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTGROUP, (WPARAM)group_id, (LPARAM)&lvg);
