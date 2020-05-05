@@ -20,9 +20,14 @@ namespace rhelper
 		template_write (pPtr, str, (_r_str_length (str) + 1) * sizeof (WCHAR));
 	}
 
-	void template_writevar (BYTE **pPtr, std::any data, size_t size)
+	void template_writelong (BYTE **pPtr, DWORD data)
 	{
-		template_write (pPtr, &data, size);
+		template_write (pPtr, &data, sizeof (data));
+	}
+
+	void template_writeshort (BYTE **pPtr, WORD data)
+	{
+		template_write (pPtr, &data, sizeof (data));
 	}
 
 	void template_writecontrol (BYTE **pPtr, DWORD ctrl_id, DWORD style, SHORT x, SHORT y, SHORT cx, SHORT cy, LPCWSTR class_name)
@@ -30,21 +35,21 @@ namespace rhelper
 		*pPtr = (LPBYTE)(DWORD_PTR (*pPtr + 3) & ~3); // align as DWORD
 
 		// fill DLGITEMTEMPLATEEX
-		template_writevar (pPtr, DWORD (0), sizeof (DWORD)); // helpID
-		template_writevar (pPtr, DWORD (0), sizeof (DWORD)); // exStyle
-		template_write (pPtr, &style, sizeof (style)); // style
+		template_writelong (pPtr, 0); // helpID
+		template_writelong (pPtr, 0); // exStyle
+		template_writelong (pPtr, style); // style
 
-		template_write (pPtr, &x, sizeof (x)); // x
-		template_write (pPtr, &y, sizeof (y)); // y
-		template_write (pPtr, &cx, sizeof (cx)); // cx
-		template_write (pPtr, &cy, sizeof (cy)); // cy
+		template_writeshort (pPtr, x); // x
+		template_writeshort (pPtr, y); // y
+		template_writeshort (pPtr, cx); // cx
+		template_writeshort (pPtr, cy); // cy
 
-		template_write (pPtr, &ctrl_id, sizeof (ctrl_id)); // id
+		template_writelong (pPtr, ctrl_id); // id
 
 		template_writestring (pPtr, class_name); // windowClass
 		template_writestring (pPtr, L""); // title
 
-		template_writevar (pPtr, WORD (0), sizeof (WORD)); // extraCount
+		template_writeshort (pPtr, 0); // extraCount
 	}
 
 	rstring version_format (rstring text)
@@ -1660,19 +1665,19 @@ void rapp::CreateSettingsWindow (HWND hwnd, DLGPROC dlg_proc, INT dlg_id)
 	LPBYTE pPtr = (LPBYTE)lpbuffer;
 
 	// fill DLGTEMPLATEEX
-	rhelper::template_writevar (&pPtr, WORD (1), sizeof (WORD)); // dlgVer
-	rhelper::template_writevar (&pPtr, WORD (0xFFFF), sizeof (WORD)); // signature
+	rhelper::template_writeshort (&pPtr, 1); // dlgVer
+	rhelper::template_writeshort (&pPtr, 0xFFFF); // signature
 
-	rhelper::template_writevar (&pPtr, DWORD (0), sizeof (DWORD)); // helpID
-	rhelper::template_writevar (&pPtr, DWORD (WS_EX_APPWINDOW | WS_EX_CONTROLPARENT), sizeof (DWORD)); // exStyle
-	rhelper::template_writevar (&pPtr, DWORD (WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP | WS_BORDER | WS_SYSMENU | WS_CAPTION | DS_SHELLFONT | DS_MODALFRAME), sizeof (DWORD)); // style
+	rhelper::template_writelong (&pPtr, 0); // helpID
+	rhelper::template_writelong (&pPtr, WS_EX_APPWINDOW | WS_EX_CONTROLPARENT); // exStyle
+	rhelper::template_writelong (&pPtr, WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP | WS_BORDER | WS_SYSMENU | WS_CAPTION | DS_SHELLFONT | DS_MODALFRAME); // style
 
-	rhelper::template_write (&pPtr, &controls, sizeof (controls)); // cdit
+	rhelper::template_writeshort (&pPtr, controls); // cdit
 
-	rhelper::template_writevar (&pPtr, SHORT (0), sizeof (SHORT)); // x
-	rhelper::template_writevar (&pPtr, SHORT (0), sizeof (SHORT)); // y
-	rhelper::template_write (&pPtr, &width, sizeof (width)); // cx
-	rhelper::template_write (&pPtr, &height, sizeof (height)); // cy
+	rhelper::template_writeshort (&pPtr, 0); // x
+	rhelper::template_writeshort (&pPtr, 0); // y
+	rhelper::template_writeshort (&pPtr, width); // cx
+	rhelper::template_writeshort (&pPtr, height); // cy
 
 	// additional data
 	rhelper::template_writestring (&pPtr, L""); // menu
@@ -1680,9 +1685,9 @@ void rapp::CreateSettingsWindow (HWND hwnd, DLGPROC dlg_proc, INT dlg_id)
 	rhelper::template_writestring (&pPtr, L""); // title
 
 	// set font
-	rhelper::template_writevar (&pPtr, SHORT (8), sizeof (SHORT)); // pointsize
-	rhelper::template_writevar (&pPtr, SHORT (FW_NORMAL), sizeof (SHORT)); // weight
-	rhelper::template_writevar (&pPtr, SHORT (FALSE), sizeof (SHORT)); // bItalic
+	rhelper::template_writeshort (&pPtr, 8); // pointsize
+	rhelper::template_writeshort (&pPtr, FW_NORMAL); // weight
+	rhelper::template_writeshort (&pPtr, FALSE); // bItalic
 	rhelper::template_writestring (&pPtr, L"MS Shell Dlg"); // font
 
 	rhelper::template_writecontrol (&pPtr, IDC_NAV, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | TVS_SHOWSELALWAYS | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_TRACKSELECT | TVS_INFOTIP | TVS_NOHSCROLL, 8, 6, 88, (height - 14), WC_TREEVIEW);
