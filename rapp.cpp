@@ -1348,20 +1348,7 @@ LRESULT CALLBACK rapp::MainWindowProc (HWND hwnd, UINT msg, WPARAM wparam, LPARA
 
 		case WM_EXITSIZEMOVE:
 		{
-			RECT rc = {0};
-			GetWindowRect (hwnd, &rc);
-
-			this_ptr->ConfigSet (L"WindowPosX", rc.left, L"window");
-			this_ptr->ConfigSet (L"WindowPosY", rc.top, L"window");
-
-			if ((GetWindowLongPtr (hwnd, GWL_STYLE) & WS_SIZEBOX) != 0)
-			{
-				this_ptr->ConfigSet (L"WindowPosWidth", _R_RECT_WIDTH (&rc), L"window");
-				this_ptr->ConfigSet (L"WindowPosHeight", _R_RECT_HEIGHT (&rc), L"window");
-			}
-
-			InvalidateRect (hwnd, nullptr, TRUE); // redraw window content when resizing ends (HACK!!!)
-
+			this_ptr->SaveWindowPosition (hwnd, L"window");
 			break;
 		}
 
@@ -1503,15 +1490,6 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 
 	RestoreWindowPosition (app_hwnd, L"window");
 
-	// send resize message
-	if ((GetWindowLongPtr (app_hwnd, GWL_STYLE) & WS_SIZEBOX) != 0)
-	{
-		RECT rc_client = {0};
-
-		GetClientRect (app_hwnd, &rc_client);
-		SendMessage (app_hwnd, WM_SIZE, SIZE_RESTORED, MAKELPARAM (_R_RECT_WIDTH (&rc_client), _R_RECT_HEIGHT (&rc_client)));
-	}
-
 	// set window icon
 	if (icon_id)
 	{
@@ -1580,36 +1558,52 @@ bool rapp::CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 
 void rapp::RestoreWindowPosition (HWND hwnd, LPCWSTR window_name)
 {
-	// restore window position
 	RECT rect_original = {0};
 	GetWindowRect (hwnd, &rect_original);
 
-	// restore window position
 	RECT rect_new = {0};
 
-	rect_new.left = ConfigGet (L"WindowPosX", rect_original.left, window_name).AsLong ();
-	rect_new.top = ConfigGet (L"WindowPosY", rect_original.top, window_name).AsLong ();
-
-	const bool is_resizeable = (GetWindowLongPtr (hwnd, GWL_STYLE) & WS_SIZEBOX) != 0;
-
-	if (is_resizeable)
-	{
-		rect_new.right = (std::max) (ConfigGet (L"WindowPosWidth", _R_RECT_WIDTH (&rect_original), window_name).AsLong (), _R_RECT_WIDTH (&rect_original)) + rect_new.left;
-		rect_new.bottom = (std::max) (ConfigGet (L"WindowPosHeight", _R_RECT_HEIGHT (&rect_original), window_name).AsLong (), _R_RECT_HEIGHT (&rect_original)) + rect_new.top;
-	}
-	else
-	{
-		rect_new.right = _R_RECT_WIDTH (&rect_original) + rect_new.left;
-		rect_new.bottom = _R_RECT_HEIGHT (&rect_original) + rect_new.top;
-	}
+	SetRect (&rect_new,
+			 ConfigGet (L"WindowPosX", rect_original.left, window_name).AsLong (),
+			 ConfigGet (L"WindowPosY", rect_original.top, window_name).AsLong (),
+			 (std::max) (ConfigGet (L"WindowPosWidth", _R_RECT_WIDTH (&rect_original), window_name).AsLong (), _R_RECT_WIDTH (&rect_original)) + ConfigGet (L"WindowPosX", rect_original.left, window_name).AsLong (),
+			 (std::max) (ConfigGet (L"WindowPosHeight", _R_RECT_HEIGHT (&rect_original), window_name).AsLong (), _R_RECT_HEIGHT (&rect_original)) + ConfigGet (L"WindowPosY", rect_original.top, window_name).AsLong ()
+	);
 
 	_r_wnd_adjustwindowrect (nullptr, &rect_new);
 
-	if (is_resizeable)
-		SetWindowPos (hwnd, nullptr, rect_new.left, rect_new.top, _R_RECT_WIDTH (&rect_new), _R_RECT_HEIGHT (&rect_new), SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
+	UINT swp_flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER;
 
-	else
-		SetWindowPos (hwnd, nullptr, rect_new.left, rect_new.top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
+	if ((GetWindowLongPtr (hwnd, GWL_STYLE) & WS_SIZEBOX) == 0)
+		swp_flags |= SWP_NOSIZE;
+
+	SetWindowPos (hwnd, nullptr, rect_new.left, rect_new.top, _R_RECT_WIDTH (&rect_new), _R_RECT_HEIGHT (&rect_new), swp_flags);
+
+	// send resize message
+	if ((GetWindowLongPtr (hwnd, GWL_STYLE) & WS_SIZEBOX) != 0)
+	{
+		RECT rc_client = {0};
+
+		GetClientRect (hwnd, &rc_client);
+		SendMessage (app_hwnd, WM_SIZE, SIZE_RESTORED, MAKELPARAM (_R_RECT_WIDTH (&rc_client), _R_RECT_HEIGHT (&rc_client)));
+	}
+}
+
+void rapp::SaveWindowPosition (HWND hwnd, LPCWSTR window_name)
+{
+	RECT rc = {0};
+	GetWindowRect (hwnd, &rc);
+
+	ConfigSet (L"WindowPosX", rc.left, L"window");
+	ConfigSet (L"WindowPosY", rc.top, L"window");
+
+	if ((GetWindowLongPtr (hwnd, GWL_STYLE) & WS_SIZEBOX) != 0)
+	{
+		ConfigSet (L"WindowPosWidth", _R_RECT_WIDTH (&rc), L"window");
+		ConfigSet (L"WindowPosHeight", _R_RECT_HEIGHT (&rc), L"window");
+	}
+
+	InvalidateRect (hwnd, nullptr, TRUE); // redraw window content when resizing ends (HACK!!!)
 }
 #endif // !(_APP_CONSOLE
 

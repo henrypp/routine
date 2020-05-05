@@ -171,7 +171,9 @@ public:
 	void CreateAboutWindow (HWND hwnd);
 
 	bool CreateMainWindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc);
+
 	void RestoreWindowPosition (HWND hwnd, LPCWSTR window_name);
+	void SaveWindowPosition (HWND hwnd, LPCWSTR window_name);
 #endif // _APP_CONSOLE
 
 #if defined(_APP_HAVE_SETTINGS)
