@@ -26,6 +26,8 @@
 //#define _APP_HAVE_MINSIZE // change minimum size of main window
 //#define _APP_HAVE_DARKTHEME_SUBCLASS // enable dark theme own draw (win10rs5+)
 
+//#define _APP_HAVE_CRTTHREAD // use _begiunthreadex threads from crt instead of ntapi
+
 //#define _APP_STARTMINIMIZED // start with no window
 
 // set defaults

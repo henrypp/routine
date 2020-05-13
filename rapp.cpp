@@ -585,7 +585,6 @@ void rapp::UpdateAddComponent (LPCWSTR full_name, LPCWSTR short_name, LPCWSTR ve
 	}
 
 	PAPP_UPDATE_COMPONENT pcomponent = new APP_UPDATE_COMPONENT;
-	RtlSecureZeroMemory (pcomponent, sizeof (APP_UPDATE_COMPONENT));
 
 	_r_str_alloc (&pcomponent->full_name, INVALID_SIZE_T, full_name);
 	_r_str_alloc (&pcomponent->short_name, INVALID_SIZE_T, short_name);
@@ -605,7 +604,7 @@ void rapp::UpdateCheck (HWND hparent)
 	if (!hparent && (!ConfigGet (L"CheckUpdates", true).AsBool () || (_r_unixtime_now () - ConfigGet (L"CheckUpdatesLast", time_t (0)).AsLonglong ()) <= _APP_UPDATE_PERIOD))
 		return;
 
-	pupdateinfo->hthread = _r_createthread (&UpdateCheckThread, (LPVOID)pupdateinfo, true);
+	pupdateinfo->hthread = _r_sys_createthread (&UpdateCheckThread, (LPVOID)pupdateinfo, true);
 
 	if (!pupdateinfo->hthread)
 		return;
@@ -637,7 +636,7 @@ void rapp::UpdateCheck (HWND hparent)
 #endif // _APP_NO_WINXP
 	}
 
-	ResumeThread (pupdateinfo->hthread);
+	NtResumeThread (pupdateinfo->hthread, nullptr);
 }
 #endif // _APP_HAVE_UPDATES
 
@@ -832,7 +831,6 @@ bool rapp::ShowConfirmMessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR co
 	{
 #endif
 		TASKDIALOGCONFIG tdc = {0};
-		RtlSecureZeroMemory (&tdc, sizeof (tdc));
 
 		WCHAR str_main[128] = {0};
 		WCHAR str_content[512] = {0};
@@ -936,7 +934,6 @@ void rapp::ShowErrorMessage (HWND hwnd, LPCWSTR main, DWORD errcode, HINSTANCE h
 	{
 #endif // !_APP_NO_WINXP
 		TASKDIALOGCONFIG tdc = {0};
-		RtlSecureZeroMemory (&tdc, sizeof (tdc));
 
 		TASKDIALOG_BUTTON td_buttons[2] = {0};
 
@@ -1007,7 +1004,6 @@ INT rapp::ShowMessage (HWND hwnd, DWORD flags, LPCWSTR title, LPCWSTR main, LPCW
 #endif // !_APP_NO_WINXP
 
 		TASKDIALOGCONFIG tdc = {0};
-		RtlSecureZeroMemory (&tdc, sizeof (tdc));
 
 		tdc.cbSize = sizeof (tdc);
 		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
@@ -1129,7 +1125,6 @@ void rapp::CreateAboutWindow (HWND hwnd)
 			WCHAR btn_2[64] = {0};
 
 			TASKDIALOGCONFIG tdc = {0};
-			RtlSecureZeroMemory (&tdc, sizeof (tdc));
 
 			TASKDIALOG_BUTTON td_buttons[2] = {0};
 
@@ -1192,7 +1187,6 @@ void rapp::CreateAboutWindow (HWND hwnd)
 			_r_str_printf (str_content, _countof (str_content), L"%s\r\n\r\nVersion %s, %" PRIu32 L"-bit (Unicode)\r\n%s\r\n\r\n%s | %s\r\n\r\nThis program is free software; you can redistribute it and/\r\nor modify it under the terms of the GNU General Public\r\nLicense 3 as published by the Free Software Foundation.", app_name, app_version, architecture, app_copyright, _APP_WEBSITE_URL + 8, _APP_GITHUB_URL + 8);
 
 			MSGBOXPARAMS mbp = {0};
-			RtlSecureZeroMemory (&mbp, sizeof (mbp));
 
 			mbp.cbSize = sizeof (mbp);
 			mbp.dwStyle = MB_OK | MB_TOPMOST | MB_USERICON;
@@ -1696,7 +1690,6 @@ void rapp::CreateSettingsWindow (HWND hwnd, DLGPROC dlg_proc, INT dlg_id)
 void rapp::SettingsAddPage (INT dlg_id, UINT locale_id)
 {
 	PAPP_SETTINGS_PAGE ptr_page = new APP_SETTINGS_PAGE;
-	RtlSecureZeroMemory (ptr_page, sizeof (APP_SETTINGS_PAGE));
 
 	ptr_page->dlg_id = dlg_id;
 	ptr_page->locale_id = locale_id;
@@ -1793,9 +1786,9 @@ HWND rapp::GetHWND () const
 
 HICON rapp::GetSharedImage (HINSTANCE hinst, INT icon_id, INT icon_size)
 {
-	for (auto &pimage : app_shared_icons)
+	for (auto pimage : app_shared_icons)
 	{
-		if (pimage && (pimage->hinst == hinst) && (pimage->icon_id == icon_id) && (pimage->icon_size == icon_size))
+		if (pimage->hinst == hinst && pimage->icon_id == icon_id && pimage->icon_size == icon_size)
 			return pimage->hicon;
 	}
 
@@ -1805,7 +1798,6 @@ HICON rapp::GetSharedImage (HINSTANCE hinst, INT icon_id, INT icon_size)
 		return nullptr;
 
 	PAPP_SHARED_IMAGE pimage = new APP_SHARED_IMAGE;
-	RtlSecureZeroMemory (pimage, sizeof (APP_SHARED_IMAGE));
 
 	pimage->hinst = hinst;
 	pimage->icon_id = icon_id;
@@ -2397,7 +2389,7 @@ bool rapp::UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG
 	return true;
 }
 
-UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
+THREAD_FN rapp::UpdateDownloadThread (LPVOID lparam)
 {
 	PAPP_UPDATE_INFO pupdateinfo = (PAPP_UPDATE_INFO)lparam;
 
@@ -2530,9 +2522,7 @@ UINT WINAPI rapp::UpdateDownloadThread (LPVOID lparam)
 		}
 	}
 
-	_endthreadex (ERROR_SUCCESS);
-
-	return ERROR_SUCCESS;
+	return _r_sys_endthread (ERROR_SUCCESS);
 }
 
 HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM, LONG_PTR lpdata)
@@ -2567,7 +2557,7 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 			SendMessage (hwnd, WM_SETICON, ICON_BIG, 0);
 
 			if (_r_fs_isvalidhandle (pupdateinfo->hthread))
-				ResumeThread (pupdateinfo->hthread);
+				NtResumeThread (pupdateinfo->hthread, nullptr);
 
 			break;
 		}
@@ -2592,7 +2582,7 @@ HRESULT CALLBACK rapp::UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam,
 				_r_str_copy (str_content, _countof (str_content), L"Downloading update...");
 #pragma _R_WARNING(IDS_UPDATE_DOWNLOAD)
 #endif
-				pupdateinfo->hthread = (HANDLE)_r_createthread (&UpdateDownloadThread, (LPVOID)pupdateinfo, true);
+				pupdateinfo->hthread = (HANDLE)_r_sys_createthread (&UpdateDownloadThread, (LPVOID)pupdateinfo, true);
 
 				if (pupdateinfo->hthread)
 				{
@@ -2624,7 +2614,7 @@ void rapp::UpdateInstall () const
 	_r_run (_r_path_expand (L"%systemroot%\\system32\\cmd.exe"), _r_fmt (L"\"cmd.exe\" /c timeout 3 > nul&&start /wait \"\" \"%s\" /S /D=%s&&timeout 3 > nul&&del /q /f \"%s\"&start \"\" \"%s\"", GetUpdatePath (), GetDirectory (), GetUpdatePath (), GetBinaryPath ()), nullptr, SW_HIDE);
 }
 
-UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
+THREAD_FN rapp::UpdateCheckThread (LPVOID lparam)
 {
 	PAPP_UPDATE_INFO pupdateinfo = (PAPP_UPDATE_INFO)lparam;
 
@@ -2746,7 +2736,7 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 							const INT msg_id = this_ptr->ShowMessage (pupdateinfo->hparent, MB_YESNO | MB_USERICON, nullptr, str_main, updates_text.GetString ());
 
 							if (msg_id == IDYES)
-								pupdateinfo->hthread = _r_createthread (&this_ptr->UpdateDownloadThread, (LPVOID)pupdateinfo, false);
+								pupdateinfo->hthread = _r_sys_createthread (&this_ptr->UpdateDownloadThread, (LPVOID)pupdateinfo, false);
 						}
 #endif // _APP_NO_WINXP
 					}
@@ -2774,15 +2764,12 @@ UINT WINAPI rapp::UpdateCheckThread (LPVOID lparam)
 		}
 	}
 
-	_endthreadex (ERROR_SUCCESS);
-
-	return ERROR_SUCCESS;
+	return _r_sys_endthread (ERROR_SUCCESS);
 }
 
 INT rapp::UpdateDialogNavigate (HWND htaskdlg, LPCWSTR main_icon, TASKDIALOG_FLAGS flags, TASKDIALOG_COMMON_BUTTON_FLAGS buttons, LPCWSTR main, LPCWSTR content, LONG_PTR lpdata)
 {
 	TASKDIALOGCONFIG tdc = {0};
-	RtlSecureZeroMemory (&tdc, sizeof (tdc));
 
 	WCHAR str_title[64] = {0};
 	WCHAR str_main[128] = {0};

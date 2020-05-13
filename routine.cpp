@@ -978,7 +978,7 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 
 		// network share prefixes
 		// https://docs.microsoft.com/en-us/windows-hardware/drivers/ifs/support-for-unc-naming-and-mup
-		HKEY hkey = nullptr;
+		HKEY hkey;
 		rstring providerOrder;
 
 		if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, L"System\\CurrentControlSet\\Control\\NetworkProvider\\Order", 0, KEY_READ, &hkey) == ERROR_SUCCESS)
@@ -1316,7 +1316,7 @@ INT _r_str_compare_logical (LPCWSTR str1, LPCWSTR str2)
 rstring _r_str_fromguid (const GUID& lpguid)
 {
 	rstring result;
-	OLECHAR* guidString = nullptr;
+	OLECHAR* guidString;
 
 	if (SUCCEEDED (StringFromCLSID (lpguid, &guidString)))
 	{
@@ -1675,6 +1675,30 @@ bool _r_sys_iselevated ()
 	return is_elevated;
 }
 
+HANDLE _r_sys_createthread (THREAD_CALLBACK proc, PVOID lparam, bool is_createsuspended, INT priority)
+{
+#if !defined(_APP_HAVE_CRTTHREAD)
+	HANDLE hthread;
+
+	NTSTATUS status = RtlCreateUserThread (NtCurrentProcess (), nullptr, TRUE, 0, 0, 0, proc, lparam, &hthread, nullptr);
+
+	if (!NT_SUCCESS (status))
+		return nullptr;
+#else
+	HANDLE hthread = (HANDLE)_beginthreadex (nullptr, 0, proc, lparam, CREATE_SUSPENDED, nullptr);
+
+	if (!_r_fs_isvalidhandle (hthread))
+		return nullptr;
+#endif // !_APP_HAVE_SAFETHREAD
+
+	SetThreadPriority (hthread, priority);
+
+	if (!is_createsuspended)
+		NtResumeThread (hthread, nullptr);
+
+	return hthread;
+}
+
 rstring _r_sys_getsessioninfo (WTS_INFO_CLASS info)
 {
 	LPWSTR buffer;
@@ -1692,7 +1716,7 @@ rstring _r_sys_getsessioninfo (WTS_INFO_CLASS info)
 	return nullptr;
 }
 
-rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username)
+rstring _r_sys_getsidfromusername (LPCWSTR domain, LPCWSTR username)
 {
 	DWORD sid_length = SECURITY_MAX_SID_SIZE;
 	PSID psid = _r_mem_allocex (sid_length, 0);
@@ -1702,11 +1726,11 @@ rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username)
 		WCHAR ref_domain[MAX_PATH] = {0};
 		DWORD ref_length = _countof (ref_domain);
 
-		SID_NAME_USE name_use;
-
 		rstring result;
 
-		if (LookupAccountName (domain, username, psid, &sid_length, ref_domain, &ref_length, &name_use))
+		SID_NAME_USE eUse = SidTypeUnknown;
+
+		if (LookupAccountName (domain, username, psid, &sid_length, ref_domain, &ref_length, &eUse))
 			result = _r_str_fromsid (psid);
 
 		_r_mem_free (psid);
@@ -1715,6 +1739,43 @@ rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username)
 	}
 
 	return nullptr;
+}
+
+rstring _r_sys_getusernamefromsid (PSID psid)
+{
+	rstring result;
+
+	LPTSTR name = nullptr;
+	LPTSTR domain = nullptr;
+
+	DWORD name_size = 1;
+	DWORD domain_size = 1;
+
+	SID_NAME_USE eUse = SidTypeUnknown;
+
+	LookupAccountSid (nullptr, psid, name, &name_size, domain, &domain_size, &eUse);
+
+	name = new WCHAR[name_size];
+	domain = new WCHAR[domain_size];
+
+	if (LookupAccountSid (nullptr, psid, name, &name_size, domain, &domain_size, &eUse))
+	{
+		if (!_r_str_isempty (domain))
+		{
+			result.Append (domain);
+
+			if (!_r_str_isempty (name))
+				result.Append (L"\\");
+		}
+
+		if (!_r_str_isempty (name))
+			result.Append (name);
+	}
+
+	delete[] domain;
+	delete[] name;
+
+	return result;
 }
 
 #if !defined(_WIN64)
@@ -3097,25 +3158,6 @@ time_t _r_reg_querytimestamp (HKEY hkey)
 /*
 	Other
 */
-
-HANDLE _r_createthread (_beginthreadex_proc_type proc, void* args, bool is_suspended, INT priority)
-{
-	HANDLE hthread = (HANDLE)_beginthreadex (nullptr, 0, proc, args, CREATE_SUSPENDED, nullptr);
-
-	// On an error:
-	//		_beginthread returns -1L
-	//		_beginthreadex returns 0
-
-	if (!_r_fs_isvalidhandle (hthread))
-		return nullptr;
-
-	SetThreadPriority (hthread, priority);
-
-	if (!is_suspended)
-		ResumeThread (hthread);
-
-	return hthread;
-}
 
 HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size)
 {

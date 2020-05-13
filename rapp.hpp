@@ -246,9 +246,9 @@ private:
 
 #if defined(_APP_HAVE_UPDATES)
 	static bool UpdateDownloadCallback (DWORD total_written, DWORD total_length, LONG_PTR lpdata);
-	static UINT WINAPI UpdateDownloadThread (LPVOID lparam);
+	static THREAD_FN UpdateDownloadThread (LPVOID lparam);
 	static HRESULT CALLBACK UpdateDialogCallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR lpdata);
-	static UINT WINAPI UpdateCheckThread (LPVOID lparam);
+	static THREAD_FN UpdateCheckThread (LPVOID lparam);
 	INT UpdateDialogNavigate (HWND htaskdlg, LPCWSTR main_icon, TASKDIALOG_FLAGS flags, TASKDIALOG_COMMON_BUTTON_FLAGS buttons, LPCWSTR main, LPCWSTR content, LONG_PTR lpdata);
 #endif // _APP_HAVE_UPDATES
 

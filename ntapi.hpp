@@ -1086,7 +1086,69 @@ typedef enum _HEAP_COMPATIBILITY_MODE
 #define HEAP_CLASS_8 0x00008000 // CSR port heap
 #define HEAP_CLASS_MASK 0x0000f000
 
+typedef NTSTATUS (NTAPI *PUSER_THREAD_START_ROUTINE)(
+	_In_ PVOID ThreadParameter
+	);
+
 extern "C" {
+	NTSYSAPI
+		NTSTATUS
+		NTAPI
+		RtlCreateUserThread (
+		_In_ HANDLE Process,
+		_In_opt_ PSECURITY_DESCRIPTOR ThreadSecurityDescriptor,
+		_In_ BOOLEAN CreateSuspended,
+		_In_opt_ ULONG ZeroBits,
+		_In_opt_ SIZE_T MaximumStackSize,
+		_In_opt_ SIZE_T CommittedStackSize,
+		_In_ PUSER_THREAD_START_ROUTINE StartAddress,
+		_In_opt_ PVOID Parameter,
+		_Out_opt_ PHANDLE Thread,
+		_Out_opt_ PCLIENT_ID ClientId
+		);
+
+	DECLSPEC_NORETURN
+		NTSYSAPI
+		VOID
+		NTAPI
+		RtlExitUserThread (
+		_In_ NTSTATUS ExitStatus
+		);
+
+	NTSYSCALLAPI
+		NTSTATUS
+		NTAPI
+		NtOpenThread (
+		_Out_ PHANDLE ThreadHandle,
+		_In_ ACCESS_MASK DesiredAccess,
+		_In_ POBJECT_ATTRIBUTES ObjectAttributes,
+		_In_opt_ PCLIENT_ID ClientId
+		);
+
+	NTSYSCALLAPI
+		NTSTATUS
+		NTAPI
+		NtTerminateThread (
+		_In_opt_ HANDLE ThreadHandle,
+		_In_ NTSTATUS ExitStatus
+		);
+
+	NTSYSCALLAPI
+		NTSTATUS
+		NTAPI
+		NtSuspendThread (
+		_In_ HANDLE ThreadHandle,
+		_Out_opt_ PULONG PreviousSuspendCount
+		);
+
+	NTSYSCALLAPI
+		NTSTATUS
+		NTAPI
+		NtResumeThread (
+		_In_ HANDLE ThreadHandle,
+		_Out_opt_ PULONG PreviousSuspendCount
+		);
+
 	NTSYSAPI
 		PVOID
 		NTAPI

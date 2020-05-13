@@ -359,18 +359,31 @@ FORCEINLINE bool _r_fs_isvalidhandle (HANDLE handle)
 	return handle != nullptr && handle != INVALID_HANDLE_VALUE;
 }
 
-#define _r_fs_exists(path) (!!RtlDoesFileExists_U ((path)))
-#define _r_fs_copy(path_from,path_to,flags) (!!CopyFileEx ((path_from),(path_to),nullptr,nullptr,nullptr,(flags)))
-#define _r_fs_move(path_from,path_to,flags) (!!MoveFileEx ((path_from),(path_to),(flags)))
+FORCEINLINE bool _r_fs_exists (LPCWSTR path)
+{
+	return RtlDoesFileExists_U (path);
+}
+
+FORCEINLINE bool _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags)
+{
+	return CopyFileEx (path_from, path_to, nullptr, nullptr, nullptr, flags);
+}
+
+FORCEINLINE bool _r_fs_move (LPCWSTR path_from, LPCWSTR path_to, DWORD flags)
+{
+	return MoveFileEx (path_from, path_to, flags);
+}
+
+bool _r_fs_makebackup (LPCWSTR path, time_t timestamp);
+bool _r_fs_mkdir (LPCWSTR path);
+bool _r_fs_readfile (HANDLE hfile, LPVOID result, size_t size);
 
 #define RFS_ALLOWUNDO 0x01
 #define RFS_FORCEREMOVE 0x02
 #define RFS_USERECURSION 0x04
 
-bool _r_fs_makebackup (LPCWSTR path, time_t timestamp);
-bool _r_fs_mkdir (LPCWSTR path);
-bool _r_fs_readfile (HANDLE hfile, LPVOID result, size_t size);
 bool _r_fs_remove (LPCWSTR path, USHORT flags);
+
 bool _r_fs_setpos (HANDLE hfile, LONG64 pos, DWORD method);
 LONG64 _r_fs_size (HANDLE hfile);
 LONG64 _r_fs_size (LPCWSTR path);
@@ -425,8 +438,15 @@ void _r_str_replace (LPWSTR text, WCHAR char_from, WCHAR char_to);
 void _r_str_trim (LPWSTR text, LPCWSTR trim);
 void _r_str_trim (rstring& text, LPCWSTR trim);
 
-#define _r_str_lower RtlDowncaseUnicodeChar
-#define _r_str_upper RtlUpcaseUnicodeChar
+FORCEINLINE WCHAR _r_str_lower (WCHAR chr)
+{
+	return RtlDowncaseUnicodeChar (chr);
+}
+
+FORCEINLINE WCHAR _r_str_upper (WCHAR chr)
+{
+	return RtlUpcaseUnicodeChar (chr);
+}
 
 void _r_str_tolower (LPWSTR text);
 void _r_str_toupper (LPWSTR text);
@@ -448,8 +468,31 @@ INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2);
 
 bool _r_sys_iselevated ();
 
+#if !defined(_APP_HAVE_CRTTHREAD)
+#define THREAD_FN NTSTATUS
+#define THREAD_CALLBACK PUSER_THREAD_START_ROUTINE
+#else
+#define THREAD_FN UINT WINAPI
+#define THREAD_CALLBACK _beginthreadex_proc_type
+#endif // !_APP_HAVE_CRTTHREAD
+
+HANDLE _r_sys_createthread (THREAD_CALLBACK proc, PVOID lparam, bool is_createsuspended, INT priority = THREAD_PRIORITY_NORMAL);
+
+FORCEINLINE DWORD _r_sys_endthread (DWORD exit_code)
+{
+#if !defined(_APP_HAVE_CRTTHREAD)
+	RtlExitUserThread (exit_code);
+#else
+	_endthreadex (exit_code);
+#endif // _APP_HAVE_CRTTHREAD
+
+	return exit_code;
+}
+
 rstring _r_sys_getsessioninfo (WTS_INFO_CLASS info);
-rstring _r_sys_getusernamesid (LPCWSTR domain, LPCWSTR username);
+
+rstring _r_sys_getsidfromusername (LPCWSTR domain, LPCWSTR username);
+rstring _r_sys_getusernamefromsid (PSID psid);
 
 #if !defined(_WIN64)
 bool _r_sys_iswow64 ();
@@ -580,7 +623,11 @@ DWORD _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHI
 bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD buffer_length, PDWORD preaded, PDWORD ptotalreaded);
 DWORD _r_inet_parseurl (LPCWSTR url, PINT scheme_ptr, LPWSTR host_ptr, LPWORD port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr);
 DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, LONG_PTR lpdest, bool is_filepath, _R_CALLBACK_HTTP_DOWNLOAD _callback, LONG_PTR lpdata);
-#define _r_inet_close(h) if(h){WinHttpCloseHandle(h);h=nullptr;}
+
+FORCEINLINE BOOL _r_inet_close (HINTERNET handle)
+{
+	return WinHttpCloseHandle (handle);
+}
 
 /*
 	Registry
@@ -597,7 +644,6 @@ time_t _r_reg_querytimestamp (HKEY hkey);
 	Other
 */
 
-HANDLE _r_createthread (_beginthreadex_proc_type proc, void *args, bool is_suspended, INT priority = THREAD_PRIORITY_NORMAL);
 HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size);
 LPVOID _r_loadresource (HINSTANCE hinst, LPCWSTR res, LPCWSTR type, PDWORD psize);
 bool _r_parseini (LPCWSTR path, rstringmap2& pmap, rstringvec* psections);
