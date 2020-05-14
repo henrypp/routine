@@ -1328,19 +1328,36 @@ rstring _r_str_fromguid (const GUID& lpguid)
 	return result;
 }
 
-rstring _r_str_fromsid (const PSID lpsid)
+rstring _r_str_fromsecuritydescriptor (const PSECURITY_DESCRIPTOR lpsd)
 {
-	rstring result;
-	LPWSTR sidString;
+	LPWSTR securityString;
 
-	if (ConvertSidToStringSid (lpsid, &sidString))
+	if (ConvertSecurityDescriptorToStringSecurityDescriptor (lpsd, SDDL_REVISION_1, 0, &securityString, nullptr))
 	{
-		result = sidString;
+		rstring result = securityString;
 
-		SAFE_LOCAL_FREE (sidString);
+		LocalFree (securityString);
+
+		return result;
 	}
 
-	return result;
+	return nullptr;
+}
+
+rstring _r_str_fromsid (const PSID lpsid)
+{
+	LPWSTR securityString;
+
+	if (ConvertSidToStringSid (lpsid, &securityString))
+	{
+		rstring result = securityString;
+
+		LocalFree (securityString);
+
+		return result;
+	}
+
+	return nullptr;
 }
 
 size_t _r_str_find (LPCWSTR text, size_t length, WCHAR char_find, size_t start_pos)

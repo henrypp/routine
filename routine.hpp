@@ -428,6 +428,7 @@ void _r_str_vprintf (LPWSTR buffer, size_t length, LPCWSTR text, va_list args);
 INT _r_str_compare_logical (LPCWSTR str1, LPCWSTR str2);
 
 rstring _r_str_fromguid (const GUID& lpguid);
+rstring _r_str_fromsecuritydescriptor (const PSECURITY_DESCRIPTOR lpsd);
 rstring _r_str_fromsid (const PSID lpsid);
 
 size_t _r_str_find (LPCWSTR text, size_t length, WCHAR char_find, size_t start_pos = 0);
