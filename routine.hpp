@@ -384,8 +384,24 @@ bool _r_fs_readfile (HANDLE hfile, LPVOID result, size_t size);
 
 bool _r_fs_remove (LPCWSTR path, USHORT flags);
 
-bool _r_fs_setpos (HANDLE hfile, LONG64 pos, DWORD method);
-LONG64 _r_fs_size (HANDLE hfile);
+FORCEINLINE bool _r_fs_setpos (HANDLE hfile, LONG64 pos, DWORD method)
+{
+	LARGE_INTEGER lpos = {0};
+
+	lpos.QuadPart = pos;
+
+	return SetFilePointerEx (hfile, lpos, nullptr, method);
+}
+
+FORCEINLINE LONG64 _r_fs_size (HANDLE hfile)
+{
+	LARGE_INTEGER size = {0};
+
+	GetFileSizeEx (hfile, &size);
+
+	return size.QuadPart;
+}
+
 LONG64 _r_fs_size (LPCWSTR path);
 
 /*
