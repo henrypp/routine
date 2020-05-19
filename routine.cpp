@@ -1044,9 +1044,7 @@ DWORD _r_path_ntpathfromdos (rstring& path)
 
 		if (NT_SUCCESS (status) && bufferSize)
 		{
-			pbuffer->Name.Buffer[pbuffer->Name.Length / sizeof (WCHAR)] = UNICODE_NULL; // trim buffer!
-
-			path = pbuffer->Name.Buffer;
+			path = pbuffer->Name;
 
 			_r_str_tolower (path.GetBuffer ()); // lower is important!
 		}
