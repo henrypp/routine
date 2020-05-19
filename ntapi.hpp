@@ -1377,6 +1377,15 @@ extern "C" {
 		_Inout_ PULONG ServiceSidLength
 		);
 
+	NTSYSAPI
+		NTSTATUS
+		NTAPI
+		RtlConvertSidToUnicodeString (
+		_Inout_ PUNICODE_STRING UnicodeString,
+		_In_ PSID Sid,
+		_In_ BOOLEAN AllocateDestinationString
+		);
+
 	NTSYSCALLAPI
 		DWORD
 		NTAPI
