@@ -914,7 +914,6 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 						continue;
 				}
 
-				OBJECT_ATTRIBUTES oa;
 				UNICODE_STRING deviceName;
 
 				deviceName.Buffer = deviceNameBuffer;
@@ -922,6 +921,7 @@ rstring _r_path_dospathfromnt (LPCWSTR path)
 
 				deviceNameBuffer[4] = L'A' + WCHAR (i);
 
+				OBJECT_ATTRIBUTES oa;
 				InitializeObjectAttributes (&oa, &deviceName, OBJ_CASE_INSENSITIVE, nullptr, nullptr);
 
 				HANDLE hslink = nullptr;
@@ -1328,13 +1328,13 @@ rstring _r_str_fromsecuritydescriptor (const PSECURITY_DESCRIPTOR lpsd)
 
 rstring _r_str_fromsid (const PSID lpsid)
 {
-	LPWSTR securityString;
+	UNICODE_STRING us;
 
-	if (ConvertSidToStringSid (lpsid, &securityString))
+	if (NT_SUCCESS (RtlConvertSidToUnicodeString (&us, lpsid, TRUE)))
 	{
-		rstring result = securityString;
+		rstring result = us;
 
-		LocalFree (securityString);
+		RtlFreeUnicodeString (&us);
 
 		return result;
 	}
@@ -1705,34 +1705,9 @@ rstring _r_sys_getsessioninfo (WTS_INFO_CLASS info)
 
 	if (WTSQuerySessionInformation (WTS_CURRENT_SERVER_HANDLE, WTS_CURRENT_SESSION, info, &buffer, &length))
 	{
-		rstring result = buffer;
+		rstring result (buffer, length);
 
 		WTSFreeMemory (buffer);
-
-		return result;
-	}
-
-	return nullptr;
-}
-
-rstring _r_sys_getsidfromusername (LPCWSTR domain, LPCWSTR username)
-{
-	DWORD sid_length = SECURITY_MAX_SID_SIZE;
-	PSID psid = _r_mem_allocex (sid_length, 0);
-
-	if (psid)
-	{
-		WCHAR ref_domain[MAX_PATH] = {0};
-		DWORD ref_length = _countof (ref_domain);
-
-		rstring result;
-
-		SID_NAME_USE eUse = SidTypeUnknown;
-
-		if (LookupAccountName (domain, username, psid, &sid_length, ref_domain, &ref_length, &eUse))
-			result = _r_str_fromsid (psid);
-
-		_r_mem_free (psid);
 
 		return result;
 	}
@@ -1744,35 +1719,49 @@ rstring _r_sys_getusernamefromsid (PSID psid)
 {
 	rstring result;
 
-	LPTSTR name = nullptr;
-	LPTSTR domain = nullptr;
+	LSA_HANDLE policyHandle = nullptr;
 
-	DWORD name_size = 1;
-	DWORD domain_size = 1;
+	PLSA_REFERENCED_DOMAIN_LIST referencedDomains = nullptr;
+	PLSA_TRANSLATED_NAME names = nullptr;
 
-	SID_NAME_USE eUse = SidTypeUnknown;
+	OBJECT_ATTRIBUTES objectAttributes;
+	InitializeObjectAttributes (&objectAttributes, nullptr, 0, nullptr, nullptr);
 
-	LookupAccountSid (nullptr, psid, name, &name_size, domain, &domain_size, &eUse);
-
-	name = new WCHAR[name_size];
-	domain = new WCHAR[domain_size];
-
-	if (LookupAccountSid (nullptr, psid, name, &name_size, domain, &domain_size, &eUse))
+	if (NT_SUCCESS (LsaOpenPolicy (nullptr, (PLSA_OBJECT_ATTRIBUTES)&objectAttributes, POLICY_LOOKUP_NAMES, &policyHandle)))
 	{
-		if (!_r_str_isempty (domain))
+		if (NT_SUCCESS (LsaLookupSids (policyHandle, 1, &psid, &referencedDomains, &names)))
 		{
-			result.Append (domain);
+			if (names[0].Use != SidTypeInvalid && names[0].Use != SidTypeUnknown)
+			{
+				const bool is_hasname = !_r_str_isempty (names[0].Name);
 
-			if (!_r_str_isempty (name))
-				result.Append (L"\\");
+				if (names[0].DomainIndex >= 0)
+				{
+					PLSA_TRUST_INFORMATION trustInfo = &referencedDomains->Domains[names[0].DomainIndex];
+
+					if (!_r_str_isempty (trustInfo->Name))
+					{
+						result = trustInfo->Name;
+
+						if (is_hasname)
+							result.Append (L"\\");
+					}
+				}
+
+				if (is_hasname)
+					result.Append (names[0].Name);
+			}
 		}
-
-		if (!_r_str_isempty (name))
-			result.Append (name);
 	}
 
-	delete[] domain;
-	delete[] name;
+	if (referencedDomains)
+		LsaFreeMemory (referencedDomains);
+
+	if (names)
+		LsaFreeMemory (names);
+
+	if (policyHandle)
+		LsaClose (policyHandle);
 
 	return result;
 }
@@ -3522,7 +3511,7 @@ rstring _r_ctrl_gettext (HWND hwnd, INT ctrl_id)
 	{
 		rstring result;
 
-		INT out_length = (INT)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXT, length + 1, (LPARAM)result.GetBuffer (length));
+		INT out_length = (INT)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXT, WPARAM (length + 1), (LPARAM)result.GetBuffer (length));
 		result.SetLength (out_length);
 
 		return result;
