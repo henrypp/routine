@@ -8,25 +8,35 @@
 #define PSAPI_VERSION 1
 #endif // !_APP_NO_WINXP
 
-#include <windows.h>
-#include <wtsapi32.h>
-#include <shlwapi.h>
-#include <shlobj.h>
-#include <shellscalingapi.h>
-#include <commctrl.h>
-#include <psapi.h>
-#include <uxtheme.h>
-#include <dwmapi.h>
-#include <time.h>
-#include <lm.h>
-#include <process.h>
-#include <winhttp.h>
-#include <subauth.h>
-#include <sddl.h>
+#if !defined(WIN32_LEAN_AND_MEAN)
+#define WIN32_LEAN_AND_MEAN
+#endif // !WIN32_LEAN_AND_MEAN
+
+// crt
 #include <stdlib.h>
 #include <inttypes.h>
 #include <assert.h>
+
+// winapi
+#include <windows.h>
+#include <commctrl.h>
+#include <commdlg.h>
+#include <dde.h>
+#include <dwmapi.h>
+#include <ntsecapi.h>
+#include <psapi.h>
+#include <sddl.h>
+#include <shellapi.h>
+#include <shellscalingapi.h>
+#include <shlobj.h>
+#include <shlwapi.h>
 #include <smmintrin.h>
+#include <subauth.h>
+#include <uxtheme.h>
+#include <winhttp.h>
+#include <wtsapi32.h>
+
+// stl
 #include <algorithm>
 #include <unordered_map>
 #include <vector>
@@ -39,16 +49,17 @@
 // libs
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "dwmapi.lib")
-#pragma comment(lib, "psapi.lib")
 #pragma comment(lib, "shlwapi.lib")
+#pragma comment(lib, "psapi.lib")
 #pragma comment(lib, "uxtheme.lib")
+#pragma comment(lib, "version.lib")
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "wtsapi32.lib")
 
 // global internal variables namespace
 namespace rinternal
 {
-	inline HANDLE hProcessHeap;
+	inline HANDLE hProcessHeap = nullptr;
 
 	inline COLORREF black_bg = RGB (32, 32, 32);
 	inline COLORREF black_bg_edit = RGB (62, 62, 62);
@@ -428,6 +439,11 @@ FORCEINLINE bool _r_str_isempty (LPCWSTR text)
 	return !text || (*text == UNICODE_NULL);
 }
 
+FORCEINLINE bool _r_str_isempty (const UNICODE_STRING& text)
+{
+	return !text.Length || _r_str_isempty (text.Buffer);
+}
+
 bool _r_str_isnumeric (LPCWSTR text);
 
 bool _r_str_alloc (LPWSTR* pbuffer, size_t length, LPCWSTR text);
@@ -507,8 +523,6 @@ FORCEINLINE DWORD _r_sys_endthread (DWORD exit_code)
 }
 
 rstring _r_sys_getsessioninfo (WTS_INFO_CLASS info);
-
-rstring _r_sys_getsidfromusername (LPCWSTR domain, LPCWSTR username);
 rstring _r_sys_getusernamefromsid (PSID psid);
 
 #if !defined(_WIN64)
