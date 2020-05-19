@@ -63,6 +63,22 @@ rstring::rstring (LPCWSTR text, size_t length) : data_ (nullptr)
 	}
 }
 
+rstring::rstring (const UNICODE_STRING& text) : data_ (nullptr)
+{
+	if (!_r_str_isempty (text))
+	{
+		const size_t length = text.Length / sizeof (WCHAR);
+
+		if (length)
+		{
+			ReallocateUnique (length);
+
+			if (data_)
+				wmemcpy (data_, text.Buffer, length);
+		}
+	}
+}
+
 rstring::~rstring ()
 {
 	Release ();
@@ -281,13 +297,54 @@ rstring& rstring::Append (LPCWSTR text)
 			length = oldLength - offset;
 
 		thisBuffer = ReallocateUnique (oldLength + length);
-		text = data_ + offset;
-		wmemmove (&thisBuffer->buff[oldLength], text, length);
+		wmemmove (&thisBuffer->buff[oldLength], data_ + offset, length);
 	}
 	else
 	{
 		thisBuffer = ReallocateUnique (oldLength + length);
 		wmemmove (&thisBuffer->buff[oldLength], text, length);
+	}
+
+	return *this;
+}
+
+rstring& rstring::Append (const UNICODE_STRING& text)
+{
+	if (_r_str_isempty (text))
+		return *this;
+
+	size_t length = text.Length / sizeof (WCHAR);
+	size_t oldLength = GetLength ();
+
+	Buffer* thisBuffer = toBuffer ();
+
+	if (!thisBuffer)
+	{
+		if (length)
+		{
+			ReallocateUnique (length);
+			wmemcpy (data_, text.Buffer, length);
+		}
+	}
+	else if ((text.Buffer == data_) && (length >= oldLength))
+	{
+		thisBuffer = ReallocateUnique (oldLength + oldLength);
+		wmemmove (&thisBuffer->buff[oldLength], thisBuffer->buff, oldLength);
+	}
+	else if (text.Buffer > data_ && text.Buffer < (data_ + oldLength))
+	{
+		size_t offset = text.Buffer - data_;
+
+		if (length > (oldLength - offset))
+			length = oldLength - offset;
+
+		thisBuffer = ReallocateUnique (oldLength + length);
+		wmemmove (&thisBuffer->buff[oldLength], data_ + offset, length);
+	}
+	else
+	{
+		thisBuffer = ReallocateUnique (oldLength + length);
+		wmemmove (&thisBuffer->buff[oldLength], text.Buffer, length);
 	}
 
 	return *this;

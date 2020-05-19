@@ -6,6 +6,7 @@
 #pragma once
 
 #include <windows.h>
+#include <ntsecapi.h>
 
 #include "rconfig.hpp"
 
@@ -44,6 +45,7 @@ public:
 	rstring (rstring&& other);
 	rstring (LPCWSTR text);
 	rstring (LPCWSTR text, size_t length);
+	rstring (const UNICODE_STRING& text);
 
 	~rstring ();
 
@@ -70,6 +72,7 @@ public:
 
 	rstring& Append (const rstring& other);
 	rstring& Append (LPCWSTR text);
+	rstring& Append (const UNICODE_STRING& text);
 	rstring& AppendFormat (LPCWSTR text, ...);
 	rstring& Insert (size_t position, LPCWSTR text);
 	rstring& InsertFormat (size_t position, LPCWSTR text, ...);
