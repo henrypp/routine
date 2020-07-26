@@ -119,6 +119,13 @@
 #define SE_DELEGATE_SESSION_USER_IMPERSONATE_PRIVILEGE (36L)
 #define SE_MAX_WELL_KNOWN_PRIVILEGE SE_DELEGATE_SESSION_USER_IMPERSONATE_PRIVILEGE
 
+// This isn't in NT, but it's useful.
+typedef struct DECLSPEC_ALIGN (MEMORY_ALLOCATION_ALIGNMENT) _QUAD_PTR
+{
+	ULONG_PTR DoNotUseThisField1;
+	ULONG_PTR DoNotUseThisField2;
+} QUAD_PTR, *PQUAD_PTR;
+
 #include <pshpack1.h>
 typedef struct _DLGTEMPLATEEX
 {
@@ -165,23 +172,23 @@ typedef struct _DLGITEMTEMPLATEEX
 } DLGITEMTEMPLATEEX, *LPDLGITEMTEMPLATEEX;
 #include <poppack.h>
 
-enum IMMERSIVE_HC_CACHE_MODE
+typedef enum _IMMERSIVE_HC_CACHE_MODE
 {
 	IHCM_USE_CACHED_VALUE,
 	IHCM_REFRESH
-};
+} IMMERSIVE_HC_CACHE_MODE;
 
-// 1903 18362
-enum PreferredAppMode
+// 1903+ (18362)
+typedef enum _PREFERRED_APP_MODE
 {
 	Default,
 	AllowDark,
 	ForceDark,
 	ForceLight,
 	Max
-};
+} PREFERRED_APP_MODE;
 
-enum WINDOWCOMPOSITIONATTRIB
+typedef enum _WINDOWCOMPOSITIONATTRIB
 {
 	WCA_UNDEFINED = 0,
 	WCA_NCRENDERING_ENABLED = 1,
@@ -211,14 +218,14 @@ enum WINDOWCOMPOSITIONATTRIB
 	WCA_PASSIVEUPDATEMODE = 25,
 	WCA_USEDARKMODECOLORS = 26,
 	WCA_LAST = 27
-};
+} WINDOWCOMPOSITIONATTRIB;
 
-struct WINDOWCOMPOSITIONATTRIBDATA
+typedef struct _WINDOWCOMPOSITIONATTRIBDATA
 {
 	WINDOWCOMPOSITIONATTRIB Attrib;
 	PVOID pvData;
 	SIZE_T cbData;
-};
+} WINDOWCOMPOSITIONATTRIBDATA, *PWINDOWCOMPOSITIONATTRIBDATA;
 
 // rev
 // private
@@ -537,7 +544,7 @@ typedef struct _SYSTEM_PROCESS_INFORMATION
 	SYSTEM_THREAD_INFORMATION Threads[1];
 } SYSTEM_PROCESS_INFORMATION, *PSYSTEM_PROCESS_INFORMATION;
 
-struct SYSTEM_CACHE_INFORMATION
+typedef struct _SYSTEM_CACHE_INFORMATION
 {
 	ULONG_PTR	CurrentSize;
 	ULONG_PTR	PeakSize;
@@ -547,7 +554,7 @@ struct SYSTEM_CACHE_INFORMATION
 	ULONG_PTR	TransitionSharedPages;
 	ULONG_PTR	PeakTransitionSharedPages;
 	DWORD		Unused[2];
-};
+} SYSTEM_CACHE_INFORMATION, *PSYSTEM_CACHE_INFORMATION;
 
 typedef enum _SYSTEM_MEMORY_LIST_COMMAND
 {
@@ -1090,390 +1097,513 @@ typedef NTSTATUS (NTAPI *PUSER_THREAD_START_ROUTINE)(
 	_In_ PVOID ThreadParameter
 	);
 
-extern "C" {
-	NTSYSAPI
-		NTSTATUS
-		NTAPI
-		RtlCreateUserThread (
-		_In_ HANDLE Process,
-		_In_opt_ PSECURITY_DESCRIPTOR ThreadSecurityDescriptor,
-		_In_ BOOLEAN CreateSuspended,
-		_In_opt_ ULONG ZeroBits,
-		_In_opt_ SIZE_T MaximumStackSize,
-		_In_opt_ SIZE_T CommittedStackSize,
-		_In_ PUSER_THREAD_START_ROUTINE StartAddress,
-		_In_opt_ PVOID Parameter,
-		_Out_opt_ PHANDLE Thread,
-		_Out_opt_ PCLIENT_ID ClientId
-		);
+// extern c start
+EXTERN_C_START
 
-	DECLSPEC_NORETURN
-		NTSYSAPI
-		VOID
-		NTAPI
-		RtlExitUserThread (
-		_In_ NTSTATUS ExitStatus
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlCreateUserThread (
+	_In_ HANDLE Process,
+	_In_opt_ PSECURITY_DESCRIPTOR ThreadSecurityDescriptor,
+	_In_ BOOLEAN CreateSuspended,
+	_In_opt_ ULONG ZeroBits,
+	_In_opt_ SIZE_T MaximumStackSize,
+	_In_opt_ SIZE_T CommittedStackSize,
+	_In_ PUSER_THREAD_START_ROUTINE StartAddress,
+	_In_opt_ PVOID Parameter,
+	_Out_opt_ PHANDLE Thread,
+	_Out_opt_ PCLIENT_ID ClientId
+);
 
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtOpenThread (
-		_Out_ PHANDLE ThreadHandle,
-		_In_ ACCESS_MASK DesiredAccess,
-		_In_ POBJECT_ATTRIBUTES ObjectAttributes,
-		_In_opt_ PCLIENT_ID ClientId
-		);
+DECLSPEC_NORETURN
+NTSYSCALLAPI
+VOID
+NTAPI
+RtlExitUserThread (
+	_In_ NTSTATUS ExitStatus
+);
 
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtTerminateThread (
-		_In_opt_ HANDLE ThreadHandle,
-		_In_ NTSTATUS ExitStatus
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtOpenThread (
+	_Out_ PHANDLE ThreadHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes,
+	_In_opt_ PCLIENT_ID ClientId
+);
 
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtSuspendThread (
-		_In_ HANDLE ThreadHandle,
-		_Out_opt_ PULONG PreviousSuspendCount
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtTerminateThread (
+	_In_opt_ HANDLE ThreadHandle,
+	_In_ NTSTATUS ExitStatus
+);
 
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtResumeThread (
-		_In_ HANDLE ThreadHandle,
-		_Out_opt_ PULONG PreviousSuspendCount
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtSuspendThread (
+	_In_ HANDLE ThreadHandle,
+	_Out_opt_ PULONG PreviousSuspendCount
+);
 
-	NTSYSAPI
-		PVOID
-		NTAPI
-		RtlCreateHeap (
-		_In_ ULONG Flags,
-		_In_opt_ PVOID HeapBase,
-		_In_opt_ SIZE_T ReserveSize,
-		_In_opt_ SIZE_T CommitSize,
-		_In_opt_ PVOID Lock,
-		_In_opt_ PRTL_HEAP_PARAMETERS Parameters
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtResumeThread (
+	_In_ HANDLE ThreadHandle,
+	_Out_opt_ PULONG PreviousSuspendCount
+);
 
-	NTSYSAPI
-		PVOID
-		NTAPI
-		RtlDestroyHeap (
-		_In_ _Post_invalid_ PVOID HeapHandle
-		);
+NTSYSCALLAPI
+PVOID
+NTAPI
+RtlCreateHeap (
+	_In_ ULONG Flags,
+	_In_opt_ PVOID HeapBase,
+	_In_opt_ SIZE_T ReserveSize,
+	_In_opt_ SIZE_T CommitSize,
+	_In_opt_ PVOID Lock,
+	_In_opt_ PRTL_HEAP_PARAMETERS Parameters
+);
 
-	NTSYSAPI
-		PVOID
-		NTAPI
-		RtlAllocateHeap (
-		_In_ PVOID HeapHandle,
-		_In_opt_ ULONG Flags,
-		_In_ SIZE_T Size
-		);
+NTSYSCALLAPI
+PVOID
+NTAPI
+RtlDestroyHeap (
+	_In_ _Post_invalid_ PVOID HeapHandle
+);
 
-	NTSYSAPI
-		PVOID
-		NTAPI
-		RtlReAllocateHeap (
-		_In_ PVOID HeapHandle,
-		_In_ ULONG Flags,
-		_Frees_ptr_opt_ PVOID BaseAddress,
-		_In_ SIZE_T Size
-		);
+NTSYSCALLAPI
+PVOID
+NTAPI
+RtlAllocateHeap (
+	_In_ PVOID HeapHandle,
+	_In_opt_ ULONG Flags,
+	_In_ SIZE_T Size
+);
 
-	NTSYSAPI
-		BOOLEAN
-		NTAPI
-		RtlFreeHeap (
-		_In_ PVOID HeapHandle,
-		_In_opt_ ULONG Flags,
-		_Frees_ptr_opt_ PVOID BaseAddress
-		);
+NTSYSCALLAPI
+PVOID
+NTAPI
+RtlReAllocateHeap (
+	_In_ PVOID HeapHandle,
+	_In_ ULONG Flags,
+	_Frees_ptr_opt_ PVOID BaseAddress,
+	_In_ SIZE_T Size
+);
 
-	NTSYSAPI
-		NTSTATUS
-		NTAPI
-		RtlSetHeapInformation (
-		_In_ PVOID HeapHandle,
-		_In_ HEAP_INFORMATION_CLASS HeapInformationClass,
-		_In_opt_ PVOID HeapInformation,
-		_In_opt_ SIZE_T HeapInformationLength
-		);
+NTSYSCALLAPI
+BOOLEAN
+NTAPI
+RtlFreeHeap (
+	_In_ PVOID HeapHandle,
+	_In_opt_ ULONG Flags,
+	_Frees_ptr_opt_ PVOID BaseAddress
+);
 
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtDelayExecution (
-		_In_ BOOLEAN Alertable,
-		_In_opt_ PLARGE_INTEGER DelayInterval
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlSetHeapInformation (
+	_In_ PVOID HeapHandle,
+	_In_ HEAP_INFORMATION_CLASS HeapInformationClass,
+	_In_opt_ PVOID HeapInformation,
+	_In_opt_ SIZE_T HeapInformationLength
+);
 
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtQueryObject (
-		_In_ HANDLE Handle,
-		_In_ UINT ObjectInformationClass,
-		_Out_writes_bytes_opt_ (ObjectInformationLength) PVOID ObjectInformation,
-		_In_ ULONG ObjectInformationLength,
-		_Out_opt_ PULONG ReturnLength
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtDelayExecution (
+	_In_ BOOLEAN Alertable,
+	_In_opt_ PLARGE_INTEGER DelayInterval
+);
 
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtQuerySystemInformation (
-		_In_ UINT SystemInformationClass,
-		_Out_writes_bytes_opt_ (SystemInformationLength) PVOID SystemInformation,
-		_In_ ULONG SystemInformationLength,
-		_Out_opt_ PULONG ReturnLength
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtQueryObject (
+	_In_ HANDLE Handle,
+	_In_ UINT ObjectInformationClass,
+	_Out_writes_bytes_opt_ (ObjectInformationLength) PVOID ObjectInformation,
+	_In_ ULONG ObjectInformationLength,
+	_Out_opt_ PULONG ReturnLength
+);
 
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtQueryInformationProcess (
-		_In_ HANDLE ProcessHandle,
-		_In_ PROCESSINFOCLASS ProcessInformationClass,
-		_Out_writes_bytes_ (ProcessInformationLength) PVOID ProcessInformation,
-		_In_ ULONG ProcessInformationLength,
-		_Out_opt_ PULONG ReturnLength
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtQuerySystemInformation (
+	_In_ UINT SystemInformationClass,
+	_Out_writes_bytes_opt_ (SystemInformationLength) PVOID SystemInformation,
+	_In_ ULONG SystemInformationLength,
+	_Out_opt_ PULONG ReturnLength
+);
 
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtSetSystemInformation (
-		_In_ UINT SystemInformationClass,
-		_In_reads_bytes_opt_ (SystemInformationLength) PVOID SystemInformation,
-		_In_ ULONG SystemInformationLength
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtQueryInformationProcess (
+	_In_ HANDLE ProcessHandle,
+	_In_ PROCESSINFOCLASS ProcessInformationClass,
+	_Out_writes_bytes_ (ProcessInformationLength) PVOID ProcessInformation,
+	_In_ ULONG ProcessInformationLength,
+	_Out_opt_ PULONG ReturnLength
+);
 
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtOpenSymbolicLinkObject (
-		_Out_ PHANDLE LinkHandle,
-		_In_ ACCESS_MASK DesiredAccess,
-		_In_ POBJECT_ATTRIBUTES ObjectAttributes
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtSetSystemInformation (
+	_In_ UINT SystemInformationClass,
+	_In_reads_bytes_opt_ (SystemInformationLength) PVOID SystemInformation,
+	_In_ ULONG SystemInformationLength
+);
 
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtQuerySymbolicLinkObject (
-		_In_ HANDLE LinkHandle,
-		_Inout_ PUNICODE_STRING LinkTarget,
-		_Out_opt_ PULONG ReturnedLength
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtOpenSymbolicLinkObject (
+	_Out_ PHANDLE LinkHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes
+);
 
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtCreateToken (
-		_Out_ PHANDLE TokenHandle,
-		_In_ ACCESS_MASK DesiredAccess,
-		_In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
-		_In_ TOKEN_TYPE TokenType,
-		_In_ PLUID AuthenticationId,
-		_In_ PLARGE_INTEGER ExpirationTime,
-		_In_ PTOKEN_USER User,
-		_In_ PTOKEN_GROUPS Groups,
-		_In_ PTOKEN_PRIVILEGES Privileges,
-		_In_opt_ PTOKEN_OWNER Owner,
-		_In_ PTOKEN_PRIMARY_GROUP PrimaryGroup,
-		_In_opt_ PTOKEN_DEFAULT_DACL DefaultDacl,
-		_In_ PTOKEN_SOURCE TokenSource
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtQuerySymbolicLinkObject (
+	_In_ HANDLE LinkHandle,
+	_Inout_ PUNICODE_STRING LinkTarget,
+	_Out_opt_ PULONG ReturnedLength
+);
 
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtQueryInformationToken (
-		_In_ HANDLE TokenHandle,
-		_In_ TOKEN_INFORMATION_CLASS TokenInformationClass,
-		_Out_writes_bytes_ (TokenInformationLength) PVOID TokenInformation,
-		_In_ ULONG TokenInformationLength,
-		_Out_ PULONG ReturnLength
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtCreateToken (
+	_Out_ PHANDLE TokenHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
+	_In_ TOKEN_TYPE TokenType,
+	_In_ PLUID AuthenticationId,
+	_In_ PLARGE_INTEGER ExpirationTime,
+	_In_ PTOKEN_USER User,
+	_In_ PTOKEN_GROUPS Groups,
+	_In_ PTOKEN_PRIVILEGES Privileges,
+	_In_opt_ PTOKEN_OWNER Owner,
+	_In_ PTOKEN_PRIMARY_GROUP PrimaryGroup,
+	_In_opt_ PTOKEN_DEFAULT_DACL DefaultDacl,
+	_In_ PTOKEN_SOURCE TokenSource
+);
 
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtAdjustPrivilegesToken (
-		_In_ HANDLE TokenHandle,
-		_In_ BOOLEAN DisableAllPrivileges,
-		_In_opt_ PTOKEN_PRIVILEGES NewState,
-		_In_ ULONG BufferLength,
-		_Out_writes_bytes_to_opt_ (BufferLength, *ReturnLength) PTOKEN_PRIVILEGES PreviousState,
-		_Out_opt_ PULONG ReturnLength
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtQueryInformationToken (
+	_In_ HANDLE TokenHandle,
+	_In_ TOKEN_INFORMATION_CLASS TokenInformationClass,
+	_Out_writes_bytes_ (TokenInformationLength) PVOID TokenInformation,
+	_In_ ULONG TokenInformationLength,
+	_Out_ PULONG ReturnLength
+);
 
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtSetInformationProcess (
-		_In_ HANDLE ProcessHandle,
-		_In_ PROCESSINFOCLASS ProcessInformationClass,
-		_In_reads_bytes_ (ProcessInformationLength) PVOID ProcessInformation,
-		_In_ ULONG ProcessInformationLength
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAdjustPrivilegesToken (
+	_In_ HANDLE TokenHandle,
+	_In_ BOOLEAN DisableAllPrivileges,
+	_In_opt_ PTOKEN_PRIVILEGES NewState,
+	_In_ ULONG BufferLength,
+	_Out_writes_bytes_to_opt_ (BufferLength, *ReturnLength) PTOKEN_PRIVILEGES PreviousState,
+	_Out_opt_ PULONG ReturnLength
+);
 
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtClose (
-		_In_ HANDLE Handle
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtSetInformationProcess (
+	_In_ HANDLE ProcessHandle,
+	_In_ PROCESSINFOCLASS ProcessInformationClass,
+	_In_reads_bytes_ (ProcessInformationLength) PVOID ProcessInformation,
+	_In_ ULONG ProcessInformationLength
+);
 
-	NTSYSCALLAPI
-		BOOLEAN
-		NTAPI
-		RtlDoesFileExists_U (
-		_In_ PCWSTR FileName
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtClose (
+	_In_ HANDLE Handle
+);
 
-	NTSYSCALLAPI
-		VOID
-		NTAPI
-		RtlInitUnicodeString (
-		_Out_ PUNICODE_STRING DestinationString,
-		_In_opt_ PWSTR SourceString
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlGetVersion (
+	_Out_ PRTL_OSVERSIONINFOEXW VersionInformation // PRTL_OSVERSIONINFOW
+);
 
-	NTSYSCALLAPI
-		VOID
-		NTAPI
-		RtlFreeUnicodeString (
-		_In_ PUNICODE_STRING UnicodeString
-		);
+NTSYSCALLAPI
+BOOLEAN
+NTAPI
+RtlDoesFileExists_U (
+	_In_ LPCWSTR FileName
+);
 
-	NTSYSCALLAPI
-		WCHAR
-		NTAPI
-		RtlUpcaseUnicodeChar (
-		_In_ WCHAR SourceCharacter
-		);
+NTSYSCALLAPI
+ULONG
+NTAPI
+RtlGetFullPathName_U (
+	_In_ LPCWSTR FileName,
+	_In_ ULONG BufferLength,
+	_Out_writes_bytes_ (BufferLength) PWSTR Buffer,
+	_Out_opt_ PWSTR *FilePart
+);
 
-	NTSYSCALLAPI
-		WCHAR
-		NTAPI
-		RtlDowncaseUnicodeChar (
-		_In_ WCHAR SourceCharacter
-		);
+NTSYSCALLAPI
+VOID
+NTAPI
+RtlInitUnicodeString (
+	_Out_ PUNICODE_STRING DestinationString,
+	_In_opt_ PWSTR SourceString
+);
 
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		RtlCreateServiceSid (
-		_In_ PUNICODE_STRING ServiceName,
-		_Out_writes_bytes_opt_ (*ServiceSidLength) PSID ServiceSid,
-		_Inout_ PULONG ServiceSidLength
-		);
+NTSYSCALLAPI
+VOID
+NTAPI
+RtlFreeUnicodeString (
+	_In_ PUNICODE_STRING UnicodeString
+);
 
-	NTSYSAPI
-		NTSTATUS
-		NTAPI
-		RtlConvertSidToUnicodeString (
-		_Inout_ PUNICODE_STRING UnicodeString,
-		_In_ PSID Sid,
-		_In_ BOOLEAN AllocateDestinationString
-		);
+NTSYSCALLAPI
+WCHAR
+NTAPI
+RtlUpcaseUnicodeChar (
+	_In_ WCHAR SourceCharacter
+);
 
-	NTSYSCALLAPI
-		DWORD
-		NTAPI
-		RtlRandomEx (
-		_Inout_ PDWORD Seed
-		);
+NTSYSCALLAPI
+WCHAR
+NTAPI
+RtlDowncaseUnicodeChar (
+	_In_ WCHAR SourceCharacter
+);
 
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtCreateSemaphore (
-		_Out_ PHANDLE SemaphoreHandle,
-		_In_ ACCESS_MASK DesiredAccess,
-		_In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
-		_In_ LONG InitialCount,
-		_In_ LONG MaximumCount
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlStringFromGUID (
+	_In_ LPGUID Guid,
+	_Out_ PUNICODE_STRING GuidString
+);
 
-	NTSYSCALLAPI
-		NTSTATUS
-		NTAPI
-		NtReleaseSemaphore (
-		_In_ HANDLE SemaphoreHandle,
-		_In_ LONG ReleaseCount,
-		_Out_opt_ PLONG PreviousCount
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlCreateServiceSid (
+	_In_ PUNICODE_STRING ServiceName,
+	_Out_writes_bytes_opt_ (*ServiceSidLength) PSID ServiceSid,
+	_Inout_ PULONG ServiceSidLength
+);
 
-	NTSYSCALLAPI
-		DECLSPEC_NORETURN
-		VOID
-		NTAPI
-		RtlRaiseStatus (
-		_In_ NTSTATUS Status
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlConvertSidToUnicodeString (
+	_Inout_ PUNICODE_STRING UnicodeString,
+	_In_ PSID Sid,
+	_In_ BOOLEAN AllocateDestinationString
+);
 
-	// winbase:InitializeSRWLock
-	NTSYSAPI
-		VOID
-		NTAPI
-		RtlInitializeSRWLock (
-		_Out_ PRTL_SRWLOCK SRWLock
-		);
+NTSYSCALLAPI
+BOOLEAN
+NTAPI
+RtlValidSid (
+	_In_ PSID Sid
+);
 
-	// winbase:AcquireSRWLockExclusive
-	NTSYSAPI
-		VOID
-		NTAPI
-		RtlAcquireSRWLockExclusive (
-		_Inout_ PRTL_SRWLOCK SRWLock
-		);
+NTSYSCALLAPI
+BOOLEAN
+NTAPI
+RtlEqualSid (
+	_In_ PSID Sid1,
+	_In_ PSID Sid2
+);
 
-	// winbase:AcquireSRWLockShared
-	NTSYSAPI
-		VOID
-		NTAPI
-		RtlAcquireSRWLockShared (
-		_Inout_ PRTL_SRWLOCK SRWLock
-		);
+NTSYSCALLAPI
+ULONG
+NTAPI
+RtlLengthSid (
+	_In_ PSID Sid
+);
 
-	// winbase:ReleaseSRWLockExclusive
-	NTSYSAPI
-		VOID
-		NTAPI
-		RtlReleaseSRWLockExclusive (
-		_Inout_ PRTL_SRWLOCK SRWLock
-		);
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlCreateSecurityDescriptor (
+	_Out_ PSECURITY_DESCRIPTOR SecurityDescriptor,
+	_In_ ULONG Revision
+);
 
-	// winbase:ReleaseSRWLockShared
-	NTSYSAPI
-		VOID
-		NTAPI
-		RtlReleaseSRWLockShared (
-		_Inout_ PRTL_SRWLOCK SRWLock
-		);
+NTSYSCALLAPI
+BOOLEAN
+NTAPI
+RtlValidSecurityDescriptor (
+	_In_ PSECURITY_DESCRIPTOR SecurityDescriptor
+);
 
-	// winbase:TryAcquireSRWLockExclusive
-	NTSYSAPI
-		BOOLEAN
-		NTAPI
-		RtlTryAcquireSRWLockExclusive (
-		_Inout_ PRTL_SRWLOCK SRWLock
-		);
+NTSYSCALLAPI
+ULONG
+NTAPI
+RtlLengthSecurityDescriptor (
+	_In_ PSECURITY_DESCRIPTOR SecurityDescriptor
+);
 
-	// winbase:TryAcquireSRWLockShared
-	NTSYSAPI
-		BOOLEAN
-		NTAPI
-		RtlTryAcquireSRWLockShared (
-		_Inout_ PRTL_SRWLOCK SRWLock
-		);
-};
+NTSYSCALLAPI
+ULONG
+NTAPI
+RtlRandomEx (
+	_Inout_ PULONG Seed
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlUnicodeToMultiByteSize (
+	_Out_ PULONG BytesInMultiByteString,
+	_In_reads_bytes_ (BytesInUnicodeString) PCWCH UnicodeString,
+	_In_ ULONG BytesInUnicodeString
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlUnicodeToMultiByteN (
+	_Out_writes_bytes_to_ (MaxBytesInMultiByteString, *BytesInMultiByteString) PCHAR MultiByteString,
+	_In_ ULONG MaxBytesInMultiByteString,
+	_Out_opt_ PULONG BytesInMultiByteString,
+	_In_reads_bytes_ (BytesInUnicodeString) PCWCH UnicodeString,
+	_In_ ULONG BytesInUnicodeString
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlMultiByteToUnicodeSize (
+	_Out_ PULONG BytesInUnicodeString,
+	_In_reads_bytes_ (BytesInMultiByteString) PCSTR MultiByteString,
+	_In_ ULONG BytesInMultiByteString
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlMultiByteToUnicodeN (
+	_Out_writes_bytes_to_ (MaxBytesInUnicodeString, *BytesInUnicodeString) PWCH UnicodeString,
+	_In_ ULONG MaxBytesInUnicodeString,
+	_Out_opt_ PULONG BytesInUnicodeString,
+	_In_reads_bytes_ (BytesInMultiByteString) PCSTR MultiByteString,
+	_In_ ULONG BytesInMultiByteString
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlExpandEnvironmentStrings_U (
+	_In_opt_ PVOID Environment,
+	_In_ PUNICODE_STRING Source,
+	_Inout_ PUNICODE_STRING Destination,
+	_Out_opt_ PULONG ReturnedLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtCreateSemaphore (
+	_Out_ PHANDLE SemaphoreHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
+	_In_ LONG InitialCount,
+	_In_ LONG MaximumCount
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtReleaseSemaphore (
+	_In_ HANDLE SemaphoreHandle,
+	_In_ LONG ReleaseCount,
+	_Out_opt_ PLONG PreviousCount
+);
+
+NTSYSCALLAPI
+DECLSPEC_NORETURN
+VOID
+NTAPI
+RtlRaiseStatus (
+	_In_ NTSTATUS Status
+);
+
+// winbase:InitializeSRWLock
+NTSYSCALLAPI
+VOID
+NTAPI
+RtlInitializeSRWLock (
+	_Out_ PRTL_SRWLOCK SRWLock
+);
+
+// winbase:AcquireSRWLockExclusive
+NTSYSCALLAPI
+VOID
+NTAPI
+RtlAcquireSRWLockExclusive (
+	_Inout_ PRTL_SRWLOCK SRWLock
+);
+
+// winbase:AcquireSRWLockShared
+NTSYSCALLAPI
+VOID
+NTAPI
+RtlAcquireSRWLockShared (
+	_Inout_ PRTL_SRWLOCK SRWLock
+);
+
+// winbase:ReleaseSRWLockExclusive
+NTSYSCALLAPI
+VOID
+NTAPI
+RtlReleaseSRWLockExclusive (
+	_Inout_ PRTL_SRWLOCK SRWLock
+);
+
+// winbase:ReleaseSRWLockShared
+NTSYSCALLAPI
+VOID
+NTAPI
+RtlReleaseSRWLockShared (
+	_Inout_ PRTL_SRWLOCK SRWLock
+);
+
+// winbase:TryAcquireSRWLockExclusive
+NTSYSCALLAPI
+BOOLEAN
+NTAPI
+RtlTryAcquireSRWLockExclusive (
+	_Inout_ PRTL_SRWLOCK SRWLock
+);
+
+// winbase:TryAcquireSRWLockShared
+NTSYSCALLAPI
+BOOLEAN
+NTAPI
+RtlTryAcquireSRWLockShared (
+	_Inout_ PRTL_SRWLOCK SRWLock
+);
+
+// extern c end
+EXTERN_C_END
