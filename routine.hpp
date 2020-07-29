@@ -3,19 +3,19 @@
 
 #pragma once
 
-#if !defined(_APP_NO_WINXP)
+#if !defined(_APP_NO_DEPRECATIONS)
 #undef PSAPI_VERSION
 #define PSAPI_VERSION 1
-#endif // !_APP_NO_WINXP
+#endif // !_APP_NO_DEPRECATIONS
 
 #if !defined(WIN32_LEAN_AND_MEAN)
 #define WIN32_LEAN_AND_MEAN
 #endif // !WIN32_LEAN_AND_MEAN
 
 // crt
+#include <assert.h>
 #include <stdlib.h>
 #include <inttypes.h>
-#include <assert.h>
 
 // winapi
 #include <windows.h>
@@ -25,6 +25,7 @@
 #include <dwmapi.h>
 #include <ntsecapi.h>
 #include <psapi.h>
+#include <process.h>
 #include <sddl.h>
 #include <shellapi.h>
 #include <shellscalingapi.h>
@@ -44,7 +45,6 @@
 #include "app.hpp"
 #include "ntapi.hpp"
 #include "rconfig.hpp"
-#include "rstring.hpp"
 
 // libs
 #pragma comment(lib, "comctl32.lib")
@@ -56,68 +56,149 @@
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "wtsapi32.lib")
 
-// global internal variables namespace
-namespace rinternal
-{
-	inline HANDLE hProcessHeap = nullptr;
-
-	inline COLORREF black_bg = RGB (32, 32, 32);
-	inline COLORREF black_bg_edit = RGB (62, 62, 62);
-	inline COLORREF black_text = RGB (255, 255, 255);
-
-	inline COLORREF white_bg = RGB (255, 255, 255);
-	inline COLORREF white_text = RGB (0, 0, 0);
-};
-
-// stdlib typedef
-typedef std::vector<rstring> rstringvec;
-
-typedef std::unordered_map<rstring, rstring, rstring_hash, rstring_is_equal> rstringmap1;
-typedef std::unordered_map<rstring, rstringmap1, rstring_hash, rstring_is_equal> rstringmap2;
+extern SIZE_T _r_str_length (LPCWSTR text);
 
 // callback functions
-typedef bool (*_R_CALLBACK_HTTP_DOWNLOAD) (DWORD total_written, DWORD total_length, LONG_PTR lpdata);
-typedef void (*_R_CALLBACK_OBJECT_CLEANUP) (PVOID pdata);
+typedef BOOLEAN (NTAPI *_R_CALLBACK_HTTP_DOWNLOAD) (ULONG total_written, ULONG total_length, LONG_PTR lpdata);
+typedef VOID (NTAPI *_R_CALLBACK_OBJECT_CLEANUP) (PVOID lpdata);
 
 // memory allocation/cleanup
-#ifndef SAFE_DELETE
-#define SAFE_DELETE(p) {if(p) {delete (p); (p)=nullptr;}}
+#ifndef SAFE_DELETE_MEMORY
+#define SAFE_DELETE_MEMORY(p) {if(p) {_r_mem_free (p); (p)=NULL;}}
 #endif
 
-#ifndef SAFE_DELETE_ARRAY
-#define SAFE_DELETE_ARRAY(p) {if(p) {delete[] (p); (p)=nullptr;}}
+#ifndef SAFE_DELETE_REFERENCE
+#define SAFE_DELETE_REFERENCE(p) {if(p) {_r_obj_clearreference ((LPVOID*)&(p));}}
 #endif
 
 #ifndef SAFE_DELETE_DC
-#define SAFE_DELETE_DC(p) {if(p) {DeleteDC (p); (p)=nullptr;}}
+#define SAFE_DELETE_DC(p) {if(p) {DeleteDC (p); (p)=NULL;}}
 #endif
 
 #ifndef SAFE_DELETE_OBJECT
-#define SAFE_DELETE_OBJECT(p) {if(p) {DeleteObject (p); (p)=nullptr;}}
+#define SAFE_DELETE_OBJECT(p) {if(p) {DeleteObject (p); (p)=NULL;}}
 #endif
 
 #ifndef SAFE_DELETE_HANDLE
-#define SAFE_DELETE_HANDLE(p) {if(_r_fs_isvalidhandle ((p))) {CloseHandle ((p)); (p)=nullptr;}}
+#define SAFE_DELETE_HANDLE(p) {if(_r_fs_isvalidhandle ((p))) {CloseHandle ((p)); (p)=NULL;}}
+#endif
+
+#ifndef SAFE_DELETE_LIBRARY
+#define SAFE_DELETE_LIBRARY(p) {if(_r_fs_isvalidhandle ((p))) {FreeLibrary ((p)); (p)=NULL;}}
 #endif
 
 #ifndef SAFE_DELETE_ICON
-#define SAFE_DELETE_ICON(p) {if((p)) {DestroyIcon ((p)); (p)=nullptr;}}
+#define SAFE_DELETE_ICON(p) {if((p)) {DestroyIcon ((p)); (p)=NULL;}}
 #endif
 
-#ifndef SAFE_LOCAL_FREE
-#define SAFE_LOCAL_FREE(p) {if((p)) {LocalFree ((p)); ((p))=nullptr;}}
+#ifndef SAFE_DELETE_LOCAL
+#define SAFE_DELETE_LOCAL(p) {if((p)) {LocalFree ((p)); ((p))=NULL;}}
 #endif
 
-#ifndef SAFE_GLOBAL_FREE
-#define SAFE_GLOBAL_FREE(p) {if((p)) {GlobalFree ((p)); (p)=nullptr;}}
+#ifndef SAFE_DELETE_GLOBAL
+#define SAFE_DELETE_GLOBAL(p) {if((p)) {GlobalFree ((p)); (p)=NULL;}}
 #endif
+
+typedef struct _R_OBJECT_HEADER
+{
+	struct
+	{
+		USHORT Flags;
+		USHORT Type;
+
+		volatile LONG RefCount;
+
+		_R_CALLBACK_OBJECT_CLEANUP CleanupCallback;
+	};
+
+	QUAD_PTR Body;
+} R_OBJECT_HEADER, *PR_OBJECT_HEADER;
+
+typedef struct _R_BYTEREF
+{
+	SIZE_T Length;
+	LPSTR Buffer;
+} R_BYTEREF, *PR_BYTEGREF;
+
+typedef struct _R_STRINGREF
+{
+	SIZE_T Length;
+	LPWSTR Buffer;
+} R_STRINGREF, *PR_STRINGREF;
+
+typedef struct _R_BYTE
+{
+	// Header
+	union
+	{
+		R_BYTEREF sr;
+		struct
+		{
+
+			SIZE_T Length;
+			LPSTR Buffer;
+		};
+	};
+
+	SIZE_T AllocatedLength;
+
+	// Data
+	CHAR Data[1];
+} R_BYTE, *PR_BYTE;
+
+typedef struct _R_STRING
+{
+	// Header
+	union
+	{
+		R_STRINGREF sr;
+		struct
+		{
+			SIZE_T Length;
+			LPWSTR Buffer;
+		};
+	};
+
+	SIZE_T AllocatedLength;
+
+	WCHAR Data[1];
+} R_STRING, *PR_STRING;
+
+extern FORCEINLINE BOOLEAN _r_str_isempty (PUNICODE_STRING string);
+
+extern SIZE_T _r_str_hash (LPCWSTR string);
+extern FORCEINLINE SIZE_T _r_str_hash (PR_STRING string);
+
+extern SIZE_T _r_str_hash (LPCWSTR string);
+
+extern INT _r_str_compare (LPCWSTR string1, LPCWSTR string2);
+extern INT _r_str_compareex (LPCWSTR string1, LPCWSTR string2, ULONG flags, SIZE_T length);
+
+struct OBJECTS_STRINGS_HASH
+{
+	SIZE_T operator() (const PR_STRING k) const
+	{
+		return _r_str_hash (k);
+	}
+};
+
+struct OBJECTS_STRINGS_IS_EQUAL
+{
+	bool operator() (const PR_STRING lhs, const PR_STRING rhs) const
+	{
+		return _r_str_compare (lhs->Buffer, rhs->Buffer) == 0;
+	}
+};
+
+typedef std::unordered_map<PR_STRING, PR_STRING, OBJECTS_STRINGS_HASH, OBJECTS_STRINGS_IS_EQUAL> OBJECTS_STRINGS_MAP1;
+typedef std::unordered_map<PR_STRING, OBJECTS_STRINGS_MAP1, OBJECTS_STRINGS_HASH, OBJECTS_STRINGS_IS_EQUAL> OBJECTS_STRINGS_MAP2;
+typedef std::vector<PR_STRING> OBJECTS_STRINGS_VEC;
 
 /*
 	Definitions
 */
 
 #define _R_DEBUG_HEADER L"Date,Function,Code,Description,Version\r\n"
-#define _R_DEBUG_BODY L"\"%s()\",\"0x%08" PRIX32 "\",\"%s\""
 
 #define _R_DEVICE_COUNT 0x1A
 #define _R_DEVICE_PREFIX_LENGTH 0x40
@@ -125,51 +206,80 @@ typedef void (*_R_CALLBACK_OBJECT_CLEANUP) (PVOID pdata);
 #define _R_STR_MAX_LENGTH (INT_MAX - 1)
 
 /*
-	Unit conversion
-*/
-
-#define _R_BYTESIZE_KB (1024UL)
-#define _R_BYTESIZE_MB (1024UL * _R_BYTESIZE_KB)
-
-#define _R_SECONDSCLOCK_MSEC (1000)
-#define _R_SECONDSCLOCK_MIN(mins)(60 * (mins))
-#define _R_SECONDSCLOCK_HOUR(hours)((_R_SECONDSCLOCK_MIN (1) * 60) * (hours))
-#define _R_SECONDSCLOCK_DAY(days)((_R_SECONDSCLOCK_HOUR (1) * 24) * (days))
-
-/*
-	Percentage calculation
-*/
-
-#define _R_PERCENT_OF(length, total_length) (ceil (double (length) / double (total_length) * 100.0))
-#define _R_PERCENT_VAL(percent, total_length) (double (total_length) * double (percent) / 100.0)
-
-/*
-	Rectangle
-*/
-
-#define _R_RECT_WIDTH(lprect) ((lprect)->right - (lprect)->left)
-#define _R_RECT_HEIGHT(lprect) ((lprect)->bottom - (lprect)->top)
-
-/*
 	Debugging
 */
 
-#define RDBG(a, ...) _r_dbg_print (a, __VA_ARGS__)
+#define RDBG(a, ...) _r_dbg_print_v (a, __VA_ARGS__)
 
-void _r_dbg_print (LPCWSTR text, ...);
+VOID _r_dbg_print (LPCWSTR string);
+VOID _r_dbg_print_v (LPCWSTR format, ...);
 
 /*
 	Format strings, dates, numbers
 */
 
-rstring _r_fmt (LPCWSTR text, ...);
+PR_STRING _r_format_string (LPCWSTR format, ...);
+PR_STRING _r_format_string_v (LPCWSTR format, va_list argPtr);
 
-rstring _r_fmt_date (const LPFILETIME ft, DWORD flags = FDTF_DEFAULT); // see SHFormatDateTime flags definition
-rstring _r_fmt_date (time_t ut, DWORD flags = FDTF_DEFAULT);
+VOID _r_format_bytesize64 (LPWSTR buffer, UINT bufferSize, ULONG64 bytes);
 
-rstring _r_fmt_interval (time_t seconds, INT digits);
-rstring _r_fmt_number (LONG64 number, WCHAR sep = L',');
-rstring _r_fmt_size64 (ULONG64 bytes);
+VOID _r_format_dateex (LPWSTR buffer, UINT bufferSize, LPFILETIME lpft, ULONG flags);
+VOID _r_format_dateex (LPWSTR buffer, UINT bufferSize, time_t ut, ULONG flags);
+VOID _r_format_interval (LPWSTR buffer, UINT bufferSize, LONG64 seconds, INT digits);
+VOID _r_format_number (LPWSTR buffer, UINT bufferSize, LONG64 number, UINT fractional_digits, BOOLEAN is_groupdigits);
+
+FORCEINLINE VOID _r_fmt_date (LPWSTR buffer, UINT bufferSize, LPFILETIME lpft)
+{
+	_r_format_dateex (buffer, bufferSize, lpft, FDTF_DEFAULT);
+}
+
+FORCEINLINE VOID _r_fmt_date (LPWSTR buffer, UINT bufferSize, time_t ut)
+{
+	_r_format_dateex (buffer, bufferSize, ut, FDTF_DEFAULT);
+}
+
+/*
+	Calculation macroses
+*/
+
+#define _r_calc_percentof(TypeCast,Length,TotalLength)(TypeCast)(ceil (((DOUBLE)(Length) / (DOUBLE)(TotalLength)) * 100.0))
+#define _r_calc_percentval(TypeCast,Percent,TotalLength)(TypeCast)(((DOUBLE)(TotalLength) * (DOUBLE)(Percent)) / 100.0)
+
+#define _r_calc_rectheight(TypeCast,Rect)(TypeCast)((Rect)->bottom - (Rect)->top)
+#define _r_calc_rectwidth(TypeCast,Rect)(TypeCast)((Rect)->right - (Rect)->left)
+
+#define _r_calc_clamp(TypeCast,Val,MinVal,MaxVal)(TypeCast)(min (max ((Val), (MinVal)), (MaxVal)))
+
+/*
+	Size calculation
+*/
+
+#define _r_calc_kilobytes2bytes(TypeCast,Count)(TypeCast)((Count) * (TypeCast)1024)
+#define _r_calc_megabytes2bytes(TypeCast,Count)(TypeCast)((Count) * (TypeCast)1048576)
+
+#define _r_calc_seconds2milliseconds(TypeCast,Seconds)(TypeCast)((Seconds) * (TypeCast)1000)
+#define _r_calc_minutes2seconds(TypeCast,Minutes)(TypeCast)((Minutes) * (TypeCast)60)
+#define _r_calc_hours2seconds(TypeCast,Hours)((Hours) * (TypeCast)3600)
+#define _r_calc_days2seconds(TypeCast,Days)((Days) * (TypeCast)86400)
+
+/*
+	Byteswap
+*/
+
+FORCEINLINE USHORT _r_byteswap_ushort (USHORT number)
+{
+	return _byteswap_ushort (number);
+}
+
+FORCEINLINE ULONG _r_byteswap_ulong (ULONG number)
+{
+	return _byteswap_ulong (number);
+}
+
+FORCEINLINE ULONG64 _r_byteswap_ulong64 (ULONG64 number)
+{
+	return _byteswap_uint64 (number);
+}
 
 /*
 	FastLock is a port of FastResourceLock from PH 1.x.
@@ -180,21 +290,22 @@ rstring _r_fmt_size64 (ULONG64 bytes);
 	https://github.com/processhacker2/processhacker
 */
 
-#if defined(_APP_NO_WINXP)
+#if defined(_APP_NO_DEPRECATIONS)
 
-#define RTL_SRWLOCK_OWNED_BIT   0
-#define RTL_SRWLOCK_CONTENDED_BIT   1
-#define RTL_SRWLOCK_SHARED_BIT  2
+#define RTL_SRWLOCK_OWNED_BIT 0
+#define RTL_SRWLOCK_CONTENDED_BIT 1
+#define RTL_SRWLOCK_SHARED_BIT 2
 #define RTL_SRWLOCK_CONTENTION_LOCK_BIT 3
-#define RTL_SRWLOCK_OWNED   (1 << RTL_SRWLOCK_OWNED_BIT)
-#define RTL_SRWLOCK_CONTENDED   (1 << RTL_SRWLOCK_CONTENDED_BIT)
-#define RTL_SRWLOCK_SHARED  (1 << RTL_SRWLOCK_SHARED_BIT)
+#define RTL_SRWLOCK_OWNED (1 << RTL_SRWLOCK_OWNED_BIT)
+#define RTL_SRWLOCK_CONTENDED (1 << RTL_SRWLOCK_CONTENDED_BIT)
+#define RTL_SRWLOCK_SHARED (1 << RTL_SRWLOCK_SHARED_BIT)
 #define RTL_SRWLOCK_CONTENTION_LOCK (1 << RTL_SRWLOCK_CONTENTION_LOCK_BIT)
-#define RTL_SRWLOCK_MASK    (RTL_SRWLOCK_OWNED | RTL_SRWLOCK_CONTENDED | RTL_SRWLOCK_SHARED | RTL_SRWLOCK_CONTENTION_LOCK)
-#define RTL_SRWLOCK_BITS    4
+#define RTL_SRWLOCK_MASK (RTL_SRWLOCK_OWNED | RTL_SRWLOCK_CONTENDED | RTL_SRWLOCK_SHARED | RTL_SRWLOCK_CONTENTION_LOCK)
+#define RTL_SRWLOCK_BITS 4
 
-#define _R_FASTLOCK RTL_SRWLOCK
-#define P_FASTLOCK PRTL_SRWLOCK
+#define R_FASTLOCK RTL_SRWLOCK
+#define _R_FASTLOCK _RTL_SRWLOCK
+#define PR_FASTLOCK PRTL_SRWLOCK
 
 #define _r_fastlock_initialize RtlInitializeSRWLock
 
@@ -228,75 +339,59 @@ rstring _r_fmt_size64 (ULONG64 bytes);
 
 typedef struct _R_FASTLOCK
 {
-	~_R_FASTLOCK ()
-	{
-		if (ExclusiveWakeEvent)
-		{
-			NtClose (ExclusiveWakeEvent);
-			ExclusiveWakeEvent = nullptr;
-		}
+	volatile ULONG Value;
 
-		if (SharedWakeEvent)
-		{
-			NtClose (SharedWakeEvent);
-			SharedWakeEvent = nullptr;
-		}
+	HANDLE ExclusiveWakeEvent;
+	HANDLE SharedWakeEvent;
+} R_FASTLOCK, *PR_FASTLOCK;
 
-	}
-
-	volatile ULONG Value = 0;
-
-	HANDLE ExclusiveWakeEvent = nullptr;
-	HANDLE SharedWakeEvent = nullptr;
-} R_FASTLOCK, *P_FASTLOCK;
-
-FORCEINLINE DWORD _r_fastlock_getspincount ()
+FORCEINLINE ULONG _r_fastlock_getspincount ()
 {
 	SYSTEM_INFO si = {0};
 	GetNativeSystemInfo (&si);
 
-	return  (si.dwNumberOfProcessors > 1) ? 4000 : 0;
+	return (si.dwNumberOfProcessors > 1) ? 4000 : 0;
 }
 
-FORCEINLINE void _r_fastlock_ensureeventcreated (PHANDLE phandle)
+FORCEINLINE VOID _r_fastlock_ensureeventcreated (PHANDLE phandle)
 {
 	HANDLE handle;
 
-	if (*phandle != nullptr)
+	if (*phandle != NULL)
 		return;
 
-	NtCreateSemaphore (&handle, SEMAPHORE_ALL_ACCESS, nullptr, 0, MAXLONG);
+	NtCreateSemaphore (&handle, SEMAPHORE_ALL_ACCESS, NULL, 0, MAXLONG);
 
-	if (InterlockedCompareExchangePointer (phandle, handle, nullptr) != nullptr)
+	if (InterlockedCompareExchangePointer (phandle, handle, NULL) != NULL)
 		NtClose (handle);
 }
 
-void _r_fastlock_initialize (P_FASTLOCK plock);
+VOID _r_fastlock_initialize (PR_FASTLOCK plock);
 
-void _r_fastlock_acquireexclusive (P_FASTLOCK plock);
-void _r_fastlock_acquireshared (P_FASTLOCK plock);
+VOID _r_fastlock_acquireexclusive (PR_FASTLOCK plock);
+VOID _r_fastlock_acquireshared (PR_FASTLOCK plock);
 
-void _r_fastlock_releaseexclusive (P_FASTLOCK plock);
-void _r_fastlock_releaseshared (P_FASTLOCK plock);
+VOID _r_fastlock_releaseexclusive (PR_FASTLOCK plock);
+VOID _r_fastlock_releaseshared (PR_FASTLOCK plock);
 
-bool _r_fastlock_tryacquireexclusive (P_FASTLOCK plock);
-bool _r_fastlock_tryacquireshared (P_FASTLOCK plock);
+BOOLEAN _r_fastlock_tryacquireexclusive (PR_FASTLOCK plock);
+BOOLEAN _r_fastlock_tryacquireshared (PR_FASTLOCK plock);
 
-#endif // _APP_NO_WINXP
+#endif // _APP_NO_DEPRECATIONS
 
-FORCEINLINE bool _r_fastlock_islocked (const P_FASTLOCK plock)
+FORCEINLINE BOOLEAN _r_fastlock_islocked (const PR_FASTLOCK plock)
 {
-	bool owned;
+	BOOLEAN owned;
 
 	// Need two memory barriers because we don't want the compiler re-ordering the following check
 	// in either direction.
 	MemoryBarrier ();
 
-#if defined(_APP_NO_WINXP)
+#if defined(_APP_NO_DEPRECATIONS)
 	owned = ((*(volatile LONG_PTR*)&plock->Ptr) & RTL_SRWLOCK_OWNED);
 #else
 	owned = (plock->Value & _R_FASTLOCK_OWNED);
-#endif // _APP_NO_WINXP
+#endif // _APP_NO_DEPRECATIONS
 
 	MemoryBarrier ();
 
@@ -307,107 +402,164 @@ FORCEINLINE bool _r_fastlock_islocked (const P_FASTLOCK plock)
 	Memory allocation reference
 */
 
-FORCEINLINE void* _r_mem_allocex (size_t bytes_count, DWORD flags)
+HANDLE _r_mem_getheap ();
+PVOID _r_mem_allocateex (SIZE_T bytes_count, ULONG flags);
+PVOID _r_mem_reallocateex (PVOID pmemory, SIZE_T bytes_count, ULONG flags);
+VOID _r_mem_free (PVOID pmemory);
+
+FORCEINLINE PVOID _r_mem_allocate (SIZE_T bytes_count)
 {
-	return RtlAllocateHeap (rinternal::hProcessHeap, flags, bytes_count);
+	return _r_mem_allocateex (bytes_count, HEAP_GENERATE_EXCEPTIONS);
 }
 
-FORCEINLINE void* _r_mem_alloc (size_t bytes_count)
+FORCEINLINE PVOID _r_mem_allocatesafe (SIZE_T bytes_count)
 {
-	return _r_mem_allocex (bytes_count, HEAP_GENERATE_EXCEPTIONS);
+	return _r_mem_allocateex (bytes_count, 0);
 }
 
-void* _r_mem_reallocex (void* pmemory, size_t bytes_count, DWORD flags);
-
-FORCEINLINE void* _r_mem_realloc (void* pmemory, size_t bytes_count)
+FORCEINLINE PVOID _r_mem_allocatezero (SIZE_T bytes_count)
 {
-	return _r_mem_reallocex (pmemory, bytes_count, HEAP_GENERATE_EXCEPTIONS);
+	return _r_mem_allocateex (bytes_count, HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY);
 }
 
-FORCEINLINE void _r_mem_free (void* pmemory)
+FORCEINLINE PVOID _r_mem_reallocate (PVOID heapMemory, SIZE_T bytes_count)
 {
-	RtlFreeHeap (rinternal::hProcessHeap, 0, pmemory);
+	return _r_mem_reallocateex (heapMemory, bytes_count, HEAP_GENERATE_EXCEPTIONS);
+}
+
+FORCEINLINE PVOID _r_mem_reallocatesafe (PVOID heapMemory, SIZE_T bytes_count)
+{
+	return _r_mem_reallocateex (heapMemory, bytes_count, 0);
+}
+
+FORCEINLINE PVOID _r_mem_reallocatezero (PVOID heapMemory, SIZE_T bytes_count)
+{
+	return _r_mem_reallocateex (heapMemory, bytes_count, HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY);
 }
 
 /*
 	Objects reference
 */
 
-typedef struct _R_OBJECT
+//PVOID _r_obj2_allocateex (PVOID pdata, _R_CALLBACK_OBJECT_CLEANUP CleanupCallback);
+//PVOID _r_obj2_reference (PVOID pdata);
+//VOID _r_obj2_dereferenceex (PVOID pdata, LONG ref_count);
+//
+//FORCEINLINE VOID _r_obj2_dereference (PVOID pdata)
+//{
+//	_r_obj2_dereferenceex (pdata, 1);
+//}
+
+PVOID _r_obj_allocateex (SIZE_T size, _R_CALLBACK_OBJECT_CLEANUP CleanupCallback);
+PVOID _r_obj_reference (PVOID pdata);
+VOID _r_obj_dereferenceex (PVOID pdata, LONG ref_count);
+
+FORCEINLINE PVOID _r_obj_allocate (SIZE_T size)
 {
-	PVOID pdata = nullptr;
+	return _r_obj_allocateex (size, NULL);
+}
 
-	_R_CALLBACK_OBJECT_CLEANUP cleanup_callback = nullptr;
+FORCEINLINE VOID _r_obj_dereference (PVOID pobj)
+{
+	_r_obj_dereferenceex (pobj, 1);
+}
 
-	volatile LONG ref_count = 0;
-} R_OBJECT, *PR_OBJECT;
+FORCEINLINE VOID _r_obj_movereference (PVOID *ObjectReference, PVOID NewObject)
+{
+	PVOID oldObject;
 
-PR_OBJECT _r_obj_allocate (PVOID pdata, _R_CALLBACK_OBJECT_CLEANUP cleanup_callback);
-PR_OBJECT _r_obj_reference (PR_OBJECT pobj);
-void _r_obj_dereference (PR_OBJECT pobj);
-void _r_obj_dereferenceex (PR_OBJECT pobj, LONG ref_count);
+	oldObject = *ObjectReference;
+	*ObjectReference = NewObject;
+
+	if (oldObject)
+		_r_obj_dereference (oldObject);
+}
+
+FORCEINLINE VOID _r_obj_clearreference (PVOID *ObjectReference)
+{
+	_r_obj_movereference (ObjectReference, NULL);
+}
+
+#ifdef __cplusplus
+FORCEINLINE PR_STRING _r_obj_reference (PR_STRING pdata)
+{
+	return (PR_STRING)_r_obj_reference ((PVOID)pdata);
+}
+
+FORCEINLINE VOID _r_obj_movereference (PR_STRING *ObjectReference, PVOID NewObject)
+{
+	_r_obj_movereference ((PVOID*)ObjectReference, NewObject);
+}
+
+FORCEINLINE VOID _r_obj_clearreference (PR_STRING *ObjectReference)
+{
+	_r_obj_movereference (ObjectReference, NULL);
+}
+#endif // __cplusplus
+
+#define ObjectToObjectHeader(Object) (CONTAINING_RECORD((Object), R_OBJECT_HEADER, Body))
+#define ObjectHeaderToObject(ObjectHeader) ((PVOID)&((PR_OBJECT_HEADER)(ObjectHeader))->Body)
 
 /*
-	System messages
+	Modal dialogs
 */
 
-bool _r_msg_taskdialog (const TASKDIALOGCONFIG* ptd, PINT pbutton, PINT pradiobutton, LPBOOL pcheckbox); // vista TaskDialogIndirect
-HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM, LPARAM lparam, LONG_PTR lpdata);
+BOOLEAN _r_msg_taskdialog (const TASKDIALOGCONFIG* ptd, PINT pbutton, PINT pradiobutton, LPBOOL pis_flagchecked); // vista+ TaskDialogIndirect
+HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR lpdata);
 
 /*
 	Clipboard operations
 */
 
-rstring _r_clipboard_get (HWND hwnd);
-void _r_clipboard_set (HWND hwnd, LPCWSTR text, size_t length);
+PR_STRING _r_clipboard_get (HWND hwnd);
+VOID _r_clipboard_set (HWND hwnd, LPCWSTR text, SIZE_T length);
 
 /*
 	Filesystem
 */
 
-FORCEINLINE bool _r_fs_isvalidhandle (HANDLE handle)
+FORCEINLINE BOOLEAN _r_fs_isvalidhandle (HANDLE handle)
 {
-	return handle != nullptr && handle != INVALID_HANDLE_VALUE;
+	return (handle != NULL) && (handle != INVALID_HANDLE_VALUE);
 }
 
-FORCEINLINE bool _r_fs_exists (LPCWSTR path)
+FORCEINLINE BOOLEAN _r_fs_exists (LPCWSTR path)
 {
 	return RtlDoesFileExists_U (path);
 }
 
-FORCEINLINE bool _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, DWORD flags)
+FORCEINLINE BOOLEAN _r_fs_copy (LPCWSTR path_from, LPCWSTR path_to, ULONG flags)
 {
-	return CopyFileEx (path_from, path_to, nullptr, nullptr, nullptr, flags);
+	return !!CopyFileEx (path_from, path_to, NULL, NULL, NULL, flags);
 }
 
-FORCEINLINE bool _r_fs_move (LPCWSTR path_from, LPCWSTR path_to, DWORD flags)
+FORCEINLINE BOOLEAN _r_fs_move (LPCWSTR path_from, LPCWSTR path_to, ULONG flags)
 {
-	return MoveFileEx (path_from, path_to, flags);
+	return !!MoveFileEx (path_from, path_to, flags);
 }
 
-bool _r_fs_makebackup (LPCWSTR path, time_t timestamp);
-bool _r_fs_mkdir (LPCWSTR path);
-bool _r_fs_readfile (HANDLE hfile, LPVOID result, size_t size);
+BOOLEAN _r_fs_makebackup (LPCWSTR path, time_t timestamp, BOOLEAN is_removesourcefile);
+BOOLEAN _r_fs_mkdir (LPCWSTR path);
+BOOLEAN _r_fs_readfile (HANDLE hfile, PVOID result, ULONG size);
 
-#define RFS_ALLOWUNDO 0x01
-#define RFS_FORCEREMOVE 0x02
-#define RFS_USERECURSION 0x04
+#define _R_FLAG_REMOVE_USERECYCLER 0x01
+#define _R_FLAG_REMOVE_FORCE 0x02
+#define _R_FLAG_REMOVE_USERECURSION 0x04
 
-bool _r_fs_remove (LPCWSTR path, USHORT flags);
+BOOLEAN _r_fs_remove (LPCWSTR path, ULONG flags);
 
-FORCEINLINE bool _r_fs_setpos (HANDLE hfile, LONG64 pos, DWORD method)
+FORCEINLINE BOOLEAN _r_fs_setpos (HANDLE hfile, LONG64 pos, ULONG method)
 {
 	LARGE_INTEGER lpos = {0};
 
 	lpos.QuadPart = pos;
 
-	return SetFilePointerEx (hfile, lpos, nullptr, method);
+	return !!SetFilePointerEx (hfile, lpos, NULL, method);
 }
 
 FORCEINLINE LONG64 _r_fs_size (HANDLE hfile)
 {
 	LARGE_INTEGER size = {0};
-
 	GetFileSizeEx (hfile, &size);
 
 	return size.QuadPart;
@@ -419,57 +571,280 @@ LONG64 _r_fs_size (LPCWSTR path);
 	Paths
 */
 
-rstring _r_path_getdirectory (LPCWSTR path);
-LPCWSTR _r_path_getextension (LPCWSTR path);
-LPCWSTR _r_path_getfilename (LPCWSTR path);
-void _r_path_explore (LPCWSTR path);
-rstring _r_path_compact (LPCWSTR path, UINT length);
-rstring _r_path_expand (LPCWSTR path);
-rstring _r_path_unexpand (LPCWSTR path);
-rstring _r_path_makeunique (LPCWSTR path);
-rstring _r_path_dospathfromnt (LPCWSTR path);
-DWORD _r_path_ntpathfromdos (rstring &path);
+LPCWSTR _r_path_getbasename (LPCWSTR path);
+PR_STRING _r_path_getbasedirectory (LPCWSTR path);
+LPCWSTR _r_path_getbaseextension (LPCWSTR path);
+PR_STRING _r_path_getfullpath (LPCWSTR path);
+PR_STRING _r_path_getknownfolder (ULONG Folder, LPCWSTR append);
+PR_STRING _r_path_getmodulepath (HMODULE hmodule);
+VOID _r_path_explore (LPCWSTR path);
+PR_STRING _r_path_compact (LPCWSTR path, UINT length);
+PR_STRING _r_path_expand (LPCWSTR path);
+PR_STRING _r_path_unexpand (LPCWSTR path);
+PR_STRING _r_path_makeunique (LPCWSTR path);
+PR_STRING _r_path_dospathfromnt (LPCWSTR path);
+DWORD _r_path_ntpathfromdos (LPCWSTR dosPath, PR_STRING* ntPath);
+
+/*
+	Referencing string object
+*/
+
+PR_BYTE _r_obj_createbyteex (LPSTR buffer, SIZE_T length);
+PR_STRING _r_obj_createstringex (LPCWSTR buffer, SIZE_T length);
+PR_STRING _r_obj_referenceemptystring ();
+
+VOID _r_string_appendex (PR_STRING* string, LPCWSTR text, SIZE_T length);
+VOID _r_string_appendformat_v (PR_STRING* string, LPCWSTR format, va_list argPtr);
+VOID _r_string_insertex (PR_STRING* string, SIZE_T index, LPCWSTR text, SIZE_T length);
+VOID _r_string_insertformat_v (PR_STRING* string, SIZE_T index, LPCWSTR format, va_list argPtr);
+VOID _r_string_remove (PR_STRING string, SIZE_T start_pos, SIZE_T length);
+VOID _r_string_resizestring (PR_STRING* string, SIZE_T NewCapacity);
+VOID _r_string_setsize (PR_STRING string, SIZE_T length);
+
+FORCEINLINE VOID _r_string_append (PR_STRING* string, LPCWSTR text)
+{
+	_r_string_appendex (string, text, _r_str_length (text) * sizeof (WCHAR));
+}
+
+FORCEINLINE VOID _r_string_append2 (PR_STRING* string, PR_STRING text)
+{
+	_r_string_appendex (string, text->Buffer, text->Length);
+}
+
+FORCEINLINE VOID _r_string_appendformat (PR_STRING* string, LPCWSTR format, ...)
+{
+	va_list argPtr;
+
+	va_start (argPtr, format);
+	_r_string_appendformat_v (string, format, argPtr);
+	va_end (argPtr);
+}
+
+FORCEINLINE VOID _r_string_insert (PR_STRING* string, SIZE_T index, LPCWSTR text)
+{
+	_r_string_insertex (string, index, text, _r_str_length (text) * sizeof (WCHAR));
+}
+
+FORCEINLINE VOID _r_string_insert2 (PR_STRING* string, SIZE_T index, PR_STRING text)
+{
+	_r_string_insertex (string, index, text->Buffer, text->Length);
+}
+
+FORCEINLINE VOID _r_string_insertformat (PR_STRING* string, SIZE_T index, LPCWSTR format, ...)
+{
+	va_list argPtr;
+
+	va_start (argPtr, format);
+	_r_string_insertformat_v (string, index, format, argPtr);
+	va_end (argPtr);
+}
+
+FORCEINLINE PR_STRING _r_string_fromunicodestring (PUNICODE_STRING UnicodeString)
+{
+	if (_r_str_isempty (UnicodeString))
+		return _r_obj_referenceemptystring ();
+
+	return _r_obj_createstringex (UnicodeString->Buffer, UnicodeString->Length);
+}
+
+FORCEINLINE BOOLEAN _r_string_tounicodestring (PR_STRING string, PUNICODE_STRING unicodeString)
+{
+	unicodeString->Length = (USHORT)string->Length;
+	unicodeString->MaximumLength = (USHORT)string->Length + sizeof (UNICODE_NULL);
+	unicodeString->Buffer = string->Buffer;
+
+	return string->Length <= UNICODE_STRING_MAX_BYTES;
+}
+
+FORCEINLINE VOID _r_string_writenullterminator (PR_STRING string)
+{
+	assert (!(string->Length & 0x01));
+
+	*(LPWSTR)PTR_ADD_OFFSET (string->Buffer, string->Length) = UNICODE_NULL;
+}
+
+FORCEINLINE VOID _r_string_trimtonullterminator (PR_STRING string)
+{
+	SIZE_T length = _r_str_length (string->Buffer);
+
+	string->Length = length * sizeof (WCHAR);
+
+	_r_string_writenullterminator (string); // terminate
+}
+
+FORCEINLINE PR_STRING _r_obj_createstringbuilder (SIZE_T length)
+{
+	if (length & 0x01)
+		length += 1;
+
+	PR_STRING string = _r_obj_createstringex (NULL, length);
+
+	string->Length = 0;
+
+	return string;
+}
+
+FORCEINLINE PR_STRING _r_obj_createstring (LPCWSTR string)
+{
+	return _r_obj_createstringex (string, _r_str_length (string) * sizeof (WCHAR));
+}
+
+FORCEINLINE PR_STRING _r_obj_createstring2 (PR_STRING string)
+{
+	return _r_obj_createstringex (string->Buffer, string->Length);
+}
+
+FORCEINLINE PR_STRING _r_obj_createstring3 (PR_STRINGREF string)
+{
+	return _r_obj_createstringex (string->Buffer, string->Length);
+}
+
+FORCEINLINE LPCWSTR _r_obj_getstring (PR_STRING string)
+{
+	if (string && string->Length && string->Buffer)
+		return string->Buffer;
+
+	return NULL;
+}
+
+FORCEINLINE LPCWSTR _r_obj_getstringorempty (PR_STRING string)
+{
+	if (string && string->Length && string->Buffer)
+		return string->Buffer;
+
+	return L"";
+}
+
+FORCEINLINE LPCWSTR _r_obj_getstringordefault (PR_STRING string, LPCWSTR defvalue)
+{
+	if (string && string->Length && string->Buffer)
+		return string->Buffer;
+
+	return defvalue;
+}
+
+FORCEINLINE VOID _r_obj_initializeemptystringref (PR_STRINGREF String)
+{
+	String->Length = 0;
+	String->Buffer = NULL;
+}
+
+FORCEINLINE SIZE_T _r_obj_getstringsize (PR_STRING string)
+{
+	if (string)
+		return string->Length;
+	else
+		return 0;
+}
+
+FORCEINLINE SIZE_T _r_obj_getstringlength (PR_STRING string)
+{
+	if (string)
+		return string->Length / sizeof (WCHAR);
+	else
+		return 0;
+}
 
 /*
 	Strings
 */
 
-FORCEINLINE bool _r_str_isempty (LPCWSTR text)
+FORCEINLINE BOOLEAN _r_str_isempty (LPCWSTR string)
 {
-	return !text || (*text == UNICODE_NULL);
+	return !string || (*string == UNICODE_NULL);
 }
 
-FORCEINLINE bool _r_str_isempty (const UNICODE_STRING& text)
+FORCEINLINE BOOLEAN _r_str_isempty (PR_BYTE string)
 {
-	return !text.Length || _r_str_isempty (text.Buffer);
+	return !string || !string->Length || !string->Buffer || (*string->Buffer == ANSI_NULL);
 }
 
-bool _r_str_isnumeric (LPCWSTR text);
+FORCEINLINE BOOLEAN _r_str_isempty (PR_STRING string)
+{
+	return !string || !string->Length || !string->Buffer || (*string->Buffer == UNICODE_NULL);
+}
 
-bool _r_str_alloc (LPWSTR* pbuffer, size_t length, LPCWSTR text);
+FORCEINLINE BOOLEAN _r_str_isempty (PUNICODE_STRING string)
+{
+	return !string || !string->Length || !string->Buffer || (*string->Buffer == UNICODE_NULL);
+}
 
-void _r_str_cat (LPWSTR buffer, size_t length, LPCWSTR text);
-void _r_str_copy (LPWSTR buffer, size_t length, LPCWSTR text);
-size_t _r_str_length (LPCWSTR text);
-void _r_str_printf (LPWSTR buffer, size_t length, LPCWSTR text, ...);
-void _r_str_vprintf (LPWSTR buffer, size_t length, LPCWSTR text, va_list args);
+BOOLEAN _r_str_isnumeric (LPCWSTR string);
 
-// moved to rstring.hpp
-// size_t _r_str_hash (LPCWSTR text);
-//INT _r_str_compare (LPCWSTR str1, LPCWSTR str2, size_t length = INVALID_SIZE_T);
-INT _r_str_compare_logical (LPCWSTR str1, LPCWSTR str2);
+VOID _r_str_append (LPWSTR buffer, SIZE_T length, LPCWSTR text);
+VOID _r_str_appendformat (LPWSTR buffer, SIZE_T length, LPCWSTR format, ...);
+VOID _r_str_copy (LPWSTR buffer, SIZE_T length, LPCWSTR text);
+SIZE_T _r_str_length (LPCWSTR text);
+VOID _r_str_printf (LPWSTR buffer, SIZE_T length, LPCWSTR format, ...);
+VOID _r_str_printf_v (LPWSTR buffer, SIZE_T length, LPCWSTR format, va_list argPtr);
 
-rstring _r_str_fromguid (const GUID& lpguid);
-rstring _r_str_fromsecuritydescriptor (const PSECURITY_DESCRIPTOR lpsd);
-rstring _r_str_fromsid (const PSID lpsid);
+SIZE_T _r_str_hash (LPCWSTR string);
 
-size_t _r_str_find (LPCWSTR text, size_t length, WCHAR char_find, size_t start_pos = 0);
-size_t _r_str_findlast (LPCWSTR text, size_t length, WCHAR char_find, size_t start_pos = 0);
+FORCEINLINE SIZE_T _r_str_hash (PR_STRING string)
+{
+	return _r_str_hash (_r_obj_getstring (string));
+}
 
-bool _r_str_match (LPCWSTR text, LPCWSTR pattern);
-void _r_str_replace (LPWSTR text, WCHAR char_from, WCHAR char_to);
-void _r_str_trim (LPWSTR text, LPCWSTR trim);
-void _r_str_trim (rstring& text, LPCWSTR trim);
+#define _R_FLAG_COMPARE_LOGICAL 0x01
+#define _R_FLAG_COMPARE_SENSITIVE 0x02
+
+INT _r_str_compareex (LPCWSTR string1, LPCWSTR string2, ULONG flags, SIZE_T length);
+
+FORCEINLINE INT _r_str_compare (LPCWSTR string1, LPCWSTR string2)
+{
+	return _r_str_compareex (string1, string2, 0, INVALID_SIZE_T);
+}
+
+FORCEINLINE INT _r_str_compare_length (LPCWSTR string1, LPCWSTR string2, SIZE_T length)
+{
+	return _r_str_compareex (string1, string2, 0, length);
+}
+
+FORCEINLINE INT _r_str_compare_logical (LPCWSTR string1, LPCWSTR string2)
+{
+	return _r_str_compareex (string1, string2, _R_FLAG_COMPARE_LOGICAL, INVALID_SIZE_T);
+}
+
+PR_STRING _r_str_expandenvironmentstring (PR_STRING string);
+
+PR_STRING _r_str_fromguid (LPGUID lpguid);
+PR_STRING _r_str_fromsecuritydescriptor (PSECURITY_DESCRIPTOR lpsd, SECURITY_INFORMATION information);
+PR_STRING _r_str_fromsid (PSID lpsid);
+
+BOOLEAN _r_str_toboolean (LPCWSTR string);
+INT _r_str_tointeger (LPCWSTR string);
+UINT _r_str_touinteger (LPCWSTR string);
+LONG _r_str_tolongex (LPCWSTR string, INT radix);
+LONG64 _r_str_tolong64 (LPCWSTR string);
+ULONG _r_str_toulongex (LPCWSTR string, INT radix);
+ULONG64 _r_str_toulong64 (LPCWSTR string);
+
+#if defined(_WIN64)
+#define _r_str_tolongptr _r_str_tolong64
+#define _r_str_toulongptr _r_str_toulong64
+#else
+#define _r_str_tolongptr _r_str_tolong
+#define _r_str_toulongptr _r_str_toulong
+#endif // _WIN64
+
+FORCEINLINE LONG _r_str_tolong (LPCWSTR string)
+{
+	return _r_str_tolongex (string, 10);
+}
+
+FORCEINLINE ULONG _r_str_toulong (LPCWSTR string)
+{
+	return _r_str_toulongex (string, 10);
+}
+
+SIZE_T _r_str_findchar (LPCWSTR string, SIZE_T length, WCHAR character, BOOLEAN is_ignorecase);
+SIZE_T _r_str_findlastchar (LPCWSTR string, SIZE_T length, WCHAR character, BOOLEAN is_ignorecase);
+
+VOID _r_str_replacechar (LPWSTR string, WCHAR char_from, WCHAR char_to);
+
+BOOLEAN _r_str_match (LPCWSTR string, LPCWSTR pattern, BOOLEAN is_ignorecase);
+VOID _r_str_trim (LPWSTR string, LPCWSTR trim);
+VOID _r_str_trim (PR_STRING string, LPCWSTR trim);
 
 FORCEINLINE WCHAR _r_str_lower (WCHAR chr)
 {
@@ -481,85 +856,145 @@ FORCEINLINE WCHAR _r_str_upper (WCHAR chr)
 	return RtlUpcaseUnicodeChar (chr);
 }
 
-void _r_str_tolower (LPWSTR text);
-void _r_str_toupper (LPWSTR text);
+VOID _r_str_tolower (LPWSTR string);
+VOID _r_str_toupper (LPWSTR string);
 
-rstring _r_str_extract (LPCWSTR text, size_t length, size_t start_pos, size_t extract_length = INVALID_SIZE_T);
-rstring& _r_str_extract_ref (rstring& text, size_t start_pos, size_t extract_length = INVALID_SIZE_T);
+FORCEINLINE VOID _r_str_tolower (PR_STRING string)
+{
+	for (SIZE_T i = 0; i < _r_obj_getstringlength (string); i++)
+		*string->Buffer = _r_str_lower (*string->Buffer);
+}
 
-LPWSTR _r_str_utf8_to_utf16 (LPCSTR text, PINT pout_length);
-LPSTR _r_str_utf16_to_utf8 (LPCWSTR text, PINT pout_length);
+FORCEINLINE VOID _r_str_toupper (PR_STRING string)
+{
+	for (SIZE_T i = 0; i < _r_obj_getstringlength (string); i++)
+		*string->Buffer = _r_str_upper (*string->Buffer);
+}
 
-void _r_str_split (LPCWSTR text, size_t length, WCHAR delimiter, rstringvec& rvc);
-bool _r_str_unserialize (LPCWSTR text, WCHAR delimeter, WCHAR key_delimeter, rstringmap1 * lpresult);
+PR_STRING _r_str_extract (PR_STRING string, SIZE_T start_pos, SIZE_T extract_length);
+
+PR_STRING _r_str_multibyte2unicode (LPCSTR string);
+PR_BYTE _r_str_unicode2multibyte (LPCWSTR string);
+
+PR_STRING _r_str_splitatchar (PR_STRINGREF Input, PR_STRINGREF SecondPart, WCHAR separator, BOOLEAN is_ignorecase);
+PR_STRING _r_str_splitatlastchar (PR_STRINGREF Input, PR_STRINGREF SecondPart, WCHAR separator, BOOLEAN is_ignorecase);
+
+VOID _r_str_unserialize (PR_STRING string, WCHAR key_delimeter, WCHAR value_delimeter, OBJECTS_STRINGS_MAP1* valuesMap);
 
 INT _r_str_versioncompare (LPCWSTR v1, LPCWSTR v2);
+
+FORCEINLINE VOID _r_stringref_initializeex (PR_STRINGREF string, LPWSTR buffer, SIZE_T length)
+{
+	string->Buffer = buffer;
+	string->Length = length;
+}
+
+FORCEINLINE VOID _r_stringref_initialize (PR_STRINGREF string, LPWSTR buffer)
+{
+	_r_stringref_initializeex (string, buffer, _r_str_length (buffer) * sizeof (WCHAR));
+}
 
 /*
 	System information
 */
 
-bool _r_sys_iselevated ();
+#define WINDOWS_XP 51
+#define WINDOWS_VISTA 60
+#define WINDOWS_7 61
+#define WINDOWS_8 62
+#define WINDOWS_8_1 63
+#define WINDOWS_10 100 // TH1
+#define WINDOWS_10_TH1 WINDOWS_10
+#define WINDOWS_10_TH2 101
+#define WINDOWS_10_RS1 102
+#define WINDOWS_10_RS2 103
+#define WINDOWS_10_RS3 104
+#define WINDOWS_10_RS4 105
+#define WINDOWS_10_RS5 106
+#define WINDOWS_10_19H1 107
+#define WINDOWS_10_19H2 108
+#define WINDOWS_10_20H1 109
+#define WINDOWS_10_20H2 110
+#define WINDOWS_10_21H1 111
 
-#if !defined(_APP_HAVE_CRTTHREAD)
-#define THREAD_FN NTSTATUS
+BOOLEAN _r_sys_iselevated ();
+BOOLEAN _r_sys_isosversiongreaterorequal (ULONG requiredVersion);
+
+BOOLEAN _r_sys_createprocessex (LPCWSTR fileName, LPCWSTR commandLine, LPCWSTR currentDirectory, WORD showState, ULONG flags);
+
+FORCEINLINE BOOLEAN _r_sys_createprocess (LPCWSTR fileName, LPCWSTR commandLine, LPCWSTR currentDirectory)
+{
+	return _r_sys_createprocessex (fileName, commandLine, currentDirectory, SW_SHOWDEFAULT, 0);
+}
+
+#if defined(_APP_HAVE_NATIVETHREAD)
+#define THREAD_FN NTSTATUS NTAPI
 #define THREAD_CALLBACK PUSER_THREAD_START_ROUTINE
 #else
 #define THREAD_FN UINT WINAPI
 #define THREAD_CALLBACK _beginthreadex_proc_type
-#endif // !_APP_HAVE_CRTTHREAD
+#endif // _APP_HAVE_NATIVETHREAD
 
-HANDLE _r_sys_createthread (THREAD_CALLBACK proc, PVOID lparam, bool is_createsuspended, INT priority = THREAD_PRIORITY_NORMAL);
+HANDLE _r_sys_createthreadex (THREAD_CALLBACK proc, PVOID lparam, BOOLEAN is_createsuspended, INT priority);
 
-FORCEINLINE DWORD _r_sys_endthread (DWORD exit_code)
+FORCEINLINE HANDLE _r_sys_createthread (THREAD_CALLBACK proc, PVOID lparam, BOOLEAN is_createsuspended)
 {
-#if !defined(_APP_HAVE_CRTTHREAD)
+	return _r_sys_createthreadex (proc, lparam, is_createsuspended, THREAD_PRIORITY_NORMAL);
+}
+
+FORCEINLINE ULONG _r_sys_endthread (ULONG exit_code)
+{
+#if defined(_APP_HAVE_NATIVETHREAD)
 	RtlExitUserThread (exit_code);
 #else
 	_endthreadex (exit_code);
-#endif // _APP_HAVE_CRTTHREAD
+#endif // _APP_HAVE_NATIVETHREAD
 
 	return exit_code;
 }
 
-rstring _r_sys_getsessioninfo (WTS_INFO_CLASS info);
-rstring _r_sys_getusernamefromsid (PSID psid);
+FORCEINLINE ULONG _r_sys_resumethread (HANDLE hthread)
+{
+	return NtResumeThread (hthread, NULL);
+}
+
+PR_STRING _r_sys_getsessioninfo (WTS_INFO_CLASS info);
+PR_STRING _r_sys_getusernamefromsid (PSID psid);
 
 #if !defined(_WIN64)
-bool _r_sys_iswow64 ();
+BOOLEAN _r_sys_iswow64 ();
 #endif // !_WIN64
 
-void _r_sys_setprivilege (const LPDWORD privileges_arr, DWORD count, bool is_enable);
-bool _r_sys_validversion (DWORD major, DWORD minor, DWORD build = 0, BYTE condition = VER_GREATER_EQUAL);
+VOID _r_sys_setprivilege (const PULONG privileges, ULONG count, BOOLEAN is_enable);
 
-FORCEINLINE DWORD _r_sys_gettickcount ()
+FORCEINLINE ULONG _r_sys_gettickcount ()
 {
 #ifdef _WIN64
 
-	return (DWORD)((USER_SHARED_DATA->TickCountQuad * USER_SHARED_DATA->TickCountMultiplier) >> 24);
+	return (ULONG)((USER_SHARED_DATA->TickCountQuad * USER_SHARED_DATA->TickCountMultiplier) >> 24);
 
 #else
 
 	ULARGE_INTEGER tickCount;
 
-	while (true)
+	while (TRUE)
 	{
-		tickCount.HighPart = (DWORD)USER_SHARED_DATA->TickCount.High1Time;
+		tickCount.HighPart = (ULONG)USER_SHARED_DATA->TickCount.High1Time;
 		tickCount.LowPart = USER_SHARED_DATA->TickCount.LowPart;
 
-		if (tickCount.HighPart == (DWORD)USER_SHARED_DATA->TickCount.High2Time)
+		if (tickCount.HighPart == (ULONG)USER_SHARED_DATA->TickCount.High2Time)
 			break;
 
 		YieldProcessor ();
 	}
 
-	return (DWORD)((UInt32x32To64 (tickCount.LowPart, USER_SHARED_DATA->TickCountMultiplier) >> 24) +
+	return (ULONG)((UInt32x32To64 (tickCount.LowPart, USER_SHARED_DATA->TickCountMultiplier) >> 24) +
 				   UInt32x32To64 ((tickCount.HighPart << 8) & 0xffffffff, USER_SHARED_DATA->TickCountMultiplier));
 
 #endif
 }
 
-FORCEINLINE DWORD64 _r_sys_gettickcount64 ()
+FORCEINLINE ULONG64 _r_sys_gettickcount64 ()
 {
 	ULARGE_INTEGER tickCount;
 
@@ -569,12 +1004,12 @@ FORCEINLINE DWORD64 _r_sys_gettickcount64 ()
 
 #else
 
-	while (true)
+	while (TRUE)
 	{
-		tickCount.HighPart = (DWORD)USER_SHARED_DATA->TickCount.High1Time;
+		tickCount.HighPart = (ULONG)USER_SHARED_DATA->TickCount.High1Time;
 		tickCount.LowPart = USER_SHARED_DATA->TickCount.LowPart;
 
-		if (tickCount.HighPart == (DWORD)USER_SHARED_DATA->TickCount.High2Time)
+		if (tickCount.HighPart == (ULONG)USER_SHARED_DATA->TickCount.High2Time)
 			break;
 
 		YieldProcessor ();
@@ -591,10 +1026,10 @@ FORCEINLINE DWORD64 _r_sys_gettickcount64 ()
 */
 
 time_t _r_unixtime_now ();
-void _r_unixtime_to_filetime (time_t ut, const LPFILETIME pft);
-void _r_unixtime_to_systemtime (time_t ut, const LPSYSTEMTIME pst);
-time_t _r_unixtime_from_filetime (const FILETIME *pft);
-time_t _r_unixtime_from_systemtime (const LPSYSTEMTIME pst);
+VOID _r_unixtime_to_filetime (time_t ut, FILETIME* pfileTime);
+VOID _r_unixtime_to_systemtime (time_t ut, SYSTEMTIME* psystemTime);
+time_t _r_unixtime_from_filetime (const FILETIME* pfileTime);
+time_t _r_unixtime_from_systemtime (const SYSTEMTIME* psystemTime);
 
 /*
 	Device context (Draw/Calculation etc...)
@@ -604,8 +1039,8 @@ INT _r_dc_getdpivalue (HWND hwnd);
 COLORREF _r_dc_getcolorbrightness (COLORREF clr);
 COLORREF _r_dc_getcolorshade (COLORREF clr, INT percent);
 INT _r_dc_getsystemmetrics (HWND hwnd, INT index);
-void _r_dc_fillrect (HDC hdc, const LPRECT lprc, COLORREF clr);
-LONG _r_dc_fontwidth (HDC hdc, LPCWSTR text, size_t length);
+VOID _r_dc_fillrect (HDC hdc, const LPRECT lprc, COLORREF clr);
+LONG _r_dc_fontwidth (HDC hdc, LPCWSTR text, SIZE_T length);
 
 FORCEINLINE INT _r_dc_getdpi (HWND hwnd, INT scale)
 {
@@ -626,38 +1061,47 @@ FORCEINLINE INT _r_dc_fontsizetoheight (HWND hwnd, INT size)
 	Window management
 */
 
-void _r_wnd_addstyle (HWND hwnd, INT ctrl_id, LONG_PTR mask, LONG_PTR stateMask, INT index);
-void _r_wnd_adjustwindowrect (HWND hwnd, LPRECT lprect);
-void _r_wnd_centerwindowrect (LPRECT lprect, const LPRECT lpparent);
-void _r_wnd_center (HWND hwnd, HWND hparent);
-void _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, size_t count, DWORD action);
-void _r_wnd_changesettings (HWND hwnd, WPARAM wparam, LPARAM lparam);
-void _r_wnd_enablenonclientscaling (HWND hwnd);
-bool _r_wnd_isfullscreenmode ();
-bool _r_wnd_isundercursor (HWND hwnd);
-void _r_wnd_toggle (HWND hwnd, bool is_show);
-void _r_wnd_top (HWND hwnd, bool is_enable);
+VOID _r_wnd_addstyle (HWND hwnd, INT ctrl_id, LONG_PTR mask, LONG_PTR stateMask, INT index);
+VOID _r_wnd_adjustwindowrect (HWND hwnd, LPRECT lprect);
+VOID _r_wnd_center (HWND hwnd, HWND hparent);
+VOID _r_wnd_changemessagefilter (HWND hwnd, PUINT pmsg, SIZE_T count, ULONG action);
+VOID _r_wnd_changesettings (HWND hwnd, WPARAM wparam, LPARAM lparam);
+VOID _r_wnd_enablenonclientscaling (HWND hwnd);
+BOOLEAN _r_wnd_isfullscreenmode ();
+BOOLEAN _r_wnd_isundercursor (HWND hwnd);
+VOID _r_wnd_toggle (HWND hwnd, BOOLEAN is_show);
 
-#if !defined(_APP_NO_DARKTHEME)
-bool _r_wnd_isdarktheme ();
-void _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable);
-void _r_wnd_setdarkwindow (HWND hwnd, BOOL is_enable);
-void _r_wnd_setdarktheme (HWND hwnd);
-#endif // !_APP_NO_DARKTHEME
+FORCEINLINE VOID _r_wnd_top (HWND hwnd, BOOLEAN is_enable)
+{
+	SetWindowPos (hwnd, is_enable ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOREDRAW | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+}
+
+#if defined(_APP_HAVE_DARKTHEME)
+BOOL _r_wnd_isdarktheme ();
+VOID _r_wnd_setdarkframe (HWND hwnd, BOOL is_enable);
+VOID _r_wnd_setdarkwindow (HWND hwnd, BOOL is_enable);
+VOID _r_wnd_setdarktheme (HWND hwnd);
+#endif // _APP_HAVE_DARKTHEME
+
+FORCEINLINE VOID _r_wnd_centerwindowrect (LPRECT lprect, const LPRECT lpparent)
+{
+	lprect->left = lpparent->left + ((_r_calc_rectwidth (LONG, lpparent) - _r_calc_rectwidth (LONG, lprect)) / 2);
+	lprect->top = lpparent->top + ((_r_calc_rectheight (LONG, lpparent) - _r_calc_rectheight (LONG, lprect)) / 2);
+}
 
 /*
 	Inernet access (WinHTTP)
 */
 
 HINTERNET _r_inet_createsession (LPCWSTR useragent, LPCWSTR proxy_addr);
-DWORD _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHINTERNET pconnect, LPHINTERNET prequest, PDWORD ptotallength);
-bool _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, DWORD buffer_length, PDWORD preaded, PDWORD ptotalreaded);
-DWORD _r_inet_parseurl (LPCWSTR url, PINT scheme_ptr, LPWSTR host_ptr, LPWORD port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr);
-DWORD _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, LONG_PTR lpdest, bool is_filepath, _R_CALLBACK_HTTP_DOWNLOAD _callback, LONG_PTR lpdata);
+ULONG _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHINTERNET pconnect, LPHINTERNET prequest, PULONG ptotallength);
+BOOLEAN _r_inet_readrequest (HINTERNET hrequest, LPSTR buffer, ULONG buffer_length, PULONG preaded, PULONG ptotalreaded);
+ULONG _r_inet_parseurl (LPCWSTR url, PINT scheme_ptr, LPWSTR host_ptr, LPWORD port_ptr, LPWSTR path_ptr, LPWSTR user_ptr, LPWSTR pass_ptr);
+ULONG _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, LPVOID* lpdest, BOOLEAN is_filepath, _R_CALLBACK_HTTP_DOWNLOAD Callback, LONG_PTR lpdata);
 
-FORCEINLINE BOOL _r_inet_close (HINTERNET handle)
+FORCEINLINE VOID _r_inet_close (HINTERNET handle)
 {
-	return WinHttpCloseHandle (handle);
+	WinHttpCloseHandle (handle);
 }
 
 /*
@@ -665,10 +1109,10 @@ FORCEINLINE BOOL _r_inet_close (HINTERNET handle)
 */
 
 PBYTE _r_reg_querybinary (HKEY hkey, LPCWSTR value);
-DWORD _r_reg_querydword (HKEY hkey, LPCWSTR value);
-DWORD64 _r_reg_querydword64 (HKEY hkey, LPCWSTR value);
-rstring _r_reg_querystring (HKEY hkey, LPCWSTR value);
-DWORD _r_reg_querysubkeylength (HKEY hkey);
+ULONG _r_reg_queryulong (HKEY hkey, LPCWSTR value);
+ULONG64 _r_reg_queryulong64 (HKEY hkey, LPCWSTR value);
+PR_STRING _r_reg_querystring (HKEY hkey, LPCWSTR value);
+ULONG _r_reg_querysubkeylength (HKEY hkey);
 time_t _r_reg_querytimestamp (HKEY hkey);
 
 /*
@@ -676,21 +1120,22 @@ time_t _r_reg_querytimestamp (HKEY hkey);
 */
 
 HICON _r_loadicon (HINSTANCE hinst, LPCWSTR name, INT size);
-LPVOID _r_loadresource (HINSTANCE hinst, LPCWSTR res, LPCWSTR type, PDWORD psize);
-bool _r_parseini (LPCWSTR path, rstringmap2& pmap, rstringvec* psections);
-DWORD _r_rand (DWORD min_number, DWORD max_number);
-bool _r_run (LPCWSTR filename, LPCWSTR cmdline, LPCWSTR dir = nullptr, WORD show_state = SW_SHOWDEFAULT, DWORD flags = 0);
-void _r_sleep (LONG64 milliseconds);
+PVOID _r_loadresource (HINSTANCE hinst, LPCWSTR name, LPCWSTR type, PULONG psize);
+VOID _r_parseini (LPCWSTR path, OBJECTS_STRINGS_MAP2* outputMap, OBJECTS_STRINGS_VEC* sectionArr);
+ULONG _r_rand (ULONG min_number, ULONG max_number);
+VOID _r_sleep (LONG64 milliseconds);
 
 /*
 	System tray
 */
 
-bool _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR tooltip, bool is_hidden);
-bool _r_tray_popup (HWND hwnd, UINT uid, DWORD icon_id, LPCWSTR title, LPCWSTR text);
-bool _r_tray_setinfo (HWND hwnd, UINT uid, HICON hicon, LPCWSTR tooltip);
-bool _r_tray_toggle (HWND hwnd, UINT uid, bool is_show);
-bool _r_tray_destroy (HWND hwnd, UINT uid);
+BOOLEAN _r_tray_create (HWND hwnd, UINT uid, UINT code, HICON hicon, LPCWSTR tooltip, BOOLEAN is_hidden);
+BOOLEAN _r_tray_popup (HWND hwnd, UINT uid, ULONG icon_id, LPCWSTR title, LPCWSTR text);
+BOOLEAN _r_tray_popupformat (HWND hwnd, UINT uid, ULONG icon_id, LPCWSTR title, LPCWSTR format, ...);
+BOOLEAN _r_tray_setinfo (HWND hwnd, UINT uid, HICON hicon, LPCWSTR tooltip);
+BOOLEAN _r_tray_setinfoformat (HWND hwnd, UINT uid, HICON hicon, LPCWSTR format, ...);
+BOOLEAN _r_tray_toggle (HWND hwnd, UINT uid, BOOLEAN is_show);
+BOOLEAN _r_tray_destroy (HWND hwnd, UINT uid);
 
 /*
 	Control: common
@@ -698,23 +1143,30 @@ bool _r_tray_destroy (HWND hwnd, UINT uid);
 
 INT _r_ctrl_isradiobuttonchecked (HWND hwnd, INT start_id, INT end_id);
 
-rstring _r_ctrl_gettext (HWND hwnd, INT ctrl_id);
-void _r_ctrl_settext (HWND hwnd, INT ctrl_id, LPCWSTR text, ...);
+PR_STRING _r_ctrl_gettext (HWND hwnd, INT ctrl_id);
+VOID _r_ctrl_settextformat (HWND hwnd, INT ctrl_id, LPCWSTR format, ...);
 
-void _r_ctrl_setbuttonmargins (HWND hwnd, INT ctrl_id);
-void _r_ctrl_settabletext (HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT ctrl_id2, LPCWSTR text2);
+FORCEINLINE VOID _r_ctrl_settext (HWND hwnd, INT ctrl_id, LPCWSTR text)
+{
+	SetDlgItemText (hwnd, ctrl_id, text);
+}
+
+VOID _r_ctrl_setbuttonmargins (HWND hwnd, INT ctrl_id);
+VOID _r_ctrl_settabletext (HWND hwnd, INT ctrl_id1, LPCWSTR text1, INT ctrl_id2, LPCWSTR text2);
 
 HWND _r_ctrl_createtip (HWND hparent);
-void _r_ctrl_settip (HWND htip, HWND hparent, INT ctrl_id, LPCWSTR text);
-void _r_ctrl_settipstyle (HWND htip);
-void _r_ctrl_showtip (HWND hwnd, INT ctrl_id, INT icon_id, LPCWSTR title, LPCWSTR text);
+VOID _r_ctrl_settiptext (HWND htip, HWND hparent, INT ctrl_id, LPCWSTR text);
+VOID _r_ctrl_settiptextformat (HWND htip, HWND hparent, INT ctrl_id, LPCWSTR format, ...);
+VOID _r_ctrl_settipstyle (HWND htip);
+VOID _r_ctrl_showballoontip (HWND hwnd, INT ctrl_id, INT icon_id, LPCWSTR title, LPCWSTR text);
+VOID _r_ctrl_showballoontipformat (HWND hwnd, INT ctrl_id, INT icon_id, LPCWSTR title, LPCWSTR format, ...);
 
-FORCEINLINE bool _r_ctrl_isenabled (HWND hwnd, INT ctrl_id)
+FORCEINLINE BOOLEAN _r_ctrl_isenabled (HWND hwnd, INT ctrl_id)
 {
 	return !!IsWindowEnabled (GetDlgItem (hwnd, ctrl_id));
 }
 
-FORCEINLINE void _r_ctrl_enable (HWND hwnd, INT ctrl_id, bool is_enable)
+FORCEINLINE VOID _r_ctrl_enable (HWND hwnd, INT ctrl_id, BOOLEAN is_enable)
 {
 	EnableWindow (GetDlgItem (hwnd, ctrl_id), is_enable);
 }
@@ -723,19 +1175,25 @@ FORCEINLINE void _r_ctrl_enable (HWND hwnd, INT ctrl_id, bool is_enable)
 	Control: menu
 */
 
-void _r_menu_checkitem (HMENU hmenu, UINT command_id_start, UINT command_id_end, UINT position_flag, UINT check_id);
-void _r_menu_enableitem (HMENU hmenu, UINT command_id, UINT position_flag, bool is_enable);
-INT _r_menu_popup (HMENU hmenu, HWND hwnd, LPPOINT lpmouse, bool is_sendmessage);
+VOID _r_menu_checkitem (HMENU hmenu, UINT item_id_start, UINT item_id_end, UINT position_flag, UINT check_id);
+VOID _r_menu_setitembitmap (HMENU hmenu, UINT item_id, HBITMAP hbitmap, BOOL is_byposition);
+VOID _r_menu_setitemtext (HMENU hmenu, UINT item_id, LPCWSTR text, BOOL is_byposition);
+INT _r_menu_popup (HMENU hmenu, HWND hwnd, LPPOINT lpmouse, BOOLEAN is_sendmessage);
+
+FORCEINLINE VOID _r_menu_enableitem (HMENU hmenu, UINT item_id, UINT position_flag, BOOLEAN is_enable)
+{
+	EnableMenuItem (hmenu, item_id, position_flag | (is_enable ? MF_ENABLED : MF_DISABLED | MF_GRAYED));
+}
 
 /*
 	Control: tab
 */
 
-void _r_tab_adjustchild (HWND hwnd, INT tab_id, HWND hchild);
-INT _r_tab_additem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image = INVALID_INT, LPARAM lparam = 0);
+VOID _r_tab_adjustchild (HWND hwnd, INT tab_id, HWND hchild);
+INT _r_tab_additem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image, LPARAM lparam);
 LPARAM _r_tab_getlparam (HWND hwnd, INT ctrl_id, INT index);
-INT _r_tab_setitem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image = INVALID_INT, LPARAM lparam = 0);
-void _r_tab_selectitem (HWND hwnd, INT ctrl_id, INT index);
+INT _r_tab_setitem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image, LPARAM lparam);
+VOID _r_tab_selectitem (HWND hwnd, INT ctrl_id, INT index);
 
 /*
 	Control: listview
@@ -743,60 +1201,99 @@ void _r_tab_selectitem (HWND hwnd, INT ctrl_id, INT index);
 
 INT _r_listview_addcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR title, INT width, INT fmt);
 INT _r_listview_addgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT align, UINT state, UINT state_mask);
-INT _r_listview_additem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR text, INT image = I_IMAGENONE, INT group_id = I_GROUPIDNONE, LPARAM lparam = 0);
+INT _r_listview_additemex (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR text, INT image, INT group_id, LPARAM lparam);
 
-void _r_listview_deleteallcolumns (HWND hwnd, INT ctrl_id);
-void _r_listview_deleteallgroups (HWND hwnd, INT ctrl_id);
-void _r_listview_deleteallitems (HWND hwnd, INT ctrl_id);
+FORCEINLINE INT _r_listview_additem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR text)
+{
+	return _r_listview_additemex (hwnd, ctrl_id, item, subitem, text, I_IMAGENONE, I_GROUPIDNONE, 0);
+}
+
+VOID _r_listview_deleteallcolumns (HWND hwnd, INT ctrl_id);
+VOID _r_listview_deleteallgroups (HWND hwnd, INT ctrl_id);
+VOID _r_listview_deleteallitems (HWND hwnd, INT ctrl_id);
 
 INT _r_listview_getcolumncount (HWND hwnd, INT ctrl_id);
-rstring _r_listview_getcolumntext (HWND hwnd, INT ctrl_id, INT column_id);
+PR_STRING _r_listview_getcolumntext (HWND hwnd, INT ctrl_id, INT column_id);
 INT _r_listview_getcolumnwidth (HWND hwnd, INT ctrl_id, INT column_id);
 
-INT _r_listview_getitemcount (HWND hwnd, INT ctrl_id, bool list_checked = false);
+INT _r_listview_getitemcount (HWND hwnd, INT ctrl_id, BOOLEAN is_listchecked);
 LPARAM _r_listview_getitemlparam (HWND hwnd, INT ctrl_id, INT item);
-rstring _r_listview_getitemtext (HWND hwnd, INT ctrl_id, INT item, INT subitem);
+PR_STRING _r_listview_getitemtext (HWND hwnd, INT ctrl_id, INT item, INT subitem);
 
-bool _r_listview_isitemchecked (HWND hwnd, INT ctrl_id, INT item);
-bool _r_listview_isitemvisible (HWND hwnd, INT ctrl_id, INT item);
+BOOLEAN _r_listview_isitemchecked (HWND hwnd, INT ctrl_id, INT item);
+BOOLEAN _r_listview_isitemvisible (HWND hwnd, INT ctrl_id, INT item);
 
-void _r_listview_redraw (HWND hwnd, INT ctrl_id, INT start_id = INVALID_INT, INT end_id = INVALID_INT);
+VOID _r_listview_redraw (HWND hwnd, INT ctrl_id, INT item_id);
 
-void _r_listview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle, BOOL is_groupview);
-void _r_listview_setcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR text, INT width);
-void _r_listview_setcolumnsortindex (HWND hwnd, INT ctrl_id, INT column_id, INT arrow);
-void _r_listview_setitem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR text, INT image = I_IMAGENONE, INT group_id = I_GROUPIDNONE, LPARAM lparam = 0);
-void _r_listview_setitemcheck (HWND hwnd, INT ctrl_id, INT item, bool state);
-void _r_listview_setgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT state, UINT state_mask);
+VOID _r_listview_setstyle (HWND hwnd, INT ctrl_id, ULONG exstyle, BOOL is_groupview);
+VOID _r_listview_setcolumn (HWND hwnd, INT ctrl_id, INT column_id, LPCWSTR text, INT width);
+VOID _r_listview_setcolumnsortindex (HWND hwnd, INT ctrl_id, INT column_id, INT arrow);
+VOID _r_listview_setitemex (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR text, INT image, INT group_id, LPARAM lparam);
+
+FORCEINLINE VOID _r_listview_setitem (HWND hwnd, INT ctrl_id, INT item, INT subitem, LPCWSTR text)
+{
+	_r_listview_setitemex (hwnd, ctrl_id, item, subitem, text, I_IMAGENONE, I_GROUPIDNONE, 0);
+}
+
+VOID _r_listview_setitemcheck (HWND hwnd, INT ctrl_id, INT item, BOOLEAN state);
+VOID _r_listview_setgroup (HWND hwnd, INT ctrl_id, INT group_id, LPCWSTR title, UINT state, UINT state_mask);
 
 /*
 	Control: treeview
 */
 
-HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl_id, LPCWSTR text, HTREEITEM hparent = nullptr, INT image = I_IMAGENONE, LPARAM lparam = 0);
+HTREEITEM _r_treeview_additem (HWND hwnd, INT ctrl_id, LPCWSTR text, HTREEITEM hparent, INT image, LPARAM lparam);
 LPARAM _r_treeview_getlparam (HWND hwnd, INT ctrl_id, HTREEITEM hitem);
-void _r_treeview_setitem (HWND hwnd, INT ctrl_id, HTREEITEM hitem, LPCWSTR text, INT image = I_IMAGENONE, LPARAM lparam = 0);
-void _r_treeview_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle, INT height, INT indent);
+VOID _r_treeview_setitem (HWND hwnd, INT ctrl_id, HTREEITEM hitem, LPCWSTR text, INT image, LPARAM lparam);
+VOID _r_treeview_setstyle (HWND hwnd, INT ctrl_id, ULONG exstyle, INT height, INT indent);
 
 /*
 	Control: statusbar
 */
 
-void _r_status_settext (HWND hwnd, INT ctrl_id, INT part, LPCWSTR text);
-void _r_status_setstyle (HWND hwnd, INT ctrl_id, INT height);
+VOID _r_status_settext (HWND hwnd, INT ctrl_id, INT part, LPCWSTR text);
+VOID _r_status_settextformat (HWND hwnd, INT ctrl_id, INT part, LPCWSTR format, ...);
+VOID _r_status_setstyle (HWND hwnd, INT ctrl_id, INT height);
 
 /*
 	Control: toolbar
 */
 
-void _r_toolbar_addbutton (HWND hwnd, INT ctrl_id, UINT command_id, INT style, INT_PTR text = 0, INT state = 0, INT image = I_IMAGENONE);
+VOID _r_toolbar_addbutton (HWND hwnd, INT ctrl_id, UINT command_id, INT style, INT_PTR text, INT state, INT image);
 INT _r_toolbar_getwidth (HWND hwnd, INT ctrl_id);
-void _r_toolbar_setbutton (HWND hwnd, INT ctrl_id, UINT command_id, LPCWSTR text, INT style, INT state = 0, INT image = I_IMAGENONE);
-void _r_toolbar_setstyle (HWND hwnd, INT ctrl_id, DWORD exstyle);
+VOID _r_toolbar_setbutton (HWND hwnd, INT ctrl_id, UINT command_id, LPCWSTR text, INT style, INT state, INT image);
+VOID _r_toolbar_setstyle (HWND hwnd, INT ctrl_id, ULONG exstyle);
 
 /*
 	Control: progress bar
 */
 
-void _r_progress_setmarquee (HWND hwnd, INT ctrl_id, BOOL is_enable);
+VOID _r_progress_setmarquee (HWND hwnd, INT ctrl_id, BOOL is_enable);
 
+/*
+	Util
+*/
+
+FORCEINLINE VOID _r_util_templatewrite (BYTE **pPtr, LPCVOID pdata, SIZE_T size)
+{
+	RtlCopyMemory (*pPtr, pdata, size);
+	*pPtr += size;
+}
+
+FORCEINLINE VOID _r_util_templatewriteulong (BYTE **pPtr, ULONG data)
+{
+	_r_util_templatewrite (pPtr, &data, sizeof (data));
+}
+
+FORCEINLINE VOID _r_util_templatewriteshort (BYTE **pPtr, WORD data)
+{
+	_r_util_templatewrite (pPtr, &data, sizeof (data));
+}
+
+VOID _r_util_templatewritestring (BYTE **pPtr, LPCWSTR string);
+VOID _r_util_templatewritecontrol (BYTE **pPtr, ULONG ctrl_id, ULONG style, SHORT x, SHORT y, SHORT cx, SHORT cy, LPCWSTR class_name);
+PR_STRING _r_util_versionformat (PR_STRING string);
+BOOL CALLBACK _r_util_activate_window_callback (HWND hwnd, LPARAM lparam);
+VOID _r_util_clear_objects_strings_map1 (OBJECTS_STRINGS_MAP1* ptr_map);
+VOID _r_util_clear_objects_strings_map2 (OBJECTS_STRINGS_MAP2* ptr_map);
+VOID _r_util_clear_objects_strings_vector (OBJECTS_STRINGS_VEC* ptr_vec);
