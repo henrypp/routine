@@ -3,55 +3,63 @@
 
 #pragma once
 
-#include <windows.h>
-
 // Warning message macro
+
 #define STRINGIZE_HELPER(x) #x
 #define STRINGIZE(x) STRINGIZE_HELPER(x)
-#define _R_WARNING(desc) message(__FILE__ "(" STRINGIZE(__LINE__) ") : warning: resource id is not defined " #desc)
+#define R_PRINT_WARNING(desc) message("[WARNING!] Compile-time warning: " #desc  " (" STRINGIZE(__FILE__) ":" STRINGIZE(__LINE__) ")")
 
 //#define _APP_BETA // app has pre-release status
 
+//#define _APP_NO_DEPRECATIONS // disable deprecated windows version support (support only win7+)
 //#define _APP_NO_GUEST // disable "guest" mode, running without admin rights; see _APP_HAVE_SKIPUAC
-//#define _APP_NO_WINXP // disable winxp support
 //#define _APP_NO_MUTEX // disable mutex
-//#define _APP_NO_DARKTHEME // disable dark theme feature (win10rs5+)
 
 //#define _APP_HAVE_SETTINGS // enable settings dialog feature
 //#define _APP_HAVE_UPDATES // enable update checking feature
 
 //#define _APP_HAVE_AUTORUN // enable autorun feature
+//#define _APP_HAVE_DARKTHEME // enable dark theme feature (win10rs5+)
+//#define _APP_HAVE_MINSIZE // change minimum size of main window
+//#define _APP_HAVE_NATIVETHREAD // create threads via "RtlCreateUserThread" instead of crt library "_beginthreadex"
 //#define _APP_HAVE_SKIPUAC // enable skip uac feature
 //#define _APP_HAVE_TRAY // enable tray icon feature
-//#define _APP_HAVE_MINSIZE // change minimum size of main window
-//#define _APP_HAVE_DARKTHEME_SUBCLASS // enable dark theme own draw (win10rs5+)
-
-//#define _APP_HAVE_CRTTHREAD // use _begiunthreadex threads from crt instead of ntapi
 
 //#define _APP_STARTMINIMIZED // start with no window
 
 // set defaults
 #ifndef _APP_CLASSICUI
-#define _APP_CLASSICUI false
+#define _APP_CLASSICUI FALSE
 #endif // _APP_CLASSICUI
 
 #ifndef _APP_ALWAYSONTOP
-#define _APP_ALWAYSONTOP false
+#define _APP_ALWAYSONTOP FALSE
 #endif // _APP_ALWAYSONTOP
 
 // printf specifiers
+#define PR_LONG "ld"
+#define PR_LONG64 "lld"
+
+#define PR_ULONG "lu"
+#define PR_ULONG64 "llu"
+
 #if defined(_WIN64)
-#if defined(_WINDOWS_)
-#define PR_SIZE_T "Iu"
-#define PR_PTRDIFF "Id"
-#else
-#define PR_SIZE_T "zu"
-#define PR_PTRDIFF "zd"
-#endif
+
+#define PR_LONG_PTR PR_LONG64
+#define PR_ULONG_PTR PR_ULONG64
+
+#define PR_PTRDIFF PR_LONG64
+
 #elif defined(_WIN32)
-#define PR_SIZE_T "u"
-#define PR_PTRDIFF "d"
+
+#define PR_LONG_PTR PR_LONG
+#define PR_ULONG_PTR PR_ULONG
+
+#define PR_PTRDIFF PRIi32
+
 #endif
+
+#define PR_SIZE_T PR_ULONG_PTR
 
 // Callback message codes
 #define RM_INITIALIZE (WM_APP + 1)
@@ -68,14 +76,11 @@
 #define WM_TRAYICON (WM_APP + 11)
 
 // Invalid types definitions
-#define INVALID_INT (INT(-1))
-#define INVALID_UINT (UINT(-1))
-#define INVALID_SIZE_T (size_t(-1))
+#define INVALID_INT ((INT)-1)
+#define INVALID_UINT ((UINT)-1)
+#define INVALID_SIZE_T ((SIZE_T)-1)
 
 // Project configuration
-#define _R_BUFFER_LENGTH 8192
-#define _R_BUFFER_NET_LENGTH (_R_BUFFER_LENGTH * 4)
-
 #define _R_SIZE_TREEINDENT 12
 #define _R_SIZE_ITEMHEIGHT 20
 #define _R_SIZE_FOOTERHEIGHT 48
@@ -84,13 +89,13 @@
 #define _APP_AUTHOR L"Henry++"
 #define _APP_GITHUB_URL L"https://github.com/henrypp"
 #define _APP_WEBSITE_URL L"https://www.henrypp.org"
-#define _APP_DONATE_URL _APP_WEBSITE_URL L"/donate?from=%s"
+#define _APP_DONATE_NEWURL _APP_WEBSITE_URL L"/donate?from=" APP_NAME_SHORT
+#define _APP_LANGUAGE_DEFAULT L"English (default)"
+#define _APP_SKIPUAC_NAME APP_NAME_SHORT L"Task"
+#define _APP_SKIPUAC_NAME_OLD APP_NAME_SHORT L"SkipUAC"
 
 #if defined(_DEBUG) || defined(_APP_BETA)
-#	define _APP_UPDATE_PERIOD _R_SECONDSCLOCK_HOUR (12) // update checking period for pre-release is 12 hours
+#	define _APP_UPDATE_PERIOD _r_calc_days2seconds (time_t, 12) // update checking period for pre-release is 12 hours
 #else
-#	define _APP_UPDATE_PERIOD _R_SECONDSCLOCK_HOUR (48) // update checking period for stable release is 48 hours
+#	define _APP_UPDATE_PERIOD _r_calc_days2seconds (time_t, 48) // update checking period for stable release is 48 hours
 #endif // _APP_BETA || _APP_BETA_RC
-
-#define _APP_LANGUAGE_DEFAULT L"English (default)"
-#define _APP_TASKSCHD_NAME L"%sSkipUAC"
