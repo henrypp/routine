@@ -2836,6 +2836,10 @@ INT_PTR CALLBACK _r_settings_wndproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 					{
 						time_t current_timestamp = _r_unixtime_now ();
 
+						_r_fs_makebackup (_r_config_getpath (), current_timestamp, TRUE);
+
+						_r_config_initialize ();
+
 #ifdef _APP_HAVE_AUTORUN
 						_r_autorun_enable (NULL, FALSE);
 #endif // _APP_HAVE_AUTORUN
@@ -2843,10 +2847,6 @@ INT_PTR CALLBACK _r_settings_wndproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 #ifdef _APP_HAVE_SKIPUAC
 						_r_skipuac_enable (NULL, FALSE);
 #endif // _APP_HAVE_SKIPUAC
-
-						_r_fs_makebackup (_r_config_getpath (), current_timestamp, TRUE);
-
-						_r_config_initialize ();
 
 						// reinitialize application
 						HWND hmain = _r_app_gethwnd ();
