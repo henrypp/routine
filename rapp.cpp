@@ -12,17 +12,6 @@ BOOLEAN _r_app_initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LP
 	// safe dll loading
 	SetDllDirectory (L"");
 
-	// win7+
-#if defined(_APP_NO_DEPRECATIONS)
-
-	SetSearchPathMode (BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
-
-	// Check for SetDefaultDllDirectories since it requires KB2533623.
-	SetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
-
-#else
-
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_7))
 	{
 		HMODULE hkernel32 = LoadLibraryEx (L"kernel32.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
@@ -40,15 +29,10 @@ BOOLEAN _r_app_initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LP
 
 			if (_SetDefaultDllDirectories)
 				_SetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+
+			FreeLibrary (hkernel32);
 		}
-
-		FreeLibrary (hkernel32);
 	}
-
-#endif // _APP_NO_DEPRECATIONS
-
-	// set hinstance
-	app_hinstance = GetModuleHandle (NULL);
 
 	// set general information
 	app_name = _r_obj_createstring (name);
@@ -61,9 +45,8 @@ BOOLEAN _r_app_initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LP
 	app_version = _r_format_string (L"%s Release", version);
 #endif // _DEBUG || _APP_BETA
 
-	// set app path
-	app_binary = _r_path_getmodulepath (NULL);
-	app_directory = _r_path_getbasedirectory (_r_app_getbinarypath ());
+	// set app directory
+	app_directory = _r_path_getbasedirectory (_r_sys_getimagepathname ());
 
 	// get app locale information
 #if !defined(_APP_CONSOLE)
@@ -86,11 +69,11 @@ BOOLEAN _r_app_initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LP
 #if defined(_APP_NO_MUTEX)
 	app_mutex_name = _r_format_string (L"%s_%" TEXT (PR_SIZE_T) L"_%" TEXT (PR_SIZE_T),
 									   _r_app_getnameshort (),
-									   _r_str_hash (_r_app_getbinarypath ()),
-									   _r_str_hash (GetCommandLine ())
+									   _r_str_hash (_r_sys_getimagepathname ()),
+									   _r_str_hash (_r_sys_getimagecommandline ())
 	);
 #else
-	app_mutex_name = _r_obj_reference (app_name_short);
+	app_mutex_name = _r_obj_createstring2 (app_name_short);
 #endif // _APP_NO_MUTEX
 
 	if (_r_mutex_isexists (app_mutex_name))
@@ -166,7 +149,7 @@ BOOLEAN _r_app_initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LP
 	// parse command line
 	{
 		INT numargs;
-		LPWSTR *arga = CommandLineToArgvW (GetCommandLine (), &numargs);
+		LPWSTR *arga = CommandLineToArgvW (_r_sys_getimagecommandline (), &numargs);
 
 		if (arga)
 		{
@@ -229,11 +212,12 @@ BOOLEAN _r_app_initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LP
 
 		if (!_r_fs_exists (_r_config_getpath ()) && !_r_fs_exists (portableFile->Buffer))
 		{
-			_r_obj_movereference (&app_profile_directory, _r_path_getknownfolder (CSIDL_APPDATA, L"\\" _APP_AUTHOR L"\\"));
-			_r_string_append (&app_profile_directory, _r_app_getname ());
+			PR_STRING appdataFolder = _r_path_getknownfolder (CSIDL_APPDATA, L"\\" _APP_AUTHOR);
 
-			_r_obj_movereference (&app_config_path, _r_obj_createstring2 (app_profile_directory));
-			_r_string_appendformat (&app_config_path, L"\\%s.ini", _r_app_getnameshort ());
+			_r_obj_movereference (&app_profile_directory, _r_format_string (L"%s\\%s", appdataFolder->Buffer, _r_app_getname ()));
+			_r_obj_movereference (&app_config_path, _r_format_string (L"%s\\%s.ini", _r_app_getprofiledirectory (), _r_app_getnameshort ()));
+
+			_r_obj_dereference (appdataFolder);
 		}
 		else
 		{
@@ -382,8 +366,8 @@ BOOLEAN _r_app_createwindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 	// set window icon
 	if (icon_id)
 	{
-		SendMessage (app_hwnd, WM_SETICON, ICON_SMALL, (LPARAM)_r_app_getsharedimage (_r_app_gethinstance (), icon_id, _r_dc_getsystemmetrics (app_hwnd, SM_CXSMICON)));
-		SendMessage (app_hwnd, WM_SETICON, ICON_BIG, (LPARAM)_r_app_getsharedimage (_r_app_gethinstance (), icon_id, _r_dc_getsystemmetrics (app_hwnd, SM_CXICON)));
+		SendMessage (app_hwnd, WM_SETICON, ICON_SMALL, (LPARAM)_r_app_getsharedimage (_r_sys_getimagebase (), icon_id, _r_dc_getsystemmetrics (app_hwnd, SM_CXSMICON)));
+		SendMessage (app_hwnd, WM_SETICON, ICON_BIG, (LPARAM)_r_app_getsharedimage (_r_sys_getimagebase (), icon_id, _r_dc_getsystemmetrics (app_hwnd, SM_CXICON)));
 	}
 
 	// set window visibility (or not?)
@@ -405,7 +389,7 @@ BOOLEAN _r_app_createwindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 		is_windowhidden = TRUE;
 #else
 		// if window have tray - check arguments
-		if (wcsstr (GetCommandLine (), L"/minimized") || _r_config_getboolean (L"IsStartMinimized", FALSE))
+		if (wcsstr (_r_sys_getimagecommandline (), L"/minimized") || _r_config_getboolean (L"IsStartMinimized", FALSE))
 			is_windowhidden = TRUE;
 #endif // _APP_STARTMINIMIZED
 #endif // _APP_HAVE_TRAY
@@ -673,12 +657,6 @@ BOOLEAN _r_app_runasadmin ()
 
 	SHELLEXECUTEINFO shex = {0};
 
-	WCHAR path[256];
-	_r_str_copy (path, RTL_NUMBER_OF (path), _r_app_getbinarypath ());
-
-	WCHAR commandLine[256];
-	_r_str_copy (commandLine, RTL_NUMBER_OF (commandLine), GetCommandLine ());
-
 	WCHAR directory[256];
 	GetCurrentDirectory (RTL_NUMBER_OF (directory), directory);
 
@@ -686,8 +664,8 @@ BOOLEAN _r_app_runasadmin ()
 	shex.fMask = SEE_MASK_UNICODE | SEE_MASK_NOZONECHECKS | SEE_MASK_FLAG_NO_UI | SEE_MASK_NOASYNC;
 	shex.lpVerb = L"runas";
 	shex.nShow = SW_SHOW;
-	shex.lpFile = path;
-	shex.lpParameters = commandLine;
+	shex.lpFile = _r_sys_getimagepathname ();
+	shex.lpParameters = _r_sys_getimagecommandline ();
 	shex.lpDirectory = directory;
 
 	if (ShellExecuteEx (&shex))
@@ -715,18 +693,12 @@ VOID _r_app_restart (HWND hwnd)
 	if (!hwnd || _r_show_message (hwnd, MB_YESNO | MB_ICONQUESTION, NULL, NULL, str_content) != IDYES)
 		return;
 
-	WCHAR path[256];
-	_r_str_copy (path, RTL_NUMBER_OF (path), _r_app_getbinarypath ());
-
-	WCHAR commandLine[256];
-	_r_str_copy (commandLine, RTL_NUMBER_OF (commandLine), GetCommandLine ());
-
 	WCHAR directory[256];
 	GetCurrentDirectory (RTL_NUMBER_OF (directory), directory);
 
 	BOOLEAN is_mutexdestroyed = _r_mutex_destroy (&app_mutex);
 
-	if (!_r_sys_createprocessex (path, commandLine, directory, SW_SHOW, 0))
+	if (!_r_sys_createprocessex (_r_sys_getimagepathname (), _r_sys_getimagecommandline (), directory, SW_SHOW, 0))
 	{
 		if (is_mutexdestroyed)
 			_r_mutex_create (app_mutex_name, &app_mutex); // restore mutex on error
@@ -829,9 +801,9 @@ VOID _r_config_getfont (LPCWSTR key, HWND hwnd, PLOGFONT pfont, LPCWSTR name)
 		PR_STRING heightPart;
 		PR_STRING weightPart;
 
-		namePart = _r_str_splitatchar (&remainingPart, &remainingPart, L';', TRUE);
-		heightPart = _r_str_splitatchar (&remainingPart, &remainingPart, L';', TRUE);
-		weightPart = _r_str_splitatchar (&remainingPart, &remainingPart, L';', TRUE);
+		namePart = _r_str_splitatchar (&remainingPart, &remainingPart, L';');
+		heightPart = _r_str_splitatchar (&remainingPart, &remainingPart, L';');
+		weightPart = _r_str_splitatchar (&remainingPart, &remainingPart, L';');
 
 		if (namePart)
 		{
@@ -890,10 +862,12 @@ LPCWSTR _r_config_getstring (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 	OBJECTS_STRINGS_MAP1* valuesMap;
 	PR_STRING sectionString;
 	PR_STRING keyString;
-	PR_STRING string;
-	LPCWSTR result = NULL;
+	PR_STRING valueString;
+	LPCWSTR result;
 
-	sectionString = _r_str_isempty (name) ? _r_obj_reference (app_name_short) : _r_format_string (L"%s\\%s", _r_app_getnameshort (), name);
+	result = NULL;
+	sectionString = name ? _r_format_string (L"%s\\%s", _r_app_getnameshort (), name) : _r_obj_createstring2 (app_name_short);
+	keyString = _r_obj_createstring (key);
 
 	// create section if not exist
 	if (app_config_array.find (sectionString) == app_config_array.end ())
@@ -902,18 +876,27 @@ LPCWSTR _r_config_getstring (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 	}
 
 	valuesMap = &app_config_array.at (sectionString);
-	keyString = _r_obj_createstring (key);
 
 	// create new value key if not exist
 	if (valuesMap->find (keyString) == valuesMap->end ())
 	{
-		valuesMap->emplace (_r_obj_reference (keyString), _r_str_isempty (def) ? _r_obj_referenceemptystring () : _r_obj_createstring (def));
+		valuesMap->insert_or_assign (_r_obj_reference (keyString), (PR_STRING)NULL);
 	}
 
-	string = valuesMap->at (keyString);
+	valueString = valuesMap->at (keyString);
 
-	if (!_r_str_isempty (string))
-		result = string->Buffer;
+	if (!valueString)
+	{
+		if (def)
+		{
+			valueString = _r_obj_createstring (def);
+
+			valuesMap->insert_or_assign (keyString, valueString);
+		}
+	}
+
+	if (!_r_str_isempty (valueString))
+		result = valueString->Buffer;
 
 	_r_obj_dereference (sectionString);
 	_r_obj_dereference (keyString);
@@ -999,32 +982,31 @@ VOID _r_config_setstring (LPCWSTR key, LPCWSTR val, LPCWSTR name)
 	PR_STRING keyString;
 	PR_STRING valueString;
 
-	sectionString = _r_str_isempty (name) ? _r_obj_reference (app_name_short) : _r_format_string (L"%s\\%s", _r_app_getnameshort (), name);
+	sectionString = name ? _r_format_string (L"%s\\%s", _r_app_getnameshort (), name) : _r_obj_createstring2 (app_name_short);
 	keyString = _r_obj_createstring (key);
-	valueString = _r_str_isempty (val) ? _r_obj_referenceemptystring () : _r_obj_createstring (val);
+	valueString = _r_obj_createstring (val);
 
-	if (app_config_array.find (sectionString) != app_config_array.end ())
-	{
-		valuesMap = &app_config_array.at (sectionString);
-
-		if (valuesMap->find (keyString) == valuesMap->end ())
-			valuesMap->emplace (_r_obj_reference (keyString), _r_obj_referenceemptystring ());
-	}
-	else
+	if (app_config_array.find (sectionString) == app_config_array.end ())
 	{
 		app_config_array.emplace (_r_obj_reference (sectionString), NULL);
-
-		valuesMap = &app_config_array.at (sectionString);
-		valuesMap->emplace (_r_obj_reference (keyString), _r_obj_referenceemptystring ());
 	}
 
-	// update hash value
-	_r_obj_movereference (&valuesMap->at (keyString), valueString);
+	valuesMap = &app_config_array.at (sectionString);
 
-	WritePrivateProfileString (sectionString->Buffer, key, val, _r_config_getpath ());
+	// update current hash value
+	if (valuesMap->find (keyString) == valuesMap->end ())
+	{
+		valuesMap->insert_or_assign (_r_obj_reference (keyString), (PR_STRING)NULL);
+	}
+
+	_r_obj_movereference (&valuesMap->at (keyString), _r_obj_reference (valueString));
+
+	// write to configuration file
+	WritePrivateProfileString (sectionString->Buffer, keyString->Buffer, valueString->Buffer, _r_config_getpath ());
 
 	_r_obj_dereference (sectionString);
 	_r_obj_dereference (keyString);
+	_r_obj_dereference (valueString);
 }
 
 /*
@@ -1038,13 +1020,13 @@ VOID _r_locale_initialize ()
 
 	if (_r_str_isempty (languageConfig))
 	{
-		_r_obj_movereference (&app_locale_current, _r_obj_reference (app_locale_default));
+		_r_obj_movereference (&app_locale_current, _r_obj_createstring2 (app_locale_default));
 	}
 	else
 	{
 		if (_r_str_compare (languageConfig, _APP_LANGUAGE_DEFAULT) == 0)
 		{
-			_r_obj_movereference (&app_locale_current, _r_obj_reference (app_locale_resource));
+			_r_obj_movereference (&app_locale_current, _r_obj_createstring2 (app_locale_resource));
 		}
 		else
 		{
@@ -1124,7 +1106,7 @@ VOID _r_locale_applyfrommenu (HMENU hmenu, UINT selected_id)
 	{
 		if (_r_str_compare (name, _APP_LANGUAGE_DEFAULT) == 0)
 		{
-			_r_obj_movereference (&app_locale_current, _r_obj_reference (app_locale_resource));
+			_r_obj_movereference (&app_locale_current, _r_obj_createstring2 (app_locale_resource));
 		}
 		else
 		{
@@ -1234,14 +1216,15 @@ VOID _r_locale_enum (HWND hwnd, INT ctrl_id, UINT menu_id)
 LPCWSTR _r_locale_getstring (UINT uid)
 {
 	OBJECTS_STRINGS_MAP1* valuesMap;
-	PR_STRING localeKey;
-	PR_STRING string;
+	PR_STRING keyString;
+	PR_STRING valueString;
 	LPCWSTR result;
 	LPCWSTR buffer;
 	INT length;
 
 	result = NULL;
-	localeKey = _r_format_string (L"%03" TEXT (PRIu32), uid);
+	keyString = _r_format_string (L"%03" TEXT (PRIu32), uid);
+	valueString = NULL;
 
 	if (!_r_str_isempty (app_locale_current))
 	{
@@ -1249,12 +1232,12 @@ LPCWSTR _r_locale_getstring (UINT uid)
 		{
 			valuesMap = &app_locale_array.at (app_locale_current);
 
-			if (valuesMap->find (localeKey) != valuesMap->end ())
+			if (valuesMap->find (keyString) != valuesMap->end ())
 			{
-				string = valuesMap->at (localeKey);
+				valueString = valuesMap->at (keyString);
 
-				if (string)
-					result = string->Buffer;
+				if (!_r_str_isempty (valueString))
+					result = valueString->Buffer;
 			}
 		}
 	}
@@ -1262,33 +1245,33 @@ LPCWSTR _r_locale_getstring (UINT uid)
 	if (_r_str_isempty (result) && !_r_str_isempty (app_locale_resource))
 	{
 		if (app_locale_array.find (app_locale_resource) == app_locale_array.end ())
+		{
 			app_locale_array.emplace (_r_obj_reference (app_locale_resource), NULL);
+		}
 
 		valuesMap = &app_locale_array.at (app_locale_resource);
 
-		if (valuesMap->find (localeKey) == valuesMap->end ())
+		if (valuesMap->find (keyString) == valuesMap->end ())
 		{
-			length = LoadString (_r_app_gethinstance (), uid, (LPWSTR)&buffer, 0);
+			length = LoadString (_r_sys_getimagebase (), uid, (LPWSTR)&buffer, 0);
 
 			if (length)
 			{
-				string = _r_obj_createstringex (buffer, length * sizeof (WCHAR));
+				valueString = _r_obj_createstringex (buffer, length * sizeof (WCHAR));
 
-				valuesMap->emplace (_r_obj_reference (localeKey), string);
-
-				result = string->Buffer;
+				valuesMap->insert_or_assign (_r_obj_reference (keyString), valueString);
 			}
 		}
 		else
 		{
-			string = valuesMap->at (localeKey);
-
-			if (string)
-				result = string->Buffer;
+			valueString = valuesMap->at (keyString);
 		}
+
+		if (!_r_str_isempty (valueString))
+			result = valueString->Buffer;
 	}
 
-	_r_obj_dereference (localeKey);
+	_r_obj_dereference (keyString);
 
 	return result;
 }
@@ -1378,7 +1361,7 @@ BOOLEAN _r_autorun_enable (HWND hwnd, BOOLEAN is_enable)
 	{
 		if (is_enable)
 		{
-			string = _r_format_string (L"\"%s\" /minimized", _r_app_getbinarypath ());
+			string = _r_format_string (L"\"%s\" /minimized", _r_sys_getimagepathname ());
 			status = RegSetValueEx (hkey, _r_app_getname (), 0, REG_SZ, (LPBYTE)string->Buffer, (ULONG)(string->Length + sizeof (UNICODE_NULL)));
 
 			_r_obj_dereference (string);
@@ -1548,7 +1531,7 @@ THREAD_FN _r_update_checkthread (PVOID lparam)
 						if (_r_str_isempty (componentValues))
 							continue;
 
-						split_pos = _r_str_findchar (componentValues->Buffer, _r_obj_getstringlength (componentValues), L'|', TRUE);
+						split_pos = _r_str_findchar (componentValues->Buffer, _r_obj_getstringlength (componentValues), L'|');
 
 						if (split_pos == INVALID_SIZE_T)
 							continue;
@@ -1556,7 +1539,7 @@ THREAD_FN _r_update_checkthread (PVOID lparam)
 						newVersionString = _r_str_extract (componentValues, 0, split_pos);
 						newUrlString = _r_str_extract (componentValues, split_pos + 1, INVALID_SIZE_T);
 
-						if (!_r_str_isempty (newVersionString) && !_r_str_isempty (newUrlString) && (_r_str_isnumeric (_r_obj_getstring (newVersionString)) ? (_r_str_tolong64 (_r_obj_getstring (pcomponent->version)) < _r_str_tolong64 (_r_obj_getstring (newVersionString))) : (_r_str_versioncompare (_r_obj_getstring (pcomponent->version), _r_obj_getstring (newVersionString)) == -1)))
+						if (!_r_str_isempty (newVersionString) && !_r_str_isempty (newUrlString) && (_r_str_isnumeric (newVersionString->Buffer) ? (_r_str_tolong64 (_r_obj_getstring (pcomponent->version)) < _r_str_tolong64 (newVersionString->Buffer)) : (_r_str_versioncompare (_r_obj_getstring (pcomponent->version), newVersionString->Buffer) == -1)))
 						{
 							is_updateavailable = TRUE;
 							pcomponent->is_haveupdate = TRUE;
@@ -1571,7 +1554,7 @@ THREAD_FN _r_update_checkthread (PVOID lparam)
 
 							if (versionString)
 							{
-								_r_str_appendformat (updates_text, RTL_NUMBER_OF (updates_text), L"%s %s\r\n", _r_obj_getstring (pcomponent->full_name), _r_obj_getstring (versionString));
+								_r_str_appendformat (updates_text, RTL_NUMBER_OF (updates_text), L"%s %s\r\n", _r_obj_getstring (pcomponent->full_name), versionString->Buffer);
 								_r_obj_dereference (versionString);
 							}
 
@@ -1924,7 +1907,7 @@ INT _r_update_pagenavigate (HWND htaskdlg, LPCWSTR main_icon, TASKDIALOG_FLAGS f
 	tdc.cbSize = sizeof (tdc);
 	tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | flags;
 	tdc.hwndParent = _r_app_gethwnd ();
-	tdc.hInstance = _r_app_gethinstance ();
+	tdc.hInstance = _r_sys_getimagebase ();
 	tdc.dwCommonButtons = buttons;
 	tdc.pfCallback = &_r_update_pagecallback;
 	tdc.lpCallbackData = lpdata;
@@ -1973,7 +1956,7 @@ VOID _r_update_install ()
 									_r_update_getpath (),
 									_r_app_getdirectory (),
 									_r_update_getpath (),
-									_r_app_getbinarypath ()
+									_r_sys_getimagepathname ()
 	);
 
 	if (!_r_sys_createprocessex (_r_obj_getstring (commandLinePath), commandLine->Buffer, NULL, SW_HIDE, 0))
@@ -2032,7 +2015,7 @@ VOID _r_logerror (UINT tray_id, LPCWSTR fn, ULONG code, LPCWSTR description)
 	{
 		if ((current_time - _r_config_getlong64 (L"ErrorNotificationsTimestamp", 0)) >= _r_config_getlong64 (L"ErrorNotificationsPeriod", 4)) // check for timeout (sec.)
 		{
-			_r_tray_popup (_r_app_gethwnd (), tray_id, NIIF_WARNING, _r_app_getname (), L"Something went wrong. Open debug log file in profile directory.");
+			_r_tray_popup (_r_app_gethwnd (), tray_id, NIIF_WARNING | (_r_config_getboolean (L"IsNotificationsSound", TRUE) ? 0 : NIIF_NOSOUND), _r_app_getname (), L"Something went wrong. Open debug log file in profile directory.");
 
 			_r_config_setlong64 (L"ErrorNotificationsTimestamp", current_time);
 		}
@@ -2101,7 +2084,7 @@ VOID _r_show_aboutmessage (HWND hwnd)
 		tdc.cbSize = sizeof (tdc);
 		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
 		tdc.hwndParent = hwnd;
-		tdc.hInstance = _r_app_gethinstance ();
+		tdc.hInstance = _r_sys_getimagebase ();
 		tdc.pszFooterIcon = TD_INFORMATION_ICON;
 		tdc.nDefaultButton = IDCLOSE;
 		tdc.pszWindowTitle = str_title;
@@ -2156,7 +2139,7 @@ VOID _r_show_aboutmessage (HWND hwnd)
 		mbp.cbSize = sizeof (mbp);
 		mbp.dwStyle = MB_OK | MB_TOPMOST | MB_USERICON;
 		mbp.hwndOwner = hwnd;
-		mbp.hInstance = _r_app_gethinstance ();
+		mbp.hInstance = _r_sys_getimagebase ();
 		mbp.lpszCaption = str_title;
 		mbp.lpszText = str_content;
 
@@ -2207,7 +2190,7 @@ VOID _r_show_errormessage (HWND hwnd, LPCWSTR main, ULONG errcode, LPCWSTR descr
 		tdc.cbSize = sizeof (tdc);
 		tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_NO_SET_FOREGROUND | TDF_SIZE_TO_CONTENT;
 		tdc.hwndParent = hwnd;
-		tdc.hInstance = _r_app_gethinstance ();
+		tdc.hInstance = _r_sys_getimagebase ();
 		tdc.pszWindowTitle = _r_app_getname ();
 		tdc.pszMainInstruction = str_main;
 		tdc.pszContent = str_content;
@@ -2282,7 +2265,7 @@ BOOLEAN _r_show_confirmmessage (HWND hwnd, LPCWSTR main, LPCWSTR text, LPCWSTR c
 		tdc.cbSize = sizeof (tdc);
 		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
 		tdc.hwndParent = hwnd;
-		tdc.hInstance = _r_app_gethinstance ();
+		tdc.hInstance = _r_sys_getimagebase ();
 		tdc.pszMainIcon = TD_WARNING_ICON;
 		tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
 		tdc.pszWindowTitle = _r_app_getname ();
@@ -2361,7 +2344,7 @@ INT _r_show_message (HWND hwnd, ULONG flags, LPCWSTR title, LPCWSTR main, LPCWST
 		tdc.cbSize = sizeof (tdc);
 		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
 		tdc.hwndParent = hwnd;
-		tdc.hInstance = _r_app_gethinstance ();
+		tdc.hInstance = _r_sys_getimagebase ();
 		tdc.pfCallback = &_r_msg_callback;
 		tdc.pszWindowTitle = title ? title : _r_app_getname ();
 		tdc.pszMainInstruction = main;
@@ -2542,7 +2525,7 @@ VOID _r_settings_createwindow (HWND hwnd, DLGPROC dlg_proc, INT dlg_id)
 			if (!param_id)
 				continue;
 
-			pdlg = (LPDLGTEMPLATEEX)_r_loadresource (_r_app_gethinstance (), MAKEINTRESOURCE (param_id), RT_DIALOG, NULL);
+			pdlg = (LPDLGTEMPLATEEX)_r_loadresource (_r_sys_getimagebase (), MAKEINTRESOURCE (param_id), RT_DIALOG, NULL);
 
 			if (pdlg)
 			{
@@ -2609,8 +2592,8 @@ INT_PTR CALLBACK _r_settings_wndproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 #endif // _APP_HAVE_DARKTHEME
 
 #ifdef IDI_MAIN
-			SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)_r_app_getsharedimage (_r_app_gethinstance (), IDI_MAIN, _r_dc_getsystemmetrics (hwnd, SM_CXSMICON)));
-			SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)_r_app_getsharedimage (_r_app_gethinstance (), IDI_MAIN, _r_dc_getsystemmetrics (hwnd, SM_CXICON)));
+			SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)_r_app_getsharedimage (_r_sys_getimagebase (), IDI_MAIN, _r_dc_getsystemmetrics (hwnd, SM_CXSMICON)));
+			SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)_r_app_getsharedimage (_r_sys_getimagebase (), IDI_MAIN, _r_dc_getsystemmetrics (hwnd, SM_CXICON)));
 #else
 #pragma R_PRINT_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
@@ -2632,7 +2615,7 @@ INT_PTR CALLBACK _r_settings_wndproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 
 				if (ptr_page->dlg_id)
 				{
-					ptr_page->hwnd = CreateDialog (_r_app_gethinstance (), MAKEINTRESOURCE (ptr_page->dlg_id), hwnd, app_settings_proc);
+					ptr_page->hwnd = CreateDialog (NULL, MAKEINTRESOURCE (ptr_page->dlg_id), hwnd, app_settings_proc);
 
 					if (ptr_page->hwnd)
 						SendMessage (ptr_page->hwnd, RM_INITIALIZE, (WPARAM)ptr_page->dlg_id, 0);
@@ -2898,7 +2881,7 @@ BOOLEAN _r_skipuac_isenabled ()
 #endif // _APP_NO_DEPRECATIONS
 
 	// old task compatibility
-	if (_r_config_getboolean (L"SkipUacIsEnabled", TRUE))
+	if (_r_config_getboolean (L"SkipUacIsEnabled", FALSE))
 	{
 		_r_config_setboolean (L"IsAdminTaskEnabled", TRUE);
 		return TRUE;
@@ -2958,7 +2941,7 @@ HRESULT _r_skipuac_enable (HWND hwnd, BOOLEAN is_enable)
 		goto CleanupExit;
 
 	// remove old task
-	if (_r_config_getboolean (L"SkipUacIsEnabled", TRUE))
+	if (_r_config_getboolean (L"SkipUacIsEnabled", FALSE))
 	{
 		name_old = SysAllocString (_APP_SKIPUAC_NAME_OLD);
 
@@ -3052,7 +3035,7 @@ HRESULT _r_skipuac_enable (HWND hwnd, BOOLEAN is_enable)
 		if (FAILED (status))
 			goto CleanupExit;
 
-		path = SysAllocString (_r_app_getbinarypath ());
+		path = SysAllocString (_r_sys_getimagepathname ());
 		directory = SysAllocString (_r_app_getdirectory ());
 		args = SysAllocString (L"$(Arg0)");
 
@@ -3223,7 +3206,7 @@ BOOLEAN _r_skipuac_run ()
 			{
 				PathUnquoteSpaces (path);
 
-				if (_r_str_compare (path, _r_app_getbinarypath ()) != 0)
+				if (_r_str_compare (path, _r_sys_getimagepathname ()) != 0)
 				{
 					status = E_ABORT;
 
@@ -3234,7 +3217,7 @@ BOOLEAN _r_skipuac_run ()
 	}
 
 	// set correct arguments for running task
-	arga = CommandLineToArgvW (GetCommandLine (), &numargs);
+	arga = CommandLineToArgvW (_r_sys_getimagecommandline (), &numargs);
 
 	if (arga)
 	{

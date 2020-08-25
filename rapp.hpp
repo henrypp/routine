@@ -63,13 +63,10 @@ typedef struct _APP_SHARED_IMAGE
 // Global variables
 inline OBJECTS_STRINGS_MAP2 app_config_array;
 
-inline HINSTANCE app_hinstance = NULL;
-
 inline PR_STRING app_name = NULL;
 inline PR_STRING app_name_short = NULL;
 inline PR_STRING app_copyright = NULL;
 inline PR_STRING app_version = NULL;
-inline PR_STRING app_binary = NULL;
 inline PR_STRING app_directory = NULL;
 inline PR_STRING app_profile_directory = NULL;
 inline PR_STRING app_config_path = NULL;
@@ -290,11 +287,6 @@ FORCEINLINE LPCWSTR _r_app_getcopyright ()
 	return _r_obj_getstring (app_copyright);
 }
 
-FORCEINLINE LPCWSTR _r_app_getbinarypath ()
-{
-	return _r_obj_getstring (app_binary);
-}
-
 FORCEINLINE LPCWSTR _r_app_getdirectory ()
 {
 	return _r_obj_getstring (app_directory);
@@ -315,11 +307,6 @@ FORCEINLINE HWND _r_app_gethwnd ()
 {
 	return app_hwnd;
 }
-
-FORCEINLINE HINSTANCE _r_app_gethinstance ()
-{
-	return app_hinstance;
-}
 #endif // !_APP_CONSOLE
 
 FORCEINLINE LPCWSTR _r_app_getuseragent ()
@@ -333,5 +320,3 @@ FORCEINLINE BOOLEAN _r_app_isclassicui ()
 	return _r_config_getboolean (L"ClassicUI", _APP_CLASSICUI) || !IsAppThemed ();
 }
 #endif // !_APP_CONSOLE
-
-PR_STRING _r_app_getproxyconfiguration ();

@@ -140,8 +140,6 @@ typedef struct _R_BYTE
 		};
 	};
 
-	SIZE_T AllocatedLength;
-
 	// Data
 	CHAR Data[1];
 } R_BYTE, *PR_BYTE;
@@ -159,10 +157,16 @@ typedef struct _R_STRING
 		};
 	};
 
-	SIZE_T AllocatedLength;
-
 	WCHAR Data[1];
 } R_STRING, *PR_STRING;
+
+typedef struct _R_STRINGBUILDER
+{
+	SIZE_T AllocatedLength;
+	PR_STRING String;
+} R_STRINGBUILDER, *PR_STRINGBUILDER;
+
+
 
 extern FORCEINLINE BOOLEAN _r_str_isempty (PUNICODE_STRING string);
 
@@ -172,7 +176,7 @@ extern FORCEINLINE SIZE_T _r_str_hash (PR_STRING string);
 extern SIZE_T _r_str_hash (LPCWSTR string);
 
 extern INT _r_str_compare (LPCWSTR string1, LPCWSTR string2);
-extern INT _r_str_compareex (LPCWSTR string1, LPCWSTR string2, ULONG flags, SIZE_T length);
+extern INT _r_str_compare_length (LPCWSTR string1, LPCWSTR string2, SIZE_T length);
 
 struct OBJECTS_STRINGS_HASH
 {
@@ -347,10 +351,7 @@ typedef struct _R_FASTLOCK
 
 FORCEINLINE ULONG _r_fastlock_getspincount ()
 {
-	SYSTEM_INFO si = {0};
-	GetNativeSystemInfo (&si);
-
-	return (si.dwNumberOfProcessors > 1) ? 4000 : 0;
+	return (NtCurrentPeb ()->NumberOfProcessors > 1) ? 4000 : 0;
 }
 
 FORCEINLINE VOID _r_fastlock_ensureeventcreated (PHANDLE phandle)
@@ -441,15 +442,6 @@ FORCEINLINE PVOID _r_mem_reallocatezero (PVOID heapMemory, SIZE_T bytes_count)
 	Objects reference
 */
 
-//PVOID _r_obj2_allocateex (PVOID pdata, _R_CALLBACK_OBJECT_CLEANUP CleanupCallback);
-//PVOID _r_obj2_reference (PVOID pdata);
-//VOID _r_obj2_dereferenceex (PVOID pdata, LONG ref_count);
-//
-//FORCEINLINE VOID _r_obj2_dereference (PVOID pdata)
-//{
-//	_r_obj2_dereferenceex (pdata, 1);
-//}
-
 PVOID _r_obj_allocateex (SIZE_T size, _R_CALLBACK_OBJECT_CLEANUP CleanupCallback);
 PVOID _r_obj_reference (PVOID pdata);
 VOID _r_obj_dereferenceex (PVOID pdata, LONG ref_count);
@@ -492,6 +484,21 @@ FORCEINLINE VOID _r_obj_movereference (PR_STRING *ObjectReference, PVOID NewObje
 }
 
 FORCEINLINE VOID _r_obj_clearreference (PR_STRING *ObjectReference)
+{
+	_r_obj_movereference (ObjectReference, NULL);
+}
+
+FORCEINLINE PR_BYTE _r_obj_reference (PR_BYTE pdata)
+{
+	return (PR_BYTE)_r_obj_reference ((PVOID)pdata);
+}
+
+FORCEINLINE VOID _r_obj_movereference (PR_BYTE *ObjectReference, PVOID NewObject)
+{
+	_r_obj_movereference ((PVOID*)ObjectReference, NewObject);
+}
+
+FORCEINLINE VOID _r_obj_clearreference (PR_BYTE *ObjectReference)
 {
 	_r_obj_movereference (ObjectReference, NULL);
 }
@@ -591,27 +598,27 @@ DWORD _r_path_ntpathfromdos (LPCWSTR dosPath, PR_STRING* ntPath);
 
 PR_BYTE _r_obj_createbyteex (LPSTR buffer, SIZE_T length);
 PR_STRING _r_obj_createstringex (LPCWSTR buffer, SIZE_T length);
-PR_STRING _r_obj_referenceemptystring ();
 
-VOID _r_string_appendex (PR_STRING* string, LPCWSTR text, SIZE_T length);
-VOID _r_string_appendformat_v (PR_STRING* string, LPCWSTR format, va_list argPtr);
-VOID _r_string_insertex (PR_STRING* string, SIZE_T index, LPCWSTR text, SIZE_T length);
-VOID _r_string_insertformat_v (PR_STRING* string, SIZE_T index, LPCWSTR format, va_list argPtr);
+VOID _r_string_appendex (PR_STRINGBUILDER string, LPCWSTR text, SIZE_T length);
+VOID _r_string_appendformat_v (PR_STRINGBUILDER string, LPCWSTR format, va_list argPtr);
+VOID _r_string_insertex (PR_STRINGBUILDER string, SIZE_T index, LPCWSTR text, SIZE_T length);
+VOID _r_string_insertformat_v (PR_STRINGBUILDER string, SIZE_T index, LPCWSTR format, va_list argPtr);
+VOID _r_string_resizestring (PR_STRINGBUILDER string, SIZE_T newCapacity);
+
 VOID _r_string_remove (PR_STRING string, SIZE_T start_pos, SIZE_T length);
-VOID _r_string_resizestring (PR_STRING* string, SIZE_T NewCapacity);
 VOID _r_string_setsize (PR_STRING string, SIZE_T length);
 
-FORCEINLINE VOID _r_string_append (PR_STRING* string, LPCWSTR text)
+FORCEINLINE VOID _r_string_append (PR_STRINGBUILDER string, LPCWSTR text)
 {
 	_r_string_appendex (string, text, _r_str_length (text) * sizeof (WCHAR));
 }
 
-FORCEINLINE VOID _r_string_append2 (PR_STRING* string, PR_STRING text)
+FORCEINLINE VOID _r_string_append2 (PR_STRINGBUILDER string, PR_STRING text)
 {
 	_r_string_appendex (string, text->Buffer, text->Length);
 }
 
-FORCEINLINE VOID _r_string_appendformat (PR_STRING* string, LPCWSTR format, ...)
+FORCEINLINE VOID _r_string_appendformat (PR_STRINGBUILDER string, LPCWSTR format, ...)
 {
 	va_list argPtr;
 
@@ -620,17 +627,17 @@ FORCEINLINE VOID _r_string_appendformat (PR_STRING* string, LPCWSTR format, ...)
 	va_end (argPtr);
 }
 
-FORCEINLINE VOID _r_string_insert (PR_STRING* string, SIZE_T index, LPCWSTR text)
+FORCEINLINE VOID _r_string_insert (PR_STRINGBUILDER string, SIZE_T index, LPCWSTR text)
 {
 	_r_string_insertex (string, index, text, _r_str_length (text) * sizeof (WCHAR));
 }
 
-FORCEINLINE VOID _r_string_insert2 (PR_STRING* string, SIZE_T index, PR_STRING text)
+FORCEINLINE VOID _r_string_insert2 (PR_STRINGBUILDER string, SIZE_T index, PR_STRING text)
 {
 	_r_string_insertex (string, index, text->Buffer, text->Length);
 }
 
-FORCEINLINE VOID _r_string_insertformat (PR_STRING* string, SIZE_T index, LPCWSTR format, ...)
+FORCEINLINE VOID _r_string_insertformat (PR_STRINGBUILDER string, SIZE_T index, LPCWSTR format, ...)
 {
 	va_list argPtr;
 
@@ -639,12 +646,12 @@ FORCEINLINE VOID _r_string_insertformat (PR_STRING* string, SIZE_T index, LPCWST
 	va_end (argPtr);
 }
 
-FORCEINLINE PR_STRING _r_string_fromunicodestring (PUNICODE_STRING UnicodeString)
+FORCEINLINE PR_STRING _r_string_fromunicodestring (PUNICODE_STRING unicodeString)
 {
-	if (_r_str_isempty (UnicodeString))
-		return _r_obj_referenceemptystring ();
+	if (_r_str_isempty (unicodeString))
+		return NULL;
 
-	return _r_obj_createstringex (UnicodeString->Buffer, UnicodeString->Length);
+	return _r_obj_createstringex (unicodeString->Buffer, unicodeString->Length);
 }
 
 FORCEINLINE BOOLEAN _r_string_tounicodestring (PR_STRING string, PUNICODE_STRING unicodeString)
@@ -672,16 +679,25 @@ FORCEINLINE VOID _r_string_trimtonullterminator (PR_STRING string)
 	_r_string_writenullterminator (string); // terminate
 }
 
-FORCEINLINE PR_STRING _r_obj_createstringbuilder (SIZE_T length)
+FORCEINLINE VOID _r_obj_createstringbuilder (PR_STRINGBUILDER string)
 {
-	if (length & 0x01)
-		length += 1;
+	string->AllocatedLength = 0x200;
 
-	PR_STRING string = _r_obj_createstringex (NULL, length);
+	string->String = _r_obj_createstringex (NULL, string->AllocatedLength);
 
-	string->Length = 0;
+	string->String->Length = 0;
+	string->String->Buffer[0] = UNICODE_NULL;
+}
 
-	return string;
+FORCEINLINE PR_STRING _r_obj_finalstringbuilder (PR_STRINGBUILDER string)
+{
+	return string->String;
+}
+
+FORCEINLINE VOID _r_obj_deletestringbuilder (PR_STRINGBUILDER string)
+{
+	if (string->String)
+		_r_obj_clearreference (&string->String);
 }
 
 FORCEINLINE PR_STRING _r_obj_createstring (LPCWSTR string)
@@ -733,21 +749,26 @@ FORCEINLINE SIZE_T _r_obj_getstringsize (PR_STRING string)
 {
 	if (string)
 		return string->Length;
-	else
-		return 0;
+
+	return 0;
 }
 
 FORCEINLINE SIZE_T _r_obj_getstringlength (PR_STRING string)
 {
 	if (string)
 		return string->Length / sizeof (WCHAR);
-	else
-		return 0;
+
+	return 0;
 }
 
 /*
 	Strings
 */
+
+FORCEINLINE BOOLEAN _r_str_isempty (LPCSTR string)
+{
+	return !string || (*string == ANSI_NULL);
+}
 
 FORCEINLINE BOOLEAN _r_str_isempty (LPCWSTR string)
 {
@@ -762,6 +783,11 @@ FORCEINLINE BOOLEAN _r_str_isempty (PR_BYTE string)
 FORCEINLINE BOOLEAN _r_str_isempty (PR_STRING string)
 {
 	return !string || !string->Length || !string->Buffer || (*string->Buffer == UNICODE_NULL);
+}
+
+FORCEINLINE BOOLEAN _r_str_isempty (PR_STRINGBUILDER string)
+{
+	return !string->String || !string->String->Length || (*string->String->Buffer == UNICODE_NULL);
 }
 
 FORCEINLINE BOOLEAN _r_str_isempty (PUNICODE_STRING string)
@@ -785,24 +811,12 @@ FORCEINLINE SIZE_T _r_str_hash (PR_STRING string)
 	return _r_str_hash (_r_obj_getstring (string));
 }
 
-#define _R_FLAG_COMPARE_LOGICAL 0x01
-#define _R_FLAG_COMPARE_SENSITIVE 0x02
-
-INT _r_str_compareex (LPCWSTR string1, LPCWSTR string2, ULONG flags, SIZE_T length);
-
-FORCEINLINE INT _r_str_compare (LPCWSTR string1, LPCWSTR string2)
-{
-	return _r_str_compareex (string1, string2, 0, INVALID_SIZE_T);
-}
-
-FORCEINLINE INT _r_str_compare_length (LPCWSTR string1, LPCWSTR string2, SIZE_T length)
-{
-	return _r_str_compareex (string1, string2, 0, length);
-}
+INT _r_str_compare (LPCWSTR string1, LPCWSTR string2);
+INT _r_str_compare_length (LPCWSTR string1, LPCWSTR string2, SIZE_T length);
 
 FORCEINLINE INT _r_str_compare_logical (LPCWSTR string1, LPCWSTR string2)
 {
-	return _r_str_compareex (string1, string2, _R_FLAG_COMPARE_LOGICAL, INVALID_SIZE_T);
+	return StrCmpLogicalW (string1, string2);
 }
 
 PR_STRING _r_str_expandenvironmentstring (PR_STRING string);
@@ -837,14 +851,15 @@ FORCEINLINE ULONG _r_str_toulong (LPCWSTR string)
 	return _r_str_toulongex (string, 10);
 }
 
-SIZE_T _r_str_findchar (LPCWSTR string, SIZE_T length, WCHAR character, BOOLEAN is_ignorecase);
-SIZE_T _r_str_findlastchar (LPCWSTR string, SIZE_T length, WCHAR character, BOOLEAN is_ignorecase);
+SIZE_T _r_str_findchar (LPCWSTR string, SIZE_T length, WCHAR character);
+SIZE_T _r_str_findlastchar (LPCWSTR string, SIZE_T length, WCHAR character);
 
 VOID _r_str_replacechar (LPWSTR string, WCHAR char_from, WCHAR char_to);
 
 BOOLEAN _r_str_match (LPCWSTR string, LPCWSTR pattern, BOOLEAN is_ignorecase);
 VOID _r_str_trim (LPWSTR string, LPCWSTR trim);
 VOID _r_str_trim (PR_STRING string, LPCWSTR trim);
+VOID _r_str_trim (PR_STRINGBUILDER string, LPCWSTR trim);
 
 FORCEINLINE WCHAR _r_str_lower (WCHAR chr)
 {
@@ -876,8 +891,8 @@ PR_STRING _r_str_extract (PR_STRING string, SIZE_T start_pos, SIZE_T extract_len
 PR_STRING _r_str_multibyte2unicode (LPCSTR string);
 PR_BYTE _r_str_unicode2multibyte (LPCWSTR string);
 
-PR_STRING _r_str_splitatchar (PR_STRINGREF Input, PR_STRINGREF SecondPart, WCHAR separator, BOOLEAN is_ignorecase);
-PR_STRING _r_str_splitatlastchar (PR_STRINGREF Input, PR_STRINGREF SecondPart, WCHAR separator, BOOLEAN is_ignorecase);
+PR_STRING _r_str_splitatchar (PR_STRINGREF string, PR_STRINGREF token, WCHAR separator);
+PR_STRING _r_str_splitatlastchar (PR_STRINGREF string, PR_STRINGREF token, WCHAR separator);
 
 VOID _r_str_unserialize (PR_STRING string, WCHAR key_delimeter, WCHAR value_delimeter, OBJECTS_STRINGS_MAP1* valuesMap);
 
@@ -894,11 +909,17 @@ FORCEINLINE VOID _r_stringref_initialize (PR_STRINGREF string, LPWSTR buffer)
 	_r_stringref_initializeex (string, buffer, _r_str_length (buffer) * sizeof (WCHAR));
 }
 
+FORCEINLINE VOID _r_stringref_initialize2 (PR_STRINGREF string, PR_STRING buffer)
+{
+	_r_stringref_initializeex (string, buffer->Buffer, buffer->Length);
+}
+
 /*
 	System information
 */
 
 #define WINDOWS_XP 51
+#define WINDOWS_XP_64 52
 #define WINDOWS_VISTA 60
 #define WINDOWS_7 61
 #define WINDOWS_8 62
@@ -956,6 +977,26 @@ FORCEINLINE ULONG _r_sys_endthread (ULONG exit_code)
 FORCEINLINE ULONG _r_sys_resumethread (HANDLE hthread)
 {
 	return NtResumeThread (hthread, NULL);
+}
+
+FORCEINLINE HINSTANCE _r_sys_getimagebase ()
+{
+	return (HINSTANCE)NtCurrentPeb ()->ImageBaseAddress;
+}
+
+FORCEINLINE LPCWSTR _r_sys_getimagepathname ()
+{
+	return NtCurrentPeb ()->ProcessParameters->ImagePathName.Buffer;
+}
+
+FORCEINLINE LPCWSTR _r_sys_getimagecommandline ()
+{
+	return NtCurrentPeb ()->ProcessParameters->CommandLine.Buffer;
+}
+
+FORCEINLINE HANDLE _r_sys_getimageconsolehandle ()
+{
+	return NtCurrentPeb ()->ProcessParameters->StandardOutput;
 }
 
 PR_STRING _r_sys_getsessioninfo (WTS_INFO_CLASS info);
@@ -1108,7 +1149,7 @@ FORCEINLINE VOID _r_inet_close (HINTERNET handle)
 	Registry
 */
 
-PBYTE _r_reg_querybinary (HKEY hkey, LPCWSTR value);
+PR_BYTE _r_reg_querybinary (HKEY hkey, LPCWSTR value);
 ULONG _r_reg_queryulong (HKEY hkey, LPCWSTR value);
 ULONG64 _r_reg_queryulong64 (HKEY hkey, LPCWSTR value);
 PR_STRING _r_reg_querystring (HKEY hkey, LPCWSTR value);
@@ -1176,8 +1217,9 @@ FORCEINLINE VOID _r_ctrl_enable (HWND hwnd, INT ctrl_id, BOOLEAN is_enable)
 */
 
 VOID _r_menu_checkitem (HMENU hmenu, UINT item_id_start, UINT item_id_end, UINT position_flag, UINT check_id);
-VOID _r_menu_setitembitmap (HMENU hmenu, UINT item_id, HBITMAP hbitmap, BOOL is_byposition);
-VOID _r_menu_setitemtext (HMENU hmenu, UINT item_id, LPCWSTR text, BOOL is_byposition);
+VOID _r_menu_setitembitmap (HMENU hmenu, UINT item_id, BOOL is_byposition, HBITMAP hbitmap);
+VOID _r_menu_setitemtext (HMENU hmenu, UINT item_id, BOOL is_byposition, LPCWSTR text);
+VOID _r_menu_setitemtextformat (HMENU hmenu, UINT item_id, BOOL is_byposition, LPCWSTR format, ...);
 INT _r_menu_popup (HMENU hmenu, HWND hwnd, LPPOINT lpmouse, BOOLEAN is_sendmessage);
 
 FORCEINLINE VOID _r_menu_enableitem (HMENU hmenu, UINT item_id, UINT position_flag, BOOLEAN is_enable)

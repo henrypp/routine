@@ -9,7 +9,7 @@
 
 VOID _r_dbg_print (LPCWSTR string)
 {
-	if (_r_str_isempty (string))
+	if (!string)
 		return;
 
 	OutputDebugString (string);
@@ -17,11 +17,11 @@ VOID _r_dbg_print (LPCWSTR string)
 
 VOID _r_dbg_print_v (LPCWSTR format, ...)
 {
-	if (_r_str_isempty (format))
-		return;
-
 	va_list argPtr;
 	PR_STRING string;
+
+	if (!format)
+		return;
 
 	va_start (argPtr, format);
 	string = _r_format_string_v (format, argPtr);
@@ -40,6 +40,9 @@ PR_STRING _r_format_string (LPCWSTR format, ...)
 {
 	va_list argPtr;
 	PR_STRING string;
+
+	if (!format)
+		return NULL;
 
 	va_start (argPtr, format);
 	string = _r_format_string_v (format, argPtr);
@@ -61,7 +64,7 @@ PR_STRING _r_format_string_v (LPCWSTR format, va_list argPtr)
 	string = _r_obj_createstringex (NULL, length * sizeof (WCHAR));
 
 #pragma warning(push)
-#pragma warning(disable: 4996) // _CRT_SECURE_NO_WARNINGS
+#pragma warning(disable: _UCRT_DISABLED_WARNINGS)
 	_vsnwprintf (string->Buffer, length, format, argPtr);
 #pragma warning(pop)
 
@@ -134,8 +137,8 @@ VOID _r_format_number (LPWSTR buffer, UINT bufferSize, LONG64 number, UINT fract
 
 	static BOOLEAN is_initialized = FALSE;
 
-	static WCHAR thousandSeparator[4] = {0};
-	static WCHAR decimalSeparator[4] = {0};
+	static WCHAR thousandSeparator[4];
+	static WCHAR decimalSeparator[4];
 
 	NUMBERFMT numberFormat;
 	WCHAR numberString[128];
@@ -478,12 +481,10 @@ PR_BYTE _r_obj_createbyteex (LPSTR buffer, SIZE_T length)
 {
 	PR_BYTE string = (PR_BYTE)_r_obj_allocate (UFIELD_OFFSET (R_BYTE, Data) + length + sizeof (ANSI_NULL));
 
-	string->AllocatedLength = length;
 	string->Length = length;
-
 	string->Buffer = string->Data;
 
-	if (buffer)
+	if (!_r_str_isempty (buffer))
 	{
 		RtlCopyMemory (string->Buffer, buffer, length);
 		*(PCHAR)PTR_ADD_OFFSET (string->Buffer, string->Length) = ANSI_NULL; // terminate
@@ -502,12 +503,10 @@ PR_STRING _r_obj_createstringex (LPCWSTR buffer, SIZE_T length)
 
 	PR_STRING string = (PR_STRING)_r_obj_allocate (UFIELD_OFFSET (R_STRING, Data) + length + sizeof (UNICODE_NULL));
 
-	string->AllocatedLength = length;
 	string->Length = length;
-
 	string->Buffer = string->Data;
 
-	if (buffer)
+	if (!_r_str_isempty (buffer))
 	{
 		RtlCopyMemory (string->Buffer, buffer, length);
 		_r_string_writenullterminator (string);
@@ -520,44 +519,124 @@ PR_STRING _r_obj_createstringex (LPCWSTR buffer, SIZE_T length)
 	return string;
 }
 
-PR_STRING _r_obj_referenceemptystring ()
+VOID _r_string_appendex (PR_STRINGBUILDER string, LPCWSTR text, SIZE_T length)
 {
-	PR_STRING string;
-	PR_STRING newString;
-
-	static PR_STRING SharedEmptyString = NULL;
-
-	string = (PR_STRING)InterlockedCompareExchangePointer ((PVOID*)&SharedEmptyString, NULL, NULL);
-
-	if (!string)
-	{
-		newString = _r_obj_createstringex (NULL, 0);
-
-		string = (PR_STRING)InterlockedCompareExchangePointer ((PVOID*)&SharedEmptyString, newString, NULL);
-
-		if (!string)
-		{
-			string = newString; // success
-		}
-		else
-		{
-			_r_obj_dereference (newString);
-		}
-	}
-
-	return _r_obj_reference (string);
-}
-
-VOID _r_string_setsize (PR_STRING string, SIZE_T length)
-{
-	assert (!(length & 0x01));
-
-	if (string->AllocatedLength <= length)
+	if (length == 0)
 		return;
 
-	string->Length = length;
+	if (string->AllocatedLength < string->String->Length + length)
+		_r_string_resizestring (string, string->String->Length + length);
 
-	_r_string_writenullterminator (string);
+	if (!_r_str_isempty (text))
+	{
+		RtlCopyMemory (PTR_ADD_OFFSET (string->String->Buffer, string->String->Length), text, length);
+	}
+
+	string->String->Length += length;
+
+	_r_string_writenullterminator (string->String);
+}
+
+VOID _r_string_appendformat_v (PR_STRINGBUILDER string, LPCWSTR format, va_list argPtr)
+{
+	SIZE_T lengthInBytes;
+	INT length;
+
+	if (!format)
+		return;
+
+	length = _vscwprintf (format, argPtr);
+
+	if (length == 0 || length == -1)
+		return;
+
+	lengthInBytes = length * sizeof (WCHAR);
+
+	if (string->AllocatedLength < string->String->Length + lengthInBytes)
+		_r_string_resizestring (string, string->String->Length + lengthInBytes);
+
+#pragma warning(push)
+#pragma warning(disable: _UCRT_DISABLED_WARNINGS)
+	_vsnwprintf ((LPWSTR)PTR_ADD_OFFSET (string->String->Buffer, string->String->Length), length, format, argPtr);
+#pragma warning(pop)
+
+	string->String->Length += lengthInBytes;
+
+	_r_string_writenullterminator (string->String);
+}
+
+VOID _r_string_insertex (PR_STRINGBUILDER string, SIZE_T index, LPCWSTR text, SIZE_T length)
+{
+	if (length == 0)
+		return;
+
+	if (string->AllocatedLength < string->String->Length + length)
+		_r_string_resizestring (string, string->String->Length + length);
+
+	if ((index * sizeof (WCHAR)) < string->String->Length)
+		RtlMoveMemory (&string->String->Buffer[index + (length / sizeof (WCHAR))], &string->String->Buffer[index], string->String->Length - (index * sizeof (WCHAR)));
+
+	if (!_r_str_isempty (text))
+	{
+		RtlCopyMemory (&string->String->Buffer[index], text, length);
+	}
+
+	string->String->Length += length;
+
+	_r_string_writenullterminator (string->String);
+}
+
+VOID _r_string_insertformat_v (PR_STRINGBUILDER string, SIZE_T index, LPCWSTR format, va_list argPtr)
+{
+	SIZE_T lengthInBytes;
+	INT length;
+
+	if (!format)
+		return;
+
+	length = _vscwprintf (format, argPtr);
+
+	if (length == 0 || length == -1)
+		return;
+
+	lengthInBytes = length * sizeof (WCHAR);
+
+	if (string->AllocatedLength < string->String->Length + lengthInBytes)
+		_r_string_resizestring (string, string->String->Length + lengthInBytes);
+
+	if ((index * sizeof (WCHAR)) < string->String->Length)
+		RtlMoveMemory (&string->String->Buffer[index + length], &string->String->Buffer[index], string->String->Length - (index * sizeof (WCHAR)));
+
+#pragma warning(push)
+#pragma warning(disable: _UCRT_DISABLED_WARNINGS)
+	_vsnwprintf (&string->String->Buffer[index], length, format, argPtr);
+#pragma warning(pop)
+
+	string->String->Length += lengthInBytes;
+
+	_r_string_writenullterminator (string->String);
+}
+
+VOID _r_string_resizestring (PR_STRINGBUILDER string, SIZE_T newCapacity)
+{
+	PR_STRING newString;
+	SIZE_T newSize;
+
+	newSize = string->AllocatedLength * 2;
+
+	if (newCapacity & 0x01)
+		newCapacity += 1;
+
+	if (newSize < newCapacity)
+		newSize = newCapacity;
+
+	newString = _r_obj_createstringex (NULL, newSize);
+
+	RtlCopyMemory (newString->Buffer, string->String->Buffer, string->String->Length + sizeof (UNICODE_NULL));
+
+	newString->Length = string->String->Length;
+
+	_r_obj_movereference (&string->String, newString);
 }
 
 VOID _r_string_remove (PR_STRING string, SIZE_T start_pos, SIZE_T length)
@@ -568,133 +647,17 @@ VOID _r_string_remove (PR_STRING string, SIZE_T start_pos, SIZE_T length)
 	_r_string_writenullterminator (string);
 }
 
-VOID _r_string_appendex (PR_STRING* string, LPCWSTR text, SIZE_T length)
+VOID _r_string_setsize (PR_STRING string, SIZE_T length)
 {
-	PR_STRING currentString;
-
-	if (length == 0)
+	if (string->Length <= length)
 		return;
 
-	currentString = *string;
+	if (length & 0x01)
+		length += 1;
 
-	if (currentString->AllocatedLength < currentString->Length + length)
-		_r_string_resizestring (&currentString, currentString->Length + length);
+	string->Length = length;
 
-	if (text)
-		RtlCopyMemory (PTR_ADD_OFFSET (currentString->Buffer, currentString->Length), text, length);
-
-	currentString->Length += length;
-	_r_string_writenullterminator (currentString);
-
-	*string = currentString;
-}
-
-VOID _r_string_appendformat_v (PR_STRING* string, LPCWSTR format, va_list argPtr)
-{
-	PR_STRING currentString;
-	SIZE_T lengthInBytes;
-	INT length;
-
-	length = _vscwprintf (format, argPtr);
-
-	if (length == 0 || length == -1)
-		return;
-
-	currentString = *string;
-	lengthInBytes = length * sizeof (WCHAR);
-
-	if (currentString->AllocatedLength < currentString->Length + lengthInBytes)
-		_r_string_resizestring (&currentString, currentString->Length + lengthInBytes);
-
-	LPWSTR Memory = (LPWSTR)PTR_ADD_OFFSET (currentString->Buffer, currentString->Length);
-
-#pragma warning(push)
-#pragma warning(disable: 4996) // _CRT_SECURE_NO_WARNINGS
-	_vsnwprintf (Memory, length, format, argPtr);
-#pragma warning(pop)
-
-	currentString->Length += lengthInBytes;
-	_r_string_writenullterminator (currentString);
-
-	*string = currentString;
-}
-
-VOID _r_string_insertex (PR_STRING* string, SIZE_T index, LPCWSTR text, SIZE_T length)
-{
-	PR_STRING currentString;
-
-	if (length == 0)
-		return;
-
-	currentString = *string;
-
-	if (currentString->AllocatedLength < currentString->Length + length)
-		_r_string_resizestring (&currentString, currentString->Length + length);
-
-	if ((index * sizeof (WCHAR)) < currentString->Length)
-		RtlMoveMemory (&currentString->Buffer[index + (length / sizeof (WCHAR))], &currentString->Buffer[index], currentString->Length - (index * sizeof (WCHAR)));
-
-	if (text)
-		RtlCopyMemory (&currentString->Buffer[index], text, length);
-
-	currentString->Length += length;
-	_r_string_writenullterminator (currentString);
-
-	*string = currentString;
-}
-
-VOID _r_string_insertformat_v (PR_STRING* string, SIZE_T index, LPCWSTR format, va_list argPtr)
-{
-	PR_STRING currentString;
-	SIZE_T lengthInBytes;
-	INT length;
-
-	length = _vscwprintf (format, argPtr);
-
-	if (length == 0 || length == -1)
-		return;
-
-	currentString = *string;
-	lengthInBytes = length * sizeof (WCHAR);
-
-	if (currentString->AllocatedLength < currentString->Length + lengthInBytes)
-		_r_string_resizestring (&currentString, currentString->Length + lengthInBytes);
-
-	if ((index * sizeof (WCHAR)) < currentString->Length)
-		RtlMoveMemory (&currentString->Buffer[index + length], &currentString->Buffer[index], currentString->Length - index * sizeof (WCHAR));
-
-	LPWSTR Memory = &currentString->Buffer[index];
-
-#pragma warning(push)
-#pragma warning(disable: 4996) // _CRT_SECURE_NO_WARNINGS
-	_vsnwprintf (Memory, length, format, argPtr);
-#pragma warning(pop)
-
-	currentString->Length += lengthInBytes;
-	_r_string_writenullterminator (currentString);
-
-	*string = currentString;
-}
-
-VOID _r_string_resizestring (PR_STRING* string, SIZE_T NewCapacity)
-{
-	PR_STRING newString;
-	PR_STRING currentString;
-
-	currentString = *string;
-
-	currentString->AllocatedLength *= 2;
-
-	if (currentString->AllocatedLength < NewCapacity)
-		currentString->AllocatedLength = NewCapacity;
-
-	newString = _r_obj_createstringbuilder (currentString->AllocatedLength);
-
-	RtlCopyMemory (newString->Buffer, currentString->Buffer, currentString->Length + sizeof (UNICODE_NULL)); // Include null terminator
-
-	newString->Length = currentString->Length;
-
-	_r_obj_movereference (string, newString);
+	_r_string_writenullterminator (string);
 }
 
 /*
@@ -781,13 +744,9 @@ PR_STRING _r_clipboard_get (HWND hwnd)
 		if (hmemory)
 		{
 			LPCWSTR clipboardText = (LPCWSTR)GlobalLock (hmemory);
-			SIZE_T clipboardLength = GlobalSize (hmemory);
 
-			if (clipboardText && clipboardLength)
-			{
-				string = _r_obj_createstringex (clipboardText, clipboardLength);
-				_r_string_trimtonullterminator (string);
-			}
+			if (clipboardText)
+				string = _r_obj_createstring (clipboardText);
 
 			GlobalUnlock (hmemory);
 		}
@@ -1005,9 +964,9 @@ PR_STRING _r_path_getbasedirectory (LPCWSTR path)
 
 	pathString = _r_obj_createstring (path);
 
-	_r_stringref_initializeex (&fullpathPart, pathString->Buffer, pathString->Length);
+	_r_stringref_initialize2 (&fullpathPart, pathString);
 
-	directoryString = _r_str_splitatlastchar (&fullpathPart, &pathPart, OBJ_NAME_PATH_SEPARATOR, TRUE);
+	directoryString = _r_str_splitatlastchar (&fullpathPart, &pathPart, OBJ_NAME_PATH_SEPARATOR);
 
 	if (directoryString)
 		_r_obj_movereference (&pathString, directoryString);
@@ -1039,7 +998,7 @@ PR_STRING _r_path_getfullpath (LPCWSTR path)
 	ULONG bufferSize;
 	ULONG returnLength;
 
-	bufferSize = 0xFF;
+	bufferSize = 0x100;
 	fullPath = _r_obj_createstringex (NULL, bufferSize * sizeof (WCHAR));
 
 	returnLength = RtlGetFullPathName_U (path, bufferSize, fullPath->Buffer, NULL);
@@ -1075,7 +1034,7 @@ PR_STRING _r_path_getknownfolder (ULONG Folder, LPCWSTR append)
 	else
 		appendPathLength = 0;
 
-	path = _r_obj_createstringex (NULL, MAX_PATH * sizeof (WCHAR) + appendPathLength);
+	path = _r_obj_createstringex (NULL, (0x100 * sizeof (WCHAR)) + appendPathLength);
 
 	if (SUCCEEDED (SHGetFolderPath (NULL, Folder, NULL, SHGFP_TYPE_CURRENT, path->Buffer)))
 	{
@@ -1083,7 +1042,7 @@ PR_STRING _r_path_getknownfolder (ULONG Folder, LPCWSTR append)
 
 		if (append)
 		{
-			RtlCopyMemory (&path->Buffer[path->Length / sizeof (WCHAR)], append, appendPathLength + sizeof (UNICODE_NULL)); // +2 for null terminator
+			RtlCopyMemory (&path->Buffer[path->Length / sizeof (WCHAR)], append, appendPathLength + sizeof (UNICODE_NULL));
 			path->Length += appendPathLength;
 		}
 
@@ -1091,24 +1050,25 @@ PR_STRING _r_path_getknownfolder (ULONG Folder, LPCWSTR append)
 	}
 
 	_r_obj_dereference (path);
-
 	return NULL;
 }
 
 PR_STRING _r_path_getmodulepath (HMODULE hmodule)
 {
-	PR_STRING string;
+	ULONG length;
+	PR_STRING path;
 
-	string = _r_obj_createstringex (NULL, MAX_PATH * sizeof (WCHAR));
+	length = 0x100;
+	path = _r_obj_createstringex (NULL, length * sizeof (WCHAR));
 
-	if (GetModuleFileName (hmodule, string->Buffer, MAX_PATH))
+	if (GetModuleFileName (hmodule, path->Buffer, length))
 	{
-		_r_string_trimtonullterminator (string);
+		_r_string_trimtonullterminator (path);
 
-		return string;
+		return path;
 	}
 
-	_r_obj_dereference (string);
+	_r_obj_dereference (path);
 
 	return NULL;
 }
@@ -1165,15 +1125,15 @@ PR_STRING _r_path_compact (LPCWSTR path, UINT length)
 
 	string = _r_obj_createstringex (NULL, length * sizeof (WCHAR));
 
-	if (!PathCompactPathEx (string->Buffer, path, length, 0))
+	if (PathCompactPathEx (string->Buffer, path, length, 0))
 	{
-		_r_obj_dereference (string);
-		return NULL;
+		_r_string_trimtonullterminator (string);
+
+		return string;
 	}
 
-	_r_string_trimtonullterminator (string);
-
-	return string;
+	_r_obj_dereference (string);
+	return NULL;
 }
 
 PR_STRING _r_path_expand (LPCWSTR path)
@@ -1185,7 +1145,6 @@ PR_STRING _r_path_expand (LPCWSTR path)
 	PR_STRING expandedString;
 
 	pathString = _r_obj_createstring (path);
-
 	expandedString = _r_str_expandenvironmentstring (pathString);
 
 	if (expandedString)
@@ -1200,23 +1159,29 @@ PR_STRING _r_path_unexpand (LPCWSTR path)
 		return NULL;
 
 	PR_STRING string;
-
 	SIZE_T length;
 
 	length = _r_str_length (path);
 
-	if (_r_str_findchar (path, length, OBJ_NAME_PATH_SEPARATOR, TRUE) == INVALID_SIZE_T)
-		return _r_obj_createstringex (path, length * sizeof (WCHAR));
-
-	string = _r_obj_createstringex (NULL, 1024 * sizeof (WCHAR));
-
-	if (PathUnExpandEnvStrings (path, string->Buffer, 1024))
+	if (_r_str_findchar (path, length, OBJ_NAME_PATH_SEPARATOR) == INVALID_SIZE_T)
 	{
-		_r_string_trimtonullterminator (string);
-		return string;
+		string = _r_obj_createstringex (path, length * sizeof (WCHAR));
+	}
+	else
+	{
+		string = _r_obj_createstringex (NULL, 0x200 * sizeof (WCHAR));
+
+		if (PathUnExpandEnvStrings (path, string->Buffer, 0x200))
+		{
+			_r_string_trimtonullterminator (string);
+		}
+		else
+		{
+			_r_obj_movereference (&string, _r_obj_createstringex (path, length * sizeof (WCHAR)));
+		}
 	}
 
-	return _r_obj_createstringex (path, length * sizeof (WCHAR));
+	return string;
 }
 
 PR_STRING _r_path_makeunique (LPCWSTR path)
@@ -1224,7 +1189,7 @@ PR_STRING _r_path_makeunique (LPCWSTR path)
 	if (_r_str_isempty (path) || !_r_fs_exists (path))
 		return NULL;
 
-	if (_r_str_findchar (path, _r_str_length (path), OBJ_NAME_PATH_SEPARATOR, TRUE) == INVALID_SIZE_T)
+	if (_r_str_findchar (path, _r_str_length (path), OBJ_NAME_PATH_SEPARATOR) == INVALID_SIZE_T)
 		return NULL;
 
 	PR_STRING result = NULL;
@@ -1380,11 +1345,11 @@ PR_STRING _r_path_dospathfromnt (LPCWSTR path)
 				PR_STRING providerPart;
 				R_STRINGREF remainingPart;
 
-				_r_stringref_initializeex (&remainingPart, providerOrder->Buffer, providerOrder->Length);
+				_r_stringref_initialize2 (&remainingPart, providerOrder);
 
 				while (remainingPart.Length != 0)
 				{
-					providerPart = _r_str_splitatchar (&remainingPart, &remainingPart, L',', TRUE);
+					providerPart = _r_str_splitatchar (&remainingPart, &remainingPart, L',');
 
 					if (providerPart)
 					{
@@ -1471,10 +1436,16 @@ DWORD _r_path_ntpathfromdos (LPCWSTR dosPath, PR_STRING* ntPath)
 
 		if (NT_SUCCESS (status))
 		{
-			*ntPath = _r_string_fromunicodestring (&pbuffer->Name);
-			_r_str_tolower ((*ntPath)->Buffer); // lower is important!
+			PR_STRING string = _r_string_fromunicodestring (&pbuffer->Name);
 
-			status = ERROR_SUCCESS;
+			if (string)
+			{
+				_r_str_tolower (string->Buffer); // lower is important!
+
+				*ntPath = string;
+
+				status = ERROR_SUCCESS;
+			}
 		}
 
 		_r_mem_free (pbuffer);
@@ -1520,17 +1491,15 @@ VOID _r_str_append (LPWSTR buffer, SIZE_T length, LPCWSTR text)
 
 VOID _r_str_appendformat (LPWSTR buffer, SIZE_T length, LPCWSTR format, ...)
 {
-	if (!buffer || !length)
-		return;
-
-	if (_r_str_isempty (format) || (length > _R_STR_MAX_LENGTH))
+	if (!buffer || !length || _r_str_isempty (format) || (length > _R_STR_MAX_LENGTH))
 		return;
 
 	va_list argPtr;
 	SIZE_T dest_length;
 
-	va_start (argPtr, format);
 	dest_length = _r_str_length (buffer);
+
+	va_start (argPtr, format);
 	_r_str_printf_v (buffer + dest_length, length - dest_length, format, argPtr);
 	va_end (argPtr);
 }
@@ -1563,7 +1532,7 @@ SIZE_T _r_str_length (LPCWSTR text)
 	if (_r_str_isempty (text))
 		return 0;
 
-	if (IsProcessorFeaturePresent (PF_XMMI64_INSTRUCTIONS_AVAILABLE)) // check sse2 feature
+	if (USER_SHARED_DATA->ProcessorFeatures[PF_XMMI64_INSTRUCTIONS_AVAILABLE]) // check sse2 feature
 	{
 		LPWSTR p = (LPWSTR)((ULONG_PTR)text & ~0xE); // string should be 2 byte aligned
 		ULONG unaligned = PtrToUlong (text) & 0xF;
@@ -1636,7 +1605,7 @@ VOID _r_str_printf_v (LPWSTR buffer, SIZE_T length, LPCWSTR format, va_list argP
 	SIZE_T max_length = length - 1; // leave the last space for the null terminator
 
 #pragma warning(push)
-#pragma warning(disable: 4996) // _CRT_SECURE_NO_WARNINGS
+#pragma warning(disable: _UCRT_DISABLED_WARNINGS)
 	INT bufferSize = _vsnwprintf (buffer, max_length, format, argPtr);
 #pragma warning(pop)
 
@@ -1661,56 +1630,32 @@ SIZE_T _r_str_hash (LPCWSTR string)
 	return hash;
 }
 
-INT _r_str_compareex (LPCWSTR string1, LPCWSTR string2, ULONG flags, SIZE_T length)
+INT _r_str_compare (LPCWSTR string1, LPCWSTR string2)
 {
-	BOOLEAN is_empty1 = _r_str_isempty (string1);
-	BOOLEAN is_empty2 = _r_str_isempty (string2);
-
-	if (is_empty1 && is_empty2)
+	if (!string1 && !string2)
 		return 0;
 
-	if (!is_empty1 && is_empty2)
-		return 1;
-
-	if (is_empty1 && !is_empty2)
+	if (!string1)
 		return -1;
 
-	if (string1 == string2)
-		return 0;
-
-	WCHAR chr1;
-	WCHAR chr2;
-
-	if ((flags & _R_FLAG_COMPARE_SENSITIVE) != 0)
-	{
-		chr1 = *string1;
-		chr2 = *string2;
-	}
-	else
-	{
-		chr1 = _r_str_upper (*string1);
-		chr2 = _r_str_upper (*string2);
-	}
-
-	if (chr1 != chr2)
-		return chr1 > chr2 ? 1 : -1;
-
-	if ((flags & _R_FLAG_COMPARE_LOGICAL) != 0)
-	{
-		return StrCmpLogicalW (string1, string2);
-	}
-	else if ((flags & _R_FLAG_COMPARE_SENSITIVE) != 0)
-	{
-		if (length != INVALID_SIZE_T)
-			return wcsncmp (string1, string2, length); // by length
-
-		return wcscmp (string1, string2);
-	}
-
-	if (length != INVALID_SIZE_T)
-		return _wcsnicmp (string1, string2, length); // by length
+	if (!string2)
+		return 1;
 
 	return _wcsicmp (string1, string2);
+}
+
+INT _r_str_compare_length (LPCWSTR string1, LPCWSTR string2, SIZE_T length)
+{
+	if (!string1 && !string2)
+		return 0;
+
+	if (!string1)
+		return -1;
+
+	if (!string2)
+		return 1;
+
+	return _wcsnicmp (string1, string2, length);
 }
 
 PR_STRING _r_str_expandenvironmentstring (PR_STRING string)
@@ -1735,8 +1680,7 @@ PR_STRING _r_str_expandenvironmentstring (PR_STRING string)
 
 	if (status == STATUS_BUFFER_TOO_SMALL)
 	{
-		_r_obj_dereference (bufferString);
-		bufferString = _r_obj_createstringex (NULL, bufferLength);
+		_r_obj_movereference (&bufferString, _r_obj_createstringex (NULL, bufferLength));
 
 		outputString.MaximumLength = (USHORT)bufferLength;
 		outputString.Length = 0;
@@ -1866,7 +1810,7 @@ ULONG64 _r_str_toulong64 (LPCWSTR string)
 	return wcstoull (string, NULL, 10);
 }
 
-SIZE_T _r_str_findchar (LPCWSTR string, SIZE_T length, WCHAR character, BOOLEAN is_ignorecase)
+SIZE_T _r_str_findchar (LPCWSTR string, SIZE_T length, WCHAR character)
 {
 	if (_r_str_isempty (string))
 		return INVALID_SIZE_T;
@@ -1877,78 +1821,26 @@ SIZE_T _r_str_findchar (LPCWSTR string, SIZE_T length, WCHAR character, BOOLEAN 
 	buffer = (LPWSTR)string;
 	bufferSize = length * sizeof (WCHAR);
 
-	if (!is_ignorecase)
+	if (length != 0)
 	{
-		if (IsProcessorFeaturePresent (PF_XMMI64_INSTRUCTIONS_AVAILABLE)) // check sse2 feature
+		WCHAR chr;
+
+		chr = _r_str_upper (character);
+
+		do
 		{
-			SIZE_T length16;
+			if (_r_str_upper (*buffer) == chr)
+				return bufferSize / sizeof (WCHAR) - length;
 
-			length16 = bufferSize / 16;
-			length &= 7;
-
-			if (length16 != 0)
-			{
-				__m128i pattern;
-				__m128i block;
-				ULONG mask;
-				ULONG index;
-
-				pattern = _mm_set1_epi16 (character);
-
-				do
-				{
-					block = _mm_loadu_si128 ((__m128i*)buffer);
-					block = _mm_cmpeq_epi16 (block, pattern);
-					mask = _mm_movemask_epi8 (block);
-
-					if (_BitScanForward (&index, mask))
-						return (bufferSize - length16 * 16) / sizeof (WCHAR) - length + index / 2;
-
-					buffer += 16 / sizeof (WCHAR);
-				}
-				while (--length16 != 0);
-			}
+			buffer += 1;
 		}
-		else
-		{
-			wcschr (buffer, character); // required to be utilized!!!
-		}
-
-		if (length != 0)
-		{
-			do
-			{
-				if (*buffer == character)
-					return bufferSize / sizeof (WCHAR) - length;
-
-				buffer += 1;
-			}
-			while (--length != 0);
-		}
-	}
-	else
-	{
-		if (length != 0)
-		{
-			WCHAR chr;
-
-			chr = _r_str_upper (character);
-
-			do
-			{
-				if (_r_str_upper (*buffer) == chr)
-					return bufferSize / sizeof (WCHAR) - length;
-
-				buffer += 1;
-			}
-			while (--length != 0);
-		}
+		while (--length != 0);
 	}
 
 	return INVALID_SIZE_T;
 }
 
-SIZE_T _r_str_findlastchar (LPCWSTR string, SIZE_T length, WCHAR character, BOOLEAN is_ignorecase)
+SIZE_T _r_str_findlastchar (LPCWSTR string, SIZE_T length, WCHAR character)
 {
 	if (_r_str_isempty (string))
 		return INVALID_SIZE_T;
@@ -1959,78 +1851,21 @@ SIZE_T _r_str_findlastchar (LPCWSTR string, SIZE_T length, WCHAR character, BOOL
 	bufferSize = length * sizeof (WCHAR);
 	buffer = (LPWSTR)PTR_ADD_OFFSET (string, bufferSize);
 
-	if (!is_ignorecase)
+	if (length != 0)
 	{
-		if (IsProcessorFeaturePresent (PF_XMMI64_INSTRUCTIONS_AVAILABLE)) // check sse2 feature
+		WCHAR chr;
+
+		chr = _r_str_upper (character);
+		buffer -= 1;
+
+		do
 		{
-			SIZE_T length16;
+			if (_r_str_upper (*buffer) == chr)
+				return length - 1;
 
-			length16 = bufferSize / 16;
-			length &= 7;
-
-			if (length16 != 0)
-			{
-				__m128i pattern;
-				__m128i block;
-				ULONG mask;
-				ULONG index;
-
-				pattern = _mm_set1_epi16 (character);
-				buffer -= 16 / sizeof (WCHAR);
-
-				do
-				{
-					block = _mm_loadu_si128 ((__m128i*)buffer);
-					block = _mm_cmpeq_epi16 (block, pattern);
-					mask = _mm_movemask_epi8 (block);
-
-					if (_BitScanReverse (&index, mask))
-						return (length16 - 1) * 16 / sizeof (WCHAR) + length + index / 2;
-
-					buffer -= 16 / sizeof (WCHAR);
-				}
-				while (--length16 != 0);
-
-				buffer += 16 / sizeof (WCHAR);
-			}
-		}
-		else
-		{
-			wcsrchr (buffer, character);
-		}
-
-		if (length != 0)
-		{
 			buffer -= 1;
-
-			do
-			{
-				if (*buffer == character)
-					return length - 1;
-
-				buffer -= 1;
-			}
-			while (--length != 0);
 		}
-	}
-	else
-	{
-		if (length != 0)
-		{
-			WCHAR chr;
-
-			chr = _r_str_upper (character);
-			buffer -= 1;
-
-			do
-			{
-				if (_r_str_upper (*buffer) == chr)
-					return length - 1;
-
-				buffer -= 1;
-			}
-			while (--length != 0);
-		}
+		while (--length != 0);
 	}
 
 	return INVALID_SIZE_T;
@@ -2132,6 +1967,12 @@ VOID _r_str_trim (PR_STRING string, LPCWSTR trim)
 	}
 }
 
+VOID _r_str_trim (PR_STRINGBUILDER string, LPCWSTR trim)
+{
+	if (!_r_str_isempty (string))
+		_r_str_trim (string->String, trim);
+}
+
 VOID _r_str_tolower (LPWSTR string)
 {
 	while (!_r_str_isempty (string))
@@ -2154,16 +1995,18 @@ VOID _r_str_toupper (LPWSTR string)
 
 PR_STRING _r_str_extract (PR_STRING string, SIZE_T start_pos, SIZE_T extract_length)
 {
-	SIZE_T length = _r_obj_getstringlength (string);
+	SIZE_T length;
 
 	if (_r_str_isempty (string))
-		return _r_obj_referenceemptystring ();
+		return NULL;
+
+	length = _r_obj_getstringlength (string);
 
 	if ((start_pos == 0) && (extract_length >= length))
 		return _r_obj_createstring2 (string);
 
 	if (start_pos >= length)
-		return _r_obj_referenceemptystring ();
+		return NULL;
 
 	if (extract_length > (length - start_pos))
 		extract_length = (length - start_pos);
@@ -2184,7 +2027,7 @@ PR_STRING _r_str_multibyte2unicode (LPCSTR string)
 		return NULL;
 
 	outputString = _r_obj_createstringex (NULL, unicodeSize);
-	status = RtlMultiByteToUnicodeN (outputString->Buffer, (ULONG)outputString->AllocatedLength, NULL, string, stringSize);
+	status = RtlMultiByteToUnicodeN (outputString->Buffer, (ULONG)outputString->Length, NULL, string, stringSize);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -2208,7 +2051,7 @@ PR_BYTE _r_str_unicode2multibyte (LPCWSTR string)
 		return NULL;
 
 	outputString = _r_obj_createbyteex (NULL, multiByteSize);
-	status = RtlUnicodeToMultiByteN (outputString->Buffer, (ULONG)outputString->AllocatedLength, NULL, string, stringSize);
+	status = RtlUnicodeToMultiByteN (outputString->Buffer, (ULONG)outputString->Length, NULL, string, stringSize);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -2219,53 +2062,50 @@ PR_BYTE _r_str_unicode2multibyte (LPCWSTR string)
 	return outputString;
 }
 
-PR_STRING _r_str_splitatchar (PR_STRINGREF Input, PR_STRINGREF SecondPart, WCHAR separator, BOOLEAN is_ignorecase)
+PR_STRING _r_str_splitatchar (PR_STRINGREF string, PR_STRINGREF token, WCHAR separator)
 {
 	R_STRINGREF input;
 	SIZE_T index;
 
-	input = *Input; // get a copy of the input because FirstPart/SecondPart may alias Input
-	index = _r_str_findchar (input.Buffer, input.Length / sizeof (WCHAR), separator, is_ignorecase);
+	input = *string;
+	index = _r_str_findchar (input.Buffer, input.Length / sizeof (WCHAR), separator);
 
 	if (index == INVALID_SIZE_T)
 	{
-		// The separator was not found.
-		SecondPart->Buffer = NULL;
-		SecondPart->Length = 0;
+		token->Buffer = NULL;
+		token->Length = 0;
 
 		return _r_obj_createstringex (input.Buffer, input.Length);
 	}
 
 	PR_STRING output = _r_obj_createstringex (input.Buffer, index * sizeof (WCHAR));
 
-	SecondPart->Buffer = (LPWSTR)PTR_ADD_OFFSET (input.Buffer, output->Length + sizeof (UNICODE_NULL));
-	SecondPart->Length = input.Length - index * sizeof (WCHAR) - sizeof (WCHAR);
+	token->Buffer = (LPWSTR)PTR_ADD_OFFSET (input.Buffer, output->Length + sizeof (UNICODE_NULL));
+	token->Length = input.Length - index * sizeof (WCHAR) - sizeof (UNICODE_NULL);
 
 	return output;
 }
 
-PR_STRING _r_str_splitatlastchar (PR_STRINGREF Input, PR_STRINGREF SecondPart, WCHAR separator, BOOLEAN is_ignorecase)
+PR_STRING _r_str_splitatlastchar (PR_STRINGREF string, PR_STRINGREF token, WCHAR separator)
 {
 	R_STRINGREF input;
 	SIZE_T index;
 
-	input = *Input; // get a copy of the input because FirstPart/SecondPart may alias Input
-	index = _r_str_findlastchar (input.Buffer, input.Length / sizeof (WCHAR), separator, is_ignorecase);
+	input = *string;
+	index = _r_str_findlastchar (input.Buffer, input.Length / sizeof (WCHAR), separator);
 
 	if (index == INVALID_SIZE_T)
 	{
-		// The separator was not found.
-
-		SecondPart->Buffer = NULL;
-		SecondPart->Length = 0;
+		token->Buffer = NULL;
+		token->Length = 0;
 
 		return _r_obj_createstringex (input.Buffer, input.Length);
 	}
 
 	PR_STRING output = _r_obj_createstringex (input.Buffer, index * sizeof (WCHAR));
 
-	SecondPart->Buffer = (LPWSTR)PTR_ADD_OFFSET (input.Buffer, output->Length + sizeof (WCHAR));
-	SecondPart->Length = input.Length - index * sizeof (WCHAR) - sizeof (WCHAR);
+	token->Buffer = (LPWSTR)PTR_ADD_OFFSET (input.Buffer, output->Length + sizeof (WCHAR));
+	token->Length = input.Length - index * sizeof (WCHAR) - sizeof (UNICODE_NULL);
 
 	return output;
 }
@@ -2281,15 +2121,15 @@ VOID _r_str_unserialize (PR_STRING string, WCHAR key_delimeter, WCHAR value_deli
 	PR_STRING keyValue;
 	SIZE_T delimeter_pos;
 
-	_r_stringref_initializeex (&remainingPart, string->Buffer, string->Length);
+	_r_stringref_initialize2 (&remainingPart, string);
 
 	while (remainingPart.Length != 0)
 	{
-		valuesPart = _r_str_splitatchar (&remainingPart, &remainingPart, key_delimeter, TRUE);
+		valuesPart = _r_str_splitatchar (&remainingPart, &remainingPart, key_delimeter);
 
 		if (valuesPart)
 		{
-			delimeter_pos = _r_str_findchar (_r_obj_getstring (valuesPart), _r_obj_getstringlength (valuesPart), value_delimeter, TRUE);
+			delimeter_pos = _r_str_findchar (_r_obj_getstring (valuesPart), _r_obj_getstringlength (valuesPart), value_delimeter);
 
 			if (delimeter_pos != INVALID_SIZE_T)
 			{
@@ -2349,13 +2189,12 @@ BOOLEAN _r_sys_iselevated ()
 
 	if (!is_initialized)
 	{
-		is_initialized = TRUE;
-
 #if !defined(_APP_NO_DEPRECATIONS)
 		// winxp compatibility
 		if (!_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
 		{
 			is_elevated = !!IsUserAnAdmin ();
+			is_initialized = TRUE;
 
 			return is_elevated;
 		}
@@ -2373,6 +2212,8 @@ BOOLEAN _r_sys_iselevated ()
 
 			CloseHandle (htoken);
 		}
+
+		is_initialized = TRUE;
 	}
 
 	return is_elevated;
@@ -2392,9 +2233,13 @@ BOOLEAN _r_sys_isosversiongreaterorequal (ULONG requiredVersion)
 
 		if (NT_SUCCESS (RtlGetVersion (&versionInfo)))
 		{
-			if (versionInfo.dwMajorVersion == 5 && (versionInfo.dwMinorVersion == 1 || versionInfo.dwMinorVersion == 2))
+			if (versionInfo.dwMajorVersion == 5 && versionInfo.dwMinorVersion == 1)
 			{
 				windowsVersion = WINDOWS_XP;
+			}
+			else if (versionInfo.dwMajorVersion == 5 && versionInfo.dwMinorVersion == 2)
+			{
+				windowsVersion = WINDOWS_XP_64;
 			}
 			else if (versionInfo.dwMajorVersion == 6 && versionInfo.dwMinorVersion == 0)
 			{
@@ -2593,7 +2438,7 @@ PR_STRING _r_sys_getusernamefromsid (PSID psid)
 	LSA_HANDLE policyHandle;
 	PLSA_REFERENCED_DOMAIN_LIST referencedDomains;
 	PLSA_TRANSLATED_NAME names;
-	PR_STRING string = NULL;
+	R_STRINGBUILDER string = {0};
 
 	InitializeObjectAttributes (&objectAttributes, NULL, 0, NULL, NULL);
 
@@ -2607,7 +2452,7 @@ PR_STRING _r_sys_getusernamefromsid (PSID psid)
 				BOOLEAN is_hasname = !_r_str_isempty (&names[0].Name);
 
 				if (is_hasdomain || is_hasname)
-					string = _r_obj_createstringbuilder (128 * sizeof (WCHAR));
+					_r_obj_createstringbuilder (&string);
 
 				if (is_hasdomain)
 				{
@@ -2628,9 +2473,6 @@ PR_STRING _r_sys_getusernamefromsid (PSID psid)
 				{
 					_r_string_appendex (&string, names[0].Name.Buffer, names[0].Name.Length);
 				}
-
-				if (string && string->Length == 0)
-					_r_obj_clearreference (&string);
 			}
 
 			if (referencedDomains)
@@ -2643,7 +2485,13 @@ PR_STRING _r_sys_getusernamefromsid (PSID psid)
 		LsaClose (policyHandle);
 	}
 
-	return string;
+	if (_r_str_isempty (&string))
+	{
+		_r_obj_deletestringbuilder (&string);
+		return NULL;
+	}
+
+	return _r_obj_finalstringbuilder (&string);
 }
 
 #if !defined(_WIN64)
@@ -3627,6 +3475,8 @@ ULONG _r_inet_openurl (HINTERNET hsession, LPCWSTR url, LPCWSTR proxy_addr, LPHI
 							{
 								if (ptotallength)
 								{
+									*ptotallength = 0;
+
 									param_size = sizeof (ULONG);
 									WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, ptotallength, &param_size, WINHTTP_NO_HEADER_INDEX);
 								}
@@ -3742,65 +3592,82 @@ ULONG _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, 
 
 	HINTERNET hconnect;
 	HINTERNET hrequest;
+	R_STRINGBUILDER bufferString = {0};
+	HANDLE bufferHandle;
+	PR_STRING decodedString;
+	PR_BYTE contentBytes;
+	ULONG readedValue;
+	ULONG readedTotal;
+	ULONG unused;
+	ULONG lengthTotal;
+	ULONG code;
 
-	ULONG total_length = 0;
-	ULONG code = _r_inet_openurl (hsession, url, proxy_addr, &hconnect, &hrequest, &total_length);
+	code = _r_inet_openurl (hsession, url, proxy_addr, &hconnect, &hrequest, &lengthTotal);
 
 	if (code != ERROR_SUCCESS)
 	{
 		return code;
 	}
+
+	if (is_filepath)
+	{
+		bufferHandle = (HANDLE)*lpdest;
+	}
 	else
 	{
-		PR_STRING buffer;
-		PR_STRING string;
+		_r_obj_createstringbuilder (&bufferString);
+	}
 
-		HANDLE outFileHandle = (HANDLE)*lpdest;
+	contentBytes = _r_obj_createbyteex (NULL, 32768);
 
-		ULONG buffer_length = 32768;
-		LPSTR content_buffer = (LPSTR)_r_mem_allocatezero (buffer_length);
-		ULONG notneed;
-		ULONG readed;
-		ULONG total_readed;
+	while (_r_inet_readrequest (hrequest, contentBytes->Buffer, (ULONG)contentBytes->Length, &readedValue, &readedTotal))
+	{
+		*(PCHAR)PTR_ADD_OFFSET (contentBytes->Buffer, readedValue) = ANSI_NULL; // terminate
 
-		if (!is_filepath)
-			buffer = _r_obj_createstringbuilder (buffer_length * sizeof (WCHAR));
-
-		while (_r_inet_readrequest (hrequest, content_buffer, buffer_length - 1, &readed, &total_readed))
+		if (is_filepath)
 		{
-			if (is_filepath)
+			if (!WriteFile (bufferHandle, contentBytes->Buffer, readedValue, &unused, NULL))
 			{
-				if (!WriteFile (outFileHandle, content_buffer, readed, &notneed, NULL))
-				{
-					code = GetLastError ();
-					break;
-				}
+				code = GetLastError ();
+				break;
+			}
+		}
+		else
+		{
+			decodedString = _r_str_multibyte2unicode (contentBytes->Buffer);
+
+			if (decodedString)
+			{
+				_r_string_append2 (&bufferString, decodedString);
+				_r_obj_dereference (decodedString);
 			}
 			else
-			{
-				*(PCHAR)PTR_ADD_OFFSET (content_buffer, readed) = ANSI_NULL; // terminate
-
-				string = _r_str_multibyte2unicode (content_buffer);
-
-				if (string)
-				{
-					_r_string_append2 (&buffer, string);
-					_r_obj_dereference (string);
-				}
-			}
-
-			if (Callback && !Callback (total_readed, max (total_readed, total_length), lpdata))
 			{
 				code = ERROR_CANCELLED;
 				break;
 			}
 		}
 
-		if (!is_filepath)
-			_r_obj_movereference ((PR_STRING*)lpdest, buffer);
-
-		_r_mem_free (content_buffer);
+		if (Callback && !Callback (readedTotal, max (readedTotal, lengthTotal), lpdata))
+		{
+			code = ERROR_CANCELLED;
+			break;
+		}
 	}
+
+	if (!is_filepath)
+	{
+		if (code == ERROR_SUCCESS)
+		{
+			*lpdest = _r_obj_finalstringbuilder (&bufferString);
+		}
+		else
+		{
+			_r_obj_deletestringbuilder (&bufferString);
+		}
+	}
+
+	_r_obj_dereference (contentBytes);
 
 	_r_inet_close (hrequest);
 	_r_inet_close (hconnect);
@@ -3812,7 +3679,7 @@ ULONG _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, 
 	Registry
 */
 
-PBYTE _r_reg_querybinary (HKEY hkey, LPCWSTR value)
+PR_BYTE _r_reg_querybinary (HKEY hkey, LPCWSTR value)
 {
 	ULONG type;
 	ULONG size;
@@ -3821,12 +3688,12 @@ PBYTE _r_reg_querybinary (HKEY hkey, LPCWSTR value)
 	{
 		if (type == REG_BINARY)
 		{
-			PBYTE pbuffer = (PBYTE)_r_mem_allocatezero (size); // utilization required!
+			PR_BYTE pbuffer = _r_obj_createbyteex (NULL, size);
 
-			if (RegQueryValueEx (hkey, value, NULL, NULL, pbuffer, &size) == ERROR_SUCCESS)
+			if (RegQueryValueEx (hkey, value, NULL, NULL, (LPBYTE)pbuffer->Buffer, &size) == ERROR_SUCCESS)
 				return pbuffer;
 
-			_r_mem_free (pbuffer); // cleanup
+			_r_obj_dereference (pbuffer); // cleanup
 		}
 	}
 
@@ -3905,7 +3772,7 @@ PR_STRING _r_reg_querystring (HKEY hkey, LPCWSTR value)
 
 			if (code == ERROR_SUCCESS)
 			{
-				_r_string_trimtonullterminator (valueString);
+				_r_string_setsize (valueString, size);
 
 				if (type == REG_EXPAND_SZ)
 				{
@@ -4084,7 +3951,7 @@ VOID _r_parseini (LPCWSTR path, OBJECTS_STRINGS_MAP2* outputMap, OBJECTS_STRINGS
 		while (!_r_str_isempty (valueBuffer))
 		{
 			valueLength = _r_str_length (valueBuffer);
-			delimeterPos = _r_str_findchar (valueBuffer, valueLength, L'=', TRUE);
+			delimeterPos = _r_str_findchar (valueBuffer, valueLength, L'=');
 
 			if (delimeterPos != INVALID_SIZE_T)
 			{
@@ -4237,6 +4104,9 @@ BOOLEAN _r_tray_popupformat (HWND hwnd, UINT uid, ULONG icon_id, LPCWSTR title, 
 	PR_STRING string;
 	BOOLEAN status;
 
+	if (!format)
+		return FALSE;
+
 	va_start (argPtr, format);
 	string = _r_format_string_v (format, argPtr);
 	va_end (argPtr);
@@ -4291,6 +4161,9 @@ BOOLEAN _r_tray_setinfoformat (HWND hwnd, UINT uid, HICON hicon, LPCWSTR format,
 	va_list argPtr;
 	PR_STRING string;
 	BOOLEAN status;
+
+	if (!format)
+		return FALSE;
 
 	va_start (argPtr, format);
 	string = _r_format_string_v (format, argPtr);
@@ -4362,23 +4235,29 @@ PR_STRING _r_ctrl_gettext (HWND hwnd, INT ctrl_id)
 {
 	ULONG length = (ULONG)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXTLENGTH, 0, 0);
 
-	if (!length)
-		return _r_obj_referenceemptystring ();
+	if (length)
+	{
+		PR_STRING string = _r_obj_createstringex (NULL, length * sizeof (WCHAR));
 
-	PR_STRING string = _r_obj_createstringex (NULL, length * sizeof (WCHAR));
+		if ((ULONG)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXT, (WPARAM)(length + 1), (LPARAM)string->Buffer))
+		{
+			_r_string_setsize (string, length * sizeof (WCHAR));
+			return string;
+		}
 
-	if ((ULONG)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXT, (WPARAM)(string->AllocatedLength / sizeof (WCHAR) + 1), (LPARAM)string->Buffer))
-		return string;
+		_r_obj_dereference (string);
+	}
 
-	_r_obj_dereference (string);
-
-	return _r_obj_referenceemptystring ();
+	return NULL;
 }
 
 VOID _r_ctrl_settextformat (HWND hwnd, INT ctrl_id, LPCWSTR format, ...)
 {
 	va_list argPtr;
 	PR_STRING string;
+
+	if (!format)
+		return;
 
 	va_start (argPtr, format);
 	string = _r_format_string_v (format, argPtr);
@@ -4494,6 +4373,9 @@ VOID _r_ctrl_settiptextformat (HWND htip, HWND hparent, INT ctrl_id, LPCWSTR for
 	va_list argPtr;
 	PR_STRING string;
 
+	if (!format)
+		return;
+
 	va_start (argPtr, format);
 	string = _r_format_string_v (format, argPtr);
 	va_end (argPtr);
@@ -4528,6 +4410,9 @@ VOID _r_ctrl_showballoontipformat (HWND hwnd, INT ctrl_id, INT icon_id, LPCWSTR 
 	va_list argPtr;
 	PR_STRING string;
 
+	if (!format)
+		return;
+
 	va_start (argPtr, format);
 	string = _r_format_string_v (format, argPtr);
 	va_end (argPtr);
@@ -4553,7 +4438,7 @@ VOID _r_menu_checkitem (HMENU hmenu, UINT item_id_start, UINT item_id_end, UINT 
 	}
 }
 
-VOID _r_menu_setitembitmap (HMENU hmenu, UINT item_id, HBITMAP hbitmap, BOOL is_byposition)
+VOID _r_menu_setitembitmap (HMENU hmenu, UINT item_id, BOOL is_byposition, HBITMAP hbitmap)
 {
 	MENUITEMINFO mii = {0};
 
@@ -4564,7 +4449,7 @@ VOID _r_menu_setitembitmap (HMENU hmenu, UINT item_id, HBITMAP hbitmap, BOOL is_
 	SetMenuItemInfo (hmenu, item_id, is_byposition, &mii);
 }
 
-VOID _r_menu_setitemtext (HMENU hmenu, UINT item_id, LPCWSTR text, BOOL is_byposition)
+VOID _r_menu_setitemtext (HMENU hmenu, UINT item_id, BOOL is_byposition, LPCWSTR text)
 {
 	MENUITEMINFO mii = {0};
 
@@ -4573,6 +4458,23 @@ VOID _r_menu_setitemtext (HMENU hmenu, UINT item_id, LPCWSTR text, BOOL is_bypos
 	mii.dwTypeData = (LPWSTR)text;
 
 	SetMenuItemInfo (hmenu, item_id, is_byposition, &mii);
+}
+
+VOID _r_menu_setitemtextformat (HMENU hmenu, UINT item_id, BOOL is_byposition, LPCWSTR format, ...)
+{
+	va_list argPtr;
+	PR_STRING string;
+
+	if (!format)
+		return;
+
+	va_start (argPtr, format);
+	string = _r_format_string_v (format, argPtr);
+	va_end (argPtr);
+
+	_r_menu_setitemtext (hmenu, item_id, is_byposition, string->Buffer);
+
+	_r_obj_dereference (string);
 }
 
 INT _r_menu_popup (HMENU hmenu, HWND hwnd, LPPOINT lpmouse, BOOLEAN is_sendmessage)
@@ -4658,9 +4560,10 @@ LPARAM _r_tab_getlparam (HWND hwnd, INT ctrl_id, INT index)
 
 	tci.mask = TCIF_PARAM;
 
-	SendDlgItemMessage (hwnd, ctrl_id, TCM_GETITEM, (WPARAM)index, (LPARAM)&tci);
+	if (!!SendDlgItemMessage (hwnd, ctrl_id, TCM_GETITEM, (WPARAM)index, (LPARAM)&tci))
+		return tci.lParam;
 
-	return tci.lParam;
+	return 0;
 }
 
 INT _r_tab_setitem (HWND hwnd, INT ctrl_id, INT index, LPCWSTR text, INT image, LPARAM lparam)
@@ -5209,6 +5112,9 @@ VOID _r_status_settextformat (HWND hwnd, INT ctrl_id, INT part, LPCWSTR format, 
 {
 	va_list argPtr;
 	PR_STRING string;
+
+	if (!format)
+		return;
 
 	va_start (argPtr, format);
 	string = _r_format_string_v (format, argPtr);
