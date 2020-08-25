@@ -589,65 +589,6 @@ typedef struct _SC_SERVICE_TAG_QUERY
 	PVOID Buffer;
 } SC_SERVICE_TAG_QUERY, *PSC_SERVICE_TAG_QUERY;
 
-// private
-typedef struct _PROCESS_MITIGATION_POLICY_INFORMATION
-{
-	PROCESS_MITIGATION_POLICY Policy;
-	union
-	{
-		PROCESS_MITIGATION_ASLR_POLICY ASLRPolicy;
-		PROCESS_MITIGATION_STRICT_HANDLE_CHECK_POLICY StrictHandleCheckPolicy;
-		PROCESS_MITIGATION_SYSTEM_CALL_DISABLE_POLICY SystemCallDisablePolicy;
-		PROCESS_MITIGATION_EXTENSION_POINT_DISABLE_POLICY ExtensionPointDisablePolicy;
-		PROCESS_MITIGATION_DYNAMIC_CODE_POLICY DynamicCodePolicy;
-		PROCESS_MITIGATION_CONTROL_FLOW_GUARD_POLICY ControlFlowGuardPolicy;
-		PROCESS_MITIGATION_BINARY_SIGNATURE_POLICY SignaturePolicy;
-		PROCESS_MITIGATION_FONT_DISABLE_POLICY FontDisablePolicy;
-		PROCESS_MITIGATION_IMAGE_LOAD_POLICY ImageLoadPolicy;
-		PROCESS_MITIGATION_SYSTEM_CALL_FILTER_POLICY SystemCallFilterPolicy;
-		PROCESS_MITIGATION_PAYLOAD_RESTRICTION_POLICY PayloadRestrictionPolicy;
-		PROCESS_MITIGATION_CHILD_PROCESS_POLICY ChildProcessPolicy;
-		PROCESS_MITIGATION_SIDE_CHANNEL_ISOLATION_POLICY SideChannelIsolationPolicy;
-	};
-} PROCESS_MITIGATION_POLICY_INFORMATION, *PPROCESS_MITIGATION_POLICY_INFORMATION;
-
-// private
-typedef struct _PS_MITIGATION_OPTIONS_MAP
-{
-	ULONG_PTR Map[2];
-} PS_MITIGATION_OPTIONS_MAP, *PPS_MITIGATION_OPTIONS_MAP;
-
-// private
-typedef struct _PS_MITIGATION_AUDIT_OPTIONS_MAP
-{
-	ULONG_PTR Map[2];
-} PS_MITIGATION_AUDIT_OPTIONS_MAP, *PPS_MITIGATION_AUDIT_OPTIONS_MAP;
-
-// private
-typedef struct _PS_SYSTEM_DLL_INIT_BLOCK
-{
-	ULONG Size;
-	ULONG_PTR SystemDllWowRelocation;
-	ULONG_PTR SystemDllNativeRelocation;
-	ULONG_PTR Wow64SharedInformation[16];
-	ULONG RngData;
-	union
-	{
-		ULONG Flags;
-		struct
-		{
-			ULONG CfgOverride : 1;
-			ULONG Reserved : 31;
-		};
-	};
-	PS_MITIGATION_OPTIONS_MAP MitigationOptionsMap;
-	ULONG_PTR CfgBitMap;
-	ULONG_PTR CfgBitMapSize;
-	ULONG_PTR Wow64CfgBitMap;
-	ULONG_PTR Wow64CfgBitMapSize;
-	PS_MITIGATION_AUDIT_OPTIONS_MAP MitigationAuditOptionsMap; // REDSTONE3
-} PS_SYSTEM_DLL_INIT_BLOCK, *PPS_SYSTEM_DLL_INIT_BLOCK;
-
 typedef enum _PROCESSINFOCLASS
 {
 	ProcessBasicInformation, // q: PROCESS_BASIC_INFORMATION, PROCESS_EXTENDED_BASIC_INFORMATION
@@ -820,6 +761,7 @@ typedef struct _PROCESS_DEVICEMAP_INFORMATION_EX
 #define NtCurrentSession() ((HANDLE)(LONG_PTR)-3)
 #define ZwCurrentSession() NtCurrentSession()
 #define NtCurrentPeb() (NtCurrentTeb()->ProcessEnvironmentBlock)
+#define RtlProcessHeap() (NtCurrentPeb()->ProcessHeap)
 
 // Windows 8 and above
 #define NtCurrentProcessToken() ((HANDLE)(LONG_PTR)-4)
@@ -837,6 +779,8 @@ typedef struct _PROCESS_DEVICEMAP_INFORMATION_EX
     }
 
 // Kernel-user shared data
+#define PROCESSOR_FEATURE_MAX 64
+
 typedef enum _NT_PRODUCT_TYPE
 {
 	NtProductWinNt = 1,
@@ -851,15 +795,6 @@ typedef enum _ALTERNATIVE_ARCHITECTURE_TYPE
 	EndAlternatives
 } ALTERNATIVE_ARCHITECTURE_TYPE;
 
-#define PROCESSOR_FEATURE_MAX 64
-
-#define MAX_WOW64_SHARED_ENTRIES 16
-
-#define NX_SUPPORT_POLICY_ALWAYSOFF 0
-#define NX_SUPPORT_POLICY_ALWAYSON 1
-#define NX_SUPPORT_POLICY_OPTIN 2
-#define NX_SUPPORT_POLICY_OPTOUT 3
-
 #include <pshpack4.h>
 typedef struct _KSYSTEM_TIME
 {
@@ -868,8 +803,6 @@ typedef struct _KSYSTEM_TIME
 	LONG High2Time;
 } KSYSTEM_TIME, *PKSYSTEM_TIME;
 
-#pragma warning(push)
-#pragma warning(disable: 4201)
 typedef struct _KUSER_SHARED_DATA
 {
 	ULONG TickCountLowDeprecated;
@@ -979,9 +912,12 @@ typedef struct _KUSER_SHARED_DATA
 	{
 		volatile KSYSTEM_TIME TickCount;
 		volatile ULONG64 TickCountQuad;
-		ULONG ReservedTickCountOverlay[3];
+		struct
+		{
+			ULONG ReservedTickCountOverlay[3];
+			ULONG TickCountPad[1];
+		};
 	};
-	ULONG TickCountPad[1];
 
 	ULONG Cookie;
 	ULONG CookiePad[1];
@@ -1025,27 +961,517 @@ typedef struct _KUSER_SHARED_DATA
 	LARGE_INTEGER TimeZoneBiasEffectiveEnd;
 	XSTATE_CONFIGURATION XState;
 } KUSER_SHARED_DATA, *PKUSER_SHARED_DATA;
-#pragma warning(pop)
 #include <poppack.h>
 
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TickCountMultiplier) == 0x4);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, InterruptTime) == 0x8);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, SystemTime) == 0x14);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtSystemRoot) == 0x30);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, LargePageMinimum) == 0x244);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtProductType) == 0x264);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtMajorVersion) == 0x26c);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtMinorVersion) == 0x270);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ProcessorFeatures) == 0x274);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, KdDebuggerEnabled) == 0x2d4);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ActiveConsoleId) == 0x2d8);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NumberOfPhysicalPages) == 0x2e8);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, SafeBootMode) == 0x2ec);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TickCount) == 0x320);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TickCountQuad) == 0x320);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, XState) == 0x3d8);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TickCountMultiplier) == 0x0004);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, InterruptTime) == 0x0008);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, SystemTime) == 0x0014);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TimeZoneBias) == 0x0020);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ImageNumberLow) == 0x002c);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ImageNumberHigh) == 0x002e);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtSystemRoot) == 0x0030);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, MaxStackTraceDepth) == 0x0238);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, CryptoExponent) == 0x023c);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TimeZoneId) == 0x0240);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, LargePageMinimum) == 0x0244);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, AitSamplingValue) == 0x0248);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, RNGSeedVersion) == 0x0250);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtProductType) == 0x0264);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtMajorVersion) == 0x026c);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtMinorVersion) == 0x0270);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ProcessorFeatures) == 0x0274);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Reserved1) == 0x02b4);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Reserved3) == 0x02b8);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, KdDebuggerEnabled) == 0x02d4);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ActiveConsoleId) == 0x02d8);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NumberOfPhysicalPages) == 0x02e8);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, SafeBootMode) == 0x02ec);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TickCount) == 0x0320);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Cookie) == 0x0330);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, QpcBias) == 0x03b8);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ActiveProcessorCount) == 0x03c0);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ActiveGroupCount) == 0x03c4);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Reserved9) == 0x03c5);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, XState) == 0x03d8);
 
 #define USER_SHARED_DATA ((KUSER_SHARED_DATA * const)0x7ffe0000)
+
+// Teb/Peb
+#ifndef _WIN64
+#define GDI_HANDLE_BUFFER_SIZE 34
+#else
+#define GDI_HANDLE_BUFFER_SIZE 60
+#endif
+
+#define GDI_BATCH_BUFFER_SIZE 310
+
+#define RTL_MAX_DRIVE_LETTERS 32
+#define RTL_DRIVE_LETTER_VALID (USHORT)0x0001
+
+typedef struct _RTL_ACTIVATION_CONTEXT_STACK_FRAME
+{
+	struct _RTL_ACTIVATION_CONTEXT_STACK_FRAME *Previous;
+	struct _ACTIVATION_CONTEXT                 *ActivationContext;
+	ULONG                                       Flags;
+} RTL_ACTIVATION_CONTEXT_STACK_FRAME, *PRTL_ACTIVATION_CONTEXT_STACK_FRAME;
+
+typedef struct _ACTIVATION_CONTEXT_STACK
+{
+	RTL_ACTIVATION_CONTEXT_STACK_FRAME *ActiveFrame;
+	LIST_ENTRY                          FrameListCache;
+	ULONG                               Flags;
+	ULONG                               NextCookieSequenceNumber;
+	ULONG_PTR                           StackId;
+} ACTIVATION_CONTEXT_STACK, *PACTIVATION_CONTEXT_STACK;
+
+typedef struct _GDI_TEB_BATCH
+{
+	union
+	{
+		ULONG Offset;
+		struct
+		{
+			ULONG Offset : 31; // Win 8.1 Update 1+
+			ULONG HasRenderingCommand : 1;
+		} bits;
+	} dword0;
+	ULONG_PTR HDC;
+	ULONG Buffer[GDI_BATCH_BUFFER_SIZE];
+} GDI_TEB_BATCH, *PGDI_TEB_BATCH;
+
+typedef struct _TEB_ACTIVE_FRAME_CONTEXT
+{
+	ULONG       Flags;
+	PSTR FrameName;
+} TEB_ACTIVE_FRAME_CONTEXT, *PTEB_ACTIVE_FRAME_CONTEXT;
+
+typedef struct _TEB_ACTIVE_FRAME
+{
+	ULONG Flags;
+	struct _TEB_ACTIVE_FRAME *Previous;
+	TEB_ACTIVE_FRAME_CONTEXT *Context;
+} TEB_ACTIVE_FRAME, *PTEB_ACTIVE_FRAME;
+
+typedef struct _PEB_LDR_DATA
+{
+	ULONG Length;
+	BOOLEAN Initialized;
+	HANDLE SsHandle;
+	LIST_ENTRY InLoadOrderModuleList;
+	LIST_ENTRY InMemoryOrderModuleList;
+	LIST_ENTRY InInitializationOrderModuleList;
+	PVOID EntryInProgress;
+	BOOLEAN ShutdownInProgress;
+	HANDLE ShutdownThreadId;
+} PEB_LDR_DATA, *PPEB_LDR_DATA;
+
+typedef struct _CURDIR
+{
+	UNICODE_STRING DosPath;
+	HANDLE Handle;
+} CURDIR, *PCURDIR;
+
+typedef struct _RTL_DRIVE_LETTER_CURDIR
+{
+	USHORT Flags;
+	USHORT Length;
+	ULONG TimeStamp;
+	STRING DosPath;
+} RTL_DRIVE_LETTER_CURDIR, *PRTL_DRIVE_LETTER_CURDIR;
+
+typedef struct _RTL_USER_PROCESS_PARAMETERS
+{
+	ULONG MaximumLength;
+	ULONG Length;
+
+	ULONG Flags;
+	ULONG DebugFlags;
+
+	HANDLE ConsoleHandle;
+	ULONG ConsoleFlags;
+	HANDLE StandardInput;
+	HANDLE StandardOutput;
+	HANDLE StandardError;
+
+	CURDIR CurrentDirectory;
+	UNICODE_STRING DllPath;
+	UNICODE_STRING ImagePathName;
+	UNICODE_STRING CommandLine;
+	PVOID Environment;
+
+	ULONG StartingPositionLeft;
+	ULONG StartingPositionTop;
+	ULONG Width;
+	ULONG Height;
+	ULONG CharWidth;
+	ULONG CharHeight;
+	ULONG ConsoleTextAttributes;
+
+	ULONG WindowFlags;
+	ULONG ShowWindowFlags;
+	UNICODE_STRING WindowTitle;
+	UNICODE_STRING DesktopName;
+	UNICODE_STRING ShellInfo;
+	UNICODE_STRING RuntimeData;
+	RTL_DRIVE_LETTER_CURDIR CurrentDirectories[RTL_MAX_DRIVE_LETTERS];
+
+	ULONG_PTR EnvironmentSize;
+	ULONG_PTR EnvironmentVersion;
+	PVOID PackageDependencyData;
+	ULONG ProcessGroupId;
+	ULONG LoaderThreads;
+
+	UNICODE_STRING RedirectionDllName; // REDSTONE4
+	UNICODE_STRING HeapPartitionName; // 19H1
+	ULONG_PTR DefaultThreadpoolCpuSetMasks;
+	ULONG DefaultThreadpoolCpuSetMaskCount;
+} RTL_USER_PROCESS_PARAMETERS, *PRTL_USER_PROCESS_PARAMETERS;
+
+typedef struct _PEB
+{
+	BOOLEAN InheritedAddressSpace;
+	BOOLEAN ReadImageFileExecOptions;
+	BOOLEAN BeingDebugged;
+	union
+	{
+		BOOLEAN SpareBool; // NT3.51-late WS03
+		struct
+		{
+			BOOLEAN ImageUsesLargePages : 1; // WS03_SP1+
+			BOOLEAN IsProtectedProcess : 1; // Vista+
+			BOOLEAN IsImageDynamicallyRelocated : 1;
+			BOOLEAN SkipPatchingUser32Forwarders : 1; // Vista_SP1+
+			BOOLEAN IsPackagedProcess : 1; // Win8_BETA+
+			BOOLEAN IsAppContainer : 1; // Win8_RTM+
+			BOOLEAN IsProtectedProcessLight : 1;
+			BOOLEAN IsLongPathAwareProcess : 1;
+		};
+	};
+	HANDLE Mutant;
+	PVOID ImageBaseAddress;
+	PPEB_LDR_DATA Ldr;
+	PRTL_USER_PROCESS_PARAMETERS ProcessParameters;
+	PVOID SubSystemData;
+	PVOID ProcessHeap;
+	PRTL_CRITICAL_SECTION FastPebLock;
+	union
+	{
+		PVOID FastPebLockRoutine; //NT3.51-Win2k
+		PVOID SparePtr1; // early WS03
+		PSLIST_HEADER AtlThunkSListPtr; // late WS03
+	};
+	union
+	{
+		PVOID FastPebUnlockRoutine; // NT3.51-XP
+		PVOID SparePtr2; // WS03
+		PVOID IFEOKey; // Vista+
+	};
+	union
+	{
+		ULONG EnvironmentUpdateCount; // NT3.51-WS03
+		struct
+		{
+			ULONG ProcessInJob : 1; // Vista+
+			ULONG ProcessInitializing : 1;
+			ULONG ProcessUsingVEH : 1; // Vista_SP1+
+			ULONG ProcessUsingVCH : 1;
+			ULONG ProcessUsingFTH : 1; // Win7_BETA+
+			ULONG ProcessPreviouslyThrottled : 1;
+			ULONG ProcessCurrentlyThrottled : 1;
+			ULONG ProcessImagesHotPatched : 1; // REDSTONE5
+			ULONG ReservedBits0 : 24;
+		};
+	};
+	union
+	{
+		PVOID KernelCallbackTable; // Vista+
+		PVOID UserSharedInfoPtr;
+	};
+	ULONG SystemReserved; // NT3.51-XP
+
+	// Microsoft seems to keep changing their mind with DWORD 0x34
+	union
+	{
+		ULONG SystemReserved2; // NT3.51-Win2k
+		struct
+		{
+			ULONG ExecuteOptions : 2; // XP-early WS03
+			ULONG SpareBits : 30;
+		};
+		ULONG SpareUlong; // WS03-Vista
+		ULONG AtlThunkSListPtr32; // late XP,Win7
+		struct
+		{
+			ULONG HeapTracingEnabled : 1; // Win7_BETA
+			ULONG CritSecTracingEnabled : 1;
+			ULONG SpareTracingBits : 30;
+		};
+	};
+	union
+	{
+		PVOID FreeList; // NT3.51-early Vista
+		ULONG SparePebPtr0; //last Vista
+		PVOID ApiSetMap; // API_SET_NAMESPACE Win7+
+	};
+	ULONG TlsExpansionCounter;
+	PVOID TlsBitmap;
+	ULONG TlsBitmapBits[2];
+	PVOID ReadOnlySharedMemoryBase;
+	union
+	{
+		PVOID ReadOnlyShareMemoryHeap; // NT3.51-WS03
+		PVOID HotpatchInformation; // Vista+
+	};
+	PVOID *ReadOnlyStaticServerData;
+	PVOID AnsiCodePageData; // PCPTABLEINFO
+	PVOID OemCodePageData; // PCPTABLEINFO
+	PVOID UnicodeCaseTableData; // PNLSTABLEINFO
+	ULONG NumberOfProcessors;
+	ULONG NtGlobalFlag;
+	ULARGE_INTEGER CriticalSectionTimeout;
+	SIZE_T HeapSegmentReserve;
+	SIZE_T HeapSegmentCommit;
+	SIZE_T HeapDeCommitTotalFreeThreshold;
+	SIZE_T HeapDeCommitFreeBlockThreshold;
+	ULONG NumberOfHeaps;
+	ULONG MaximumNumberOfHeaps;
+	PVOID *ProcessHeaps; // PHEAP
+	PVOID GdiSharedHandleTable;
+
+	// end of NT 3.51 members / members that follow available on NT 4.0 and up
+	PVOID ProcessStarterHelper;
+	ULONG GdiDCAttributeList;
+	PRTL_CRITICAL_SECTION LoaderLock; // Win2k+
+	ULONG OSMajorVersion;
+	ULONG OSMinorVersion;
+	USHORT OSBuildNumber;
+	USHORT OSCSDVersion;
+	ULONG OSPlatformId;
+	ULONG ImageSubsystem;
+	ULONG ImageSubsystemMajorVersion;
+	ULONG ImageSubsystemMinorVersion;
+	union
+	{
+		KAFFINITY ImageProcessAffinityMask; // NT4-early Vista
+		KAFFINITY ActiveProcessAffinityMask; // late Vista+
+	};
+	ULONG GdiHandleBuffer[GDI_HANDLE_BUFFER_SIZE];
+	PVOID PostProcessInitRoutine; // void (*PostProcessInitRoutine) (void);
+
+	// members that follow available on Windows 2000 and up
+	PVOID TlsExpansionBitmap;
+	ULONG TlsExpansionBitmapBits[32];
+	ULONG SessionId;
+	ULARGE_INTEGER AppCompatFlags;
+	ULARGE_INTEGER AppCompatFlagsUser;
+	PVOID pShimData;
+	PVOID AppCompatInfo; // APPCOMPAT_EXE_DATA
+	UNICODE_STRING CSDVersion;
+
+	// members that follow available on Windows XP and up
+	PVOID ActivationContextData; // ACTIVATION_CONTEXT_DATA
+	PVOID ProcessAssemblyStorageMap; // ASSEMBLY_STORAGE_MAP
+	PVOID SystemDefaultActivationContextData; // ACTIVATION_CONTEXT_DATA
+	PVOID SystemAssemblyStorageMap; // ASSEMBLY_STORAGE_MAP
+	SIZE_T MinimumStackCommit;
+
+	//members that follow available on Windows Server 2003 and up
+	PVOID FlsCallback; // FLS_CALLBACK_INFO
+	LIST_ENTRY FlsListHead;
+	PVOID FlsBitmap;
+	ULONG FlsBitmapBits[4];
+	ULONG FlsHighIndex;
+
+	// members that follow available on Windows Vista and up
+	PVOID WerRegistrationData;
+	PVOID WerShipAssertPtr;
+
+	// members that follow available on Windows 7 BETA and up
+	union
+	{
+		PVOID pContextData; // prior to Windows 8
+		PVOID pUnused; // Windows 8+
+	};
+	PVOID pImageHeaderHash;
+
+	// members that follow available on Windows 7 RTM and up
+	union
+	{
+		ULONG TracingFlags;
+		struct
+		{
+			ULONG HeapTracingEnabled : 1;
+			ULONG CritSecTracingEnabled : 1;
+			ULONG LibLoaderTracingEnabled : 1;
+			ULONG SpareTracingBits : 29;
+		};
+	};
+
+	// members that follow available on Windows 8 and up
+	ULONGLONG CsrServerReadOnlySharedMemoryBase;
+
+	// members that follow available on Windows 10 and up
+	PRTL_CRITICAL_SECTION TppWorkerpListLock;
+	union //conflicting reports about what 0x254 points to
+	{
+		LIST_ENTRY TppWorkerpList;
+		ULONG dwSystemCallMode; // set to 2 under 64-bit Windows in a 32-bit process (WOW64)
+	};
+	PVOID WaitOnAddressHashTable[128];
+	PVOID TelemetryCoverageHeader; // REDSTONE3
+	ULONG CloudFileFlags;
+	ULONG CloudFileDiagFlags; // REDSTONE4
+	CHAR PlaceholderCompatibilityMode;
+	CHAR PlaceholderCompatibilityModeReserved[7];
+	struct _LEAP_SECOND_DATA *LeapSecondData; // REDSTONE5
+	union
+	{
+		ULONG LeapSecondFlags;
+		struct
+		{
+			ULONG SixtySecondEnabled : 1;
+			ULONG Reserved : 31;
+		};
+	};
+	ULONG NtGlobalFlag2;
+} PEB, *PPEB;
+
+typedef struct _TEB
+{
+	NT_TIB NtTib;
+	PVOID EnvironmentPointer;
+	CLIENT_ID ClientId;
+	PVOID ActiveRpcHandle;
+	PVOID ThreadLocalStoragePointer;
+	PPEB ProcessEnvironmentBlock;
+	ULONG LastErrorValue;
+	ULONG CountOfOwnedCriticalSections;
+	PVOID CsrClientThread;
+	PVOID Win32ThreadInfo;
+	ULONG User32Reserved[26];
+	ULONG UserReserved[5];
+	PVOID WOW32Reserved; // user-mode 32-bit (WOW64) -> 64-bit context switch function prior to kernel-mode transition
+	LCID CurrentLocale;
+	ULONG FpSoftwareStatusRegister;
+	PVOID ReservedForDebuggerInstrumentation[16]; // Win10 PRE-RTM+
+#ifdef _WIN64
+	PVOID SystemReserved1[30];
+#else
+	PVOID SystemReserved1[26];
+#endif
+	CHAR PlaceholderCompatibilityMode;
+	CHAR PlaceholderReserved[11];
+	ULONG ProxiedProcessId;
+	ACTIVATION_CONTEXT_STACK ActivationContextStack; // XP-early WS03
+	UCHAR WorkingOnBehalfOfTicket[8];
+	NTSTATUS ExceptionCode;
+	PACTIVATION_CONTEXT_STACK ActivationContextStackPointer; // WS03+
+	ULONG_PTR InstrumentationCallbackSp; // Win10+
+	ULONG_PTR InstrumentationCallbackPreviousPc; // Win10+
+	ULONG_PTR InstrumentationCallbackPreviousSp; // Win10+
+#ifdef _WIN64
+	ULONG TxFsContext;
+	BOOLEAN InstrumentationCallbackDisabled;
+#else
+	BOOLEAN InstrumentationCallbackDisabled;
+	BYTE SpareBytes1[23];
+	ULONG TxFsContext;
+#endif
+	GDI_TEB_BATCH GdiTebBatch;
+	CLIENT_ID RealClientId;
+	HANDLE GdiCachedProcessHandle;
+	ULONG GdiClientPID;
+	ULONG GdiClientTID;
+	PVOID GdiThreadLocalInfo;
+	ULONG_PTR Win32ClientInfo[62];
+	PVOID glDispatchTable[233];
+	ULONG_PTR glReserved1[29];
+	PVOID glReserved2;
+	PVOID glSectionInfo;
+	PVOID glSection;
+	PVOID glTable;
+	PVOID glCurrentRC;
+	PVOID glContext;
+	NTSTATUS LastStatusValue;
+	UNICODE_STRING StaticUnicodeString;
+	WCHAR StaticUnicodeBuffer[261];
+	PVOID DeallocationStack;
+	PVOID TlsSlots[64];
+	LIST_ENTRY TlsLinks;
+	PVOID Vdm;
+	PVOID ReservedForNtRpc;
+	PVOID DbgSsReserved[2];
+	ULONG HardErrorDisabled;
+	PVOID Instrumentation[16]; // NT4-early WS03
+	PVOID WinSockData;
+	ULONG GdiBatchCount;
+	ULONG Spare2;
+	ULONG GuaranteedStackBytes; // late WS03+
+	PVOID ReservedForPerf;
+	PVOID ReservedForOle;
+	ULONG WaitingOnLoaderLock;
+	PVOID Reserved5[3];
+	PVOID *TlsExpansionSlots;
+#ifdef _WIN64
+	PVOID DeallocationBStore;
+	PVOID BStoreLimit;
+#endif
+	ULONG ImpersonationLocale;
+	ULONG IsImpersonating;
+	PVOID NlsCache;
+	PVOID ShimData;
+	ULONG HeapVirtualAffinity;
+	PVOID CurrentTransactionHandle;
+	PTEB_ACTIVE_FRAME ActiveFrame;
+	PVOID *FlsSlots;
+	PVOID PreferredLanguages;
+	PVOID UserPrefLanguages;
+	PVOID MergedPrefLanguages;
+	ULONG MuiImpersonation;
+	USHORT CrossTebFlags;
+	USHORT SameTebFlags;
+	PVOID TxnScopeEnterCallback;
+	PVOID TxnScopeExitCallback;
+	PVOID TxnScopeContext;
+	ULONG LockCount;
+	LONG WowTebOffset;
+	PVOID ResourceRetValue;
+	PVOID ReservedForWdf;
+	ULONGLONG ReservedForCrt;
+	GUID EffectiveContainerId;
+} TEB, *PTEB;
+
+#ifdef _WIN64
+C_ASSERT (FIELD_OFFSET (PEB, KernelCallbackTable) == 0x0058);
+C_ASSERT (FIELD_OFFSET (PEB, SessionId) == 0x02c0);
+C_ASSERT (FIELD_OFFSET (PEB, MinimumStackCommit) == 0x0318);
+C_ASSERT (FIELD_OFFSET (TEB, ProcessEnvironmentBlock) == 0x0060);
+C_ASSERT (FIELD_OFFSET (TEB, Win32ThreadInfo) == 0x0078);
+C_ASSERT (FIELD_OFFSET (TEB, SystemReserved1) == 0x0190);
+C_ASSERT (FIELD_OFFSET (TEB, ReservedForDebuggerInstrumentation) == 0x0110);
+C_ASSERT (FIELD_OFFSET (TEB, ExceptionCode) == 0x02c0);
+C_ASSERT (FIELD_OFFSET (TEB, InstrumentationCallbackDisabled) == 0x02ec);
+C_ASSERT (FIELD_OFFSET (TEB, LastStatusValue) == 0x1250);
+C_ASSERT (FIELD_OFFSET (TEB, DeallocationStack) == 0x1478);
+C_ASSERT (FIELD_OFFSET (TEB, GuaranteedStackBytes) == 0x1748);
+C_ASSERT (FIELD_OFFSET (TEB, LockCount) == 0x1808);
+C_ASSERT (FIELD_OFFSET (TEB, EffectiveContainerId) == 0x1828);
+#else
+C_ASSERT (FIELD_OFFSET (PEB, KernelCallbackTable) == 0x002c);
+C_ASSERT (FIELD_OFFSET (PEB, SessionId) == 0x01d4);
+C_ASSERT (FIELD_OFFSET (PEB, MinimumStackCommit) == 0x0208);
+C_ASSERT (FIELD_OFFSET (TEB, ProcessEnvironmentBlock) == 0x0030);
+C_ASSERT (FIELD_OFFSET (TEB, Win32ThreadInfo) == 0x0040);
+C_ASSERT (FIELD_OFFSET (TEB, SystemReserved1) == 0x010c);
+C_ASSERT (FIELD_OFFSET (TEB, ReservedForDebuggerInstrumentation) == 0x00cc);
+C_ASSERT (FIELD_OFFSET (TEB, ExceptionCode) == 0x01a4);
+C_ASSERT (FIELD_OFFSET (TEB, InstrumentationCallbackDisabled) == 0x01b8);
+C_ASSERT (FIELD_OFFSET (TEB, LastStatusValue) == 0x0bf4);
+C_ASSERT (FIELD_OFFSET (TEB, GuaranteedStackBytes) == 0x0f78);
+C_ASSERT (FIELD_OFFSET (TEB, LockCount) == 0x0fd8);
+C_ASSERT (FIELD_OFFSET (TEB, EffectiveContainerId) == 0x0ff0);
+#endif
+
 
 // Heaps
 typedef NTSTATUS (NTAPI *PRTL_HEAP_COMMIT_ROUTINE)(
