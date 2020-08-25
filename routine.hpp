@@ -166,8 +166,6 @@ typedef struct _R_STRINGBUILDER
 	PR_STRING String;
 } R_STRINGBUILDER, *PR_STRINGBUILDER;
 
-
-
 extern FORCEINLINE BOOLEAN _r_str_isempty (PUNICODE_STRING string);
 
 extern SIZE_T _r_str_hash (LPCWSTR string);
