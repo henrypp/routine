@@ -71,7 +71,6 @@
 #define RM_CONFIG_UPDATE (WM_APP + 7) // update done
 #define RM_CONFIG_RESET (WM_APP + 8) // reset done
 #define RM_TASKBARCREATED (WM_APP + 9) // explorer restarted
-#define RM_DPICHANGED (WM_APP + 10) // dpi changed message (win81+)
 
 #define WM_TRAYICON (WM_APP + 11)
 
