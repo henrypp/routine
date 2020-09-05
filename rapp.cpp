@@ -97,7 +97,7 @@ BOOLEAN _r_app_initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LP
 	{
 		HRESULT hr = CoInitializeEx (NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 
-		if (FAILED (hr))
+		if (hr != S_OK && hr != S_FALSE)
 		{
 #if defined(_APP_CONSOLE)
 			wprintf (L"Error! COM library initialization failed 0x%08" PRIX32 L"!\r\n", hr);
@@ -169,7 +169,7 @@ BOOLEAN _r_app_initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LP
 
 						PathUnquoteSpaces (value);
 
-						pathExpanded = _r_path_expand (value);
+						pathExpanded = _r_str_expandenvironmentstring (value);
 
 						if (!pathExpanded)
 							continue;
@@ -177,7 +177,7 @@ BOOLEAN _r_app_initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LP
 						if (PathGetDriveNumber (pathExpanded->Buffer) == INVALID_INT)
 						{
 							_r_str_trim (pathExpanded, L".\\/ ");
-							_r_obj_movereference (&app_config_path, _r_format_string (L"%s\\%s", _r_app_getdirectory (), pathExpanded->Buffer));
+							_r_obj_movereference (&app_config_path, _r_format_string (L"%s%c%s", _r_app_getdirectory (), OBJ_NAME_PATH_SEPARATOR, pathExpanded->Buffer));
 						}
 						else
 						{
@@ -205,17 +205,17 @@ BOOLEAN _r_app_initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LP
 
 	// get configuration path
 	if (_r_str_isempty (app_config_path) || !_r_fs_exists (_r_config_getpath ()))
-		_r_obj_movereference (&app_config_path, _r_format_string (L"%s\\%s.ini", _r_app_getdirectory (), _r_app_getnameshort ()));
+		_r_obj_movereference (&app_config_path, _r_format_string (L"%s%c%s.ini", _r_app_getdirectory (), OBJ_NAME_PATH_SEPARATOR, _r_app_getnameshort ()));
 
 	{
-		PR_STRING portableFile = _r_format_string (L"%s\\portable.dat", _r_app_getdirectory ());
+		PR_STRING portableFile = _r_format_string (L"%s%cportable.dat", _r_app_getdirectory (), OBJ_NAME_PATH_SEPARATOR);
 
 		if (!_r_fs_exists (_r_config_getpath ()) && !_r_fs_exists (portableFile->Buffer))
 		{
 			PR_STRING appdataFolder = _r_path_getknownfolder (CSIDL_APPDATA, L"\\" _APP_AUTHOR);
 
-			_r_obj_movereference (&app_profile_directory, _r_format_string (L"%s\\%s", appdataFolder->Buffer, _r_app_getname ()));
-			_r_obj_movereference (&app_config_path, _r_format_string (L"%s\\%s.ini", _r_app_getprofiledirectory (), _r_app_getnameshort ()));
+			_r_obj_movereference (&app_profile_directory, _r_format_string (L"%s%c%s", appdataFolder->Buffer, OBJ_NAME_PATH_SEPARATOR, _r_app_getname ()));
+			_r_obj_movereference (&app_config_path, _r_format_string (L"%s%c%s.ini", _r_app_getprofiledirectory (), OBJ_NAME_PATH_SEPARATOR, _r_app_getnameshort ()));
 
 			_r_obj_dereference (appdataFolder);
 		}
@@ -227,17 +227,21 @@ BOOLEAN _r_app_initialize (LPCWSTR name, LPCWSTR short_name, LPCWSTR version, LP
 		_r_obj_dereference (portableFile);
 	}
 
+	// made profile directory available
+	if (!_r_fs_exists (_r_app_getprofiledirectory ()))
+		_r_fs_mkdir (_r_app_getprofiledirectory ());
+
 	// set debug log path
-	app_log_path = _r_format_string (L"%s\\%s_debug.log", _r_app_getprofiledirectory (), _r_app_getnameshort ());
+	app_log_path = _r_format_string (L"%s%c%s_debug.log", _r_app_getprofiledirectory (), OBJ_NAME_PATH_SEPARATOR, _r_app_getnameshort ());
 
 	// set updates path
 #if defined(_APP_HAVE_UPDATES)
-	app_update_path = _r_format_string (L"%s\\%s_update.exe", _r_app_getprofiledirectory (), _r_app_getnameshort ());
+	app_update_path = _r_format_string (L"%s%c%s_update.exe", _r_app_getprofiledirectory (), OBJ_NAME_PATH_SEPARATOR, _r_app_getnameshort ());
 
 	app_update_info = (PAPP_UPDATE_INFO)_r_mem_allocatezero (sizeof (APP_UPDATE_INFO));
 
 	// initialize stl!
-	app_update_info->components = new std::vector<PAPP_UPDATE_COMPONENT>;
+	app_update_info->components = new OBJECTS_UPDATE_COMPONENTS_VEC;
 #endif // _APP_HAVE_UPDATES
 
 	// initialize config
@@ -271,7 +275,7 @@ BOOLEAN _r_app_createwindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 #ifdef IDS_UPDATE_INSTALL
 		_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_INSTALL));
 #else
-		_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Update available, do you want to install them?");
+		_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Update available. Do you want to install it now?");
 #pragma R_PRINT_WARNING(IDS_UPDATE_INSTALL)
 #endif // IDS_UPDATE_INSTALL
 
@@ -280,6 +284,7 @@ BOOLEAN _r_app_createwindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 		if (command_id == IDYES)
 		{
 			_r_update_install ();
+
 			return FALSE;
 		}
 		else if (command_id == IDNO)
@@ -293,8 +298,8 @@ BOOLEAN _r_app_createwindow (INT dlg_id, INT icon_id, DLGPROC dlg_proc)
 	}
 
 	// configure components
-	WCHAR localeVersion[128];
-	_r_str_printf (localeVersion, RTL_NUMBER_OF (localeVersion), L"%" TEXT (PR_LONG64), _r_locale_getversion ());
+	WCHAR localeVersion[64];
+	_r_str_fromlong64 (localeVersion, RTL_NUMBER_OF (localeVersion), _r_locale_getversion ());
 
 	_r_update_addcomponent (_r_app_getname (), _r_app_getnameshort (), _r_app_getversion (), _r_app_getdirectory (), TRUE);
 	_r_update_addcomponent (L"Language pack", L"language", localeVersion, _r_locale_getpath (), FALSE);
@@ -553,8 +558,11 @@ LRESULT CALLBACK _r_app_mainwindowproc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 
 		case WM_DPICHANGED:
 		{
+			LRESULT result = FALSE;
+
 			// call main callback
-			SendMessage (hwnd, RM_DPICHANGED, 0, 0);
+			if (app_window_proc)
+				result = CallWindowProc (app_window_proc, hwnd, msg, wparam, lparam);
 
 			// change window size and position
 			if ((GetWindowLongPtr (hwnd, GWL_STYLE) & WS_SIZEBOX) != 0)
@@ -575,7 +583,7 @@ LRESULT CALLBACK _r_app_mainwindowproc (HWND hwnd, UINT msg, WPARAM wparam, LPAR
 				}
 			}
 
-			break;
+			return result;
 		}
 	}
 
@@ -641,7 +649,7 @@ HICON _r_app_getsharedimage (HINSTANCE hinst, INT icon_id, INT icon_size)
 	pimage->icon_size = icon_size;
 	pimage->hicon = hicon;
 
-	app_shared_icons.emplace_back (pimage);
+	app_shared_icons.push_back (pimage);
 
 	return hicon;
 }
@@ -741,48 +749,48 @@ BOOLEAN _r_config_getboolean (LPCWSTR key, BOOLEAN def, LPCWSTR name)
 
 INT _r_config_getinteger (LPCWSTR key, INT def, LPCWSTR name)
 {
-	WCHAR value_text[128];
-	_r_str_printf (value_text, RTL_NUMBER_OF (value_text), L"%" TEXT (PRIi32), def);
+	WCHAR value_text[64];
+	_r_str_frominteger (value_text, RTL_NUMBER_OF (value_text), def);
 
 	return _r_str_tointeger (_r_config_getstring (key, value_text, name));
 }
 
 UINT _r_config_getuinteger (LPCWSTR key, UINT def, LPCWSTR name)
 {
-	WCHAR value_text[128];
-	_r_str_printf (value_text, RTL_NUMBER_OF (value_text), L"%" TEXT (PRIu32), def);
+	WCHAR value_text[64];
+	_r_str_fromuinteger (value_text, RTL_NUMBER_OF (value_text), def);
 
 	return _r_str_touinteger (_r_config_getstring (key, value_text, name));
 }
 
 LONG _r_config_getlong (LPCWSTR key, LONG def, LPCWSTR name)
 {
-	WCHAR value_text[128];
-	_r_str_printf (value_text, RTL_NUMBER_OF (value_text), L"%" TEXT (PR_LONG), def);
+	WCHAR value_text[64];
+	_r_str_fromlong (value_text, RTL_NUMBER_OF (value_text), def);
 
 	return _r_str_tolong (_r_config_getstring (key, value_text, name));
 }
 
 LONG64 _r_config_getlong64 (LPCWSTR key, LONG64 def, LPCWSTR name)
 {
-	WCHAR value_text[128];
-	_r_str_printf (value_text, RTL_NUMBER_OF (value_text), L"%" TEXT (PR_LONG64), def);
+	WCHAR value_text[64];
+	_r_str_fromlong64 (value_text, RTL_NUMBER_OF (value_text), def);
 
 	return _r_str_tolong64 (_r_config_getstring (key, value_text, name));
 }
 
 ULONG _r_config_getulong (LPCWSTR key, ULONG def, LPCWSTR name)
 {
-	WCHAR value_text[128];
-	_r_str_printf (value_text, RTL_NUMBER_OF (value_text), L"%" TEXT (PR_ULONG), def);
+	WCHAR value_text[64];
+	_r_str_fromulong (value_text, RTL_NUMBER_OF (value_text), def);
 
 	return _r_str_toulong (_r_config_getstring (key, value_text, name));
 }
 
 ULONG64 _r_config_getulong64 (LPCWSTR key, ULONG64 def, LPCWSTR name)
 {
-	WCHAR value_text[128];
-	_r_str_printf (value_text, RTL_NUMBER_OF (value_text), L"%" TEXT (PR_ULONG64), def);
+	WCHAR value_text[64];
+	_r_str_fromulong64 (value_text, RTL_NUMBER_OF (value_text), def);
 
 	return _r_str_toulong64 (_r_config_getstring (key, value_text, name));
 }
@@ -885,11 +893,11 @@ LPCWSTR _r_config_getstring (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 
 	valueString = valuesMap->at (keyString);
 
-	if (!valueString)
+	if (_r_str_isempty (valueString))
 	{
 		if (def)
 		{
-			valueString = _r_obj_createstring (def);
+			_r_obj_movereference (&valueString, _r_obj_createstring (def));
 
 			valuesMap->insert_or_assign (keyString, valueString);
 		}
@@ -906,60 +914,53 @@ LPCWSTR _r_config_getstring (LPCWSTR key, LPCWSTR def, LPCWSTR name)
 
 VOID _r_config_setboolean (LPCWSTR key, BOOLEAN val, LPCWSTR name)
 {
-	LPCWSTR value_text;
-
-	if (val)
-		value_text = L"true"; // TRUE
-	else
-		value_text = L"false"; // FALSE
-
-	_r_config_setstring (key, value_text, name);
+	_r_config_setstring (key, val ? L"true" : L"false", name);
 }
 
 VOID _r_config_setinteger (LPCWSTR key, INT val, LPCWSTR name)
 {
-	WCHAR value_text[128];
-	_r_str_printf (value_text, RTL_NUMBER_OF (value_text), L"%" TEXT (PRIi32), val);
+	WCHAR value_text[64];
+	_r_str_frominteger (value_text, RTL_NUMBER_OF (value_text), val);
 
 	_r_config_setstring (key, value_text, name);
 }
 
 VOID _r_config_setuinteger (LPCWSTR key, UINT val, LPCWSTR name)
 {
-	WCHAR value_text[128];
-	_r_str_printf (value_text, RTL_NUMBER_OF (value_text), L"%" TEXT (PRIu32), val);
+	WCHAR value_text[64];
+	_r_str_fromuinteger (value_text, RTL_NUMBER_OF (value_text), val);
 
 	_r_config_setstring (key, value_text, name);
 }
 
 VOID _r_config_setlong (LPCWSTR key, LONG val, LPCWSTR name)
 {
-	WCHAR value_text[128];
-	_r_str_printf (value_text, RTL_NUMBER_OF (value_text), L"%" TEXT (PR_LONG), val);
+	WCHAR value_text[64];
+	_r_str_fromlong (value_text, RTL_NUMBER_OF (value_text), val);
 
 	_r_config_setstring (key, value_text, name);
 }
 
 VOID _r_config_setlong64 (LPCWSTR key, LONG64 val, LPCWSTR name)
 {
-	WCHAR value_text[128];
-	_r_str_printf (value_text, RTL_NUMBER_OF (value_text), L"%" TEXT (PR_LONG64), val);
+	WCHAR value_text[64];
+	_r_str_fromlong64 (value_text, RTL_NUMBER_OF (value_text), val);
 
 	_r_config_setstring (key, value_text, name);
 }
 
 VOID _r_config_setulong (LPCWSTR key, ULONG val, LPCWSTR name)
 {
-	WCHAR value_text[128];
-	_r_str_printf (value_text, RTL_NUMBER_OF (value_text), L"%" TEXT (PR_ULONG), val);
+	WCHAR value_text[64];
+	_r_str_fromulong (value_text, RTL_NUMBER_OF (value_text), val);
 
 	_r_config_setstring (key, value_text, name);
 }
 
 VOID _r_config_setulong64 (LPCWSTR key, ULONG64 val, LPCWSTR name)
 {
-	WCHAR value_text[128];
-	_r_str_printf (value_text, RTL_NUMBER_OF (value_text), L"%" TEXT (PR_ULONG64), val);
+	WCHAR value_text[64];
+	_r_str_fromulong64 (value_text, RTL_NUMBER_OF (value_text), val);
 
 	_r_config_setstring (key, value_text, name);
 }
@@ -974,9 +975,6 @@ VOID _r_config_setfont (LPCWSTR key, HWND hwnd, PLOGFONT pfont, LPCWSTR name)
 
 VOID _r_config_setstring (LPCWSTR key, LPCWSTR val, LPCWSTR name)
 {
-	if (!_r_fs_exists (_r_app_getprofiledirectory ()))
-		_r_fs_mkdir (_r_app_getprofiledirectory ());
-
 	OBJECTS_STRINGS_MAP1* valuesMap;
 	PR_STRING sectionString;
 	PR_STRING keyString;
@@ -1362,6 +1360,7 @@ BOOLEAN _r_autorun_enable (HWND hwnd, BOOLEAN is_enable)
 		if (is_enable)
 		{
 			string = _r_format_string (L"\"%s\" /minimized", _r_sys_getimagepathname ());
+
 			status = RegSetValueEx (hkey, _r_app_getname (), 0, REG_SZ, (LPBYTE)string->Buffer, (ULONG)(string->Length + sizeof (UNICODE_NULL)));
 
 			_r_obj_dereference (string);
@@ -1410,7 +1409,7 @@ VOID _r_update_addcomponent (LPCWSTR full_name, LPCWSTR short_name, LPCWSTR vers
 
 	pcomponent->is_installer = is_installer;
 
-	app_update_info->components->emplace_back (pcomponent);
+	app_update_info->components->push_back (pcomponent);
 }
 
 VOID _r_update_check (HWND hparent)
@@ -1418,9 +1417,7 @@ VOID _r_update_check (HWND hparent)
 	if (!hparent && (!_r_config_getboolean (L"CheckUpdates", TRUE) || (_r_unixtime_now () - _r_config_getlong64 (L"CheckUpdatesLast", 0)) <= _APP_UPDATE_PERIOD))
 		return;
 
-	app_update_info->hthread = _r_sys_createthread (&_r_update_checkthread, (PVOID)app_update_info, TRUE);
-
-	if (!app_update_info->hthread)
+	if (!NT_SUCCESS (_r_sys_createthread (&_r_update_checkthread, (PVOID)app_update_info, &app_update_info->hthread)))
 		return;
 
 	app_update_info->htaskdlg = NULL;
@@ -1453,7 +1450,7 @@ VOID _r_update_check (HWND hparent)
 	_r_sys_resumethread (app_update_info->hthread);
 }
 
-THREAD_FN _r_update_checkthread (PVOID lparam)
+THREAD_API _r_update_checkthread (PVOID lparam)
 {
 	PAPP_UPDATE_INFO app_update_info = (PAPP_UPDATE_INFO)lparam;
 
@@ -1473,7 +1470,6 @@ THREAD_FN _r_update_checkthread (PVOID lparam)
 		PR_STRING updateBuffer;
 
 		updateUrl = _r_format_string (_APP_WEBSITE_URL L"/update.php?product=%s&is_beta=%" TEXT (PRIu16) L"&api=3", _r_app_getnameshort (), is_beta);
-		updateBuffer = NULL;
 
 		if (_r_inet_downloadurl (hsession, _r_obj_getstring (proxyString), updateUrl->Buffer, (LPVOID*)&updateBuffer, FALSE, NULL, 0) != ERROR_SUCCESS)
 		{
@@ -1506,132 +1502,130 @@ THREAD_FN _r_update_checkthread (PVOID lparam)
 		{
 			OBJECTS_STRINGS_MAP1 valuesMap;
 
-			if (updateBuffer)
+			_r_str_unserialize (updateBuffer, L';', L'=', &valuesMap);
+
+			WCHAR updates_text[512] = {0};
+			PR_STRING componentValues;
+			PR_STRING newVersionString;
+			PR_STRING newUrlString;
+			SIZE_T split_pos;
+			BOOLEAN is_updateavailable = FALSE;
+
+			for (auto it = app_update_info->components->begin (); it != app_update_info->components->end (); ++it)
 			{
-				_r_str_unserialize (updateBuffer, L';', L'=', &valuesMap);
+				if (!*it)
+					continue;
 
-				WCHAR updates_text[512] = {0};
-				PR_STRING componentValues;
-				PR_STRING newVersionString;
-				PR_STRING newUrlString;
-				SIZE_T split_pos;
-				BOOLEAN is_updateavailable = FALSE;
+				PAPP_UPDATE_COMPONENT pcomponent = *it;
 
-				for (auto it = app_update_info->components->begin (); it != app_update_info->components->end (); ++it)
+				if (!_r_str_isempty (pcomponent->short_name) && valuesMap.find (pcomponent->short_name) != valuesMap.end ())
 				{
-					if (!*it)
+					componentValues = valuesMap.at (pcomponent->short_name);
+
+					if (_r_str_isempty (componentValues))
 						continue;
 
-					PAPP_UPDATE_COMPONENT pcomponent = *it;
+					split_pos = _r_str_findchar (componentValues->Buffer, _r_obj_getstringlength (componentValues), L'|');
 
-					if (!_r_str_isempty (pcomponent->short_name) && valuesMap.find (pcomponent->short_name) != valuesMap.end ())
+					if (split_pos == INVALID_SIZE_T)
+						continue;
+
+					newVersionString = _r_str_extract (componentValues, 0, split_pos);
+					newUrlString = _r_str_extract (componentValues, split_pos + 1, _r_obj_getstringlength (componentValues) - split_pos - 1);
+
+					if (!_r_str_isempty (newVersionString) && !_r_str_isempty (newUrlString) && (_r_str_isnumeric (newVersionString->Buffer) ? (_r_str_tolong64 (_r_obj_getstring (pcomponent->version)) < _r_str_tolong64 (newVersionString->Buffer)) : (_r_str_versioncompare (_r_obj_getstring (pcomponent->version), newVersionString->Buffer) == -1)))
 					{
-						componentValues = valuesMap.at (pcomponent->short_name);
+						is_updateavailable = TRUE;
+						pcomponent->is_haveupdate = TRUE;
 
-						if (_r_str_isempty (componentValues))
-							continue;
+						_r_obj_movereference (&pcomponent->new_version, _r_obj_reference (newVersionString));
+						_r_obj_movereference (&pcomponent->url, _r_obj_reference (newUrlString));
 
-						split_pos = _r_str_findchar (componentValues->Buffer, _r_obj_getstringlength (componentValues), L'|');
+						PR_STRING versionString = _r_util_versionformat (pcomponent->new_version);
 
-						if (split_pos == INVALID_SIZE_T)
-							continue;
-
-						newVersionString = _r_str_extract (componentValues, 0, split_pos);
-						newUrlString = _r_str_extract (componentValues, split_pos + 1, INVALID_SIZE_T);
-
-						if (!_r_str_isempty (newVersionString) && !_r_str_isempty (newUrlString) && (_r_str_isnumeric (newVersionString->Buffer) ? (_r_str_tolong64 (_r_obj_getstring (pcomponent->version)) < _r_str_tolong64 (newVersionString->Buffer)) : (_r_str_versioncompare (_r_obj_getstring (pcomponent->version), newVersionString->Buffer) == -1)))
+						if (versionString)
 						{
-							is_updateavailable = TRUE;
-							pcomponent->is_haveupdate = TRUE;
+							_r_str_appendformat (updates_text, RTL_NUMBER_OF (updates_text), L"%s %s\r\n", pcomponent->full_name->Buffer, versionString->Buffer);
 
-							_r_obj_movereference (&pcomponent->new_version, newVersionString);
-							newVersionString = NULL;
-
-							_r_obj_movereference (&pcomponent->url, newUrlString);
-							newUrlString = NULL;
-
-							PR_STRING versionString = _r_util_versionformat (pcomponent->new_version);
-
-							if (versionString)
-							{
-								_r_str_appendformat (updates_text, RTL_NUMBER_OF (updates_text), L"%s %s\r\n", _r_obj_getstring (pcomponent->full_name), versionString->Buffer);
-								_r_obj_dereference (versionString);
-							}
-
-							if (pcomponent->is_installer)
-							{
-								_r_obj_movereference (&pcomponent->temp_path, _r_obj_createstring (_r_update_getpath ()));
-
-								// do not check components when new version of application available
-								break;
-							}
-							else
-							{
-								PR_STRING tempPath = _r_path_expand (L"%temp%\\");
-
-								_r_obj_movereference (&pcomponent->temp_path, _r_format_string (L"%s\\%s-%s-%s.tmp", _r_obj_getstringorempty (tempPath), _r_app_getnameshort (), _r_obj_getstringorempty (pcomponent->short_name), _r_obj_getstringorempty (pcomponent->new_version)));
-
-								if (tempPath)
-									_r_obj_dereference (tempPath);
-							}
+							_r_obj_dereference (versionString);
 						}
 
-						SAFE_DELETE_REFERENCE (newVersionString);
-						SAFE_DELETE_REFERENCE (newUrlString);
+						if (pcomponent->is_installer)
+						{
+							_r_obj_movereference (&pcomponent->temp_path, _r_obj_createstring (_r_update_getpath ()));
+
+							// do not check components when new version of application available
+							break;
+						}
+						else
+						{
+							PR_STRING tempPath = _r_str_expandenvironmentstring (L"%temp%");
+
+							_r_obj_movereference (&pcomponent->temp_path, _r_format_string (L"%s\\%s-%s-%s.tmp", _r_obj_getstringorempty (tempPath), _r_app_getnameshort (), _r_obj_getstringorempty (pcomponent->short_name), _r_obj_getstringorempty (pcomponent->new_version)));
+
+							if (tempPath)
+								_r_obj_dereference (tempPath);
+						}
 					}
+
+					if (newVersionString)
+						_r_obj_dereference (newVersionString);
+
+					if (newUrlString)
+						_r_obj_dereference (newUrlString);
 				}
+			}
 
-				if (is_updateavailable)
-				{
-					_r_str_trim (updates_text, L"\r\n ");
+			if (is_updateavailable)
+			{
+				_r_str_trim (updates_text, L"\r\n ");
 
-					WCHAR str_main[256];
+				WCHAR str_main[256];
 
 #ifdef IDS_UPDATE_YES
-					_r_str_copy (str_main, RTL_NUMBER_OF (str_main), _r_locale_getstring (IDS_UPDATE_YES));
+				_r_str_copy (str_main, RTL_NUMBER_OF (str_main), _r_locale_getstring (IDS_UPDATE_YES));
 #else
-					_r_str_copy (str_main, RTL_NUMBER_OF (str_main), L"Update available, download and install them?");
+				_r_str_copy (str_main, RTL_NUMBER_OF (str_main), L"Update available. Download and install now?");
 #pragma R_PRINT_WARNING(IDS_UPDATE_YES)
 #endif // IDS_UPDATE_YES
 
 #ifdef _APP_NO_DEPRECATIONS
-					_r_update_pagenavigate (app_update_info->htaskdlg, NULL, 0, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, str_main, updates_text, (LONG_PTR)app_update_info);
+				_r_update_pagenavigate (app_update_info->htaskdlg, NULL, 0, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, str_main, updates_text, (LONG_PTR)app_update_info);
 #else
-					if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
-					{
-						_r_update_pagenavigate (app_update_info->htaskdlg, NULL, 0, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, str_main, updates_text, (LONG_PTR)app_update_info);
-					}
-					else
-					{
-						INT command_id = _r_show_message (app_update_info->hparent, MB_YESNO | MB_USERICON, NULL, str_main, updates_text);
-
-						if (command_id == IDYES)
-							app_update_info->hthread = _r_sys_createthread (&_r_update_downloadthread, (PVOID)app_update_info, FALSE);
-					}
-#endif // _APP_NO_DEPRECATIONS
+				if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
+				{
+					_r_update_pagenavigate (app_update_info->htaskdlg, NULL, 0, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, str_main, updates_text, (LONG_PTR)app_update_info);
 				}
 				else
 				{
-					if (app_update_info->htaskdlg)
-					{
-						WCHAR str_content[256];
+					INT command_id = _r_show_message (app_update_info->hparent, MB_YESNO | MB_USERICON, NULL, str_main, updates_text);
+
+					if (command_id == IDYES)
+						_r_sys_createthread2 (&_r_update_downloadthread, (PVOID)app_update_info);
+				}
+#endif // _APP_NO_DEPRECATIONS
+			}
+			else
+			{
+				if (app_update_info->htaskdlg)
+				{
+					WCHAR str_content[256];
 #ifdef IDS_UPDATE_NO
-						_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_NO));
+					_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_NO));
 #else
-						_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"No updates available.");
+					_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"No updates available.");
 #pragma R_PRINT_WARNING(IDS_UPDATE_NO)
 #endif // IDS_UPDATE_NO
 
-						_r_update_pagenavigate (app_update_info->htaskdlg, NULL, 0, TDCBF_CLOSE_BUTTON, NULL, str_content, (LONG_PTR)app_update_info);
-					}
+					_r_update_pagenavigate (app_update_info->htaskdlg, NULL, 0, TDCBF_CLOSE_BUTTON, NULL, str_content, (LONG_PTR)app_update_info);
 				}
-
-				_r_config_setlong64 (L"CheckUpdatesLast", _r_unixtime_now ());
-
-				_r_util_clear_objects_strings_map1 (&valuesMap);
-
-				_r_obj_dereference (updateBuffer);
 			}
+
+			_r_config_setlong64 (L"CheckUpdatesLast", _r_unixtime_now ());
+
+			_r_util_clear_objects_strings_map1 (&valuesMap);
+
+			_r_obj_dereference (updateBuffer);
 		}
 
 		_r_obj_dereference (updateUrl);
@@ -1642,7 +1636,7 @@ THREAD_FN _r_update_checkthread (PVOID lparam)
 	if (proxyString)
 		_r_obj_dereference (proxyString);
 
-	return _r_sys_endthread (ERROR_SUCCESS);
+	return ERROR_SUCCESS;
 }
 
 BOOLEAN NTAPI _r_update_downloadcallback (ULONG total_written, ULONG total_length, LONG_PTR lpdata)
@@ -1669,7 +1663,7 @@ BOOLEAN NTAPI _r_update_downloadcallback (ULONG total_written, ULONG total_lengt
 	return TRUE;
 }
 
-THREAD_FN _r_update_downloadthread (PVOID lparam)
+THREAD_API _r_update_downloadthread (PVOID lparam)
 {
 	PAPP_UPDATE_INFO app_update_info = (PAPP_UPDATE_INFO)lparam;
 
@@ -1691,54 +1685,55 @@ THREAD_FN _r_update_downloadthread (PVOID lparam)
 
 			if (pcomponent->is_haveupdate)
 			{
-				LPCWSTR updatePath = _r_obj_getstring (pcomponent->temp_path);
-
-				HANDLE hfile = CreateFile (updatePath, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-
-				if (_r_fs_isvalidhandle (hfile))
+				if (!_r_str_isempty (pcomponent->temp_path))
 				{
-					_R_CALLBACK_HTTP_DOWNLOAD downloadCallback = NULL;
+					HANDLE hfile = CreateFile (pcomponent->temp_path->Buffer, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+
+					if (_r_fs_isvalidhandle (hfile))
+					{
+						_R_CALLBACK_HTTP_DOWNLOAD downloadCallback = NULL;
 
 #if defined(_APP_NO_DEPRECATIONS)
-					downloadCallback = _r_update_downloadcallback;
-#else
-					if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
 						downloadCallback = _r_update_downloadcallback;
+#else
+						if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
+							downloadCallback = _r_update_downloadcallback;
 #endif // _APP_NO_DEPRECATIONS
 
-					if (_r_inet_downloadurl (hsession, _r_obj_getstring (proxyString), _r_obj_getstring (pcomponent->url), &hfile, TRUE, downloadCallback, (LONG_PTR)app_update_info) == ERROR_SUCCESS)
-					{
-						CloseHandle (hfile); // required!
-
-						pcomponent->is_haveupdate = FALSE;
-
-						is_downloaded = TRUE;
-
-						if (pcomponent->is_installer)
+						if (_r_inet_downloadurl (hsession, _r_obj_getstring (proxyString), _r_obj_getstring (pcomponent->url), &hfile, TRUE, downloadCallback, (LONG_PTR)app_update_info) == ERROR_SUCCESS)
 						{
-							is_downloaded_installer = TRUE;
-							break;
+							CloseHandle (hfile); // required!
+
+							pcomponent->is_haveupdate = FALSE;
+
+							is_downloaded = TRUE;
+
+							if (pcomponent->is_installer)
+							{
+								is_downloaded_installer = TRUE;
+								break;
+							}
+							else
+							{
+								LPCWSTR path = _r_obj_getstring (pcomponent->target_path);
+
+								// copy required files
+								SetFileAttributes (path, FILE_ATTRIBUTE_NORMAL);
+
+								_r_fs_move (pcomponent->temp_path->Buffer, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
+								_r_fs_remove (pcomponent->temp_path->Buffer, _R_FLAG_REMOVE_FORCE);
+
+								// set new version
+								_r_obj_movereference (&pcomponent->version, pcomponent->new_version);
+								pcomponent->new_version = NULL;
+
+								is_updated = TRUE;
+							}
 						}
 						else
 						{
-							LPCWSTR path = _r_obj_getstring (pcomponent->target_path);
-
-							// copy required files
-							SetFileAttributes (path, FILE_ATTRIBUTE_NORMAL);
-
-							_r_fs_move (updatePath, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
-							_r_fs_remove (updatePath, _R_FLAG_REMOVE_FORCE);
-
-							// set new version
-							_r_obj_movereference (&pcomponent->version, pcomponent->new_version);
-							pcomponent->new_version = NULL;
-
-							is_updated = TRUE;
+							CloseHandle (hfile);
 						}
-					}
-					else
-					{
-						CloseHandle (hfile);
 					}
 				}
 			}
@@ -1760,7 +1755,7 @@ THREAD_FN _r_update_downloadthread (PVOID lparam)
 #ifdef IDS_UPDATE_INSTALL
 			_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_INSTALL));
 #else
-			_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Update available, do you want to install them?");
+			_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Update available. Do you want to install it now?");
 #pragma R_PRINT_WARNING(IDS_UPDATE_INSTALL)
 #endif // IDS_UPDATE_INSTALL
 		}
@@ -1817,7 +1812,7 @@ THREAD_FN _r_update_downloadthread (PVOID lparam)
 		}
 	}
 
-	return _r_sys_endthread (ERROR_SUCCESS);
+	return ERROR_SUCCESS;
 }
 
 HRESULT CALLBACK _r_update_pagecallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR lpdata)
@@ -1858,9 +1853,9 @@ HRESULT CALLBACK _r_update_pagecallback (HWND hwnd, UINT msg, WPARAM wparam, LPA
 				_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Downloading update...");
 #pragma R_PRINT_WARNING(IDS_UPDATE_DOWNLOAD)
 #endif
-				app_update_info->hthread = (HANDLE)_r_sys_createthread (&_r_update_downloadthread, (PVOID)app_update_info, TRUE);
+				SAFE_DELETE_HANDLE (app_update_info->hthread);
 
-				if (_r_fs_isvalidhandle (app_update_info->hthread))
+				if (NT_SUCCESS ( _r_sys_createthread (&_r_update_downloadthread, (PVOID)app_update_info, &app_update_info->hthread)))
 				{
 					_r_update_pagenavigate (hwnd, NULL, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, NULL, str_content, (LONG_PTR)app_update_info);
 
@@ -1890,7 +1885,7 @@ HRESULT CALLBACK _r_update_pagecallback (HWND hwnd, UINT msg, WPARAM wparam, LPA
 			SendMessage (hwnd, WM_SETICON, ICON_SMALL, NULL);
 			SendMessage (hwnd, WM_SETICON, ICON_BIG, NULL);
 
-			if (_r_fs_isvalidhandle (app_update_info->hthread))
+			if (app_update_info->hthread)
 				_r_sys_resumethread (app_update_info->hthread);
 
 			break;
@@ -1950,7 +1945,7 @@ VOID _r_update_install ()
 	PR_STRING commandLinePath;
 	PR_STRING commandLine;
 
-	commandLinePath = _r_path_expand (L"%systemroot%\\system32\\cmd.exe");
+	commandLinePath = _r_str_expandenvironmentstring (L"%systemroot%\\system32\\cmd.exe");
 	commandLine = _r_format_string (L"\"%s\" /c timeout 3 > nul&&start /wait \"\" \"%s\" /S /D=%s&&timeout 3 > nul&&del /q /f \"%s\"&start \"\" \"%s\"",
 									_r_obj_getstring (commandLinePath),
 									_r_update_getpath (),
@@ -1970,23 +1965,78 @@ VOID _r_update_install ()
 
 #endif // _APP_HAVE_UPDATES
 
-VOID _r_logerror (UINT tray_id, LPCWSTR fn, ULONG code, LPCWSTR description)
+LPCWSTR _r_logleveltostring (APP_LOG_LEVEL level)
 {
-	WCHAR dateString[256];
-	PR_STRING errorText;
-	time_t current_time;
+	if (level == Debug)
+		return L"Debug";
+
+	if (level == Information)
+		return L"Information";
+
+	if (level == Warning)
+		return L"Warning";
+
+	if (level == Error)
+		return L"Error";
+
+	if (level == Critical)
+		return L"Critical";
+
+	return NULL;
+}
+
+ULONG _r_logleveltotrayicon (APP_LOG_LEVEL level)
+{
+	if (level == Debug || level == Information)
+		return NIIF_INFO;
+
+	if (level == Warning)
+		return NIIF_WARNING;
+
+	if (level == Error || level == Critical)
+		return NIIF_ERROR;
+
+	return NIIF_NONE;
+}
+
+VOID _r_logerror (APP_LOG_LEVEL level, UINT tray_id, LPCWSTR fn, ULONG code, LPCWSTR description)
+{
+	WCHAR dateString[128];
+	PR_STRING errorString;
+	time_t timestamp;
 	HANDLE hfile;
 
-	current_time = _r_unixtime_now ();
-	_r_format_dateex (dateString, RTL_NUMBER_OF (dateString), current_time, FDTF_SHORTDATE | FDTF_LONGTIME);
+	if (_r_config_getinteger (L"ErrorLevel", 0) >= level)
+		return;
 
-	errorText = _r_format_string (L"\"%s\",\"%s()\",\"0x%08" TEXT (PRIX32) L"\",\"%s\"" L",\"%s\"\r\n", dateString, fn, code, description, _r_app_getversion ());
+	SYSTEMTIME systemTime = {0};
+	GetSystemTime (&systemTime);
+	timestamp = _r_unixtime_now ();
+	_r_format_dateex (dateString, RTL_NUMBER_OF (dateString), timestamp, FDTF_SHORTDATE | FDTF_LONGTIME);
+
+	errorString = _r_format_string (
+		L"\"%s\",\"%s\",\"%s()\",\"0x%08" TEXT (PRIX32) L"\",\"%s\"" L",\"%s\",\"%d.%d build %d\"\r\n",
+		_r_logleveltostring (level),
+		dateString,
+		fn,
+		code,
+		description,
+		_r_app_getversion (),
+		NtCurrentPeb ()->OSMajorVersion,
+		NtCurrentPeb ()->OSMinorVersion,
+		NtCurrentPeb ()->OSBuildNumber
+	);
 
 	// print log for debuggers
-	_r_dbg_print (errorText->Buffer);
+	_r_dbg_print_v (L"[%s], %s(), 0x%08" TEXT (PRIX32) L", %s\r\n",
+					_r_logleveltostring (level),
+					fn,
+					code,
+					description
+	);
 
 	// write log to a file
-	hfile = CreateFile (_r_app_getlogpath (), GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	hfile = CreateFile (_r_app_getlogpath (), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
 	if (_r_fs_isvalidhandle (hfile))
 	{
@@ -2004,7 +2054,7 @@ VOID _r_logerror (UINT tray_id, LPCWSTR fn, ULONG code, LPCWSTR description)
 			_r_fs_setpos (hfile, 0, FILE_END);
 		}
 
-		WriteFile (hfile, errorText->Buffer, (ULONG)_r_obj_getstringsize (errorText), &written, NULL);
+		WriteFile (hfile, errorString->Buffer, (ULONG)errorString->Length, &written, NULL);
 
 		CloseHandle (hfile);
 	}
@@ -2013,26 +2063,26 @@ VOID _r_logerror (UINT tray_id, LPCWSTR fn, ULONG code, LPCWSTR description)
 #if defined(_APP_HAVE_TRAY)
 	if (tray_id && _r_config_getboolean (L"IsErrorNotificationsEnabled", TRUE))
 	{
-		if ((current_time - _r_config_getlong64 (L"ErrorNotificationsTimestamp", 0)) >= _r_config_getlong64 (L"ErrorNotificationsPeriod", 4)) // check for timeout (sec.)
+		if ((timestamp - _r_config_getlong64 (L"ErrorNotificationsTimestamp", 0)) >= _r_config_getlong64 (L"ErrorNotificationsPeriod", 4)) // check for timeout (sec.)
 		{
-			_r_tray_popup (_r_app_gethwnd (), tray_id, NIIF_WARNING | (_r_config_getboolean (L"IsNotificationsSound", TRUE) ? 0 : NIIF_NOSOUND), _r_app_getname (), L"Something went wrong. Open debug log file in profile directory.");
+			_r_tray_popup (_r_app_gethwnd (), tray_id, _r_logleveltotrayicon (level) | (_r_config_getboolean (L"IsNotificationsSound", TRUE) ? 0 : NIIF_NOSOUND), _r_app_getname (), L"Something went wrong. Open debug log file in profile directory.");
 
-			_r_config_setlong64 (L"ErrorNotificationsTimestamp", current_time);
+			_r_config_setlong64 (L"ErrorNotificationsTimestamp", timestamp);
 		}
 	}
 #endif // _APP_HAVE_TRAY
 
-	_r_obj_dereference (errorText);
+	_r_obj_dereference (errorString);
 }
 
-VOID _r_logerror_v (UINT tray_id, LPCWSTR fn, ULONG code, LPCWSTR format, ...)
+VOID _r_logerror_v (APP_LOG_LEVEL level, UINT tray_id, LPCWSTR fn, ULONG code, LPCWSTR format, ...)
 {
 	va_list argPtr;
 	PR_STRING string;
 
-	if (_r_str_isempty (format))
+	if (!format)
 	{
-		_r_logerror (tray_id, fn, code, NULL);
+		_r_logerror (level, tray_id, fn, code, NULL);
 		return;
 	}
 
@@ -2040,7 +2090,7 @@ VOID _r_logerror_v (UINT tray_id, LPCWSTR fn, ULONG code, LPCWSTR format, ...)
 	string = _r_format_string_v (format, argPtr);
 	va_end (argPtr);
 
-	_r_logerror (tray_id, fn, code, string->Buffer);
+	_r_logerror (level, tray_id, fn, code, string->Buffer);
 
 	_r_obj_dereference (string);
 }
@@ -2489,7 +2539,7 @@ VOID _r_settings_addpage (INT dlg_id, UINT locale_id)
 	ptr_page->dlg_id = dlg_id;
 	ptr_page->locale_id = locale_id;
 
-	app_settings_pages.emplace_back (ptr_page);
+	app_settings_pages.push_back (ptr_page);
 }
 
 VOID _r_settings_createwindow (HWND hwnd, DLGPROC dlg_proc, INT dlg_id)

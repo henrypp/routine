@@ -56,6 +56,9 @@ PR_STRING _r_format_string_v (LPCWSTR format, va_list argPtr)
 	INT length;
 	PR_STRING string;
 
+	if (!format)
+		return NULL;
+
 	length = _vscwprintf (format, argPtr);
 
 	if (length == 0 || length == -1)
@@ -127,7 +130,7 @@ VOID _r_format_interval (LPWSTR buffer, UINT bufferSize, LONG64 seconds, INT dig
 		return;
 
 	if (!StrFromTimeInterval (buffer, bufferSize, _r_calc_seconds2milliseconds (ULONG, seconds), digits))
-		_r_str_printf (buffer, bufferSize, L"%" TEXT (PR_LONG64), seconds);
+		_r_str_fromlong64 (buffer, bufferSize, seconds);
 }
 
 VOID _r_format_number (LPWSTR buffer, UINT bufferSize, LONG64 number, UINT fractional_digits, BOOLEAN is_groupdigits)
@@ -166,7 +169,7 @@ VOID _r_format_number (LPWSTR buffer, UINT bufferSize, LONG64 number, UINT fract
 	numberFormat.lpThousandSep = thousandSeparator;
 	numberFormat.NegativeOrder = 1;
 
-	_r_str_printf (numberString, RTL_NUMBER_OF (numberString), L"%" TEXT (PR_LONG64), number);
+	_r_str_fromlong64 (numberString, RTL_NUMBER_OF (numberString), number);
 
 	if (!GetNumberFormat (LOCALE_USER_DEFAULT, 0, numberString, &numberFormat, buffer, bufferSize))
 		_r_str_copy (buffer, bufferSize, numberString);
@@ -533,7 +536,6 @@ VOID _r_string_appendex (PR_STRINGBUILDER string, LPCWSTR text, SIZE_T length)
 	}
 
 	string->String->Length += length;
-
 	_r_string_writenullterminator (string->String);
 }
 
@@ -561,7 +563,6 @@ VOID _r_string_appendformat_v (PR_STRINGBUILDER string, LPCWSTR format, va_list 
 #pragma warning(pop)
 
 	string->String->Length += lengthInBytes;
-
 	_r_string_writenullterminator (string->String);
 }
 
@@ -582,7 +583,6 @@ VOID _r_string_insertex (PR_STRINGBUILDER string, SIZE_T index, LPCWSTR text, SI
 	}
 
 	string->String->Length += length;
-
 	_r_string_writenullterminator (string->String);
 }
 
@@ -613,7 +613,6 @@ VOID _r_string_insertformat_v (PR_STRINGBUILDER string, SIZE_T index, LPCWSTR fo
 #pragma warning(pop)
 
 	string->String->Length += lengthInBytes;
-
 	_r_string_writenullterminator (string->String);
 }
 
@@ -656,7 +655,6 @@ VOID _r_string_setsize (PR_STRING string, SIZE_T length)
 		length += 1;
 
 	string->Length = length;
-
 	_r_string_writenullterminator (string);
 }
 
@@ -850,47 +848,38 @@ BOOLEAN _r_fs_makebackup (LPCWSTR path, time_t timestamp, BOOLEAN is_removesourc
 
 BOOLEAN _r_fs_mkdir (LPCWSTR path)
 {
-	if (_r_str_isempty (path))
-		return FALSE;
-
 	if (SHCreateDirectoryEx (NULL, path, NULL) == ERROR_SUCCESS)
 		return TRUE;
 
 	return !!CreateDirectory (path, NULL); // fallback
 }
 
-BOOLEAN _r_fs_readfile (HANDLE hfile, PVOID result, ULONG size)
+PR_BYTE _r_fs_readfile (HANDLE hfile, ULONG filesize)
 {
-	if (!_r_fs_isvalidhandle (hfile))
-		return FALSE;
-
-	HANDLE hmap = CreateFileMapping (hfile, NULL, PAGE_READONLY, 0, size, NULL);
+	HANDLE hmap = CreateFileMapping (hfile, NULL, PAGE_READONLY, 0, filesize, NULL);
 
 	if (hmap)
 	{
-		PVOID pbuffer = MapViewOfFile (hmap, FILE_MAP_READ, 0, 0, 0);
+		PVOID buffer = MapViewOfFile (hmap, FILE_MAP_READ, 0, 0, 0);
 
-		if (pbuffer)
+		if (buffer)
 		{
-			RtlCopyMemory (result, pbuffer, size);
+			PR_BYTE bytes = _r_obj_createbyteex ((PCHAR)buffer, filesize);
 
-			UnmapViewOfFile (pbuffer);
+			UnmapViewOfFile (buffer);
 			CloseHandle (hmap);
 
-			return TRUE;
+			return bytes;
 		}
 
 		CloseHandle (hmap);
 	}
 
-	return FALSE;
+	return NULL;
 }
 
 BOOLEAN _r_fs_remove (LPCWSTR path, ULONG flags)
 {
-	if (_r_str_isempty (path))
-		return FALSE;
-
 	if ((flags & _R_FLAG_REMOVE_FORCE) == _R_FLAG_REMOVE_FORCE)
 		SetFileAttributes (path, FILE_ATTRIBUTE_NORMAL);
 
@@ -920,10 +909,7 @@ BOOLEAN _r_fs_remove (LPCWSTR path, ULONG flags)
 
 LONG64 _r_fs_size (LPCWSTR path)
 {
-	if (_r_str_isempty (path))
-		return 0;
-
-	HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+	HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
 
 	if (_r_fs_isvalidhandle (hfile))
 	{
@@ -969,7 +955,10 @@ PR_STRING _r_path_getbasedirectory (LPCWSTR path)
 	directoryString = _r_str_splitatlastchar (&fullpathPart, &pathPart, OBJ_NAME_PATH_SEPARATOR);
 
 	if (directoryString)
+	{
+		_r_str_trim (directoryString, L"\\/");
 		_r_obj_movereference (&pathString, directoryString);
+	}
 
 	return pathString;
 }
@@ -995,33 +984,33 @@ LPCWSTR _r_path_getbaseextension (LPCWSTR path)
 PR_STRING _r_path_getfullpath (LPCWSTR path)
 {
 	PR_STRING fullPath;
-	ULONG bufferSize;
+	ULONG length;
 	ULONG returnLength;
 
-	bufferSize = 0x100;
-	fullPath = _r_obj_createstringex (NULL, bufferSize * sizeof (WCHAR));
+	length = 0x100;
+	fullPath = _r_obj_createstringex (NULL, length * sizeof (WCHAR));
 
-	returnLength = RtlGetFullPathName_U (path, bufferSize, fullPath->Buffer, NULL);
+	returnLength = RtlGetFullPathName_U (path, length, fullPath->Buffer, NULL);
 
-	if (returnLength > bufferSize)
+	if (returnLength > length)
 	{
-		_r_obj_dereference (fullPath);
+		length = returnLength;
 
-		bufferSize = returnLength;
-		fullPath = _r_obj_createstringex (NULL, bufferSize * sizeof (WCHAR));
+		_r_obj_movereference (&fullPath, _r_obj_createstringex (NULL, length * sizeof (WCHAR)));
 
-		returnLength = RtlGetFullPathName_U (path, bufferSize, fullPath->Buffer, NULL);
+		returnLength = RtlGetFullPathName_U (path, length, fullPath->Buffer, NULL);
 	}
 
-	if (!returnLength)
+	if (returnLength)
 	{
-		_r_obj_dereference (fullPath);
-		return NULL;
+		_r_string_trimtonullterminator (fullPath);
+
+		return fullPath;
 	}
 
-	_r_string_trimtonullterminator (fullPath);
+	_r_obj_dereference (fullPath);
 
-	return fullPath;
+	return NULL;
 }
 
 PR_STRING _r_path_getknownfolder (ULONG Folder, LPCWSTR append)
@@ -1050,6 +1039,7 @@ PR_STRING _r_path_getknownfolder (ULONG Folder, LPCWSTR append)
 	}
 
 	_r_obj_dereference (path);
+
 	return NULL;
 }
 
@@ -1075,9 +1065,6 @@ PR_STRING _r_path_getmodulepath (HMODULE hmodule)
 
 VOID _r_path_explore (LPCWSTR path)
 {
-	if (_r_str_isempty (path))
-		return;
-
 	LPITEMIDLIST item;
 	SFGAOF attributes;
 	PR_STRING processPath;
@@ -1133,55 +1120,8 @@ PR_STRING _r_path_compact (LPCWSTR path, UINT length)
 	}
 
 	_r_obj_dereference (string);
+
 	return NULL;
-}
-
-PR_STRING _r_path_expand (LPCWSTR path)
-{
-	if (_r_str_isempty (path))
-		return NULL;
-
-	PR_STRING pathString;
-	PR_STRING expandedString;
-
-	pathString = _r_obj_createstring (path);
-	expandedString = _r_str_expandenvironmentstring (pathString);
-
-	if (expandedString)
-		_r_obj_movereference (&pathString, expandedString);
-
-	return pathString;
-}
-
-PR_STRING _r_path_unexpand (LPCWSTR path)
-{
-	if (_r_str_isempty (path))
-		return NULL;
-
-	PR_STRING string;
-	SIZE_T length;
-
-	length = _r_str_length (path);
-
-	if (_r_str_findchar (path, length, OBJ_NAME_PATH_SEPARATOR) == INVALID_SIZE_T)
-	{
-		string = _r_obj_createstringex (path, length * sizeof (WCHAR));
-	}
-	else
-	{
-		string = _r_obj_createstringex (NULL, 0x200 * sizeof (WCHAR));
-
-		if (PathUnExpandEnvStrings (path, string->Buffer, 0x200))
-		{
-			_r_string_trimtonullterminator (string);
-		}
-		else
-		{
-			_r_obj_movereference (&string, _r_obj_createstringex (path, length * sizeof (WCHAR)));
-		}
-	}
-
-	return string;
 }
 
 PR_STRING _r_path_makeunique (LPCWSTR path)
@@ -1207,7 +1147,7 @@ PR_STRING _r_path_makeunique (LPCWSTR path)
 
 	for (USHORT i = 1; i < (USHRT_MAX - 1); i++)
 	{
-		_r_obj_movereference (&result, _r_format_string (L"%s\\%s-%" TEXT (PRIu16) L"%s", _r_obj_getstringorempty (pathDirectory), _r_obj_getstringorempty (pathFilename), i, _r_obj_getstringorempty (pathExtension)));
+		_r_obj_movereference (&result, _r_format_string (L"%s%c%s-%" TEXT (PRIu16) L"%s", _r_obj_getstringorempty (pathDirectory), OBJ_NAME_PATH_SEPARATOR, _r_obj_getstringorempty (pathFilename), i, _r_obj_getstringorempty (pathExtension)));
 
 		if (!_r_fs_exists (result->Buffer))
 			break;
@@ -1233,7 +1173,7 @@ PR_STRING _r_path_dospathfromnt (LPCWSTR path)
 		WCHAR systemRoot[256];
 		GetSystemDirectory (systemRoot, RTL_NUMBER_OF (systemRoot));
 
-		return _r_format_string (L"%s\\%s", systemRoot, path + 11 + 9);
+		return _r_format_string (L"%s%c%s", systemRoot, OBJ_NAME_PATH_SEPARATOR, path + 11 + 9);
 	}
 	// "system32\" means "C:\Windows\system32\".
 	else if (_r_str_compare_length (path, L"system32\\", 9) == 0)
@@ -1241,7 +1181,7 @@ PR_STRING _r_path_dospathfromnt (LPCWSTR path)
 		WCHAR systemRoot[256];
 		GetSystemDirectory (systemRoot, RTL_NUMBER_OF (systemRoot));
 
-		return _r_format_string (L"%s\\%s", systemRoot, path + 8);
+		return _r_format_string (L"%s%c%s", systemRoot, OBJ_NAME_PATH_SEPARATOR, path + 8);
 	}
 	else if (_r_str_compare_length (path, L"\\device\\", 8) == 0)
 	{
@@ -1273,37 +1213,40 @@ PR_STRING _r_path_dospathfromnt (LPCWSTR path)
 
 		RtlSecureZeroMemory (&deviceMapInfo, sizeof (deviceMapInfo));
 
+		OBJECT_ATTRIBUTES oa;
+
 		UNICODE_STRING devicePrefix;
+		UNICODE_STRING deviceName;
 
 		WCHAR deviceNameBuffer[7] = L"\\??\\ :";
-		static WCHAR devicePrefixBuff[_R_DEVICE_PREFIX_LENGTH] = {0};
+		WCHAR devicePrefixBuff[_R_DEVICE_PREFIX_LENGTH] = {0};
+
+		HANDLE linkhandle;
 
 		if (NT_SUCCESS (NtQueryInformationProcess (NtCurrentProcess (), ProcessDeviceMap, &deviceMapInfo, sizeof (deviceMapInfo), NULL)))
 		{
 			for (ULONG i = 0; i < _R_DEVICE_COUNT; i++)
 			{
-				if (deviceMapInfo.Query.DriveMap && !(deviceMapInfo.Query.DriveMap & (0x1 << i)))
-					continue;
-
-				UNICODE_STRING deviceName;
+				if (deviceMapInfo.Query.DriveMap)
+				{
+					if (!(deviceMapInfo.Query.DriveMap & (0x1 << i)))
+						continue;
+				}
 
 				deviceName.Buffer = deviceNameBuffer;
 				deviceName.Length = 6 * sizeof (WCHAR);
 
 				deviceNameBuffer[4] = L'A' + (WCHAR)i;
 
-				OBJECT_ATTRIBUTES oa;
 				InitializeObjectAttributes (&oa, &deviceName, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
-				HANDLE hslink;
-
-				if (NT_SUCCESS (NtOpenSymbolicLinkObject (&hslink, SYMBOLIC_LINK_QUERY, &oa)))
+				if (NT_SUCCESS (NtOpenSymbolicLinkObject (&linkhandle, SYMBOLIC_LINK_QUERY, &oa)))
 				{
 					devicePrefix.Length = 0;
 					devicePrefix.Buffer = devicePrefixBuff;
 					devicePrefix.MaximumLength = RTL_NUMBER_OF (devicePrefixBuff);
 
-					if (NT_SUCCESS (NtQuerySymbolicLinkObject (hslink, &devicePrefix, NULL)))
+					if (NT_SUCCESS (NtQuerySymbolicLinkObject (linkhandle, &devicePrefix, NULL)))
 					{
 						SIZE_T prefixLen = devicePrefix.Length / sizeof (WCHAR);
 
@@ -1315,16 +1258,16 @@ PR_STRING _r_path_dospathfromnt (LPCWSTR path)
 								// backslash or the path is equal to the prefix.
 								if (pathLen == prefixLen || path[prefixLen] == OBJ_NAME_PATH_SEPARATOR)
 								{
-									NtClose (hslink);
+									NtClose (linkhandle);
 
 									// <letter>:path
-									return _r_format_string (L"%c:\\%s", L'A' + (WCHAR)i, path + prefixLen + 1);
+									return _r_format_string (L"%c:%c%s", deviceNameBuffer[4], OBJ_NAME_PATH_SEPARATOR, path + prefixLen + 1);
 								}
 							}
 						}
 					}
 
-					NtClose (hslink);
+					NtClose (linkhandle);
 				}
 			}
 		}
@@ -1353,7 +1296,7 @@ PR_STRING _r_path_dospathfromnt (LPCWSTR path)
 
 					if (providerPart)
 					{
-						_r_str_printf (providerKey, RTL_NUMBER_OF (providerKey), L"System\\CurrentControlSet\\Services\\%s\\NetworkProvider", _r_obj_getstring (providerPart));
+						_r_str_printf (providerKey, RTL_NUMBER_OF (providerKey), L"System\\CurrentControlSet\\Services\\%s\\NetworkProvider", providerPart->Buffer);
 
 						if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, providerKey, 0, KEY_READ, &hkey) == ERROR_SUCCESS)
 						{
@@ -1365,15 +1308,16 @@ PR_STRING _r_path_dospathfromnt (LPCWSTR path)
 
 								if (prefixLen)
 								{
-									if (_r_str_compare_length (_r_obj_getstring (deviceName), path, prefixLen) == 0)
+									if (_r_str_compare_length (deviceName->Buffer, path, prefixLen) == 0)
 									{
 										// To ensure we match the longest prefix, make sure the next character is a
 										// backslash. Don't resolve if the name *is* the prefix. Otherwise, we will end
 										// up with a useless string like "\".
 										if (pathLen != prefixLen && path[prefixLen] == OBJ_NAME_PATH_SEPARATOR)
 										{
-											_r_obj_dereference (deviceName);
+											_r_obj_dereference (providerOrder);
 											_r_obj_dereference (providerPart);
+											_r_obj_dereference (deviceName);
 
 											RegCloseKey (hkey);
 
@@ -1403,10 +1347,10 @@ PR_STRING _r_path_dospathfromnt (LPCWSTR path)
 	return _r_obj_createstring (path);
 }
 
-DWORD _r_path_ntpathfromdos (LPCWSTR dosPath, PR_STRING* ntPath)
+DWORD _r_path_ntpathfromdos (LPCWSTR path, PR_STRING* ntPath)
 {
 	NTSTATUS status;
-	HANDLE hfile = CreateFile (dosPath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+	HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
 
 	if (!_r_fs_isvalidhandle (hfile))
 	{
@@ -1669,7 +1613,7 @@ PR_STRING _r_str_expandenvironmentstring (PR_STRING string)
 	if (!_r_string_tounicodestring (string, &inputString))
 		return NULL;
 
-	bufferLength = 0x100;
+	bufferLength = 0x200;
 	bufferString = _r_obj_createstringex (NULL, bufferLength);
 
 	outputString.MaximumLength = (USHORT)bufferLength;
@@ -1689,16 +1633,57 @@ PR_STRING _r_str_expandenvironmentstring (PR_STRING string)
 		status = RtlExpandEnvironmentStrings_U (NULL, &inputString, &outputString, &bufferLength);
 	}
 
-	if (!NT_SUCCESS (status))
+	if (NT_SUCCESS (status))
 	{
-		_r_obj_dereference (bufferString);
-		return NULL;
+		bufferString->Length = outputString.Length;
+		_r_string_writenullterminator (bufferString); // terminate
+
+		return bufferString;
 	}
 
-	bufferString->Length = outputString.Length;
-	bufferString->Buffer[bufferString->Length / sizeof (WCHAR)] = UNICODE_NULL; // terminate
+	_r_obj_dereference (bufferString);
 
-	return bufferString;
+	return NULL;
+}
+
+PR_STRING _r_str_expandenvironmentstring (LPCWSTR string)
+{
+	PR_STRING result;
+	PR_STRING expandedString;
+
+	result = _r_obj_createstring (string);
+	expandedString = _r_str_expandenvironmentstring (result);
+
+	if (expandedString)
+		_r_obj_movereference (&result, expandedString);
+
+	return result;
+}
+
+PR_STRING _r_str_unexpandenvironmentstring (LPCWSTR string)
+{
+	PR_STRING buffer;
+	SIZE_T bufferLength;
+	SIZE_T stringLength;
+
+	stringLength = _r_str_length (string);
+
+	if (_r_str_findchar (string, stringLength, L'%') != INVALID_SIZE_T)
+	{
+		bufferLength = 0x200;
+		buffer = _r_obj_createstringex (NULL, bufferLength * sizeof (WCHAR));
+
+		if (PathUnExpandEnvStrings (string, buffer->Buffer, (UINT)bufferLength))
+		{
+			_r_string_trimtonullterminator (buffer);
+
+			return buffer;
+		}
+
+		_r_obj_dereference (buffer);
+	}
+
+	return _r_obj_createstringex (string, stringLength * sizeof (WCHAR));
 }
 
 PR_STRING _r_str_fromguid (LPGUID lpguid)
@@ -1745,16 +1730,17 @@ PR_STRING _r_str_fromsid (PSID lpsid)
 
 	_r_string_tounicodestring (string, &unicodeString);
 
-	if (!NT_SUCCESS (RtlConvertSidToUnicodeString (&unicodeString, lpsid, FALSE)))
+	if (NT_SUCCESS (RtlConvertSidToUnicodeString (&unicodeString, lpsid, FALSE)))
 	{
-		_r_obj_dereference (string);
-		return NULL;
+		string->Length = unicodeString.Length;
+		_r_string_writenullterminator (string);
+
+		return string;
 	}
 
-	string->Length = unicodeString.Length;
-	string->Buffer[unicodeString.Length / sizeof (WCHAR)] = UNICODE_NULL; // terminate
+	_r_obj_dereference (string);
 
-	return string;
+	return NULL;
 }
 
 BOOLEAN _r_str_toboolean (LPCWSTR string)
@@ -1993,25 +1979,15 @@ VOID _r_str_toupper (LPWSTR string)
 	}
 }
 
-PR_STRING _r_str_extract (PR_STRING string, SIZE_T start_pos, SIZE_T extract_length)
+PR_STRING _r_str_extractex (LPCWSTR string, SIZE_T length, SIZE_T start_pos, SIZE_T extract_length)
 {
-	SIZE_T length;
-
-	if (_r_str_isempty (string))
-		return NULL;
-
-	length = _r_obj_getstringlength (string);
-
-	if ((start_pos == 0) && (extract_length >= length))
-		return _r_obj_createstring2 (string);
+	if (start_pos == 0 && extract_length >= length)
+		return _r_obj_createstringex (string, length * sizeof (WCHAR));
 
 	if (start_pos >= length)
 		return NULL;
 
-	if (extract_length > (length - start_pos))
-		extract_length = (length - start_pos);
-
-	return _r_obj_createstringex (&string->Buffer[start_pos], extract_length * sizeof (WCHAR));
+	return _r_obj_createstringex (&string[start_pos], extract_length * sizeof (WCHAR));
 }
 
 PR_STRING _r_str_multibyte2unicode (LPCSTR string)
@@ -2029,13 +2005,14 @@ PR_STRING _r_str_multibyte2unicode (LPCSTR string)
 	outputString = _r_obj_createstringex (NULL, unicodeSize);
 	status = RtlMultiByteToUnicodeN (outputString->Buffer, (ULONG)outputString->Length, NULL, string, stringSize);
 
-	if (!NT_SUCCESS (status))
+	if (NT_SUCCESS (status))
 	{
-		_r_obj_dereference (outputString);
-		return NULL;
+		return outputString;
 	}
 
-	return outputString;
+	_r_obj_dereference (outputString);
+
+	return NULL;
 }
 
 PR_BYTE _r_str_unicode2multibyte (LPCWSTR string)
@@ -2053,13 +2030,14 @@ PR_BYTE _r_str_unicode2multibyte (LPCWSTR string)
 	outputString = _r_obj_createbyteex (NULL, multiByteSize);
 	status = RtlUnicodeToMultiByteN (outputString->Buffer, (ULONG)outputString->Length, NULL, string, stringSize);
 
-	if (!NT_SUCCESS (status))
+	if (NT_SUCCESS (status))
 	{
-		_r_obj_dereference (outputString);
-		return NULL;
+		return outputString;
 	}
 
-	return outputString;
+	_r_obj_dereference (outputString);
+
+	return NULL;
 }
 
 PR_STRING _r_str_splitatchar (PR_STRINGREF string, PR_STRINGREF token, WCHAR separator)
@@ -2081,7 +2059,7 @@ PR_STRING _r_str_splitatchar (PR_STRINGREF string, PR_STRINGREF token, WCHAR sep
 	PR_STRING output = _r_obj_createstringex (input.Buffer, index * sizeof (WCHAR));
 
 	token->Buffer = (LPWSTR)PTR_ADD_OFFSET (input.Buffer, output->Length + sizeof (UNICODE_NULL));
-	token->Length = input.Length - index * sizeof (WCHAR) - sizeof (UNICODE_NULL);
+	token->Length = input.Length - (index * sizeof (WCHAR)) - sizeof (UNICODE_NULL);
 
 	return output;
 }
@@ -2104,17 +2082,14 @@ PR_STRING _r_str_splitatlastchar (PR_STRINGREF string, PR_STRINGREF token, WCHAR
 
 	PR_STRING output = _r_obj_createstringex (input.Buffer, index * sizeof (WCHAR));
 
-	token->Buffer = (LPWSTR)PTR_ADD_OFFSET (input.Buffer, output->Length + sizeof (WCHAR));
-	token->Length = input.Length - index * sizeof (WCHAR) - sizeof (UNICODE_NULL);
+	token->Buffer = (LPWSTR)PTR_ADD_OFFSET (input.Buffer, output->Length + sizeof (UNICODE_NULL));
+	token->Length = input.Length - (index * sizeof (WCHAR)) - sizeof (UNICODE_NULL);
 
 	return output;
 }
 
 VOID _r_str_unserialize (PR_STRING string, WCHAR key_delimeter, WCHAR value_delimeter, OBJECTS_STRINGS_MAP1* valuesMap)
 {
-	if (_r_str_isempty (string))
-		return;
-
 	R_STRINGREF remainingPart;
 	PR_STRING valuesPart;
 	PR_STRING keyName;
@@ -2129,7 +2104,7 @@ VOID _r_str_unserialize (PR_STRING string, WCHAR key_delimeter, WCHAR value_deli
 
 		if (valuesPart)
 		{
-			delimeter_pos = _r_str_findchar (_r_obj_getstring (valuesPart), _r_obj_getstringlength (valuesPart), value_delimeter);
+			delimeter_pos = _r_str_findchar (valuesPart->Buffer, _r_obj_getstringlength (valuesPart), value_delimeter);
 
 			if (delimeter_pos != INVALID_SIZE_T)
 			{
@@ -2137,7 +2112,7 @@ VOID _r_str_unserialize (PR_STRING string, WCHAR key_delimeter, WCHAR value_deli
 
 				if (valuesMap->find (keyName) == valuesMap->end ())
 				{
-					keyValue = _r_str_extract (valuesPart, delimeter_pos + 1, INVALID_SIZE_T);
+					keyValue = _r_str_extract (valuesPart, delimeter_pos + 1, _r_obj_getstringlength (valuesPart) - delimeter_pos - 1);
 
 					valuesMap->emplace (keyName, keyValue);
 				}
@@ -2259,7 +2234,7 @@ BOOLEAN _r_sys_isosversiongreaterorequal (ULONG requiredVersion)
 			}
 			else if (versionInfo.dwMajorVersion == 6 && versionInfo.dwMinorVersion == 4)
 			{
-				windowsVersion = WINDOWS_10; // earlier versions of windows 10 has 6.4 version number
+				windowsVersion = WINDOWS_10; // earlier versions of windows 10 have 6.4 version number
 			}
 			else if (versionInfo.dwMajorVersion == 10 && versionInfo.dwMinorVersion == 0)
 			{
@@ -2305,7 +2280,7 @@ BOOLEAN _r_sys_isosversiongreaterorequal (ULONG requiredVersion)
 				}
 				else if (versionInfo.dwBuildNumber >= 10240)
 				{
-					windowsVersion = WINDOWS_10_TH1;
+					windowsVersion = WINDOWS_10;
 				}
 				else
 				{
@@ -2360,6 +2335,7 @@ BOOLEAN _r_sys_createprocessex (LPCWSTR fileName, LPCWSTR commandLine, LPCWSTR c
 			if (arga)
 			{
 				_r_obj_movereference (&fileNameString, _r_obj_createstring (arga[0]));
+
 				LocalFree (arga);
 			}
 		}
@@ -2392,26 +2368,132 @@ BOOLEAN _r_sys_createprocessex (LPCWSTR fileName, LPCWSTR commandLine, LPCWSTR c
 	return is_success;
 }
 
-HANDLE _r_sys_createthreadex (THREAD_CALLBACK proc, PVOID lparam, BOOLEAN is_createsuspended, INT priority)
+ULONG _r_sys_getthreadindex ()
 {
-	HANDLE hthread;
+	static ULONG tls_index = 0;
 
-#if defined(_APP_HAVE_NATIVETHREAD)
-	if (!NT_SUCCESS (RtlCreateUserThread (NtCurrentProcess (), NULL, TRUE, 0, 0, 0, proc, lparam, &hthread, NULL)))
-		return NULL;
-#else
-	hthread = (HANDLE)_beginthreadex (NULL, 0, proc, lparam, CREATE_SUSPENDED, NULL);
+	if (!tls_index)
+		tls_index = TlsAlloc ();
 
-	if (!_r_fs_isvalidhandle (hthread))
-		return NULL;
-#endif // _APP_HAVE_NATIVETHREAD
+	return tls_index;
+}
 
-	SetThreadPriority (hthread, priority);
+PR_THREAD_DATA _r_sys_getthreaddata ()
+{
+	PR_THREAD_DATA tls;
+	ULONG err_code;
+	ULONG tls_index;
 
-	if (!is_createsuspended)
-		_r_sys_resumethread (hthread);
+	err_code = GetLastError ();
+	tls_index = _r_sys_getthreadindex ();
 
-	return hthread;
+	tls = (PR_THREAD_DATA)TlsGetValue (tls_index);
+
+	if (!tls)
+	{
+		tls = (PR_THREAD_DATA)_r_mem_allocatezero (sizeof (R_THREAD_DATA));
+
+		if (!TlsSetValue (tls_index, tls))
+			return NULL;
+
+		tls->tid = GetCurrentThreadId ();
+		tls->handle = NULL;
+	}
+
+	SetLastError (err_code);
+
+	return tls;
+}
+
+THREAD_API _r_sys_basethreadstart (PVOID arglist)
+{
+	NTSTATUS status;
+	HRESULT hr;
+	PR_THREAD_CONTEXT context;
+	PR_THREAD_DATA tls;
+
+	context = (PR_THREAD_CONTEXT)arglist;
+
+	tls = _r_sys_getthreaddata ();
+
+	if (tls)
+	{
+		tls->handle = context->thread;
+		tls->is_handleused = context->is_handleused;
+	}
+
+	hr = CoInitializeEx (NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+
+	status = context->start_address (context->arglist);
+
+	if (hr == S_OK || hr == S_FALSE)
+		CoUninitialize ();
+
+	_r_mem_free (arglist);
+
+	if (tls)
+	{
+		if (!tls->is_handleused)
+		{
+			if (tls->handle)
+			{
+				NtClose (tls->handle);
+				tls->handle = NULL;
+			}
+		}
+	}
+
+	RtlExitUserThread (status);
+
+	return status;
+}
+
+NTSTATUS _r_sys_createthreadex (THREAD_CALLBACK start_address, PVOID arglist, PHANDLE pthread, INT priority)
+{
+	NTSTATUS status;
+	HANDLE thread = NULL;
+	PR_THREAD_CONTEXT context;
+
+	context = (PR_THREAD_CONTEXT)_r_mem_allocatezero (sizeof (R_THREAD_CONTEXT));
+
+	status = RtlCreateUserThread (NtCurrentProcess (), NULL, TRUE, 0, 0, 0, &_r_sys_basethreadstart, context, &thread, NULL);
+
+	if (NT_SUCCESS (status))
+	{
+		context->start_address = start_address;
+		context->arglist = arglist;
+		context->thread = thread;
+		context->is_handleused = (pthread != NULL); // user need to be destroy thread handle by himself
+
+		SetThreadPriority (thread, priority);
+
+		if (!pthread)
+		{
+			status = _r_sys_resumethread (thread);
+		}
+	}
+
+	if (NT_SUCCESS (status))
+	{
+		if (pthread)
+		{
+			*pthread = thread;
+		}
+	}
+	else
+	{
+		if (thread)
+		{
+			NtClose (thread);
+		}
+
+		if (context)
+		{
+			_r_mem_free (context);
+		}
+	}
+
+	return status;
 }
 
 PR_STRING _r_sys_getsessioninfo (WTS_INFO_CLASS info)
@@ -2485,13 +2567,12 @@ PR_STRING _r_sys_getusernamefromsid (PSID psid)
 		LsaClose (policyHandle);
 	}
 
-	if (_r_str_isempty (&string))
-	{
-		_r_obj_deletestringbuilder (&string);
-		return NULL;
-	}
+	if (!_r_str_isempty (&string))
+		return _r_obj_finalstringbuilder (&string);
 
-	return _r_obj_finalstringbuilder (&string);
+	_r_obj_deletestringbuilder (&string);
+
+	return NULL;
 }
 
 #if !defined(_WIN64)
@@ -2603,87 +2684,84 @@ time_t _r_unixtime_from_systemtime (const SYSTEMTIME * psystemTime)
 
 INT _r_dc_getdpivalue (HWND hwnd)
 {
-	INT dpiValue = USER_DEFAULT_SCREEN_DPI;
+	static BOOLEAN is_initialized = FALSE;
 
-	HMODULE huser32 = NULL;
-	HMODULE hshcore = NULL;
+	static GDFM _GetDpiForMonitor = NULL;
+	static GDFW _GetDpiForWindow = NULL;
+	static GDFS _GetDpiForSystem = NULL;
 
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_8_1))
+	// initialize library calls
+	if (!is_initialized)
 	{
-		BOOLEAN is_win10rs1 = _r_sys_isosversiongreaterorequal (WINDOWS_10_RS1); //win10rs1+
-
-		huser32 = LoadLibraryEx (L"user32.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
-
-		if (hwnd)
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_8_1))
 		{
-			// GetDpiForWindow (win10rs1+)
-			if (is_win10rs1 && huser32)
-			{
-				typedef UINT (WINAPI *GDFW)(HWND hwnd); // win10rs1+
-				const GDFW _GetDpiForWindow = (GDFW)GetProcAddress (huser32, "GetDpiForWindow");
-
-				if (_GetDpiForWindow)
-				{
-					dpiValue = _GetDpiForWindow (hwnd);
-					goto CleanupExit;
-				}
-			}
-
-			// GetDpiForMonitor (win81+)
-			hshcore = LoadLibraryEx (L"shcore.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+			HMODULE huser32 = LoadLibraryEx (L"user32.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+			HMODULE hshcore = LoadLibraryEx (L"shcore.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 
 			if (hshcore)
 			{
-				HMONITOR hmon = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+				_GetDpiForMonitor = (GDFM)GetProcAddress (hshcore, "GetDpiForMonitor");
 
-				if (hmon)
+				FreeLibrary (hshcore);
+			}
+
+			if (huser32)
+			{
+				_GetDpiForWindow = (GDFW)GetProcAddress (huser32, "GetDpiForWindow");
+				_GetDpiForSystem = (GDFS)GetProcAddress (huser32, "GetDpiForSystem");
+
+				FreeLibrary (huser32);
+			}
+		}
+
+		is_initialized = TRUE;
+	}
+
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_8_1))
+	{
+		if (hwnd)
+		{
+			if (_GetDpiForWindow)
+			{
+				return _GetDpiForWindow (hwnd);
+			}
+
+			if (_GetDpiForMonitor)
+			{
+				HMONITOR hmonitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+
+				if (hmonitor)
 				{
-					UINT dpix = 0, dpiy = 0;
+					UINT dpix;
+					UINT dpiy;
 
-					typedef HRESULT (WINAPI *GDFM)(HMONITOR hmonitor, MONITOR_DPI_TYPE dpiType, UINT *dpiX, UINT *dpiY); // win81+
-					const GDFM _GetDpiForMonitor = (GDFM)GetProcAddress (hshcore, "GetDpiForMonitor");
-
-					if (_GetDpiForMonitor && SUCCEEDED (_GetDpiForMonitor (hmon, MDT_EFFECTIVE_DPI, &dpix, &dpiy)))
+					if (SUCCEEDED (_GetDpiForMonitor (hmonitor, MDT_EFFECTIVE_DPI, &dpix, &dpiy)))
 					{
-						dpiValue = dpix;
-						goto CleanupExit;
+						return dpix;
 					}
 				}
 			}
 		}
 
-		// GetDpiForSystem (win10rs1+)
-		if (is_win10rs1 && huser32)
+		if (_GetDpiForSystem)
 		{
-			typedef UINT (WINAPI *GDFS)(VOID); // win10rs1+
-			const GDFS _GetDpiForSystem = (GDFS)GetProcAddress (huser32, "GetDpiForSystem");
-
-			if (_GetDpiForSystem)
-			{
-				dpiValue = _GetDpiForSystem ();
-				goto CleanupExit;
-			}
+			return _GetDpiForSystem ();
 		}
 	}
 
-	// fallback (pre-win10)
+	// fallback
 	HDC hdc = GetDC (NULL);
 
 	if (hdc)
 	{
-		dpiValue = GetDeviceCaps (hdc, LOGPIXELSX);
+		INT dpiValue = GetDeviceCaps (hdc, LOGPIXELSX);
+
 		ReleaseDC (NULL, hdc);
+
+		return dpiValue;
 	}
 
-CleanupExit:
-
-	if (huser32)
-		FreeLibrary (huser32);
-
-	if (hshcore)
-		FreeLibrary (hshcore);
-
-	return dpiValue;
+	return USER_DEFAULT_SCREEN_DPI;
 }
 
 COLORREF _r_dc_getcolorbrightness (COLORREF clr)
@@ -2725,7 +2803,7 @@ COLORREF _r_dc_getcolorshade (COLORREF clr, INT percent)
 INT _r_dc_getsystemmetrics (HWND hwnd, INT index)
 {
 	// win10rs1+
-	if (hwnd && _r_sys_isosversiongreaterorequal (WINDOWS_10_RS1))
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS1))
 	{
 		HMODULE huser32 = GetModuleHandle (L"user32.dll");
 
@@ -3569,6 +3647,7 @@ ULONG _r_inet_parseurl (LPCWSTR url, PINT scheme_ptr, LPWSTR host_ptr, LPWORD po
 			if (!WinHttpCrackUrl (addressFixed->Buffer, (ULONG)_r_obj_getstringlength (addressFixed), ICU_DECODE, &url_comp))
 			{
 				_r_obj_dereference (addressFixed);
+
 				return GetLastError ();
 			}
 
@@ -3593,7 +3672,7 @@ ULONG _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, 
 	HINTERNET hconnect;
 	HINTERNET hrequest;
 	R_STRINGBUILDER bufferString = {0};
-	HANDLE bufferHandle;
+	HANDLE bufferHandle = NULL;
 	PR_STRING decodedString;
 	PR_BYTE contentBytes;
 	ULONG readedValue;
@@ -3618,7 +3697,7 @@ ULONG _r_inet_downloadurl (HINTERNET hsession, LPCWSTR proxy_addr, LPCWSTR url, 
 		_r_obj_createstringbuilder (&bufferString);
 	}
 
-	contentBytes = _r_obj_createbyteex (NULL, 32768);
+	contentBytes = _r_obj_createbyteex (NULL, 0x8000);
 
 	while (_r_inet_readrequest (hrequest, contentBytes->Buffer, (ULONG)contentBytes->Length, &readedValue, &readedTotal))
 	{
@@ -3757,30 +3836,23 @@ PR_STRING _r_reg_querystring (HKEY hkey, LPCWSTR value)
 	ULONG type;
 	ULONG size;
 
-	if (RegQueryValueEx (hkey, value, NULL, &type, NULL, &size) == ERROR_SUCCESS)
+	if (RegGetValue (hkey, NULL, value, RRF_RT_ANY, &type, NULL, &size) == ERROR_SUCCESS)
 	{
 		if (type == REG_SZ || type == REG_EXPAND_SZ || type == REG_MULTI_SZ)
 		{
-			PR_STRING valueString = _r_obj_createstringex (NULL, size);
-			ULONG code = RegQueryValueEx (hkey, value, NULL, NULL, (PBYTE)valueString->Buffer, &size);
+			PR_STRING valueString = _r_obj_createstringex (NULL, size * sizeof (WCHAR));
+			ULONG code = RegGetValue (hkey, NULL, value, RRF_RT_ANY, NULL, (PBYTE)valueString->Buffer, &size);
 
 			if (code == ERROR_MORE_DATA)
 			{
-				_r_obj_movereference (&valueString, _r_obj_createstringex (NULL, size));
-				code = RegQueryValueEx (hkey, value, NULL, NULL, (PBYTE)valueString->Buffer, &size);
+				_r_obj_movereference (&valueString, _r_obj_createstringex (NULL, size * sizeof (WCHAR)));
+
+				code = RegGetValue (hkey, NULL, value, RRF_RT_ANY, NULL, (PBYTE)valueString->Buffer, &size);
 			}
 
 			if (code == ERROR_SUCCESS)
 			{
-				_r_string_setsize (valueString, size);
-
-				if (type == REG_EXPAND_SZ)
-				{
-					PR_STRING expandedString = _r_str_expandenvironmentstring (valueString);
-
-					if (expandedString)
-						_r_obj_movereference (&valueString, expandedString);
-				}
+				_r_string_trimtonullterminator (valueString);
 
 				return valueString;
 			}
@@ -3792,14 +3864,18 @@ PR_STRING _r_reg_querystring (HKEY hkey, LPCWSTR value)
 			ULONG buffer;
 
 			if (RegQueryValueEx (hkey, value, NULL, NULL, (PBYTE)&buffer, &size) == ERROR_SUCCESS)
+			{
 				return _r_format_string (L"%" TEXT (PR_ULONG), buffer);
+			}
 		}
 		else if (type == REG_QWORD)
 		{
 			ULONG64 buffer;
 
 			if (RegQueryValueEx (hkey, value, NULL, NULL, (PBYTE)&buffer, &size) == ERROR_SUCCESS)
+			{
 				return _r_format_string (L"%" TEXT (PR_ULONG64), buffer);
+			}
 		}
 	}
 
@@ -3811,7 +3887,7 @@ ULONG _r_reg_querysubkeylength (HKEY hkey)
 	ULONG max_subkey_length;
 
 	if (RegQueryInfoKey (hkey, NULL, NULL, NULL, NULL, &max_subkey_length, NULL, NULL, NULL, NULL, NULL, NULL) == ERROR_SUCCESS)
-		return max_subkey_length + 1;
+		return max_subkey_length;
 
 	return 0;
 }
@@ -3938,7 +4014,7 @@ VOID _r_parseini (LPCWSTR path, OBJECTS_STRINGS_MAP2* outputMap, OBJECTS_STRINGS
 			outputMap->emplace (_r_obj_reference (sectionString), NULL);
 
 			if (sectionArr)
-				sectionArr->emplace_back (_r_obj_reference (sectionString));
+				sectionArr->push_back (_r_obj_reference (sectionString));
 		}
 
 		valuesMap = &outputMap->at (sectionString);
@@ -3958,12 +4034,13 @@ VOID _r_parseini (LPCWSTR path, OBJECTS_STRINGS_MAP2* outputMap, OBJECTS_STRINGS
 				// do not load comments
 				if (valueBuffer[0] != L'#')
 				{
-					keyName = _r_obj_createstringex (valueBuffer, delimeterPos * sizeof (WCHAR));
+					keyName = _r_str_extractex (valueBuffer, valueLength, 0, delimeterPos);
 
 					// check for duplicates
 					if (valuesMap->find (keyName) == valuesMap->end ())
 					{
-						keyValue = _r_obj_createstringex (&valueBuffer[delimeterPos + 1], (valueLength - delimeterPos - 1) * sizeof (WCHAR));
+						keyValue = _r_str_extractex (valueBuffer, valueLength, delimeterPos + 1, valueLength - delimeterPos - 1);
+
 						valuesMap->emplace (keyName, keyValue); // set
 					}
 					else
@@ -4233,11 +4310,14 @@ INT _r_ctrl_isradiobuttonchecked (HWND hwnd, INT start_id, INT end_id)
 
 PR_STRING _r_ctrl_gettext (HWND hwnd, INT ctrl_id)
 {
-	ULONG length = (ULONG)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXTLENGTH, 0, 0);
+	PR_STRING string;
+	ULONG length;
+
+	length = (ULONG)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXTLENGTH, 0, 0);
 
 	if (length)
 	{
-		PR_STRING string = _r_obj_createstringex (NULL, length * sizeof (WCHAR));
+		string = _r_obj_createstringex (NULL, length * sizeof (WCHAR));
 
 		if ((ULONG)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXT, (WPARAM)(length + 1), (LPARAM)string->Buffer))
 		{
@@ -4756,7 +4836,7 @@ PR_STRING _r_listview_getcolumntext (HWND hwnd, INT ctrl_id, INT column_id)
 	PR_STRING string;
 	SIZE_T allocatedCount;
 
-	allocatedCount = 512;
+	allocatedCount = 0x200;
 	string = _r_obj_createstringex (NULL, allocatedCount * sizeof (WCHAR));
 
 	lvc.mask = LVCF_TEXT;
@@ -4818,12 +4898,11 @@ LPARAM _r_listview_getitemlparam (HWND hwnd, INT ctrl_id, INT item)
 PR_STRING _r_listview_getitemtext (HWND hwnd, INT ctrl_id, INT item, INT subitem)
 {
 	LVITEM lvi = {0};
-	PR_STRING string;
+	PR_STRING string = NULL;
 	SIZE_T allocatedCount;
 	SIZE_T count;
 
-	string = NULL;
-	allocatedCount = 256;
+	allocatedCount = 0x100;
 	count = allocatedCount;
 
 	while (count >= allocatedCount)
@@ -5262,10 +5341,10 @@ PR_STRING _r_util_versionformat (PR_STRING string)
 {
 	if (_r_str_isnumeric (_r_obj_getstring (string)))
 	{
-		UINT datelength = 256;
-		PR_STRING dateString = _r_obj_createstringex (NULL, datelength * sizeof (WCHAR));
+		UINT length = 0x100;
+		PR_STRING dateString = _r_obj_createstringex (NULL, length * sizeof (WCHAR));
 
-		_r_format_dateex (dateString->Buffer, datelength, _r_str_tolong64 (string->Buffer), FDTF_SHORTDATE | FDTF_SHORTTIME);
+		_r_format_dateex (dateString->Buffer, length, _r_str_tolong64 (string->Buffer), FDTF_SHORTDATE | FDTF_SHORTTIME);
 		_r_string_trimtonullterminator (dateString);
 
 		return dateString;

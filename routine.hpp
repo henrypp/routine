@@ -25,7 +25,6 @@
 #include <dwmapi.h>
 #include <ntsecapi.h>
 #include <psapi.h>
-#include <process.h>
 #include <sddl.h>
 #include <shellapi.h>
 #include <shellscalingapi.h>
@@ -114,6 +113,14 @@ typedef struct _R_OBJECT_HEADER
 	QUAD_PTR Body;
 } R_OBJECT_HEADER, *PR_OBJECT_HEADER;
 
+typedef struct _R_ARRAY
+{
+	SIZE_T Count;
+	SIZE_T AllocatedCount;
+	SIZE_T ItemSize;
+	PVOID Items;
+} R_ARRAY, *PR_ARRAY;
+
 typedef struct _R_BYTEREF
 {
 	SIZE_T Length;
@@ -200,7 +207,7 @@ typedef std::vector<PR_STRING> OBJECTS_STRINGS_VEC;
 	Definitions
 */
 
-#define _R_DEBUG_HEADER L"Date,Function,Code,Description,Version\r\n"
+#define _R_DEBUG_HEADER L"Level,Date,Function,Code,Description,Version,OS Version\r\n"
 
 #define _R_DEVICE_COUNT 0x1A
 #define _R_DEVICE_PREFIX_LENGTH 0x40
@@ -449,6 +456,14 @@ FORCEINLINE PVOID _r_obj_allocate (SIZE_T size)
 	return _r_obj_allocateex (size, NULL);
 }
 
+FORCEINLINE PVOID _r_obj_referencesafe (PVOID pdata)
+{
+	if (!pdata)
+		return NULL;
+
+	return _r_obj_reference (pdata);
+}
+
 FORCEINLINE VOID _r_obj_dereference (PVOID pobj)
 {
 	_r_obj_dereferenceex (pobj, 1);
@@ -474,6 +489,11 @@ FORCEINLINE VOID _r_obj_clearreference (PVOID *ObjectReference)
 FORCEINLINE PR_STRING _r_obj_reference (PR_STRING pdata)
 {
 	return (PR_STRING)_r_obj_reference ((PVOID)pdata);
+}
+
+FORCEINLINE PR_STRING _r_obj_referencesafe (PR_STRING pdata)
+{
+	return (PR_STRING)_r_obj_referencesafe ((PVOID)pdata);
 }
 
 FORCEINLINE VOID _r_obj_movereference (PR_STRING *ObjectReference, PVOID NewObject)
@@ -545,7 +565,7 @@ FORCEINLINE BOOLEAN _r_fs_move (LPCWSTR path_from, LPCWSTR path_to, ULONG flags)
 
 BOOLEAN _r_fs_makebackup (LPCWSTR path, time_t timestamp, BOOLEAN is_removesourcefile);
 BOOLEAN _r_fs_mkdir (LPCWSTR path);
-BOOLEAN _r_fs_readfile (HANDLE hfile, PVOID result, ULONG size);
+PR_BYTE _r_fs_readfile (HANDLE hfile, ULONG filesize);
 
 #define _R_FLAG_REMOVE_USERECYCLER 0x01
 #define _R_FLAG_REMOVE_FORCE 0x02
@@ -584,17 +604,16 @@ PR_STRING _r_path_getknownfolder (ULONG Folder, LPCWSTR append);
 PR_STRING _r_path_getmodulepath (HMODULE hmodule);
 VOID _r_path_explore (LPCWSTR path);
 PR_STRING _r_path_compact (LPCWSTR path, UINT length);
-PR_STRING _r_path_expand (LPCWSTR path);
-PR_STRING _r_path_unexpand (LPCWSTR path);
 PR_STRING _r_path_makeunique (LPCWSTR path);
 PR_STRING _r_path_dospathfromnt (LPCWSTR path);
-DWORD _r_path_ntpathfromdos (LPCWSTR dosPath, PR_STRING* ntPath);
+DWORD _r_path_ntpathfromdos (LPCWSTR path, PR_STRING* ntPath);
 
 /*
 	Referencing string object
 */
 
 PR_BYTE _r_obj_createbyteex (LPSTR buffer, SIZE_T length);
+
 PR_STRING _r_obj_createstringex (LPCWSTR buffer, SIZE_T length);
 
 VOID _r_string_appendex (PR_STRINGBUILDER string, LPCWSTR text, SIZE_T length);
@@ -670,9 +689,7 @@ FORCEINLINE VOID _r_string_writenullterminator (PR_STRING string)
 
 FORCEINLINE VOID _r_string_trimtonullterminator (PR_STRING string)
 {
-	SIZE_T length = _r_str_length (string->Buffer);
-
-	string->Length = length * sizeof (WCHAR);
+	string->Length = _r_str_length (string->Buffer) * sizeof (WCHAR);
 
 	_r_string_writenullterminator (string); // terminate
 }
@@ -687,15 +704,15 @@ FORCEINLINE VOID _r_obj_createstringbuilder (PR_STRINGBUILDER string)
 	string->String->Buffer[0] = UNICODE_NULL;
 }
 
-FORCEINLINE PR_STRING _r_obj_finalstringbuilder (PR_STRINGBUILDER string)
-{
-	return string->String;
-}
-
 FORCEINLINE VOID _r_obj_deletestringbuilder (PR_STRINGBUILDER string)
 {
 	if (string->String)
 		_r_obj_clearreference (&string->String);
+}
+
+FORCEINLINE PR_STRING _r_obj_finalstringbuilder (PR_STRINGBUILDER string)
+{
+	return string->String;
 }
 
 FORCEINLINE PR_STRING _r_obj_createstring (LPCWSTR string)
@@ -818,10 +835,43 @@ FORCEINLINE INT _r_str_compare_logical (LPCWSTR string1, LPCWSTR string2)
 }
 
 PR_STRING _r_str_expandenvironmentstring (PR_STRING string);
+PR_STRING _r_str_expandenvironmentstring (LPCWSTR string);
+
+PR_STRING _r_str_unexpandenvironmentstring (LPCWSTR string);
 
 PR_STRING _r_str_fromguid (LPGUID lpguid);
 PR_STRING _r_str_fromsecuritydescriptor (PSECURITY_DESCRIPTOR lpsd, SECURITY_INFORMATION information);
 PR_STRING _r_str_fromsid (PSID lpsid);
+
+FORCEINLINE VOID _r_str_frominteger (LPWSTR buffer, SIZE_T length, INT value)
+{
+	_r_str_printf (buffer, length, L"%" TEXT (PRIi32), value);
+}
+
+FORCEINLINE VOID _r_str_fromuinteger (LPWSTR buffer, SIZE_T length, UINT value)
+{
+	_r_str_printf (buffer, length, L"%" TEXT (PRIu32), value);
+}
+
+FORCEINLINE VOID _r_str_fromlong (LPWSTR buffer, SIZE_T length, LONG value)
+{
+	_r_str_printf (buffer, length, L"%" TEXT (PR_LONG), value);
+}
+
+FORCEINLINE VOID _r_str_fromlong64 (LPWSTR buffer, SIZE_T length, LONG64 value)
+{
+	_r_str_printf (buffer, length, L"%" TEXT (PR_LONG64), value);
+}
+
+FORCEINLINE VOID _r_str_fromulong (LPWSTR buffer, SIZE_T length, ULONG value)
+{
+	_r_str_printf (buffer, length, L"%" TEXT (PR_ULONG), value);
+}
+
+FORCEINLINE VOID _r_str_fromulong64 (LPWSTR buffer, SIZE_T length, ULONG64 value)
+{
+	_r_str_printf (buffer, length, L"%" TEXT (PR_ULONG64), value);
+}
 
 BOOLEAN _r_str_toboolean (LPCWSTR string);
 INT _r_str_tointeger (LPCWSTR string);
@@ -884,7 +934,12 @@ FORCEINLINE VOID _r_str_toupper (PR_STRING string)
 		*string->Buffer = _r_str_upper (*string->Buffer);
 }
 
-PR_STRING _r_str_extract (PR_STRING string, SIZE_T start_pos, SIZE_T extract_length);
+PR_STRING _r_str_extractex (LPCWSTR string, SIZE_T length, SIZE_T start_pos, SIZE_T extract_length);
+
+FORCEINLINE PR_STRING _r_str_extract (PR_STRING string, SIZE_T start_pos, SIZE_T extract_length)
+{
+	return _r_str_extractex (string->Buffer, _r_obj_getstringlength (string), start_pos, extract_length);
+}
 
 PR_STRING _r_str_multibyte2unicode (LPCSTR string);
 PR_BYTE _r_str_unicode2multibyte (LPCWSTR string);
@@ -922,18 +977,39 @@ FORCEINLINE VOID _r_stringref_initialize2 (PR_STRINGREF string, PR_STRING buffer
 #define WINDOWS_7 61
 #define WINDOWS_8 62
 #define WINDOWS_8_1 63
-#define WINDOWS_10 100 // TH1
-#define WINDOWS_10_TH1 WINDOWS_10
+#define WINDOWS_10 100
+
+// 1511
 #define WINDOWS_10_TH2 101
+
+// 1607
 #define WINDOWS_10_RS1 102
+
+// 1703
 #define WINDOWS_10_RS2 103
+
+// 1709
 #define WINDOWS_10_RS3 104
+
+// 1803
 #define WINDOWS_10_RS4 105
+
+// 1809
 #define WINDOWS_10_RS5 106
+
+// 1903
 #define WINDOWS_10_19H1 107
+
+// 1909
 #define WINDOWS_10_19H2 108
+
+// 2004
 #define WINDOWS_10_20H1 109
+
+// 2009
 #define WINDOWS_10_20H2 110
+
+// 2104
 #define WINDOWS_10_21H1 111
 
 BOOLEAN _r_sys_iselevated ();
@@ -946,33 +1022,38 @@ FORCEINLINE BOOLEAN _r_sys_createprocess (LPCWSTR fileName, LPCWSTR commandLine,
 	return _r_sys_createprocessex (fileName, commandLine, currentDirectory, SW_SHOWDEFAULT, 0);
 }
 
-#if defined(_APP_HAVE_NATIVETHREAD)
-#define THREAD_FN NTSTATUS NTAPI
+#define THREAD_API NTSTATUS NTAPI
 #define THREAD_CALLBACK PUSER_THREAD_START_ROUTINE
-#else
-#define THREAD_FN UINT WINAPI
-#define THREAD_CALLBACK _beginthreadex_proc_type
-#endif // _APP_HAVE_NATIVETHREAD
 
-HANDLE _r_sys_createthreadex (THREAD_CALLBACK proc, PVOID lparam, BOOLEAN is_createsuspended, INT priority);
-
-FORCEINLINE HANDLE _r_sys_createthread (THREAD_CALLBACK proc, PVOID lparam, BOOLEAN is_createsuspended)
+typedef struct _R_THREAD_DATA
 {
-	return _r_sys_createthreadex (proc, lparam, is_createsuspended, THREAD_PRIORITY_NORMAL);
+	ULONG tid;
+	HANDLE handle;
+	BOOLEAN is_handleused;
+} R_THREAD_DATA, *PR_THREAD_DATA;
+
+typedef struct _R_THREAD_CONTEXT
+{
+	THREAD_CALLBACK start_address;
+	PVOID arglist;
+	HANDLE thread;
+	BOOLEAN is_handleused;
+} R_THREAD_CONTEXT, *PR_THREAD_CONTEXT;
+
+THREAD_API _r_sys_basethreadstart (PVOID arglist);
+NTSTATUS _r_sys_createthreadex (THREAD_CALLBACK start_address, PVOID arglist, PHANDLE pthread, INT priority);
+
+FORCEINLINE NTSTATUS _r_sys_createthread (THREAD_CALLBACK start_address, PVOID arglist, PHANDLE pthread)
+{
+	return _r_sys_createthreadex (start_address, arglist, pthread, THREAD_PRIORITY_NORMAL);
 }
 
-FORCEINLINE ULONG _r_sys_endthread (ULONG exit_code)
+FORCEINLINE NTSTATUS _r_sys_createthread2 (THREAD_CALLBACK start_address, PVOID arglist)
 {
-#if defined(_APP_HAVE_NATIVETHREAD)
-	RtlExitUserThread (exit_code);
-#else
-	_endthreadex (exit_code);
-#endif // _APP_HAVE_NATIVETHREAD
-
-	return exit_code;
+	return _r_sys_createthreadex (start_address, arglist, NULL, THREAD_PRIORITY_NORMAL);
 }
 
-FORCEINLINE ULONG _r_sys_resumethread (HANDLE hthread)
+FORCEINLINE NTSTATUS _r_sys_resumethread (HANDLE hthread)
 {
 	return NtResumeThread (hthread, NULL);
 }
@@ -1073,6 +1154,10 @@ time_t _r_unixtime_from_systemtime (const SYSTEMTIME* psystemTime);
 /*
 	Device context (Draw/Calculation etc...)
 */
+
+typedef HRESULT (WINAPI *GDFM)(HMONITOR hmonitor, MONITOR_DPI_TYPE dpiType, PUINT dpiX, PUINT dpiY); // GetDpiForMonitor (win81+)
+typedef UINT (WINAPI *GDFW)(HWND hwnd); // GetDpiForWindow (win10rs1+)
+typedef UINT (WINAPI *GDFS)(VOID); // GetDpiForSystem (win10rs1+)
 
 INT _r_dc_getdpivalue (HWND hwnd);
 COLORREF _r_dc_getcolorbrightness (COLORREF clr);

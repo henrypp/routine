@@ -26,6 +26,8 @@ typedef struct _APP_SETTINGS_PAGE
 	UINT locale_id;
 	INT dlg_id;
 } APP_SETTINGS_PAGE, *PAPP_SETTINGS_PAGE;
+
+typedef std::vector<PAPP_SETTINGS_PAGE> OBJECTS_SETTINGS_PAGES_VEC;
 #endif // _APP_HAVE_SETTINGS
 
 #if defined(_APP_HAVE_UPDATES)
@@ -42,9 +44,11 @@ typedef struct _APP_UPDATE_COMPONENT
 	BOOLEAN is_haveupdate;
 } APP_UPDATE_COMPONENT, *PAPP_UPDATE_COMPONENT;
 
+typedef std::vector<PAPP_UPDATE_COMPONENT> OBJECTS_UPDATE_COMPONENTS_VEC;
+
 typedef struct _APP_UPDATE_INFO
 {
-	std::vector<PAPP_UPDATE_COMPONENT> *components;
+	OBJECTS_UPDATE_COMPONENTS_VEC *components;
 	HWND htaskdlg;
 	HWND hparent;
 	HANDLE hthread;
@@ -59,6 +63,16 @@ typedef struct _APP_SHARED_IMAGE
 	INT icon_id;
 	INT icon_size;
 } APP_SHARED_IMAGE, *PAPP_SHARED_IMAGE;
+
+// Enums
+typedef enum _APP_LOG_LEVEL
+{
+	Critical = 5,
+	Error = 4,
+	Warning = 3,
+	Information = 2,
+	Debug = 1
+} APP_LOG_LEVEL, *PAPP_LOG_LEVEL;
 
 // Global variables
 inline OBJECTS_STRINGS_MAP2 app_config_array;
@@ -95,7 +109,8 @@ inline OBJECTS_STRINGS_MAP2 app_locale_array;
 
 inline time_t app_locale_timetamp = 0;
 
-inline std::vector<PAPP_SHARED_IMAGE> app_shared_icons;
+typedef std::vector<PAPP_SHARED_IMAGE> OBJECTS_SHARED_IMAGE_VEC;
+inline OBJECTS_SHARED_IMAGE_VEC app_shared_icons;
 #endif // !_APP_CONSOLE
 
 #if defined(_APP_HAVE_UPDATES)
@@ -104,7 +119,7 @@ inline PR_STRING app_update_path = NULL;
 #endif // _APP_HAVE_UPDATES
 
 #if defined(_APP_HAVE_SETTINGS)
-inline std::vector<PAPP_SETTINGS_PAGE> app_settings_pages;
+inline OBJECTS_SETTINGS_PAGES_VEC app_settings_pages;
 inline HWND app_settings_hwnd = NULL;
 inline DLGPROC app_settings_proc = NULL;
 #endif // _APP_HAVE_SETTINGS
@@ -219,10 +234,10 @@ BOOLEAN _r_skipuac_run ();
 #if defined(_APP_HAVE_UPDATES)
 VOID _r_update_addcomponent (LPCWSTR full_name, LPCWSTR short_name, LPCWSTR version, LPCWSTR target_path, BOOLEAN is_installer);
 VOID _r_update_check (HWND hparent);
-THREAD_FN _r_update_checkthread (PVOID lparam);
+THREAD_API _r_update_checkthread (PVOID lparam);
 
 BOOLEAN NTAPI _r_update_downloadcallback (ULONG total_written, ULONG total_length, LONG_PTR lpdata);
-THREAD_FN _r_update_downloadthread (PVOID lparam);
+THREAD_API _r_update_downloadthread (PVOID lparam);
 
 HRESULT CALLBACK _r_update_pagecallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR lpdata);
 INT _r_update_pagenavigate (HWND htaskdlg, LPCWSTR main_icon, TASKDIALOG_FLAGS flags, TASKDIALOG_COMMON_BUTTON_FLAGS buttons, LPCWSTR main, LPCWSTR content, LONG_PTR lpdata);
@@ -235,8 +250,8 @@ FORCEINLINE LPCWSTR _r_update_getpath ()
 }
 #endif // _APP_HAVE_UPDATES
 
-VOID _r_logerror (UINT tray_id, LPCWSTR fn, ULONG code, LPCWSTR description);
-VOID _r_logerror_v (UINT tray_id, LPCWSTR fn, ULONG code, LPCWSTR format, ...);
+VOID _r_logerror (APP_LOG_LEVEL level, UINT tray_id, LPCWSTR fn, ULONG code, LPCWSTR description);
+VOID _r_logerror_v (APP_LOG_LEVEL level, UINT tray_id, LPCWSTR fn, ULONG code, LPCWSTR format, ...);
 
 #if !defined(_APP_CONSOLE)
 VOID _r_show_aboutmessage (HWND hwnd);
