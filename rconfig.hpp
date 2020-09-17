@@ -94,7 +94,7 @@
 #define _APP_SKIPUAC_NAME_OLD APP_NAME_SHORT L"SkipUAC"
 
 #if defined(_DEBUG) || defined(_APP_BETA)
-#	define _APP_UPDATE_PERIOD _r_calc_days2seconds (time_t, 12) // update checking period for pre-release is 12 hours
+#	define _APP_UPDATE_PERIOD _r_calc_hours2seconds (time_t, 12) // update checking period for pre-release is 12 hours
 #else
-#	define _APP_UPDATE_PERIOD _r_calc_days2seconds (time_t, 48) // update checking period for stable release is 48 hours
+#	define _APP_UPDATE_PERIOD _r_calc_hours2seconds (time_t, 48) // update checking period for stable release is 48 hours
 #endif // _APP_BETA || _APP_BETA_RC
