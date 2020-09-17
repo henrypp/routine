@@ -874,20 +874,10 @@ FORCEINLINE VOID _r_str_fromulong64 (LPWSTR buffer, SIZE_T length, ULONG64 value
 }
 
 BOOLEAN _r_str_toboolean (LPCWSTR string);
-INT _r_str_tointeger (LPCWSTR string);
-UINT _r_str_touinteger (LPCWSTR string);
 LONG _r_str_tolongex (LPCWSTR string, INT radix);
 LONG64 _r_str_tolong64 (LPCWSTR string);
 ULONG _r_str_toulongex (LPCWSTR string, INT radix);
 ULONG64 _r_str_toulong64 (LPCWSTR string);
-
-#if defined(_WIN64)
-#define _r_str_tolongptr _r_str_tolong64
-#define _r_str_toulongptr _r_str_toulong64
-#else
-#define _r_str_tolongptr _r_str_tolong
-#define _r_str_toulongptr _r_str_toulong
-#endif // _WIN64
 
 FORCEINLINE LONG _r_str_tolong (LPCWSTR string)
 {
@@ -898,6 +888,48 @@ FORCEINLINE ULONG _r_str_toulong (LPCWSTR string)
 {
 	return _r_str_toulongex (string, 10);
 }
+
+FORCEINLINE INT _r_str_tointeger (LPCWSTR string)
+{
+	return (INT)_r_str_tolong (string);
+}
+
+FORCEINLINE UINT _r_str_touinteger (LPCWSTR string)
+{
+	return (UINT)_r_str_toulong (string);
+}
+
+#if defined(_WIN64)
+#define _r_str_tolongptr _r_str_tolong64
+#define _r_str_toulongptr _r_str_toulong64
+#else
+#define _r_str_tolongptr _r_str_tolong
+#define _r_str_toulongptr _r_str_toulong
+#endif // _WIN64
+
+BOOLEAN _r_str_toboolean_a (LPCSTR string);
+LONG _r_str_tolong_a (LPCSTR string);
+LONG64 _r_str_tolong64_a (LPCSTR string);
+ULONG _r_str_toulong_a (LPCSTR string);
+ULONG64 _r_str_toulong64_a (LPCSTR string);
+
+FORCEINLINE INT _r_str_tointeger_a (LPCSTR string)
+{
+	return (INT)_r_str_tolong_a (string);
+}
+
+FORCEINLINE UINT _r_str_touinteger_a (LPCSTR string)
+{
+	return (UINT)_r_str_toulong_a (string);
+}
+
+#if defined(_WIN64)
+#define _r_str_tolongptr_a _r_str_tolong64_a
+#define _r_str_toulongptr_a _r_str_toulong64_a
+#else
+#define _r_str_tolongptr_a _r_str_tolong_a
+#define _r_str_toulongptr_a _r_str_toulong_a
+#endif // _WIN64
 
 SIZE_T _r_str_findchar (LPCWSTR string, SIZE_T length, WCHAR character);
 SIZE_T _r_str_findlastchar (LPCWSTR string, SIZE_T length, WCHAR character);

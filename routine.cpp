@@ -1754,16 +1754,6 @@ BOOLEAN _r_str_toboolean (LPCWSTR string)
 	return FALSE;
 }
 
-INT _r_str_tointeger (LPCWSTR string)
-{
-	return (INT)_r_str_tolong (string);
-}
-
-UINT _r_str_touinteger (LPCWSTR string)
-{
-	return (UINT)_r_str_toulong (string);
-}
-
 LONG _r_str_tolongex (LPCWSTR string, INT radix)
 {
 	if (_r_str_isempty (string))
@@ -1794,6 +1784,49 @@ ULONG64 _r_str_toulong64 (LPCWSTR string)
 		return 0ULL;
 
 	return wcstoull (string, NULL, 10);
+}
+
+BOOLEAN _r_str_toboolean_a (LPCSTR string)
+{
+	if (_r_str_isempty (string))
+		return FALSE;
+
+	if (_r_str_tointeger_a (string) > 0 || _stricmp (string, "true") == 0)
+		return TRUE;
+
+	return FALSE;
+}
+
+LONG _r_str_tolong_a (LPCSTR string)
+{
+	if (_r_str_isempty (string))
+		return 0L;
+
+	return strtol (string, NULL, 10);
+}
+
+LONG64 _r_str_tolong64_a (LPCSTR string)
+{
+	if (_r_str_isempty (string))
+		return 0LL;
+
+	return strtoll (string, NULL, 10);
+}
+
+ULONG _r_str_toulong_a (LPCSTR string)
+{
+	if (_r_str_isempty (string))
+		return 0UL;
+
+	return strtoul (string, NULL, 10);
+}
+
+ULONG64 _r_str_toulong64_a (LPCSTR string)
+{
+	if (_r_str_isempty (string))
+		return 0ULL;
+
+	return strtoull (string, NULL, 10);
 }
 
 SIZE_T _r_str_findchar (LPCWSTR string, SIZE_T length, WCHAR character)
@@ -1992,6 +2025,9 @@ PR_STRING _r_str_extractex (LPCWSTR string, SIZE_T length, SIZE_T start_pos, SIZ
 
 PR_STRING _r_str_multibyte2unicode (LPCSTR string)
 {
+	if (_r_str_isempty (string))
+		return NULL;
+
 	NTSTATUS status;
 	PR_STRING outputString;
 	ULONG unicodeSize;
@@ -2017,6 +2053,9 @@ PR_STRING _r_str_multibyte2unicode (LPCSTR string)
 
 PR_BYTE _r_str_unicode2multibyte (LPCWSTR string)
 {
+	if (_r_str_isempty (string))
+		return NULL;
+
 	NTSTATUS status;
 	PR_BYTE outputString;
 	ULONG multiByteSize;
@@ -2487,10 +2526,7 @@ NTSTATUS _r_sys_createthreadex (THREAD_CALLBACK start_address, PVOID arglist, PH
 			NtClose (thread);
 		}
 
-		if (context)
-		{
-			_r_mem_free (context);
-		}
+		_r_mem_free (context);
 	}
 
 	return status;
@@ -2754,11 +2790,11 @@ INT _r_dc_getdpivalue (HWND hwnd)
 
 	if (hdc)
 	{
-		INT dpiValue = GetDeviceCaps (hdc, LOGPIXELSX);
+		INT dpi_value = GetDeviceCaps (hdc, LOGPIXELSX);
 
 		ReleaseDC (NULL, hdc);
 
-		return dpiValue;
+		return dpi_value;
 	}
 
 	return USER_DEFAULT_SCREEN_DPI;
@@ -3835,18 +3871,22 @@ PR_STRING _r_reg_querystring (HKEY hkey, LPCWSTR value)
 {
 	ULONG type;
 	ULONG size;
+	ULONG code;
 
 	if (RegGetValue (hkey, NULL, value, RRF_RT_ANY, &type, NULL, &size) == ERROR_SUCCESS)
 	{
 		if (type == REG_SZ || type == REG_EXPAND_SZ || type == REG_MULTI_SZ)
 		{
 			PR_STRING valueString = _r_obj_createstringex (NULL, size * sizeof (WCHAR));
-			ULONG code = RegGetValue (hkey, NULL, value, RRF_RT_ANY, NULL, (PBYTE)valueString->Buffer, &size);
+
+			size = (ULONG)valueString->Length;
+			code = RegGetValue (hkey, NULL, value, RRF_RT_ANY, NULL, (PBYTE)valueString->Buffer, &size);
 
 			if (code == ERROR_MORE_DATA)
 			{
 				_r_obj_movereference (&valueString, _r_obj_createstringex (NULL, size * sizeof (WCHAR)));
 
+				size = (ULONG)valueString->Length;
 				code = RegGetValue (hkey, NULL, value, RRF_RT_ANY, NULL, (PBYTE)valueString->Buffer, &size);
 			}
 
