@@ -15,6 +15,15 @@
 #define PTR_SUB_OFFSET(Pointer, Offset) ((PVOID)((ULONG_PTR)(Pointer) - (ULONG_PTR)(Offset)))
 #endif
 
+#define ALIGN_UP_BY(Address, Align) (((ULONG_PTR)(Address) + (Align) - 1) & ~((Align) - 1))
+#define ALIGN_UP_POINTER_BY(Pointer, Align) ((PVOID)ALIGN_UP_BY(Pointer, Align))
+#define ALIGN_UP(Address, Type) ALIGN_UP_BY(Address, sizeof(Type))
+#define ALIGN_UP_POINTER(Pointer, Type) ((PVOID)ALIGN_UP(Pointer, Type))
+#define ALIGN_DOWN_BY(Address, Align) ((ULONG_PTR)(Address) & ~((ULONG_PTR)(Align) - 1))
+#define ALIGN_DOWN_POINTER_BY(Pointer, Align) ((PVOID)ALIGN_DOWN_BY(Pointer, Align))
+#define ALIGN_DOWN(Address, Type) ALIGN_DOWN_BY(Address, sizeof(Type))
+#define ALIGN_DOWN_POINTER(Pointer, Type) ((PVOID)ALIGN_DOWN(Pointer, Type))
+
 // Icons (shell32)
 #ifndef SIH_APPLICATION
 #define SIH_APPLICATION 32512
@@ -64,7 +73,7 @@
 
 // NT error codes
 #ifndef STATUS_UNSUCCESSFUL
-#define STATUS_UNSUCCESSFUL 0xc0000001L
+#define STATUS_UNSUCCESSFUL 0xC0000001L
 #endif
 
 #ifndef STATUS_BUFFER_OVERFLOW
@@ -77,6 +86,10 @@
 
 #ifndef STATUS_BUFFER_TOO_SMALL
 #define STATUS_BUFFER_TOO_SMALL 0xC0000023L
+#endif
+
+#ifndef STATUS_INVALID_PARAMETER_2
+#define STATUS_INVALID_PARAMETER_2 0xC00000F0L
 #endif
 
 // Privileges
@@ -807,20 +820,14 @@ typedef struct _KUSER_SHARED_DATA
 {
 	ULONG TickCountLowDeprecated;
 	ULONG TickCountMultiplier;
-
 	volatile KSYSTEM_TIME InterruptTime;
 	volatile KSYSTEM_TIME SystemTime;
 	volatile KSYSTEM_TIME TimeZoneBias;
-
 	USHORT ImageNumberLow;
 	USHORT ImageNumberHigh;
-
 	WCHAR NtSystemRoot[260];
-
 	ULONG MaxStackTraceDepth;
-
 	ULONG CryptoExponent;
-
 	ULONG TimeZoneId;
 	ULONG LargePageMinimum;
 	ULONG AitSamplingValue;
@@ -828,30 +835,21 @@ typedef struct _KUSER_SHARED_DATA
 	ULONGLONG RNGSeedVersion;
 	ULONG GlobalValidationRunlevel;
 	LONG TimeZoneBiasStamp;
-
 	ULONG NtBuildNumber;
 	NT_PRODUCT_TYPE NtProductType;
 	BOOLEAN ProductTypeIsValid;
 	UCHAR Reserved0[1];
 	USHORT NativeProcessorArchitecture;
-
 	ULONG NtMajorVersion;
 	ULONG NtMinorVersion;
-
 	BOOLEAN ProcessorFeatures[PROCESSOR_FEATURE_MAX];
-
 	ULONG Reserved1;
 	ULONG Reserved3;
-
 	volatile ULONG TimeSlip;
-
 	ALTERNATIVE_ARCHITECTURE_TYPE AlternativeArchitecture;
 	ULONG BootId;
-
 	LARGE_INTEGER SystemExpirationDate;
-
 	ULONG SuiteMask;
-
 	BOOLEAN KdDebuggerEnabled;
 	union
 	{
@@ -864,23 +862,15 @@ typedef struct _KUSER_SHARED_DATA
 			UCHAR Reserved : 2;
 		};
 	};
-
 	USHORT CyclesPerYield;
-
 	volatile ULONG ActiveConsoleId;
-
 	volatile ULONG DismountCount;
-
 	ULONG ComPlusPackage;
-
 	ULONG LastSystemRITEventTickCount;
-
 	ULONG NumberOfPhysicalPages;
-
 	BOOLEAN SafeBootMode;
 	UCHAR VirtualizationFlags;
 	UCHAR Reserved12[2];
-
 	union
 	{
 		ULONG SharedDataFlags;
@@ -898,16 +888,24 @@ typedef struct _KUSER_SHARED_DATA
 			ULONG DbgMultiUsersInSessionSku : 1;
 			ULONG DbgStateSeparationEnabled : 1;
 			ULONG SpareBits : 21;
-		};
-	};
+		} DUMMYSTRUCTNAME;
+	} DUMMYUNIONNAME;
 	ULONG DataFlagsPad[1];
-
 	ULONGLONG TestRetInstruction;
 	LONGLONG QpcFrequency;
 	ULONG SystemCall;
-	ULONG SystemCallPad0;
+	union
+	{
+		ULONG AllFlags;
+		struct
+		{
+			ULONG Win32Process : 1;
+			ULONG Sgx2Enclave : 1;
+			ULONG VbsBasicEnclave : 1;
+			ULONG SpareBits : 29;
+		};
+	} UserCetAvailableEnvironments;
 	ULONGLONG SystemCallPad[2];
-
 	union
 	{
 		volatile KSYSTEM_TIME TickCount;
@@ -916,12 +914,10 @@ typedef struct _KUSER_SHARED_DATA
 		{
 			ULONG ReservedTickCountOverlay[3];
 			ULONG TickCountPad[1];
-		};
-	};
-
+		} DUMMYSTRUCTNAME;
+	} DUMMYUNIONNAME;
 	ULONG Cookie;
 	ULONG CookiePad[1];
-
 	LONGLONG ConsoleSessionForegroundProcessId;
 	ULONGLONG TimeUpdateLock;
 	ULONGLONG BaselineSystemTimeQpc;
@@ -930,20 +926,15 @@ typedef struct _KUSER_SHARED_DATA
 	ULONGLONG QpcInterruptTimeIncrement;
 	UCHAR QpcSystemTimeIncrementShift;
 	UCHAR QpcInterruptTimeIncrementShift;
-
 	USHORT UnparkedProcessorCount;
 	ULONG EnclaveFeatureMask[4];
-
 	ULONG TelemetryCoverageRound;
-
 	USHORT UserModeGlobalLogger[16];
 	ULONG ImageFileExecutionOptions;
-
 	ULONG LangGenerationCount;
 	ULONGLONG Reserved4;
-	volatile ULONG64 InterruptTimeBias;
-	volatile ULONG64 QpcBias;
-
+	volatile ULONGLONG InterruptTimeBias;
+	volatile ULONGLONG QpcBias;
 	ULONG ActiveProcessorCount;
 	volatile UCHAR ActiveGroupCount;
 	UCHAR Reserved9;
@@ -952,14 +943,15 @@ typedef struct _KUSER_SHARED_DATA
 		USHORT QpcData;
 		struct
 		{
-			UCHAR QpcBypassEnabled : 1;
+			volatile UCHAR QpcBypassEnabled : 1;
 			UCHAR QpcShift : 1;
 		};
 	};
-
 	LARGE_INTEGER TimeZoneBiasEffectiveStart;
 	LARGE_INTEGER TimeZoneBiasEffectiveEnd;
 	XSTATE_CONFIGURATION XState;
+	KSYSTEM_TIME FeatureConfigurationChangeStamp;
+	ULONG Spare;
 } KUSER_SHARED_DATA, *PKUSER_SHARED_DATA;
 #include <poppack.h>
 
@@ -987,6 +979,7 @@ C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ActiveConsoleId) == 0x02d8);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NumberOfPhysicalPages) == 0x02e8);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, SafeBootMode) == 0x02ec);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TickCount) == 0x0320);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TickCountQuad) == 0x0320);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Cookie) == 0x0330);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, QpcBias) == 0x03b8);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ActiveProcessorCount) == 0x03c0);
@@ -1193,19 +1186,8 @@ typedef struct _PEB
 	union
 	{
 		ULONG SystemReserved2; // NT3.51-Win2k
-		struct
-		{
-			ULONG ExecuteOptions : 2; // XP-early WS03
-			ULONG SpareBits : 30;
-		};
 		ULONG SpareUlong; // WS03-Vista
 		ULONG AtlThunkSListPtr32; // late XP,Win7
-		struct
-		{
-			ULONG HeapTracingEnabled : 1; // Win7_BETA
-			ULONG CritSecTracingEnabled : 1;
-			ULONG SpareTracingBits : 30;
-		};
 	};
 	union
 	{
