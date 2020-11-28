@@ -580,12 +580,32 @@ typedef enum _SYSTEM_MEMORY_LIST_COMMAND
 	MemoryCommandMax
 } SYSTEM_MEMORY_LIST_COMMAND;
 
+// private
+typedef struct _MEMORY_COMBINE_INFORMATION
+{
+	HANDLE Handle;
+	ULONG_PTR PagesCombined;
+} MEMORY_COMBINE_INFORMATION, *PMEMORY_COMBINE_INFORMATION;
+
+// rev
+#define MEMORY_COMBINE_FLAGS_COMMON_PAGES_ONLY 0x4
+
+// private
 typedef struct _MEMORY_COMBINE_INFORMATION_EX
 {
 	HANDLE Handle;
 	ULONG_PTR PagesCombined;
 	ULONG Flags;
 } MEMORY_COMBINE_INFORMATION_EX, *PMEMORY_COMBINE_INFORMATION_EX;
+
+// private
+typedef struct _MEMORY_COMBINE_INFORMATION_EX2
+{
+	HANDLE Handle;
+	ULONG_PTR PagesCombined;
+	ULONG Flags;
+	HANDLE ProcessHandle;
+} MEMORY_COMBINE_INFORMATION_EX2, *PMEMORY_COMBINE_INFORMATION_EX2;
 
 typedef enum _SC_SERVICE_TAG_QUERY_TYPE
 {
@@ -1505,6 +1525,18 @@ typedef NTSTATUS (NTAPI *PUSER_THREAD_START_ROUTINE)(
 	_In_ PVOID ThreadParameter
 	);
 
+typedef struct _OBJECT_DIRECTORY_INFORMATION
+{
+	UNICODE_STRING Name;
+	UNICODE_STRING TypeName;
+} OBJECT_DIRECTORY_INFORMATION, *POBJECT_DIRECTORY_INFORMATION;
+
+#define DIRECTORY_QUERY 0x0001
+#define DIRECTORY_TRAVERSE 0x0002
+#define DIRECTORY_CREATE_OBJECT 0x0004
+#define DIRECTORY_CREATE_SUBDIRECTORY 0x0008
+#define DIRECTORY_ALL_ACCESS (STANDARD_RIGHTS_REQUIRED | 0xf)
+
 // extern c start
 EXTERN_C_START
 
@@ -1927,6 +1959,77 @@ RtlExpandEnvironmentStrings_U (
 	_In_ PUNICODE_STRING Source,
 	_Inout_ PUNICODE_STRING Destination,
 	_Out_opt_ PULONG ReturnedLength
+);
+
+NTSYSCALLAPI
+ULONG
+NTAPI
+RtlNtStatusToDosError (
+	_In_ NTSTATUS Status
+);
+
+NTSYSCALLAPI
+ULONG
+NTAPI
+RtlNtStatusToDosErrorNoTeb (
+	_In_ NTSTATUS Status
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlGetLastNtStatus (
+	VOID
+);
+
+NTSYSCALLAPI
+LONG
+NTAPI
+RtlGetLastWin32Error (
+	VOID
+);
+
+NTSYSCALLAPI
+VOID
+NTAPI
+RtlSetLastWin32ErrorAndNtStatusFromNtStatus (
+	_In_ NTSTATUS Status
+);
+
+NTSYSCALLAPI
+VOID
+NTAPI
+RtlSetLastWin32Error (
+	_In_ LONG Win32Error
+);
+
+NTSYSCALLAPI
+VOID
+NTAPI
+RtlRestoreLastWin32Error (
+	_In_ LONG Win32Error
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtOpenDirectoryObject (
+	_Out_ PHANDLE DirectoryHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtQueryDirectoryObject (
+	_In_ HANDLE DirectoryHandle,
+	_Out_writes_bytes_opt_ (Length) PVOID Buffer,
+	_In_ ULONG Length,
+	_In_ BOOLEAN ReturnSingleEntry,
+	_In_ BOOLEAN RestartScan,
+	_Inout_ PULONG Context,
+	_Out_opt_ PULONG ReturnLength
 );
 
 NTSYSCALLAPI
