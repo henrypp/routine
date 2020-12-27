@@ -1,5 +1,5 @@
 // routine++
-// Copyright (c) 2012-2020 Henry++
+// Copyright (c) 2020,2021 Henry++
 
 #pragma once
 
@@ -727,7 +727,32 @@ typedef enum _PROCESSINFOCLASS
 	MaxProcessInfoClass
 } PROCESSINFOCLASS;
 
-#define SYMBOLIC_LINK_QUERY 0x0001
+// Functions
+#ifndef _WIN64
+#define FASTCALL __fastcall
+#else
+#define FASTCALL
+#endif
+
+// Synchronization enumerations
+typedef enum _EVENT_TYPE
+{
+	NotificationEvent,
+	SynchronizationEvent
+} EVENT_TYPE;
+
+typedef enum _TIMER_TYPE
+{
+	NotificationTimer,
+	SynchronizationTimer
+} TIMER_TYPE;
+
+typedef enum _WAIT_TYPE
+{
+	WaitAll,
+	WaitAny,
+	WaitNotification
+} WAIT_TYPE;
 
 // Object attributes
 #define OBJ_INHERIT 0x00000002
@@ -741,6 +766,8 @@ typedef enum _PROCESSINFOCLASS
 #define OBJ_IGNORE_IMPERSONATED_DEVICEMAP 0x00000800
 #define OBJ_DONT_REPARSE 0x00001000
 #define OBJ_VALID_ATTRIBUTES 0x00001ff2
+
+#define SYMBOLIC_LINK_QUERY 0x0001
 
 typedef struct _OBJECT_ATTRIBUTES
 {
@@ -1474,7 +1501,6 @@ C_ASSERT (FIELD_OFFSET (TEB, LockCount) == 0x0fd8);
 C_ASSERT (FIELD_OFFSET (TEB, EffectiveContainerId) == 0x0ff0);
 #endif
 
-
 // Heaps
 typedef NTSTATUS (NTAPI *PRTL_HEAP_COMMIT_ROUTINE)(
 	_In_ PVOID Base,
@@ -2157,6 +2183,46 @@ BOOLEAN
 NTAPI
 RtlTryAcquireSRWLockShared (
 	_Inout_ PRTL_SRWLOCK SRWLock
+);
+
+NTSYSCALLAPI NTSTATUS RtlRunOnceBeginInitialize (
+	_Inout_ PRTL_RUN_ONCE RunOnce,
+	_In_ ULONG         Flags,
+	_In_opt_ PVOID         *Context
+);
+
+NTSYSCALLAPI NTSTATUS RtlRunOnceComplete (
+	_Inout_ PRTL_RUN_ONCE RunOnce,
+	_In_ ULONG         Flags,
+	_In_opt_ PVOID         Context
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtCreateEvent (
+	_Out_ PHANDLE EventHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
+	_In_ EVENT_TYPE EventType,
+	_In_ BOOLEAN InitialState
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtSetEvent (
+	_In_ HANDLE EventHandle,
+	_Out_opt_ PLONG PreviousState
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtWaitForSingleObject (
+	_In_ HANDLE Handle,
+	_In_ BOOLEAN Alertable,
+	_In_opt_ PLARGE_INTEGER Timeout
 );
 
 // extern c end
