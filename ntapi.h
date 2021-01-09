@@ -1693,8 +1693,8 @@ NTSYSCALLAPI
 NTSTATUS
 NTAPI
 NtQueryObject (
-	_In_ HANDLE Handle,
-	_In_ UINT ObjectInformationClass,
+	_In_opt_ HANDLE Handle,
+	_In_ OBJECT_INFORMATION_CLASS ObjectInformationClass,
 	_Out_writes_bytes_opt_ (ObjectInformationLength) PVOID ObjectInformation,
 	_In_ ULONG ObjectInformationLength,
 	_Out_opt_ PULONG ReturnLength
@@ -1704,7 +1704,7 @@ NTSYSCALLAPI
 NTSTATUS
 NTAPI
 NtQuerySystemInformation (
-	_In_ UINT SystemInformationClass,
+	_In_ SYSTEM_INFORMATION_CLASS SystemInformationClass,
 	_Out_writes_bytes_opt_ (SystemInformationLength) PVOID SystemInformation,
 	_In_ ULONG SystemInformationLength,
 	_Out_opt_ PULONG ReturnLength
@@ -1725,7 +1725,7 @@ NTSYSCALLAPI
 NTSTATUS
 NTAPI
 NtSetSystemInformation (
-	_In_ UINT SystemInformationClass,
+	_In_ SYSTEM_INFORMATION_CLASS SystemInformationClass,
 	_In_reads_bytes_opt_ (SystemInformationLength) PVOID SystemInformation,
 	_In_ ULONG SystemInformationLength
 );
@@ -1773,7 +1773,7 @@ NTAPI
 NtQueryInformationToken (
 	_In_ HANDLE TokenHandle,
 	_In_ TOKEN_INFORMATION_CLASS TokenInformationClass,
-	_Out_writes_bytes_ (TokenInformationLength) PVOID TokenInformation,
+	_Out_writes_bytes_to_opt_ (TokenInformationLength, *ReturnLength) PVOID TokenInformation,
 	_In_ ULONG TokenInformationLength,
 	_Out_ PULONG ReturnLength
 );
@@ -1818,14 +1818,14 @@ NTSYSCALLAPI
 BOOLEAN
 NTAPI
 RtlDoesFileExists_U (
-	_In_ LPCWSTR FileName
+	_In_ PCWSTR FileName
 );
 
 NTSYSCALLAPI
 ULONG
 NTAPI
 RtlGetFullPathName_U (
-	_In_ LPCWSTR FileName,
+	_In_ PCWSTR FileName,
 	_In_ ULONG BufferLength,
 	_Out_writes_bytes_ (BufferLength) PWSTR Buffer,
 	_Out_opt_ PWSTR *FilePart
@@ -1836,7 +1836,7 @@ VOID
 NTAPI
 RtlInitUnicodeString (
 	_Out_ PUNICODE_STRING DestinationString,
-	_In_opt_ PWSTR SourceString
+	_In_opt_z_ PCWSTR SourceString
 );
 
 NTSYSCALLAPI
@@ -2185,16 +2185,20 @@ RtlTryAcquireSRWLockShared (
 	_Inout_ PRTL_SRWLOCK SRWLock
 );
 
-NTSYSCALLAPI NTSTATUS RtlRunOnceBeginInitialize (
+NTSYSCALLAPI
+NTSTATUS
+RtlRunOnceBeginInitialize (
 	_Inout_ PRTL_RUN_ONCE RunOnce,
-	_In_ ULONG         Flags,
-	_In_opt_ PVOID         *Context
+	_In_ ULONG Flags,
+	_In_opt_ PVOID *Context
 );
 
-NTSYSCALLAPI NTSTATUS RtlRunOnceComplete (
+NTSYSCALLAPI
+NTSTATUS
+RtlRunOnceComplete (
 	_Inout_ PRTL_RUN_ONCE RunOnce,
-	_In_ ULONG         Flags,
-	_In_opt_ PVOID         Context
+	_In_ ULONG Flags,
+	_In_opt_ PVOID Context
 );
 
 NTSYSCALLAPI
