@@ -1,4 +1,6 @@
-// routine++
+// routine.c
+// project sdk library
+//
 // Copyright (c) 2012-2021 Henry++
 
 #pragma once
@@ -138,14 +140,14 @@ typedef struct _R_HASHTABLE_ENTRY
 typedef struct _R_HASHTABLE
 {
 	PR_OBJECT_CLEANUP_FUNCTION cleanup_callback;
-	SIZE_T entry_size;
-	SIZE_T allocated_buckets;
 	PSIZE_T buckets;
-	SIZE_T allocated_entries;
 	PVOID entries;
-	SIZE_T count;
 	SIZE_T free_entry;
 	SIZE_T next_entry;
+	SIZE_T entry_size;
+	SIZE_T allocated_buckets;
+	SIZE_T allocated_entries;
+	SIZE_T count;
 } R_HASHTABLE, *PR_HASHTABLE;
 
 typedef struct _R_BYTEREF
@@ -529,9 +531,9 @@ FORCEINLINE BOOLEAN _r_spinlock_islocked (const PR_SPINLOCK plock)
 	MemoryBarrier ();
 
 #if defined(APP_NO_DEPRECATIONS)
-	owned = ((*(volatile LONG_PTR*)&plock->Ptr) & RTL_SRWLOCK_OWNED);
+	owned = ((*(volatile LONG_PTR*)&plock->Ptr) & RTL_SRWLOCK_OWNED) != 0;
 #else
-	owned = (plock->value & PR_SPINLOCK_OWNED);
+	owned = (plock->value & PR_SPINLOCK_OWNED) != 0;
 #endif // APP_NO_DEPRECATIONS
 
 	MemoryBarrier ();
@@ -679,6 +681,14 @@ FORCEINLINE VOID FASTCALL _r_initonce_end (_Inout_ PR_INITONCE init_once)
 #endif // APP_NO_DEPRECATIONS
 
 /*
+	Synchronization: Mutex
+*/
+
+BOOLEAN _r_mutex_create (_In_ LPCWSTR name, _Inout_ PHANDLE mutex);
+BOOLEAN _r_mutex_destroy (_Inout_ PHANDLE mutex);
+BOOLEAN _r_mutex_isexists (_In_ LPCWSTR name);
+
+/*
 	Memory allocation reference
 */
 
@@ -781,14 +791,14 @@ FORCEINLINE VOID _r_obj_clearreference (_Inout_ PVOID * object_body)
 */
 
 PR_ARRAY _r_obj_createarrayex (_In_ SIZE_T item_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
-VOID _r_obj_cleararray (_In_ PR_ARRAY rarray);
-VOID _r_obj_resizearray (_In_ PR_ARRAY rarray, _In_ SIZE_T new_capacity);
+VOID _r_obj_cleararray (_In_ PR_ARRAY array_node);
+VOID _r_obj_resizearray (_In_ PR_ARRAY array_node, _In_ SIZE_T new_capacity);
 
 _Success_ (return != SIZE_MAX)
-SIZE_T _r_obj_addarrayitem (_In_ PR_ARRAY rarray, _In_ PVOID item);
+SIZE_T _r_obj_addarrayitem (_In_ PR_ARRAY array_node, _In_ PVOID item);
 
-VOID _r_obj_addarrayitems (_In_ PR_ARRAY rarray, _In_ PVOID items, _In_ SIZE_T count);
-VOID _r_obj_removearrayitems (_In_ PR_ARRAY rarray, _In_ SIZE_T start_pos, _In_ SIZE_T count);
+VOID _r_obj_addarrayitems (_In_ PR_ARRAY array_node, _In_ PVOID items, _In_ SIZE_T count);
+VOID _r_obj_removearrayitems (_In_ PR_ARRAY array_node, _In_ SIZE_T start_pos, _In_ SIZE_T count);
 
 FORCEINLINE PR_ARRAY _r_obj_createarray (_In_ SIZE_T item_size, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
 {
@@ -796,30 +806,30 @@ FORCEINLINE PR_ARRAY _r_obj_createarray (_In_ SIZE_T item_size, _In_opt_ PR_OBJE
 }
 
 _Ret_maybenull_
-FORCEINLINE PVOID _r_obj_getarrayitem (_In_opt_ PR_ARRAY rarray, _In_ SIZE_T index)
+FORCEINLINE PVOID _r_obj_getarrayitem (_In_opt_ PR_ARRAY array_node, _In_ SIZE_T index)
 {
-	if (rarray)
-		return PTR_ADD_OFFSET (rarray->items, index * rarray->item_size);
+	if (array_node)
+		return PTR_ADD_OFFSET (array_node->items, index * array_node->item_size);
 
 	return NULL;
 }
 
-FORCEINLINE SIZE_T _r_obj_getarraysize (_In_opt_ PR_ARRAY rarray)
+FORCEINLINE SIZE_T _r_obj_getarraysize (_In_opt_ PR_ARRAY array_node)
 {
-	if (rarray)
-		return rarray->count;
+	if (array_node)
+		return array_node->count;
 
 	return 0;
 }
 
-FORCEINLINE BOOLEAN _r_obj_isarrayempty (_In_opt_ PR_ARRAY rarray)
+FORCEINLINE BOOLEAN _r_obj_isarrayempty (_In_opt_ PR_ARRAY array_node)
 {
-	return _r_obj_getarraysize (rarray) == 0;
+	return _r_obj_getarraysize (array_node) == 0;
 }
 
-FORCEINLINE VOID _r_obj_removearrayitem (_In_ PR_ARRAY rarray, _In_ SIZE_T index)
+FORCEINLINE VOID _r_obj_removearrayitem (_In_ PR_ARRAY array_node, _In_ SIZE_T index)
 {
-	_r_obj_removearrayitems (rarray, index, 1);
+	_r_obj_removearrayitems (array_node, index, 1);
 }
 
 /*
@@ -827,10 +837,10 @@ FORCEINLINE VOID _r_obj_removearrayitem (_In_ PR_ARRAY rarray, _In_ SIZE_T index
 */
 
 PR_LIST _r_obj_createlistex (_In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
-VOID _r_obj_clearlist (_In_ PR_LIST list);
-VOID _r_obj_resizelist (_In_ PR_LIST list, _In_ SIZE_T new_capacity);
-SIZE_T _r_obj_addlistitem (_In_ PR_LIST list, _In_ PVOID item);
-VOID _r_obj_insertlistitems (_In_ PR_LIST list, _In_ SIZE_T index, _In_ PVOID * items, _In_ SIZE_T count);
+VOID _r_obj_clearlist (_In_ PR_LIST list_node);
+VOID _r_obj_resizelist (_In_ PR_LIST list_node, _In_ SIZE_T new_capacity);
+SIZE_T _r_obj_addlistitem (_In_ PR_LIST list_node, _In_ PVOID item);
+VOID _r_obj_insertlistitems (_In_ PR_LIST list_node, _In_ SIZE_T index, _In_ PVOID * items, _In_ SIZE_T count);
 
 FORCEINLINE PR_LIST _r_obj_createlist (_In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
 {
@@ -838,25 +848,25 @@ FORCEINLINE PR_LIST _r_obj_createlist (_In_opt_ PR_OBJECT_CLEANUP_FUNCTION clean
 }
 
 _Ret_maybenull_
-FORCEINLINE PVOID _r_obj_getlistitem (_In_opt_ PR_LIST list, _In_ SIZE_T index)
+FORCEINLINE PVOID _r_obj_getlistitem (_In_opt_ PR_LIST list_node, _In_ SIZE_T index)
 {
-	if (list)
-		return list->items[index];
+	if (list_node && list_node->items)
+		return list_node->items[index];
 
 	return NULL;
 }
 
-FORCEINLINE SIZE_T _r_obj_getlistsize (_In_opt_ PR_LIST list)
+FORCEINLINE SIZE_T _r_obj_getlistsize (_In_opt_ PR_LIST list_node)
 {
-	if (list)
-		return list->count;
+	if (list_node)
+		return list_node->count;
 
 	return 0;
 }
 
-FORCEINLINE BOOLEAN _r_obj_islistempty (_In_opt_ PR_LIST list)
+FORCEINLINE BOOLEAN _r_obj_islistempty (_In_opt_ PR_LIST list_node)
 {
-	return _r_obj_getlistsize (list) == 0;
+	return _r_obj_getlistsize (list_node) == 0;
 }
 
 /*
@@ -868,9 +878,6 @@ VOID _r_obj_resizehashtable (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T new_cap
 
 _Ret_maybenull_
 PVOID _r_obj_addhashtableitem (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code, _In_opt_ PVOID entry);
-
-_Ret_maybenull_
-PVOID _r_obj_addhashtableitem2 (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code, _In_opt_ PVOID entry);
 
 VOID _r_obj_clearhashtable (_Inout_ PR_HASHTABLE hashtable);
 
@@ -887,7 +894,7 @@ FORCEINLINE PR_HASHTABLE _r_obj_createhashtable (_In_ SIZE_T entry_size, _In_opt
 	return _r_obj_createhashtableex (entry_size, 16, cleanup_callback);
 }
 
-FORCEINLINE SIZE_T _r_obj_gethashtablecount (_In_opt_ PR_HASHTABLE hashtable)
+FORCEINLINE SIZE_T _r_obj_gethashtablesize (_In_opt_ PR_HASHTABLE hashtable)
 {
 	if (hashtable)
 		return hashtable->count;
@@ -897,7 +904,7 @@ FORCEINLINE SIZE_T _r_obj_gethashtablecount (_In_opt_ PR_HASHTABLE hashtable)
 
 FORCEINLINE SIZE_T _r_obj_ishashtableempty (_In_opt_ PR_HASHTABLE hashtable)
 {
-	return _r_obj_gethashtablecount (hashtable) == 0;
+	return _r_obj_gethashtablesize (hashtable) == 0;
 }
 
 FORCEINLINE VOID _r_obj_initializehashstore (_Out_ PR_HASHSTORE hashstore, _In_opt_ PR_STRING string)
@@ -995,7 +1002,9 @@ PR_STRING _r_path_getfullpath (_In_ LPCWSTR path);
 _Ret_maybenull_
 PR_STRING _r_path_getknownfolder (_In_ ULONG folder, _In_opt_ LPCWSTR append);
 
+_Ret_maybenull_
 PR_STRING _r_path_getmodulepath (_In_opt_ HMODULE hmodule);
+
 VOID _r_path_explore (_In_ LPCWSTR path);
 
 _Ret_maybenull_
@@ -1740,6 +1749,21 @@ FORCEINLINE VOID _r_wnd_centerwindowrect (_In_ PRECT lprect, _In_ PRECT lpparent
 	lprect->top = lpparent->top + ((_r_calc_rectheight (lpparent) - _r_calc_rectheight (lprect)) / 2);
 }
 
+FORCEINLINE BOOLEAN _r_wnd_ismenu (HWND hwnd)
+{
+	return (GetClassLongPtr (hwnd, GCW_ATOM) == 0x8000); // #32768
+}
+
+FORCEINLINE BOOLEAN _r_wnd_isdesktop (HWND hwnd)
+{
+	return (GetClassLongPtr (hwnd, GCW_ATOM) == 0x8001); // #32769
+}
+
+FORCEINLINE BOOLEAN _r_wnd_isdialog (HWND hwnd)
+{
+	return (GetClassLongPtr (hwnd, GCW_ATOM) == 0x8002); // #32770
+}
+
 FORCEINLINE VOID _r_wnd_top (_In_ HWND hwnd, _In_ BOOLEAN is_enable)
 {
 	SetWindowPos (hwnd, is_enable ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOREDRAW | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
@@ -1823,14 +1847,21 @@ ULONG _r_math_rand (_In_ ULONG min_number, _In_ ULONG max_number);
 SIZE_T _r_math_rounduptopoweroftwo (_In_ SIZE_T number);
 
 /*
+	Resources
+*/
+
+_Ret_maybenull_
+PR_STRING _r_res_getbinaryversion (_In_ LPCWSTR path);
+
+_Success_ (return != NULL)
+PVOID _r_res_loadresource (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ LPCWSTR type, _Out_opt_ PULONG psize);
+
+/*
 	Other
 */
 
 _Ret_maybenull_
 HICON _r_loadicon (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ INT size);
-
-_Success_ (return != NULL)
-PVOID _r_loadresource (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ LPCWSTR type, _Out_opt_ PULONG psize);
 
 PR_HASHTABLE _r_parseini (_In_ LPCWSTR path, _Inout_opt_ PR_LIST section_list);
 VOID _r_sleep (_In_ LONG64 milliseconds);
@@ -2045,7 +2076,7 @@ FORCEINLINE VOID _r_util_templatewriteshort (_Inout_ PBYTE * ptr, _In_ WORD data
 VOID _r_util_templatewritestring (_Inout_ PBYTE * ptr, _In_ LPCWSTR string);
 VOID _r_util_templatewritecontrol (_Inout_ PBYTE * ptr, _In_ ULONG ctrl_id, _In_ ULONG style, _In_ SHORT x, _In_ SHORT y, _In_ SHORT cx, _In_ SHORT cy, _In_ LPCWSTR class_name);
 PR_STRING _r_util_versionformat (_In_ PR_STRING string);
-BOOL CALLBACK _r_util_activate_window_callback (_In_ HWND hwnd, _In_opt_ LPARAM lparam);
+BOOL CALLBACK _r_util_activate_window_callback (_In_ HWND hwnd, _In_ LPARAM lparam);
 
 VOID NTAPI _r_util_dereferencearrayprocedure (_In_ PVOID entry);
 VOID NTAPI _r_util_dereferencelistprocedure (_In_ PVOID entry);

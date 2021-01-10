@@ -1,4 +1,6 @@
-// routine++
+// routine.c
+// project sdk library
+//
 // Copyright (c) 2020,2021 Henry++
 
 #pragma once
@@ -8,21 +10,21 @@
 
 // Memory
 #ifndef PTR_ADD_OFFSET
-#define PTR_ADD_OFFSET(Pointer, Offset) ((PVOID)((ULONG_PTR)(Pointer) + (ULONG_PTR)(Offset)))
+#define PTR_ADD_OFFSET(pointer, offset) ((PVOID)((ULONG_PTR)(pointer) + (ULONG_PTR)(offset)))
 #endif
 
 #ifndef PTR_SUB_OFFSET
-#define PTR_SUB_OFFSET(Pointer, Offset) ((PVOID)((ULONG_PTR)(Pointer) - (ULONG_PTR)(Offset)))
+#define PTR_SUB_OFFSET(pointer, offset) ((PVOID)((ULONG_PTR)(pointer) - (ULONG_PTR)(offset)))
 #endif
 
-#define ALIGN_UP_BY(Address, Align) (((ULONG_PTR)(Address) + (Align) - 1) & ~((Align) - 1))
-#define ALIGN_UP_POINTER_BY(Pointer, Align) ((PVOID)ALIGN_UP_BY(Pointer, Align))
-#define ALIGN_UP(Address, Type) ALIGN_UP_BY(Address, sizeof(Type))
-#define ALIGN_UP_POINTER(Pointer, Type) ((PVOID)ALIGN_UP(Pointer, Type))
-#define ALIGN_DOWN_BY(Address, Align) ((ULONG_PTR)(Address) & ~((ULONG_PTR)(Align) - 1))
-#define ALIGN_DOWN_POINTER_BY(Pointer, Align) ((PVOID)ALIGN_DOWN_BY(Pointer, Align))
-#define ALIGN_DOWN(Address, Type) ALIGN_DOWN_BY(Address, sizeof(Type))
-#define ALIGN_DOWN_POINTER(Pointer, Type) ((PVOID)ALIGN_DOWN(Pointer, Type))
+#define ALIGN_UP_BY(address, align) (((ULONG_PTR)(address) + (align) - 1) & ~((align) - 1))
+#define ALIGN_UP_POINTER_BY(pointer, align) ((PVOID)ALIGN_UP_BY(pointer, align))
+#define ALIGN_UP(address, type) ALIGN_UP_BY(address, sizeof(type))
+#define ALIGN_UP_POINTER(pointer, type) ((PVOID)ALIGN_UP(pointer, type))
+#define ALIGN_DOWN_BY(address, align) ((ULONG_PTR)(address) & ~((ULONG_PTR)(align) - 1))
+#define ALIGN_DOWN_POINTER_BY(pointer, align) ((PVOID)ALIGN_DOWN_BY(pointer, align))
+#define ALIGN_DOWN(address, type) ALIGN_DOWN_BY(address, sizeof(type))
+#define ALIGN_DOWN_POINTER(pointer, type) ((PVOID)ALIGN_DOWN(pointer, type))
 
 // Icons (shell32)
 #ifndef SIH_APPLICATION

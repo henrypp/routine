@@ -1,4 +1,6 @@
-// routine++
+// routine.c
+// project sdk library
+//
 // Copyright (c) 2012-2021 Henry++
 
 #pragma once
@@ -9,7 +11,6 @@
 #include "rconfig.h"
 
 // Structures
-
 #if defined(APP_HAVE_SETTINGS)
 typedef struct _APP_SETTINGS_PAGE
 {
@@ -63,6 +64,7 @@ typedef enum _LOG_LEVEL
 
 // Global variables
 DECLSPEC_SELECTANY PR_HASHTABLE app_config_array = NULL;
+DECLSPEC_SELECTANY R_SPINLOCK app_config_lock;
 
 #if !defined(APP_CONSOLE)
 DECLSPEC_SELECTANY HWND app_hwnd = NULL;
@@ -71,10 +73,7 @@ DECLSPEC_SELECTANY WNDPROC app_window_proc = NULL;
 DECLSPEC_SELECTANY LONG app_window_minwidth = 0;
 DECLSPEC_SELECTANY LONG app_window_minheight = 0;
 
-DECLSPEC_SELECTANY BOOLEAN app_is_needmaximize = FALSE;
-
 DECLSPEC_SELECTANY HANDLE app_mutex = NULL;
-DECLSPEC_SELECTANY WCHAR app_mutex_name[128] = {0};
 
 DECLSPEC_SELECTANY PR_STRING app_locale_current = NULL;
 DECLSPEC_SELECTANY PR_STRING app_locale_default = NULL;
@@ -83,18 +82,19 @@ DECLSPEC_SELECTANY PR_STRING app_locale_resource = NULL;
 DECLSPEC_SELECTANY PR_HASHTABLE app_locale_array = NULL;
 DECLSPEC_SELECTANY PR_LIST app_locale_names = NULL;
 
-DECLSPEC_SELECTANY LONG64 app_locale_timetamp = 0;
+DECLSPEC_SELECTANY R_SPINLOCK app_locale_lock;
+
+DECLSPEC_SELECTANY BOOLEAN app_is_needmaximize = FALSE;
 #endif // !APP_CONSOLE
 
 #if defined(APP_HAVE_UPDATES)
 DECLSPEC_SELECTANY PAPP_UPDATE_INFO app_update_info = NULL;
-DECLSPEC_SELECTANY PR_STRING app_update_path = NULL;
 #endif // APP_HAVE_UPDATES
 
 #if defined(APP_HAVE_SETTINGS)
 DECLSPEC_SELECTANY PR_ARRAY app_settings_pages = NULL;
-DECLSPEC_SELECTANY HWND app_settings_hwnd = NULL;
 DECLSPEC_SELECTANY DLGPROC app_settings_proc = NULL;
+DECLSPEC_SELECTANY HWND app_settings_hwnd = NULL;
 #endif // APP_HAVE_SETTINGS
 
 /*
@@ -220,18 +220,15 @@ VOID _r_locale_applyfromcontrol (_In_ HWND hwnd, _In_ INT ctrl_id);
 VOID _r_locale_applyfrommenu (_In_ HMENU hmenu, _In_ UINT selected_id);
 VOID _r_locale_enum (_In_ PVOID hwnd, _In_ INT ctrl_id, _In_opt_ UINT menu_id);
 
-FORCEINLINE SIZE_T _r_locale_getcount ()
-{
-	return _r_obj_gethashtablecount (app_locale_array);
-}
-
-FORCEINLINE LONG64 _r_locale_getversion ()
-{
-	return app_locale_timetamp;
-}
-
 _Ret_maybenull_
 LPCWSTR _r_locale_getstring (_In_ UINT uid);
+
+LONG64 _r_locale_getversion ();
+
+FORCEINLINE SIZE_T _r_locale_getcount ()
+{
+	return _r_obj_gethashtablesize (app_locale_array);
+}
 #endif // !APP_CONSOLE
 
 /*
@@ -248,12 +245,6 @@ FORCEINLINE HWND _r_settings_getwindow ()
 	return app_settings_hwnd;
 }
 #endif // APP_HAVE_SETTINGS
-
-#if !defined(APP_CONSOLE)
-BOOLEAN _r_mutex_create (_In_ LPCWSTR name, _Inout_ PHANDLE mutex);
-BOOLEAN _r_mutex_destroy (_Inout_ PHANDLE mutex);
-BOOLEAN _r_mutex_isexists (_In_ LPCWSTR name);
-#endif // APP_CONSOLE
 
 /*
 	Autorun (optional feature)
@@ -289,12 +280,9 @@ THREAD_API _r_update_downloadthread (PVOID lparam);
 HRESULT CALLBACK _r_update_pagecallback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR pdata);
 INT _r_update_pagenavigate (_In_opt_ HWND htaskdlg, _In_opt_ LPCWSTR main_icon, _In_ TASKDIALOG_FLAGS flags, _In_ TASKDIALOG_COMMON_BUTTON_FLAGS buttons, _In_opt_ LPCWSTR main, _In_opt_ LPCWSTR content, _In_opt_ LONG_PTR lpdata);
 
+LPCWSTR _r_update_getpath ();
 VOID _r_update_install ();
 
-FORCEINLINE LPCWSTR _r_update_getpath ()
-{
-	return _r_obj_getstring (app_update_path);
-}
 #endif // APP_HAVE_UPDATES
 
 VOID _r_log (_In_ LOG_LEVEL log_level, _In_ UINT tray_id, _In_ LPCWSTR fn, _In_ ULONG code, _In_opt_ LPCWSTR description);
