@@ -13,6 +13,10 @@
 #define COBJMACROS
 #endif // !COBJMACROS
 
+#if !defined(UMDF_USING_NTSTATUS)
+#define UMDF_USING_NTSTATUS
+#endif // !UMDF_USING_NTSTATUS
+
 // crt
 #include <assert.h>
 #include <inttypes.h>
@@ -26,6 +30,7 @@
 // winapi
 #include <initguid.h>
 #include <windows.h>
+#include <ntstatus.h>
 #include <commctrl.h>
 #include <commdlg.h>
 #include <dde.h>
