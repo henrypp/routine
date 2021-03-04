@@ -19,7 +19,6 @@
 //#define APP_NO_MUTEX // disable mutex
 
 //#define APP_HAVE_AUTORUN // enable autorun feature
-//#define APP_HAVE_MINSIZE // change minimum size of main window
 //#define APP_HAVE_SETTINGS // enable settings dialog feature
 //#define APP_HAVE_SETTINGS_TABS // enable settings dialog feature baased on treeview
 //#define APP_HAVE_SKIPUAC // enable skip uac feature
@@ -30,7 +29,6 @@
 #define APP_NO_APPDATA
 #define APP_NO_CONFIG
 #undef APP_HAVE_AUTORUN
-#undef APP_HAVE_MINSIZE
 #undef APP_HAVE_SETTINGS
 #undef APP_HAVE_SETTINGS_TABS
 #undef APP_HAVE_SKIPUAC
