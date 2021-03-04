@@ -70,9 +70,6 @@ DECLSPEC_SELECTANY R_SPINLOCK app_config_lock;
 DECLSPEC_SELECTANY HWND app_hwnd = NULL;
 DECLSPEC_SELECTANY WNDPROC app_window_proc = NULL;
 
-DECLSPEC_SELECTANY LONG app_window_minwidth = 0;
-DECLSPEC_SELECTANY LONG app_window_minheight = 0;
-
 DECLSPEC_SELECTANY HANDLE app_mutex = NULL;
 
 DECLSPEC_SELECTANY PR_STRING app_locale_current = NULL;
@@ -223,12 +220,8 @@ VOID _r_locale_enum (_In_ PVOID hwnd, _In_ INT ctrl_id, _In_opt_ UINT menu_id);
 _Ret_maybenull_
 LPCWSTR _r_locale_getstring (_In_ UINT uid);
 
+SIZE_T _r_locale_getcount ();
 LONG64 _r_locale_getversion ();
-
-FORCEINLINE SIZE_T _r_locale_getcount ()
-{
-	return _r_obj_gethashtablesize (app_locale_array);
-}
 #endif // !APP_CONSOLE
 
 /*
@@ -237,6 +230,7 @@ FORCEINLINE SIZE_T _r_locale_getcount ()
 
 #if defined(APP_HAVE_SETTINGS)
 VOID _r_settings_addpage (_In_ INT dlg_id, _In_ UINT locale_id);
+VOID _r_settings_adjustchild (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ HWND hchild);
 VOID _r_settings_createwindow (_In_ HWND hwnd, _In_opt_ DLGPROC dlg_proc, _In_opt_ INT dlg_id);
 INT_PTR CALLBACK _r_settings_wndproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 
@@ -317,7 +311,6 @@ LPCWSTR _r_app_getuseragent ();
 
 #if !defined(APP_CONSOLE)
 BOOLEAN _r_app_createwindow (_In_ INT dlg_id, _In_opt_ INT icon_id, _In_opt_ DLGPROC dlg_proc);
-LRESULT CALLBACK _r_app_maindlgproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 
 _Ret_maybenull_
 HICON _r_app_getsharedimage (_In_opt_ HINSTANCE hinst, _In_ INT icon_id, _In_ INT icon_size);
