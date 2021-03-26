@@ -86,8 +86,6 @@ ULONG _r_config_getulongex (_In_ LPCWSTR key_name, ULONG def_value, _In_opt_ LPC
 ULONG64 _r_config_getulong64ex (_In_ LPCWSTR key_name, _In_ ULONG64 def_value, _In_opt_ LPCWSTR section_name);
 VOID _r_config_getfont (_In_ LPCWSTR key_name, _In_ HWND hwnd, _Inout_ PLOGFONT logfont, _In_opt_ LPCWSTR section_name);
 BOOLEAN _r_config_getsize (_In_ LPCWSTR key_name, _Out_ PR_SIZE size, _In_ PR_SIZE def_value, _In_opt_ LPCWSTR section_name);
-
-_Ret_maybenull_
 LPCWSTR _r_config_getstringex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_value, _In_opt_ LPCWSTR section_name);
 
 FORCEINLINE BOOLEAN _r_config_getboolean (_In_ LPCWSTR key_name, _In_ BOOLEAN def_value)
@@ -125,7 +123,6 @@ FORCEINLINE ULONG64 _r_config_getulong64 (_In_ LPCWSTR key_name, _In_ ULONG64 de
 	return _r_config_getulong64ex (key_name, def_value, NULL);
 }
 
-_Ret_maybenull_
 FORCEINLINE LPCWSTR _r_config_getstring (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_value)
 {
 	return _r_config_getstringex (key_name, def_value, NULL);
@@ -196,10 +193,8 @@ VOID _r_locale_applyfromcontrol (_In_ HWND hwnd, _In_ INT ctrl_id);
 VOID _r_locale_applyfrommenu (_In_ HMENU hmenu, _In_ UINT selected_id);
 VOID _r_locale_enum (_In_ PVOID hwnd, _In_ INT ctrl_id, _In_opt_ UINT menu_id);
 
-_Ret_maybenull_
-LPCWSTR _r_locale_getstring (_In_ UINT uid);
-
 SIZE_T _r_locale_getcount ();
+LPCWSTR _r_locale_getstring (_In_ UINT uid);
 LONG64 _r_locale_getversion ();
 #endif // !APP_CONSOLE
 

@@ -847,6 +847,7 @@ FORCEINLINE PVOID _r_obj_getarrayitem (_In_opt_ PR_ARRAY array_node, _In_ SIZE_T
 	return NULL;
 }
 
+_Check_return_
 FORCEINLINE SIZE_T _r_obj_getarraysize (_In_opt_ PR_ARRAY array_node)
 {
 	if (array_node)
@@ -855,10 +856,14 @@ FORCEINLINE SIZE_T _r_obj_getarraysize (_In_opt_ PR_ARRAY array_node)
 	return 0;
 }
 
-FORCEINLINE BOOLEAN _r_obj_isarrayempty (_In_opt_ PR_ARRAY array_node)
-{
-	return _r_obj_getarraysize (array_node) == 0;
-}
+//_Check_return_
+//FORCEINLINE BOOLEAN _r_obj_isarrayempty (_In_opt_ PR_ARRAY array_node)
+//{
+//	return !array_node || array_node->count == 0;
+//}
+
+#define _r_obj_isarrayempty(array_node) \
+    (!(array_node) || (array_node)->count == 0)
 
 FORCEINLINE VOID _r_obj_removearrayitem (_In_ PR_ARRAY array_node, _In_ SIZE_T index)
 {
@@ -889,6 +894,7 @@ FORCEINLINE PVOID _r_obj_getlistitem (_In_opt_ PR_LIST list_node, _In_ SIZE_T in
 	return NULL;
 }
 
+_Check_return_
 FORCEINLINE SIZE_T _r_obj_getlistsize (_In_opt_ PR_LIST list_node)
 {
 	if (list_node)
@@ -897,10 +903,14 @@ FORCEINLINE SIZE_T _r_obj_getlistsize (_In_opt_ PR_LIST list_node)
 	return 0;
 }
 
-FORCEINLINE BOOLEAN _r_obj_islistempty (_In_opt_ PR_LIST list_node)
-{
-	return _r_obj_getlistsize (list_node) == 0;
-}
+//_Check_return_
+//FORCEINLINE BOOLEAN _r_obj_islistempty (_In_opt_ PR_LIST list_node)
+//{
+//	return !list_node || list_node->count == 0;
+//}
+
+#define _r_obj_islistempty(list_node) \
+    (!(list_node) || (list_node)->count == 0)
 
 /*
 	Hashtable
@@ -927,6 +937,7 @@ FORCEINLINE PR_HASHTABLE _r_obj_createhashtable (_In_ SIZE_T entry_size, _In_opt
 	return _r_obj_createhashtableex (entry_size, 10, cleanup_callback);
 }
 
+_Check_return_
 FORCEINLINE SIZE_T _r_obj_gethashtablesize (_In_opt_ PR_HASHTABLE hashtable)
 {
 	if (hashtable)
@@ -935,10 +946,14 @@ FORCEINLINE SIZE_T _r_obj_gethashtablesize (_In_opt_ PR_HASHTABLE hashtable)
 	return 0;
 }
 
-FORCEINLINE SIZE_T _r_obj_ishashtableempty (_In_opt_ PR_HASHTABLE hashtable)
-{
-	return _r_obj_gethashtablesize (hashtable) == 0;
-}
+//_Check_return_
+//FORCEINLINE SIZE_T _r_obj_ishashtableempty (_In_opt_ PR_HASHTABLE hashtable)
+//{
+//	return !hashtable || hashtable->count == 0;
+//}
+
+#define _r_obj_ishashtableempty(hashtable) \
+    (!(hashtable) || (hashtable)->count == 0)
 
 FORCEINLINE VOID _r_obj_initializehashstore (_Out_ PR_HASHSTORE hashstore, _In_opt_ PR_STRING string, _In_opt_ LONG number)
 {
@@ -973,11 +988,14 @@ BOOLEAN _r_fs_makebackup (_In_ LPCWSTR path, _In_opt_ LONG64 timestamp, _In_ BOO
 BOOLEAN _r_fs_mkdir (_In_ LPCWSTR path);
 PR_BYTE _r_fs_readfile (_In_ HANDLE hfile, _In_ ULONG file_size);
 
-_Check_return_
-FORCEINLINE BOOLEAN _r_fs_isvalidhandle (_In_opt_ HANDLE handle)
-{
-	return (handle != NULL) && (handle != INVALID_HANDLE_VALUE);
-}
+//_Check_return_
+//FORCEINLINE BOOLEAN _r_fs_isvalidhandle (_In_opt_ HANDLE handle)
+//{
+//	return (handle != NULL) && (handle != INVALID_HANDLE_VALUE);
+//}
+
+#define _r_fs_isvalidhandle(handle) \
+    ((handle) != NULL && (handle) != INVALID_HANDLE_VALUE)
 
 _Check_return_
 FORCEINLINE BOOLEAN _r_fs_exists (_In_ LPCWSTR path)
@@ -1003,7 +1021,6 @@ FORCEINLINE BOOLEAN _r_fs_setpos (_In_ HANDLE hfile, _In_ LONG64 pos, _In_ ULONG
 
 	return !!SetFilePointerEx (hfile, lpos, NULL, method);
 }
-
 
 FORCEINLINE LONG64 _r_fs_getsize (_In_ HANDLE hfile)
 {
@@ -1061,11 +1078,14 @@ FORCEINLINE VOID _r_shell_opendefault (_In_ LPCWSTR path)
 
 PR_BYTE _r_obj_createbyteex (_In_opt_ LPSTR buffer, _In_ SIZE_T length);
 
-_Check_return_
-FORCEINLINE BOOLEAN _r_obj_isbyteempty (_In_opt_ PR_BYTE string)
-{
-	return !string || !string->length || !string->buffer || (*string->buffer == ANSI_NULL);
-}
+//_Check_return_
+//FORCEINLINE BOOLEAN _r_obj_isbyteempty (_In_opt_ PR_BYTE string)
+//{
+//	return !string || !string->length || !string->buffer || (*string->buffer == ANSI_NULL);
+//}
+
+#define _r_obj_isbyteempty(string) \
+    (!(string) || (string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == ANSI_NULL)
 
 FORCEINLINE VOID _r_obj_writebytenullterminator (_In_ PR_BYTE string)
 {
@@ -1093,10 +1113,19 @@ FORCEINLINE PR_STRING _r_obj_createstring3 (_In_ PR_STRINGREF string)
 	return _r_obj_createstringex (string->buffer, string->length);
 }
 
+//_Check_return_
+//FORCEINLINE BOOLEAN _r_obj_isstringempty (_In_opt_ PR_STRING string)
+//{
+//	return !string || !string->length || !string->buffer || (string->buffer[0] == UNICODE_NULL);
+//}
+
+#define _r_obj_isstringempty(string) \
+    (!(string) || (string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == UNICODE_NULL)
+
 _Ret_maybenull_
 FORCEINLINE LPCWSTR _r_obj_getstring (_In_opt_ PR_STRING string)
 {
-	if (string && string->length && string->buffer)
+	if (!_r_obj_isstringempty (string))
 		return string->buffer;
 
 	return NULL;
@@ -1104,7 +1133,7 @@ FORCEINLINE LPCWSTR _r_obj_getstring (_In_opt_ PR_STRING string)
 
 FORCEINLINE LPCWSTR _r_obj_getstringorempty (_In_opt_ PR_STRING string)
 {
-	if (string && string->length && string->buffer)
+	if (!_r_obj_isstringempty (string))
 		return string->buffer;
 
 	return L"";
@@ -1112,18 +1141,13 @@ FORCEINLINE LPCWSTR _r_obj_getstringorempty (_In_opt_ PR_STRING string)
 
 FORCEINLINE LPCWSTR _r_obj_getstringordefault (_In_opt_ PR_STRING string, _In_opt_ LPCWSTR def)
 {
-	if (string && string->length && string->buffer)
+	if (!_r_obj_isstringempty (string))
 		return string->buffer;
 
 	return def;
 }
 
 _Check_return_
-FORCEINLINE BOOLEAN _r_obj_isstringempty (_In_opt_ PR_STRING string)
-{
-	return !string || !string->length || !string->buffer || (string->buffer[0] == UNICODE_NULL);
-}
-
 FORCEINLINE SIZE_T _r_obj_getstringlength (_In_opt_ PR_STRING string)
 {
 	if (string)
@@ -1132,6 +1156,7 @@ FORCEINLINE SIZE_T _r_obj_getstringlength (_In_opt_ PR_STRING string)
 	return 0;
 }
 
+_Check_return_
 FORCEINLINE SIZE_T _r_obj_getstringsize (_In_opt_ PR_STRING string)
 {
 	if (string)
@@ -1219,15 +1244,15 @@ FORCEINLINE VOID _r_obj_initializestringbuilder (_Out_ PR_STRINGBUILDER string)
 	string->string->buffer[0] = UNICODE_NULL;
 }
 
-FORCEINLINE PR_STRING _r_obj_finalstringbuilder (_In_ PR_STRINGBUILDER string)
-{
-	return string->string;
-}
-
 FORCEINLINE VOID _r_obj_deletestringbuilder (_Inout_ PR_STRINGBUILDER string)
 {
 	if (string->string)
 		_r_obj_clearreference (&string->string);
+}
+
+FORCEINLINE PR_STRING _r_obj_finalstringbuilder (_In_ PR_STRINGBUILDER string)
+{
+	return string->string;
 }
 
 VOID _r_obj_appendstringbuilderex (_Inout_ PR_STRINGBUILDER string, _In_ LPCWSTR text, _In_ SIZE_T length);
@@ -1303,17 +1328,23 @@ FORCEINLINE VOID _r_obj_initializeemptystringref (_Out_ PR_STRINGREF string)
 	Strings
 */
 
-_Check_return_
-FORCEINLINE BOOLEAN _r_str_isempty (_In_opt_ LPCWSTR string)
-{
-	return !string || (string[0] == UNICODE_NULL);
-}
+//_Check_return_
+//FORCEINLINE BOOLEAN _r_str_isempty (_In_opt_ LPCWSTR string)
+//{
+//	return !string || (string[0] == UNICODE_NULL);
+//}
 
-_Check_return_
-FORCEINLINE BOOLEAN _r_str_isempty_a (_In_opt_ LPCSTR string)
-{
-	return !string || (*string == ANSI_NULL);
-}
+#define _r_str_isempty(string) \
+    (!(string) || (string)[0] == UNICODE_NULL)
+
+//_Check_return_
+//FORCEINLINE BOOLEAN _r_str_isempty_a (_In_opt_ LPCSTR string)
+//{
+//	return !string || (string[0] == ANSI_NULL);
+//}
+
+#define _r_str_isempty_a(string) \
+    (!(string) || (string)[0] == ANSI_NULL)
 
 _Check_return_
 BOOLEAN _r_str_isnumeric (_In_ LPCWSTR string);
@@ -1882,12 +1913,14 @@ VOID _r_wnd_center (_In_ HWND hwnd, _In_opt_ HWND hparent);
 VOID _r_wnd_changemessagefilter (_In_ HWND hwnd, _In_count_ (count) PUINT messages, _In_ SIZE_T count, _In_ ULONG action);
 VOID _r_wnd_changesettings (_In_ HWND hwnd, _In_opt_ WPARAM wparam, _In_opt_ LPARAM lparam);
 VOID _r_wnd_enablenonclientscaling (_In_ HWND hwnd);
-BOOLEAN _r_wnd_getposition (_In_ HWND hwnd, _Out_ PR_RECTANGLE rectangle);
 BOOLEAN _r_wnd_isfullscreenmode ();
 BOOLEAN _r_wnd_isoverlapped (_In_ HWND hwnd);
 BOOLEAN _r_wnd_isundercursor (_In_ HWND hwnd);
 VOID _r_wnd_setposition (_In_ HWND hwnd, _In_opt_ PR_SIZE position, _In_opt_ PR_SIZE size);
 VOID _r_wnd_toggle (_In_ HWND hwnd, _In_ BOOLEAN is_show);
+
+_Success_ (return)
+BOOLEAN _r_wnd_getposition (_In_ HWND hwnd, _Out_ PR_RECTANGLE rectangle);
 
 FORCEINLINE LONG_PTR _r_wnd_getstyle (_In_ HWND hwnd)
 {
@@ -1971,7 +2004,9 @@ FORCEINLINE VOID _r_wnd_seticon (_In_ HWND hwnd, _In_opt_ HICON hicon_small, _In
 
 FORCEINLINE VOID _r_wnd_top (_In_ HWND hwnd, _In_ BOOLEAN is_enable)
 {
-	SetFocus (hwnd); // HACK!!!
+	if (is_enable)
+		SetFocus (hwnd); // HACK!!!
+
 	SetWindowPos (hwnd, is_enable ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOREDRAW | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
 }
 
