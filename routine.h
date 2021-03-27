@@ -712,7 +712,7 @@ BOOLEAN _r_mutex_destroy (_Inout_ PHANDLE mutex);
 BOOLEAN _r_mutex_isexists (_In_ LPCWSTR name);
 
 /*
-	Memory allocation reference
+	Memory allocation
 */
 
 HANDLE NTAPI _r_mem_getheap ();
@@ -1735,7 +1735,10 @@ FORCEINLINE ULONG64 _r_sys_gettickcount64 ()
 
 LONG64 _r_unixtime_now ();
 VOID _r_unixtime_to_filetime (_In_ LONG64 unixtime, _Out_ PFILETIME file_time);
-VOID _r_unixtime_to_systemtime (_In_ LONG64 unixtime, _Out_ PSYSTEMTIME system_time);
+
+_Success_ (return)
+BOOLEAN _r_unixtime_to_systemtime (_In_ LONG64 unixtime, _Out_ PSYSTEMTIME system_time);
+
 LONG64 _r_unixtime_from_filetime (_In_ const FILETIME * file_time);
 LONG64 _r_unixtime_from_systemtime (_In_ const SYSTEMTIME * system_time);
 
@@ -1783,9 +1786,9 @@ typedef struct _R_FILE_DIALOG
 	{
 		LPOPENFILENAME ofn;
 		IFileDialog *ifd;
-	};
+	} u;
 
-	BOOLEAN is_filedialog;
+	BOOLEAN is_ifiledialog;
 	BOOLEAN is_save;
 } R_FILE_DIALOG, *PR_FILE_DIALOG;
 
@@ -1802,20 +1805,15 @@ VOID _r_filedialog_destroy (_In_ PR_FILE_DIALOG file_dialog);
 	Window layout
 */
 
-#define PR_LAYOUT_FORCE_INVALIDATE 0x00000001 // invalidate the control when it is resized
+#define PR_LAYOUT_ANCHOR_LEFT  0x0001
+#define PR_LAYOUT_ANCHOR_TOP  0x0002
+#define PR_LAYOUT_ANCHOR_RIGHT  0x0004
+#define PR_LAYOUT_ANCHOR_BOTTOM  0x0008
+#define PR_LAYOUT_ANCHOR_ALL  0x000F
 
-#define PR_LAYOUT_CONTROL_DIALOG 0x00000002
-#define PR_LAYOUT_CONTROL_REBAR 0x00000004
-#define PR_LAYOUT_CONTROL_TOOLBAR 0x00000008
-#define PR_LAYOUT_CONTROL_TAB 0x00000010
-#define PR_LAYOUT_CONTROL_LISTVIEW 0x00000020
-#define PR_LAYOUT_CONTROL_BUTTON 0x00000040
-#define PR_LAYOUT_CONTROL_EDIT 0x00000080
-#define PR_LAYOUT_CONTROL_STATIC 0x00000100
-#define PR_LAYOUT_CONTROL_STATUS 0x00000200
-
-#define PR_LAYOUT_SENDNOTIFY_MASK (PR_LAYOUT_CONTROL_REBAR| PR_LAYOUT_CONTROL_TOOLBAR | PR_LAYOUT_CONTROL_STATUS)
-#define PR_LAYOUT_NOEDGE_MASK (PR_LAYOUT_CONTROL_STATUS)
+#define PR_LAYOUT_FORCE_INVALIDATE 0x1000 // invalidate the control when it is resized
+#define PR_LAYOUT_SEND_NOTIFY 0x2000 // send WM_SIZE message on resize
+#define PR_LAYOUT_NO_ANCHOR 0x4000 // do not calculate anchors for control
 
 typedef struct _R_LAYOUT_ITEM
 {
@@ -1849,8 +1847,12 @@ BOOLEAN _r_layout_initializemanager (_Inout_ PR_LAYOUT_MANAGER layout_manager, _
 _Ret_maybenull_
 PR_LAYOUT_ITEM _r_layout_additem (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_ PR_LAYOUT_ITEM parent_item, _In_ HWND hwnd, _In_ ULONG flags);
 
+VOID _r_layout_enumcontrols (_Inout_ PR_LAYOUT_MANAGER layout_manager);
+
 VOID _r_layout_resizeitem (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAYOUT_ITEM layout_item);
 BOOLEAN _r_layout_resize (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_ WPARAM wparam);
+
+VOID _r_layout_setanchor (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAYOUT_ITEM layout_item, _In_ ULONG flags);
 
 FORCEINLINE VOID _r_layout_resizeminimumsize (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ LPARAM lparam)
 {
