@@ -2776,7 +2776,7 @@ VOID _r_settings_createwindow (_In_ HWND hwnd, _In_opt_ DLGPROC dlg_proc, _In_op
 
 			pdlg = _r_res_loadresource (_r_sys_getimagebase (), MAKEINTRESOURCE (ptr_page->dlg_id), RT_DIALOG, NULL);
 
-			if (pdlg && !!(pdlg->style & WS_CHILD))
+			if (pdlg && (pdlg->style & WS_CHILD))
 			{
 				if (width < pdlg->cx)
 					width = pdlg->cx;
