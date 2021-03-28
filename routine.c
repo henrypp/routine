@@ -3653,6 +3653,68 @@ LONG64 _r_unixtime_from_systemtime (_In_ const SYSTEMTIME * system_time)
 	Device context (Draw/Calculation etc...)
 */
 
+_Success_ (return)
+BOOLEAN _r_dc_adjustwindowrect (_In_opt_ HWND hwnd, _Inout_ LPRECT rect, _In_ ULONG style, _In_ ULONG style_ex, _In_ BOOL is_menu)
+{
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static AWRFD _AdjustWindowRectExForDpi = NULL;
+
+	// initialize library calls
+	if (_r_initonce_begin (&init_once))
+	{
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1607))
+		{
+			HMODULE huser32 = LoadLibraryEx (L"user32.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+
+			if (huser32)
+			{
+				_AdjustWindowRectExForDpi = (AWRFD)GetProcAddress (huser32, "AdjustWindowRectExForDpi");
+
+				FreeLibrary (huser32);
+			}
+		}
+
+		_r_initonce_end (&init_once);
+	}
+
+	// win10rs1+
+	if (_AdjustWindowRectExForDpi)
+		return !!_AdjustWindowRectExForDpi (rect, style, is_menu, style_ex, _r_dc_getdpivalue (hwnd, NULL));
+
+	return !!AdjustWindowRectEx (rect, style, is_menu, style_ex);
+}
+
+_Success_ (return)
+BOOLEAN _r_dc_getsystemparametersinfo (_In_opt_ HWND hwnd, _In_ UINT action, _In_ UINT param1, _In_ PVOID param2)
+{
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static SPIFP _SystemParametersInfoForDpi = NULL;
+
+	// initialize library calls
+	if (_r_initonce_begin (&init_once))
+	{
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1607))
+		{
+			HMODULE huser32 = LoadLibraryEx (L"user32.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+
+			if (huser32)
+			{
+				_SystemParametersInfoForDpi = (SPIFP)GetProcAddress (huser32, "SystemParametersInfoForDpi");
+
+				FreeLibrary (huser32);
+			}
+		}
+
+		_r_initonce_end (&init_once);
+	}
+
+	// win10rs1+
+	if (_SystemParametersInfoForDpi)
+		return !!_SystemParametersInfoForDpi (action, param1, param2, 0, _r_dc_getdpivalue (hwnd, NULL));
+
+	return !!SystemParametersInfo (action, param1, param2, 0);
+}
+
 // Optimized version of WinAPI function "FillRect"
 VOID _r_dc_fillrect (_In_ HDC hdc, _In_ PRECT lprc, _In_ COLORREF clr)
 {
@@ -3812,36 +3874,6 @@ INT _r_dc_getsystemmetrics (_In_opt_ HWND hwnd, _In_ INT index)
 		return _GetSystemMetricsForDpi (index, _r_dc_getdpivalue (hwnd, NULL));
 
 	return GetSystemMetrics (index);
-}
-
-BOOL _r_dc_getsystemparametersinfo (_In_opt_ HWND hwnd, _In_ UINT action, _In_ UINT param1, _In_ PVOID param2)
-{
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static SPIFP _SystemParametersInfoForDpi = NULL;
-
-	// initialize library calls
-	if (_r_initonce_begin (&init_once))
-	{
-		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1607))
-		{
-			HMODULE huser32 = LoadLibraryEx (L"user32.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
-
-			if (huser32)
-			{
-				_SystemParametersInfoForDpi = (SPIFP)GetProcAddress (huser32, "SystemParametersInfoForDpi");
-
-				FreeLibrary (huser32);
-			}
-		}
-
-		_r_initonce_end (&init_once);
-	}
-
-	// win10rs1+
-	if (_SystemParametersInfoForDpi)
-		return _SystemParametersInfoForDpi (action, param1, param2, 0, _r_dc_getdpivalue (hwnd, NULL));
-
-	return SystemParametersInfo (action, param1, param2, 0);
 }
 
 LONG _r_dc_getfontwidth (_In_ HDC hdc, _In_ LPCWSTR string, _In_ SIZE_T length)

@@ -1751,6 +1751,13 @@ typedef UINT (WINAPI *GDFW)(HWND hwnd); // GetDpiForWindow (win10rs1+)
 typedef UINT (WINAPI *GDFS)(void); // GetDpiForSystem (win10rs1+)
 typedef INT (WINAPI *GSMFD)(INT nIndex, UINT dpi); // GetSystemMetricsForDpi (win10rs1+)
 typedef BOOL (WINAPI *SPIFP)(UINT uiAction, UINT uiParam, PVOID pvParam, UINT fWinIni, UINT dpi); // SystemParametersInfoForDpi (win10rs1+)
+typedef BOOL (WINAPI *AWRFD)(LPRECT lpRect, DWORD dwStyle, BOOL bMenu, DWORD dwExStyle, UINT dpi); // AdjustWindowRectExForDpi (win10rs1+)
+
+_Success_ (return)
+BOOLEAN _r_dc_adjustwindowrect (_In_opt_ HWND hwnd, _Inout_ LPRECT rect, _In_ ULONG style, _In_ ULONG style_ex, _In_ BOOL is_menu);
+
+_Success_ (return)
+BOOLEAN _r_dc_getsystemparametersinfo (_In_opt_ HWND hwnd, _In_ UINT action, _In_ UINT param1, _In_ PVOID param2);
 
 VOID _r_dc_fillrect (_In_ HDC hdc, _In_ PRECT lprc, _In_ COLORREF clr);
 COLORREF _r_dc_getcolorbrightness (_In_ COLORREF clr);
@@ -1758,7 +1765,7 @@ COLORREF _r_dc_getcolorshade (_In_ COLORREF clr, _In_ INT percent);
 
 LONG _r_dc_getdpivalue (_In_opt_ HWND hwnd, _In_opt_ PRECT rect);
 INT _r_dc_getsystemmetrics (_In_opt_ HWND hwnd, _In_ INT index);
-BOOL _r_dc_getsystemparametersinfo (_In_opt_ HWND hwnd, _In_ UINT action, _In_ UINT param1, _In_ PVOID param2);
+BOOLEAN _r_dc_getsystemparametersinfo (_In_opt_ HWND hwnd, _In_ UINT action, _In_ UINT param1, _In_ PVOID param2);
 LONG _r_dc_getfontwidth (_In_ HDC hdc, _In_ LPCWSTR string, _In_ SIZE_T length);
 
 FORCEINLINE LONG _r_dc_getdpi (_In_opt_ HWND hwnd, _In_ INT scale)
