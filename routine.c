@@ -4224,7 +4224,7 @@ PR_LAYOUT_ITEM _r_layout_additem (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_
 		if (!(layout_item->flags & PR_LAYOUT_ANCHOR_ALL))
 		{
 			LONG horz_break = _r_calc_percentval (48, layout_manager->root_item.rect.right);
-			LONG vert_break = _r_calc_percentval (82, layout_manager->root_item.rect.bottom);
+			LONG vert_break = _r_calc_percentval (78, layout_manager->root_item.rect.bottom);
 
 			// If the top-edge of the control is within the upper-half of the client area, set a top-anchor.
 			if (rect.top < vert_break)
@@ -4268,8 +4268,8 @@ VOID _r_layout_resizeitem (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAY
 
 	_r_layout_resizeitem (layout_manager, layout_item->parent_item);
 
-	width = _r_calc_rectwidth (&layout_manager->root_item.rect);
-	height = _r_calc_rectheight (&layout_manager->root_item.rect);
+	width = layout_manager->root_item.rect.right;
+	height = layout_manager->root_item.rect.bottom;
 
 	SetRect (&rect,
 			 layout_item->margin.left + _r_calc_percentval (layout_item->anchor.left, width),
