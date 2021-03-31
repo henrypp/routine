@@ -2203,6 +2203,15 @@ FORCEINLINE VOID _r_combobox_setitemparam (_In_ HWND hwnd, _In_ INT ctrl_id, _In
 }
 
 /*
+	Control: editbox
+*/
+
+FORCEINLINE VOID _r_edit_settextlimit (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ SIZE_T length)
+{
+	SendDlgItemMessage (hwnd, ctrl_id, EM_LIMITTEXT, (WPARAM)length, 0);
+}
+
+/*
 	Control: menu
 */
 
