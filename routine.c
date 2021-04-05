@@ -753,15 +753,22 @@ PR_LIST _r_obj_createlistex (_In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CL
 	return list_node;
 }
 
+SIZE_T _r_obj_addlistitem (_Inout_ PR_LIST list_node, _In_ PVOID item)
+{
+	if (list_node->count == list_node->allocated_count)
+		_r_obj_resizelist (list_node, list_node->allocated_count * 2);
+
+	list_node->items[list_node->count] = item;
+
+	return list_node->count++;
+}
+
 VOID _r_obj_clearlist (_Inout_ PR_LIST list_node)
 {
 	PVOID list_item;
 	SIZE_T count = list_node->count;
 
 	list_node->count = 0;
-
-	if (!list_node->items)
-		return;
 
 	if (list_node->cleanup_callback)
 	{
@@ -778,26 +785,18 @@ VOID _r_obj_clearlist (_Inout_ PR_LIST list_node)
 	}
 }
 
-VOID _r_obj_resizelist (_Inout_ PR_LIST list_node, _In_ SIZE_T new_capacity)
+SIZE_T _r_obj_findlistitem (_In_ PR_LIST list_node, _In_ PVOID list_item)
 {
-	if (list_node->count > new_capacity)
-		RtlRaiseStatus (STATUS_INVALID_PARAMETER_2);
+	for (SIZE_T i = 0; i < list_node->count; i++)
+	{
+		if (list_node->items[i] == list_item)
+			return i;
+	}
 
-	list_node->allocated_count = new_capacity;
-	list_node->items = _r_mem_reallocatezero (list_node->items, list_node->allocated_count * sizeof (PVOID));
+	return SIZE_MAX;
 }
 
-SIZE_T _r_obj_addlistitem (_Inout_ PR_LIST list_node, _In_ PVOID item)
-{
-	if (list_node->count == list_node->allocated_count)
-		_r_obj_resizelist (list_node, list_node->allocated_count * 2);
-
-	list_node->items[list_node->count] = item;
-
-	return list_node->count++;
-}
-
-VOID _r_obj_insertlistitems (_Inout_ PR_LIST list_node, _In_ SIZE_T index, _In_ PVOID * items, _In_ SIZE_T count)
+VOID _r_obj_insertlistitems (_Inout_ PR_LIST list_node, _In_ SIZE_T start_pos, _In_ PVOID * items, _In_ SIZE_T count)
 {
 	if (list_node->allocated_count < list_node->count + count)
 	{
@@ -809,14 +808,39 @@ VOID _r_obj_insertlistitems (_Inout_ PR_LIST list_node, _In_ SIZE_T index, _In_ 
 		_r_obj_resizelist (list_node, new_count);
 	}
 
-	if (index < list_node->count)
+	if (start_pos < list_node->count)
 	{
-		memmove (&list_node->items[index + count], &list_node->items[index], (list_node->count - index) * sizeof (PVOID));
+		memmove (&list_node->items[start_pos + count], &list_node->items[start_pos], (list_node->count - start_pos) * sizeof (PVOID));
 	}
 
-	memcpy (&list_node->items[index], items, count * sizeof (PVOID));
+	memcpy (&list_node->items[start_pos], items, count * sizeof (PVOID));
 
 	list_node->count += count;
+}
+
+VOID _r_obj_removelistitems (_Inout_ PR_LIST list_node, _In_ SIZE_T start_pos, _In_ SIZE_T count)
+{
+	if (list_node->cleanup_callback)
+	{
+		for (SIZE_T i = start_pos; i < count; i++)
+		{
+			if (list_node->items[i])
+				list_node->cleanup_callback (list_node->items[i]);
+		}
+	}
+
+	memmove (&list_node->items[start_pos], &list_node->items[start_pos + count], (list_node->count - start_pos - count) * sizeof (PVOID));
+
+	list_node->count -= count;
+}
+
+VOID _r_obj_resizelist (_Inout_ PR_LIST list_node, _In_ SIZE_T new_capacity)
+{
+	if (list_node->count > new_capacity)
+		RtlRaiseStatus (STATUS_INVALID_PARAMETER_2);
+
+	list_node->allocated_count = new_capacity;
+	list_node->items = _r_mem_reallocatezero (list_node->items, list_node->allocated_count * sizeof (PVOID));
 }
 
 /*
@@ -1122,7 +1146,7 @@ PR_BYTE _r_obj_createbyteex (_In_opt_ LPSTR buffer, _In_ SIZE_T length)
 	byte->length = length;
 	byte->buffer = byte->data;
 
-	if (!_r_str_isempty_a (buffer))
+	if (buffer)
 	{
 		memcpy (byte->buffer, buffer, length);
 		_r_obj_writebytenullterminator (byte);
@@ -1151,7 +1175,7 @@ PR_STRING _r_obj_createstringex (_In_opt_ LPCWSTR buffer, _In_ SIZE_T length)
 	string->length = length;
 	string->buffer = string->data;
 
-	if (!_r_str_isempty (buffer))
+	if (buffer)
 	{
 		memcpy (string->buffer, buffer, length);
 		_r_obj_writestringnullterminator (string);
@@ -2803,61 +2827,65 @@ PR_STRING _r_str_extractex (_In_ LPCWSTR string, _In_ SIZE_T length, _In_ SIZE_T
 }
 
 _Ret_maybenull_
-PR_STRING _r_str_multibyte2unicode (_In_ LPCSTR string)
+PR_STRING _r_str_multibyte2unicodeex (_In_ LPCSTR string, _In_ SIZE_T string_size)
 {
-	if (_r_str_isempty_a (string))
+	if (!string || !string_size)
 		return NULL;
 
 	NTSTATUS status;
 	PR_STRING output_string;
 	ULONG unicode_size;
-	ULONG string_size = (ULONG)strnlen_s (string, PR_STR_MAX_LENGTH);
+	ULONG current_size;
 
-	status = RtlMultiByteToUnicodeSize (&unicode_size, string, string_size);
+	current_size = (ULONG)min (string_size, ULONG_MAX - 1);
+
+	status = RtlMultiByteToUnicodeSize (&unicode_size, string, current_size);
 
 	if (!NT_SUCCESS (status))
 		return NULL;
 
 	output_string = _r_obj_createstringex (NULL, unicode_size);
-	status = RtlMultiByteToUnicodeN (output_string->buffer, (ULONG)output_string->length, NULL, string, string_size);
+	status = RtlMultiByteToUnicodeN (output_string->buffer, (ULONG)output_string->length, NULL, string, current_size);
 
-	if (NT_SUCCESS (status))
+	if (!NT_SUCCESS (status))
 	{
-		return output_string;
+		_r_obj_dereference (output_string);
+
+		return NULL;
 	}
 
-	_r_obj_dereference (output_string);
-
-	return NULL;
+	return output_string;
 }
 
 _Ret_maybenull_
-PR_BYTE _r_str_unicode2multibyte (_In_ LPCWSTR string)
+PR_BYTE _r_str_unicode2multibyteex (_In_ LPCWSTR string, _In_ SIZE_T string_size)
 {
-	if (_r_str_isempty (string))
+	if (!string || !string_size)
 		return NULL;
 
 	NTSTATUS status;
 	PR_BYTE output_string;
 	ULONG multibyte_size;
-	ULONG string_size = (ULONG)(_r_str_length (string) * sizeof (WCHAR));
+	ULONG current_size;
 
-	status = RtlUnicodeToMultiByteSize (&multibyte_size, string, string_size);
+	current_size = (ULONG)min (string_size, ULONG_MAX - 1);
+
+	status = RtlUnicodeToMultiByteSize (&multibyte_size, string, current_size);
 
 	if (!NT_SUCCESS (status))
 		return NULL;
 
 	output_string = _r_obj_createbyteex (NULL, multibyte_size);
-	status = RtlUnicodeToMultiByteN (output_string->buffer, (ULONG)output_string->length, NULL, string, string_size);
+	status = RtlUnicodeToMultiByteN (output_string->buffer, (ULONG)output_string->length, NULL, string, current_size);
 
-	if (NT_SUCCESS (status))
+	if (!NT_SUCCESS (status))
 	{
-		return output_string;
+		_r_obj_dereference (output_string);
+
+		return NULL;
 	}
 
-	_r_obj_dereference (output_string);
-
-	return NULL;
+	return output_string;
 }
 
 PR_STRING _r_str_splitatchar (_In_ PR_STRINGREF string, _Out_ PR_STRINGREF token, _In_ WCHAR separator)
@@ -4168,7 +4196,7 @@ static BOOL CALLBACK _r_layout_enumcontrolscallback (_In_ HWND hwnd, _In_ LPARAM
 
 FORCEINLINE VOID _r_layout_enumcontrols (_Inout_ PR_LAYOUT_MANAGER layout_manager)
 {
-	R_LAYOUT_ENUM layout_enum;
+	R_LAYOUT_ENUM layout_enum = {0};
 
 	layout_enum.root_hwnd = layout_manager->root_item.hwnd;
 	layout_enum.layout_manager = layout_manager;
@@ -4255,8 +4283,8 @@ PR_LAYOUT_ITEM _r_layout_additem (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_
 	{
 		if (!(layout_item->flags & PR_LAYOUT_ANCHOR_ALL))
 		{
-			LONG horz_break = _r_calc_percentval (48, layout_manager->root_item.rect.right);
-			LONG vert_break = _r_calc_percentval (78, layout_manager->root_item.rect.bottom);
+			LONG horz_break = _r_calc_percentval (48, _r_calc_rectwidth (&layout_item->parent_item->rect));
+			LONG vert_break = _r_calc_percentval (78, _r_calc_rectheight (&layout_item->parent_item->rect));
 
 			// If the top-edge of the control is within the upper-half of the client area, set a top-anchor.
 			if (rect.top < vert_break)
@@ -4276,7 +4304,7 @@ PR_LAYOUT_ITEM _r_layout_additem (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_
 		}
 
 		// set control anchor points
-		_r_layout_setanchor (layout_manager, layout_item, layout_item->flags);
+		_r_layout_setitemanchor (layout_manager, layout_item, layout_item->flags);
 	}
 
 	layout_item->parent_item->number_of_children += 1;
@@ -4284,6 +4312,32 @@ PR_LAYOUT_ITEM _r_layout_additem (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_
 	_r_obj_addlistitem (layout_manager->list, layout_item);
 
 	return layout_item;
+}
+
+VOID _r_layout_edititemanchors (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_ HWND * hwnds, _In_ PULONG anchors, _In_ SIZE_T count)
+{
+	PR_LAYOUT_ITEM layout_item;
+	SIZE_T i;
+	SIZE_T j;
+
+	if (!layout_manager->is_initialized)
+		return;
+
+	for (i = 0; i < _r_obj_getlistsize (layout_manager->list); i++)
+	{
+		layout_item = _r_obj_getlistitem (layout_manager->list, i);
+
+		if (!layout_item)
+			continue;
+
+		for (j = 0; j < count; j++)
+		{
+			if (layout_item->hwnd != hwnds[j])
+				continue;
+
+			_r_layout_setitemanchor (layout_manager, layout_item, anchors[j]);
+		}
+	}
 }
 
 VOID _r_layout_resizeitem (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAYOUT_ITEM layout_item)
@@ -4385,7 +4439,7 @@ BOOLEAN _r_layout_resize (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_ WPARAM 
 	return TRUE;
 }
 
-VOID _r_layout_setanchor (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAYOUT_ITEM layout_item, _In_ ULONG flags)
+VOID _r_layout_setitemanchor (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAYOUT_ITEM layout_item, _In_ ULONG flags)
 {
 	LONG width;
 	LONG height;
@@ -4393,14 +4447,15 @@ VOID _r_layout_setanchor (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAYO
 	width = layout_manager->root_item.rect.right;
 	height = layout_manager->root_item.rect.bottom;
 
-	layout_item->flags |= flags;
+	layout_item->flags &= ~(PR_LAYOUT_ANCHOR_ALL);
+	layout_item->flags |= flags; // set new anchor flags
 
 	// set control anchor points
 	SetRect (&layout_item->anchor,
-			 (flags & PR_LAYOUT_ANCHOR_LEFT) ? 0 : 100,
-			 (flags & PR_LAYOUT_ANCHOR_TOP) ? 0 : 100,
-			 (flags & PR_LAYOUT_ANCHOR_RIGHT) ? 100 : 0,
-			 (flags & PR_LAYOUT_ANCHOR_BOTTOM) ? 100 : 0
+			 (layout_item->flags & PR_LAYOUT_ANCHOR_LEFT) ? 0 : 100,
+			 (layout_item->flags & PR_LAYOUT_ANCHOR_TOP) ? 0 : 100,
+			 (layout_item->flags & PR_LAYOUT_ANCHOR_RIGHT) ? 100 : 0,
+			 (layout_item->flags & PR_LAYOUT_ANCHOR_BOTTOM) ? 100 : 0
 	);
 
 	SetRect (&layout_item->margin,
@@ -4792,25 +4847,22 @@ HINTERNET _r_inet_createsession (_In_opt_ LPCWSTR useragent)
 	if (!hsession)
 		return NULL;
 
-	// enable secure protocols
-	ULONG option = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
-
-	if (is_win81)
-		option |= WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3; // tls 1.3 for win81+
-
-	WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &option, sizeof (option));
-
-	// enable compression feature (win81+)
-	if (is_win81)
+	if (!is_win81)
 	{
-		option = WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE;
-		WinHttpSetOption (hsession, WINHTTP_OPTION_DECOMPRESSION, &option, sizeof (option));
+		WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2}, sizeof (ULONG));
+	}
+	else
+	{
+		// enable secure protocols
+		WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3}, sizeof (ULONG));
+
+		// enable compression feature (win81+)
+		WinHttpSetOption (hsession, WINHTTP_OPTION_DECOMPRESSION, &(ULONG){WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE}, sizeof (ULONG));
 
 		// enable http2 protocol (win10rs1+)
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1607))
 		{
-			option = WINHTTP_PROTOCOL_FLAG_HTTP2;
-			WinHttpSetOption (hsession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &option, sizeof (option));
+			WinHttpSetOption (hsession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &(ULONG){WINHTTP_PROTOCOL_FLAG_HTTP2}, sizeof (ULONG));
 		}
 	}
 
@@ -4819,7 +4871,7 @@ HINTERNET _r_inet_createsession (_In_opt_ LPCWSTR useragent)
 
 _Check_return_
 _Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTERNET pconnect, _Out_ LPHINTERNET prequest, _Out_opt_ PULONG ptotallength)
+ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTERNET pconnect, _Out_ LPHINTERNET prequest, _Out_opt_ PULONG total_length)
 {
 	WCHAR url_host[MAX_PATH];
 	WCHAR url_path[MAX_PATH];
@@ -4851,7 +4903,7 @@ ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTER
 
 			if (!hrequest)
 			{
-				ULONG code = GetLastError ();
+				code = GetLastError ();
 
 				_r_inet_close (hconnect);
 
@@ -4862,16 +4914,12 @@ ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTER
 				// disable "keep-alive" feature (win7+)
 #if !defined(APP_NO_DEPRECATIONS)
 				if (_r_sys_isosversiongreaterorequal (WINDOWS_7))
+#endif // !APP_NO_DEPRECATIONS
 				{
 					WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &(ULONG){WINHTTP_DISABLE_KEEP_ALIVE}, sizeof (ULONG));
 				}
-#else
-				WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &(ULONG){WINHTTP_DISABLE_KEEP_ALIVE}, sizeof (ULONG));
-#endif // !APP_NO_DEPRECATIONS
 
 				ULONG attempts = 6;
-				ULONG param;
-				ULONG param_size;
 
 				do
 				{
@@ -4879,28 +4927,31 @@ ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTER
 					{
 						code = GetLastError ();
 
-						if (code == ERROR_WINHTTP_CONNECTION_ERROR)
-						{
-							param = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
-
-							if (!WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &param, sizeof (param)))
-								break;
-						}
-						else if (code == ERROR_WINHTTP_RESEND_REQUEST)
+						if (code == ERROR_WINHTTP_RESEND_REQUEST)
 						{
 							continue;
 						}
-						else if (code == ERROR_WINHTTP_SECURE_FAILURE)
-						{
-							param = SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE | SECURITY_FLAG_IGNORE_CERT_CN_INVALID;
-
-							if (!WinHttpSetOption (hrequest, WINHTTP_OPTION_SECURITY_FLAGS, &param, sizeof (param)))
-								break;
-						}
 						else
 						{
+#if !defined(APP_NO_DEPRECATIONS)
+							// win7 and lower fix
+							if (_r_sys_isosversiongreaterorequal (WINDOWS_8))
+								break;
+
+							if (code == ERROR_WINHTTP_CONNECTION_ERROR)
+							{
+								if (!WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2}, sizeof (ULONG)))
+									break;
+							}
+							else if (code == ERROR_WINHTTP_SECURE_FAILURE)
+							{
+								if (!WinHttpSetOption (hrequest, WINHTTP_OPTION_SECURITY_FLAGS, &(ULONG){SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE | SECURITY_FLAG_IGNORE_CERT_CN_INVALID}, sizeof (ULONG)))
+									break;
+							}
+#else
 							// ERROR_WINHTTP_CANNOT_CONNECT etc.
 							break;
+#endif
 						}
 					}
 					else
@@ -4911,22 +4962,18 @@ ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTER
 						}
 						else
 						{
-							param_size = sizeof (param);
-							WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, NULL, &param, &param_size, NULL);
-
-							if (param >= HTTP_STATUS_OK && param <= HTTP_STATUS_PARTIAL_CONTENT)
+							if (total_length)
 							{
-								if (ptotallength)
-								{
-									param_size = sizeof (ULONG);
-									WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, ptotallength, &param_size, WINHTTP_NO_HEADER_INDEX);
-								}
+								ULONG param_size = sizeof (ULONG);
 
-								*pconnect = hconnect;
-								*prequest = hrequest;
-
-								return ERROR_SUCCESS;
+								if (!WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, total_length, &param_size, WINHTTP_NO_HEADER_INDEX))
+									*total_length = 0;
 							}
+
+							*pconnect = hconnect;
+							*prequest = hrequest;
+
+							return ERROR_SUCCESS;
 						}
 					}
 				}
@@ -5054,7 +5101,7 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Inout_ 
 	if (!pdi->hfile)
 		_r_obj_initializestringbuilder (&buffer_string);
 
-	content_bytes = _r_obj_createbyteex (NULL, 0x8000);
+	content_bytes = _r_obj_createbyteex (NULL, 65536);
 
 	while (_r_inet_readrequest (hrequest, content_bytes->buffer, (ULONG)content_bytes->length, &readed_current, &readed_total))
 	{
@@ -5070,7 +5117,7 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Inout_ 
 		}
 		else
 		{
-			decoded_string = _r_str_multibyte2unicode (content_bytes->buffer);
+			decoded_string = _r_str_multibyte2unicodeex (content_bytes->buffer, readed_current);
 
 			if (decoded_string)
 			{

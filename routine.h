@@ -875,10 +875,12 @@ FORCEINLINE VOID _r_obj_removearrayitem (_In_ PR_ARRAY array_node, _In_ SIZE_T i
 */
 
 PR_LIST _r_obj_createlistex (_In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
-VOID _r_obj_clearlist (_Inout_ PR_LIST list_node);
-VOID _r_obj_resizelist (_Inout_ PR_LIST list_node, _In_ SIZE_T new_capacity);
 SIZE_T _r_obj_addlistitem (_Inout_ PR_LIST list_node, _In_ PVOID item);
-VOID _r_obj_insertlistitems (_Inout_ PR_LIST list_node, _In_ SIZE_T index, _In_ PVOID * items, _In_ SIZE_T count);
+VOID _r_obj_clearlist (_Inout_ PR_LIST list_node);
+SIZE_T _r_obj_findlistitem (_In_ PR_LIST list_node, _In_ PVOID list_item);
+VOID _r_obj_insertlistitems (_Inout_ PR_LIST list_node, _In_ SIZE_T start_pos, _In_ PVOID * items, _In_ SIZE_T count);
+VOID _r_obj_removelistitems (_Inout_ PR_LIST list_node, _In_ SIZE_T start_pos, _In_ SIZE_T count);
+VOID _r_obj_resizelist (_Inout_ PR_LIST list_node, _In_ SIZE_T new_capacity);
 
 FORCEINLINE PR_LIST _r_obj_createlist (_In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
 {
@@ -888,7 +890,7 @@ FORCEINLINE PR_LIST _r_obj_createlist (_In_opt_ PR_OBJECT_CLEANUP_FUNCTION clean
 _Ret_maybenull_
 FORCEINLINE PVOID _r_obj_getlistitem (_In_opt_ PR_LIST list_node, _In_ SIZE_T index)
 {
-	if (list_node && list_node->items)
+	if (list_node)
 		return list_node->items[index];
 
 	return NULL;
@@ -901,6 +903,11 @@ FORCEINLINE SIZE_T _r_obj_getlistsize (_In_opt_ PR_LIST list_node)
 		return list_node->count;
 
 	return 0;
+}
+
+FORCEINLINE VOID _r_obj_removelistitem (_Inout_ PR_LIST list_node, _In_ SIZE_T index)
+{
+	_r_obj_removelistitems (list_node, index, 1);
 }
 
 //_Check_return_
@@ -1022,6 +1029,7 @@ FORCEINLINE BOOLEAN _r_fs_setpos (_In_ HANDLE hfile, _In_ LONG64 pos, _In_ ULONG
 	return !!SetFilePointerEx (hfile, lpos, NULL, method);
 }
 
+_Check_return_
 FORCEINLINE LONG64 _r_fs_getsize (_In_ HANDLE hfile)
 {
 	LARGE_INTEGER size = {0};
@@ -1201,7 +1209,7 @@ FORCEINLINE VOID _r_obj_writestringnullterminator (_In_ PR_STRING string)
 	*(LPWSTR)PTR_ADD_OFFSET (string->buffer, string->length) = UNICODE_NULL;
 }
 
-FORCEINLINE VOID _r_obj_setstringsize (_In_ PR_STRING string, _In_ SIZE_T length)
+FORCEINLINE VOID _r_obj_setstringsize (_Inout_ PR_STRING string, _In_ SIZE_T length)
 {
 	if (string->length <= length)
 		return;
@@ -1542,10 +1550,22 @@ FORCEINLINE PR_STRING _r_str_extract (_In_ PR_STRING string, _In_ SIZE_T start_p
 }
 
 _Ret_maybenull_
-PR_STRING _r_str_multibyte2unicode (_In_ LPCSTR string);
+PR_STRING _r_str_multibyte2unicodeex (_In_ LPCSTR string, _In_ SIZE_T string_size);
 
 _Ret_maybenull_
-PR_BYTE _r_str_unicode2multibyte (_In_ LPCWSTR string);
+PR_BYTE _r_str_unicode2multibyteex (_In_ LPCWSTR string, _In_ SIZE_T string_size);
+
+_Ret_maybenull_
+FORCEINLINE PR_STRING _r_str_multibyte2unicode (_In_ LPCSTR string)
+{
+	return _r_str_multibyte2unicodeex (string, strnlen_s (string, PR_STR_MAX_LENGTH));
+}
+
+_Ret_maybenull_
+FORCEINLINE PR_BYTE _r_str_unicode2multibyte (_In_ LPCWSTR string)
+{
+	return _r_str_unicode2multibyteex (string, _r_str_length (string) * sizeof (WCHAR));
+}
 
 PR_STRING _r_str_splitatchar (_In_ PR_STRINGREF string, _Out_ PR_STRINGREF token, _In_ WCHAR separator);
 PR_STRING _r_str_splitatlastchar (_In_ PR_STRINGREF string, _Out_ PR_STRINGREF token, _In_ WCHAR separator);
@@ -1584,6 +1604,11 @@ BOOLEAN _r_sys_iselevated ();
 
 _Check_return_
 ULONG _r_sys_getwindowsversion ();
+
+FORCEINLINE ULONG _r_sys_getprocessorscount ()
+{
+	return NtCurrentPeb ()->NumberOfProcessors;
+}
 
 _Check_return_
 FORCEINLINE BOOLEAN _r_sys_isosversionequal (_In_ ULONG required_version)
@@ -1765,7 +1790,6 @@ COLORREF _r_dc_getcolorshade (_In_ COLORREF clr, _In_ INT percent);
 
 LONG _r_dc_getdpivalue (_In_opt_ HWND hwnd, _In_opt_ PRECT rect);
 INT _r_dc_getsystemmetrics (_In_opt_ HWND hwnd, _In_ INT index);
-BOOLEAN _r_dc_getsystemparametersinfo (_In_opt_ HWND hwnd, _In_ UINT action, _In_ UINT param1, _In_ PVOID param2);
 LONG _r_dc_getfontwidth (_In_ HDC hdc, _In_ LPCWSTR string, _In_ SIZE_T length);
 
 FORCEINLINE LONG _r_dc_getdpi (_In_opt_ HWND hwnd, _In_ INT scale)
@@ -1854,12 +1878,11 @@ BOOLEAN _r_layout_initializemanager (_Inout_ PR_LAYOUT_MANAGER layout_manager, _
 _Ret_maybenull_
 PR_LAYOUT_ITEM _r_layout_additem (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_ PR_LAYOUT_ITEM parent_item, _In_ HWND hwnd, _In_ ULONG flags);
 
-VOID _r_layout_enumcontrols (_Inout_ PR_LAYOUT_MANAGER layout_manager);
-
+VOID _r_layout_edititemanchors (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_ HWND * hwnds, _In_ PULONG anchors, _In_ SIZE_T count);
 VOID _r_layout_resizeitem (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAYOUT_ITEM layout_item);
 BOOLEAN _r_layout_resize (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_ WPARAM wparam);
 
-VOID _r_layout_setanchor (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAYOUT_ITEM layout_item, _In_ ULONG flags);
+VOID _r_layout_setitemanchor (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAYOUT_ITEM layout_item, _In_ ULONG flags);
 
 FORCEINLINE VOID _r_layout_resizeminimumsize (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ LPARAM lparam)
 {
@@ -2029,7 +2052,7 @@ HINTERNET _r_inet_createsession (_In_opt_ LPCWSTR useragent);
 
 _Check_return_
 _Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTERNET pconnect, _Out_ LPHINTERNET prequest, _Out_opt_ PULONG ptotallength);
+ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTERNET pconnect, _Out_ LPHINTERNET prequest, _Out_opt_ PULONG total_length);
 
 _Check_return_
 _Success_ (return)
