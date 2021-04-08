@@ -2906,7 +2906,7 @@ INT_PTR CALLBACK _r_settings_wndproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 				_r_tab_selectitem (hwnd, IDC_NAV, 0);
 #endif // APP_HAVE_SETTINGS_TABS
 
-			PostMessage (hwnd, RM_LOCALIZE, 0, 0);
+			SendMessage (hwnd, RM_LOCALIZE, 0, 0);
 
 			// initialize layout manager
 			_r_layout_initializemanager (&layout_manager, hwnd);
