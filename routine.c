@@ -850,6 +850,7 @@ VOID _r_obj_resizelist (_Inout_ PR_LIST list_node, _In_ SIZE_T new_capacity)
 #define HASHTABLE_ENTRY_SIZE(inner_size) (UFIELD_OFFSET(R_HASHTABLE_ENTRY, body) + (inner_size))
 #define HASHTABLE_GET_ENTRY(hashtable, index) ((PR_HASHTABLE_ENTRY)PTR_ADD_OFFSET((hashtable)->entries, HASHTABLE_ENTRY_SIZE((hashtable)->entry_size) * (index)))
 #define HASHTABLE_GET_ENTRY_INDEX(hashtable, entry) ((SIZE_T)(PTR_ADD_OFFSET(entry, -(hashtable)->entries) / HASHTABLE_ENTRY_SIZE((hashtable)->entry_size)))
+#define HASHTABLE_INIT_VALUE 0xFF
 
 PR_HASHTABLE _r_obj_createhashtableex (_In_ SIZE_T entry_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
 {
@@ -864,7 +865,7 @@ PR_HASHTABLE _r_obj_createhashtableex (_In_ SIZE_T entry_size, _In_ SIZE_T initi
 	hashtable->allocated_buckets = _r_math_rounduptopoweroftwo (initial_capacity);
 	hashtable->buckets = _r_mem_allocatezero (hashtable->allocated_buckets * sizeof (SIZE_T));
 
-	memset (hashtable->buckets, 0xFF, hashtable->allocated_buckets * sizeof (SIZE_T));
+	memset (hashtable->buckets, HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
 
 	hashtable->allocated_entries = hashtable->allocated_buckets;
 	hashtable->entries = _r_mem_allocatezero (hashtable->allocated_entries * HASHTABLE_ENTRY_SIZE (entry_size));
@@ -895,7 +896,7 @@ VOID _r_obj_resizehashtable (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T new_cap
 
 	hashtable->buckets = _r_mem_reallocatezero (hashtable->buckets, hashtable->allocated_buckets * sizeof (SIZE_T));
 
-	memset (hashtable->buckets, 0xFF, hashtable->allocated_buckets * sizeof (SIZE_T));
+	memset (hashtable->buckets, HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
 
 	hashtable->allocated_entries = hashtable->allocated_buckets;
 	hashtable->entries = _r_mem_reallocatezero (hashtable->entries, HASHTABLE_ENTRY_SIZE (hashtable->entry_size) * hashtable->allocated_entries);
@@ -1010,7 +1011,7 @@ VOID _r_obj_clearhashtable (_Inout_ PR_HASHTABLE hashtable)
 
 	next_entry = hashtable->next_entry;
 
-	memset (hashtable->buckets, 0xFF, hashtable->allocated_buckets * sizeof (SIZE_T));
+	memset (hashtable->buckets, HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
 
 	hashtable->count = 0;
 	hashtable->free_entry = SIZE_MAX;
@@ -2414,13 +2415,22 @@ SIZE_T _r_str_hash (_In_ LPCWSTR string)
 	if (_r_str_isempty (string))
 		return 0;
 
-	SIZE_T hash = 0x811C9DC5UL; // FNV_offset_basis
+	// http://www.isthe.com/chongo/tech/comp/fnv/index.html#FNV-param
+#ifdef _WIN64
+#define FNV_prime 1099511628211ULL
+#define FNV_offset_basis  14695981039346656037ULL
+#else
+#define FNV_prime 16777619UL
+#define FNV_offset_basis  2166136261UL
+#endif
+
+	SIZE_T hash = FNV_offset_basis; // FNV_offset_basis
 
 	// FNV-1a hash
-	while (!_r_str_isempty (string))
+	while (*string != UNICODE_NULL)
 	{
 		hash ^= (SIZE_T)_r_str_upper (*string);
-		hash *= 16777619UL; // FNV_prime
+		hash *= FNV_prime; // FNV_prime
 
 		string += 1;
 	}
