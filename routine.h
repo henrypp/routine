@@ -1836,11 +1836,11 @@ VOID _r_filedialog_destroy (_In_ PR_FILE_DIALOG file_dialog);
 	Window layout
 */
 
-#define PR_LAYOUT_ANCHOR_LEFT  0x0001
-#define PR_LAYOUT_ANCHOR_TOP  0x0002
-#define PR_LAYOUT_ANCHOR_RIGHT  0x0004
-#define PR_LAYOUT_ANCHOR_BOTTOM  0x0008
-#define PR_LAYOUT_ANCHOR_ALL  0x000F
+#define PR_LAYOUT_ANCHOR_LEFT 0x0001
+#define PR_LAYOUT_ANCHOR_TOP 0x0002
+#define PR_LAYOUT_ANCHOR_RIGHT 0x0004
+#define PR_LAYOUT_ANCHOR_BOTTOM 0x0008
+#define PR_LAYOUT_ANCHOR_ALL 0x000F
 
 #define PR_LAYOUT_FORCE_INVALIDATE 0x1000 // invalidate the control when it is resized
 #define PR_LAYOUT_SEND_NOTIFY 0x2000 // send WM_SIZE message on resize

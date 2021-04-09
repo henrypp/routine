@@ -2418,10 +2418,10 @@ SIZE_T _r_str_hash (_In_ LPCWSTR string)
 	// http://www.isthe.com/chongo/tech/comp/fnv/index.html#FNV-param
 #ifdef _WIN64
 #define FNV_prime 1099511628211ULL
-#define FNV_offset_basis  14695981039346656037ULL
+#define FNV_offset_basis 14695981039346656037ULL
 #else
 #define FNV_prime 16777619UL
-#define FNV_offset_basis  2166136261UL
+#define FNV_offset_basis 2166136261UL
 #endif
 
 	SIZE_T hash = FNV_offset_basis; // FNV_offset_basis
@@ -4223,7 +4223,7 @@ FORCEINLINE ULONG _r_layout_getcontrolflags (_In_ HWND hwnd)
 	{
 		if (_r_str_compare (class_name, WC_STATIC) == 0)
 		{
-			return  PR_LAYOUT_FORCE_INVALIDATE;
+			return PR_LAYOUT_FORCE_INVALIDATE;
 		}
 		else if (_r_str_compare (class_name, STATUSCLASSNAME) == 0)
 		{
