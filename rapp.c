@@ -37,6 +37,25 @@ static DLGPROC app_settings_proc = NULL;
 static UINT WM_TASKBARCREATED = 0;
 #endif // APP_HAVE_TRAY
 
+#if defined(APP_NO_MUTEX)
+static LPCWSTR _r_app_getmutexname ()
+{
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static WCHAR name[128] = {0};
+
+	if (_r_initonce_begin (&init_once))
+	{
+		_r_str_printf (name, RTL_NUMBER_OF (name), L"%s_%" PR_ULONG_PTR L"_%" PR_ULONG_PTR, _r_app_getnameshort (), _r_str_hash (_r_sys_getimagepathname ()), _r_str_hash (_r_sys_getimagecommandline ()));
+
+		_r_initonce_end (&init_once);
+	}
+
+	return name;
+}
+#else
+#define _r_app_getmutexname _r_app_getnameshort
+#endif // APP_NO_MUTEX
+
 BOOLEAN _r_app_initialize ()
 {
 	// Safe DLL loading
@@ -115,13 +134,11 @@ BOOLEAN _r_app_initialize ()
 	}
 
 	// prevent app duplicates
-#if !defined(APP_NO_MUTEX)
-	if (_r_mutex_isexists (_r_app_getnameshort ()))
+	if (_r_mutex_isexists (_r_app_getmutexname ()))
 	{
 		EnumWindows (&_r_util_activate_window_callback, (LPARAM)_r_app_getname ());
 		return FALSE;
 	}
-#endif // !APP_NO_MUTEX
 
 #if defined(APP_HAVE_TRAY)
 	if (!WM_TASKBARCREATED)
@@ -145,9 +162,7 @@ BOOLEAN _r_app_initialize ()
 #endif // APP_NO_GUEST
 
 	// set running flag
-#if !defined(APP_NO_MUTEX)
-	_r_mutex_create (_r_app_getnameshort (), &app_mutex);
-#endif // !APP_NO_MUTEX
+	_r_mutex_create (_r_app_getmutexname (), &app_mutex);
 
 	// set updates path
 #if defined(APP_HAVE_UPDATES)
@@ -699,9 +714,7 @@ HICON _r_app_getsharedimage (_In_opt_ HINSTANCE hinst, _In_ INT icon_id, _In_ IN
 
 BOOLEAN _r_app_runasadmin ()
 {
-#if !defined(APP_NO_MUTEX)
 	BOOLEAN is_mutexdestroyed = _r_mutex_destroy (&app_mutex);
-#endif // !APP_NO_MUTEX
 
 #if defined(APP_HAVE_SKIPUAC)
 	if (_r_skipuac_run ())
@@ -724,10 +737,8 @@ BOOLEAN _r_app_runasadmin ()
 	if (ShellExecuteEx (&shex))
 		return TRUE;
 
-#if !defined(APP_NO_MUTEX)
 	if (is_mutexdestroyed)
-		_r_mutex_create (_r_app_getnameshort (), &app_mutex); // restore mutex on error
-#endif // !APP_NO_MUTEX
+		_r_mutex_create (_r_app_getmutexname (), &app_mutex); // restore mutex on error
 
 	_r_sleep (250); // HACK!!! prevent loop
 
@@ -751,16 +762,12 @@ VOID _r_app_restart (_In_opt_ HWND hwnd)
 	WCHAR directory[256] = {0};
 	GetCurrentDirectory (RTL_NUMBER_OF (directory), directory);
 
-#if !defined(APP_NO_MUTEX)
 	BOOLEAN is_mutexdestroyed = _r_mutex_destroy (&app_mutex);
-#endif // !APP_NO_MUTEX
 
 	if (!_r_sys_createprocessex (_r_sys_getimagepathname (), _r_sys_getimagecommandline (), directory, SW_SHOW, 0))
 	{
-#if !defined(APP_NO_MUTEX)
 		if (is_mutexdestroyed)
-			_r_mutex_create (_r_app_getnameshort (), &app_mutex); // restore mutex on error
-#endif // !APP_NO_MUTEX
+			_r_mutex_create (_r_app_getmutexname (), &app_mutex); // restore mutex on error
 
 		return;
 	}
