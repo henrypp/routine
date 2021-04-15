@@ -2210,5 +2210,13 @@ NtWaitForSingleObject (
 	_In_opt_ PLARGE_INTEGER Timeout
 );
 
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtSetThreadExecutionState (
+	_In_ EXECUTION_STATE NewFlags, // ES_* flags
+	_Out_ EXECUTION_STATE *PreviousFlags
+);
+
 // extern c end
 EXTERN_C_END
