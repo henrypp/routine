@@ -12,7 +12,7 @@
 
 // Structures
 #if defined(APP_HAVE_SETTINGS)
-typedef struct _APP_SETTINGS_PAGE
+typedef struct tagAPP_SETTINGS_PAGE
 {
 	HWND hwnd;
 	UINT locale_id;
@@ -21,7 +21,7 @@ typedef struct _APP_SETTINGS_PAGE
 #endif // APP_HAVE_SETTINGS
 
 #if defined(APP_HAVE_UPDATES)
-typedef struct _APP_UPDATE_COMPONENT
+typedef struct tagAPP_UPDATE_COMPONENT
 {
 	PR_STRING full_name;
 	PR_STRING short_name;
@@ -34,7 +34,7 @@ typedef struct _APP_UPDATE_COMPONENT
 	BOOLEAN is_haveupdate;
 } APP_UPDATE_COMPONENT, *PAPP_UPDATE_COMPONENT;
 
-typedef struct _APP_UPDATE_INFO
+typedef struct tagAPP_UPDATE_INFO
 {
 	PR_ARRAY components;
 	HWND htaskdlg;
@@ -44,7 +44,7 @@ typedef struct _APP_UPDATE_INFO
 } APP_UPDATE_INFO, *PAPP_UPDATE_INFO;
 #endif // APP_HAVE_UPDATES
 
-typedef struct _APP_SHARED_IMAGE
+typedef struct tagAPP_SHARED_IMAGE
 {
 	HINSTANCE hinst;
 	HICON hicon;
@@ -53,13 +53,13 @@ typedef struct _APP_SHARED_IMAGE
 } APP_SHARED_IMAGE, *PAPP_SHARED_IMAGE;
 
 // Enums
-typedef enum _LOG_LEVEL
+typedef enum tagLOG_LEVEL
 {
-	Critical = 5,
-	Error = 4,
-	Warning = 3,
-	Information = 2,
-	Debug = 1
+	LOG_LEVEL_DEBUG = 1,
+	LOG_LEVEL_INFO = 2,
+	LOG_LEVEL_WARNING = 3,
+	LOG_LEVEL_ERROR = 4,
+	LOG_LEVEL_CRITICAL = 5,
 } LOG_LEVEL, *PLOG_LEVEL;
 
 // Global variables
@@ -85,7 +85,8 @@ LONG64 _r_config_getlong64ex (_In_ LPCWSTR key_name, LONG64 def_value, _In_opt_ 
 ULONG _r_config_getulongex (_In_ LPCWSTR key_name, ULONG def_value, _In_opt_ LPCWSTR section_name);
 ULONG64 _r_config_getulong64ex (_In_ LPCWSTR key_name, _In_ ULONG64 def_value, _In_opt_ LPCWSTR section_name);
 VOID _r_config_getfont (_In_ LPCWSTR key_name, _In_ HWND hwnd, _Inout_ PLOGFONT logfont, _In_opt_ LPCWSTR section_name);
-BOOLEAN _r_config_getsize (_In_ LPCWSTR key_name, _Out_ PR_SIZE size, _In_ PR_SIZE def_value, _In_opt_ LPCWSTR section_name);
+BOOLEAN _r_config_getsize (_In_ LPCWSTR key_name, _Out_ PSIZE size, _In_ PSIZE def_value, _In_opt_ LPCWSTR section_name);
+PR_STRING _r_config_getstringexpandex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_value, _In_opt_ LPCWSTR section_name);
 LPCWSTR _r_config_getstringex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_value, _In_opt_ LPCWSTR section_name);
 
 FORCEINLINE BOOLEAN _r_config_getboolean (_In_ LPCWSTR key_name, _In_ BOOLEAN def_value)
@@ -123,6 +124,11 @@ FORCEINLINE ULONG64 _r_config_getulong64 (_In_ LPCWSTR key_name, _In_ ULONG64 de
 	return _r_config_getulong64ex (key_name, def_value, NULL);
 }
 
+FORCEINLINE PR_STRING _r_config_getstringexpand (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_value)
+{
+	return _r_config_getstringexpandex (key_name, def_value, NULL);
+}
+
 FORCEINLINE LPCWSTR _r_config_getstring (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_value)
 {
 	return _r_config_getstringex (key_name, def_value, NULL);
@@ -136,7 +142,8 @@ VOID _r_config_setlong64ex (_In_ LPCWSTR key_name, _In_ LONG64 value, _In_opt_ L
 VOID _r_config_setulongex (_In_ LPCWSTR key_name, _In_ ULONG value, _In_opt_ LPCWSTR section_name);
 VOID _r_config_setulong64ex (_In_ LPCWSTR key_name, _In_ ULONG64 value, _In_opt_ LPCWSTR section_name);
 VOID _r_config_setfont (_In_ LPCWSTR key_name, _In_ HWND hwnd, _In_ PLOGFONT logfont, _In_opt_ LPCWSTR section_name);
-VOID _r_config_setsize (_In_ LPCWSTR key_name, _In_ PR_SIZE size, _In_opt_ LPCWSTR section_name);
+VOID _r_config_setsize (_In_ LPCWSTR key_name, _In_ PSIZE size, _In_opt_ LPCWSTR section_name);
+VOID _r_config_setstringexpandex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_opt_ LPCWSTR section_name);
 VOID _r_config_setstringex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_opt_ LPCWSTR section_name);
 
 FORCEINLINE VOID _r_config_setboolean (_In_ LPCWSTR key_name, _In_ BOOLEAN value)
@@ -172,6 +179,11 @@ FORCEINLINE VOID _r_config_setulong (_In_ LPCWSTR key_name, _In_ ULONG value)
 FORCEINLINE VOID _r_config_setulong64 (_In_ LPCWSTR key_name, _In_ ULONG64 value)
 {
 	_r_config_setulong64ex (key_name, value, NULL);
+}
+
+FORCEINLINE VOID _r_config_setstringexpand (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value)
+{
+	_r_config_setstringexpandex (key_name, value, NULL);
 }
 
 FORCEINLINE VOID _r_config_setstring (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value)

@@ -932,7 +932,7 @@ VOID _r_config_getfont (_In_ LPCWSTR key_name, _In_ HWND hwnd, _Inout_ PLOGFONT 
 	}
 }
 
-BOOLEAN _r_config_getsize (_In_ LPCWSTR key_name, _Out_ PR_SIZE size, _In_ PR_SIZE def_value, _In_opt_ LPCWSTR section_name)
+BOOLEAN _r_config_getsize (_In_ LPCWSTR key_name, _Out_ PSIZE size, _In_ PSIZE def_value, _In_opt_ LPCWSTR section_name)
 {
 	R_STRINGREF remaining_part;
 	PR_STRING x_part;
@@ -940,8 +940,8 @@ BOOLEAN _r_config_getsize (_In_ LPCWSTR key_name, _Out_ PR_SIZE size, _In_ PR_SI
 	LPCWSTR pair_config;
 
 	// initialize defaults
-	size->x = def_value ? def_value->x : 0;
-	size->y = def_value ? def_value->y : 0;
+	size->cx = def_value ? def_value->cx : 0;
+	size->cy = def_value ? def_value->cy : 0;
 
 	pair_config = _r_config_getstringex (key_name, NULL, section_name);
 
@@ -955,18 +955,38 @@ BOOLEAN _r_config_getsize (_In_ LPCWSTR key_name, _Out_ PR_SIZE size, _In_ PR_SI
 
 	if (x_part)
 	{
-		size->x = _r_str_tolong (x_part->buffer);
+		size->cx = _r_str_tolong (x_part->buffer);
 
 		_r_obj_dereference (x_part);
 	}
 
 	if (y_part)
 	{
-		size->y = _r_str_tolong (y_part->buffer);
+		size->cy = _r_str_tolong (y_part->buffer);
 		_r_obj_dereference (y_part);
 	}
 
 	return TRUE;
+}
+
+PR_STRING _r_config_getstringexpandex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_value, _In_opt_ LPCWSTR section_name)
+{
+	PR_STRING string;
+	LPCWSTR config_value;
+
+	config_value = _r_config_getstringex (key_name, def_value, section_name);
+
+	if (config_value)
+	{
+		string = _r_str_expandenvironmentstring (config_value);
+
+		if (string)
+			return string;
+
+		return _r_obj_createstring (config_value);
+	}
+
+	return NULL;
 }
 
 LPCWSTR _r_config_getstringex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_value, _In_opt_ LPCWSTR section_name)
@@ -1090,12 +1110,25 @@ VOID _r_config_setfont (_In_ LPCWSTR key_name, _In_ HWND hwnd, _In_ PLOGFONT log
 	_r_config_setstringex (key_name, value_text, section_name);
 }
 
-VOID _r_config_setsize (_In_ LPCWSTR key_name, _In_ PR_SIZE size, _In_opt_ LPCWSTR section_name)
+VOID _r_config_setsize (_In_ LPCWSTR key_name, _In_ PSIZE size, _In_opt_ LPCWSTR section_name)
 {
 	WCHAR value_text[128];
-	_r_str_printf (value_text, RTL_NUMBER_OF (value_text), L"%" PR_LONG L",%" PR_LONG, size->x, size->y);
+	_r_str_printf (value_text, RTL_NUMBER_OF (value_text), L"%" PR_LONG L",%" PR_LONG, size->cx, size->cy);
 
 	_r_config_setstringex (key_name, value_text, section_name);
+}
+
+VOID _r_config_setstringexpandex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_opt_ LPCWSTR section_name)
+{
+	PR_STRING string = NULL;
+
+	if (value)
+		string = _r_str_unexpandenvironmentstring (value);
+
+	_r_config_setstringex (key_name, _r_obj_getstring (string), section_name);
+
+	if (string)
+		_r_obj_dereference (string);
 }
 
 VOID _r_config_setstringex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_opt_ LPCWSTR section_name)
@@ -1187,7 +1220,7 @@ VOID _r_locale_initialize ()
 	{
 		if (app_locale_default)
 		{
-			_r_obj_movereference (&app_locale_current, _r_obj_createstring2 (app_locale_default));
+			_r_obj_movereference (&app_locale_current, _r_obj_createstringfromstring (app_locale_default));
 		}
 		else
 		{
@@ -1198,7 +1231,7 @@ VOID _r_locale_initialize ()
 	{
 		if (_r_str_compare (language_config, APP_LANGUAGE_DEFAULT) == 0)
 		{
-			_r_obj_movereference (&app_locale_current, _r_obj_createstring2 (app_locale_resource));
+			_r_obj_movereference (&app_locale_current, _r_obj_createstringfromstring (app_locale_resource));
 		}
 		else
 		{
@@ -1258,7 +1291,7 @@ VOID _r_locale_applyfrommenu (_In_ HMENU hmenu, _In_ UINT selected_id)
 
 	if (_r_str_compare (name, APP_LANGUAGE_DEFAULT) == 0)
 	{
-		_r_obj_movereference (&app_locale_current, _r_obj_createstring2 (app_locale_resource));
+		_r_obj_movereference (&app_locale_current, _r_obj_createstringfromstring (app_locale_resource));
 	}
 	else
 	{
@@ -1333,14 +1366,17 @@ VOID _r_locale_enum (_In_ PVOID hwnd, _In_ INT ctrl_id, _In_opt_ UINT menu_id)
 
 	_r_spinlock_acquireshared (&app_locale_lock);
 
+	PR_STRING string;
+	BOOLEAN is_current;
+
 	for (SIZE_T i = 0; i < count; i++)
 	{
-		PR_STRING string = _r_obj_getlistitem (app_locale_names, i);
+		string = _r_obj_getlistitem (app_locale_names, i);
 
 		if (_r_obj_isstringempty (string))
 			continue;
 
-		BOOLEAN is_current = !_r_obj_isstringempty (app_locale_current) && (_r_str_compare (app_locale_current->buffer, string->buffer) == 0);
+		is_current = !_r_obj_isstringempty (app_locale_current) && (_r_str_compare (app_locale_current->buffer, string->buffer) == 0);
 
 		if (is_menu)
 		{
@@ -1862,7 +1898,7 @@ THREAD_API _r_update_downloadthread (PVOID lparam)
 									// copy required files
 									SetFileAttributes (path, FILE_ATTRIBUTE_NORMAL);
 
-									_r_fs_move (update_component->temp_path->buffer, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
+									_r_fs_movefile (update_component->temp_path->buffer, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
 									_r_fs_deletefile (update_component->temp_path->buffer, TRUE);
 
 									// set new version
@@ -2115,19 +2151,19 @@ VOID _r_update_install (_In_ LPCWSTR install_path)
 
 FORCEINLINE LPCWSTR _r_logleveltostring (_In_ LOG_LEVEL log_level)
 {
-	if (log_level == Debug)
+	if (log_level == LOG_LEVEL_DEBUG)
 		return L"Debug";
 
-	if (log_level == Information)
-		return L"Information";
+	if (log_level == LOG_LEVEL_INFO)
+		return L"LOG_LEVEL_INFO";
 
-	if (log_level == Warning)
+	if (log_level == LOG_LEVEL_WARNING)
 		return L"Warning";
 
-	if (log_level == Error)
+	if (log_level == LOG_LEVEL_ERROR)
 		return L"Error";
 
-	if (log_level == Critical)
+	if (log_level == LOG_LEVEL_CRITICAL)
 		return L"Critical";
 
 	return NULL;
@@ -2135,13 +2171,13 @@ FORCEINLINE LPCWSTR _r_logleveltostring (_In_ LOG_LEVEL log_level)
 
 FORCEINLINE ULONG _r_logleveltrayicon (_In_ LOG_LEVEL log_level)
 {
-	if (log_level == Information)
+	if (log_level == LOG_LEVEL_INFO)
 		return NIIF_INFO;
 
-	if (log_level == Warning)
+	if (log_level == LOG_LEVEL_WARNING)
 		return NIIF_WARNING;
 
-	if (log_level == Error || log_level == Critical)
+	if (log_level == LOG_LEVEL_ERROR || log_level == LOG_LEVEL_CRITICAL)
 		return NIIF_ERROR;
 
 	return NIIF_NONE;
@@ -2152,6 +2188,7 @@ VOID _r_log (_In_ LOG_LEVEL log_level, _In_ UINT tray_id, _In_ LPCWSTR fn, _In_ 
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	WCHAR date_string[128];
 	PR_STRING error_string;
+	LPCWSTR log_path;
 	LPCWSTR level_string;
 	HANDLE hfile;
 	LONG64 current_timestamp;
@@ -2164,7 +2201,12 @@ VOID _r_log (_In_ LOG_LEVEL log_level, _In_ UINT tray_id, _In_ LPCWSTR fn, _In_ 
 		_r_initonce_end (&init_once);
 	}
 
-	if (_r_config_getinteger (L"ErrorLevel", 0) >= log_level)
+	if (log_level_config >= log_level)
+		return;
+
+	log_path = _r_app_getlogpath ();
+
+	if (!log_path)
 		return;
 
 	current_timestamp = _r_unixtime_now ();
@@ -2181,7 +2223,7 @@ VOID _r_log (_In_ LOG_LEVEL log_level, _In_ UINT tray_id, _In_ LPCWSTR fn, _In_ 
 	);
 
 	// write log to a file
-	hfile = CreateFile (_r_app_getlogpath (), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	hfile = CreateFile (log_path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
 	if (_r_fs_isvalidhandle (hfile))
 	{
