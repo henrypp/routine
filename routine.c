@@ -146,8 +146,8 @@ BOOLEAN _r_format_number (_Out_writes_ (buffer_size) LPWSTR buffer, _In_ UINT bu
 		return FALSE;
 
 	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static WCHAR decimal_separator[4];
-	static WCHAR thousand_separator[4];
+	static WCHAR decimal_separator[4] = {0};
+	static WCHAR thousand_separator[4] = {0};
 
 	NUMBERFMT number_format = {0};
 	WCHAR number_string[128];
@@ -474,7 +474,7 @@ BOOLEAN FASTCALL _r_initonce_beginex (_Inout_ PR_INITONCE init_once)
 
 BOOLEAN _r_mutex_isexists (_In_ LPCWSTR name)
 {
-	if (_r_str_isempty (name))
+	if (!name)
 		return FALSE;
 
 	HANDLE hmutex = OpenMutex (MUTANT_QUERY_STATE, FALSE, name);
@@ -489,19 +489,19 @@ BOOLEAN _r_mutex_isexists (_In_ LPCWSTR name)
 	return FALSE;
 }
 
-BOOLEAN _r_mutex_create (_In_ LPCWSTR name, _Inout_ PHANDLE mutex)
+BOOLEAN _r_mutex_create (_In_ LPCWSTR name, _Inout_ PHANDLE hmutex)
 {
 	HANDLE original_mutex;
 
-	_r_mutex_destroy (mutex);
+	_r_mutex_destroy (hmutex);
 
-	if (!_r_str_isempty (name))
+	if (name)
 	{
 		original_mutex = CreateMutex (NULL, FALSE, name);
 
 		if (original_mutex)
 		{
-			*mutex = original_mutex;
+			*hmutex = original_mutex;
 
 			return TRUE;
 		}
@@ -510,13 +510,13 @@ BOOLEAN _r_mutex_create (_In_ LPCWSTR name, _Inout_ PHANDLE mutex)
 	return FALSE;
 }
 
-BOOLEAN _r_mutex_destroy (_Inout_ PHANDLE mutex)
+BOOLEAN _r_mutex_destroy (_Inout_ PHANDLE hmutex)
 {
-	HANDLE original_mutex = *mutex;
+	HANDLE original_mutex = *hmutex;
 
 	if (_r_fs_isvalidhandle (original_mutex))
 	{
-		*mutex = NULL;
+		*hmutex = NULL;
 
 		ReleaseMutex (original_mutex);
 		CloseHandle (original_mutex);
@@ -621,516 +621,6 @@ VOID _r_obj_dereferenceex (_In_ PVOID object_body, _In_ LONG ref_count)
 	{
 		RtlRaiseStatus (STATUS_INVALID_PARAMETER);
 	}
-}
-
-/*
-	Array object
-*/
-
-PR_ARRAY _r_obj_createarrayex (_In_ SIZE_T item_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
-{
-	if (!initial_capacity)
-		initial_capacity = 1;
-
-	PR_ARRAY array_node = _r_obj_allocateex (sizeof (R_ARRAY), &_r_util_dereferencearrayprocedure);
-
-	array_node->count = 0;
-	array_node->allocated_count = initial_capacity;
-	array_node->item_size = item_size;
-	array_node->cleanup_callback = cleanup_callback;
-	array_node->items = _r_mem_allocatezero (array_node->allocated_count * item_size);
-
-	return array_node;
-}
-
-VOID _r_obj_cleararray (_Inout_ PR_ARRAY array_node)
-{
-	PVOID array_item;
-	SIZE_T count;
-
-	if (!array_node->count)
-		return;
-
-	count = array_node->count;
-	array_node->count = 0;
-
-	if (!array_node->items)
-		return;
-
-	if (array_node->cleanup_callback)
-	{
-		for (SIZE_T i = 0; i < count; i++)
-		{
-			array_item = PTR_ADD_OFFSET (array_node->items, i * array_node->item_size);
-
-			array_node->cleanup_callback (array_item);
-
-			RtlSecureZeroMemory (array_item, array_node->item_size);
-		}
-	}
-}
-
-VOID _r_obj_resizearray (_Inout_ PR_ARRAY array_node, _In_ SIZE_T new_capacity)
-{
-	if (array_node->count > new_capacity)
-		RtlRaiseStatus (STATUS_INVALID_PARAMETER_2);
-
-	array_node->allocated_count = new_capacity;
-	array_node->items = _r_mem_reallocatezero (array_node->items, array_node->allocated_count * array_node->item_size);
-}
-
-_Success_ (return != SIZE_MAX)
-SIZE_T _r_obj_addarrayitem (_Inout_ PR_ARRAY array_node, _In_ PVOID item)
-{
-	PVOID dst;
-
-	if (array_node->count == array_node->allocated_count)
-		_r_obj_resizearray (array_node, array_node->allocated_count * 2);
-
-	dst = _r_obj_getarrayitem (array_node, array_node->count);
-
-	if (dst)
-	{
-		memcpy (dst, item, array_node->item_size);
-
-		return array_node->count++;
-	}
-
-	return SIZE_MAX;
-}
-
-VOID _r_obj_addarrayitems (_Inout_ PR_ARRAY array_node, _In_ PVOID items, _In_ SIZE_T count)
-{
-	PVOID dst;
-
-	if (array_node->allocated_count < array_node->count + count)
-	{
-		array_node->allocated_count *= 2;
-
-		if (array_node->allocated_count < array_node->count + count)
-			array_node->allocated_count = array_node->count + count;
-
-		_r_obj_resizearray (array_node, array_node->allocated_count);
-	}
-
-	dst = _r_obj_getarrayitem (array_node, array_node->count);
-
-	if (dst)
-	{
-		memcpy (dst, items, count * array_node->item_size);
-
-		array_node->count += count;
-	}
-}
-
-VOID _r_obj_removearrayitems (_Inout_ PR_ARRAY array_node, _In_ SIZE_T start_pos, _In_ SIZE_T count)
-{
-	PVOID dst = _r_obj_getarrayitem (array_node, start_pos);
-	PVOID src = _r_obj_getarrayitem (array_node, start_pos + count);
-
-	if (dst && src)
-		memmove (dst, src, (array_node->count - start_pos - count) * array_node->item_size);
-
-	array_node->count -= count;
-}
-
-/*
-	List object
-*/
-
-PR_LIST _r_obj_createlistex (_In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
-{
-	if (!initial_capacity)
-		initial_capacity = 1;
-
-	PR_LIST list_node = _r_obj_allocateex (sizeof (R_LIST), &_r_util_dereferencelistprocedure);
-
-	list_node->count = 0;
-	list_node->allocated_count = initial_capacity;
-	list_node->cleanup_callback = cleanup_callback;
-	list_node->items = _r_mem_allocatezero (list_node->allocated_count * sizeof (PVOID));
-
-	return list_node;
-}
-
-SIZE_T _r_obj_addlistitem (_Inout_ PR_LIST list_node, _In_ PVOID item)
-{
-	if (list_node->count == list_node->allocated_count)
-		_r_obj_resizelist (list_node, list_node->allocated_count * 2);
-
-	list_node->items[list_node->count] = item;
-
-	return list_node->count++;
-}
-
-VOID _r_obj_clearlist (_Inout_ PR_LIST list_node)
-{
-	PVOID list_item;
-	SIZE_T count = list_node->count;
-
-	list_node->count = 0;
-
-	if (list_node->cleanup_callback)
-	{
-		for (SIZE_T i = 0; i < count; i++)
-		{
-			if (list_node->items[i])
-			{
-				list_item = list_node->items[i];
-				list_node->items[i] = NULL;
-
-				list_node->cleanup_callback (list_item);
-			}
-		}
-	}
-}
-
-SIZE_T _r_obj_findlistitem (_In_ PR_LIST list_node, _In_ PVOID list_item)
-{
-	for (SIZE_T i = 0; i < list_node->count; i++)
-	{
-		if (list_node->items[i] == list_item)
-			return i;
-	}
-
-	return SIZE_MAX;
-}
-
-VOID _r_obj_insertlistitems (_Inout_ PR_LIST list_node, _In_ SIZE_T start_pos, _In_ PVOID * items, _In_ SIZE_T count)
-{
-	if (list_node->allocated_count < list_node->count + count)
-	{
-		SIZE_T new_count = list_node->allocated_count * 2;
-
-		if (new_count < list_node->count + count)
-			new_count = list_node->count + count;
-
-		_r_obj_resizelist (list_node, new_count);
-	}
-
-	if (start_pos < list_node->count)
-	{
-		memmove (&list_node->items[start_pos + count], &list_node->items[start_pos], (list_node->count - start_pos) * sizeof (PVOID));
-	}
-
-	memcpy (&list_node->items[start_pos], items, count * sizeof (PVOID));
-
-	list_node->count += count;
-}
-
-VOID _r_obj_removelistitems (_Inout_ PR_LIST list_node, _In_ SIZE_T start_pos, _In_ SIZE_T count)
-{
-	if (list_node->cleanup_callback)
-	{
-		for (SIZE_T i = start_pos; i < count; i++)
-		{
-			if (list_node->items[i])
-				list_node->cleanup_callback (list_node->items[i]);
-		}
-	}
-
-	memmove (&list_node->items[start_pos], &list_node->items[start_pos + count], (list_node->count - start_pos - count) * sizeof (PVOID));
-
-	list_node->count -= count;
-}
-
-VOID _r_obj_resizelist (_Inout_ PR_LIST list_node, _In_ SIZE_T new_capacity)
-{
-	if (list_node->count > new_capacity)
-		RtlRaiseStatus (STATUS_INVALID_PARAMETER_2);
-
-	list_node->allocated_count = new_capacity;
-	list_node->items = _r_mem_reallocatezero (list_node->items, list_node->allocated_count * sizeof (PVOID));
-}
-
-/*
-	Hashtable object
-*/
-
-#define HASHTABLE_ENTRY_SIZE(inner_size) (UFIELD_OFFSET(R_HASHTABLE_ENTRY, body) + (inner_size))
-#define HASHTABLE_GET_ENTRY(hashtable, index) ((PR_HASHTABLE_ENTRY)PTR_ADD_OFFSET((hashtable)->entries, HASHTABLE_ENTRY_SIZE((hashtable)->entry_size) * (index)))
-#define HASHTABLE_GET_ENTRY_INDEX(hashtable, entry) ((SIZE_T)(PTR_ADD_OFFSET(entry, -(hashtable)->entries) / HASHTABLE_ENTRY_SIZE((hashtable)->entry_size)))
-#define HASHTABLE_INIT_VALUE 0xFF
-
-PR_HASHTABLE _r_obj_createhashtableex (_In_ SIZE_T entry_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
-{
-	PR_HASHTABLE hashtable = _r_obj_allocateex (sizeof (R_HASHTABLE), &_r_util_dereferencehashtableprocedure);
-
-	if (!initial_capacity)
-		initial_capacity = 1;
-
-	hashtable->entry_size = entry_size;
-	hashtable->cleanup_callback = cleanup_callback;
-
-	hashtable->allocated_buckets = _r_math_rounduptopoweroftwo (initial_capacity);
-	hashtable->buckets = _r_mem_allocatezero (hashtable->allocated_buckets * sizeof (SIZE_T));
-
-	memset (hashtable->buckets, HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
-
-	hashtable->allocated_entries = hashtable->allocated_buckets;
-	hashtable->entries = _r_mem_allocatezero (hashtable->allocated_entries * HASHTABLE_ENTRY_SIZE (entry_size));
-
-	hashtable->count = 0;
-	hashtable->free_entry = SIZE_MAX;
-	hashtable->next_entry = 0;
-
-	return hashtable;
-}
-
-FORCEINLINE SIZE_T _r_obj_indexfromhash (_In_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code)
-{
-	return hash_code & (hashtable->allocated_buckets - 1);
-}
-
-FORCEINLINE SIZE_T _r_obj_validatehash (_In_ SIZE_T hash_code)
-{
-	return hash_code & MAXLONG;
-}
-
-VOID _r_obj_resizehashtable (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T new_capacity)
-{
-	PR_HASHTABLE_ENTRY hashtable_entry;
-	SIZE_T index;
-
-	hashtable->allocated_buckets = _r_math_rounduptopoweroftwo (new_capacity);
-
-	hashtable->buckets = _r_mem_reallocatezero (hashtable->buckets, hashtable->allocated_buckets * sizeof (SIZE_T));
-
-	memset (hashtable->buckets, HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
-
-	hashtable->allocated_entries = hashtable->allocated_buckets;
-	hashtable->entries = _r_mem_reallocatezero (hashtable->entries, HASHTABLE_ENTRY_SIZE (hashtable->entry_size) * hashtable->allocated_entries);
-
-	hashtable_entry = hashtable->entries;
-
-	for (SIZE_T i = 0; i < hashtable->next_entry; i++)
-	{
-		if (hashtable_entry->hash_code != SIZE_MAX)
-		{
-			index = _r_obj_indexfromhash (hashtable, hashtable_entry->hash_code);
-
-			hashtable_entry->next = hashtable->buckets[index];
-			hashtable->buckets[index] = i;
-		}
-
-		hashtable_entry = PTR_ADD_OFFSET (hashtable_entry, HASHTABLE_ENTRY_SIZE (hashtable->entry_size));
-	}
-}
-
-FORCEINLINE PVOID _r_obj_addhashtableitemex (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code, _In_opt_ PVOID entry, _In_ BOOLEAN is_checkforduplicate, _Out_opt_ PBOOLEAN is_added)
-{
-	PR_HASHTABLE_ENTRY hashtable_entry;
-	SIZE_T index;
-	SIZE_T free_entry;
-
-	hash_code = _r_obj_validatehash (hash_code);
-	index = _r_obj_indexfromhash (hashtable, hash_code);
-
-	if (is_checkforduplicate)
-	{
-		for (SIZE_T i = hashtable->buckets[index]; i != SIZE_MAX; i = hashtable_entry->next)
-		{
-			hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, i);
-
-			if (hashtable_entry->hash_code == hash_code)
-			{
-				if (is_added)
-					*is_added = FALSE;
-
-				return &hashtable_entry->body;
-			}
-		}
-	}
-
-	if (hashtable->free_entry != SIZE_MAX)
-	{
-		free_entry = hashtable->free_entry;
-		hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, free_entry);
-		hashtable->free_entry = hashtable_entry->next;
-
-		// call cleanup callback if it present
-		if (hashtable->cleanup_callback)
-			hashtable->cleanup_callback (&hashtable_entry->body);
-	}
-	else
-	{
-		if (hashtable->next_entry == hashtable->allocated_entries)
-		{
-			_r_obj_resizehashtable (hashtable, hashtable->allocated_buckets * 2);
-
-			index = _r_obj_indexfromhash (hashtable, hash_code);
-		}
-
-		free_entry = hashtable->next_entry++;
-		hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, free_entry);
-	}
-
-	hashtable_entry->hash_code = hash_code;
-	hashtable_entry->next = hashtable->buckets[index];
-	hashtable->buckets[index] = free_entry;
-
-	if (entry)
-	{
-		memcpy (&hashtable_entry->body, entry, hashtable->entry_size);
-	}
-	else
-	{
-		memset (&hashtable_entry->body, 0, hashtable->entry_size);
-	}
-
-	hashtable->count += 1;
-
-	if (is_added)
-		*is_added = TRUE;
-
-	return &hashtable_entry->body;
-}
-
-_Ret_maybenull_
-PVOID _r_obj_addhashtableitem (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code, _In_opt_ PVOID entry)
-{
-	PVOID hashtable_entry;
-	BOOLEAN is_added;
-
-	hashtable_entry = _r_obj_addhashtableitemex (hashtable, hash_code, entry, TRUE, &is_added);
-
-	if (is_added)
-		return hashtable_entry;
-
-	return NULL;
-}
-
-VOID _r_obj_clearhashtable (_Inout_ PR_HASHTABLE hashtable)
-{
-	PR_HASHTABLE_ENTRY hashtable_entry;
-	SIZE_T next_entry;
-	SIZE_T index;
-
-	if (!hashtable->count)
-		return;
-
-	next_entry = hashtable->next_entry;
-
-	memset (hashtable->buckets, HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
-
-	hashtable->count = 0;
-	hashtable->free_entry = SIZE_MAX;
-	hashtable->next_entry = 0;
-
-	if (!hashtable->entries)
-		return;
-
-	if (hashtable->cleanup_callback)
-	{
-		index = 0;
-
-		while (index < next_entry)
-		{
-			hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, index);
-
-			index += 1;
-
-			if (hashtable_entry->hash_code != SIZE_MAX)
-			{
-				hashtable->cleanup_callback (&hashtable_entry->body);
-
-				RtlSecureZeroMemory (&hashtable_entry->body, hashtable->entry_size);
-			}
-		}
-	}
-}
-
-_Success_ (return)
-BOOLEAN _r_obj_enumhashtable (_In_ PR_HASHTABLE hashtable, _Outptr_ PVOID * entry, _Out_opt_ PSIZE_T hash_code, _Inout_ PSIZE_T enum_key)
-{
-	PR_HASHTABLE_ENTRY hashtable_entry;
-
-	while (*enum_key < hashtable->next_entry)
-	{
-		hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, *enum_key);
-
-		(*enum_key) += 1;
-
-		if (hashtable_entry->hash_code != SIZE_MAX)
-		{
-			if (hash_code)
-				*hash_code = hashtable_entry->hash_code;
-
-			*entry = &hashtable_entry->body;
-			return TRUE;
-		}
-	}
-
-	return FALSE;
-}
-
-_Ret_maybenull_
-PVOID _r_obj_findhashtable (_In_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code)
-{
-	PR_HASHTABLE_ENTRY hashtable_entry;
-	SIZE_T index;
-
-	hash_code = _r_obj_validatehash (hash_code);
-	index = _r_obj_indexfromhash (hashtable, hash_code);
-
-	for (SIZE_T i = hashtable->buckets[index]; i != SIZE_MAX; i = hashtable_entry->next)
-	{
-		hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, i);
-
-		if (hashtable_entry->hash_code == hash_code)
-		{
-			return &hashtable_entry->body;
-		}
-	}
-
-	return NULL;
-}
-
-BOOLEAN _r_obj_removehashtableentry (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code)
-{
-	PR_HASHTABLE_ENTRY hashtable_entry;
-	SIZE_T index;
-	SIZE_T previous_index;
-
-	hash_code = _r_obj_validatehash (hash_code);
-	index = _r_obj_indexfromhash (hashtable, hash_code);
-	previous_index = SIZE_MAX;
-
-	for (SIZE_T i = hashtable->buckets[index]; i != SIZE_MAX; i = hashtable_entry->next)
-	{
-		hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, i);
-
-		if (hashtable_entry->hash_code == hash_code)
-		{
-			if (previous_index == SIZE_MAX)
-			{
-				hashtable->buckets[index] = hashtable_entry->next;
-			}
-			else
-			{
-				HASHTABLE_GET_ENTRY (hashtable, previous_index)->next = hashtable_entry->next;
-			}
-
-			hashtable_entry->hash_code = SIZE_MAX;
-			hashtable_entry->next = hashtable->free_entry;
-			hashtable->free_entry = i;
-
-			hashtable->count -= 1;
-
-			if (hashtable->cleanup_callback)
-			{
-				hashtable->cleanup_callback (&hashtable_entry->body);
-
-				RtlSecureZeroMemory (&hashtable_entry->body, hashtable->entry_size);
-			}
-
-			return TRUE;
-		}
-
-		previous_index = i;
-	}
-
-	return FALSE;
 }
 
 /*
@@ -1322,6 +812,522 @@ VOID _r_obj_resizestringbuilder (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T ne
 }
 
 /*
+	Array object
+*/
+
+PR_ARRAY _r_obj_createarrayex (_In_ SIZE_T item_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
+{
+	PR_ARRAY array_node;
+
+	if (!initial_capacity)
+		initial_capacity = 1;
+
+	array_node = _r_obj_allocateex (sizeof (R_ARRAY), &_r_util_dereferencearrayprocedure);
+
+	array_node->count = 0;
+	array_node->allocated_count = initial_capacity;
+	array_node->item_size = item_size;
+	array_node->cleanup_callback = cleanup_callback;
+	array_node->items = _r_mem_allocatezero (array_node->allocated_count * item_size);
+
+	return array_node;
+}
+
+VOID _r_obj_cleararray (_Inout_ PR_ARRAY array_node)
+{
+	PVOID array_item;
+	SIZE_T count;
+
+	if (!array_node->count)
+		return;
+
+	count = array_node->count;
+	array_node->count = 0;
+
+	if (array_node->cleanup_callback)
+	{
+		for (SIZE_T i = 0; i < count; i++)
+		{
+			array_item = PTR_ADD_OFFSET (array_node->items, i * array_node->item_size);
+
+			array_node->cleanup_callback (array_item);
+
+			RtlSecureZeroMemory (array_item, array_node->item_size);
+		}
+	}
+}
+
+VOID _r_obj_resizearray (_Inout_ PR_ARRAY array_node, _In_ SIZE_T new_capacity)
+{
+	if (array_node->count > new_capacity)
+		RtlRaiseStatus (STATUS_INVALID_PARAMETER_2);
+
+	array_node->allocated_count = new_capacity;
+	array_node->items = _r_mem_reallocatezero (array_node->items, array_node->allocated_count * array_node->item_size);
+}
+
+_Success_ (return != SIZE_MAX)
+SIZE_T _r_obj_addarrayitem (_Inout_ PR_ARRAY array_node, _In_ PVOID item)
+{
+	PVOID dst;
+	SIZE_T index;
+
+	if (array_node->count == array_node->allocated_count)
+		_r_obj_resizearray (array_node, array_node->allocated_count * 2);
+
+	dst = _r_obj_getarrayitem (array_node, array_node->count);
+
+	if (dst)
+	{
+		memcpy (dst, item, array_node->item_size);
+
+		index = array_node->count++;
+
+		return index;
+	}
+
+	return SIZE_MAX;
+}
+
+VOID _r_obj_addarrayitems (_Inout_ PR_ARRAY array_node, _In_ PVOID items, _In_ SIZE_T count)
+{
+	PVOID dst;
+
+	if (array_node->allocated_count < array_node->count + count)
+	{
+		array_node->allocated_count *= 2;
+
+		if (array_node->allocated_count < array_node->count + count)
+			array_node->allocated_count = array_node->count + count;
+
+		_r_obj_resizearray (array_node, array_node->allocated_count);
+	}
+
+	dst = _r_obj_getarrayitem (array_node, array_node->count);
+
+	if (dst)
+	{
+		memcpy (dst, items, count * array_node->item_size);
+
+		array_node->count += count;
+	}
+}
+
+VOID _r_obj_removearrayitems (_Inout_ PR_ARRAY array_node, _In_ SIZE_T start_pos, _In_ SIZE_T count)
+{
+	PVOID dst = _r_obj_getarrayitem (array_node, start_pos);
+	PVOID src = _r_obj_getarrayitem (array_node, start_pos + count);
+
+	if (dst && src)
+		memmove (dst, src, (array_node->count - start_pos - count) * array_node->item_size);
+
+	array_node->count -= count;
+}
+
+/*
+	List object
+*/
+
+PR_LIST _r_obj_createlistex (_In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
+{
+	PR_LIST list_node;
+
+	if (!initial_capacity)
+		initial_capacity = 1;
+
+	list_node = _r_obj_allocateex (sizeof (R_LIST), &_r_util_dereferencelistprocedure);
+
+	list_node->count = 0;
+	list_node->allocated_count = initial_capacity;
+	list_node->cleanup_callback = cleanup_callback;
+	list_node->items = _r_mem_allocatezero (list_node->allocated_count * sizeof (PVOID));
+
+	return list_node;
+}
+
+SIZE_T _r_obj_addlistitem (_Inout_ PR_LIST list_node, _In_ PVOID item)
+{
+	SIZE_T index;
+
+	if (list_node->count == list_node->allocated_count)
+		_r_obj_resizelist (list_node, list_node->allocated_count * 2);
+
+	list_node->items[list_node->count] = item;
+
+	index = list_node->count++;
+
+	return index;
+}
+
+VOID _r_obj_clearlist (_Inout_ PR_LIST list_node)
+{
+	PVOID list_item;
+	SIZE_T count = list_node->count;
+
+	list_node->count = 0;
+
+	if (list_node->cleanup_callback)
+	{
+		for (SIZE_T i = 0; i < count; i++)
+		{
+			if (list_node->items[i])
+			{
+				list_item = list_node->items[i];
+				list_node->items[i] = NULL;
+
+				list_node->cleanup_callback (list_item);
+			}
+		}
+	}
+}
+
+SIZE_T _r_obj_findlistitem (_In_ PR_LIST list_node, _In_ PVOID list_item)
+{
+	for (SIZE_T i = 0; i < list_node->count; i++)
+	{
+		if (list_node->items[i] == list_item)
+			return i;
+	}
+
+	return SIZE_MAX;
+}
+
+VOID _r_obj_insertlistitems (_Inout_ PR_LIST list_node, _In_ SIZE_T start_pos, _In_ PVOID * items, _In_ SIZE_T count)
+{
+	SIZE_T new_count;
+
+	if (list_node->allocated_count < list_node->count + count)
+	{
+		new_count = list_node->allocated_count * 2;
+
+		if (new_count < list_node->count + count)
+			new_count = list_node->count + count;
+
+		_r_obj_resizelist (list_node, new_count);
+
+	}
+
+	if (start_pos < list_node->count)
+	{
+		memmove (&list_node->items[start_pos + count], &list_node->items[start_pos], (list_node->count - start_pos) * sizeof (PVOID));
+	}
+
+	memcpy (&list_node->items[start_pos], items, count * sizeof (PVOID));
+
+	list_node->count += count;
+}
+
+VOID _r_obj_removelistitems (_Inout_ PR_LIST list_node, _In_ SIZE_T start_pos, _In_ SIZE_T count)
+{
+	if (list_node->cleanup_callback)
+	{
+		for (SIZE_T i = start_pos; i < count; i++)
+		{
+			if (list_node->items[i])
+				list_node->cleanup_callback (list_node->items[i]);
+		}
+	}
+
+	memmove (&list_node->items[start_pos], &list_node->items[start_pos + count], (list_node->count - start_pos - count) * sizeof (PVOID));
+
+	list_node->count -= count;
+}
+
+VOID _r_obj_resizelist (_Inout_ PR_LIST list_node, _In_ SIZE_T new_capacity)
+{
+	if (list_node->count > new_capacity)
+		RtlRaiseStatus (STATUS_INVALID_PARAMETER_2);
+
+	list_node->allocated_count = new_capacity;
+	list_node->items = _r_mem_reallocatezero (list_node->items, list_node->allocated_count * sizeof (PVOID));
+}
+
+/*
+	Hashtable object
+*/
+
+#define HASHTABLE_ENTRY_SIZE(inner_size) (UFIELD_OFFSET(R_HASHTABLE_ENTRY, body) + (inner_size))
+#define HASHTABLE_GET_ENTRY(hashtable, index) ((PR_HASHTABLE_ENTRY)PTR_ADD_OFFSET((hashtable)->entries, HASHTABLE_ENTRY_SIZE((hashtable)->entry_size) * (index)))
+#define HASHTABLE_GET_ENTRY_INDEX(hashtable, entry) ((SIZE_T)(PTR_ADD_OFFSET(entry, -(hashtable)->entries) / HASHTABLE_ENTRY_SIZE((hashtable)->entry_size)))
+#define HASHTABLE_INIT_VALUE 0xFF
+
+PR_HASHTABLE _r_obj_createhashtableex (_In_ SIZE_T entry_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
+{
+	PR_HASHTABLE hashtable = _r_obj_allocateex (sizeof (R_HASHTABLE), &_r_util_dereferencehashtableprocedure);
+
+	if (!initial_capacity)
+		initial_capacity = 1;
+
+	hashtable->entry_size = entry_size;
+	hashtable->cleanup_callback = cleanup_callback;
+
+	hashtable->allocated_buckets = _r_math_rounduptopoweroftwo (initial_capacity);
+	hashtable->buckets = _r_mem_allocatezero (hashtable->allocated_buckets * sizeof (SIZE_T));
+
+	memset (hashtable->buckets, HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
+
+	hashtable->allocated_entries = hashtable->allocated_buckets;
+	hashtable->entries = _r_mem_allocatezero (hashtable->allocated_entries * HASHTABLE_ENTRY_SIZE (entry_size));
+
+	hashtable->count = 0;
+	hashtable->free_entry = SIZE_MAX;
+	hashtable->next_entry = 0;
+
+	return hashtable;
+}
+
+FORCEINLINE SIZE_T _r_obj_indexfromhash (_In_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code)
+{
+	return hash_code & (hashtable->allocated_buckets - 1);
+}
+
+FORCEINLINE SIZE_T _r_obj_validatehash (_In_ SIZE_T hash_code)
+{
+	return hash_code & MAXLONG;
+}
+
+VOID _r_obj_resizehashtable (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T new_capacity)
+{
+	PR_HASHTABLE_ENTRY hashtable_entry;
+	SIZE_T index;
+
+	hashtable->allocated_buckets = _r_math_rounduptopoweroftwo (new_capacity);
+
+	hashtable->buckets = _r_mem_reallocatezero (hashtable->buckets, hashtable->allocated_buckets * sizeof (SIZE_T));
+
+	memset (hashtable->buckets, HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
+
+	hashtable->allocated_entries = hashtable->allocated_buckets;
+	hashtable->entries = _r_mem_reallocatezero (hashtable->entries, HASHTABLE_ENTRY_SIZE (hashtable->entry_size) * hashtable->allocated_entries);
+
+	hashtable_entry = hashtable->entries;
+
+	for (SIZE_T i = 0; i < hashtable->next_entry; i++)
+	{
+		if (hashtable_entry->hash_code != SIZE_MAX)
+		{
+			index = _r_obj_indexfromhash (hashtable, hashtable_entry->hash_code);
+
+			hashtable_entry->next = hashtable->buckets[index];
+			hashtable->buckets[index] = i;
+		}
+
+		hashtable_entry = PTR_ADD_OFFSET (hashtable_entry, HASHTABLE_ENTRY_SIZE (hashtable->entry_size));
+	}
+}
+
+FORCEINLINE PVOID _r_obj_addhashtableitemex (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code, _In_opt_ PVOID entry, _In_ BOOLEAN is_checkforduplicate, _Out_opt_ PBOOLEAN is_added)
+{
+	PR_HASHTABLE_ENTRY hashtable_entry;
+	SIZE_T index;
+	SIZE_T free_entry;
+
+	hash_code = _r_obj_validatehash (hash_code);
+	index = _r_obj_indexfromhash (hashtable, hash_code);
+
+	if (is_checkforduplicate)
+	{
+		for (SIZE_T i = hashtable->buckets[index]; i != SIZE_MAX; i = hashtable_entry->next)
+		{
+			hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, i);
+
+			if (hashtable_entry->hash_code == hash_code)
+			{
+				if (is_added)
+					*is_added = FALSE;
+
+				return &hashtable_entry->body;
+			}
+		}
+	}
+
+	if (hashtable->free_entry != SIZE_MAX)
+	{
+		free_entry = hashtable->free_entry;
+		hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, free_entry);
+		hashtable->free_entry = hashtable_entry->next;
+
+		if (hashtable->cleanup_callback)
+			hashtable->cleanup_callback (&hashtable_entry->body);
+	}
+	else
+	{
+		if (hashtable->next_entry == hashtable->allocated_entries)
+		{
+			_r_obj_resizehashtable (hashtable, hashtable->allocated_buckets * 2);
+
+			index = _r_obj_indexfromhash (hashtable, hash_code);
+		}
+
+		free_entry = hashtable->next_entry++;
+		hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, free_entry);
+	}
+
+	hashtable_entry->hash_code = hash_code;
+	hashtable_entry->next = hashtable->buckets[index];
+	hashtable->buckets[index] = free_entry;
+
+	if (entry)
+	{
+		memcpy (&hashtable_entry->body, entry, hashtable->entry_size);
+	}
+	else
+	{
+		memset (&hashtable_entry->body, 0, hashtable->entry_size);
+	}
+
+	hashtable->count += 1;
+
+	if (is_added)
+		*is_added = TRUE;
+
+	return &hashtable_entry->body;
+}
+
+_Ret_maybenull_
+PVOID _r_obj_addhashtableitem (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code, _In_opt_ PVOID entry)
+{
+	PVOID hashtable_entry;
+	BOOLEAN is_added;
+
+	hashtable_entry = _r_obj_addhashtableitemex (hashtable, hash_code, entry, TRUE, &is_added);
+
+	if (is_added)
+		return hashtable_entry;
+
+	return NULL;
+}
+
+VOID _r_obj_clearhashtable (_Inout_ PR_HASHTABLE hashtable)
+{
+	PR_HASHTABLE_ENTRY hashtable_entry;
+	SIZE_T next_entry;
+	SIZE_T index;
+
+	if (!hashtable->count)
+		return;
+
+	next_entry = hashtable->next_entry;
+
+	memset (hashtable->buckets, HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
+
+	hashtable->count = 0;
+	hashtable->free_entry = SIZE_MAX;
+	hashtable->next_entry = 0;
+
+	if (hashtable->cleanup_callback)
+	{
+		index = 0;
+
+		while (index < next_entry)
+		{
+			hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, index);
+
+			index += 1;
+
+			if (hashtable_entry->hash_code != SIZE_MAX)
+			{
+				hashtable->cleanup_callback (&hashtable_entry->body);
+
+				RtlSecureZeroMemory (&hashtable_entry->body, hashtable->entry_size);
+			}
+		}
+	}
+}
+
+_Success_ (return)
+BOOLEAN _r_obj_enumhashtable (_In_ PR_HASHTABLE hashtable, _Outptr_ PVOID * entry, _Out_opt_ PSIZE_T hash_code, _Inout_ PSIZE_T enum_key)
+{
+	PR_HASHTABLE_ENTRY hashtable_entry;
+
+	while (*enum_key < hashtable->next_entry)
+	{
+		hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, *enum_key);
+
+		(*enum_key) += 1;
+
+		if (hashtable_entry->hash_code != SIZE_MAX)
+		{
+			if (hash_code)
+				*hash_code = hashtable_entry->hash_code;
+
+			*entry = &hashtable_entry->body;
+
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+_Ret_maybenull_
+PVOID _r_obj_findhashtable (_In_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code)
+{
+	PR_HASHTABLE_ENTRY hashtable_entry;
+	SIZE_T index;
+
+	hash_code = _r_obj_validatehash (hash_code);
+	index = _r_obj_indexfromhash (hashtable, hash_code);
+
+	for (SIZE_T i = hashtable->buckets[index]; i != SIZE_MAX; i = hashtable_entry->next)
+	{
+		hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, i);
+
+		if (hashtable_entry->hash_code == hash_code)
+			return &hashtable_entry->body;
+	}
+
+	return NULL;
+}
+
+BOOLEAN _r_obj_removehashtableentry (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code)
+{
+	PR_HASHTABLE_ENTRY hashtable_entry;
+	SIZE_T index;
+	SIZE_T previous_index;
+
+	hash_code = _r_obj_validatehash (hash_code);
+	index = _r_obj_indexfromhash (hashtable, hash_code);
+	previous_index = SIZE_MAX;
+
+	for (SIZE_T i = hashtable->buckets[index]; i != SIZE_MAX; i = hashtable_entry->next)
+	{
+		hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, i);
+
+		if (hashtable_entry->hash_code == hash_code)
+		{
+			if (previous_index == SIZE_MAX)
+			{
+				hashtable->buckets[index] = hashtable_entry->next;
+			}
+			else
+			{
+				HASHTABLE_GET_ENTRY (hashtable, previous_index)->next = hashtable_entry->next;
+			}
+
+			hashtable_entry->hash_code = SIZE_MAX;
+			hashtable_entry->next = hashtable->free_entry;
+			hashtable->free_entry = i;
+
+			hashtable->count -= 1;
+
+			if (hashtable->cleanup_callback)
+			{
+				hashtable->cleanup_callback (&hashtable_entry->body);
+
+				RtlSecureZeroMemory (&hashtable_entry->body, hashtable->entry_size);
+			}
+
+			return TRUE;
+		}
+
+		previous_index = i;
+	}
+
+	return FALSE;
+}
+
+/*
 	System messages
 */
 
@@ -1481,8 +1487,8 @@ BOOLEAN _r_fs_deletedirectory (_In_ LPCWSTR path, _In_ BOOLEAN is_recurse)
 	if ((GetFileAttributes (path) & FILE_ATTRIBUTE_DIRECTORY) == 0)
 		return FALSE;
 
-	length = _r_str_length (path);
-	string = _r_obj_createstringex (NULL, (length + 1) * sizeof (WCHAR)); // required to set 2 nulls at end
+	length = _r_str_length (path) + 1;
+	string = _r_obj_createstringex (NULL, length * sizeof (WCHAR)); // required to set 2 nulls at end
 
 	_r_str_copy (string->buffer, length, path);
 
@@ -1556,14 +1562,14 @@ BOOLEAN _r_fs_makebackup (_In_ LPCWSTR path, _In_opt_ LONG64 timestamp, _In_ BOO
 
 	if (is_removesourcefile)
 	{
-		is_success = _r_fs_move (path, new_path->buffer, MOVEFILE_COPY_ALLOWED);
+		is_success = _r_fs_movefile (path, new_path->buffer, MOVEFILE_COPY_ALLOWED);
 
 		if (is_success)
 			_r_fs_deletefile (path, TRUE);
 	}
 	else
 	{
-		is_success = _r_fs_copy (path, new_path->buffer, 0);
+		is_success = _r_fs_copyfile (path, new_path->buffer, 0);
 	}
 
 	_r_obj_dereference (new_path);
@@ -2163,7 +2169,7 @@ ULONG _r_path_ntpathfromdos (_In_ LPCWSTR path, _Outptr_ PR_STRING * ptr_nt_path
 
 	if (NT_SUCCESS (status))
 	{
-		PR_STRING string = _r_string_fromunicodestring (&obj_name_info->Name);
+		PR_STRING string = _r_obj_createstringfromunicodestring (&obj_name_info->Name);
 
 		if (string)
 		{
@@ -2240,7 +2246,7 @@ VOID _r_shell_openfile (_In_ LPCWSTR path)
 _Check_return_
 BOOLEAN _r_str_isnumeric (_In_ LPCWSTR string)
 {
-	if (_r_str_isempty (string))
+	if (!string)
 		return FALSE;
 
 	while (!_r_str_isempty (string))
@@ -2477,14 +2483,14 @@ PR_STRING _r_str_expandenvironmentstring (_In_ LPCWSTR string)
 	PR_STRING buffer_string;
 	ULONG buffer_size;
 
-	if (_r_str_isempty (string))
+	if (!string)
 		return NULL;
 
 	input_string.Length = (USHORT)_r_str_length (string) * sizeof (WCHAR);
 	input_string.MaximumLength = (USHORT)input_string.Length + sizeof (UNICODE_NULL);
 	input_string.Buffer = (LPWSTR)string;
 
-	buffer_size = 512;
+	buffer_size = 512 * sizeof (WCHAR);
 	buffer_string = _r_obj_createstringex (NULL, buffer_size);
 
 	output_string.Length = 0;
@@ -2523,25 +2529,22 @@ PR_STRING _r_str_unexpandenvironmentstring (_In_ LPCWSTR string)
 	PR_STRING buffer;
 	SIZE_T buffer_length;
 
-	if (_r_str_isempty (string))
+	if (!string)
 		return NULL;
 
-	if (_r_str_findchar (string, L'%') != SIZE_MAX)
+	buffer_length = 512;
+	buffer = _r_obj_createstringex (NULL, buffer_length * sizeof (WCHAR));
+
+	if (PathUnExpandEnvStrings (string, buffer->buffer, (UINT)buffer_length))
 	{
-		buffer_length = 512;
-		buffer = _r_obj_createstringex (NULL, buffer_length * sizeof (WCHAR));
+		_r_obj_trimstringtonullterminator (buffer);
 
-		if (PathUnExpandEnvStrings (string, buffer->buffer, (UINT)buffer_length))
-		{
-			_r_obj_trimstringtonullterminator (buffer);
-
-			return buffer;
-		}
-
-		_r_obj_dereference (buffer);
+		return buffer;
 	}
 
-	return _r_obj_createstring (string);
+	_r_obj_movereference (&buffer, _r_obj_createstring (string));
+
+	return buffer;
 }
 
 _Ret_maybenull_
@@ -2552,7 +2555,7 @@ PR_STRING _r_str_fromguid (_In_ LPCGUID lpguid)
 
 	if (NT_SUCCESS (RtlStringFromGUID ((LPGUID)lpguid, &us)))
 	{
-		string = _r_string_fromunicodestring (&us);
+		string = _r_obj_createstringfromunicodestring (&us);
 
 		RtlFreeUnicodeString (&us);
 
@@ -2584,12 +2587,12 @@ PR_STRING _r_str_fromsecuritydescriptor (_In_ PSECURITY_DESCRIPTOR lpsd, _In_ SE
 _Ret_maybenull_
 PR_STRING _r_str_fromsid (_In_ PSID lpsid)
 {
-	PR_STRING string;
 	UNICODE_STRING us;
+	PR_STRING string;
 
 	string = _r_obj_createstringex (NULL, SECURITY_MAX_SID_STRING_CHARACTERS * sizeof (WCHAR));
 
-	_r_string_tounicodestring (string, &us);
+	_r_obj_createunicodestringfromstring (&us, string);
 
 	if (NT_SUCCESS (RtlConvertSidToUnicodeString (&us, lpsid, FALSE)))
 	{
@@ -3008,7 +3011,11 @@ PR_HASHTABLE _r_str_unserialize (_In_ PR_STRING string, _In_ WCHAR key_delimeter
 	return -1 if v1 < v2
 */
 
-#define MAKE_VERSION_ULONG64(major, minor, build, revision) (((ULONG64)(major) << 48) | ((ULONG64)(minor) << 32) | ((ULONG64)(build) << 16) | ((ULONG64)(revision) << 0))
+#define MAKE_VERSION_ULONG64(major, minor, build, revision) \
+	(((ULONG64)(major) << 48) | \
+	((ULONG64)(minor) << 32) | \
+	((ULONG64)(build) << 16) | \
+	((ULONG64)(revision) << 0))
 
 ULONG64 _r_str_versiontoulong64 (_In_ LPCWSTR version)
 {
@@ -3929,14 +3936,13 @@ LONG _r_dc_getfontwidth (_In_ HDC hdc, _In_ LPCWSTR string, _In_ SIZE_T length)
 */
 
 _Success_ (return)
-BOOLEAN _r_filedialog_initialize (_Out_ PR_FILE_DIALOG file_dialog, _In_ BOOLEAN is_save)
+BOOLEAN _r_filedialog_initialize (_Out_ PR_FILE_DIALOG file_dialog, _In_ ULONG flags)
 {
 	IFileDialog *ifd;
 
-	if (SUCCEEDED (CoCreateInstance (is_save ? &CLSID_FileSaveDialog : &CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER, &IID_IFileDialog, &ifd)))
+	if (SUCCEEDED (CoCreateInstance ((flags & (PR_FILEDIALOG_OPENFILE | PR_FILEDIALOG_OPENDIR)) ? &CLSID_FileOpenDialog : &CLSID_FileSaveDialog, NULL, CLSCTX_INPROC_SERVER, &IID_IFileDialog, &ifd)))
 	{
-		file_dialog->is_save = is_save;
-		file_dialog->is_ifiledialog = TRUE;
+		file_dialog->flags = flags | PR_FILEDIALOG_ISIFILEDIALOG;
 		file_dialog->u.ifd = ifd;
 
 		return TRUE;
@@ -3945,11 +3951,13 @@ BOOLEAN _r_filedialog_initialize (_Out_ PR_FILE_DIALOG file_dialog, _In_ BOOLEAN
 	else
 	{
 		LPOPENFILENAME ofn;
-		SIZE_T struct_size = sizeof (OPENFILENAME);
-		SIZE_T file_length = 1024;
+		SIZE_T struct_size;
+		SIZE_T file_length;
 
-		file_dialog->is_save = is_save;
-		file_dialog->is_ifiledialog = FALSE;
+		struct_size = sizeof (OPENFILENAME);
+		file_length = 1024;
+
+		file_dialog->flags = flags;
 
 		ofn = _r_mem_allocatezero (struct_size);
 
@@ -3957,13 +3965,13 @@ BOOLEAN _r_filedialog_initialize (_Out_ PR_FILE_DIALOG file_dialog, _In_ BOOLEAN
 		ofn->nMaxFile = (ULONG)file_length + 1;
 		ofn->lpstrFile = _r_mem_allocatezero (file_length * sizeof (WCHAR));
 
-		if (is_save)
+		if ((flags & PR_FILEDIALOG_OPENFILE))
 		{
-			ofn->Flags = OFN_DONTADDTORECENT | OFN_ENABLESIZING | OFN_EXPLORER | OFN_HIDEREADONLY | OFN_LONGNAMES | OFN_OVERWRITEPROMPT;
+			ofn->Flags = OFN_DONTADDTORECENT | OFN_ENABLESIZING | OFN_EXPLORER | OFN_HIDEREADONLY | OFN_LONGNAMES | OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 		}
 		else
 		{
-			ofn->Flags = OFN_DONTADDTORECENT | OFN_ENABLESIZING | OFN_EXPLORER | OFN_HIDEREADONLY | OFN_LONGNAMES | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+			ofn->Flags = OFN_DONTADDTORECENT | OFN_ENABLESIZING | OFN_EXPLORER | OFN_HIDEREADONLY | OFN_LONGNAMES | OFN_OVERWRITEPROMPT;
 		}
 
 		file_dialog->u.ofn = ofn;
@@ -3975,10 +3983,11 @@ BOOLEAN _r_filedialog_initialize (_Out_ PR_FILE_DIALOG file_dialog, _In_ BOOLEAN
 	return FALSE;
 }
 
+_Success_ (return)
 BOOLEAN _r_filedialog_show (_In_opt_ HWND hwnd, _In_ PR_FILE_DIALOG file_dialog)
 {
 #if !defined(APP_NO_DEPRECATIONS)
-	if (file_dialog->is_ifiledialog)
+	if ((file_dialog->flags & PR_FILEDIALOG_ISIFILEDIALOG))
 #endif // !APP_NO_DEPRECATIONS
 	{
 		FILEOPENDIALOGOPTIONS options = 0;
@@ -3986,6 +3995,10 @@ BOOLEAN _r_filedialog_show (_In_opt_ HWND hwnd, _In_ PR_FILE_DIALOG file_dialog)
 		IFileDialog_SetDefaultExtension (file_dialog->u.ifd, L"");
 
 		IFileDialog_GetOptions (file_dialog->u.ifd, &options);
+
+		if ((file_dialog->flags & PR_FILEDIALOG_OPENDIR))
+			options |= FOS_PICKFOLDERS;
+
 		IFileDialog_SetOptions (file_dialog->u.ifd, options | FOS_DONTADDTORECENT);
 
 		return SUCCEEDED (IFileDialog_Show (file_dialog->u.ifd, hwnd));
@@ -3997,7 +4010,7 @@ BOOLEAN _r_filedialog_show (_In_opt_ HWND hwnd, _In_ PR_FILE_DIALOG file_dialog)
 
 		ofn->hwndOwner = hwnd;
 
-		if (!file_dialog->is_save)
+		if ((file_dialog->flags & PR_FILEDIALOG_OPENFILE))
 		{
 			return !!GetOpenFileName (ofn);
 		}
@@ -4012,7 +4025,7 @@ BOOLEAN _r_filedialog_show (_In_opt_ HWND hwnd, _In_ PR_FILE_DIALOG file_dialog)
 PR_STRING _r_filedialog_getpath (_In_ PR_FILE_DIALOG file_dialog)
 {
 #if !defined(APP_NO_DEPRECATIONS)
-	if (file_dialog->is_ifiledialog)
+	if ((file_dialog->flags & PR_FILEDIALOG_ISIFILEDIALOG))
 #endif // APP_NO_DEPRECATIONS
 	{
 		IShellItem *result;
@@ -4054,7 +4067,7 @@ PR_STRING _r_filedialog_getpath (_In_ PR_FILE_DIALOG file_dialog)
 VOID _r_filedialog_setpath (_Inout_ PR_FILE_DIALOG file_dialog, _In_ LPCWSTR path)
 {
 #if !defined(APP_NO_DEPRECATIONS)
-	if (file_dialog->is_ifiledialog)
+	if ((file_dialog->flags & PR_FILEDIALOG_ISIFILEDIALOG))
 #endif // !APP_NO_DEPRECATIONS
 	{
 		IShellItem *shell_item = NULL;
@@ -4110,7 +4123,7 @@ VOID _r_filedialog_setpath (_Inout_ PR_FILE_DIALOG file_dialog, _In_ LPCWSTR pat
 VOID _r_filedialog_setfilter (_Inout_ PR_FILE_DIALOG file_dialog, _In_ COMDLG_FILTERSPEC * filters, _In_ ULONG count)
 {
 #if !defined(APP_NO_DEPRECATIONS)
-	if (file_dialog->is_ifiledialog)
+	if ((file_dialog->flags & PR_FILEDIALOG_ISIFILEDIALOG))
 #endif // !APP_NO_DEPRECATIONS
 	{
 		IFileDialog_SetFileTypes (file_dialog->u.ifd, count, filters);
@@ -4144,7 +4157,7 @@ VOID _r_filedialog_setfilter (_Inout_ PR_FILE_DIALOG file_dialog, _In_ COMDLG_FI
 VOID _r_filedialog_destroy (_In_ PR_FILE_DIALOG file_dialog)
 {
 #if !defined(APP_NO_DEPRECATIONS)
-	if (file_dialog->is_ifiledialog)
+	if ((file_dialog->flags & PR_FILEDIALOG_ISIFILEDIALOG))
 #endif // !APP_NO_DEPRECATIONS
 	{
 		IFileDialog_Release (file_dialog->u.ifd);
@@ -4563,6 +4576,7 @@ VOID _r_wnd_changemessagefilter (_In_ HWND hwnd, _In_count_ (count) PUINT messag
 
 	for (SIZE_T i = 0; i < count; i++)
 		ChangeWindowMessageFilterEx (hwnd, messages[i], action, NULL);
+
 #else
 
 	HMODULE huser32 = LoadLibraryEx (L"user32.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
@@ -4767,14 +4781,14 @@ BOOLEAN _r_wnd_isundercursor (_In_ HWND hwnd)
 	return !!PtInRect (&rect, point);
 }
 
-VOID _r_wnd_setposition (_In_ HWND hwnd, _In_opt_ PR_SIZE position, _In_opt_ PR_SIZE size)
+VOID _r_wnd_setposition (_In_ HWND hwnd, _In_opt_ PSIZE position, _In_opt_ PSIZE size)
 {
 	R_RECTANGLE rectangle;
 	UINT swp_flags;
 
 	if (position && size)
 	{
-		MoveWindow (hwnd, position->x, position->y, size->x, size->y, FALSE);
+		MoveWindow (hwnd, position->cx, position->cy, size->cx, size->cy, FALSE);
 	}
 	else
 	{
@@ -4784,8 +4798,8 @@ VOID _r_wnd_setposition (_In_ HWND hwnd, _In_opt_ PR_SIZE position, _In_opt_ PR_
 
 		if (position)
 		{
-			rectangle.left = position->x;
-			rectangle.top = position->y;
+			rectangle.left = position->cx;
+			rectangle.top = position->cy;
 		}
 		else
 		{
@@ -4794,8 +4808,8 @@ VOID _r_wnd_setposition (_In_ HWND hwnd, _In_opt_ PR_SIZE position, _In_opt_ PR_
 
 		if (size)
 		{
-			rectangle.width = size->x;
-			rectangle.height = size->y;
+			rectangle.width = size->cx;
+			rectangle.height = size->cy;
 		}
 		else
 		{
@@ -5117,6 +5131,8 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Inout_ 
 	{
 		*(LPSTR)PTR_ADD_OFFSET (content_bytes->buffer, readed_current) = ANSI_NULL; // terminate
 
+		_r_sys_setthreadexecutionstate (ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED);
+
 		if (pdi->hfile)
 		{
 			if (!WriteFile (pdi->hfile, content_bytes->buffer, readed_current, &unused, NULL))
@@ -5159,6 +5175,8 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Inout_ 
 			_r_obj_deletestringbuilder (&buffer_string);
 		}
 	}
+
+	_r_sys_setthreadexecutionstate (ES_CONTINUOUS);
 
 	_r_obj_dereference (content_bytes);
 
@@ -5435,7 +5453,7 @@ PR_STRING _r_res_getbinaryversion (_In_ LPCWSTR path)
 }
 
 _Success_ (return != NULL)
-PVOID _r_res_loadresource (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ LPCWSTR type, _Out_opt_ PULONG psize)
+PVOID _r_res_loadresource (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ LPCWSTR type, _Out_opt_ PULONG buffer_size)
 {
 	HRSRC hres = FindResource (hinst, name, type);
 
@@ -5449,8 +5467,8 @@ PVOID _r_res_loadresource (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ LPC
 
 			if (res)
 			{
-				if (psize)
-					*psize = SizeofResource (hinst, hres);
+				if (buffer_size)
+					*buffer_size = SizeofResource (hinst, hres);
 
 				return res;
 			}
@@ -5608,6 +5626,322 @@ VOID _r_sleep (_In_ LONG64 milliseconds)
 	interval.QuadPart = -(LONG64)UInt32x32To64 (milliseconds, ((1 * 10) * 1000));
 
 	NtDelayExecution (FALSE, &interval);
+}
+
+/*
+	Xml library
+*/
+
+_Success_ (return == S_OK)
+HRESULT _r_xml_initializelibrary (_Out_ PR_XML_LIBRARY xml_library, _In_ BOOLEAN is_reader, _In_opt_ PR_XML_STREAM_CALLBACK stream_callback)
+{
+	HRESULT hr;
+
+	memset (xml_library, 0, sizeof (R_XML_LIBRARY));
+
+	if (is_reader)
+	{
+		hr = CreateXmlReader (&IID_IXmlReader, (void**)&xml_library->reader, NULL);
+
+		if (FAILED (hr))
+			return hr;
+
+		IXmlReader_SetProperty (xml_library->reader, XmlReaderProperty_DtdProcessing, DtdProcessing_Prohibit);
+	}
+	else
+	{
+		hr = CreateXmlWriter (&IID_IXmlWriter, (void**)&xml_library->writer, NULL);
+
+		if (FAILED (hr))
+			return S_FALSE;
+
+		IXmlWriter_SetProperty (xml_library->writer, XmlWriterProperty_Indent, TRUE);
+		IXmlWriter_SetProperty (xml_library->writer, XmlWriterProperty_CompactEmptyElement, TRUE);
+	}
+
+	xml_library->is_initialized = TRUE;
+	xml_library->is_reader = is_reader;
+
+	xml_library->stream = NULL;
+	xml_library->stream_callback = stream_callback;
+
+	return S_OK;
+}
+
+_Success_ (return == S_OK)
+HRESULT _r_xml_parsefile (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR file_path)
+{
+	PR_XML_STREAM stream;
+	HRESULT hr;
+
+	if (!xml_library->is_initialized)
+		return S_FALSE;
+
+	if (xml_library->stream)
+	{
+		_r_xml_setlibrarystream (xml_library, NULL);
+
+		IStream_Release (xml_library->stream);
+		xml_library->stream = NULL;
+	}
+
+	hr = SHCreateStreamOnFileEx (file_path, xml_library->is_reader ? STGM_READ : STGM_WRITE | STGM_CREATE, FILE_ATTRIBUTE_NORMAL, xml_library->is_reader ? FALSE : TRUE, NULL, &stream);
+
+	if (hr != S_OK)
+		return hr;
+
+	return _r_xml_setlibrarystream (xml_library, stream);
+}
+
+_Success_ (return == S_OK)
+HRESULT _r_xml_parsestring (_Inout_ PR_XML_LIBRARY xml_library, _In_ PVOID buffer, _In_ ULONG buffer_size)
+{
+	PR_XML_STREAM stream;
+
+	if (!xml_library->is_initialized)
+		return S_FALSE;
+
+	if (xml_library->stream)
+	{
+		_r_xml_setlibrarystream (xml_library, NULL);
+
+		IStream_Release (xml_library->stream);
+		xml_library->stream = NULL;
+	}
+
+	stream = SHCreateMemStream (buffer, buffer_size);
+
+	if (!stream)
+		return S_FALSE;
+
+	return _r_xml_setlibrarystream (xml_library, stream);
+}
+
+_Success_ (return)
+BOOLEAN _r_xml_getattribute (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name, _Out_ LPCWSTR * attrib_value, _Out_opt_ PUINT attrib_length)
+{
+	LPCWSTR value_string;
+	UINT value_length;
+	HRESULT hr;
+
+	if (!xml_library->is_initialized || !xml_library->is_reader)
+		return FALSE;
+
+	if (IXmlReader_MoveToAttributeByName (xml_library->reader, attrib_name, NULL) != S_OK)
+		return FALSE;
+
+	hr = IXmlReader_GetValue (xml_library->reader, &value_string, &value_length);
+
+	// restore position before exit function
+	IXmlReader_MoveToElement (xml_library->reader);
+
+	if (hr != S_OK)
+		return FALSE;
+
+	if (_r_str_isempty (value_string) || !value_length)
+		return FALSE;
+
+	*attrib_value = value_string;
+
+	if (attrib_length)
+		*attrib_length = value_length;
+
+	return TRUE;
+}
+
+_Ret_maybenull_
+PR_STRING _r_xml_getattribute_string (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name)
+{
+	LPCWSTR text_value;
+	UINT text_length;
+
+	if (!_r_xml_getattribute (xml_library, attrib_name, &text_value, &text_length))
+		return NULL;
+
+	return _r_obj_createstringex (text_value, text_length * sizeof (WCHAR));
+}
+
+BOOLEAN _r_xml_getattribute_boolean (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name)
+{
+	LPCWSTR text_value;
+
+	if (!_r_xml_getattribute (xml_library, attrib_name, &text_value, NULL))
+		return FALSE;
+
+	return _r_str_toboolean (text_value);
+}
+
+INT _r_xml_getattribute_integer (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name)
+{
+	LPCWSTR text_value;
+
+	if (!_r_xml_getattribute (xml_library, attrib_name, &text_value, NULL))
+		return 0;
+
+	return _r_str_tointeger (text_value);
+}
+
+LONG64 _r_xml_getattribute_long64 (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name)
+{
+	LPCWSTR text_value;
+
+	if (!_r_xml_getattribute (xml_library, attrib_name, &text_value, NULL))
+		return 0;
+
+	return _r_str_tolong64 (text_value);
+}
+
+VOID _r_xml_setattribute_integer (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name, _In_ INT value)
+{
+	WCHAR value_text[64];
+	_r_str_frominteger (value_text, RTL_NUMBER_OF (value_text), value);
+
+	_r_xml_setattribute (xml_library, name, value_text);
+}
+
+VOID _r_xml_setattribute_long64 (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name, _In_ LONG64 value)
+{
+	WCHAR value_text[64];
+	_r_str_fromlong64 (value_text, RTL_NUMBER_OF (value_text), value);
+
+	_r_xml_setattribute (xml_library, name, value_text);
+}
+
+_Success_ (return)
+BOOLEAN _r_xml_enumchilditemsbytagname (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR tag_name)
+{
+	XmlNodeType node_type;
+	LPCWSTR qualified_name;
+
+	if (!xml_library->is_initialized || !xml_library->is_reader)
+		return FALSE;
+
+	while (TRUE)
+	{
+		if (IXmlReader_IsEOF (xml_library->reader))
+			return FALSE;
+
+		if (IXmlReader_Read (xml_library->reader, &node_type) != S_OK)
+			return FALSE;
+
+		if (node_type == XmlNodeType_Element)
+		{
+			if (IXmlReader_GetQualifiedName (xml_library->reader, &qualified_name, NULL) != S_OK)
+				return FALSE;
+
+			if (_r_str_compare (qualified_name, tag_name) == 0)
+				return TRUE;
+		}
+		else if (node_type == XmlNodeType_EndElement)
+		{
+			return FALSE;
+		}
+	}
+
+	return FALSE;
+}
+
+_Success_ (return)
+BOOLEAN _r_xml_findchildbytagname (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR tag_name)
+{
+	LPCWSTR qualified_name;
+	XmlNodeType node_type;
+
+	if (!xml_library->is_initialized || !xml_library->is_reader)
+		return FALSE;
+
+	_r_xml_resetlibrarystream (xml_library);
+
+	while (!IXmlReader_IsEOF (xml_library->reader))
+	{
+		if (IXmlReader_Read (xml_library->reader, &node_type) != S_OK)
+			break;
+
+		if (node_type == XmlNodeType_Element)
+		{
+			// do not return empty elements
+			if (IXmlReader_IsEmptyElement (xml_library->reader))
+				continue;
+
+			if (IXmlReader_GetQualifiedName (xml_library->reader, &qualified_name, NULL) != S_OK)
+				break;
+
+			if (_r_str_compare (qualified_name, tag_name) == 0)
+				return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+_Success_ (return == S_OK)
+HRESULT _r_xml_resetlibrarystream (_Inout_ PR_XML_LIBRARY xml_library)
+{
+	if (!xml_library->is_initialized)
+		return S_FALSE;
+
+	if (!xml_library->stream)
+		return S_FALSE;
+
+	IStream_Reset (xml_library->stream);
+
+	return _r_xml_setlibrarystream (xml_library, xml_library->stream);
+}
+
+_Success_ (return == S_OK)
+HRESULT _r_xml_setlibrarystream (_Inout_ PR_XML_LIBRARY xml_library, _In_ PR_XML_STREAM stream)
+{
+	HRESULT hr;
+
+	if (!xml_library->is_initialized)
+		return S_FALSE;
+
+	xml_library->stream = stream;
+
+	if (xml_library->is_reader)
+	{
+		if (xml_library->stream_callback)
+			xml_library->stream_callback (stream);
+
+		hr = IXmlReader_SetInput (xml_library->reader, (IUnknown*)stream);
+	}
+	else
+	{
+		hr = IXmlWriter_SetOutput (xml_library->writer, (IUnknown*)stream);
+	}
+
+	return hr;
+}
+
+VOID _r_xml_destroylibrary (_Inout_ PR_XML_LIBRARY xml_library)
+{
+	if (!xml_library->is_initialized)
+		return;
+
+	xml_library->is_initialized = FALSE;
+
+	if (xml_library->is_reader)
+	{
+		if (xml_library->reader)
+		{
+			IXmlReader_Release (xml_library->reader);
+			xml_library->reader = NULL;
+		}
+	}
+	else
+	{
+		if (xml_library->writer)
+		{
+			IXmlWriter_Release (xml_library->writer);
+			xml_library->writer = NULL;
+		}
+	}
+
+	if (xml_library->stream)
+	{
+		IStream_Release (xml_library->stream);
+		xml_library->stream = NULL;
+	}
 }
 
 /*
