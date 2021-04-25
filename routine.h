@@ -52,6 +52,7 @@
 #include <uxtheme.h>
 #include <winhttp.h>
 #include <wtsapi32.h>
+#include <xmllite.h>
 
 #include "app.h"
 #include "ntapi.h"
@@ -67,12 +68,18 @@
 #pragma comment(lib, "version.lib")
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "wtsapi32.lib")
+#pragma comment(lib, "xmllite.lib")
 
-// callback functions
-typedef BOOLEAN (NTAPI *PR_INET_DOWNLOAD_FUNCTION) (_In_ ULONG total_written, _In_ ULONG total_length, _In_opt_ PVOID pdata);
-typedef VOID (NTAPI *PR_OBJECT_CLEANUP_FUNCTION) (_In_ PVOID object_body);
+// extern
+_Check_return_
+extern SIZE_T _r_str_length (_In_ LPCWSTR text);
 
-// memory allocation/cleanup
+_Check_return_
+extern SIZE_T _r_str_hash (_In_ LPCWSTR string);
+
+extern FORCEINLINE VOID _r_str_trim (_Inout_ LPWSTR string, _In_ LPCWSTR trim);
+
+// safe clenup memory
 #ifndef SAFE_DELETE_MEMORY
 #define SAFE_DELETE_MEMORY(p) {if(p) {_r_mem_free (p); (p)=NULL;}}
 #endif
@@ -109,7 +116,375 @@ typedef VOID (NTAPI *PR_OBJECT_CLEANUP_FUNCTION) (_In_ PVOID object_body);
 #define SAFE_DELETE_GLOBAL(p) {if((p)) {GlobalFree ((p)); (p)=NULL;}}
 #endif
 
-typedef struct _R_OBJECT_HEADER
+/*
+	Synchronization
+*/
+
+FORCEINLINE BOOLEAN InterlockedBitTestAndSetPointer (_Inout_ _Interlocked_operand_ LONG_PTR volatile *base, _In_ LONG_PTR bit)
+{
+#ifdef _WIN64
+	return _interlockedbittestandset64 ((PLONG64)base, (LONG64)bit);
+#else
+	return _interlockedbittestandset ((PLONG)base, (LONG)bit);
+#endif
+}
+
+FORCEINLINE LONG_PTR InterlockedExchangeAddPointer (_Inout_ _Interlocked_operand_ LONG_PTR volatile *addend, _In_ LONG_PTR value)
+{
+#ifdef _WIN64
+	return (LONG_PTR)_InterlockedExchangeAdd64 ((PLONG64)addend, (LONG64)value);
+#else
+	return (LONG_PTR)_InterlockedExchangeAdd ((PLONG)addend, (LONG)value);
+#endif
+}
+
+/*
+	Synchronization: Spinlock
+*/
+
+//	FastLock is a port of FastResourceLock from PH 1.x.
+//	The code contains no comments because it is a direct port. Please see FastResourceLock.cs in PH
+//	1.x for details.
+//	The fast lock is around 7% faster than the critical section when there is no contention, when
+//	used solely for mutual exclusion. It is also much smaller than the critical section.
+//	https://github.com/processhacker2/processhacker
+
+#if defined(APP_NO_DEPRECATIONS)
+
+#define RTL_SRWLOCK_OWNED_BIT 0
+#define RTL_SRWLOCK_OWNED (1 << RTL_SRWLOCK_OWNED_BIT)
+
+#define R_SPINLOCK RTL_SRWLOCK
+#define PR_SPINLOCK PRTL_SRWLOCK
+
+FORCEINLINE VOID _r_spinlock_initialize (PR_SPINLOCK spin_lock)
+{
+	RtlInitializeSRWLock (spin_lock);
+}
+
+FORCEINLINE VOID _r_spinlock_acquireexclusive (PR_SPINLOCK spin_lock)
+{
+	RtlAcquireSRWLockExclusive (spin_lock);
+}
+
+FORCEINLINE VOID _r_spinlock_acquireshared (PR_SPINLOCK spin_lock)
+{
+	RtlAcquireSRWLockShared (spin_lock);
+}
+
+FORCEINLINE VOID _r_spinlock_releaseexclusive (PR_SPINLOCK spin_lock)
+{
+	RtlReleaseSRWLockExclusive (spin_lock);
+}
+
+FORCEINLINE VOID _r_spinlock_releaseshared (PR_SPINLOCK spin_lock)
+{
+	RtlReleaseSRWLockShared (spin_lock);
+}
+
+FORCEINLINE BOOLEAN _r_spinlock_tryacquireexclusive (PR_SPINLOCK spin_lock)
+{
+	return RtlTryAcquireSRWLockExclusive (spin_lock);
+}
+
+FORCEINLINE BOOLEAN _r_spinlock_tryacquireshared (PR_SPINLOCK spin_lock)
+{
+	return RtlTryAcquireSRWLockShared (spin_lock);
+}
+
+#else
+
+#define PR_SPINLOCK_OWNED 0x1
+#define PR_SPINLOCK_EXCLUSIVE_WAKING 0x2
+
+#define PR_SPINLOCK_SHARED_OWNERS_SHIFT 2
+#define PR_SPINLOCK_SHARED_OWNERS_MASK 0x3ff
+#define PR_SPINLOCK_SHARED_OWNERS_INC 0x4
+
+#define PR_SPINLOCK_SHARED_WAITERS_SHIFT 12
+#define PR_SPINLOCK_SHARED_WAITERS_MASK 0x3ff
+#define PR_SPINLOCK_SHARED_WAITERS_INC 0x1000
+
+#define PR_SPINLOCK_EXCLUSIVE_WAITERS_SHIFT 22
+#define PR_SPINLOCK_EXCLUSIVE_WAITERS_MASK 0x3ff
+#define PR_SPINLOCK_EXCLUSIVE_WAITERS_INC 0x400000
+
+#define PR_SPINLOCK_EXCLUSIVE_MASK (PR_SPINLOCK_EXCLUSIVE_WAKING | (PR_SPINLOCK_EXCLUSIVE_WAITERS_MASK << PR_SPINLOCK_EXCLUSIVE_WAITERS_SHIFT))
+
+typedef struct tagR_SPINLOCK
+{
+	volatile ULONG value;
+
+	HANDLE exclusive_wake_event;
+	HANDLE shared_wake_event;
+} R_SPINLOCK, *PR_SPINLOCK;
+
+FORCEINLINE ULONG _r_spinlock_getspincount ()
+{
+	return (NtCurrentPeb ()->NumberOfProcessors > 1) ? 4000 : 0;
+}
+
+FORCEINLINE VOID _r_spinlock_ensureeventcreated (PHANDLE phandle)
+{
+	HANDLE handle;
+
+	if (*phandle != NULL)
+		return;
+
+	NtCreateSemaphore (&handle, SEMAPHORE_ALL_ACCESS, NULL, 0, MAXLONG);
+
+	if (InterlockedCompareExchangePointer (phandle, handle, NULL) != NULL)
+		NtClose (handle);
+}
+
+VOID _r_spinlock_initialize (PR_SPINLOCK plock);
+
+VOID _r_spinlock_acquireexclusive (PR_SPINLOCK plock);
+VOID _r_spinlock_acquireshared (PR_SPINLOCK plock);
+
+VOID _r_spinlock_releaseexclusive (PR_SPINLOCK plock);
+VOID _r_spinlock_releaseshared (PR_SPINLOCK plock);
+
+BOOLEAN _r_spinlock_tryacquireexclusive (PR_SPINLOCK plock);
+BOOLEAN _r_spinlock_tryacquireshared (PR_SPINLOCK plock);
+
+#endif // APP_NO_DEPRECATIONS
+
+FORCEINLINE BOOLEAN _r_spinlock_islocked (const PR_SPINLOCK plock)
+{
+	BOOLEAN owned;
+
+	// Need two memory barriers because we don't want the compiler re-ordering the following check
+	// in either direction.
+	MemoryBarrier ();
+
+#if defined(APP_NO_DEPRECATIONS)
+	owned = ((*(volatile LONG_PTR*)&plock->Ptr) & RTL_SRWLOCK_OWNED) != 0;
+#else
+	owned = (plock->value & PR_SPINLOCK_OWNED) != 0;
+#endif // APP_NO_DEPRECATIONS
+
+	MemoryBarrier ();
+
+	return owned;
+}
+
+/*
+	Synchronization: Timer
+*/
+
+#if defined(APP_NO_DEPRECATIONS)
+
+#else
+
+typedef struct tagR_EVENT
+{
+	union
+	{
+		ULONG_PTR value;
+		struct
+		{
+			USHORT is_set : 1;
+			USHORT ref_count : 15;
+			UCHAR reserved;
+			UCHAR available_for_use;
+#ifdef _WIN64
+			ULONG spare;
+#endif
+		};
+	};
+	HANDLE event_handle;
+} R_EVENT, *PR_EVENT;
+
+#define PR_EVENT_SET 0x1
+#define PR_EVENT_SET_SHIFT 0
+#define PR_EVENT_REFCOUNT_SHIFT 1
+#define PR_EVENT_REFCOUNT_INC 0x2
+#define PR_EVENT_REFCOUNT_MASK (((ULONG_PTR)1 << 15) - 1)
+
+#define PR_EVENT_INIT { { PR_EVENT_REFCOUNT_INC }, NULL }
+
+C_ASSERT (sizeof (R_EVENT) == sizeof (ULONG_PTR) + sizeof (HANDLE));
+
+VOID FASTCALL _r_event_reset (_Inout_ PR_EVENT event);
+VOID FASTCALL _r_event_set (_Inout_ PR_EVENT event);
+BOOLEAN FASTCALL _r_event_waitex (_Inout_ PR_EVENT event, _In_opt_ PLARGE_INTEGER timeout);
+
+FORCEINLINE VOID FASTCALL _r_event_intialize (_Out_ PR_EVENT event)
+{
+	event->value = PR_EVENT_REFCOUNT_INC;
+	event->event_handle = NULL;
+}
+
+FORCEINLINE BOOLEAN _r_event_test (_In_ PR_EVENT event)
+{
+	return !!event->is_set;
+}
+
+FORCEINLINE VOID _r_event_reference (_Inout_ PR_EVENT event)
+{
+	InterlockedExchangeAddPointer ((PLONG_PTR)(&event->value), PR_EVENT_REFCOUNT_INC);
+}
+
+FORCEINLINE VOID _r_event_dereference (_Inout_ PR_EVENT event, _In_opt_ HANDLE event_handle)
+{
+	ULONG_PTR value;
+
+	value = InterlockedExchangeAddPointer ((PLONG_PTR)(&event->value), -PR_EVENT_REFCOUNT_INC);
+
+	if (((value >> PR_EVENT_REFCOUNT_SHIFT) & PR_EVENT_REFCOUNT_MASK) - 1 == 0)
+	{
+		if (event_handle)
+		{
+			NtClose (event_handle);
+
+			event->event_handle = NULL;
+		}
+	}
+}
+
+FORCEINLINE BOOLEAN _r_event_wait (_Inout_ PR_EVENT event, _In_opt_ PLARGE_INTEGER timeout)
+{
+	if (_r_event_test (event))
+		return TRUE;
+
+	return _r_event_waitex (event, timeout);
+}
+
+#endif // APP_NO_DEPRECATIONS
+
+/*
+	Synchronization: One-time initialization
+*/
+
+#if defined(APP_NO_DEPRECATIONS)
+
+#define R_INITONCE RTL_RUN_ONCE
+#define PR_INITONCE PRTL_RUN_ONCE
+
+#define PR_INITONCE_INIT RTL_RUN_ONCE_INIT
+
+FORCEINLINE BOOLEAN _r_initonce_begin (PR_INITONCE init_once)
+{
+	if (NT_SUCCESS (RtlRunOnceBeginInitialize (init_once, RTL_RUN_ONCE_CHECK_ONLY, NULL)))
+		return FALSE;
+
+	return (RtlRunOnceBeginInitialize (init_once, 0, NULL) == STATUS_PENDING);
+}
+
+FORCEINLINE VOID _r_initonce_end (PR_INITONCE init_once)
+{
+	RtlRunOnceComplete (init_once, 0, NULL);
+}
+
+#else
+
+typedef struct tagR_INITONCE
+{
+	R_EVENT event;
+} R_INITONCE, *PR_INITONCE;
+
+#define PR_INITONCE_SHIFT 31
+#define PR_INITONCE_INITIALIZING (0x1 << PR_INITONCE_SHIFT)
+#define PR_INITONCE_INITIALIZING_SHIFT PR_INITONCE_SHIFT
+
+#define PR_INITONCE_INIT { PR_EVENT_INIT }
+
+C_ASSERT (PR_INITONCE_SHIFT >= FIELD_OFFSET (R_EVENT, available_for_use) * 8);
+
+BOOLEAN FASTCALL _r_initonce_beginex (_Inout_ PR_INITONCE init_once);
+
+FORCEINLINE BOOLEAN _r_initonce_begin (_Inout_ PR_INITONCE init_once)
+{
+	if (_r_event_test (&init_once->event))
+		return FALSE;
+
+	return _r_initonce_beginex (init_once);
+}
+
+FORCEINLINE VOID FASTCALL _r_initonce_end (_Inout_ PR_INITONCE init_once)
+{
+	_r_event_set (&init_once->event);
+}
+#endif // APP_NO_DEPRECATIONS
+
+/*
+	Synchronization: Mutex
+*/
+
+BOOLEAN _r_mutex_create (_In_ LPCWSTR name, _Inout_ PHANDLE hmutex);
+BOOLEAN _r_mutex_destroy (_Inout_ PHANDLE hmutex);
+BOOLEAN _r_mutex_isexists (_In_ LPCWSTR name);
+
+/*
+	Memory allocation
+*/
+
+HANDLE NTAPI _r_mem_getheap ();
+
+_Post_writable_byte_size_ (bytes_count)
+FORCEINLINE PVOID NTAPI _r_mem_allocate (_In_ SIZE_T bytes_count)
+{
+	return RtlAllocateHeap (_r_mem_getheap (), HEAP_GENERATE_EXCEPTIONS, bytes_count);
+}
+
+_Ret_maybenull_
+_Post_writable_byte_size_ (bytes_count)
+FORCEINLINE PVOID NTAPI _r_mem_allocatesafe (_In_ SIZE_T bytes_count)
+{
+	return RtlAllocateHeap (_r_mem_getheap (), 0, bytes_count);
+}
+
+_Post_writable_byte_size_ (bytes_count)
+FORCEINLINE PVOID NTAPI _r_mem_allocatezero (_In_ SIZE_T bytes_count)
+{
+	return RtlAllocateHeap (_r_mem_getheap (), HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, bytes_count);
+}
+
+_Post_writable_byte_size_ (bytes_count)
+FORCEINLINE PVOID NTAPI _r_mem_allocateandcopy (_In_ PVOID src, _In_ SIZE_T bytes_count)
+{
+	PVOID dst = RtlAllocateHeap (_r_mem_getheap (), HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, bytes_count);
+
+	memcpy (dst, src, bytes_count);
+
+	return dst;
+}
+
+//	// If RtlReAllocateHeap fails, the original memory is not freed, and the original handle and pointer are still valid.
+//	// https://docs.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heaprealloc
+
+_Post_writable_byte_size_ (bytes_count)
+FORCEINLINE PVOID NTAPI _r_mem_reallocate (_Frees_ptr_opt_ PVOID memory_address, _In_ SIZE_T bytes_count)
+{
+	return RtlReAllocateHeap (_r_mem_getheap (), HEAP_GENERATE_EXCEPTIONS, memory_address, bytes_count);
+}
+
+_Ret_maybenull_
+_Post_writable_byte_size_ (bytes_count)
+FORCEINLINE PVOID NTAPI _r_mem_reallocatesafe (_Frees_ptr_opt_ PVOID memory_address, _In_ SIZE_T bytes_count)
+{
+	return RtlReAllocateHeap (_r_mem_getheap (), 0, memory_address, bytes_count);
+}
+
+_Post_writable_byte_size_ (bytes_count)
+FORCEINLINE PVOID NTAPI _r_mem_reallocatezero (_Frees_ptr_opt_ PVOID memory_address, _In_ SIZE_T bytes_count)
+{
+	return RtlReAllocateHeap (_r_mem_getheap (), HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, memory_address, bytes_count);
+}
+
+FORCEINLINE VOID NTAPI _r_mem_free (_Frees_ptr_opt_ PVOID memory_address)
+{
+	RtlFreeHeap (_r_mem_getheap (), 0, memory_address);
+}
+
+/*
+	Objects reference
+*/
+
+typedef VOID (NTAPI *PR_OBJECT_CLEANUP_FUNCTION) (_In_ PVOID object_body);
+
+typedef struct tagR_OBJECT_HEADER
 {
 	struct
 	{
@@ -121,57 +496,59 @@ typedef struct _R_OBJECT_HEADER
 	QUAD_PTR body;
 } R_OBJECT_HEADER, *PR_OBJECT_HEADER;
 
-typedef struct _R_ARRAY
+_Post_writable_byte_size_ (bytes_count)
+PVOID _r_obj_allocateex (_In_ SIZE_T bytes_count, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
+
+PVOID _r_obj_reference (_In_ PVOID object_body);
+VOID _r_obj_dereferenceex (_In_ PVOID object_body, _In_ LONG ref_count);
+
+_Post_writable_byte_size_ (bytes_count)
+FORCEINLINE PVOID _r_obj_allocate (_In_ SIZE_T bytes_count)
 {
-	PR_OBJECT_CLEANUP_FUNCTION cleanup_callback;
-	SIZE_T allocated_count;
-	SIZE_T count;
-	SIZE_T item_size;
-	PVOID items;
-} R_ARRAY, *PR_ARRAY;
+	return _r_obj_allocateex (bytes_count, NULL);
+}
 
-typedef struct _R_LIST
+_Ret_maybenull_
+FORCEINLINE PVOID _r_obj_referencesafe (_In_opt_ PVOID object_body)
 {
-	PR_OBJECT_CLEANUP_FUNCTION cleanup_callback;
-	SIZE_T allocated_count;
-	SIZE_T count;
-	PVOID *items;
-} R_LIST, *PR_LIST;
+	if (!object_body)
+		return NULL;
 
-typedef struct _R_HASHTABLE_ENTRY
+	return _r_obj_reference (object_body);
+}
+
+FORCEINLINE VOID _r_obj_dereference (_In_ PVOID object_body)
 {
-	SIZE_T next;
-	SIZE_T hash_code;
+	_r_obj_dereferenceex (object_body, 1);
+}
 
-	QUAD_PTR body;
-} R_HASHTABLE_ENTRY, *PR_HASHTABLE_ENTRY;
-
-typedef struct _R_HASHTABLE
+FORCEINLINE VOID _r_obj_movereference (_Inout_ PVOID * object_body, _In_opt_ PVOID new_object)
 {
-	PR_OBJECT_CLEANUP_FUNCTION cleanup_callback;
-	PSIZE_T buckets;
-	PVOID entries;
-	SIZE_T free_entry;
-	SIZE_T next_entry;
-	SIZE_T entry_size;
-	SIZE_T allocated_buckets;
-	SIZE_T allocated_entries;
-	SIZE_T count;
-} R_HASHTABLE, *PR_HASHTABLE;
+	PVOID old_object;
 
-typedef struct _R_BYTEREF
+	old_object = *object_body;
+	*object_body = new_object;
+
+	if (old_object)
+		_r_obj_dereference (old_object);
+}
+
+FORCEINLINE VOID _r_obj_clearreference (_Inout_ PVOID * object_body)
+{
+	_r_obj_movereference (object_body, NULL);
+}
+
+/*
+	8-bit string object
+*/
+
+typedef struct tagR_BYTEREF
 {
 	SIZE_T length;
 	LPSTR buffer;
 } R_BYTEREF, *PR_BYTEGREF;
 
-typedef struct _R_STRINGREF
-{
-	SIZE_T length;
-	LPWSTR buffer;
-} R_STRINGREF, *PR_STRINGREF;
-
-typedef struct _R_BYTE
+typedef struct tagR_BYTE
 {
 	union
 	{
@@ -187,7 +564,33 @@ typedef struct _R_BYTE
 	CHAR data[1];
 } R_BYTE, *PR_BYTE;
 
-typedef struct _R_STRING
+PR_BYTE _r_obj_createbyteex (_In_opt_ LPSTR buffer, _In_ SIZE_T length);
+
+//_Check_return_
+//FORCEINLINE BOOLEAN _r_obj_isbyteempty (_In_opt_ PR_BYTE string)
+//{
+//	return !string || !string->length || !string->buffer || (*string->buffer == ANSI_NULL);
+//}
+
+#define _r_obj_isbyteempty(string) \
+    (!(string) || (string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == ANSI_NULL)
+
+FORCEINLINE VOID _r_obj_writebytenullterminator (_In_ PR_BYTE string)
+{
+	*(LPSTR)PTR_ADD_OFFSET (string->buffer, string->length) = ANSI_NULL;
+}
+
+/*
+	16-bit string object
+*/
+
+typedef struct tagR_STRINGREF
+{
+	SIZE_T length;
+	LPWSTR buffer;
+} R_STRINGREF, *PR_STRINGREF;
+
+typedef struct tagR_STRING
 {
 	union
 	{
@@ -202,43 +605,416 @@ typedef struct _R_STRING
 	WCHAR data[1];
 } R_STRING, *PR_STRING;
 
-typedef struct _R_STRINGBUILDER
+PR_STRING _r_obj_createstringex (_In_opt_ LPCWSTR buffer, _In_ SIZE_T length);
+
+FORCEINLINE PR_STRING _r_obj_createstring (_In_ LPCWSTR string)
+{
+	return _r_obj_createstringex (string, _r_str_length (string) * sizeof (WCHAR));
+}
+
+FORCEINLINE PR_STRING _r_obj_createstringfromstring (_In_ PR_STRING string)
+{
+	return _r_obj_createstringex (string->buffer, string->length);
+}
+
+FORCEINLINE PR_STRING _r_obj_createstringfromstringref (_In_ PR_STRINGREF string)
+{
+	return _r_obj_createstringex (string->buffer, string->length);
+}
+
+_Ret_maybenull_
+FORCEINLINE PR_STRING _r_obj_createstringfromunicodestring (_In_ PUNICODE_STRING us)
+{
+	return _r_obj_createstringex (us->Buffer, us->Length);
+}
+
+FORCEINLINE BOOLEAN _r_obj_createunicodestringfromstring (_Out_ PUNICODE_STRING us, _In_ PR_STRING string)
+{
+	us->Length = (USHORT)string->length;
+	us->MaximumLength = (USHORT)string->length + sizeof (UNICODE_NULL);
+	us->Buffer = string->buffer;
+
+	return string->length <= UNICODE_STRING_MAX_BYTES;
+}
+
+//_Check_return_
+//FORCEINLINE BOOLEAN _r_obj_isstringempty (_In_opt_ PR_STRING string)
+//{
+//	return !string || !string->length || !string->buffer || (string->buffer[0] == UNICODE_NULL);
+//}
+
+#define _r_obj_isstringempty(string) \
+    (!(string) || (string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == UNICODE_NULL)
+
+_Ret_maybenull_
+FORCEINLINE LPCWSTR _r_obj_getstring (_In_opt_ PR_STRING string)
+{
+	if (!_r_obj_isstringempty (string))
+		return string->buffer;
+
+	return NULL;
+}
+
+FORCEINLINE LPCWSTR _r_obj_getstringorempty (_In_opt_ PR_STRING string)
+{
+	if (!_r_obj_isstringempty (string))
+		return string->buffer;
+
+	return L"";
+}
+
+FORCEINLINE LPCWSTR _r_obj_getstringordefault (_In_opt_ PR_STRING string, _In_opt_ LPCWSTR def)
+{
+	if (!_r_obj_isstringempty (string))
+		return string->buffer;
+
+	return def;
+}
+
+_Check_return_
+FORCEINLINE SIZE_T _r_obj_getstringlength (_In_opt_ PR_STRING string)
+{
+	if (string)
+		return string->length / sizeof (WCHAR);
+
+	return 0;
+}
+
+_Check_return_
+FORCEINLINE SIZE_T _r_obj_getstringsize (_In_opt_ PR_STRING string)
+{
+	if (string)
+		return string->length;
+
+	return 0;
+}
+
+_Check_return_
+FORCEINLINE SIZE_T _r_obj_getstringhash (_In_opt_ PR_STRING string)
+{
+	if (string)
+		return _r_str_hash (string->buffer);
+
+	return 0;
+}
+
+VOID _r_obj_removestring (_In_ PR_STRING string, _In_ SIZE_T start_pos, _In_ SIZE_T length);
+
+FORCEINLINE VOID _r_obj_writestringnullterminator (_In_ PR_STRING string)
+{
+	assert (!(string->length & 0x01));
+
+	*(LPWSTR)PTR_ADD_OFFSET (string->buffer, string->length) = UNICODE_NULL;
+}
+
+FORCEINLINE VOID _r_obj_setstringsize (_Inout_ PR_STRING string, _In_ SIZE_T length)
+{
+	if (string->length <= length)
+		return;
+
+	if (length & 0x01)
+		length += 1;
+
+	string->length = length;
+	_r_obj_writestringnullterminator (string);
+}
+
+FORCEINLINE VOID _r_obj_trimstringtonullterminator (_In_ PR_STRING string)
+{
+	string->length = _r_str_length (string->buffer) * sizeof (WCHAR);
+
+	_r_obj_writestringnullterminator (string); // terminate
+}
+
+FORCEINLINE VOID _r_obj_trimstring (_Inout_ PR_STRING string, _In_ LPCWSTR trim)
+{
+	if (!string)
+		return;
+
+	_r_str_trim (string->buffer, trim);
+
+	_r_obj_trimstringtonullterminator (string);
+}
+
+/*
+	String builder
+*/
+
+typedef struct tagR_STRINGBUILDER
 {
 	SIZE_T allocated_length;
 	PR_STRING string;
 } R_STRINGBUILDER, *PR_STRINGBUILDER;
 
-typedef struct _R_HASHSTORE
+FORCEINLINE VOID _r_obj_initializestringbuilder (_Out_ PR_STRINGBUILDER string)
+{
+	string->allocated_length = 512;
+
+	string->string = _r_obj_createstringex (NULL, string->allocated_length);
+
+	string->string->length = 0;
+	string->string->buffer[0] = UNICODE_NULL;
+}
+
+FORCEINLINE VOID _r_obj_deletestringbuilder (_Inout_ PR_STRINGBUILDER string)
+{
+	if (string->string)
+		_r_obj_clearreference (&string->string);
+}
+
+FORCEINLINE PR_STRING _r_obj_finalstringbuilder (_In_ PR_STRINGBUILDER string)
+{
+	return string->string;
+}
+
+VOID _r_obj_appendstringbuilderex (_Inout_ PR_STRINGBUILDER string, _In_ LPCWSTR text, _In_ SIZE_T length);
+VOID _r_obj_appendstringbuilderformat_v (_Inout_ PR_STRINGBUILDER string, _In_ _Printf_format_string_ LPCWSTR format, _In_ va_list arg_ptr);
+VOID _r_obj_insertstringbuilderex (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ LPCWSTR text, _In_ SIZE_T length);
+VOID _r_obj_insertstringbuilderformat_v (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ _Printf_format_string_ LPCWSTR format, _In_ va_list arg_ptr);
+VOID _r_obj_resizestringbuilder (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T new_capacity);
+
+FORCEINLINE VOID _r_obj_appendstringbuilder (_Inout_ PR_STRINGBUILDER string, _In_ LPCWSTR text)
+{
+	_r_obj_appendstringbuilderex (string, text, _r_str_length (text) * sizeof (WCHAR));
+}
+
+FORCEINLINE VOID _r_obj_appendstringbuilder2 (_Inout_ PR_STRINGBUILDER string, _In_ PR_STRING text)
+{
+	_r_obj_appendstringbuilderex (string, text->buffer, text->length);
+}
+
+FORCEINLINE VOID _r_obj_appendstringbuilderformat (_Inout_ PR_STRINGBUILDER string, _In_ _Printf_format_string_ LPCWSTR format, ...)
+{
+	va_list arg_ptr;
+
+	va_start (arg_ptr, format);
+	_r_obj_appendstringbuilderformat_v (string, format, arg_ptr);
+	va_end (arg_ptr);
+}
+
+FORCEINLINE VOID _r_obj_insertstringbuilder (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ LPCWSTR text)
+{
+	_r_obj_insertstringbuilderex (string, index, text, _r_str_length (text) * sizeof (WCHAR));
+}
+
+FORCEINLINE VOID _r_obj_insertstringbuilder2 (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ PR_STRING text)
+{
+	_r_obj_insertstringbuilderex (string, index, text->buffer, text->length);
+}
+
+FORCEINLINE VOID _r_obj_insertstringbuilderformat (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ _Printf_format_string_ LPCWSTR format, ...)
+{
+	va_list arg_ptr;
+
+	va_start (arg_ptr, format);
+	_r_obj_insertstringbuilderformat_v (string, index, format, arg_ptr);
+	va_end (arg_ptr);
+}
+
+/*
+	Array object
+*/
+
+typedef struct tagR_ARRAY
+{
+	PR_OBJECT_CLEANUP_FUNCTION cleanup_callback;
+	SIZE_T allocated_count;
+	SIZE_T count;
+	SIZE_T item_size;
+	PVOID items;
+} R_ARRAY, *PR_ARRAY;
+
+PR_ARRAY _r_obj_createarrayex (_In_ SIZE_T item_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
+
+_Ret_maybenull_
+PVOID _r_obj_getarrayitem (_In_opt_ PR_ARRAY array_node, _In_ SIZE_T index);
+
+VOID _r_obj_cleararray (_Inout_ PR_ARRAY array_node);
+VOID _r_obj_resizearray (_Inout_ PR_ARRAY array_node, _In_ SIZE_T new_capacity);
+
+_Success_ (return != SIZE_MAX)
+SIZE_T _r_obj_addarrayitem (_Inout_ PR_ARRAY array_node, _In_ PVOID item);
+
+VOID _r_obj_addarrayitems (_Inout_ PR_ARRAY array_node, _In_ PVOID items, _In_ SIZE_T count);
+VOID _r_obj_removearrayitems (_Inout_ PR_ARRAY array_node, _In_ SIZE_T start_pos, _In_ SIZE_T count);
+
+FORCEINLINE PR_ARRAY _r_obj_createarray (_In_ SIZE_T item_size, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
+{
+	return _r_obj_createarrayex (item_size, 10, cleanup_callback);
+}
+
+_Ret_maybenull_
+FORCEINLINE PVOID _r_obj_getarrayitem (_In_opt_ PR_ARRAY array_node, _In_ SIZE_T index)
+{
+	if (array_node)
+		return PTR_ADD_OFFSET (array_node->items, index * array_node->item_size);
+
+	return NULL;
+}
+
+_Check_return_
+FORCEINLINE SIZE_T _r_obj_getarraysize (_In_opt_ PR_ARRAY array_node)
+{
+	if (array_node)
+		return array_node->count;
+
+	return 0;
+}
+
+//_Check_return_
+//FORCEINLINE BOOLEAN _r_obj_isarrayempty (_In_opt_ PR_ARRAY array_node)
+//{
+//	return !array_node || array_node->count == 0;
+//}
+
+#define _r_obj_isarrayempty(array_node) \
+    (!(array_node) || (array_node)->count == 0)
+
+FORCEINLINE VOID _r_obj_removearrayitem (_In_ PR_ARRAY array_node, _In_ SIZE_T index)
+{
+	_r_obj_removearrayitems (array_node, index, 1);
+}
+
+/*
+	List object
+*/
+
+typedef struct tagR_LIST
+{
+	PR_OBJECT_CLEANUP_FUNCTION cleanup_callback;
+	SIZE_T allocated_count;
+	SIZE_T count;
+	PVOID *items;
+} R_LIST, *PR_LIST;
+
+PR_LIST _r_obj_createlistex (_In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
+SIZE_T _r_obj_addlistitem (_Inout_ PR_LIST list_node, _In_ PVOID item);
+VOID _r_obj_clearlist (_Inout_ PR_LIST list_node);
+SIZE_T _r_obj_findlistitem (_In_ PR_LIST list_node, _In_ PVOID list_item);
+VOID _r_obj_insertlistitems (_Inout_ PR_LIST list_node, _In_ SIZE_T start_pos, _In_ PVOID * items, _In_ SIZE_T count);
+VOID _r_obj_removelistitems (_Inout_ PR_LIST list_node, _In_ SIZE_T start_pos, _In_ SIZE_T count);
+VOID _r_obj_resizelist (_Inout_ PR_LIST list_node, _In_ SIZE_T new_capacity);
+
+FORCEINLINE PR_LIST _r_obj_createlist (_In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
+{
+	return _r_obj_createlistex (10, cleanup_callback);
+}
+
+_Ret_maybenull_
+FORCEINLINE PVOID _r_obj_getlistitem (_In_opt_ PR_LIST list_node, _In_ SIZE_T index)
+{
+	if (list_node)
+		return list_node->items[index];
+
+	return NULL;
+}
+
+_Check_return_
+FORCEINLINE SIZE_T _r_obj_getlistsize (_In_opt_ PR_LIST list_node)
+{
+	if (list_node)
+		return list_node->count;
+
+	return 0;
+}
+
+FORCEINLINE VOID _r_obj_removelistitem (_Inout_ PR_LIST list_node, _In_ SIZE_T index)
+{
+	_r_obj_removelistitems (list_node, index, 1);
+}
+
+//_Check_return_
+//FORCEINLINE BOOLEAN _r_obj_islistempty (_In_opt_ PR_LIST list_node)
+//{
+//	return !list_node || list_node->count == 0;
+//}
+
+#define _r_obj_islistempty(list_node) \
+    (!(list_node) || (list_node)->count == 0)
+
+/*
+	Hashtable
+*/
+
+typedef struct tagR_HASHTABLE_ENTRY
+{
+	SIZE_T next;
+	SIZE_T hash_code;
+
+	QUAD_PTR body;
+} R_HASHTABLE_ENTRY, *PR_HASHTABLE_ENTRY;
+
+typedef struct tagR_HASHTABLE
+{
+	PR_OBJECT_CLEANUP_FUNCTION cleanup_callback;
+	PSIZE_T buckets;
+	PVOID entries;
+	SIZE_T free_entry;
+	SIZE_T next_entry;
+	SIZE_T entry_size;
+	SIZE_T allocated_buckets;
+	SIZE_T allocated_entries;
+	SIZE_T count;
+} R_HASHTABLE, *PR_HASHTABLE;
+
+PR_HASHTABLE _r_obj_createhashtableex (_In_ SIZE_T entry_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
+VOID _r_obj_resizehashtable (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T new_capacity);
+
+_Ret_maybenull_
+PVOID _r_obj_addhashtableitem (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code, _In_opt_ PVOID entry);
+
+VOID _r_obj_clearhashtable (_Inout_ PR_HASHTABLE hashtable);
+
+_Success_ (return)
+BOOLEAN _r_obj_enumhashtable (_In_ PR_HASHTABLE hashtable, _Outptr_ PVOID * entry, _Out_opt_ PSIZE_T hash_code, _Inout_ PSIZE_T enum_key);
+
+_Ret_maybenull_
+PVOID _r_obj_findhashtable (_In_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code);
+
+BOOLEAN _r_obj_removehashtableentry (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code);
+
+FORCEINLINE PR_HASHTABLE _r_obj_createhashtable (_In_ SIZE_T entry_size, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
+{
+	return _r_obj_createhashtableex (entry_size, 10, cleanup_callback);
+}
+
+_Check_return_
+FORCEINLINE SIZE_T _r_obj_gethashtablesize (_In_opt_ PR_HASHTABLE hashtable)
+{
+	if (hashtable)
+		return hashtable->count;
+
+	return 0;
+}
+
+//_Check_return_
+//FORCEINLINE SIZE_T _r_obj_ishashtableempty (_In_opt_ PR_HASHTABLE hashtable)
+//{
+//	return !hashtable || hashtable->count == 0;
+//}
+
+#define _r_obj_ishashtableempty(hashtable) \
+    (!(hashtable) || (hashtable)->count == 0)
+
+/*
+	Hashtable: store
+*/
+
+typedef struct tagR_HASHSTORE
 {
 	PR_STRING value_string;
 	LONG value_number;
 } R_HASHSTORE, *PR_HASHSTORE;
 
-_Check_return_
-extern SIZE_T _r_str_length (_In_ LPCWSTR text);
-
-_Check_return_
-extern SIZE_T _r_str_hash (_In_ LPCWSTR string);
-
-extern FORCEINLINE VOID _r_str_trim (_Inout_ LPWSTR string, _In_ LPCWSTR trim);
-
-/*
-	Definitions
-*/
-
-#define PR_DEBUG_HEADER L"Level,Date,Function,Code,Description,Version,OS Version\r\n"
-
-#define PR_DEVICE_COUNT 26
-#define PR_DEVICE_PREFIX_LENGTH 64
-
-#define PR_STR_MAX_LENGTH (INT_MAX - 1)
+FORCEINLINE VOID _r_obj_initializehashstore (_Out_ PR_HASHSTORE hashstore, _In_opt_ PR_STRING string, _In_opt_ LONG number)
+{
+	hashstore->value_string = string;
+	hashstore->value_number = number;
+}
 
 /*
 	Debugging
 */
-
-#define RDBG(a) OutputDebugString ((a))
-#define RDBG2(a, ...) _r_debug_v ((a), __VA_ARGS__)
 
 FORCEINLINE VOID _r_debug (_In_ LPCWSTR string)
 {
@@ -246,6 +1022,9 @@ FORCEINLINE VOID _r_debug (_In_ LPCWSTR string)
 }
 
 VOID _r_debug_v (_In_ _Printf_format_string_ LPCWSTR format, ...);
+
+#define RDBG(a) OutputDebugString ((a))
+#define RDBG2(a, ...) _r_debug_v ((a), __VA_ARGS__)
 
 /*
 	Format strings, dates, numbers
@@ -410,565 +1189,6 @@ FORCEINLINE ULONG64 _r_byteswap_ulong64 (_In_ ULONG64 number)
 }
 
 /*
-	Synchronization
-*/
-
-FORCEINLINE BOOLEAN InterlockedBitTestAndSetPointer (_Inout_ _Interlocked_operand_ LONG_PTR volatile *base, _In_ LONG_PTR bit)
-{
-#ifdef _WIN64
-	return _interlockedbittestandset64 ((PLONG64)base, (LONG64)bit);
-#else
-	return _interlockedbittestandset ((PLONG)base, (LONG)bit);
-#endif
-}
-
-FORCEINLINE LONG_PTR InterlockedExchangeAddPointer (_Inout_ _Interlocked_operand_ LONG_PTR volatile *addend, _In_ LONG_PTR value)
-{
-#ifdef _WIN64
-	return (LONG_PTR)_InterlockedExchangeAdd64 ((PLONG64)addend, (LONG64)value);
-#else
-	return (LONG_PTR)_InterlockedExchangeAdd ((PLONG)addend, (LONG)value);
-#endif
-}
-
-/*
-	Synchronization: Spinlock
-*/
-
-/*
-	FastLock is a port of FastResourceLock from PH 1.x.
-	The code contains no comments because it is a direct port. Please see FastResourceLock.cs in PH
-	1.x for details.
-	The fast lock is around 7% faster than the critical section when there is no contention, when
-	used solely for mutual exclusion. It is also much smaller than the critical section.
-	https://github.com/processhacker2/processhacker
-*/
-
-#if defined(APP_NO_DEPRECATIONS)
-
-#define RTL_SRWLOCK_OWNED_BIT 0
-#define RTL_SRWLOCK_OWNED (1 << RTL_SRWLOCK_OWNED_BIT)
-
-#define R_SPINLOCK RTL_SRWLOCK
-#define PR_SPINLOCK PRTL_SRWLOCK
-
-FORCEINLINE VOID _r_spinlock_initialize (PR_SPINLOCK spin_lock)
-{
-	RtlInitializeSRWLock (spin_lock);
-}
-
-FORCEINLINE VOID _r_spinlock_acquireexclusive (PR_SPINLOCK spin_lock)
-{
-	RtlAcquireSRWLockExclusive (spin_lock);
-}
-
-FORCEINLINE VOID _r_spinlock_acquireshared (PR_SPINLOCK spin_lock)
-{
-	RtlAcquireSRWLockShared (spin_lock);
-}
-
-FORCEINLINE VOID _r_spinlock_releaseexclusive (PR_SPINLOCK spin_lock)
-{
-	RtlReleaseSRWLockExclusive (spin_lock);
-}
-
-FORCEINLINE VOID _r_spinlock_releaseshared (PR_SPINLOCK spin_lock)
-{
-	RtlReleaseSRWLockShared (spin_lock);
-}
-
-FORCEINLINE BOOLEAN _r_spinlock_tryacquireexclusive (PR_SPINLOCK spin_lock)
-{
-	return RtlTryAcquireSRWLockExclusive (spin_lock);
-}
-
-FORCEINLINE BOOLEAN _r_spinlock_tryacquireshared (PR_SPINLOCK spin_lock)
-{
-	return RtlTryAcquireSRWLockShared (spin_lock);
-}
-
-#else
-
-#define PR_SPINLOCK_OWNED 0x1
-#define PR_SPINLOCK_EXCLUSIVE_WAKING 0x2
-
-#define PR_SPINLOCK_SHARED_OWNERS_SHIFT 2
-#define PR_SPINLOCK_SHARED_OWNERS_MASK 0x3ff
-#define PR_SPINLOCK_SHARED_OWNERS_INC 0x4
-
-#define PR_SPINLOCK_SHARED_WAITERS_SHIFT 12
-#define PR_SPINLOCK_SHARED_WAITERS_MASK 0x3ff
-#define PR_SPINLOCK_SHARED_WAITERS_INC 0x1000
-
-#define PR_SPINLOCK_EXCLUSIVE_WAITERS_SHIFT 22
-#define PR_SPINLOCK_EXCLUSIVE_WAITERS_MASK 0x3ff
-#define PR_SPINLOCK_EXCLUSIVE_WAITERS_INC 0x400000
-
-#define PR_SPINLOCK_EXCLUSIVE_MASK (PR_SPINLOCK_EXCLUSIVE_WAKING | (PR_SPINLOCK_EXCLUSIVE_WAITERS_MASK << PR_SPINLOCK_EXCLUSIVE_WAITERS_SHIFT))
-
-typedef struct _R_SPINLOCK
-{
-	volatile ULONG value;
-
-	HANDLE exclusive_wake_event;
-	HANDLE shared_wake_event;
-} R_SPINLOCK, *PR_SPINLOCK;
-
-FORCEINLINE static ULONG _r_spinlock_getspincount ()
-{
-	return (NtCurrentPeb ()->NumberOfProcessors > 1) ? 4000 : 0;
-}
-
-FORCEINLINE VOID _r_spinlock_ensureeventcreated (PHANDLE phandle)
-{
-	HANDLE handle;
-
-	if (*phandle != NULL)
-		return;
-
-	NtCreateSemaphore (&handle, SEMAPHORE_ALL_ACCESS, NULL, 0, MAXLONG);
-
-	if (InterlockedCompareExchangePointer (phandle, handle, NULL) != NULL)
-		NtClose (handle);
-}
-
-VOID _r_spinlock_initialize (PR_SPINLOCK plock);
-
-VOID _r_spinlock_acquireexclusive (PR_SPINLOCK plock);
-VOID _r_spinlock_acquireshared (PR_SPINLOCK plock);
-
-VOID _r_spinlock_releaseexclusive (PR_SPINLOCK plock);
-VOID _r_spinlock_releaseshared (PR_SPINLOCK plock);
-
-BOOLEAN _r_spinlock_tryacquireexclusive (PR_SPINLOCK plock);
-BOOLEAN _r_spinlock_tryacquireshared (PR_SPINLOCK plock);
-
-#endif // APP_NO_DEPRECATIONS
-
-FORCEINLINE BOOLEAN _r_spinlock_islocked (const PR_SPINLOCK plock)
-{
-	BOOLEAN owned;
-
-	// Need two memory barriers because we don't want the compiler re-ordering the following check
-	// in either direction.
-	MemoryBarrier ();
-
-#if defined(APP_NO_DEPRECATIONS)
-	owned = ((*(volatile LONG_PTR*)&plock->Ptr) & RTL_SRWLOCK_OWNED) != 0;
-#else
-	owned = (plock->value & PR_SPINLOCK_OWNED) != 0;
-#endif // APP_NO_DEPRECATIONS
-
-	MemoryBarrier ();
-
-	return owned;
-}
-
-/*
-	Synchronization: Timer
-*/
-
-#if defined(APP_NO_DEPRECATIONS)
-
-#else
-
-typedef struct _R_EVENT
-{
-	union
-	{
-		ULONG_PTR value;
-		struct
-		{
-			USHORT is_set : 1;
-			USHORT ref_count : 15;
-			UCHAR reserved;
-			UCHAR available_for_use;
-#ifdef _WIN64
-			ULONG spare;
-#endif
-		};
-	};
-	HANDLE event_handle;
-} R_EVENT, *PR_EVENT;
-
-#define PR_EVENT_SET 0x1
-#define PR_EVENT_SET_SHIFT 0
-#define PR_EVENT_REFCOUNT_SHIFT 1
-#define PR_EVENT_REFCOUNT_INC 0x2
-#define PR_EVENT_REFCOUNT_MASK (((ULONG_PTR)1 << 15) - 1)
-
-#define PR_EVENT_INIT { { PR_EVENT_REFCOUNT_INC }, NULL }
-
-C_ASSERT (sizeof (R_EVENT) == sizeof (ULONG_PTR) + sizeof (HANDLE));
-
-VOID FASTCALL _r_event_reset (_Inout_ PR_EVENT event);
-VOID FASTCALL _r_event_set (_Inout_ PR_EVENT event);
-BOOLEAN FASTCALL _r_event_waitex (_Inout_ PR_EVENT event, _In_opt_ PLARGE_INTEGER timeout);
-
-FORCEINLINE VOID FASTCALL _r_event_intialize (_Out_ PR_EVENT event)
-{
-	event->value = PR_EVENT_REFCOUNT_INC;
-	event->event_handle = NULL;
-}
-
-FORCEINLINE BOOLEAN _r_event_test (_In_ PR_EVENT event)
-{
-	return !!event->is_set;
-}
-
-FORCEINLINE VOID _r_event_reference (_Inout_ PR_EVENT event)
-{
-	InterlockedExchangeAddPointer ((PLONG_PTR)(&event->value), PR_EVENT_REFCOUNT_INC);
-}
-
-FORCEINLINE VOID _r_event_dereference (_Inout_ PR_EVENT event, _In_opt_ HANDLE event_handle)
-{
-	ULONG_PTR value;
-
-	value = InterlockedExchangeAddPointer ((PLONG_PTR)(&event->value), -PR_EVENT_REFCOUNT_INC);
-
-	if (((value >> PR_EVENT_REFCOUNT_SHIFT) & PR_EVENT_REFCOUNT_MASK) - 1 == 0)
-	{
-		if (event_handle)
-		{
-			NtClose (event_handle);
-
-			event->event_handle = NULL;
-		}
-	}
-}
-
-FORCEINLINE BOOLEAN _r_event_wait (_Inout_ PR_EVENT event, _In_opt_ PLARGE_INTEGER timeout)
-{
-	if (_r_event_test (event))
-		return TRUE;
-
-	return _r_event_waitex (event, timeout);
-}
-
-#endif // APP_NO_DEPRECATIONS
-
-/*
-	Synchronization: One-time initialization
-*/
-
-#if defined(APP_NO_DEPRECATIONS)
-
-#define R_INITONCE RTL_RUN_ONCE
-#define PR_INITONCE PRTL_RUN_ONCE
-
-#define PR_INITONCE_INIT RTL_RUN_ONCE_INIT
-
-FORCEINLINE BOOLEAN _r_initonce_begin (PR_INITONCE init_once)
-{
-	if (NT_SUCCESS (RtlRunOnceBeginInitialize (init_once, RTL_RUN_ONCE_CHECK_ONLY, NULL)))
-		return FALSE;
-
-	return (RtlRunOnceBeginInitialize (init_once, 0, NULL) == STATUS_PENDING);
-}
-
-FORCEINLINE VOID _r_initonce_end (PR_INITONCE init_once)
-{
-	RtlRunOnceComplete (init_once, 0, NULL);
-}
-
-#else
-
-typedef struct _R_INITONCE
-{
-	R_EVENT event;
-} R_INITONCE, *PR_INITONCE;
-
-#define PR_INITONCE_SHIFT 31
-#define PR_INITONCE_INITIALIZING (0x1 << PR_INITONCE_SHIFT)
-#define PR_INITONCE_INITIALIZING_SHIFT PR_INITONCE_SHIFT
-
-#define PR_INITONCE_INIT { PR_EVENT_INIT }
-
-C_ASSERT (PR_INITONCE_SHIFT >= FIELD_OFFSET (R_EVENT, available_for_use) * 8);
-
-BOOLEAN FASTCALL _r_initonce_beginex (_Inout_ PR_INITONCE init_once);
-
-FORCEINLINE BOOLEAN _r_initonce_begin (_Inout_ PR_INITONCE init_once)
-{
-	if (_r_event_test (&init_once->event))
-		return FALSE;
-
-	return _r_initonce_beginex (init_once);
-}
-
-FORCEINLINE VOID FASTCALL _r_initonce_end (_Inout_ PR_INITONCE init_once)
-{
-	_r_event_set (&init_once->event);
-}
-#endif // APP_NO_DEPRECATIONS
-
-/*
-	Synchronization: Mutex
-*/
-
-BOOLEAN _r_mutex_create (_In_ LPCWSTR name, _Inout_ PHANDLE mutex);
-BOOLEAN _r_mutex_destroy (_Inout_ PHANDLE mutex);
-BOOLEAN _r_mutex_isexists (_In_ LPCWSTR name);
-
-/*
-	Memory allocation
-*/
-
-HANDLE NTAPI _r_mem_getheap ();
-
-_Post_writable_byte_size_ (bytes_count)
-FORCEINLINE PVOID NTAPI _r_mem_allocate (_In_ SIZE_T bytes_count)
-{
-	return RtlAllocateHeap (_r_mem_getheap (), HEAP_GENERATE_EXCEPTIONS, bytes_count);
-}
-
-_Ret_maybenull_
-_Post_writable_byte_size_ (bytes_count)
-FORCEINLINE PVOID NTAPI _r_mem_allocatesafe (_In_ SIZE_T bytes_count)
-{
-	return RtlAllocateHeap (_r_mem_getheap (), 0, bytes_count);
-}
-
-_Post_writable_byte_size_ (bytes_count)
-FORCEINLINE PVOID NTAPI _r_mem_allocatezero (_In_ SIZE_T bytes_count)
-{
-	return RtlAllocateHeap (_r_mem_getheap (), HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, bytes_count);
-}
-
-_Post_writable_byte_size_ (bytes_count)
-FORCEINLINE PVOID NTAPI _r_mem_allocateandcopy (_In_ PVOID src, _In_ SIZE_T bytes_count)
-{
-	PVOID dst = RtlAllocateHeap (_r_mem_getheap (), HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, bytes_count);
-
-	memcpy (dst, src, bytes_count);
-
-	return dst;
-}
-
-//	// If RtlReAllocateHeap fails, the original memory is not freed, and the original handle and pointer are still valid.
-//	// https://docs.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heaprealloc
-
-_Post_writable_byte_size_ (bytes_count)
-FORCEINLINE PVOID NTAPI _r_mem_reallocate (_Frees_ptr_opt_ PVOID memory_address, _In_ SIZE_T bytes_count)
-{
-	return RtlReAllocateHeap (_r_mem_getheap (), HEAP_GENERATE_EXCEPTIONS, memory_address, bytes_count);
-}
-
-_Ret_maybenull_
-_Post_writable_byte_size_ (bytes_count)
-FORCEINLINE PVOID NTAPI _r_mem_reallocatesafe (_Frees_ptr_opt_ PVOID memory_address, _In_ SIZE_T bytes_count)
-{
-	return RtlReAllocateHeap (_r_mem_getheap (), 0, memory_address, bytes_count);
-}
-
-_Post_writable_byte_size_ (bytes_count)
-FORCEINLINE PVOID NTAPI _r_mem_reallocatezero (_Frees_ptr_opt_ PVOID memory_address, _In_ SIZE_T bytes_count)
-{
-	return RtlReAllocateHeap (_r_mem_getheap (), HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, memory_address, bytes_count);
-}
-
-FORCEINLINE VOID NTAPI _r_mem_free (_Frees_ptr_opt_ PVOID memory_address)
-{
-	RtlFreeHeap (_r_mem_getheap (), 0, memory_address);
-}
-
-/*
-	Objects reference
-*/
-
-_Post_writable_byte_size_ (bytes_count)
-PVOID _r_obj_allocateex (_In_ SIZE_T bytes_count, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
-
-PVOID _r_obj_reference (_In_ PVOID object_body);
-VOID _r_obj_dereferenceex (_In_ PVOID object_body, _In_ LONG ref_count);
-
-_Post_writable_byte_size_ (bytes_count)
-FORCEINLINE PVOID _r_obj_allocate (_In_ SIZE_T bytes_count)
-{
-	return _r_obj_allocateex (bytes_count, NULL);
-}
-
-_Ret_maybenull_
-FORCEINLINE PVOID _r_obj_referencesafe (_In_opt_ PVOID object_body)
-{
-	if (!object_body)
-		return NULL;
-
-	return _r_obj_reference (object_body);
-}
-
-FORCEINLINE VOID _r_obj_dereference (_In_ PVOID object_body)
-{
-	_r_obj_dereferenceex (object_body, 1);
-}
-
-FORCEINLINE VOID _r_obj_movereference (_Inout_ PVOID * object_body, _In_opt_ PVOID new_object)
-{
-	PVOID old_object;
-
-	old_object = *object_body;
-	*object_body = new_object;
-
-	if (old_object)
-		_r_obj_dereference (old_object);
-}
-
-FORCEINLINE VOID _r_obj_clearreference (_Inout_ PVOID * object_body)
-{
-	_r_obj_movereference (object_body, NULL);
-}
-
-/*
-	Array object
-*/
-
-PR_ARRAY _r_obj_createarrayex (_In_ SIZE_T item_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
-VOID _r_obj_cleararray (_Inout_ PR_ARRAY array_node);
-VOID _r_obj_resizearray (_Inout_ PR_ARRAY array_node, _In_ SIZE_T new_capacity);
-
-_Success_ (return != SIZE_MAX)
-SIZE_T _r_obj_addarrayitem (_Inout_ PR_ARRAY array_node, _In_ PVOID item);
-
-VOID _r_obj_addarrayitems (_Inout_ PR_ARRAY array_node, _In_ PVOID items, _In_ SIZE_T count);
-VOID _r_obj_removearrayitems (_Inout_ PR_ARRAY array_node, _In_ SIZE_T start_pos, _In_ SIZE_T count);
-
-FORCEINLINE PR_ARRAY _r_obj_createarray (_In_ SIZE_T item_size, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
-{
-	return _r_obj_createarrayex (item_size, 10, cleanup_callback);
-}
-
-_Ret_maybenull_
-FORCEINLINE PVOID _r_obj_getarrayitem (_In_opt_ PR_ARRAY array_node, _In_ SIZE_T index)
-{
-	if (array_node)
-		return PTR_ADD_OFFSET (array_node->items, index * array_node->item_size);
-
-	return NULL;
-}
-
-_Check_return_
-FORCEINLINE SIZE_T _r_obj_getarraysize (_In_opt_ PR_ARRAY array_node)
-{
-	if (array_node)
-		return array_node->count;
-
-	return 0;
-}
-
-//_Check_return_
-//FORCEINLINE BOOLEAN _r_obj_isarrayempty (_In_opt_ PR_ARRAY array_node)
-//{
-//	return !array_node || array_node->count == 0;
-//}
-
-#define _r_obj_isarrayempty(array_node) \
-    (!(array_node) || (array_node)->count == 0)
-
-FORCEINLINE VOID _r_obj_removearrayitem (_In_ PR_ARRAY array_node, _In_ SIZE_T index)
-{
-	_r_obj_removearrayitems (array_node, index, 1);
-}
-
-/*
-	List object
-*/
-
-PR_LIST _r_obj_createlistex (_In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
-SIZE_T _r_obj_addlistitem (_Inout_ PR_LIST list_node, _In_ PVOID item);
-VOID _r_obj_clearlist (_Inout_ PR_LIST list_node);
-SIZE_T _r_obj_findlistitem (_In_ PR_LIST list_node, _In_ PVOID list_item);
-VOID _r_obj_insertlistitems (_Inout_ PR_LIST list_node, _In_ SIZE_T start_pos, _In_ PVOID * items, _In_ SIZE_T count);
-VOID _r_obj_removelistitems (_Inout_ PR_LIST list_node, _In_ SIZE_T start_pos, _In_ SIZE_T count);
-VOID _r_obj_resizelist (_Inout_ PR_LIST list_node, _In_ SIZE_T new_capacity);
-
-FORCEINLINE PR_LIST _r_obj_createlist (_In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
-{
-	return _r_obj_createlistex (10, cleanup_callback);
-}
-
-_Ret_maybenull_
-FORCEINLINE PVOID _r_obj_getlistitem (_In_opt_ PR_LIST list_node, _In_ SIZE_T index)
-{
-	if (list_node)
-		return list_node->items[index];
-
-	return NULL;
-}
-
-_Check_return_
-FORCEINLINE SIZE_T _r_obj_getlistsize (_In_opt_ PR_LIST list_node)
-{
-	if (list_node)
-		return list_node->count;
-
-	return 0;
-}
-
-FORCEINLINE VOID _r_obj_removelistitem (_Inout_ PR_LIST list_node, _In_ SIZE_T index)
-{
-	_r_obj_removelistitems (list_node, index, 1);
-}
-
-//_Check_return_
-//FORCEINLINE BOOLEAN _r_obj_islistempty (_In_opt_ PR_LIST list_node)
-//{
-//	return !list_node || list_node->count == 0;
-//}
-
-#define _r_obj_islistempty(list_node) \
-    (!(list_node) || (list_node)->count == 0)
-
-/*
-	Hashtable
-*/
-
-PR_HASHTABLE _r_obj_createhashtableex (_In_ SIZE_T entry_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
-VOID _r_obj_resizehashtable (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T new_capacity);
-
-_Ret_maybenull_
-PVOID _r_obj_addhashtableitem (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code, _In_opt_ PVOID entry);
-
-VOID _r_obj_clearhashtable (_Inout_ PR_HASHTABLE hashtable);
-
-_Success_ (return)
-BOOLEAN _r_obj_enumhashtable (_In_ PR_HASHTABLE hashtable, _Outptr_ PVOID * entry, _Out_opt_ PSIZE_T hash_code, _Inout_ PSIZE_T enum_key);
-
-_Ret_maybenull_
-PVOID _r_obj_findhashtable (_In_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code);
-
-BOOLEAN _r_obj_removehashtableentry (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code);
-
-FORCEINLINE PR_HASHTABLE _r_obj_createhashtable (_In_ SIZE_T entry_size, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
-{
-	return _r_obj_createhashtableex (entry_size, 10, cleanup_callback);
-}
-
-_Check_return_
-FORCEINLINE SIZE_T _r_obj_gethashtablesize (_In_opt_ PR_HASHTABLE hashtable)
-{
-	if (hashtable)
-		return hashtable->count;
-
-	return 0;
-}
-
-//_Check_return_
-//FORCEINLINE SIZE_T _r_obj_ishashtableempty (_In_opt_ PR_HASHTABLE hashtable)
-//{
-//	return !hashtable || hashtable->count == 0;
-//}
-
-#define _r_obj_ishashtableempty(hashtable) \
-    (!(hashtable) || (hashtable)->count == 0)
-
-FORCEINLINE VOID _r_obj_initializehashstore (_Out_ PR_HASHSTORE hashstore, _In_opt_ PR_STRING string, _In_opt_ LONG number)
-{
-	hashstore->value_string = string;
-	hashstore->value_number = number;
-}
-
-/*
 	Modal dialogs
 */
 
@@ -1010,12 +1230,12 @@ FORCEINLINE BOOLEAN _r_fs_exists (_In_ LPCWSTR path)
 	return RtlDoesFileExists_U (path);
 }
 
-FORCEINLINE BOOLEAN _r_fs_copy (_In_ LPCWSTR path_from, _In_ LPCWSTR path_to, _In_ ULONG flags)
+FORCEINLINE BOOLEAN _r_fs_copyfile (_In_ LPCWSTR path_from, _In_ LPCWSTR path_to, _In_ ULONG flags)
 {
 	return !!CopyFileEx (path_from, path_to, NULL, NULL, NULL, flags);
 }
 
-FORCEINLINE BOOLEAN _r_fs_move (_In_ LPCWSTR path_from, _In_opt_ LPCWSTR path_to, _In_ ULONG flags)
+FORCEINLINE BOOLEAN _r_fs_movefile (_In_ LPCWSTR path_from, _In_opt_ LPCWSTR path_to, _In_ ULONG flags)
 {
 	return !!MoveFileEx (path_from, path_to, flags);
 }
@@ -1032,10 +1252,12 @@ FORCEINLINE BOOLEAN _r_fs_setpos (_In_ HANDLE hfile, _In_ LONG64 pos, _In_ ULONG
 _Check_return_
 FORCEINLINE LONG64 _r_fs_getsize (_In_ HANDLE hfile)
 {
-	LARGE_INTEGER size = {0};
-	GetFileSizeEx (hfile, &size);
+	LARGE_INTEGER size;
 
-	return size.QuadPart;
+	if (GetFileSizeEx (hfile, &size))
+		return size.QuadPart;
+
+	return 0;
 }
 
 /*
@@ -1078,233 +1300,6 @@ VOID _r_shell_openfile (_In_ LPCWSTR path);
 FORCEINLINE VOID _r_shell_opendefault (_In_ LPCWSTR path)
 {
 	ShellExecute (NULL, NULL, path, NULL, NULL, SW_SHOWDEFAULT);
-}
-
-/*
-	8-bit string object
-*/
-
-PR_BYTE _r_obj_createbyteex (_In_opt_ LPSTR buffer, _In_ SIZE_T length);
-
-//_Check_return_
-//FORCEINLINE BOOLEAN _r_obj_isbyteempty (_In_opt_ PR_BYTE string)
-//{
-//	return !string || !string->length || !string->buffer || (*string->buffer == ANSI_NULL);
-//}
-
-#define _r_obj_isbyteempty(string) \
-    (!(string) || (string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == ANSI_NULL)
-
-FORCEINLINE VOID _r_obj_writebytenullterminator (_In_ PR_BYTE string)
-{
-	*(LPSTR)PTR_ADD_OFFSET (string->buffer, string->length) = ANSI_NULL;
-}
-
-/*
-	16-bit string object
-*/
-
-PR_STRING _r_obj_createstringex (_In_opt_ LPCWSTR buffer, _In_ SIZE_T length);
-
-FORCEINLINE PR_STRING _r_obj_createstring (_In_ LPCWSTR string)
-{
-	return _r_obj_createstringex (string, _r_str_length (string) * sizeof (WCHAR));
-}
-
-FORCEINLINE PR_STRING _r_obj_createstring2 (_In_ PR_STRING string)
-{
-	return _r_obj_createstringex (string->buffer, string->length);
-}
-
-FORCEINLINE PR_STRING _r_obj_createstring3 (_In_ PR_STRINGREF string)
-{
-	return _r_obj_createstringex (string->buffer, string->length);
-}
-
-//_Check_return_
-//FORCEINLINE BOOLEAN _r_obj_isstringempty (_In_opt_ PR_STRING string)
-//{
-//	return !string || !string->length || !string->buffer || (string->buffer[0] == UNICODE_NULL);
-//}
-
-#define _r_obj_isstringempty(string) \
-    (!(string) || (string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == UNICODE_NULL)
-
-_Ret_maybenull_
-FORCEINLINE LPCWSTR _r_obj_getstring (_In_opt_ PR_STRING string)
-{
-	if (!_r_obj_isstringempty (string))
-		return string->buffer;
-
-	return NULL;
-}
-
-FORCEINLINE LPCWSTR _r_obj_getstringorempty (_In_opt_ PR_STRING string)
-{
-	if (!_r_obj_isstringempty (string))
-		return string->buffer;
-
-	return L"";
-}
-
-FORCEINLINE LPCWSTR _r_obj_getstringordefault (_In_opt_ PR_STRING string, _In_opt_ LPCWSTR def)
-{
-	if (!_r_obj_isstringempty (string))
-		return string->buffer;
-
-	return def;
-}
-
-_Check_return_
-FORCEINLINE SIZE_T _r_obj_getstringlength (_In_opt_ PR_STRING string)
-{
-	if (string)
-		return string->length / sizeof (WCHAR);
-
-	return 0;
-}
-
-_Check_return_
-FORCEINLINE SIZE_T _r_obj_getstringsize (_In_opt_ PR_STRING string)
-{
-	if (string)
-		return string->length;
-
-	return 0;
-}
-
-_Check_return_
-FORCEINLINE SIZE_T _r_obj_getstringhash (_In_opt_ PR_STRING string)
-{
-	if (!_r_obj_isstringempty (string))
-		return _r_str_hash (string->buffer);
-
-	return 0;
-}
-
-_Ret_maybenull_
-FORCEINLINE PR_STRING _r_string_fromunicodestring (_In_ PUNICODE_STRING us)
-{
-	if (!us || !us->Buffer || (us->Buffer[0] == UNICODE_NULL))
-		return NULL;
-
-	return _r_obj_createstringex (us->Buffer, us->Length);
-}
-
-FORCEINLINE BOOLEAN _r_string_tounicodestring (_In_ PR_STRING string, _Out_ PUNICODE_STRING us)
-{
-	us->Length = (USHORT)string->length;
-	us->MaximumLength = (USHORT)string->length + sizeof (UNICODE_NULL);
-	us->Buffer = string->buffer;
-
-	return string->length <= UNICODE_STRING_MAX_BYTES;
-}
-
-VOID _r_obj_removestring (_In_ PR_STRING string, _In_ SIZE_T start_pos, _In_ SIZE_T length);
-
-FORCEINLINE VOID _r_obj_writestringnullterminator (_In_ PR_STRING string)
-{
-	assert (!(string->length & 0x01));
-
-	*(LPWSTR)PTR_ADD_OFFSET (string->buffer, string->length) = UNICODE_NULL;
-}
-
-FORCEINLINE VOID _r_obj_setstringsize (_Inout_ PR_STRING string, _In_ SIZE_T length)
-{
-	if (string->length <= length)
-		return;
-
-	if (length & 0x01)
-		length += 1;
-
-	string->length = length;
-	_r_obj_writestringnullterminator (string);
-}
-
-FORCEINLINE VOID _r_obj_trimstringtonullterminator (_In_ PR_STRING string)
-{
-	string->length = _r_str_length (string->buffer) * sizeof (WCHAR);
-
-	_r_obj_writestringnullterminator (string); // terminate
-}
-
-FORCEINLINE VOID _r_obj_trimstring (_Inout_ PR_STRING string, _In_ LPCWSTR trim)
-{
-	if (_r_obj_isstringempty (string))
-		return;
-
-	_r_str_trim (string->buffer, trim);
-
-	_r_obj_trimstringtonullterminator (string);
-}
-
-/*
-	String builder
-*/
-
-FORCEINLINE VOID _r_obj_initializestringbuilder (_Out_ PR_STRINGBUILDER string)
-{
-	string->allocated_length = 512;
-
-	string->string = _r_obj_createstringex (NULL, string->allocated_length);
-
-	string->string->length = 0;
-	string->string->buffer[0] = UNICODE_NULL;
-}
-
-FORCEINLINE VOID _r_obj_deletestringbuilder (_Inout_ PR_STRINGBUILDER string)
-{
-	if (string->string)
-		_r_obj_clearreference (&string->string);
-}
-
-FORCEINLINE PR_STRING _r_obj_finalstringbuilder (_In_ PR_STRINGBUILDER string)
-{
-	return string->string;
-}
-
-VOID _r_obj_appendstringbuilderex (_Inout_ PR_STRINGBUILDER string, _In_ LPCWSTR text, _In_ SIZE_T length);
-VOID _r_obj_appendstringbuilderformat_v (_Inout_ PR_STRINGBUILDER string, _In_ _Printf_format_string_ LPCWSTR format, _In_ va_list arg_ptr);
-VOID _r_obj_insertstringbuilderex (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ LPCWSTR text, _In_ SIZE_T length);
-VOID _r_obj_insertstringbuilderformat_v (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ _Printf_format_string_ LPCWSTR format, _In_ va_list arg_ptr);
-VOID _r_obj_resizestringbuilder (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T new_capacity);
-
-FORCEINLINE VOID _r_obj_appendstringbuilder (_Inout_ PR_STRINGBUILDER string, _In_ LPCWSTR text)
-{
-	_r_obj_appendstringbuilderex (string, text, _r_str_length (text) * sizeof (WCHAR));
-}
-
-FORCEINLINE VOID _r_obj_appendstringbuilder2 (_Inout_ PR_STRINGBUILDER string, _In_ PR_STRING text)
-{
-	_r_obj_appendstringbuilderex (string, text->buffer, text->length);
-}
-
-FORCEINLINE VOID _r_obj_appendstringbuilderformat (_Inout_ PR_STRINGBUILDER string, _In_ _Printf_format_string_ LPCWSTR format, ...)
-{
-	va_list arg_ptr;
-
-	va_start (arg_ptr, format);
-	_r_obj_appendstringbuilderformat_v (string, format, arg_ptr);
-	va_end (arg_ptr);
-}
-
-FORCEINLINE VOID _r_obj_insertstringbuilder (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ LPCWSTR text)
-{
-	_r_obj_insertstringbuilderex (string, index, text, _r_str_length (text) * sizeof (WCHAR));
-}
-
-FORCEINLINE VOID _r_obj_insertstringbuilder2 (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ PR_STRING text)
-{
-	_r_obj_insertstringbuilderex (string, index, text->buffer, text->length);
-}
-
-FORCEINLINE VOID _r_obj_insertstringbuilderformat (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ _Printf_format_string_ LPCWSTR format, ...)
-{
-	va_list arg_ptr;
-
-	va_start (arg_ptr, format);
-	_r_obj_insertstringbuilderformat_v (string, index, format, arg_ptr);
-	va_end (arg_ptr);
 }
 
 /*
@@ -1632,14 +1627,14 @@ FORCEINLINE BOOLEAN _r_sys_createprocess (_In_ LPCWSTR file_name, _In_opt_ LPCWS
 #define THREAD_API NTSTATUS NTAPI
 #define THREAD_CALLBACK PUSER_THREAD_START_ROUTINE
 
-typedef struct _R_THREAD_DATA
+typedef struct tagR_THREAD_DATA
 {
 	HANDLE handle;
 	ULONG tid;
 	BOOLEAN is_handleused;
 } R_THREAD_DATA, *PR_THREAD_DATA;
 
-typedef struct _R_THREAD_CONTEXT
+typedef struct tagR_THREAD_CONTEXT
 {
 	THREAD_CALLBACK start_address;
 	PVOID arglist;
@@ -1754,6 +1749,13 @@ FORCEINLINE ULONG64 _r_sys_gettickcount64 ()
 	return (UInt32x32To64 (tick_count.LowPart, USER_SHARED_DATA->TickCountMultiplier) >> 24) + (UInt32x32To64 (tick_count.HighPart, USER_SHARED_DATA->TickCountMultiplier) << 8);
 }
 
+FORCEINLINE VOID _r_sys_setthreadexecutionstate (ULONG state)
+{
+	ULONG old_state;
+
+	NtSetThreadExecutionState (state, &old_state);
+}
+
 /*
 	Unixtime
 */
@@ -1811,25 +1813,32 @@ FORCEINLINE LONG _r_dc_fontsizetoheight (_In_opt_ HWND hwnd, _In_ INT size)
 	File dialog
 */
 
-typedef struct _R_FILE_DIALOG
+typedef struct tagR_FILE_DIALOG
 {
 	union
 	{
-		LPOPENFILENAME ofn;
 		IFileDialog *ifd;
+		LPOPENFILENAME ofn;
 	} u;
 
-	BOOLEAN is_ifiledialog;
-	BOOLEAN is_save;
+	ULONG flags;
 } R_FILE_DIALOG, *PR_FILE_DIALOG;
 
-_Success_ (return)
-BOOLEAN _r_filedialog_initialize (_Out_ PR_FILE_DIALOG file_dialog, _In_ BOOLEAN is_save);
+#define PR_FILEDIALOG_OPENDIR 0x0001
+#define PR_FILEDIALOG_OPENFILE 0x0002
+#define PR_FILEDIALOG_SAVEFILE 0x0004
+#define PR_FILEDIALOG_ISIFILEDIALOG 0x0008
 
+_Success_ (return)
+BOOLEAN _r_filedialog_initialize (_Out_ PR_FILE_DIALOG file_dialog, _In_ ULONG flags);
+
+_Success_ (return)
 BOOLEAN _r_filedialog_show (_In_opt_ HWND hwnd, _In_ PR_FILE_DIALOG file_dialog);
+
 PR_STRING _r_filedialog_getpath (_In_ PR_FILE_DIALOG file_dialog);
 VOID _r_filedialog_setpath (_Inout_ PR_FILE_DIALOG file_dialog, _In_ LPCWSTR path);
 VOID _r_filedialog_setfilter (_Inout_ PR_FILE_DIALOG file_dialog, _In_ COMDLG_FILTERSPEC * filters, _In_ ULONG count);
+
 VOID _r_filedialog_destroy (_In_ PR_FILE_DIALOG file_dialog);
 
 /*
@@ -1846,11 +1855,11 @@ VOID _r_filedialog_destroy (_In_ PR_FILE_DIALOG file_dialog);
 #define PR_LAYOUT_SEND_NOTIFY 0x2000 // send WM_SIZE message on resize
 #define PR_LAYOUT_NO_ANCHOR 0x4000 // do not calculate anchors for control
 
-typedef struct _R_LAYOUT_ITEM
+typedef struct tagR_LAYOUT_ITEM
 {
 	HWND hwnd;
 	HDWP defer_handle;
-	struct _R_LAYOUT_ITEM *parent_item;
+	struct tagR_LAYOUT_ITEM *parent_item;
 	RECT rect;
 	RECT anchor;
 	RECT margin;
@@ -1858,7 +1867,7 @@ typedef struct _R_LAYOUT_ITEM
 	ULONG flags;
 } R_LAYOUT_ITEM, *PR_LAYOUT_ITEM;
 
-typedef struct _R_LAYOUT_MANAGER
+typedef struct tagR_LAYOUT_MANAGER
 {
 	R_LAYOUT_ITEM root_item;
 	POINT original_size;
@@ -1866,7 +1875,7 @@ typedef struct _R_LAYOUT_MANAGER
 	BOOLEAN is_initialized;
 } R_LAYOUT_MANAGER, *PR_LAYOUT_MANAGER;
 
-typedef struct _R_LAYOUT_ENUM
+typedef struct tagR_LAYOUT_ENUM
 {
 	HWND root_hwnd;
 	PR_LAYOUT_ITEM layout_item;
@@ -1908,17 +1917,11 @@ FORCEINLINE VOID _r_layout_destroymanager (_Inout_ PR_LAYOUT_MANAGER layout_mana
 	Window management
 */
 
-typedef struct _R_SIZE
-{
-	LONG x;
-	LONG y;
-} R_SIZE, *PR_SIZE;
-
-typedef struct _R_RECTANGLE
+typedef struct tagR_RECTANGLE
 {
 	union
 	{
-		R_SIZE position;
+		SIZE position;
 
 		struct
 		{
@@ -1929,7 +1932,7 @@ typedef struct _R_RECTANGLE
 
 	union
 	{
-		R_SIZE size;
+		SIZE size;
 
 		struct
 		{
@@ -1938,6 +1941,8 @@ typedef struct _R_RECTANGLE
 		};
 	};
 } R_RECTANGLE, *PR_RECTANGLE;
+
+C_ASSERT (sizeof (SIZE) == sizeof (LONG) * 2);
 
 VOID _r_wnd_addstyle (_In_ HWND hwnd, INT _In_opt_ ctrl_id, _In_ LONG_PTR mask, _In_ LONG_PTR state_mask, _In_ INT index);
 VOID _r_wnd_adjustworkingarea (_In_opt_ HWND hwnd, _Inout_ PR_RECTANGLE rectangle);
@@ -1948,7 +1953,7 @@ VOID _r_wnd_enablenonclientscaling (_In_ HWND hwnd);
 BOOLEAN _r_wnd_isfullscreenmode ();
 BOOLEAN _r_wnd_isoverlapped (_In_ HWND hwnd);
 BOOLEAN _r_wnd_isundercursor (_In_ HWND hwnd);
-VOID _r_wnd_setposition (_In_ HWND hwnd, _In_opt_ PR_SIZE position, _In_opt_ PR_SIZE size);
+VOID _r_wnd_setposition (_In_ HWND hwnd, _In_opt_ PSIZE position, _In_opt_ PSIZE size);
 VOID _r_wnd_toggle (_In_ HWND hwnd, _In_ BOOLEAN is_show);
 
 _Success_ (return)
@@ -2036,9 +2041,6 @@ FORCEINLINE VOID _r_wnd_seticon (_In_ HWND hwnd, _In_opt_ HICON hicon_small, _In
 
 FORCEINLINE VOID _r_wnd_top (_In_ HWND hwnd, _In_ BOOLEAN is_enable)
 {
-	if (is_enable)
-		SetFocus (hwnd); // HACK!!!
-
 	SetWindowPos (hwnd, is_enable ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOREDRAW | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
 }
 
@@ -2062,7 +2064,9 @@ _Check_return_
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_inet_parseurl (_In_ LPCWSTR url, _Out_opt_ PINT scheme_ptr, _Out_opt_ LPWSTR host_ptr, _Out_opt_ LPWORD port_ptr, _Out_opt_ LPWSTR path_ptr, _Out_opt_ LPWSTR user_ptr, _Out_opt_ LPWSTR pass_ptr);
 
-typedef struct _R_DOWNLOAD_INFO
+typedef BOOLEAN (NTAPI *PR_INET_DOWNLOAD_FUNCTION) (_In_ ULONG total_written, _In_ ULONG total_length, _In_opt_ PVOID pdata);
+
+typedef struct tagR_DOWNLOAD_INFO
 {
 	HANDLE hfile;
 	PR_STRING string;
@@ -2122,7 +2126,7 @@ _Ret_maybenull_
 PR_STRING _r_res_getbinaryversion (_In_ LPCWSTR path);
 
 _Success_ (return != NULL)
-PVOID _r_res_loadresource (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ LPCWSTR type, _Out_opt_ PULONG psize);
+PVOID _r_res_loadresource (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ LPCWSTR type, _Out_opt_ PULONG buffer_size);
 
 /*
 	Other
@@ -2133,6 +2137,108 @@ HICON _r_loadicon (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ INT size);
 
 PR_HASHTABLE _r_parseini (_In_ LPCWSTR path, _Inout_opt_ PR_LIST section_list);
 VOID _r_sleep (_In_ LONG64 milliseconds);
+
+/*
+	Xml library
+*/
+
+typedef IStream* PR_XML_STREAM;
+typedef VOID (NTAPI *PR_XML_STREAM_CALLBACK) (_Inout_ PR_XML_STREAM xml_library);
+
+typedef struct tagR_XML_LIBRARY
+{
+	union
+	{
+		IXmlReader* reader;
+		IXmlWriter* writer;
+	};
+
+	PR_XML_STREAM stream;
+	PR_XML_STREAM_CALLBACK stream_callback;
+
+	BOOLEAN is_reader;
+	BOOLEAN is_initialized;
+
+} R_XML_LIBRARY, *PR_XML_LIBRARY;
+
+_Success_ (return == S_OK)
+HRESULT _r_xml_initializelibrary (_Out_ PR_XML_LIBRARY xml_library, _In_ BOOLEAN is_reader, _In_opt_ PR_XML_STREAM_CALLBACK stream_callback);
+
+_Success_ (return == S_OK)
+HRESULT _r_xml_parsefile (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR file_path);
+
+_Success_ (return == S_OK)
+HRESULT _r_xml_parsestring (_Inout_ PR_XML_LIBRARY xml_library, _In_ PVOID buffer, _In_ ULONG buffer_size);
+
+_Success_ (return)
+BOOLEAN _r_xml_getattribute (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name, _Out_ LPCWSTR * attrib_value, _Out_opt_ PUINT attrib_length);
+
+_Ret_maybenull_
+PR_STRING _r_xml_getattribute_string (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name);
+
+BOOLEAN _r_xml_getattribute_boolean (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name);
+INT _r_xml_getattribute_integer (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name);
+LONG64 _r_xml_getattribute_long64 (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name);
+
+FORCEINLINE VOID _r_xml_setattribute (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name, _In_ LPCWSTR value)
+{
+	IXmlWriter_WriteAttributeString (xml_library->writer, NULL, name, NULL, value);
+}
+
+FORCEINLINE VOID _r_xml_setattribute_boolean (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name, _In_ BOOLEAN value)
+{
+	_r_xml_setattribute (xml_library, name, value ? L"true" : L"false");
+}
+
+VOID _r_xml_setattribute_integer (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name, _In_ INT value);
+VOID _r_xml_setattribute_long64 (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name, _In_ LONG64 value);
+
+_Success_ (return)
+BOOLEAN _r_xml_enumchilditemsbytagname (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR tag_name);
+
+_Success_ (return)
+BOOLEAN _r_xml_findchildbytagname (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR tag_name);
+
+_Success_ (return == S_OK)
+HRESULT _r_xml_resetlibrarystream (_Inout_ PR_XML_LIBRARY xml_library);
+
+_Success_ (return == S_OK)
+HRESULT _r_xml_setlibrarystream (_Inout_ PR_XML_LIBRARY xml_library, _In_ PR_XML_STREAM stream);
+
+_Success_ (return == S_OK)
+FORCEINLINE HRESULT _r_xml_createfile (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR file_path)
+{
+	return _r_xml_parsefile (xml_library, file_path);
+}
+
+FORCEINLINE VOID _r_xml_writewhitespace (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR whitespace)
+{
+	IXmlWriter_WriteWhitespace (xml_library->writer, whitespace);
+}
+
+FORCEINLINE VOID _r_xml_writestartdocument (_Inout_ PR_XML_LIBRARY xml_library)
+{
+	IXmlWriter_WriteStartDocument (xml_library->writer, XmlStandalone_Omit);
+}
+
+FORCEINLINE VOID _r_xml_writeenddocument (_Inout_ PR_XML_LIBRARY xml_library)
+{
+	IXmlWriter_WriteEndDocument (xml_library->writer);
+
+	IXmlWriter_Flush (xml_library->writer);
+}
+
+FORCEINLINE VOID _r_xml_writestartelement (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name)
+{
+	IXmlWriter_WriteStartElement (xml_library->writer, NULL, name, NULL);
+}
+
+FORCEINLINE VOID _r_xml_writeendelement (_Inout_ PR_XML_LIBRARY xml_library)
+{
+	IXmlWriter_WriteEndElement (xml_library->writer);
+}
+
+VOID _r_xml_destroylibrary (_Inout_ PR_XML_LIBRARY xml_library);
 
 /*
 	System tray
