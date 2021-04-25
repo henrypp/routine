@@ -102,7 +102,17 @@
 #	define APP_UPDATE_PERIOD _r_calc_hours2seconds (48) // update checking period for stable release is 48 hours
 #endif // _APP_BETA || _APP_BETA_RC
 
+// Debug header
+#if !defined(PR_DEBUG_HEADER)
+#	define PR_DEBUG_HEADER L"Level,Date,Function,Code,Description,Version,OS Version\r\n"
+#endif // PR_DEBUG_HEADER
+
 // Project configuration
+#define PR_DEVICE_COUNT 26
+#define PR_DEVICE_PREFIX_LENGTH 64
+
+#define PR_STR_MAX_LENGTH (INT_MAX - 1)
+
 #define PR_SIZE_TREEINDENT 12
 #define PR_SIZE_ITEMHEIGHT 20
 #define PR_SIZE_FOOTERHEIGHT 48
