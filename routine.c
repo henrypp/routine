@@ -3223,7 +3223,7 @@ ULONG _r_sys_getwindowsversion ()
 	return windows_version;
 }
 
-BOOLEAN _r_sys_createprocessex (_In_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory, _In_ WORD show_state, _In_ ULONG flags)
+BOOLEAN _r_sys_createprocessex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory, _In_ WORD show_state, _In_ ULONG flags)
 {
 	BOOLEAN is_success;
 

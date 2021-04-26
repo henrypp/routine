@@ -1617,9 +1617,9 @@ FORCEINLINE BOOLEAN _r_sys_isosversiongreaterorequal (_In_ ULONG required_versio
 	return _r_sys_getwindowsversion () >= required_version;
 }
 
-BOOLEAN _r_sys_createprocessex (_In_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory, _In_ WORD show_state, _In_ ULONG flags);
+BOOLEAN _r_sys_createprocessex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory, _In_ WORD show_state, _In_ ULONG flags);
 
-FORCEINLINE BOOLEAN _r_sys_createprocess (_In_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory)
+FORCEINLINE BOOLEAN _r_sys_createprocess (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory)
 {
 	return _r_sys_createprocessex (file_name, command_line, current_directory, SW_SHOWDEFAULT, 0);
 }
