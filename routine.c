@@ -5012,19 +5012,19 @@ BOOLEAN _r_inet_readrequest (_In_ HINTERNET hrequest, _Out_writes_bytes_ (buffer
 {
 	ULONG bytes_count;
 
-	if (WinHttpReadData (hrequest, buffer, buffer_size, &bytes_count))
-	{
-		if (readed)
-			*readed = bytes_count;
+	if (!WinHttpReadData (hrequest, buffer, buffer_size, &bytes_count))
+		return FALSE;
 
-		if (total_readed)
-			*total_readed += bytes_count;
+	if (!bytes_count)
+		return FALSE;
 
-		if (bytes_count)
-			return TRUE;
-	}
+	if (readed)
+		*readed = bytes_count;
 
-	return FALSE;
+	if (total_readed)
+		*total_readed += bytes_count;
+
+	return TRUE;
 }
 
 _Check_return_
