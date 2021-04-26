@@ -4786,38 +4786,31 @@ VOID _r_wnd_setposition (_In_ HWND hwnd, _In_opt_ PSIZE position, _In_opt_ PSIZE
 	R_RECTANGLE rectangle;
 	UINT swp_flags;
 
-	if (position && size)
+	swp_flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER;
+
+	memset (&rectangle, 0, sizeof (rectangle));
+
+	if (position)
 	{
-		MoveWindow (hwnd, position->cx, position->cy, size->cx, size->cy, FALSE);
+		rectangle.left = position->cx;
+		rectangle.top = position->cy;
 	}
 	else
 	{
-		swp_flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER;
-
-		memset (&rectangle, 0, sizeof (R_RECTANGLE));
-
-		if (position)
-		{
-			rectangle.left = position->cx;
-			rectangle.top = position->cy;
-		}
-		else
-		{
-			swp_flags |= SWP_NOMOVE;
-		}
-
-		if (size)
-		{
-			rectangle.width = size->cx;
-			rectangle.height = size->cy;
-		}
-		else
-		{
-			swp_flags |= SWP_NOSIZE;
-		}
-
-		SetWindowPos (hwnd, NULL, rectangle.left, rectangle.top, rectangle.width, rectangle.height, swp_flags);
+		swp_flags |= SWP_NOMOVE;
 	}
+
+	if (size)
+	{
+		rectangle.width = size->cx;
+		rectangle.height = size->cy;
+	}
+	else
+	{
+		swp_flags |= SWP_NOSIZE;
+	}
+
+	SetWindowPos (hwnd, NULL, rectangle.left, rectangle.top, rectangle.width, rectangle.height, swp_flags);
 }
 
 VOID _r_wnd_toggle (_In_ HWND hwnd, _In_ BOOLEAN is_show)
