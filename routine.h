@@ -2048,6 +2048,37 @@ FORCEINLINE VOID _r_wnd_top (_In_ HWND hwnd, _In_ BOOLEAN is_enable)
 	Inernet access (WinHTTP)
 */
 
+typedef BOOLEAN (NTAPI *PR_INET_DOWNLOAD_FUNCTION) (_In_ ULONG total_written, _In_ ULONG total_length, _In_opt_ PVOID pdata);
+
+typedef struct tagR_DOWNLOAD_INFO
+{
+	HANDLE hfile;
+	PR_STRING string;
+	PR_INET_DOWNLOAD_FUNCTION download_callback;
+	PVOID data;
+} R_DOWNLOAD_INFO, *PR_DOWNLOAD_INFO;
+
+typedef struct tagR_URLPARTS
+{
+	ULONG flags;
+
+	PR_STRING host;
+	PR_STRING path;
+	PR_STRING user;
+	PR_STRING pass;
+
+	INTERNET_SCHEME scheme;
+	INTERNET_PORT port;
+
+} R_URLPARTS, *PR_URLPARTS;
+
+#define PR_URLPARTS_SCHEME 0x000001
+#define PR_URLPARTS_PORT 0x000002
+#define PR_URLPARTS_HOST 0x000004
+#define PR_URLPARTS_PATH 0x000008
+#define PR_URLPARTS_USER 0x000010
+#define PR_URLPARTS_PASS 0x000020
+
 _Check_return_
 _Ret_maybenull_
 HINTERNET _r_inet_createsession (_In_opt_ LPCWSTR useragent);
@@ -2062,17 +2093,9 @@ BOOLEAN _r_inet_readrequest (_In_ HINTERNET hrequest, _Out_writes_bytes_ (buffer
 
 _Check_return_
 _Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_parseurl (_In_ LPCWSTR url, _Out_opt_ PINT scheme_ptr, _Out_opt_ LPWSTR host_ptr, _Out_opt_ LPWORD port_ptr, _Out_opt_ LPWSTR path_ptr, _Out_opt_ LPWSTR user_ptr, _Out_opt_ LPWSTR pass_ptr);
+ULONG _r_inet_parseurlparts (_In_ LPCWSTR url, _Inout_ PR_URLPARTS url_parts, _In_ ULONG flags);
 
-typedef BOOLEAN (NTAPI *PR_INET_DOWNLOAD_FUNCTION) (_In_ ULONG total_written, _In_ ULONG total_length, _In_opt_ PVOID pdata);
-
-typedef struct tagR_DOWNLOAD_INFO
-{
-	HANDLE hfile;
-	PR_STRING string;
-	PR_INET_DOWNLOAD_FUNCTION download_callback;
-	PVOID data;
-} R_DOWNLOAD_INFO, *PR_DOWNLOAD_INFO;
+VOID _r_inet_destroyurlparts (_Inout_ PR_URLPARTS url_parts);
 
 FORCEINLINE VOID _r_inet_initializedownload (_Out_ PR_DOWNLOAD_INFO pdi, _In_opt_ HANDLE hfile, _In_opt_ PR_INET_DOWNLOAD_FUNCTION download_callback, _In_opt_ PVOID data)
 {

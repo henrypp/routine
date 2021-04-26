@@ -4890,33 +4890,33 @@ _Check_return_
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTERNET pconnect, _Out_ LPHINTERNET prequest, _Out_opt_ PULONG total_length)
 {
-	WCHAR url_host[MAX_PATH];
-	WCHAR url_path[MAX_PATH];
-	WORD url_port;
-	INT url_scheme;
+	R_URLPARTS url_parts;
+	ULONG code;
 
-	ULONG code = _r_inet_parseurl (url, &url_scheme, url_host, &url_port, url_path, NULL, NULL);
+	code = _r_inet_parseurlparts (url, &url_parts, PR_URLPARTS_SCHEME | PR_URLPARTS_PORT | PR_URLPARTS_HOST | PR_URLPARTS_PATH);
 
 	if (code != ERROR_SUCCESS)
 	{
-		return code;
+		goto CleanupExit;
 	}
 	else
 	{
-		HINTERNET hconnect = WinHttpConnect (hsession, url_host, url_port, 0);
+		HINTERNET hconnect = WinHttpConnect (hsession, url_parts.host->buffer, url_parts.port, 0);
 
 		if (!hconnect)
 		{
-			return GetLastError ();
+			code = GetLastError ();
+
+			goto CleanupExit;
 		}
 		else
 		{
 			ULONG flags = WINHTTP_FLAG_REFRESH;
 
-			if (url_scheme == INTERNET_SCHEME_HTTPS)
+			if (url_parts.scheme == INTERNET_SCHEME_HTTPS)
 				flags |= WINHTTP_FLAG_SECURE;
 
-			HINTERNET hrequest = WinHttpOpenRequest (hconnect, NULL, url_path, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
+			HINTERNET hrequest = WinHttpOpenRequest (hconnect, NULL, url_parts.path->buffer, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
 
 			if (!hrequest)
 			{
@@ -4924,7 +4924,7 @@ ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTER
 
 				_r_inet_close (hconnect);
 
-				return code;
+				goto CleanupExit;
 			}
 			else
 			{
@@ -4990,7 +4990,9 @@ ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTER
 							*pconnect = hconnect;
 							*prequest = hrequest;
 
-							return ERROR_SUCCESS;
+							code = ERROR_SUCCESS;
+
+							goto CleanupExit;
 						}
 					}
 				}
@@ -5002,6 +5004,10 @@ ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTER
 			_r_inet_close (hconnect);
 		}
 	}
+
+CleanupExit:
+
+	_r_inet_destroyurlparts (&url_parts);
 
 	return code;
 }
@@ -5027,70 +5033,88 @@ BOOLEAN _r_inet_readrequest (_In_ HINTERNET hrequest, _Out_writes_bytes_ (buffer
 	return TRUE;
 }
 
+VOID _r_inet_destroyurlparts (_Inout_ PR_URLPARTS url_parts)
+{
+	if ((url_parts->flags & PR_URLPARTS_HOST))
+		_r_obj_clearreference (&url_parts->host);
+
+	if ((url_parts->flags & PR_URLPARTS_PATH))
+		_r_obj_clearreference (&url_parts->path);
+
+	if ((url_parts->flags & PR_URLPARTS_USER))
+		_r_obj_clearreference (&url_parts->user);
+
+	if ((url_parts->flags & PR_URLPARTS_PASS))
+		_r_obj_clearreference (&url_parts->pass);
+}
+
 _Check_return_
 _Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_parseurl (_In_ LPCWSTR url, _Out_opt_ PINT scheme_ptr, _Out_opt_ LPWSTR host_ptr, _Out_opt_ LPWORD port_ptr, _Out_opt_ LPWSTR path_ptr, _Out_opt_ LPWSTR user_ptr, _Out_opt_ LPWSTR pass_ptr)
+ULONG _r_inet_parseurlparts (_In_ LPCWSTR url, _Inout_ PR_URLPARTS url_parts, _In_ ULONG flags)
 {
-	if (_r_str_isempty (url) || (!scheme_ptr && !host_ptr && !port_ptr && !path_ptr && !user_ptr && !pass_ptr))
+	if (_r_str_isempty (url))
 		return ERROR_BAD_ARGUMENTS;
 
 	URL_COMPONENTS url_comp = {0};
-	ULONG url_length = (ULONG)_r_str_length (url);
-	ULONG max_length = MAX_PATH;
 
 	url_comp.dwStructSize = sizeof (url_comp);
 
-	if (host_ptr)
+	memset (url_parts, 0, sizeof (R_URLPARTS));
+
+	url_parts->flags = flags;
+
+	if ((flags & PR_URLPARTS_HOST))
 	{
-		url_comp.lpszHostName = host_ptr;
-		url_comp.dwHostNameLength = max_length;
+		url_parts->host = _r_obj_createstringex (NULL, MAX_PATH);
+
+		url_comp.lpszHostName = url_parts->host->buffer;
+		url_comp.dwHostNameLength = (ULONG)(url_parts->host->length / sizeof (WCHAR));
 	}
 
-	if (path_ptr)
+	if ((flags & PR_URLPARTS_PATH))
 	{
-		url_comp.lpszUrlPath = path_ptr;
-		url_comp.dwUrlPathLength = max_length;
+		url_parts->path = _r_obj_createstringex (NULL, MAX_PATH);
+
+		url_comp.lpszUrlPath = url_parts->path->buffer;
+		url_comp.dwUrlPathLength = (ULONG)(url_parts->path->length / sizeof (WCHAR));
 	}
 
-	if (user_ptr)
+	if ((flags & PR_URLPARTS_USER))
 	{
-		url_comp.lpszUserName = user_ptr;
-		url_comp.dwUserNameLength = max_length;
+		url_parts->user = _r_obj_createstringex (NULL, MAX_PATH);
+
+		url_comp.lpszUserName = url_parts->user->buffer;
+		url_comp.dwUserNameLength = (ULONG)(url_parts->user->length / sizeof (WCHAR));
 	}
 
-	if (pass_ptr)
+	if ((flags & PR_URLPARTS_PASS))
 	{
-		url_comp.lpszPassword = pass_ptr;
-		url_comp.dwPasswordLength = max_length;
+		url_parts->pass = _r_obj_createstringex (NULL, MAX_PATH);
+
+		url_comp.lpszPassword = url_parts->pass->buffer;
+		url_comp.dwPasswordLength = (ULONG)(url_parts->pass->length / sizeof (WCHAR));
 	}
 
-	if (!WinHttpCrackUrl (url, url_length, ICU_DECODE, &url_comp))
-	{
-		ULONG code = GetLastError ();
+	if (!WinHttpCrackUrl (url, (ULONG)_r_str_length (url), ICU_DECODE, &url_comp))
+		return  GetLastError ();
 
-		if (code != ERROR_WINHTTP_UNRECOGNIZED_SCHEME)
-			return code;
+	if ((url_parts->flags & PR_URLPARTS_SCHEME))
+		url_parts->scheme = url_comp.nScheme;
 
-		PR_STRING fixed_address = _r_format_string (L"https://%s", url);
+	if ((url_parts->flags & PR_URLPARTS_PORT))
+		url_parts->port = url_comp.nPort;
 
-		if (fixed_address)
-		{
-			if (!WinHttpCrackUrl (fixed_address->buffer, (ULONG)_r_obj_getstringlength (fixed_address), ICU_DECODE, &url_comp))
-			{
-				_r_obj_dereference (fixed_address);
+	if ((url_parts->flags & PR_URLPARTS_HOST))
+		_r_obj_trimstringtonullterminator (url_parts->host);
 
-				return GetLastError ();
-			}
+	if ((url_parts->flags & PR_URLPARTS_PATH))
+		_r_obj_trimstringtonullterminator (url_parts->path);
 
-			_r_obj_dereference (fixed_address);
-		}
-	}
+	if ((url_parts->flags & PR_URLPARTS_USER))
+		_r_obj_trimstringtonullterminator (url_parts->user);
 
-	if (scheme_ptr)
-		*scheme_ptr = url_comp.nScheme;
-
-	if (port_ptr)
-		*port_ptr = url_comp.nPort;
+	if ((url_parts->flags & PR_URLPARTS_PASS))
+		_r_obj_trimstringtonullterminator (url_parts->pass);
 
 	return ERROR_SUCCESS;
 }
@@ -5935,7 +5959,7 @@ VOID _r_xml_destroylibrary (_Inout_ PR_XML_LIBRARY xml_library)
 		IStream_Release (xml_library->stream);
 		xml_library->stream = NULL;
 	}
-}
+	}
 
 /*
 	System tray
@@ -6004,7 +6028,7 @@ BOOLEAN _r_tray_create (_In_ HWND hwnd, _In_ UINT uid, _In_ UINT code, _In_opt_ 
 	}
 
 	return FALSE;
-}
+	}
 
 BOOLEAN _r_tray_popup (_In_ HWND hwnd, _In_ UINT uid, _In_opt_ ULONG icon_id, _In_opt_ LPCWSTR title, _In_ LPCWSTR text)
 {
