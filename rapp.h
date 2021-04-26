@@ -40,6 +40,7 @@ typedef struct tagAPP_UPDATE_INFO
 	HWND htaskdlg;
 	HWND hparent;
 	HANDLE hthread;
+	BOOLEAN is_checking;
 	BOOLEAN is_downloaded;
 } APP_UPDATE_INFO, *PAPP_UPDATE_INFO;
 #endif // APP_HAVE_UPDATES

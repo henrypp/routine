@@ -1597,6 +1597,9 @@ VOID _r_update_addcomponent (_In_opt_ LPCWSTR full_name, _In_opt_ LPCWSTR short_
 
 VOID _r_update_check (_In_opt_ HWND hparent)
 {
+	if (app_update_info->is_checking)
+		return;
+
 	if (!hparent && (!_r_config_getboolean (L"CheckUpdates", TRUE) || (_r_unixtime_now () - _r_config_getlong64 (L"CheckUpdatesLast", 0)) <= APP_UPDATE_PERIOD))
 		return;
 
@@ -1605,6 +1608,7 @@ VOID _r_update_check (_In_opt_ HWND hparent)
 
 	app_update_info->htaskdlg = NULL;
 	app_update_info->hparent = hparent;
+	app_update_info->is_checking = TRUE;
 
 	if (hparent)
 	{
@@ -1818,6 +1822,8 @@ THREAD_API _r_update_checkthread (PVOID lparam)
 
 		_r_inet_close (hsession);
 	}
+
+	app_update_info->is_checking = FALSE;
 
 	return ERROR_SUCCESS;
 }
