@@ -4885,6 +4885,9 @@ _Success_ (return == ERROR_SUCCESS)
 ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTERNET pconnect, _Out_ LPHINTERNET prequest, _Out_opt_ PULONG total_length)
 {
 	R_URLPARTS url_parts;
+	HINTERNET hconnect;
+	HINTERNET hrequest;
+	ULONG flags;
 	ULONG code;
 
 	code = _r_inet_parseurlparts (url, &url_parts, PR_URLPARTS_SCHEME | PR_URLPARTS_PORT | PR_URLPARTS_HOST | PR_URLPARTS_PATH);
@@ -4895,7 +4898,7 @@ ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTER
 	}
 	else
 	{
-		HINTERNET hconnect = WinHttpConnect (hsession, url_parts.host->buffer, url_parts.port, 0);
+		hconnect = WinHttpConnect (hsession, url_parts.host->buffer, url_parts.port, 0);
 
 		if (!hconnect)
 		{
@@ -4903,100 +4906,99 @@ ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTER
 
 			goto CleanupExit;
 		}
-		else
+
+		flags = WINHTTP_FLAG_REFRESH;
+
+		if (url_parts.scheme == INTERNET_SCHEME_HTTPS)
+			flags |= WINHTTP_FLAG_SECURE;
+
+		hrequest = WinHttpOpenRequest (hconnect, NULL, url_parts.path->buffer, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
+
+		if (!hrequest)
 		{
-			ULONG flags = WINHTTP_FLAG_REFRESH;
+			code = GetLastError ();
 
-			if (url_parts.scheme == INTERNET_SCHEME_HTTPS)
-				flags |= WINHTTP_FLAG_SECURE;
+			_r_inet_close (hconnect);
 
-			HINTERNET hrequest = WinHttpOpenRequest (hconnect, NULL, url_parts.path->buffer, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
+			goto CleanupExit;
+		}
 
-			if (!hrequest)
+		// disable "keep-alive" feature (win7+)
+#if !defined(APP_NO_DEPRECATIONS)
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_7))
+#endif // !APP_NO_DEPRECATIONS
+		{
+			WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &(ULONG){WINHTTP_DISABLE_KEEP_ALIVE}, sizeof (ULONG));
+		}
+
+		ULONG attempts = 6;
+
+		do
+		{
+			if (!WinHttpSendRequest (hrequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH, 0))
 			{
 				code = GetLastError ();
 
-				_r_inet_close (hconnect);
+				if (code == ERROR_WINHTTP_RESEND_REQUEST)
+				{
+					continue;
+				}
+				else if (code == ERROR_WINHTTP_NAME_NOT_RESOLVED || code == ERROR_NOT_ENOUGH_MEMORY)
+				{
+					break;
+				}
+				else
+				{
+#if !defined(APP_NO_DEPRECATIONS)
+					// win7 and lower fix
+					if (_r_sys_isosversiongreaterorequal (WINDOWS_8))
+						break;
 
-				goto CleanupExit;
+					if (code == ERROR_WINHTTP_CONNECTION_ERROR)
+					{
+						if (!WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2}, sizeof (ULONG)))
+							break;
+					}
+					else if (code == ERROR_WINHTTP_SECURE_FAILURE)
+					{
+						if (!WinHttpSetOption (hrequest, WINHTTP_OPTION_SECURITY_FLAGS, &(ULONG){SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE | SECURITY_FLAG_IGNORE_CERT_CN_INVALID}, sizeof (ULONG)))
+							break;
+					}
+#else
+					// ERROR_WINHTTP_CANNOT_CONNECT etc.
+					break;
+#endif
+				}
 			}
 			else
 			{
-				// disable "keep-alive" feature (win7+)
-#if !defined(APP_NO_DEPRECATIONS)
-				if (_r_sys_isosversiongreaterorequal (WINDOWS_7))
-#endif // !APP_NO_DEPRECATIONS
+				if (!WinHttpReceiveResponse (hrequest, NULL))
 				{
-					WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &(ULONG){WINHTTP_DISABLE_KEEP_ALIVE}, sizeof (ULONG));
+					code = GetLastError ();
 				}
-
-				ULONG attempts = 6;
-
-				do
+				else
 				{
-					if (!WinHttpSendRequest (hrequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH, 0))
+					if (total_length)
 					{
-						code = GetLastError ();
+						ULONG param_size = sizeof (ULONG);
 
-						if (code == ERROR_WINHTTP_RESEND_REQUEST)
-						{
-							continue;
-						}
-						else
-						{
-#if !defined(APP_NO_DEPRECATIONS)
-							// win7 and lower fix
-							if (_r_sys_isosversiongreaterorequal (WINDOWS_8))
-								break;
-
-							if (code == ERROR_WINHTTP_CONNECTION_ERROR)
-							{
-								if (!WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2}, sizeof (ULONG)))
-									break;
-							}
-							else if (code == ERROR_WINHTTP_SECURE_FAILURE)
-							{
-								if (!WinHttpSetOption (hrequest, WINHTTP_OPTION_SECURITY_FLAGS, &(ULONG){SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE | SECURITY_FLAG_IGNORE_CERT_CN_INVALID}, sizeof (ULONG)))
-									break;
-							}
-#else
-							// ERROR_WINHTTP_CANNOT_CONNECT etc.
-							break;
-#endif
-						}
+						if (!WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, total_length, &param_size, WINHTTP_NO_HEADER_INDEX))
+							*total_length = 0;
 					}
-					else
-					{
-						if (!WinHttpReceiveResponse (hrequest, NULL))
-						{
-							code = GetLastError ();
-						}
-						else
-						{
-							if (total_length)
-							{
-								ULONG param_size = sizeof (ULONG);
 
-								if (!WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, total_length, &param_size, WINHTTP_NO_HEADER_INDEX))
-									*total_length = 0;
-							}
+					*pconnect = hconnect;
+					*prequest = hrequest;
 
-							*pconnect = hconnect;
-							*prequest = hrequest;
+					code = ERROR_SUCCESS;
 
-							code = ERROR_SUCCESS;
-
-							goto CleanupExit;
-						}
-					}
+					goto CleanupExit;
 				}
-				while (--attempts);
-
-				_r_inet_close (hrequest);
 			}
-
-			_r_inet_close (hconnect);
 		}
+		while (--attempts);
+
+		_r_inet_close (hrequest);
+		_r_inet_close (hconnect);
 	}
 
 CleanupExit:
