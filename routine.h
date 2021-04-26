@@ -1625,7 +1625,7 @@ FORCEINLINE BOOLEAN _r_sys_createprocess (_In_ LPCWSTR file_name, _In_opt_ LPCWS
 }
 
 #define THREAD_API NTSTATUS NTAPI
-#define THREAD_CALLBACK PUSER_THREAD_START_ROUTINE
+typedef PUSER_THREAD_START_ROUTINE THREAD_CALLBACK;
 
 typedef struct tagR_THREAD_DATA
 {
@@ -1645,12 +1645,12 @@ typedef struct tagR_THREAD_CONTEXT
 THREAD_API _r_sys_basethreadstart (_In_ PVOID arglist);
 
 _Success_ (NT_SUCCESS (return))
-NTSTATUS _r_sys_createthreadex (_In_ THREAD_CALLBACK start_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE thread, _In_ INT priority);
+NTSTATUS _r_sys_createthreadex (_In_ THREAD_CALLBACK start_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE hthread, _In_ INT priority);
 
 _Success_ (NT_SUCCESS (return))
-FORCEINLINE NTSTATUS _r_sys_createthread (_In_ THREAD_CALLBACK start_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE thread)
+FORCEINLINE NTSTATUS _r_sys_createthread (_In_ THREAD_CALLBACK start_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE hthread)
 {
-	return _r_sys_createthreadex (start_address, arglist, thread, THREAD_PRIORITY_NORMAL);
+	return _r_sys_createthreadex (start_address, arglist, hthread, THREAD_PRIORITY_NORMAL);
 }
 
 _Success_ (NT_SUCCESS (return))

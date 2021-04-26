@@ -3391,7 +3391,7 @@ THREAD_API _r_sys_basethreadstart (_In_ PVOID arglist)
 }
 
 _Success_ (NT_SUCCESS (return))
-NTSTATUS _r_sys_createthreadex (_In_ THREAD_CALLBACK start_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE thread, _In_ INT priority)
+NTSTATUS _r_sys_createthreadex (_In_ THREAD_CALLBACK start_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE hthread, _In_ INT priority)
 {
 	NTSTATUS status;
 	HANDLE thread_current = NULL;
@@ -3406,29 +3406,23 @@ NTSTATUS _r_sys_createthreadex (_In_ THREAD_CALLBACK start_address, _In_opt_ PVO
 		context->start_address = start_address;
 		context->arglist = arglist;
 		context->thread = thread_current;
-		context->is_handleused = (thread != NULL); // user need to be destroy thread handle by himself
+		context->is_handleused = (hthread != NULL); // user need to be destroy thread handle by himself
 
 		SetThreadPriority (thread_current, priority);
 
-		if (!thread)
-		{
+		if (!hthread)
 			status = _r_sys_resumethread (thread_current);
-		}
 	}
 
 	if (NT_SUCCESS (status))
 	{
-		if (thread)
-		{
-			*thread = thread_current;
-		}
+		if (hthread)
+			*hthread = thread_current;
 	}
 	else
 	{
 		if (thread_current)
-		{
 			NtClose (thread_current);
-		}
 
 		_r_mem_free (context);
 	}
@@ -5959,7 +5953,7 @@ VOID _r_xml_destroylibrary (_Inout_ PR_XML_LIBRARY xml_library)
 		IStream_Release (xml_library->stream);
 		xml_library->stream = NULL;
 	}
-	}
+}
 
 /*
 	System tray
@@ -6028,7 +6022,7 @@ BOOLEAN _r_tray_create (_In_ HWND hwnd, _In_ UINT uid, _In_ UINT code, _In_opt_ 
 	}
 
 	return FALSE;
-	}
+}
 
 BOOLEAN _r_tray_popup (_In_ HWND hwnd, _In_ UINT uid, _In_opt_ ULONG icon_id, _In_opt_ LPCWSTR title, _In_ LPCWSTR text)
 {
