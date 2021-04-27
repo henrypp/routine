@@ -2135,19 +2135,28 @@ PR_STRING _r_path_dospathfromnt (_In_ LPCWSTR path)
 	return _r_obj_createstringex (path, path_length * sizeof (WCHAR));
 }
 
-_Success_ (return == ERROR_SUCCESS)
-ULONG _r_path_ntpathfromdos (_In_ LPCWSTR path, _Outptr_ PR_STRING * ptr_nt_path)
+_Ret_maybenull_
+PR_STRING _r_path_ntpathfromdos (_In_ LPCWSTR path, _Out_opt_ PULONG error_code)
 {
 	NTSTATUS status;
-	HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+	POBJECT_NAME_INFORMATION obj_name_info;
+	HANDLE hfile;
+
+	hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
 
 	if (!_r_fs_isvalidhandle (hfile))
-		return GetLastError ();
+	{
+		if (error_code)
+			*error_code = GetLastError ();
 
-	ULONG attempts = 6;
+		return NULL;
+	}
+
+	PR_STRING string = NULL;
 	ULONG buffer_size = 512;
+	ULONG attempts = 6;
 
-	POBJECT_NAME_INFORMATION obj_name_info = _r_mem_allocatezero (buffer_size);
+	obj_name_info = _r_mem_allocatezero (buffer_size);
 
 	do
 	{
@@ -2169,23 +2178,25 @@ ULONG _r_path_ntpathfromdos (_In_ LPCWSTR path, _Outptr_ PR_STRING * ptr_nt_path
 
 	if (NT_SUCCESS (status))
 	{
-		PR_STRING string = _r_obj_createstringfromunicodestring (&obj_name_info->Name);
+		string = _r_obj_createstringfromunicodestring (&obj_name_info->Name);
 
 		if (string)
-		{
 			_r_str_tolower (string->buffer); // lower is important!
 
-			status = ERROR_SUCCESS;
-		}
-
-		*ptr_nt_path = string;
+		if (error_code)
+			*error_code = ERROR_SUCCESS;
+	}
+	else
+	{
+		if (error_code)
+			*error_code = status;
 	}
 
 	_r_mem_free (obj_name_info);
 
 	CloseHandle (hfile);
 
-	return status;
+	return string;
 }
 
 /*

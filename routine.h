@@ -625,6 +625,9 @@ FORCEINLINE PR_STRING _r_obj_createstringfromstringref (_In_ PR_STRINGREF string
 _Ret_maybenull_
 FORCEINLINE PR_STRING _r_obj_createstringfromunicodestring (_In_ PUNICODE_STRING us)
 {
+	if (!us->Buffer || !us->Length)
+		return NULL;
+
 	return _r_obj_createstringex (us->Buffer, us->Length);
 }
 
@@ -1288,8 +1291,8 @@ PR_STRING _r_path_search (_In_ LPCWSTR path);
 
 PR_STRING _r_path_dospathfromnt (_In_ LPCWSTR path);
 
-_Success_ (return == ERROR_SUCCESS)
-ULONG _r_path_ntpathfromdos (_In_ LPCWSTR path, _Outptr_ PR_STRING * ptr_nt_path);
+_Ret_maybenull_
+PR_STRING _r_path_ntpathfromdos (_In_ LPCWSTR path, _Out_opt_ PULONG error_code);
 
 /*
 	Shell
