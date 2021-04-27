@@ -1038,9 +1038,15 @@ LPCWSTR _r_config_getstringex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_value
 
 	hashstore = _r_obj_findhashtable (app_config_table, hash_code);
 
+	_r_spinlock_releaseshared (&app_config_lock);
+
 	if (!hashstore)
 	{
+		_r_spinlock_acquireexclusive (&app_config_lock);
+
 		hashstore = _r_obj_addhashtableitem (app_config_table, hash_code, NULL);
+
+		_r_spinlock_releaseexclusive (&app_config_lock);
 	}
 
 	if (hashstore)
@@ -1048,17 +1054,11 @@ LPCWSTR _r_config_getstringex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_value
 		if (_r_obj_isstringempty (hashstore->value_string))
 		{
 			if (def_value)
-			{
 				_r_obj_movereference (&hashstore->value_string, _r_obj_createstring (def_value));
-			}
 		}
-
-		_r_spinlock_releaseshared (&app_config_lock);
 
 		return _r_obj_getstring (hashstore->value_string);
 	}
-
-	_r_spinlock_releaseshared (&app_config_lock);
 
 	return NULL;
 }
