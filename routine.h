@@ -1267,11 +1267,20 @@ FORCEINLINE LONG64 _r_fs_getsize (_In_ HANDLE hfile)
 	Paths
 */
 
-LPCWSTR _r_path_getbasename (_In_ LPCWSTR path);
+FORCEINLINE LPCWSTR _r_path_getbasename (_In_ LPCWSTR path)
+{
+	return PathFindFileName (path);
+}
+
 PR_STRING _r_path_getbasedirectory (_In_ LPCWSTR path);
 
 _Ret_maybenull_
-LPCWSTR _r_path_getbaseextension (_In_ LPCWSTR path);
+FORCEINLINE LPCWSTR _r_path_getbaseextension (_In_ LPCWSTR path)
+{
+	return PathFindExtension (path);
+}
+
+_Ret_maybenull_
 PR_STRING _r_path_getfullpath (_In_ LPCWSTR path);
 
 _Ret_maybenull_
