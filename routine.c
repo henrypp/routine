@@ -5439,15 +5439,14 @@ _Ret_maybenull_
 PR_STRING _r_res_getbinaryversion (_In_ LPCWSTR path)
 {
 	PVOID ver_data;
-	ULONG ver_handle = 0;
-	ULONG ver_size = GetFileVersionInfoSize (path, &ver_handle);
+	ULONG ver_size = GetFileVersionInfoSize (path, NULL);
 
 	if (!ver_size)
 		return NULL;
 
 	ver_data = _r_mem_allocatezero (ver_size);
 
-	if (GetFileVersionInfo (path, ver_handle, ver_size, ver_data))
+	if (GetFileVersionInfo (path, 0, ver_size, ver_data))
 	{
 		PVOID buffer;
 		UINT size;
