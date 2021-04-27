@@ -674,6 +674,7 @@ _Ret_maybenull_
 HICON _r_app_getsharedimage (_In_opt_ HINSTANCE hinst, _In_ INT icon_id, _In_ INT icon_size)
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static R_SPINLOCK spin_lock;
 	static PR_ARRAY shared_icons = NULL;
 	PAPP_SHARED_IMAGE shared_icon;
 	HICON hicon;
@@ -681,17 +682,26 @@ HICON _r_app_getsharedimage (_In_opt_ HINSTANCE hinst, _In_ INT icon_id, _In_ IN
 	if (_r_initonce_begin (&init_once))
 	{
 		shared_icons = _r_obj_createarrayex (sizeof (APP_SHARED_IMAGE), 16, NULL);
+		_r_spinlock_initialize (&spin_lock);
 
 		_r_initonce_end (&init_once);
 	}
+
+	_r_spinlock_acquireshared (&spin_lock);
 
 	for (SIZE_T i = 0; i < _r_obj_getarraysize (shared_icons); i++)
 	{
 		shared_icon = _r_obj_getarrayitem (shared_icons, i);
 
 		if (shared_icon && (shared_icon->hinst == hinst) && (shared_icon->icon_id == icon_id) && (shared_icon->icon_size == icon_size))
+		{
+			_r_spinlock_releaseshared (&spin_lock);
+
 			return shared_icon->hicon;
+		}
 	}
+
+	_r_spinlock_releaseshared (&spin_lock);
 
 	hicon = _r_loadicon (hinst, MAKEINTRESOURCE (icon_id), icon_size);
 
@@ -705,7 +715,11 @@ HICON _r_app_getsharedimage (_In_opt_ HINSTANCE hinst, _In_ INT icon_id, _In_ IN
 	shared_icon->icon_size = icon_size;
 	shared_icon->hicon = hicon;
 
-	_r_obj_addarrayitem (shared_icons, &shared_icon);
+	_r_spinlock_acquireexclusive (&spin_lock);
+
+	_r_obj_addarrayitem (shared_icons, shared_icon);
+
+	_r_spinlock_releaseexclusive (&spin_lock);
 
 	_r_mem_free (shared_icon);
 
@@ -1576,23 +1590,23 @@ BOOLEAN _r_autorun_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 #if defined(APP_HAVE_UPDATES)
 VOID _r_update_addcomponent (_In_opt_ LPCWSTR full_name, _In_opt_ LPCWSTR short_name, _In_opt_ LPCWSTR version, _In_opt_ LPCWSTR target_path, _In_ BOOLEAN is_installer)
 {
-	APP_UPDATE_COMPONENT component = {0};
+	APP_UPDATE_COMPONENT update_component = {0};
 
 	if (full_name)
-		component.full_name = _r_obj_createstring (full_name);
+		update_component.full_name = _r_obj_createstring (full_name);
 
 	if (short_name)
-		component.short_name = _r_obj_createstring (short_name);
+		update_component.short_name = _r_obj_createstring (short_name);
 
 	if (version)
-		component.version = _r_obj_createstring (version);
+		update_component.version = _r_obj_createstring (version);
 
 	if (target_path)
-		component.target_path = _r_obj_createstring (target_path);
+		update_component.target_path = _r_obj_createstring (target_path);
 
-	component.is_installer = is_installer;
+	update_component.is_installer = is_installer;
 
-	_r_obj_addarrayitem (app_update_info->components, &component);
+	_r_obj_addarrayitem (app_update_info->components, &update_component);
 }
 
 VOID _r_update_check (_In_opt_ HWND hparent)
