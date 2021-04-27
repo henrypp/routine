@@ -5888,11 +5888,11 @@ HRESULT _r_xml_setlibrarystream (_Inout_ PR_XML_LIBRARY xml_library, _In_ PR_XML
 
 	xml_library->stream = stream;
 
+	if (xml_library->stream_callback)
+		xml_library->stream_callback (stream);
+
 	if (xml_library->is_reader)
 	{
-		if (xml_library->stream_callback)
-			xml_library->stream_callback (stream);
-
 		hr = IXmlReader_SetInput (xml_library->reader, (IUnknown*)stream);
 	}
 	else
