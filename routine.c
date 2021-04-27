@@ -1617,23 +1617,6 @@ PR_BYTE _r_fs_readfile (_In_ HANDLE hfile, _In_ ULONG file_size)
 	Paths
 */
 
-LPCWSTR _r_path_getbasename (_In_ LPCWSTR path)
-{
-	LPCWSTR last_slash = path;
-
-	while (!_r_str_isempty (path))
-	{
-		if ((*path == L'\\' || *path == L'/' || *path == L':') && path[1] && path[1] != OBJ_NAME_PATH_SEPARATOR && path[1] != L'/')
-		{
-			last_slash = path + 1;
-		}
-
-		path += 1;
-	}
-
-	return last_slash;
-}
-
 PR_STRING _r_path_getbasedirectory (_In_ LPCWSTR path)
 {
 	R_STRINGREF fullpath_part;
@@ -1658,27 +1641,6 @@ PR_STRING _r_path_getbasedirectory (_In_ LPCWSTR path)
 }
 
 _Ret_maybenull_
-LPCWSTR _r_path_getbaseextension (_In_ LPCWSTR path)
-{
-	LPCWSTR last_point = NULL;
-
-	while (!_r_str_isempty (path))
-	{
-		if (*path == OBJ_NAME_PATH_SEPARATOR || *path == L' ')
-		{
-			last_point = NULL;
-		}
-		else if (*path == L'.')
-		{
-			last_point = path;
-		}
-
-		path += 1;
-	}
-
-	return last_point;
-}
-
 PR_STRING _r_path_getfullpath (_In_ LPCWSTR path)
 {
 	PR_STRING full_path;
@@ -1794,11 +1756,15 @@ PR_STRING _r_path_makeunique (_In_ LPCWSTR path)
 
 	PR_STRING path_directory;
 	PR_STRING path_filename;
-	PR_STRING path_extension;
+	PR_STRING path_extension = NULL;
+
+	LPCWSTR extension = _r_path_getbaseextension (path);
 
 	path_directory = _r_path_getbasedirectory (path);
 	path_filename = _r_obj_createstring (_r_path_getbasename (path));
-	path_extension = _r_obj_createstring (_r_path_getbaseextension (path));
+
+	if (extension)
+		path_extension = _r_obj_createstring (extension);
 
 	if (!_r_obj_isstringempty (path_filename) && !_r_obj_isstringempty (path_extension))
 		_r_obj_setstringsize (path_filename, (path_filename->length - path_extension->length));
@@ -1811,9 +1777,14 @@ PR_STRING _r_path_makeunique (_In_ LPCWSTR path)
 			break;
 	}
 
-	SAFE_DELETE_REFERENCE (path_directory);
-	SAFE_DELETE_REFERENCE (path_filename);
-	SAFE_DELETE_REFERENCE (path_extension);
+	if (path_directory)
+		_r_obj_dereference (path_directory);
+
+	if (path_filename)
+		_r_obj_dereference (path_filename);
+
+	if (path_extension)
+		_r_obj_dereference (path_extension);
 
 	return result;
 }
