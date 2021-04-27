@@ -5673,8 +5673,6 @@ HRESULT _r_xml_parsefile (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR file_
 
 	if (xml_library->stream)
 	{
-		_r_xml_setlibrarystream (xml_library, NULL);
-
 		IStream_Release (xml_library->stream);
 		xml_library->stream = NULL;
 	}
@@ -5697,8 +5695,6 @@ HRESULT _r_xml_parsestring (_Inout_ PR_XML_LIBRARY xml_library, _In_ PVOID buffe
 
 	if (xml_library->stream)
 	{
-		_r_xml_setlibrarystream (xml_library, NULL);
-
 		IStream_Release (xml_library->stream);
 		xml_library->stream = NULL;
 	}
