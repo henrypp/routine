@@ -1382,10 +1382,10 @@ VOID _r_locale_enum (_In_ PVOID hwnd, _In_ INT ctrl_id, _In_opt_ UINT menu_id)
 		_r_ctrl_enable (hwnd, ctrl_id, TRUE);
 	}
 
-	_r_spinlock_acquireshared (&app_locale_lock);
-
 	PR_STRING string;
 	BOOLEAN is_current;
+
+	_r_spinlock_acquireshared (&app_locale_lock);
 
 	for (SIZE_T i = 0; i < count; i++)
 	{
