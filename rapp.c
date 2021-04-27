@@ -1180,13 +1180,19 @@ VOID _r_config_setstringex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_o
 	if (!hash_code)
 		return;
 
-	_r_spinlock_acquireexclusive (&app_config_lock);
+	_r_spinlock_acquireshared (&app_config_lock);
 
 	hashstore = _r_obj_findhashtable (app_config_table, hash_code);
 
+	_r_spinlock_releaseshared (&app_config_lock);
+
 	if (!hashstore)
 	{
+		_r_spinlock_acquireexclusive (&app_config_lock);
+
 		hashstore = _r_obj_addhashtableitem (app_config_table, hash_code, NULL);
+
+		_r_spinlock_releaseexclusive (&app_config_lock);
 	}
 
 	if (hashstore)
@@ -1205,8 +1211,6 @@ VOID _r_config_setstringex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_o
 		WritePrivateProfileString (section_string, key_name, _r_obj_getstring (hashstore->value_string), _r_app_getconfigpath ());
 #endif // APP_NO_CONFIG
 	}
-
-	_r_spinlock_releaseexclusive (&app_config_lock);
 }
 
 /*
