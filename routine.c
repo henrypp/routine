@@ -581,7 +581,7 @@ HANDLE _r_mem_getheap ()
 #define OBJECT_TO_OBJECT_HEADER(object) (CONTAINING_RECORD((object), R_OBJECT_HEADER, body))
 
 _Post_writable_byte_size_ (bytes_count)
-PVOID _r_obj_allocateex (_In_ SIZE_T bytes_count, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
+PVOID _r_obj_allocate (_In_ SIZE_T bytes_count, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
 {
 	PR_OBJECT_HEADER object_header = _r_mem_allocatezero (UFIELD_OFFSET (R_OBJECT_HEADER, body) + bytes_count);
 
@@ -629,10 +629,12 @@ VOID _r_obj_dereferenceex (_In_ PVOID object_body, _In_ LONG ref_count)
 
 PR_BYTE _r_obj_createbyteex (_In_opt_ LPSTR buffer, _In_ SIZE_T length)
 {
+	PR_BYTE byte;
+
 	if (!length)
 		length = sizeof (ANSI_NULL);
 
-	PR_BYTE byte = _r_obj_allocate (UFIELD_OFFSET (R_BYTE, data) + length + sizeof (ANSI_NULL));
+	byte = _r_obj_allocate (UFIELD_OFFSET (R_BYTE, data) + length + sizeof (ANSI_NULL), NULL);
 
 	byte->length = length;
 	byte->buffer = byte->data;
@@ -656,12 +658,14 @@ PR_BYTE _r_obj_createbyteex (_In_opt_ LPSTR buffer, _In_ SIZE_T length)
 
 PR_STRING _r_obj_createstringex (_In_opt_ LPCWSTR buffer, _In_ SIZE_T length)
 {
+	PR_STRING string;
+
 	assert (!(length & 0x01));
 
 	if (!length)
 		length = sizeof (UNICODE_NULL);
 
-	PR_STRING string = _r_obj_allocate (UFIELD_OFFSET (R_STRING, data) + length + sizeof (UNICODE_NULL));
+	string = _r_obj_allocate (UFIELD_OFFSET (R_STRING, data) + length + sizeof (UNICODE_NULL), NULL);
 
 	string->length = length;
 	string->buffer = string->data;
@@ -822,7 +826,7 @@ PR_ARRAY _r_obj_createarrayex (_In_ SIZE_T item_size, _In_ SIZE_T initial_capaci
 	if (!initial_capacity)
 		initial_capacity = 1;
 
-	array_node = _r_obj_allocateex (sizeof (R_ARRAY), &_r_util_dereferencearrayprocedure);
+	array_node = _r_obj_allocate (sizeof (R_ARRAY), &_r_util_dereferencearrayprocedure);
 
 	array_node->count = 0;
 	array_node->allocated_count = initial_capacity;
@@ -935,7 +939,7 @@ PR_LIST _r_obj_createlistex (_In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CL
 	if (!initial_capacity)
 		initial_capacity = 1;
 
-	list_node = _r_obj_allocateex (sizeof (R_LIST), &_r_util_dereferencelistprocedure);
+	list_node = _r_obj_allocate (sizeof (R_LIST), &_r_util_dereferencelistprocedure);
 
 	list_node->count = 0;
 	list_node->allocated_count = initial_capacity;
@@ -1053,7 +1057,9 @@ VOID _r_obj_resizelist (_Inout_ PR_LIST list_node, _In_ SIZE_T new_capacity)
 
 PR_HASHTABLE _r_obj_createhashtableex (_In_ SIZE_T entry_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
 {
-	PR_HASHTABLE hashtable = _r_obj_allocateex (sizeof (R_HASHTABLE), &_r_util_dereferencehashtableprocedure);
+	PR_HASHTABLE hashtable;
+
+	hashtable = _r_obj_allocate (sizeof (R_HASHTABLE), &_r_util_dereferencehashtableprocedure);
 
 	if (!initial_capacity)
 		initial_capacity = 1;

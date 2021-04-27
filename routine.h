@@ -497,16 +497,10 @@ typedef struct tagR_OBJECT_HEADER
 } R_OBJECT_HEADER, *PR_OBJECT_HEADER;
 
 _Post_writable_byte_size_ (bytes_count)
-PVOID _r_obj_allocateex (_In_ SIZE_T bytes_count, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
+PVOID _r_obj_allocate (_In_ SIZE_T bytes_count, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
 
 PVOID _r_obj_reference (_In_ PVOID object_body);
 VOID _r_obj_dereferenceex (_In_ PVOID object_body, _In_ LONG ref_count);
-
-_Post_writable_byte_size_ (bytes_count)
-FORCEINLINE PVOID _r_obj_allocate (_In_ SIZE_T bytes_count)
-{
-	return _r_obj_allocateex (bytes_count, NULL);
-}
 
 _Ret_maybenull_
 FORCEINLINE PVOID _r_obj_referencesafe (_In_opt_ PVOID object_body)
