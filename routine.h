@@ -1762,6 +1762,26 @@ FORCEINLINE VOID _r_sys_setthreadexecutionstate (ULONG state)
 	NtSetThreadExecutionState (state, &old_state);
 }
 
+FORCEINLINE LONG64 _r_sys_initializeexecutiontime ()
+{
+	LARGE_INTEGER li;
+
+	if (QueryPerformanceCounter (&li))
+		return li.QuadPart;
+
+	return 0;
+}
+
+FORCEINLINE DOUBLE _r_sys_finalexecutiontime (_In_ LONG64 start_time)
+{
+	LARGE_INTEGER li;
+
+	if (QueryPerformanceFrequency (&li))
+		return ((_r_sys_initializeexecutiontime () - start_time) * 1000.0) / li.QuadPart / 1000.0;
+
+	return 0.0;
+}
+
 /*
 	Unixtime
 */
