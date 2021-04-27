@@ -1456,23 +1456,27 @@ LPCWSTR _r_locale_getstring (_In_ UINT uid)
 		_r_str_printf (resource_section_string, RTL_NUMBER_OF (resource_section_string), L"%s\\%03" PRIu32, app_locale_resource->buffer, uid);
 	}
 
-	_r_spinlock_acquireshared (&app_locale_lock);
-
 	if (!_r_obj_isstringempty (app_locale_current))
 	{
+		_r_spinlock_acquireshared (&app_locale_lock);
+
 		hashstore = _r_obj_findhashtable (app_locale_table, _r_str_hash (current_section_string));
 
+		_r_spinlock_releaseshared (&app_locale_lock);
+
 		if (hashstore)
-		{
 			value_string = hashstore->value_string;
-		}
 	}
 
 	if (_r_obj_isstringempty (value_string) && !_r_obj_isstringempty (app_locale_resource))
 	{
 		hash_code = _r_str_hash (resource_section_string);
 
+		_r_spinlock_acquireshared (&app_locale_lock);
+
 		hashstore = _r_obj_findhashtable (app_locale_table, hash_code);
+
+		_r_spinlock_releaseshared (&app_locale_lock);
 
 		if (!hashstore)
 		{
@@ -1488,7 +1492,11 @@ LPCWSTR _r_locale_getstring (_In_ UINT uid)
 
 				_r_obj_initializehashstore (&new_hashstore, value_string, 0);
 
+				_r_spinlock_acquireexclusive (&app_locale_lock);
+
 				_r_obj_addhashtableitem (app_config_table, hash_code, &new_hashstore);
+
+				_r_spinlock_releaseexclusive (&app_locale_lock);
 			}
 		}
 		else
@@ -1496,8 +1504,6 @@ LPCWSTR _r_locale_getstring (_In_ UINT uid)
 			value_string = hashstore->value_string;
 		}
 	}
-
-	_r_spinlock_releaseshared (&app_locale_lock);
 
 	return _r_obj_getstring (value_string);
 }
