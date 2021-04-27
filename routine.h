@@ -2096,7 +2096,7 @@ BOOLEAN _r_inet_readrequest (_In_ HINTERNET hrequest, _Out_writes_bytes_ (buffer
 
 _Check_return_
 _Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_parseurlparts (_In_ LPCWSTR url, _Inout_ PR_URLPARTS url_parts, _In_ ULONG flags);
+ULONG _r_inet_parseurlparts (_In_ LPCWSTR url, _Out_ PR_URLPARTS url_parts, _In_ ULONG flags);
 
 VOID _r_inet_destroyurlparts (_Inout_ PR_URLPARTS url_parts);
 
