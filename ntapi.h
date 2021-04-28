@@ -8,6 +8,27 @@
 // Libraries
 #pragma comment(lib, "ntdll.lib")
 
+// Errors
+#ifndef NT_FACILITY_MASK
+#define NT_FACILITY_MASK 0xfff
+#endif
+
+#ifndef NT_FACILITY_SHIFT
+#define NT_FACILITY_SHIFT 16
+#endif
+
+#ifndef NT_FACILITY
+#define NT_FACILITY(Status) ((((ULONG)(Status)) >> NT_FACILITY_SHIFT) & NT_FACILITY_MASK)
+#endif
+
+#ifndef NT_NTWIN32
+#define NT_NTWIN32(Status) (NT_FACILITY(Status) == FACILITY_NTWIN32)
+#endif
+
+#ifndef WIN32_FROM_NTSTATUS
+#define WIN32_FROM_NTSTATUS(Status) (((ULONG)(Status)) & 0xffff)
+#endif
+
 // Memory
 #ifndef PTR_ADD_OFFSET
 #define PTR_ADD_OFFSET(pointer, offset) ((PVOID)((ULONG_PTR)(pointer) + (ULONG_PTR)(offset)))
@@ -1571,6 +1592,14 @@ RtlExitUserThread (
 	_In_ NTSTATUS ExitStatus
 );
 
+DECLSPEC_NORETURN
+NTSYSCALLAPI
+VOID
+NTAPI
+RtlExitUserProcess (
+	_In_ NTSTATUS ExitStatus
+);
+
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -2108,6 +2137,17 @@ RtlAssert (
 	_In_ PVOID VoidFileName,
 	_In_ ULONG LineNumber,
 	_In_opt_ PSTR MutableMessage
+);
+
+typedef ULONG (NTAPI *PRTLP_UNHANDLED_EXCEPTION_FILTER)(
+	_In_ PEXCEPTION_POINTERS ExceptionInfo
+	);
+
+NTSYSAPI
+VOID
+NTAPI
+RtlSetUnhandledExceptionFilter (
+	_In_ PRTLP_UNHANDLED_EXCEPTION_FILTER UnhandledExceptionFilter
 );
 
 // winbase:InitializeSRWLock
