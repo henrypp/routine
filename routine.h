@@ -775,7 +775,7 @@ FORCEINLINE VOID _r_obj_appendstringbuilder (_Inout_ PR_STRINGBUILDER string, _I
 	_r_obj_appendstringbuilderex (string, text, _r_str_length (text) * sizeof (WCHAR));
 }
 
-FORCEINLINE VOID _r_obj_appendstringbuilder2 (_Inout_ PR_STRINGBUILDER string, _In_ PR_STRING text)
+FORCEINLINE VOID _r_obj_appendstringbuilderstring (_Inout_ PR_STRINGBUILDER string, _In_ PR_STRING text)
 {
 	_r_obj_appendstringbuilderex (string, text->buffer, text->length);
 }

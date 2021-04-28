@@ -5148,7 +5148,7 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Inout_ 
 
 			if (decoded_string)
 			{
-				_r_obj_appendstringbuilder2 (&buffer_string, decoded_string);
+				_r_obj_appendstringbuilderstring (&buffer_string, decoded_string);
 				_r_obj_dereference (decoded_string);
 			}
 			else
