@@ -56,6 +56,33 @@ static LPCWSTR _r_app_getmutexname ()
 #define _r_app_getmutexname _r_app_getnameshort
 #endif // APP_NO_MUTEX
 
+ULONG CALLBACK _r_app_sehfilter_callback (_In_ PEXCEPTION_POINTERS exception_ptr)
+{
+	ULONG error_code;
+	HINSTANCE hinst;
+
+	if (NT_NTWIN32 (exception_ptr->ExceptionRecord->ExceptionCode))
+	{
+		error_code = WIN32_FROM_NTSTATUS (exception_ptr->ExceptionRecord->ExceptionCode);
+		hinst = NULL;
+	}
+	else
+	{
+		error_code = exception_ptr->ExceptionRecord->ExceptionCode;
+		hinst = GetModuleHandle (L"ntdll.dll");
+	}
+
+	_r_show_errormessage (_r_app_gethwnd (), L"Exception raised :(", error_code, NULL, hinst);
+
+#if defined(APP_NO_DEPRECATIONS)
+	RtlExitUserProcess (exception_ptr->ExceptionRecord->ExceptionCode);
+#else
+	ExitProcess (exception_ptr->ExceptionRecord->ExceptionCode);
+#endif // APP_NO_DEPRECATIONS
+
+	return EXCEPTION_EXECUTE_HANDLER;
+}
+
 BOOLEAN _r_app_initialize ()
 {
 	// Safe DLL loading
@@ -92,6 +119,25 @@ BOOLEAN _r_app_initialize ()
 		}
 	}
 #endif // APP_NO_DEPRECATIONS
+
+	// set unhandled exception filter callback
+#if !defined(_DEBUG)
+#if !defined(APP_NO_DEPRECATIONS)
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_7))
+#endif // !APP_NO_DEPRECATIONS
+	{
+		ULONG error_mode;
+
+		if (NT_SUCCESS (NtQueryInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (ULONG), NULL)))
+		{
+			error_mode &= ~(SEM_NOOPENFILEERRORBOX | SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+
+			NtSetInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (ULONG));
+		}
+
+		RtlSetUnhandledExceptionFilter (&_r_app_sehfilter_callback);
+	}
+#endif // !_DEBUG
 
 	// initialize COM library
 	{
@@ -2451,10 +2497,14 @@ VOID _r_show_aboutmessage (_In_opt_ HWND hwnd)
 	is_opened = FALSE;
 }
 
-VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG errcode, _In_opt_ LPCWSTR description, _In_opt_ HINSTANCE hmodule)
+VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG error_code, _In_opt_ LPCWSTR description, _In_opt_ HINSTANCE hmodule)
 {
 	HLOCAL buffer = NULL;
-	FormatMessage (FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, hmodule, errcode, 0, (LPWSTR)&buffer, 0, NULL);
+
+	if (!hmodule)
+		hmodule = GetModuleHandle (L"kernel32.dll"); // FORMAT_MESSAGE_FROM_SYSTEM
+
+	FormatMessage (FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_HMODULE | FORMAT_MESSAGE_IGNORE_INSERTS, hmodule, error_code, 0, (LPWSTR)&buffer, 0, NULL);
 
 	WCHAR str_content[512];
 	LPCWSTR str_main;
@@ -2463,7 +2513,10 @@ VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG
 	str_main = main ? main : L"It happens ;(";
 	str_footer = L"This information may provide clues as to what went wrong and how to fix it.";
 
-	_r_str_printf (str_content, RTL_NUMBER_OF (str_content), L"%s (0x%08" PRIX32 L")", buffer ? (LPWSTR)buffer : L"n/a", errcode);
+	if (buffer)
+		_r_str_trim (buffer, L"\r\n ");
+
+	_r_str_printf (str_content, RTL_NUMBER_OF (str_content), L"%s (0x%08" PRIX32 L")", buffer ? (LPWSTR)buffer : L"n/a", error_code);
 
 	if (description)
 		_r_str_appendformat (str_content, RTL_NUMBER_OF (str_content), L"\r\n\r\n\"%s\"", description);
@@ -2472,7 +2525,6 @@ VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
 #endif // !APP_NO_DEPRECATIONS
 	{
-
 		TASKDIALOGCONFIG tdc = {0};
 		TASKDIALOG_BUTTON td_buttons[2] = {0};
 

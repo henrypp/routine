@@ -270,7 +270,7 @@ VOID _r_log_v (_In_ LOG_LEVEL log_level, _In_ UINT tray_id, _In_ LPCWSTR fn, _In
 
 #if !defined(APP_CONSOLE)
 VOID _r_show_aboutmessage (_In_opt_ HWND hwnd);
-VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG errcode, _In_opt_ LPCWSTR description, _In_opt_ HINSTANCE hmodule);
+VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG error_code, _In_opt_ LPCWSTR description, _In_opt_ HINSTANCE hmodule);
 BOOLEAN _r_show_confirmmessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ LPCWSTR text, _In_opt_ LPCWSTR config_key);
 INT _r_show_message (_In_opt_ HWND hwnd, _In_ ULONG flags, _In_opt_ LPCWSTR title, _In_opt_ LPCWSTR main, _In_ LPCWSTR content);
 
