@@ -2171,11 +2171,25 @@ SIZE_T _r_math_rounduptopoweroftwo (_In_ SIZE_T number);
 	Resources
 */
 
-_Ret_maybenull_
-PR_STRING _r_res_getbinaryversion (_In_ LPCWSTR path);
-
 _Success_ (return != NULL)
 PVOID _r_res_loadresource (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ LPCWSTR type, _Out_opt_ PULONG buffer_size);
+
+_Ret_maybenull_
+PR_STRING _r_res_querystring (_In_ PVOID block, _In_ LPCWSTR entry_name, _In_ UINT lang_id, _In_ UINT code_page);
+
+_Success_ (return)
+BOOLEAN _r_res_querytranslation (_In_ PVOID block, _Out_ PUINT lang_id, _Out_ PUINT code_page);
+
+_Ret_maybenull_
+PR_STRING _r_res_queryversionstring (_In_ LPCWSTR path);
+
+_Success_ (return)
+FORCEINLINE BOOLEAN _r_res_queryversion (_In_ PVOID block, _Out_ VS_FIXEDFILEINFO** ver_info)
+{
+	UINT length;
+
+	return !!VerQueryValue (block, L"\\", ver_info, &length);
+}
 
 /*
 	Other

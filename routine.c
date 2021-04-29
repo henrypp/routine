@@ -5412,11 +5412,91 @@ SIZE_T _r_math_rounduptopoweroftwo (_In_ SIZE_T number)
 	Resources
 */
 
+_Success_ (return != NULL)
+PVOID _r_res_loadresource (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ LPCWSTR type, _Out_opt_ PULONG buffer_size)
+{
+	HRSRC hres;
+	HGLOBAL hloaded;
+	PVOID hlock;
+
+	hres = FindResource (hinst, name, type);
+
+	if (hres)
+	{
+		hloaded = LoadResource (hinst, hres);
+
+		if (hloaded)
+		{
+			hlock = LockResource (hloaded);
+
+			if (hlock)
+			{
+				if (buffer_size)
+					*buffer_size = SizeofResource (hinst, hres);
+
+				return hlock;
+			}
+		}
+	}
+
+	return NULL;
+}
+
 _Ret_maybenull_
-PR_STRING _r_res_getbinaryversion (_In_ LPCWSTR path)
+PR_STRING _r_res_querystring (_In_ PVOID block, _In_ LPCWSTR entry_name, _In_ UINT lang_id, _In_ UINT code_page)
+{
+	WCHAR entry[128];
+	PVOID buffer = NULL;
+	PR_STRING string;
+	UINT length;
+
+	_r_str_printf (entry, RTL_NUMBER_OF (entry), L"\\StringFileInfo\\%04x%04x\\%s", lang_id, code_page, entry_name);
+
+	if (VerQueryValue (block, entry, &buffer, &length) && buffer)
+	{
+		if (length <= sizeof (UNICODE_NULL))
+			return NULL;
+
+		string = _r_obj_createstringex (buffer, length * sizeof (WCHAR));
+
+		_r_obj_trimstringtonullterminator (string);
+
+		return string;
+	}
+
+	return NULL;
+}
+
+_Success_ (return)
+BOOLEAN _r_res_querytranslation (_In_ PVOID block, _Out_ PUINT lang_id, _Out_ PUINT code_page)
+{
+	typedef struct tagVERSION_TRANSLATION
+	{
+		WORD lang_id;
+		WORD code_page;
+	} VERSION_TRANSLATION, *PVERSION_TRANSLATION;
+
+	PVERSION_TRANSLATION buffer = NULL;
+	UINT length;
+
+	if (VerQueryValue (block, L"\\VarFileInfo\\Translation", &buffer, &length) && buffer)
+	{
+		*lang_id = buffer->lang_id;
+		*code_page = buffer->code_page;
+
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
+_Ret_maybenull_
+PR_STRING _r_res_queryversionstring (_In_ LPCWSTR path)
 {
 	PVOID ver_data;
-	ULONG ver_size = GetFileVersionInfoSize (path, NULL);
+	ULONG ver_size;
+
+	ver_size = GetFileVersionInfoSize (path, NULL);
 
 	if (!ver_size)
 		return NULL;
@@ -5425,20 +5505,18 @@ PR_STRING _r_res_getbinaryversion (_In_ LPCWSTR path)
 
 	if (GetFileVersionInfo (path, 0, ver_size, ver_data))
 	{
-		PVOID buffer;
-		UINT size;
+		VS_FIXEDFILEINFO *ver_info;
+		PR_STRING string;
 
-		if (VerQueryValue (ver_data, L"\\", &buffer, &size))
+		if (_r_res_queryversion (ver_data, &ver_info))
 		{
-			VS_FIXEDFILEINFO *ver_info = (VS_FIXEDFILEINFO*)buffer;
-
 			if (ver_info->dwSignature == 0xFEEF04BD)
 			{
 				// Doesn't matter if you are on 32 bit or 64 bit,
 				// DWORD is always 32 bits, so first two revision numbers
 				// come from dwFileVersionMS, last two come from dwFileVersionLS
 
-				PR_STRING string = _r_format_string (L"%d.%d.%d.%d", (ver_info->dwFileVersionMS >> 16) & 0xFFFF, (ver_info->dwFileVersionMS >> 0) & 0xFFFF, (ver_info->dwFileVersionLS >> 16) & 0xFFFF, (ver_info->dwFileVersionLS >> 0) & 0xFFFF);
+				string = _r_format_string (L"%d.%d.%d.%d", (ver_info->dwFileVersionMS >> 16) & 0xFFFF, (ver_info->dwFileVersionMS >> 0) & 0xFFFF, (ver_info->dwFileVersionLS >> 16) & 0xFFFF, (ver_info->dwFileVersionLS >> 0) & 0xFFFF);
 
 				_r_mem_free (ver_data);
 
@@ -5448,32 +5526,6 @@ PR_STRING _r_res_getbinaryversion (_In_ LPCWSTR path)
 	}
 
 	_r_mem_free (ver_data);
-
-	return NULL;
-}
-
-_Success_ (return != NULL)
-PVOID _r_res_loadresource (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ LPCWSTR type, _Out_opt_ PULONG buffer_size)
-{
-	HRSRC hres = FindResource (hinst, name, type);
-
-	if (hres)
-	{
-		HGLOBAL hloaded = LoadResource (hinst, hres);
-
-		if (hloaded)
-		{
-			PVOID res = LockResource (hloaded);
-
-			if (res)
-			{
-				if (buffer_size)
-					*buffer_size = SizeofResource (hinst, hres);
-
-				return res;
-			}
-		}
-	}
 
 	return NULL;
 }
