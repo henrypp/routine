@@ -1787,7 +1787,7 @@ THREAD_API _r_update_checkthread (PVOID lparam)
 					if (!string_value || _r_obj_isstringempty (string_value->value_string))
 						continue;
 
-					split_pos = _r_str_findchar (string_value->value_string->buffer, L'|');
+					split_pos = _r_str_findchar (string_value->value_string->buffer, _r_obj_getstringlength (string_value->value_string), L'|');
 
 					if (split_pos == SIZE_MAX)
 						continue;
