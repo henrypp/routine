@@ -56,6 +56,7 @@ static LPCWSTR _r_app_getmutexname ()
 #define _r_app_getmutexname _r_app_getnameshort
 #endif // APP_NO_MUTEX
 
+#if !defined(APP_CONSOLE) && !defined(_DEBUG)
 ULONG CALLBACK _r_app_sehfilter_callback (_In_ PEXCEPTION_POINTERS exception_ptr)
 {
 	ULONG error_code;
@@ -82,6 +83,7 @@ ULONG CALLBACK _r_app_sehfilter_callback (_In_ PEXCEPTION_POINTERS exception_ptr
 
 	return EXCEPTION_EXECUTE_HANDLER;
 }
+#endif // !APP_CONSOLE && !_DEBUG
 
 BOOLEAN _r_app_initialize ()
 {
@@ -121,7 +123,7 @@ BOOLEAN _r_app_initialize ()
 #endif // APP_NO_DEPRECATIONS
 
 	// set unhandled exception filter callback
-#if !defined(_DEBUG)
+#if !defined(APP_CONSOLE) && !defined(_DEBUG)
 #if !defined(APP_NO_DEPRECATIONS)
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_7))
 #endif // !APP_NO_DEPRECATIONS
@@ -137,7 +139,7 @@ BOOLEAN _r_app_initialize ()
 
 		RtlSetUnhandledExceptionFilter (&_r_app_sehfilter_callback);
 	}
-#endif // !_DEBUG
+#endif // !APP_CONSOLE && !_DEBUG
 
 	// initialize COM library
 	{
