@@ -2236,10 +2236,8 @@ BOOLEAN _r_str_isnumeric (_In_ LPCWSTR string)
 
 	while (*string != UNICODE_NULL)
 	{
-		if (iswdigit (*string) == 0)
+		if (iswdigit (*(string++)) == 0)
 			return FALSE;
-
-		string += 1;
 	}
 
 	return TRUE;
@@ -2436,7 +2434,7 @@ ULONG _r_str_crc32 (_In_ LPCWSTR string, _In_ BOOLEAN is_ignorecase)
 	};
 
 	ULONG hash;
-	USHORT chr;
+	WCHAR chr;
 
 	if (_r_str_isempty (string))
 		return 0;
@@ -2447,16 +2445,14 @@ ULONG _r_str_crc32 (_In_ LPCWSTR string, _In_ BOOLEAN is_ignorecase)
 	{
 		if (is_ignorecase)
 		{
-			chr = _r_str_lower (*string);
+			chr = _r_str_lower (*(string++));
 		}
 		else
 		{
-			chr = *string;
+			chr = *(string++);
 		}
 
-		hash = (hash >> 8) ^ (crc32_table[(hash ^ chr) & 0xff]);
-
-		string += 1;
+		hash = (hash >> 8) ^ (crc32_table[(hash ^ (ULONG)chr) & 0x000000FFul]);
 	}
 
 	return ~hash;
@@ -2512,7 +2508,7 @@ ULONG64 _r_str_crc64 (_In_ LPCWSTR string, _In_ BOOLEAN is_ignorecase)
 	};
 
 	ULONG64 hash;
-	USHORT chr;
+	WCHAR chr;
 
 	if (_r_str_isempty (string))
 		return 0;
@@ -2523,16 +2519,14 @@ ULONG64 _r_str_crc64 (_In_ LPCWSTR string, _In_ BOOLEAN is_ignorecase)
 	{
 		if (is_ignorecase)
 		{
-			chr = _r_str_lower (*string);
+			chr = _r_str_lower (*(string++));
 		}
 		else
 		{
-			chr = *string;
+			chr = *(string++);
 		}
 
-		hash = (hash >> 8) ^ (crc64_table[(hash ^ chr) & 0xff]);
-
-		string += 1;
+		hash = (hash >> 8) ^ (crc64_table[(hash ^ (ULONG)chr) & 0x00000000000000FFull]);
 	}
 
 	return ~hash;
@@ -2542,7 +2536,7 @@ _Check_return_
 ULONG _r_str_fnv32a (_In_ LPCWSTR string, _In_ BOOLEAN is_ignorecase)
 {
 	ULONG hash;
-	USHORT chr;
+	WCHAR chr;
 
 	if (_r_str_isempty (string))
 		return 0;
@@ -2553,16 +2547,14 @@ ULONG _r_str_fnv32a (_In_ LPCWSTR string, _In_ BOOLEAN is_ignorecase)
 	{
 		if (is_ignorecase)
 		{
-			chr = (USHORT)_r_str_lower (*string);
+			chr = _r_str_lower (*(string++));
 		}
 		else
 		{
-			chr = (USHORT)*string;
+			chr = *(string++);
 		}
 
-		hash = (hash ^ chr) * 16777619U;
-
-		string += 1;
+		hash = (hash ^ (ULONG)chr) * 16777619U;
 	}
 
 	return hash;
@@ -2572,7 +2564,7 @@ _Check_return_
 ULONG64 _r_str_fnv64a (_In_ LPCWSTR string, _In_ BOOLEAN is_ignorecase)
 {
 	ULONG64 hash;
-	USHORT chr;
+	WCHAR chr;
 
 	if (_r_str_isempty (string))
 		return 0;
@@ -2583,16 +2575,14 @@ ULONG64 _r_str_fnv64a (_In_ LPCWSTR string, _In_ BOOLEAN is_ignorecase)
 	{
 		if (is_ignorecase)
 		{
-			chr = (USHORT)_r_str_lower (*string);
+			chr = _r_str_lower (*(string++));
 		}
 		else
 		{
-			chr = (USHORT)*string;
+			chr = *(string++);
 		}
 
-		hash = (hash ^ chr) * 1099511628211LL;
-
-		string += 1;
+		hash = (hash ^ (ULONG)chr) * 1099511628211LL;
 	}
 
 	return hash;
