@@ -936,7 +936,7 @@ FORCEINLINE VOID _r_obj_removelistitem (_Inout_ PR_LIST list_node, _In_ SIZE_T i
 typedef struct tagR_HASHTABLE_ENTRY
 {
 	SIZE_T next;
-	SIZE_T hash_code;
+	ULONG_PTR hash_code;
 
 	QUAD_PTR body;
 } R_HASHTABLE_ENTRY, *PR_HASHTABLE_ENTRY;
@@ -958,17 +958,17 @@ PR_HASHTABLE _r_obj_createhashtableex (_In_ SIZE_T entry_size, _In_ SIZE_T initi
 VOID _r_obj_resizehashtable (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T new_capacity);
 
 _Ret_maybenull_
-PVOID _r_obj_addhashtableitem (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code, _In_opt_ PVOID entry);
+PVOID _r_obj_addhashtableitem (_Inout_ PR_HASHTABLE hashtable, _In_ ULONG_PTR hash_code, _In_opt_ PVOID entry);
 
 VOID _r_obj_clearhashtable (_Inout_ PR_HASHTABLE hashtable);
 
 _Success_ (return)
-BOOLEAN _r_obj_enumhashtable (_In_ PR_HASHTABLE hashtable, _Outptr_ PVOID * entry, _Out_opt_ PSIZE_T hash_code, _Inout_ PSIZE_T enum_key);
+BOOLEAN _r_obj_enumhashtable (_In_ PR_HASHTABLE hashtable, _Outptr_ PVOID * entry, _Out_opt_ PULONG_PTR hash_code, _Inout_ PSIZE_T enum_key);
 
 _Ret_maybenull_
-PVOID _r_obj_findhashtable (_In_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code);
+PVOID _r_obj_findhashtable (_In_ PR_HASHTABLE hashtable, _In_ ULONG_PTR hash_code);
 
-BOOLEAN _r_obj_removehashtableentry (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code);
+BOOLEAN _r_obj_removehashtableentry (_Inout_ PR_HASHTABLE hashtable, _In_ ULONG_PTR hash_code);
 
 FORCEINLINE PR_HASHTABLE _r_obj_createhashtable (_In_ SIZE_T entry_size, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
 {

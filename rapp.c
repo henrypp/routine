@@ -1056,7 +1056,7 @@ LPCWSTR _r_config_getstringex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_value
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	WCHAR section_string[128];
 	PR_HASHSTORE hashstore;
-	SIZE_T hash_code;
+	ULONG_PTR hash_code;
 
 	if (_r_initonce_begin (&init_once))
 	{
@@ -1199,7 +1199,7 @@ VOID _r_config_setstringex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_o
 	WCHAR section_string[128];
 	WCHAR section_string_full[128];
 	PR_HASHSTORE hashstore;
-	SIZE_T hash_code;
+	ULONG_PTR hash_code;
 
 	if (_r_initonce_begin (&init_once))
 	{
@@ -1485,7 +1485,7 @@ LPCWSTR _r_locale_getstring (_In_ UINT uid)
 	WCHAR resource_section_string[128] = {0};
 	PR_HASHSTORE hashstore = NULL;
 	PR_STRING value_string = NULL;
-	SIZE_T hash_code;
+	ULONG_PTR hash_code;
 	INT length;
 
 	if (_r_initonce_begin (&init_once))

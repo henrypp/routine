@@ -1082,12 +1082,12 @@ PR_HASHTABLE _r_obj_createhashtableex (_In_ SIZE_T entry_size, _In_ SIZE_T initi
 	return hashtable;
 }
 
-FORCEINLINE SIZE_T _r_obj_indexfromhash (_In_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code)
+FORCEINLINE SIZE_T _r_obj_indexfromhash (_In_ PR_HASHTABLE hashtable, _In_ ULONG_PTR hash_code)
 {
 	return hash_code & (hashtable->allocated_buckets - 1);
 }
 
-FORCEINLINE SIZE_T _r_obj_validatehash (_In_ SIZE_T hash_code)
+FORCEINLINE ULONG_PTR _r_obj_validatehash (_In_ ULONG_PTR hash_code)
 {
 	return hash_code & MAXLONG;
 }
@@ -1122,7 +1122,7 @@ VOID _r_obj_resizehashtable (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T new_cap
 	}
 }
 
-FORCEINLINE PVOID _r_obj_addhashtableitemex (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code, _In_opt_ PVOID entry, _In_ BOOLEAN is_checkforduplicate, _Out_opt_ PBOOLEAN is_added)
+FORCEINLINE PVOID _r_obj_addhashtableitemex (_Inout_ PR_HASHTABLE hashtable, _In_ ULONG_PTR hash_code, _In_opt_ PVOID entry, _In_ BOOLEAN is_checkforduplicate, _Out_opt_ PBOOLEAN is_added)
 {
 	PR_HASHTABLE_ENTRY hashtable_entry;
 	SIZE_T index;
@@ -1191,7 +1191,7 @@ FORCEINLINE PVOID _r_obj_addhashtableitemex (_Inout_ PR_HASHTABLE hashtable, _In
 }
 
 _Ret_maybenull_
-PVOID _r_obj_addhashtableitem (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code, _In_opt_ PVOID entry)
+PVOID _r_obj_addhashtableitem (_Inout_ PR_HASHTABLE hashtable, _In_ ULONG_PTR hash_code, _In_opt_ PVOID entry)
 {
 	PVOID hashtable_entry;
 	BOOLEAN is_added;
@@ -1242,7 +1242,7 @@ VOID _r_obj_clearhashtable (_Inout_ PR_HASHTABLE hashtable)
 }
 
 _Success_ (return)
-BOOLEAN _r_obj_enumhashtable (_In_ PR_HASHTABLE hashtable, _Outptr_ PVOID * entry, _Out_opt_ PSIZE_T hash_code, _Inout_ PSIZE_T enum_key)
+BOOLEAN _r_obj_enumhashtable (_In_ PR_HASHTABLE hashtable, _Outptr_ PVOID * entry, _Out_opt_ PULONG_PTR hash_code, _Inout_ PSIZE_T enum_key)
 {
 	PR_HASHTABLE_ENTRY hashtable_entry;
 
@@ -1267,7 +1267,7 @@ BOOLEAN _r_obj_enumhashtable (_In_ PR_HASHTABLE hashtable, _Outptr_ PVOID * entr
 }
 
 _Ret_maybenull_
-PVOID _r_obj_findhashtable (_In_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code)
+PVOID _r_obj_findhashtable (_In_ PR_HASHTABLE hashtable, _In_ ULONG_PTR hash_code)
 {
 	PR_HASHTABLE_ENTRY hashtable_entry;
 	SIZE_T index;
@@ -1286,7 +1286,7 @@ PVOID _r_obj_findhashtable (_In_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code)
 	return NULL;
 }
 
-BOOLEAN _r_obj_removehashtableentry (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T hash_code)
+BOOLEAN _r_obj_removehashtableentry (_Inout_ PR_HASHTABLE hashtable, _In_ ULONG_PTR hash_code)
 {
 	PR_HASHTABLE_ENTRY hashtable_entry;
 	SIZE_T index;
@@ -3084,7 +3084,7 @@ PR_HASHTABLE _r_str_unserialize (_In_ PR_STRING string, _In_ WCHAR key_delimeter
 	PR_STRING values_part;
 	PR_STRING key_string;
 	SIZE_T delimeter_pos;
-	SIZE_T hash_code;
+	ULONG_PTR hash_code;
 
 	_r_obj_initializestringref2 (&remaining_part, string);
 
@@ -5715,7 +5715,7 @@ PR_HASHTABLE _r_parseini (_In_ LPCWSTR path, _Inout_opt_ PR_LIST section_list)
 	SIZE_T section_length;
 	SIZE_T value_length;
 	SIZE_T delimeter_pos;
-	SIZE_T hash_code;
+	ULONG_PTR hash_code;
 	ULONG out_length;
 	ULONG allocation_length;
 
