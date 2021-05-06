@@ -5970,6 +5970,16 @@ LONG64 _r_xml_getattribute_long64 (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCW
 	return _r_str_tolong64 (text_value);
 }
 
+ULONG64 _r_xml_getattribute_ulong64 (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name)
+{
+	LPCWSTR text_value;
+
+	if (!_r_xml_getattribute (xml_library, attrib_name, &text_value, NULL))
+		return 0;
+
+	return _r_str_toulong64 (text_value);
+}
+
 VOID _r_xml_setattribute_integer (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name, _In_ INT value)
 {
 	WCHAR value_text[64];
@@ -5982,6 +5992,14 @@ VOID _r_xml_setattribute_long64 (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWST
 {
 	WCHAR value_text[64];
 	_r_str_fromlong64 (value_text, RTL_NUMBER_OF (value_text), value);
+
+	_r_xml_setattribute (xml_library, name, value_text);
+}
+
+VOID _r_xml_setattribute_ulong64 (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name, _In_ ULONG64 value)
+{
+	WCHAR value_text[64];
+	_r_str_fromulong64 (value_text, RTL_NUMBER_OF (value_text), value);
 
 	_r_xml_setattribute (xml_library, name, value_text);
 }

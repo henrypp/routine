@@ -2231,6 +2231,7 @@ PR_STRING _r_xml_getattribute_string (_Inout_ PR_XML_LIBRARY xml_library, _In_ L
 BOOLEAN _r_xml_getattribute_boolean (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name);
 INT _r_xml_getattribute_integer (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name);
 LONG64 _r_xml_getattribute_long64 (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name);
+ULONG64 _r_xml_getattribute_ulong64 (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name);
 
 FORCEINLINE VOID _r_xml_setattribute (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name, _In_ LPCWSTR value)
 {
@@ -2244,6 +2245,7 @@ FORCEINLINE VOID _r_xml_setattribute_boolean (_Inout_ PR_XML_LIBRARY xml_library
 
 VOID _r_xml_setattribute_integer (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name, _In_ INT value);
 VOID _r_xml_setattribute_long64 (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name, _In_ LONG64 value);
+VOID _r_xml_setattribute_ulong64 (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name, _In_ ULONG64 value);
 
 _Success_ (return)
 BOOLEAN _r_xml_enumchilditemsbytagname (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR tag_name);
