@@ -75,7 +75,7 @@ _Check_return_
 extern SIZE_T _r_str_length (_In_ LPCWSTR text);
 
 _Check_return_
-extern SIZE_T _r_str_hash (_In_ LPCWSTR string);
+extern FORCEINLINE ULONG _r_str_hash (_In_ LPCWSTR string);
 
 extern FORCEINLINE VOID _r_str_trim (_Inout_ LPWSTR string, _In_ LPCWSTR trim);
 
@@ -687,7 +687,7 @@ FORCEINLINE SIZE_T _r_obj_getstringsize (_In_opt_ PR_STRING string)
 }
 
 _Check_return_
-FORCEINLINE SIZE_T _r_obj_getstringhash (_In_opt_ PR_STRING string)
+FORCEINLINE ULONG _r_obj_getstringhash (_In_opt_ PR_STRING string)
 {
 	if (string)
 		return _r_str_hash (string->buffer);
@@ -1377,7 +1377,22 @@ _Success_ (return)
 BOOLEAN _r_str_printf_v (_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer, _In_ SIZE_T buffer_size, _In_ _Printf_format_string_ LPCWSTR format, _In_ va_list arg_ptr);
 
 _Check_return_
-SIZE_T _r_str_hash (_In_ LPCWSTR string);
+ULONG _r_str_crc32 (_In_ LPCWSTR string, _In_ BOOLEAN is_ignorecase);
+
+_Check_return_
+ULONG64 _r_str_crc64 (_In_ LPCWSTR string, _In_ BOOLEAN is_ignorecase);
+
+_Check_return_
+ULONG _r_str_fnv32a (_In_ LPCWSTR string, _In_ BOOLEAN is_ignorecase);
+
+_Check_return_
+ULONG64 _r_str_fnv64a (_In_ LPCWSTR string, _In_ BOOLEAN is_ignorecase);
+
+_Check_return_
+FORCEINLINE ULONG _r_str_hash (_In_ LPCWSTR string)
+{
+	return _r_str_fnv32a (string, TRUE);
+}
 
 _Check_return_
 INT _r_str_compare (_In_ LPCWSTR string1, _In_ LPCWSTR string2);
@@ -1476,32 +1491,8 @@ FORCEINLINE UINT _r_str_touinteger (_In_ LPCWSTR string)
 #define _r_str_toulongptr _r_str_toulong
 #endif // _WIN64
 
-BOOLEAN _r_str_toboolean_a (_In_ LPCSTR string);
-LONG _r_str_tolong_a (_In_ LPCSTR string);
-LONG64 _r_str_tolong64_a (_In_ LPCSTR string);
-ULONG _r_str_toulong_a (_In_ LPCSTR string);
-ULONG64 _r_str_toulong64_a (_In_ LPCSTR string);
-
-FORCEINLINE INT _r_str_tointeger_a (_In_ LPCSTR string)
-{
-	return (INT)_r_str_tolong_a (string);
-}
-
-FORCEINLINE UINT _r_str_touinteger_a (_In_ LPCSTR string)
-{
-	return (UINT)_r_str_toulong_a (string);
-}
-
-#if defined(_WIN64)
-#define _r_str_tolongptr_a _r_str_tolong64_a
-#define _r_str_toulongptr_a _r_str_toulong64_a
-#else
-#define _r_str_tolongptr_a _r_str_tolong_a
-#define _r_str_toulongptr_a _r_str_toulong_a
-#endif // _WIN64
-
 _Success_ (return != SIZE_MAX)
-SIZE_T _r_str_findchar (_In_ LPCWSTR string, _In_ WCHAR character);
+SIZE_T _r_str_findchar (_In_ LPCWSTR string, _In_ SIZE_T length, _In_ WCHAR character);
 
 _Success_ (return != SIZE_MAX)
 SIZE_T _r_str_findlastchar (_In_ LPCWSTR string, _In_ SIZE_T length, _In_ WCHAR character);
@@ -1518,14 +1509,12 @@ FORCEINLINE VOID _r_str_skipchar (_Inout_ PR_STRINGREF string, _In_ SIZE_T lengt
 
 FORCEINLINE VOID _r_str_trim (_Inout_ LPWSTR string, _In_ LPCWSTR trim)
 {
-	if (!_r_str_isempty (string))
-		StrTrim (string, trim);
+	StrTrimW (string, trim);
 }
 
 FORCEINLINE VOID _r_str_trim_a (_Inout_ LPSTR string, _In_ LPCSTR trim)
 {
-	if (!_r_str_isempty_a (string))
-		StrTrimA (string, trim);
+	StrTrimA (string, trim);
 }
 
 FORCEINLINE WCHAR _r_str_lower (_In_ WCHAR chr)
