@@ -2311,8 +2311,10 @@ SIZE_T _r_str_length (_In_ LPCWSTR string)
 	if (_r_str_isempty (string))
 		return 0;
 
+#if defined(_M_X64) || defined(_M_IX86)
 	if (USER_SHARED_DATA->ProcessorFeatures[PF_XMMI64_INSTRUCTIONS_AVAILABLE]) // check sse2 feature
 	{
+
 		LPWSTR p = (LPWSTR)((ULONG_PTR)string & ~0xE); // string should be 2 byte aligned
 		ULONG unaligned = PtrToUlong (string) & 0xF;
 
@@ -2350,6 +2352,9 @@ SIZE_T _r_str_length (_In_ LPCWSTR string)
 	{
 		return wcsnlen_s (string, PR_STR_MAX_LENGTH);
 	}
+#else
+	return wcsnlen_s(string, PR_STR_MAX_LENGTH);
+#endif
 }
 
 _Success_ (return)

@@ -46,13 +46,16 @@
 #include <shellscalingapi.h>
 #include <shlobj.h>
 #include <shlwapi.h>
-#include <smmintrin.h>
 #include <subauth.h>
 #include <taskschd.h>
 #include <uxtheme.h>
 #include <winhttp.h>
 #include <wtsapi32.h>
 #include <xmllite.h>
+
+#if defined(_M_X64) || defined(_M_IX86)
+#include <smmintrin.h>
+#endif
 
 #include "app.h"
 #include "ntapi.h"
