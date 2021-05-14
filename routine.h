@@ -53,7 +53,7 @@
 #include <wtsapi32.h>
 #include <xmllite.h>
 
-#if defined(_M_X64) || defined(_M_IX86)
+#if !defined(_ARM64_)
 #include <smmintrin.h>
 #endif
 
