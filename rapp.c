@@ -484,7 +484,7 @@ LRESULT CALLBACK _r_app_maindlgproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM 
 		case WM_DESTROY:
 		{
 			if ((_r_wnd_getstyle (hwnd) & WS_MAXIMIZEBOX))
-				_r_config_setbooleanex (L"IsMaximized", !!IsZoomed (hwnd), L"window");
+				_r_config_setbooleanex (L"IsMaximized", _r_wnd_ismaximized (hwnd), L"window");
 
 			_r_window_saveposition (hwnd, L"window");
 
@@ -3077,7 +3077,7 @@ INT_PTR CALLBACK _r_settings_wndproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 				{
 					_r_treeview_setitem (hwnd, IDC_NAV, hitem, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, 0);
 
-					if (ptr_page->hwnd && IsWindowVisible (ptr_page->hwnd))
+					if (ptr_page->hwnd && _r_wnd_isvisible (ptr_page->hwnd))
 						PostMessage (ptr_page->hwnd, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
 				}
 
@@ -3092,7 +3092,7 @@ INT_PTR CALLBACK _r_settings_wndproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 				{
 					_r_tab_setitem (hwnd, IDC_NAV, i, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, 0);
 
-					if (ptr_page->hwnd && IsWindowVisible (ptr_page->hwnd))
+					if (ptr_page->hwnd && _r_wnd_isvisible (ptr_page->hwnd))
 						PostMessage (ptr_page->hwnd, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
 				}
 			}
@@ -3203,10 +3203,10 @@ INT_PTR CALLBACK _r_settings_wndproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 					PAPP_SETTINGS_PAGE ptr_page_old = (PAPP_SETTINGS_PAGE)lptv->itemOld.lParam;
 					PAPP_SETTINGS_PAGE ptr_page_new = (PAPP_SETTINGS_PAGE)lptv->itemNew.lParam;
 
-					if (ptr_page_old && ptr_page_old->hwnd && IsWindowVisible (ptr_page_old->hwnd))
+					if (ptr_page_old && ptr_page_old->hwnd && _r_wnd_isvisible (ptr_page_old->hwnd))
 						ShowWindow (ptr_page_old->hwnd, SW_HIDE);
 
-					if (!ptr_page_new || IsWindowVisible (ptr_page_new->hwnd))
+					if (!ptr_page_new || _r_wnd_isvisible (ptr_page_new->hwnd))
 						break;
 
 					_r_config_setinteger (L"SettingsLastPage", ptr_page_new->dlg_id);
@@ -3239,7 +3239,7 @@ INT_PTR CALLBACK _r_settings_wndproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 				{
 					PAPP_SETTINGS_PAGE ptr_page = (PAPP_SETTINGS_PAGE)_r_tab_getitemlparam (hwnd, ctrl_id, -1);
 
-					if (!ptr_page || IsWindowVisible (ptr_page->hwnd))
+					if (!ptr_page || _r_wnd_isvisible (ptr_page->hwnd))
 						break;
 
 					_r_config_setinteger (L"SettingsLastPage", ptr_page->dlg_id);
@@ -3250,7 +3250,7 @@ INT_PTR CALLBACK _r_settings_wndproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 
 					ShowWindow (ptr_page->hwnd, SW_SHOWNA);
 
-					if (IsWindowVisible (hwnd) && !IsIconic (hwnd)) // HACK!!!
+					if (_r_wnd_isvisible2 (hwnd)) // HACK!!!
 						SetFocus (ptr_page->hwnd);
 
 					break;

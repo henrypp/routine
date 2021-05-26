@@ -2051,6 +2051,26 @@ FORCEINLINE BOOLEAN _r_wnd_isdialog (HWND hwnd)
 	return (GetClassLongPtr (hwnd, GCW_ATOM) == 0x8002); // #32770
 }
 
+FORCEINLINE BOOLEAN _r_wnd_ismaximized (_In_ HWND hwnd)
+{
+	return !!IsZoomed (hwnd);
+}
+
+FORCEINLINE BOOLEAN _r_wnd_isminimized (_In_ HWND hwnd)
+{
+	return !!IsIconic (hwnd);
+}
+
+FORCEINLINE BOOLEAN _r_wnd_isvisible (_In_ HWND hwnd)
+{
+	return !!IsWindowVisible (hwnd);
+}
+
+FORCEINLINE BOOLEAN _r_wnd_isvisible2 (_In_ HWND hwnd)
+{
+	return _r_wnd_isvisible (hwnd) && !_r_wnd_isminimized (hwnd);
+}
+
 FORCEINLINE VOID _r_wnd_seticon (_In_ HWND hwnd, _In_opt_ HICON hicon_small, _In_opt_ HICON hicon_big)
 {
 	SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hicon_small);

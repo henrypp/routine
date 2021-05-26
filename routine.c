@@ -4656,7 +4656,7 @@ VOID _r_wnd_center (_In_ HWND hwnd, _In_opt_ HWND hparent)
 
 	if (hparent)
 	{
-		if (IsWindowVisible (hparent) && !IsIconic (hparent))
+		if (_r_wnd_isvisible2 (hparent))
 		{
 			if (_r_wnd_getposition (hwnd, &rect) && _r_wnd_getposition (hparent, &parent_rect))
 			{
@@ -4881,7 +4881,7 @@ BOOLEAN _r_wnd_isoverlapped (_In_ HWND hwnd)
 
 BOOLEAN _r_wnd_isundercursor (_In_ HWND hwnd)
 {
-	if (!IsWindowVisible (hwnd) || IsIconic (hwnd))
+	if (!_r_wnd_isvisible2 (hwnd))
 		return FALSE;
 
 	RECT rect;
@@ -4930,9 +4930,9 @@ VOID _r_wnd_toggle (_In_ HWND hwnd, _In_ BOOLEAN is_show)
 	BOOLEAN is_success;
 	BOOLEAN is_minimized;
 
-	is_minimized = !!IsIconic (hwnd);
+	is_minimized = _r_wnd_isminimized (hwnd);
 
-	if (is_show || !IsWindowVisible (hwnd) || is_minimized || _r_wnd_isoverlapped (hwnd))
+	if (is_show || !_r_wnd_isvisible (hwnd) || is_minimized || _r_wnd_isoverlapped (hwnd))
 	{
 		is_success = !!ShowWindow (hwnd, is_minimized ? SW_RESTORE : SW_SHOW);
 
