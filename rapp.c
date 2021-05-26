@@ -2769,7 +2769,7 @@ INT _r_show_message (_In_opt_ HWND hwnd, _In_ ULONG flags, _In_opt_ LPCWSTR titl
 
 VOID _r_window_restoreposition (_In_ HWND hwnd, _In_ LPCWSTR window_name)
 {
-	R_RECTANGLE rectangle = {0};
+	R_RECTANGLE rectangle_new = {0};
 	R_RECTANGLE rectangle_current;
 	RECT rect;
 	LONG current_scale;
@@ -2780,26 +2780,26 @@ VOID _r_window_restoreposition (_In_ HWND hwnd, _In_ LPCWSTR window_name)
 
 	is_resizeavailable = !!(_r_wnd_getstyle (hwnd) & WS_SIZEBOX);
 
-	_r_config_getsize (L"Position", &rectangle.position, &rectangle_current.position, window_name);
+	_r_config_getsize (L"Position", &rectangle_new.position, &rectangle_current.position, window_name);
 
 	if (is_resizeavailable)
 	{
-		_r_config_getsize (L"Size", &rectangle.size, &rectangle_current.size, window_name);
+		_r_config_getsize (L"Size", &rectangle_new.size, &rectangle_current.size, window_name);
 
-		_r_wnd_rectangletorect (&rect, &rectangle);
+		_r_wnd_rectangletorect (&rect, &rectangle_new);
 
 		current_scale = _r_dc_getdpivalue (NULL, &rect);
 
 		if (current_scale != USER_DEFAULT_SCREEN_DPI)
 		{
-			rectangle.width = _r_calc_multipledividesigned (rectangle.width, USER_DEFAULT_SCREEN_DPI, current_scale);
-			rectangle.height = _r_calc_multipledividesigned (rectangle.height, USER_DEFAULT_SCREEN_DPI, current_scale);
+			rectangle_new.width = _r_calc_multipledividesigned (rectangle_new.width, USER_DEFAULT_SCREEN_DPI, current_scale);
+			rectangle_new.height = _r_calc_multipledividesigned (rectangle_new.height, USER_DEFAULT_SCREEN_DPI, current_scale);
 		}
 	}
 
-	_r_wnd_adjustworkingarea (NULL, &rectangle);
+	_r_wnd_adjustworkingarea (NULL, &rectangle_new);
 
-	_r_wnd_setposition (hwnd, &rectangle.position, is_resizeavailable ? &rectangle.size : NULL);
+	_r_wnd_setposition (hwnd, &rectangle_new.position, is_resizeavailable ? &rectangle_new.size : NULL);
 }
 
 VOID _r_window_saveposition (_In_ HWND hwnd, _In_ LPCWSTR window_name)
