@@ -85,7 +85,7 @@ LONG _r_config_getlongex (_In_ LPCWSTR key_name, LONG def_value, _In_opt_ LPCWST
 LONG64 _r_config_getlong64ex (_In_ LPCWSTR key_name, LONG64 def_value, _In_opt_ LPCWSTR section_name);
 ULONG _r_config_getulongex (_In_ LPCWSTR key_name, ULONG def_value, _In_opt_ LPCWSTR section_name);
 ULONG64 _r_config_getulong64ex (_In_ LPCWSTR key_name, _In_ ULONG64 def_value, _In_opt_ LPCWSTR section_name);
-VOID _r_config_getfont (_In_ LPCWSTR key_name, _In_ HWND hwnd, _Inout_ PLOGFONT logfont, _In_opt_ LPCWSTR section_name);
+VOID _r_config_getfont (_In_ LPCWSTR key_name, _In_opt_ HWND hwnd, _Inout_ PLOGFONT logfont, _In_opt_ LPCWSTR section_name);
 BOOLEAN _r_config_getsize (_In_ LPCWSTR key_name, _Out_ PSIZE size, _In_ PSIZE def_value, _In_opt_ LPCWSTR section_name);
 PR_STRING _r_config_getstringexpandex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_value, _In_opt_ LPCWSTR section_name);
 LPCWSTR _r_config_getstringex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_value, _In_opt_ LPCWSTR section_name);
@@ -142,7 +142,7 @@ VOID _r_config_setlongex (_In_ LPCWSTR key_name, _In_ LONG value, _In_opt_ LPCWS
 VOID _r_config_setlong64ex (_In_ LPCWSTR key_name, _In_ LONG64 value, _In_opt_ LPCWSTR section_name);
 VOID _r_config_setulongex (_In_ LPCWSTR key_name, _In_ ULONG value, _In_opt_ LPCWSTR section_name);
 VOID _r_config_setulong64ex (_In_ LPCWSTR key_name, _In_ ULONG64 value, _In_opt_ LPCWSTR section_name);
-VOID _r_config_setfont (_In_ LPCWSTR key_name, _In_ HWND hwnd, _In_ PLOGFONT logfont, _In_opt_ LPCWSTR section_name);
+VOID _r_config_setfont (_In_ LPCWSTR key_name, _In_opt_ HWND hwnd, _In_ PLOGFONT logfont, _In_opt_ LPCWSTR section_name);
 VOID _r_config_setsize (_In_ LPCWSTR key_name, _In_ PSIZE size, _In_opt_ LPCWSTR section_name);
 VOID _r_config_setstringexpandex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_opt_ LPCWSTR section_name);
 VOID _r_config_setstringex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_opt_ LPCWSTR section_name);

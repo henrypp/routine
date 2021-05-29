@@ -924,7 +924,7 @@ ULONG64 _r_config_getulong64ex (_In_ LPCWSTR key_name, _In_ ULONG64 def_value, _
 	return _r_str_toulong64 (_r_config_getstringex (key_name, value_text, section_name));
 }
 
-VOID _r_config_getfont (_In_ LPCWSTR key_name, _In_ HWND hwnd, _Inout_ PLOGFONT logfont, _In_opt_ LPCWSTR section_name)
+VOID _r_config_getfont (_In_ LPCWSTR key_name, _In_opt_ HWND hwnd, _Inout_ PLOGFONT logfont, _In_opt_ LPCWSTR section_name)
 {
 	LPCWSTR font_config = _r_config_getstringex (key_name, NULL, section_name);
 
@@ -1164,7 +1164,7 @@ VOID _r_config_setulong64ex (_In_ LPCWSTR key_name, _In_ ULONG64 value, _In_opt_
 	_r_config_setstringex (key_name, value_text, section_name);
 }
 
-VOID _r_config_setfont (_In_ LPCWSTR key_name, _In_ HWND hwnd, _In_ PLOGFONT logfont, _In_opt_ LPCWSTR section_name)
+VOID _r_config_setfont (_In_ LPCWSTR key_name, _In_opt_ HWND hwnd, _In_ PLOGFONT logfont, _In_opt_ LPCWSTR section_name)
 {
 	WCHAR value_text[128];
 	_r_str_printf (value_text, RTL_NUMBER_OF (value_text), L"%s;%" PR_LONG L";%" PR_LONG, logfont->lfFaceName, _r_dc_fontheighttosize (hwnd, logfont->lfHeight), logfont->lfWeight);
