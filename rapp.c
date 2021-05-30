@@ -2359,7 +2359,7 @@ VOID _r_log (_In_ LOG_LEVEL log_level, _In_ UINT tray_id, _In_ LPCWSTR fn, _In_ 
 #endif // APP_HAVE_TRAY
 }
 
-VOID _r_log_v (_In_ LOG_LEVEL log_level, _In_ UINT tray_id, _In_ LPCWSTR fn, _In_ ULONG code, _In_ LPCWSTR format, ...)
+VOID _r_log_v (_In_ LOG_LEVEL log_level, _In_ UINT tray_id, _In_ LPCWSTR fn, _In_ ULONG code, _In_ _Printf_format_string_ LPCWSTR format, ...)
 {
 	WCHAR string[1024];
 	va_list arg_ptr;

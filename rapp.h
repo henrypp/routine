@@ -266,7 +266,7 @@ VOID _r_update_install (_In_ LPCWSTR install_path);
 #endif // APP_HAVE_UPDATES
 
 VOID _r_log (_In_ LOG_LEVEL log_level, _In_ UINT tray_id, _In_ LPCWSTR fn, _In_ ULONG code, _In_opt_ LPCWSTR description);
-VOID _r_log_v (_In_ LOG_LEVEL log_level, _In_ UINT tray_id, _In_ LPCWSTR fn, _In_ ULONG code, _In_ LPCWSTR format, ...);
+VOID _r_log_v (_In_ LOG_LEVEL log_level, _In_ UINT tray_id, _In_ LPCWSTR fn, _In_ ULONG code, _In_ _Printf_format_string_ LPCWSTR format, ...);
 
 #if !defined(APP_CONSOLE)
 VOID _r_show_aboutmessage (_In_opt_ HWND hwnd);
