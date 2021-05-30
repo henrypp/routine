@@ -1179,7 +1179,7 @@ FORCEINLINE PVOID _r_obj_addhashtableitemex (_Inout_ PR_HASHTABLE hashtable, _In
 	}
 	else
 	{
-		memset (&hashtable_entry->body, 0, hashtable->entry_size);
+		RtlZeroMemory (&hashtable_entry->body, hashtable->entry_size);
 	}
 
 	hashtable->count += 1;
@@ -1498,7 +1498,7 @@ BOOLEAN _r_fs_deletedirectory (_In_ LPCWSTR path, _In_ BOOLEAN is_recurse)
 
 	_r_str_copy (string->buffer, length, path);
 
-	memset (&shfop, 0, sizeof (shfop));
+	RtlZeroMemory (&shfop, sizeof (shfop));
 
 	shfop.wFunc = FO_DELETE;
 	shfop.fFlags = FOF_NO_UI;
@@ -1883,7 +1883,7 @@ PR_STRING _r_path_dospathfromnt (_In_ LPCWSTR path)
 		PROCESS_DEVICEMAP_INFORMATION_EX device_map;
 #endif
 
-		memset (&device_map, 0, sizeof (device_map));
+		RtlZeroMemory (&device_map, sizeof (device_map));
 
 		if (NT_SUCCESS (NtQueryInformationProcess (NtCurrentProcess (), ProcessDeviceMap, &device_map, sizeof (device_map), NULL)))
 		{
@@ -4452,32 +4452,6 @@ PR_LAYOUT_ITEM _r_layout_additem (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_
 	return layout_item;
 }
 
-VOID _r_layout_edititemanchors (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_ HWND * hwnds, _In_ PULONG anchors, _In_ SIZE_T count)
-{
-	PR_LAYOUT_ITEM layout_item;
-	SIZE_T i;
-	SIZE_T j;
-
-	if (!layout_manager->is_initialized)
-		return;
-
-	for (i = 0; i < _r_obj_getlistsize (layout_manager->list); i++)
-	{
-		layout_item = _r_obj_getlistitem (layout_manager->list, i);
-
-		if (!layout_item)
-			continue;
-
-		for (j = 0; j < count; j++)
-		{
-			if (layout_item->hwnd != hwnds[j])
-				continue;
-
-			_r_layout_setitemanchor (layout_manager, layout_item, anchors[j]);
-		}
-	}
-}
-
 VOID _r_layout_resizeitem (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAYOUT_ITEM layout_item)
 {
 	RECT rect;
@@ -4577,7 +4551,7 @@ BOOLEAN _r_layout_resize (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_ WPARAM 
 	return TRUE;
 }
 
-VOID _r_layout_setitemanchor (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAYOUT_ITEM layout_item, _In_ ULONG flags)
+VOID _r_layout_setitemanchor (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAYOUT_ITEM layout_item, _In_ ULONG anchor)
 {
 	LONG width;
 	LONG height;
@@ -4586,7 +4560,7 @@ VOID _r_layout_setitemanchor (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_
 	height = layout_manager->root_item.rect.bottom;
 
 	layout_item->flags &= ~(PR_LAYOUT_ANCHOR_ALL);
-	layout_item->flags |= flags; // set new anchor flags
+	layout_item->flags |= anchor; // set new anchor flags
 
 	// set control anchor points
 	SetRect (&layout_item->anchor,
@@ -4602,6 +4576,31 @@ VOID _r_layout_setitemanchor (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_
 			 layout_item->rect.right - _r_calc_percentval (layout_item->anchor.right, width),
 			 layout_item->rect.bottom - _r_calc_percentval (layout_item->anchor.bottom, height)
 	);
+}
+
+BOOLEAN _r_layout_setitemsanchorbyhandle (_In_ PR_LAYOUT_MANAGER layout_manager, _In_ HWND hwnd, _In_ ULONG anchor)
+{
+	PR_LAYOUT_ITEM layout_item;
+	SIZE_T i;
+
+	if (!layout_manager->is_initialized)
+		return FALSE;
+
+	for (i = 0; i < _r_obj_getlistsize (layout_manager->list); i++)
+	{
+		layout_item = _r_obj_getlistitem (layout_manager->list, i);
+
+		if (layout_item)
+		{
+			if (layout_item->hwnd == hwnd)
+			{
+				_r_layout_setitemanchor (layout_manager, layout_item, anchor);
+				return TRUE;
+			}
+		}
+	}
+
+	return FALSE;
 }
 
 /*
@@ -4900,7 +4899,7 @@ VOID _r_wnd_setposition (_In_ HWND hwnd, _In_opt_ PSIZE position, _In_opt_ PSIZE
 
 	swp_flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER;
 
-	memset (&rectangle, 0, sizeof (rectangle));
+	RtlZeroMemory (&rectangle, sizeof (rectangle));
 
 	if (position)
 	{
@@ -5170,7 +5169,7 @@ ULONG _r_inet_parseurlparts (_In_ LPCWSTR url, _Out_ PR_URLPARTS url_parts, _In_
 
 	url_comp.dwStructSize = sizeof (url_comp);
 
-	memset (url_parts, 0, sizeof (R_URLPARTS));
+	RtlZeroMemory (url_parts, sizeof (R_URLPARTS));
 
 	url_parts->flags = flags;
 
@@ -5815,7 +5814,7 @@ HRESULT _r_xml_initializelibrary (_Out_ PR_XML_LIBRARY xml_library, _In_ BOOLEAN
 {
 	HRESULT hr;
 
-	memset (xml_library, 0, sizeof (R_XML_LIBRARY));
+	RtlZeroMemory (xml_library, sizeof (R_XML_LIBRARY));
 
 	if (is_reader)
 	{
@@ -6432,7 +6431,7 @@ VOID _r_ctrl_setbuttonmargins (_In_ HWND hwnd, _In_ INT ctrl_id)
 	// set button split margin
 	if ((_r_wnd_getstyle (hbutton) & BS_SPLITBUTTON) == BS_SPLITBUTTON)
 	{
-		memset (&bsi, 0, sizeof (bsi));
+		RtlZeroMemory (&bsi, sizeof (bsi));
 
 		bsi.mask = BCSIF_SIZE;
 
