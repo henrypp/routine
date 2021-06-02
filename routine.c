@@ -6001,8 +6001,8 @@ VOID _r_xml_setattribute_ulong64 (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWS
 _Success_ (return)
 BOOLEAN _r_xml_enumchilditemsbytagname (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR tag_name)
 {
-	XmlNodeType node_type;
 	LPCWSTR qualified_name;
+	XmlNodeType node_type;
 
 	if (!xml_library->is_initialized || !xml_library->is_reader)
 		return FALSE;
@@ -6111,6 +6111,12 @@ VOID _r_xml_destroylibrary (_Inout_ PR_XML_LIBRARY xml_library)
 
 	xml_library->is_initialized = FALSE;
 
+	if (xml_library->stream)
+	{
+		IStream_Release (xml_library->stream);
+		xml_library->stream = NULL;
+	}
+
 	if (xml_library->is_reader)
 	{
 		if (xml_library->reader)
@@ -6126,12 +6132,6 @@ VOID _r_xml_destroylibrary (_Inout_ PR_XML_LIBRARY xml_library)
 			IXmlWriter_Release (xml_library->writer);
 			xml_library->writer = NULL;
 		}
-	}
-
-	if (xml_library->stream)
-	{
-		IStream_Release (xml_library->stream);
-		xml_library->stream = NULL;
 	}
 }
 
