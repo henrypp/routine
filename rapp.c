@@ -56,11 +56,83 @@ static LPCWSTR _r_app_getmutexname ()
 #define _r_app_getmutexname _r_app_getnameshort
 #endif // APP_NO_MUTEX
 
+#if defined(APP_NO_APPDATA) || defined(APP_CONSOLE)
+FORCEINLINE BOOLEAN _r_app_isportable ()
+{
+	return TRUE;
+}
+#else
+BOOLEAN _r_app_isportable ()
+{
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static BOOLEAN is_portable = FALSE;
+
+	if (_r_initonce_begin (&init_once))
+	{
+		LPCWSTR file_names[] = {L"portable", _r_app_getnameshort ()};
+		LPCWSTR file_exts[] = {L"dat", L"ini"};
+
+		C_ASSERT (sizeof (file_names) == sizeof (file_exts));
+
+		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"portable", NULL))
+		{
+			is_portable = TRUE;
+		}
+		else
+		{
+			PR_STRING string;
+
+			for (SIZE_T i = 0; i < RTL_NUMBER_OF (file_names); i++)
+			{
+				string = _r_format_string (L"%s%c%s.%s", _r_app_getdirectory (), OBJ_NAME_PATH_SEPARATOR, file_names[i], file_exts[i]);
+
+				if (string)
+				{
+					if (_r_fs_exists (string->buffer))
+						is_portable = TRUE;
+
+					_r_obj_dereference (string);
+
+					if (is_portable)
+						break;
+				}
+			}
+		}
+
+		_r_initonce_end (&init_once);
+	}
+
+	return is_portable;
+}
+#endif
+
+#if defined(APP_NO_CONFIG) || defined(APP_CONSOLE)
+FORCEINLINE BOOLEAN _r_app_isreadonly ()
+{
+	return TRUE;
+}
+#else
+BOOLEAN _r_app_isreadonly ()
+{
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static BOOLEAN is_readonly = FALSE;
+
+	if (_r_initonce_begin (&init_once))
+	{
+		is_readonly = _r_sys_getopt (_r_sys_getimagecommandline (), L"readonly", NULL);
+
+		_r_initonce_end (&init_once);
+	}
+
+	return is_readonly;
+}
+#endif // APP_NO_CONFIG || APP_CONSOLE
+
 #if !defined(APP_CONSOLE) && !defined(_DEBUG)
 ULONG CALLBACK _r_app_sehfilter_callback (_In_ PEXCEPTION_POINTERS exception_ptr)
 {
-	ULONG error_code;
 	HINSTANCE hinst;
+	ULONG error_code;
 
 	if (NT_NTWIN32 (exception_ptr->ExceptionRecord->ExceptionCode))
 	{
@@ -122,11 +194,8 @@ BOOLEAN _r_app_initialize ()
 	}
 #endif // APP_NO_DEPRECATIONS
 
-	// set unhandled exception filter callback
+	// set unhandled exception filter
 #if !defined(APP_CONSOLE) && !defined(_DEBUG)
-#if !defined(APP_NO_DEPRECATIONS)
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_7))
-#endif // !APP_NO_DEPRECATIONS
 	{
 		ULONG error_mode;
 
@@ -137,7 +206,11 @@ BOOLEAN _r_app_initialize ()
 			NtSetInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (ULONG));
 		}
 
+#if defined(APP_NO_DEPRECATIONS)
 		RtlSetUnhandledExceptionFilter (&_r_app_sehfilter_callback);
+#else
+		SetUnhandledExceptionFilter (&_r_app_sehfilter_callback);
+#endif // APP_NO_DEPRECATIONS
 	}
 #endif // !APP_CONSOLE && !_DEBUG
 
@@ -241,48 +314,20 @@ BOOLEAN _r_app_initialize ()
 #endif // !_DEBUG && !_WIN64
 #endif // !APP_CONSOLE
 
-	return TRUE;
-}
-
-#if defined(APP_NO_APPDATA) || defined(APP_CONSOLE)
-FORCEINLINE BOOLEAN _r_app_isportable ()
-{
-	return TRUE;
-}
-#else
-BOOLEAN _r_app_isportable ()
-{
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static BOOLEAN is_portable = FALSE;
-
-	if (_r_initonce_begin (&init_once))
+	// if profile directory does not exist, we cannot save configuration
+	if (!_r_app_isreadonly ())
 	{
-		LPCWSTR file_names[] = {L"portable", _r_app_getnameshort ()};
-		LPCWSTR file_exts[] = {L"dat", L"ini"};
-		PR_STRING string;
+		LPCWSTR directory = _r_app_getprofiledirectory ();
 
-		for (SIZE_T i = 0; i < RTL_NUMBER_OF (file_names); i++)
+		if (directory)
 		{
-			string = _r_format_string (L"%s%c%s.%s", _r_app_getdirectory (), OBJ_NAME_PATH_SEPARATOR, file_names[i], file_exts[i]);
-
-			if (string)
-			{
-				if (_r_fs_exists (string->buffer))
-					is_portable = TRUE;
-
-				_r_obj_dereference (string);
-
-				if (is_portable)
-					break;
-			}
+			if (!_r_fs_exists (directory))
+				_r_fs_mkdir (directory);
 		}
-
-		_r_initonce_end (&init_once);
 	}
 
-	return is_portable;
+	return TRUE;
 }
-#endif
 
 LPCWSTR _r_app_getdirectory ()
 {
@@ -312,12 +357,12 @@ LPCWSTR _r_app_getconfigpath ()
 		// parse config path from arguments
 		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"ini", &buffer))
 		{
-			_r_obj_trimstring (buffer, L".\\/\" ");
-
-			_r_obj_movereference (&buffer, _r_str_expandenvironmentstring (buffer->buffer));
-
 			if (buffer)
 			{
+				_r_obj_trimstring (buffer, L".\\/\" ");
+
+				_r_obj_movereference (&buffer, _r_str_expandenvironmentstring (buffer->buffer));
+
 				if (!_r_obj_isstringempty (buffer))
 				{
 					if (PathGetDriveNumber (buffer->buffer) == -1)
@@ -345,7 +390,8 @@ LPCWSTR _r_app_getconfigpath ()
 					}
 				}
 
-				_r_obj_dereference (buffer);
+				if (buffer)
+					_r_obj_dereference (buffer);
 			}
 		}
 
@@ -505,15 +551,17 @@ LRESULT CALLBACK _r_app_maindlgproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM 
 				if (!(_r_wnd_getstyle (hwnd) & WS_MAXIMIZEBOX))
 				{
 					WINDOWPLACEMENT wpl = {0};
+
 					wpl.length = sizeof (wpl);
 
 					if (GetWindowPlacement (hwnd, &wpl))
 					{
 						wpl.showCmd = SW_RESTORE;
-						SetWindowPlacement (hwnd, &wpl);
-					}
 
-					return FALSE;
+						SetWindowPlacement (hwnd, &wpl);
+
+						return FALSE;
+					}
 				}
 			}
 #if defined(APP_HAVE_TRAY)
@@ -582,6 +630,57 @@ LRESULT CALLBACK _r_app_maindlgproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM 
 		return CallWindowProc (app_window_proc, hwnd, msg, wparam, lparam);
 
 	return FALSE;
+}
+
+INT _r_app_getshowcode (_In_ HWND hwnd)
+{
+	STARTUPINFO startup_info = {0};
+	INT show_code = SW_SHOWNORMAL;
+	BOOLEAN is_windowhidden = FALSE;
+
+	startup_info.cb = sizeof (startup_info);
+
+	GetStartupInfo (&startup_info);
+
+	if ((startup_info.dwFlags & STARTF_USESHOWWINDOW) != 0)
+		show_code = startup_info.wShowWindow;
+
+	// if window have tray - check arguments
+#if defined(APP_HAVE_TRAY)
+	if (_r_config_getboolean (L"IsStartMinimized", FALSE) || _r_sys_getopt (_r_sys_getimagecommandline (), L"minimized", NULL))
+	{
+		is_windowhidden = TRUE;
+	}
+#endif // APP_HAVE_TRAY
+
+	if (show_code == SW_HIDE || show_code == SW_MINIMIZE || show_code == SW_SHOWMINNOACTIVE || show_code == SW_FORCEMINIMIZE)
+	{
+		is_windowhidden = TRUE;
+	}
+
+	if ((_r_wnd_getstyle (hwnd) & WS_MAXIMIZEBOX) != 0)
+	{
+		if (show_code == SW_SHOWMAXIMIZED || _r_config_getbooleanex (L"IsMaximized", FALSE, L"window"))
+		{
+			if (is_windowhidden)
+			{
+				app_is_needmaximize = TRUE;
+			}
+			else
+			{
+				show_code = SW_SHOWMAXIMIZED;
+			}
+		}
+	}
+
+#if defined(APP_HAVE_TRAY)
+	if (is_windowhidden)
+	{
+		show_code = SW_HIDE;
+	}
+#endif // APP_HAVE_TRAY
+
+	return show_code;
 }
 
 BOOLEAN _r_app_createwindow (_In_ INT dlg_id, _In_opt_ INT icon_id, _In_opt_ DLGPROC dlg_proc)
@@ -654,61 +753,17 @@ BOOLEAN _r_app_createwindow (_In_ INT dlg_id, _In_opt_ INT icon_id, _In_opt_ DLG
 		_r_skipuac_enable (NULL, TRUE);
 #endif // APP_HAVE_SKIPUAC
 
-	// set window visibility (or not?)
-	{
-#if !defined(APP_STARTMINIMIZED)
-		STARTUPINFO startup_info = {0};
-		INT show_code = SW_SHOWNORMAL;
-		BOOLEAN is_windowhidden = FALSE;
-
-		startup_info.cb = sizeof (startup_info);
-
-		GetStartupInfo (&startup_info);
-
-		if ((startup_info.dwFlags & STARTF_USESHOWWINDOW) != 0)
-			show_code = startup_info.wShowWindow;
-
-		// if window have tray - check arguments
-#if defined(APP_HAVE_TRAY)
-		if (_r_config_getboolean (L"IsStartMinimized", FALSE) || _r_sys_getopt (_r_sys_getimagecommandline (), L"minimized", NULL))
-			is_windowhidden = TRUE;
-#endif // APP_HAVE_TRAY
-
-		if (show_code == SW_HIDE || show_code == SW_MINIMIZE || show_code == SW_SHOWMINNOACTIVE || show_code == SW_FORCEMINIMIZE)
-		{
-			is_windowhidden = TRUE;
-		}
-
-		if ((_r_wnd_getstyle (app_hwnd) & WS_MAXIMIZEBOX) != 0)
-		{
-			if (show_code == SW_SHOWMAXIMIZED || _r_config_getbooleanex (L"IsMaximized", FALSE, L"window"))
-			{
-				if (is_windowhidden)
-				{
-					app_is_needmaximize = TRUE;
-				}
-				else
-				{
-					show_code = SW_SHOWMAXIMIZED;
-				}
-			}
-		}
-
-#if defined(APP_HAVE_TRAY)
-		if (is_windowhidden)
-			show_code = SW_HIDE;
-#endif // APP_HAVE_TRAY
-
-		ShowWindow (app_hwnd, show_code);
-#endif // !APP_STARTMINIMIZED
-	}
-
 	// restore window position
 	_r_window_restoreposition (app_hwnd, L"window");
 
 	// common initialization
 	SendMessage (app_hwnd, RM_INITIALIZE, 0, 0);
 	SendMessage (app_hwnd, RM_LOCALIZE, 0, 0);
+
+	// restore window visibility (or not?)
+#if !defined(APP_STARTMINIMIZED)
+	ShowWindow (app_hwnd, _r_app_getshowcode (app_hwnd));
+#endif // !APP_STARTMINIMIZED
 
 #if defined(APP_HAVE_UPDATES)
 	if (_r_config_getboolean (L"CheckUpdates", TRUE))
@@ -1255,9 +1310,8 @@ VOID _r_config_setstringex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_o
 		}
 
 		// write to configuration file
-#if !defined(APP_NO_CONFIG)
-		WritePrivateProfileString (section_string, key_name, _r_obj_getstring (hashstore->value_string), _r_app_getconfigpath ());
-#endif // APP_NO_CONFIG
+		if (!_r_app_isreadonly ())
+			WritePrivateProfileString (section_string, key_name, _r_obj_getstring (hashstore->value_string), _r_app_getconfigpath ());
 	}
 }
 
@@ -1936,9 +1990,11 @@ THREAD_API _r_update_downloadthread (PVOID lparam)
 
 	if (hsession)
 	{
+		PAPP_UPDATE_COMPONENT update_component;
+
 		for (SIZE_T i = 0; i < _r_obj_getarraysize (app_update_info->components); i++)
 		{
-			PAPP_UPDATE_COMPONENT update_component = _r_obj_getarrayitem (app_update_info->components, i);
+			update_component = _r_obj_getarrayitem (app_update_info->components, i);
 
 			if (!update_component)
 				continue;
@@ -2261,30 +2317,52 @@ FORCEINLINE ULONG _r_logleveltrayicon (_In_ LOG_LEVEL log_level)
 	return NIIF_NONE;
 }
 
-VOID _r_log (_In_ LOG_LEVEL log_level, _In_ UINT tray_id, _In_ LPCWSTR fn, _In_ ULONG code, _In_opt_ LPCWSTR description)
+VOID _r_log (_In_ LOG_LEVEL log_level, _In_ UINT tray_id, _In_ LPCWSTR title, _In_ ULONG code, _In_opt_ LPCWSTR description)
 {
-	static R_INITONCE init_once = PR_INITONCE_INIT;
 	WCHAR date_string[128];
 	PR_STRING error_string;
-	LPCWSTR log_path;
 	LPCWSTR level_string;
-	HANDLE hfile;
 	LONG64 current_timestamp;
+	ULONG written;
+
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static HANDLE hfile = NULL;
 	static INT log_level_config = 0;
 
 	if (_r_initonce_begin (&init_once))
 	{
 		log_level_config = _r_config_getinteger (L"ErrorLevel", 0);
 
+		// write to file only when readonly mode is not specified
+		if (!_r_app_isreadonly ())
+		{
+			LPCWSTR path = _r_app_getlogpath ();
+
+			if (path)
+			{
+				hfile = CreateFile (path, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+
+				if (_r_fs_isvalidhandle (hfile))
+				{
+					if (GetLastError () != ERROR_ALREADY_EXISTS)
+					{
+						BYTE bom[] = {0xFF, 0xFE};
+
+						WriteFile (hfile, bom, sizeof (bom), &written, NULL); // write utf-16 le byte order mask
+						WriteFile (hfile, PR_DEBUG_HEADER, (ULONG)(_r_str_length (PR_DEBUG_HEADER) * sizeof (WCHAR)), &written, NULL); // adds csv header
+					}
+					else
+					{
+						_r_fs_setpos (hfile, 0, FILE_END);
+					}
+				}
+			}
+		}
+
 		_r_initonce_end (&init_once);
 	}
 
 	if (log_level_config >= log_level)
-		return;
-
-	log_path = _r_app_getlogpath ();
-
-	if (!log_path)
 		return;
 
 	current_timestamp = _r_unixtime_now ();
@@ -2293,37 +2371,20 @@ VOID _r_log (_In_ LOG_LEVEL log_level, _In_ UINT tray_id, _In_ LPCWSTR fn, _In_ 
 	level_string = _r_logleveltostring (log_level);
 
 	// print log for debuggers
-	_r_debug_v (L"[%s], %s(), 0x%08" PRIX32 L", %s\r\n",
+	_r_debug_v (L"[%s], %s, 0x%08" PRIX32 L", %s\r\n",
 				level_string,
-				fn,
+				title,
 				code,
 				description
 	);
 
-	// write log to a file
-	hfile = CreateFile (log_path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-
 	if (_r_fs_isvalidhandle (hfile))
 	{
-		ULONG written;
-
-		if (GetLastError () != ERROR_ALREADY_EXISTS)
-		{
-			BYTE bom[] = {0xFF, 0xFE};
-
-			WriteFile (hfile, bom, sizeof (bom), &written, NULL); // write utf-16 le byte order mask
-			WriteFile (hfile, PR_DEBUG_HEADER, (ULONG)(_r_str_length (PR_DEBUG_HEADER) * sizeof (WCHAR)), &written, NULL); // adds csv header
-		}
-		else
-		{
-			_r_fs_setpos (hfile, 0, FILE_END);
-		}
-
 		error_string = _r_format_string (
 			L"\"%s\",\"%s\",\"%s\",\"0x%08" PRIX32 L"\",\"%s\"" L",\"%s\",\"%d.%d build %d\"\r\n",
 			level_string,
 			date_string,
-			fn,
+			title,
 			code,
 			description,
 			_r_app_getversion (),
@@ -2338,8 +2399,6 @@ VOID _r_log (_In_ LOG_LEVEL log_level, _In_ UINT tray_id, _In_ LPCWSTR fn, _In_ 
 
 			_r_obj_dereference (error_string);
 		}
-
-		CloseHandle (hfile);
 	}
 
 	// show tray balloon
@@ -2359,7 +2418,7 @@ VOID _r_log (_In_ LOG_LEVEL log_level, _In_ UINT tray_id, _In_ LPCWSTR fn, _In_ 
 #endif // APP_HAVE_TRAY
 }
 
-VOID _r_log_v (_In_ LOG_LEVEL log_level, _In_ UINT tray_id, _In_ LPCWSTR fn, _In_ ULONG code, _In_ _Printf_format_string_ LPCWSTR format, ...)
+VOID _r_log_v (_In_ LOG_LEVEL log_level, _In_ UINT tray_id, _In_ LPCWSTR title, _In_ ULONG code, _In_ _Printf_format_string_ LPCWSTR format, ...)
 {
 	WCHAR string[1024];
 	va_list arg_ptr;
@@ -2371,7 +2430,7 @@ VOID _r_log_v (_In_ LOG_LEVEL log_level, _In_ UINT tray_id, _In_ LPCWSTR fn, _In
 	_r_str_printf_v (string, RTL_NUMBER_OF (string), format, arg_ptr);
 	va_end (arg_ptr);
 
-	_r_log (log_level, tray_id, fn, code, string);
+	_r_log (log_level, tray_id, title, code, string);
 }
 
 #if !defined(APP_CONSOLE)
@@ -3206,19 +3265,16 @@ INT_PTR CALLBACK _r_settings_wndproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 					if (ptr_page_old && ptr_page_old->hwnd && _r_wnd_isvisible (ptr_page_old->hwnd))
 						ShowWindow (ptr_page_old->hwnd, SW_HIDE);
 
-					if (!ptr_page_new || _r_wnd_isvisible (ptr_page_new->hwnd))
+					if (!ptr_page_new || !ptr_page_new->hwnd || _r_wnd_isvisible (ptr_page_new->hwnd))
 						break;
 
 					_r_config_setinteger (L"SettingsLastPage", ptr_page_new->dlg_id);
 
-					if (ptr_page_new->hwnd)
-					{
-						_r_settings_adjustchild (hwnd, IDC_NAV, ptr_page_new->hwnd);
+					_r_settings_adjustchild (hwnd, IDC_NAV, ptr_page_new->hwnd);
 
-						PostMessage (ptr_page_new->hwnd, RM_LOCALIZE, (WPARAM)ptr_page_new->dlg_id, 0);
+					PostMessage (ptr_page_new->hwnd, RM_LOCALIZE, (WPARAM)ptr_page_new->dlg_id, 0);
 
-						ShowWindow (ptr_page_new->hwnd, SW_SHOWNA);
-					}
+					ShowWindow (ptr_page_new->hwnd, SW_SHOW);
 
 					break;
 				}
@@ -3239,7 +3295,7 @@ INT_PTR CALLBACK _r_settings_wndproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 				{
 					PAPP_SETTINGS_PAGE ptr_page = (PAPP_SETTINGS_PAGE)_r_tab_getitemlparam (hwnd, ctrl_id, -1);
 
-					if (!ptr_page || _r_wnd_isvisible (ptr_page->hwnd))
+					if (!ptr_page || !ptr_page->hwnd || _r_wnd_isvisible (ptr_page->hwnd))
 						break;
 
 					_r_config_setinteger (L"SettingsLastPage", ptr_page->dlg_id);
@@ -3248,10 +3304,7 @@ INT_PTR CALLBACK _r_settings_wndproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 
 					PostMessage (ptr_page->hwnd, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
 
-					ShowWindow (ptr_page->hwnd, SW_SHOWNA);
-
-					if (_r_wnd_isvisible2 (hwnd)) // HACK!!!
-						SetFocus (ptr_page->hwnd);
+					ShowWindow (ptr_page->hwnd, SW_SHOW);
 
 					break;
 				}
@@ -3739,7 +3792,7 @@ BOOLEAN _r_skipuac_run ()
 			{
 				break;
 			}
-			else if (state == TASK_STATE_RUNNING)
+			else if (state == TASK_STATE_RUNNING || state == TASK_STATE_UNKNOWN)
 			{
 				status = S_OK;
 				break;

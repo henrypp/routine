@@ -3631,7 +3631,7 @@ PR_STRING _r_sys_getusernamefromsid (_In_ PSID sid)
 }
 
 _Success_ (return)
-BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR option_key, _Outptr_opt_ PR_STRING * option_value)
+BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR option_key, _Out_opt_ PR_STRING * option_value)
 {
 	LPWSTR key;
 	LPWSTR value;
@@ -3678,10 +3678,17 @@ BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR option_key, _Outptr_opt_ 
 
 		if (option_value)
 		{
-			if (_r_str_isempty (value) || *value == L'/' || *value == L'-')
-				continue;
+			if (!_r_str_isempty (value))
+			{
+				if (*value == L'/' || *value == L'-')
+					continue;
 
-			*option_value = _r_obj_createstring (value);
+				*option_value = _r_obj_createstring (value);
+			}
+			else
+			{
+				*option_value = NULL;
+			}
 
 			result = TRUE;
 			break;
