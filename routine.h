@@ -1615,11 +1615,11 @@ FORCEINLINE BOOLEAN _r_sys_isosversiongreaterorequal (_In_ ULONG required_versio
 	return _r_sys_getwindowsversion () >= required_version;
 }
 
-BOOLEAN _r_sys_createprocessex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory, _In_ WORD show_state, _In_ ULONG flags);
+BOOLEAN _r_sys_createprocessex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory, _In_opt_ LPSTARTUPINFO startup_info_ptr, _In_ WORD show_state, _In_ ULONG flags);
 
 FORCEINLINE BOOLEAN _r_sys_createprocess (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory)
 {
-	return _r_sys_createprocessex (file_name, command_line, current_directory, SW_SHOWDEFAULT, 0);
+	return _r_sys_createprocessex (file_name, command_line, current_directory, NULL, SW_SHOWDEFAULT, 0);
 }
 
 #define THREAD_API NTSTATUS NTAPI
@@ -1687,7 +1687,7 @@ PR_STRING _r_sys_getsessioninfo (_In_ WTS_INFO_CLASS info);
 PR_STRING _r_sys_getusernamefromsid (_In_ PSID sid);
 
 _Success_ (return)
-BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR option_key, _Out_opt_ PR_STRING * option_value);
+BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR long_key, _In_opt_ LPCWSTR short_key, _Out_opt_ PR_STRING * value);
 
 #if !defined(_WIN64)
 BOOLEAN _r_sys_iswow64 ();

@@ -3344,23 +3344,30 @@ ULONG _r_sys_getwindowsversion ()
 	return windows_version;
 }
 
-BOOLEAN _r_sys_createprocessex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory, _In_ WORD show_state, _In_ ULONG flags)
+BOOLEAN _r_sys_createprocessex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory, _In_opt_ LPSTARTUPINFO startup_info_ptr, _In_ WORD show_state, _In_ ULONG flags)
 {
 	BOOLEAN is_success;
 
-	STARTUPINFO startup_info = {0};
+	STARTUPINFO startup_info;
 	PROCESS_INFORMATION process_info = {0};
 
 	PR_STRING file_name_string = NULL;
 	PR_STRING command_line_string = NULL;
 	PR_STRING current_directory_string = NULL;
 
-	startup_info.cb = sizeof (startup_info);
+	if (!startup_info_ptr)
+	{
+		RtlZeroMemory (&startup_info, sizeof (startup_info));
+
+		startup_info_ptr = &startup_info;
+
+		startup_info_ptr->cb = sizeof (startup_info);
+	}
 
 	if (show_state != SW_SHOWDEFAULT)
 	{
-		startup_info.dwFlags |= STARTF_USESHOWWINDOW;
-		startup_info.wShowWindow = show_state;
+		startup_info_ptr->dwFlags |= STARTF_USESHOWWINDOW;
+		startup_info_ptr->wShowWindow = show_state;
 	}
 
 	if (command_line)
@@ -3414,7 +3421,7 @@ BOOLEAN _r_sys_createprocessex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR com
 			current_directory_string = _r_path_getbasedirectory (file_name_string->buffer);
 	}
 
-	is_success = !!CreateProcess (_r_obj_getstring (file_name_string), command_line_string ? command_line_string->buffer : NULL, NULL, NULL, FALSE, flags, NULL, _r_obj_getstring (current_directory_string), &startup_info, &process_info);
+	is_success = !!CreateProcess (_r_obj_getstring (file_name_string), _r_obj_getstring (command_line_string), NULL, NULL, FALSE, flags, NULL, _r_obj_getstring (current_directory_string), startup_info_ptr, &process_info);
 
 	SAFE_DELETE_HANDLE (process_info.hProcess);
 	SAFE_DELETE_HANDLE (process_info.hThread);
@@ -3631,11 +3638,13 @@ PR_STRING _r_sys_getusernamefromsid (_In_ PSID sid)
 }
 
 _Success_ (return)
-BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR option_key, _Out_opt_ PR_STRING * option_value)
+BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR long_key, _In_opt_ LPCWSTR short_key, _Out_opt_ PR_STRING * value)
 {
-	LPWSTR key;
-	LPWSTR value;
+	LPWSTR current_key;
+	LPWSTR current_value;
 	SIZE_T key_length;
+	SIZE_T short_key_length;
+	SIZE_T current_length;
 	INT numargs;
 	BOOLEAN result;
 	LPWSTR *arga;
@@ -3646,25 +3655,41 @@ BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR option_key, _Out_opt_ PR_
 		return FALSE;
 
 	result = FALSE;
-	key_length = _r_str_length (option_key);
+
+	key_length = _r_str_length (long_key);
+	short_key_length = short_key ? _r_str_length (short_key) : 0;
 
 	for (INT i = 0; i < numargs; i++)
 	{
-		key = arga[i];
+		current_key = arga[i];
 
-		if (_r_str_isempty (key) || (*key != L'/' && *key != L'-'))
+		if (_r_str_isempty (current_key) || (*current_key != L'/' && *current_key != L'-'))
 			continue;
 
-		key += 1;
+		current_key += 1;
 
-		if (_r_str_compare_length (key, option_key, key_length) != 0)
-			continue;
+		// --long-option
+		if (*current_key == L'-')
+			current_key += 1;
 
-		if (key[key_length] != UNICODE_NULL)
+		if (_r_str_compare_length (current_key, long_key, key_length) == 0)
 		{
-			if (key[key_length] == L':' || key[key_length] == L'=')
+			current_length = key_length;
+		}
+		else if (short_key_length && _r_str_compare_length (current_key, short_key, short_key_length) == 0)
+		{
+			current_length = short_key_length;
+		}
+		else
+		{
+			continue;
+		}
+
+		if (current_key[current_length] != UNICODE_NULL)
+		{
+			if (current_key[current_length] == L':' || current_key[current_length] == L'=')
 			{
-				value = key + key_length + 1;
+				current_value = current_key + current_length + 1;
 			}
 			else
 			{
@@ -3673,21 +3698,21 @@ BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR option_key, _Out_opt_ PR_
 		}
 		else
 		{
-			value = (numargs >= (i + 1)) ? arga[i + 1] : NULL;
+			current_value = (numargs >= (i + 1)) ? arga[i + 1] : NULL;
+
+			if (current_value && (*current_value == L'/' || *current_value == L'-'))
+				current_value = NULL;
 		}
 
-		if (option_value)
+		if (value)
 		{
-			if (!_r_str_isempty (value))
+			if (!_r_str_isempty (current_value))
 			{
-				if (*value == L'/' || *value == L'-')
-					continue;
-
-				*option_value = _r_obj_createstring (value);
+				*value = _r_obj_createstring (current_value);
 			}
 			else
 			{
-				*option_value = NULL;
+				*value = NULL;
 			}
 
 			result = TRUE;
