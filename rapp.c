@@ -45,7 +45,7 @@ static LPCWSTR _r_app_getmutexname ()
 
 	if (_r_initonce_begin (&init_once))
 	{
-		_r_str_printf (name, RTL_NUMBER_OF (name), L"%s_%" PR_ULONG_PTR L"_%" PR_ULONG_PTR, _r_app_getnameshort (), _r_str_hash (_r_sys_getimagepathname ()), _r_str_hash (_r_sys_getimagecommandline ()));
+		_r_str_printf (name, RTL_NUMBER_OF (name), L"%s_%" PR_ULONG L"_%" PR_ULONG, _r_app_getnameshort (), _r_str_hash (_r_sys_getimagepathname ()), _r_str_hash (_r_sys_getimagecommandline ()));
 
 		_r_initonce_end (&init_once);
 	}
@@ -74,7 +74,7 @@ BOOLEAN _r_app_isportable ()
 
 		C_ASSERT (sizeof (file_names) == sizeof (file_exts));
 
-		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"portable", NULL))
+		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"portable", NULL, NULL))
 		{
 			is_portable = TRUE;
 		}
@@ -119,7 +119,7 @@ BOOLEAN _r_app_isreadonly ()
 
 	if (_r_initonce_begin (&init_once))
 	{
-		is_readonly = _r_sys_getopt (_r_sys_getimagecommandline (), L"readonly", NULL);
+		is_readonly = _r_sys_getopt (_r_sys_getimagecommandline (), L"readonly", NULL, NULL);
 
 		_r_initonce_end (&init_once);
 	}
@@ -355,7 +355,7 @@ LPCWSTR _r_app_getconfigpath ()
 		PR_STRING new_result = NULL;
 
 		// parse config path from arguments
-		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"ini", &buffer))
+		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"ini", NULL, &buffer))
 		{
 			if (buffer)
 			{
@@ -647,7 +647,7 @@ INT _r_app_getshowcode (_In_ HWND hwnd)
 
 	// if window have tray - check arguments
 #if defined(APP_HAVE_TRAY)
-	if (_r_config_getboolean (L"IsStartMinimized", FALSE) || _r_sys_getopt (_r_sys_getimagecommandline (), L"minimized", NULL))
+	if (_r_config_getboolean (L"IsStartMinimized", FALSE) || _r_sys_getopt (_r_sys_getimagecommandline (), L"minimized", NULL, NULL))
 	{
 		is_windowhidden = TRUE;
 	}
@@ -881,7 +881,7 @@ VOID _r_app_restart (_In_opt_ HWND hwnd)
 
 	BOOLEAN is_mutexdestroyed = _r_mutex_destroy (&app_mutex);
 
-	if (!_r_sys_createprocessex (_r_sys_getimagepathname (), _r_sys_getimagecommandline (), directory, SW_SHOW, 0))
+	if (!_r_sys_createprocessex (_r_sys_getimagepathname (), _r_sys_getimagecommandline (), directory, NULL, SW_SHOW, 0))
 	{
 		if (is_mutexdestroyed)
 			_r_mutex_create (_r_app_getmutexname (), &app_mutex); // restore mutex on error
@@ -2271,7 +2271,7 @@ VOID _r_update_install (_In_ LPCWSTR install_path)
 								   _r_sys_getimagepathname ()
 	);
 
-	if (!_r_sys_createprocessex (_r_obj_getstring (cmd_path), _r_obj_getstring (cmd_string), NULL, SW_HIDE, 0))
+	if (!_r_sys_createprocessex (_r_obj_getstring (cmd_path), _r_obj_getstring (cmd_string), NULL, NULL, SW_HIDE, 0))
 		_r_show_errormessage (NULL, NULL, GetLastError (), install_path, NULL);
 
 	if (cmd_path)
