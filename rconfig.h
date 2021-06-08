@@ -79,6 +79,10 @@
 
 #define PR_PTRDIFF PRIi32
 
+#else
+
+#error "Some printf specifiers are undefined. Unknown architecture!"
+
 #endif // _WIN64
 
 #define PR_SIZE_T PR_ULONG_PTR
