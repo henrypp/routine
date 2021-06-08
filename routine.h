@@ -1596,6 +1596,9 @@ _Check_return_
 BOOLEAN _r_sys_iselevated ();
 
 _Check_return_
+BOOLEAN _r_sys_iswine ();
+
+_Check_return_
 ULONG _r_sys_getwindowsversion ();
 
 FORCEINLINE ULONG _r_sys_getprocessorscount ()

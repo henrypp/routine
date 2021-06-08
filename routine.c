@@ -3240,6 +3240,29 @@ BOOLEAN _r_sys_iselevated ()
 }
 
 _Check_return_
+BOOLEAN _r_sys_iswine ()
+{
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static BOOLEAN is_wine = FALSE;
+
+	if (_r_initonce_begin (&init_once))
+	{
+		HMODULE hntdll = LoadLibraryEx (L"ntdll.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+
+		if (hntdll)
+		{
+			is_wine = (GetProcAddress (hntdll, "wine_get_version") != NULL);
+
+			FreeLibrary (hntdll);
+		}
+
+		_r_initonce_end (&init_once);
+	}
+
+	return is_wine;
+}
+
+_Check_return_
 ULONG _r_sys_getwindowsversion ()
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
@@ -3421,7 +3444,7 @@ BOOLEAN _r_sys_createprocessex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR com
 			current_directory_string = _r_path_getbasedirectory (file_name_string->buffer);
 	}
 
-	is_success = !!CreateProcess (_r_obj_getstring (file_name_string), _r_obj_getstring (command_line_string), NULL, NULL, FALSE, flags, NULL, _r_obj_getstring (current_directory_string), startup_info_ptr, &process_info);
+	is_success = !!CreateProcess (_r_obj_getstring (file_name_string), command_line_string ? command_line_string->buffer : NULL, NULL, NULL, FALSE, flags, NULL, _r_obj_getstring (current_directory_string), startup_info_ptr, &process_info);
 
 	SAFE_DELETE_HANDLE (process_info.hProcess);
 	SAFE_DELETE_HANDLE (process_info.hThread);
@@ -4164,8 +4187,8 @@ BOOLEAN _r_filedialog_show (_In_opt_ HWND hwnd, _In_ PR_FILE_DIALOG file_dialog)
 		else
 		{
 			return !!GetSaveFileName (ofn);
-		}
 	}
+}
 #endif // APP_NO_DEPRECATIONS
 }
 
@@ -4209,7 +4232,7 @@ PR_STRING _r_filedialog_getpath (_In_ PR_FILE_DIALOG file_dialog)
 		return _r_obj_createstring (file_dialog->u.ofn->lpstrFile);
 	}
 #endif // !APP_NO_DEPRECATIONS
-}
+	}
 
 VOID _r_filedialog_setpath (_Inout_ PR_FILE_DIALOG file_dialog, _In_ LPCWSTR path)
 {
@@ -4263,9 +4286,9 @@ VOID _r_filedialog_setpath (_Inout_ PR_FILE_DIALOG file_dialog, _In_ LPCWSTR pat
 		ofn->lpstrFile = _r_mem_reallocatezero (ofn->lpstrFile, ofn->nMaxFile * sizeof (WCHAR));
 
 		memcpy (ofn->lpstrFile, path, (path_length + 1) * sizeof (WCHAR));
-	}
+		}
 #endif // !APP_NO_DEPRECATIONS
-}
+	}
 
 VOID _r_filedialog_setfilter (_Inout_ PR_FILE_DIALOG file_dialog, _In_ COMDLG_FILTERSPEC * filters, _In_ ULONG count)
 {
@@ -4297,7 +4320,7 @@ VOID _r_filedialog_setfilter (_Inout_ PR_FILE_DIALOG file_dialog, _In_ COMDLG_FI
 		ofn->lpstrFilter = _r_mem_allocateandcopy (filter_string->buffer, filter_string->length + sizeof (UNICODE_NULL));
 
 		_r_obj_dereference (filter_string);
-	}
+}
 #endif // !APP_NO_DEPRECATIONS
 }
 
@@ -4321,7 +4344,7 @@ VOID _r_filedialog_destroy (_In_ PR_FILE_DIALOG file_dialog)
 			_r_mem_free (ofn->lpstrFile);
 
 		_r_mem_free (ofn);
-	}
+}
 #endif // !APP_NO_DEPRECATIONS
 }
 
@@ -4737,7 +4760,7 @@ VOID _r_wnd_changemessagefilter (_In_ HWND hwnd, _In_count_ (count) PUINT messag
 	{
 		for (SIZE_T i = 0; i < count; i++)
 			_ChangeWindowMessageFilterEx (hwnd, messages[i], action, NULL);
-	}
+}
 
 	FreeLibrary (huser32);
 #endif // APP_NO_DEPRECATIONS
@@ -4799,7 +4822,7 @@ static BOOLEAN _r_wnd_isplatformfullscreenmode ()
 		{
 			if (FAILED (_SHQueryUserNotificationState (&state)))
 				return FALSE;
-		}
+}
 	}
 #endif // APP_NO_DEPRECATIONS
 
@@ -5112,13 +5135,13 @@ ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTER
 					{
 						if (!WinHttpSetOption (hrequest, WINHTTP_OPTION_SECURITY_FLAGS, &(ULONG){SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE | SECURITY_FLAG_IGNORE_CERT_CN_INVALID}, sizeof (ULONG)))
 							break;
-					}
+				}
 #else
 					// ERROR_WINHTTP_CANNOT_CONNECT etc.
 					break;
 #endif
-				}
 			}
+		}
 			else
 			{
 				if (!WinHttpReceiveResponse (hrequest, NULL))
@@ -6210,7 +6233,7 @@ BOOLEAN _r_tray_create (_In_ HWND hwnd, _In_ UINT uid, _In_ UINT code, _In_opt_ 
 #endif // APP_NO_DEPRECATIONS
 
 		_r_str_copy (nid.szTip, RTL_NUMBER_OF (nid.szTip), tooltip);
-	}
+}
 
 	if (is_hidden)
 	{
@@ -6316,7 +6339,7 @@ BOOLEAN _r_tray_setinfo (_In_ HWND hwnd, _In_ UINT uid, _In_opt_ HICON hicon, _I
 #endif // APP_NO_DEPRECATIONS
 
 		_r_str_copy (nid.szTip, RTL_NUMBER_OF (nid.szTip), tooltip);
-	}
+}
 
 	return !!Shell_NotifyIcon (NIM_MODIFY, &nid);
 }
