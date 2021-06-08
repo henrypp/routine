@@ -75,7 +75,7 @@
 
 // extern
 _Check_return_
-extern SIZE_T _r_str_length (_In_ LPCWSTR text);
+extern FORCEINLINE SIZE_T _r_str_length (_In_ LPCWSTR string);
 
 _Check_return_
 extern FORCEINLINE ULONG _r_str_hash (_In_ LPCWSTR string);
@@ -1371,7 +1371,13 @@ _Success_ (return)
 BOOLEAN _r_str_copy (_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer, _In_ SIZE_T buffer_size, _In_ LPCWSTR string);
 
 _Check_return_
-SIZE_T _r_str_length (_In_ LPCWSTR string);
+FORCEINLINE SIZE_T _r_str_length (_In_ LPCWSTR string)
+{
+	if (!string)
+		return 0;
+
+	return wcsnlen_s (string, PR_STR_MAX_LENGTH);
+}
 
 _Success_ (return)
 BOOLEAN _r_str_printf (_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer, _In_ SIZE_T buffer_size, _In_ _Printf_format_string_ LPCWSTR format, ...);

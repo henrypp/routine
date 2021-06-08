@@ -2305,58 +2305,6 @@ BOOLEAN _r_str_copy (_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffe
 	return TRUE;
 }
 
-_Check_return_
-SIZE_T _r_str_length (_In_ LPCWSTR string)
-{
-	if (_r_str_isempty (string))
-		return 0;
-
-#if defined(_ARM64_)
-	return wcsnlen_s (string, PR_STR_MAX_LENGTH);
-#else
-	if (USER_SHARED_DATA->ProcessorFeatures[PF_XMMI64_INSTRUCTIONS_AVAILABLE]) // check sse2 feature
-	{
-
-		LPWSTR p = (LPWSTR)((ULONG_PTR)string & ~0xE); // string should be 2 byte aligned
-		ULONG unaligned = PtrToUlong (string) & 0xF;
-
-		__m128i b;
-		__m128i z = _mm_setzero_si128 ();
-
-		ULONG index;
-		ULONG mask;
-
-		if (unaligned != 0)
-		{
-			b = _mm_load_si128 ((__m128i*)p);
-			b = _mm_cmpeq_epi16 (b, z);
-			mask = _mm_movemask_epi8 (b) >> unaligned;
-
-			if (_BitScanForward (&index, mask))
-				return (SIZE_T)(index / sizeof (WCHAR));
-
-			p += 16 / sizeof (WCHAR);
-		}
-
-		while (TRUE)
-		{
-			b = _mm_load_si128 ((__m128i*)p);
-			b = _mm_cmpeq_epi16 (b, z);
-			mask = _mm_movemask_epi8 (b);
-
-			if (_BitScanForward (&index, mask))
-				return (SIZE_T)(p - string) + index / sizeof (WCHAR);
-
-			p += 0x10 / sizeof (WCHAR);
-		}
-	}
-	else
-	{
-		return wcsnlen_s (string, PR_STR_MAX_LENGTH);
-	}
-#endif
-}
-
 _Success_ (return)
 BOOLEAN _r_str_printf (_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer, _In_ SIZE_T buffer_size, _In_ _Printf_format_string_ LPCWSTR format, ...)
 {
