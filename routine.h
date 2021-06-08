@@ -435,7 +435,7 @@ _Ret_maybenull_
 _Post_writable_byte_size_ (bytes_count)
 FORCEINLINE PVOID NTAPI _r_mem_allocatesafe (_In_ SIZE_T bytes_count)
 {
-	return RtlAllocateHeap (_r_mem_getheap (), 0, bytes_count);
+	return RtlAllocateHeap (_r_mem_getheap (), HEAP_ZERO_MEMORY, bytes_count);
 }
 
 _Post_writable_byte_size_ (bytes_count)
@@ -447,7 +447,7 @@ FORCEINLINE PVOID NTAPI _r_mem_allocatezero (_In_ SIZE_T bytes_count)
 _Post_writable_byte_size_ (bytes_count)
 FORCEINLINE PVOID NTAPI _r_mem_allocateandcopy (_In_ PVOID src, _In_ SIZE_T bytes_count)
 {
-	PVOID dst = RtlAllocateHeap (_r_mem_getheap (), HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, bytes_count);
+	PVOID dst = _r_mem_allocatezero (bytes_count);
 
 	memcpy (dst, src, bytes_count);
 
@@ -467,7 +467,7 @@ _Ret_maybenull_
 _Post_writable_byte_size_ (bytes_count)
 FORCEINLINE PVOID NTAPI _r_mem_reallocatesafe (_Frees_ptr_opt_ PVOID memory_address, _In_ SIZE_T bytes_count)
 {
-	return RtlReAllocateHeap (_r_mem_getheap (), 0, memory_address, bytes_count);
+	return RtlReAllocateHeap (_r_mem_getheap (), HEAP_ZERO_MEMORY, memory_address, bytes_count);
 }
 
 _Post_writable_byte_size_ (bytes_count)
