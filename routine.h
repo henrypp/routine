@@ -1213,7 +1213,9 @@ BOOLEAN _r_fs_deletedirectory (_In_ LPCWSTR path, _In_ BOOLEAN is_recurse);
 LONG64 _r_fs_getfilesize (_In_ LPCWSTR path);
 BOOLEAN _r_fs_makebackup (_In_ LPCWSTR path, _In_opt_ LONG64 timestamp, _In_ BOOLEAN is_removesourcefile);
 BOOLEAN _r_fs_mkdir (_In_ LPCWSTR path);
-PR_BYTE _r_fs_readfile (_In_ HANDLE hfile, _In_ ULONG file_size);
+
+_Ret_maybenull_
+PR_BYTE _r_fs_readfile (_In_ HANDLE hfile);
 
 //_Check_return_
 //FORCEINLINE BOOLEAN _r_fs_isvalidhandle (_In_opt_ HANDLE handle)
