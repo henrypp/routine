@@ -5,7 +5,10 @@
 
 #pragma once
 
+//
 // Warning message macro
+//
+
 #define STRINGIZE_HELPER(x) #x
 #define STRINGIZE(x) STRINGIZE_HELPER(x)
 #define R_PRINT_WARNING(desc) message("[WARNING!] Compile-time warning: " #desc  " (" STRINGIZE(__FILE__) ":" STRINGIZE(__LINE__) ")")
@@ -40,7 +43,10 @@
 #define APP_HAVE_SETTINGS
 #endif // APP_HAVE_SETTINGS_TABS
 
-// set defaults
+//
+// Default config
+//
+
 #if !defined(APP_CLASSICUI)
 #define APP_CLASSICUI FALSE
 #endif // APP_CLASSICUI
@@ -49,7 +55,10 @@
 #define APP_ALWAYSONTOP FALSE
 #endif // APP_ALWAYSONTOP
 
-// printf specifiers
+//
+// Printf specifiers
+//
+
 #define PR_LONG "ld"
 #define PR_LONG64 "lld"
 
@@ -74,7 +83,10 @@
 
 #define PR_SIZE_T PR_ULONG_PTR
 
+//
 // Callback message codes
+//
+
 #define RM_INITIALIZE (WM_APP + 1)
 #define RM_UNINITIALIZE (WM_APP + 2)
 #define RM_CLOSE (WM_APP + 3)
@@ -87,7 +99,10 @@
 
 #define WM_TRAYICON (WM_APP + 11)
 
+//
 // Project information
+//
+
 #define APP_LANGUAGE_DEFAULT L"English (default)"
 #define APP_SKIPUAC_NAME APP_NAME_SHORT L"Task"
 #define APP_SKIPUAC_NAME_OLD APP_NAME_SHORT L"SkipUAC"
@@ -102,12 +117,16 @@
 #	define APP_UPDATE_PERIOD _r_calc_hours2seconds (48) // update checking period for stable release is 48 hours
 #endif // _APP_BETA || _APP_BETA_RC
 
+//
 // Debug header
-#if !defined(PR_DEBUG_HEADER)
-#	define PR_DEBUG_HEADER L"Level,Date,Function,Code,Description,Version,OS Version\r\n"
-#endif // PR_DEBUG_HEADER
+//
 
+#define PR_DEBUG_HEADER L"Level,Date,Function,Code,Description,Version,OS Version\r\n"
+
+//
 // Project configuration
+//
+
 #define PR_DEVICE_COUNT 26
 #define PR_DEVICE_PREFIX_LENGTH 64
 
