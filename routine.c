@@ -4366,7 +4366,7 @@ FORCEINLINE ULONG _r_layout_getcontrolflags (_In_ HWND hwnd)
 		}
 		else if (_r_str_compare (class_name, REBARCLASSNAME) == 0 || _r_str_compare (class_name, TOOLBARCLASSNAME) == 0)
 		{
-			return PR_LAYOUT_SEND_NOTIFY;
+			return PR_LAYOUT_SEND_NOTIFY | PR_LAYOUT_NO_ANCHOR;
 		}
 	}
 
