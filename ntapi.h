@@ -873,12 +873,12 @@ typedef enum _WAIT_TYPE
 
 typedef enum _IO_PRIORITY_HINT
 {
-	IoPriorityVeryLow = 0, // Defragging, content indexing and other background I/Os.
-	IoPriorityLow, // Prefetching for applications.
-	IoPriorityNormal, // Normal I/Os.
-	IoPriorityHigh, // Used by filesystems for checkpoint I/O.
-	IoPriorityCritical, // Used by memory manager. Not available for applications.
-	MaxIoPriorityTypes
+	IoPriorityVeryLow = 0, // Specifies the lowest possible priority hint level. The system uses this value for background I/O operations.
+	IoPriorityLow, // Specifies a low-priority hint level.
+	IoPriorityNormal, // Specifies a normal-priority hint level. This value is the default setting for an IRP.
+	IoPriorityHigh, // Specifies a high-priority hint level. This value is reserved for use by the system.
+	IoPriorityCritical, // Specifies the highest-priority hint level. This value is reserved for use by the system.
+	MaxIoPriorityTypes // Marks the limit for priority hints. Any priority hint value must be less than MaxIoPriorityTypes.
 } IO_PRIORITY_HINT;
 
 //
@@ -1963,11 +1963,62 @@ NtQueryObject (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
+NtSetSystemInformation (
+	_In_ SYSTEM_INFORMATION_CLASS SystemInformationClass,
+	_In_reads_bytes_opt_ (SystemInformationLength) PVOID SystemInformation,
+	_In_ ULONG SystemInformationLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
 NtQuerySystemInformation (
 	_In_ SYSTEM_INFORMATION_CLASS SystemInformationClass,
 	_Out_writes_bytes_opt_ (SystemInformationLength) PVOID SystemInformation,
 	_In_ ULONG SystemInformationLength,
 	_Out_opt_ PULONG ReturnLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtOpenProcess (
+	_Out_ PHANDLE ProcessHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes,
+	_In_opt_ PCLIENT_ID ClientId
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtTerminateProcess (
+	_In_opt_ HANDLE ProcessHandle,
+	_In_ NTSTATUS ExitStatus
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtSuspendProcess (
+	_In_ HANDLE ProcessHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtResumeProcess (
+	_In_ HANDLE ProcessHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtSetInformationProcess (
+	_In_ HANDLE ProcessHandle,
+	_In_ PROCESSINFOCLASS ProcessInformationClass,
+	_In_reads_bytes_ (ProcessInformationLength) PVOID ProcessInformation,
+	_In_ ULONG ProcessInformationLength
 );
 
 NTSYSCALLAPI
@@ -1979,15 +2030,6 @@ NtQueryInformationProcess (
 	_Out_writes_bytes_ (ProcessInformationLength) PVOID ProcessInformation,
 	_In_ ULONG ProcessInformationLength,
 	_Out_opt_ PULONG ReturnLength
-);
-
-NTSYSCALLAPI
-NTSTATUS
-NTAPI
-NtSetSystemInformation (
-	_In_ SYSTEM_INFORMATION_CLASS SystemInformationClass,
-	_In_reads_bytes_opt_ (SystemInformationLength) PVOID SystemInformation,
-	_In_ ULONG SystemInformationLength
 );
 
 NTSYSCALLAPI
@@ -2126,16 +2168,6 @@ NTSTATUS
 NTAPI
 NtImpersonateAnonymousToken (
 	_In_ HANDLE ThreadHandle
-);
-
-NTSYSCALLAPI
-NTSTATUS
-NTAPI
-NtSetInformationProcess (
-	_In_ HANDLE ProcessHandle,
-	_In_ PROCESSINFOCLASS ProcessInformationClass,
-	_In_reads_bytes_ (ProcessInformationLength) PVOID ProcessInformation,
-	_In_ ULONG ProcessInformationLength
 );
 
 NTSYSCALLAPI
