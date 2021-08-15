@@ -2295,13 +2295,17 @@ HRESULT CALLBACK _r_update_pagecallback (_In_ HWND hwnd, _In_ UINT msg, _In_ WPA
 
 					if (update_component && update_component->is_installer)
 					{
-						_r_update_install (update_component->temp_path->buffer);
+						if (_r_update_install (update_component->temp_path->buffer))
+						{
+							SendMessageTimeout (_r_app_gethwnd (), WM_QUIT, 0, 0, SMTO_BLOCK, 5000, NULL);
+
+							ExitProcess (STATUS_SUCCESS);
+						}
+
 						break;
 					}
 
 				}
-
-				DestroyWindow (_r_app_gethwnd ());
 
 				return S_FALSE;
 			}
@@ -2382,33 +2386,34 @@ VOID _r_update_addcomponent (_In_opt_ LPCWSTR full_name, _In_opt_ LPCWSTR short_
 	_r_obj_addarrayitem (app_global.update.info.components, &update_component);
 }
 
-VOID _r_update_install (_In_ LPCWSTR install_path)
+BOOLEAN _r_update_install (_In_ LPCWSTR install_path)
 {
-	PR_STRING cmd_path;
 	PR_STRING cmd_string;
+	BOOLEAN is_success;
 
-	cmd_path = _r_obj_concatstrings (2, _r_sys_getsystemdirectory (), L"\\cmd.exe");
-
-	cmd_string = _r_format_string (L"\"%s\" /c timeout 5 > nul&&start /wait \"\" \"%s\" /S /D=%s&&timeout 5 > nul&&del /q /f \"%s\"&start \"\" \"%s\"",
-								   cmd_path->buffer,
+	cmd_string = _r_format_string (L"\"%s\" /D=\"%s\"",
 								   install_path,
-								   _r_app_getdirectory (),
-								   install_path,
-								   _r_sys_getimagepath ()
+								   _r_app_getdirectory ()
 	);
 
-	if (!_r_sys_createprocessex (cmd_path->buffer, _r_obj_getstring (cmd_string), NULL, NULL, SW_HIDE, 0))
+	if (!_r_sys_createprocess (install_path, _r_obj_getstring (cmd_string), NULL))
 	{
 		R_ERROR_INFO error_info = {0};
 		error_info.description = install_path;
 
 		_r_show_errormessage (NULL, NULL, GetLastError (), &error_info);
-	}
 
-	_r_obj_dereference (cmd_path);
+		is_success = FALSE;
+	}
+	else
+	{
+		is_success = TRUE;
+	}
 
 	if (cmd_string)
 		_r_obj_dereference (cmd_string);
+
+	return is_success;
 }
 
 #endif // APP_HAVE_UPDATES
