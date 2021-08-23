@@ -359,7 +359,7 @@ BOOLEAN _r_app_initialize ()
 #if !defined(_DEBUG) && !defined(_WIN64)
 	if (_r_sys_iswow64 () && !_r_sys_getopt (_r_sys_getimagecommandline (), L"nowow64", NULL))
 	{
-		_r_show_message (NULL, MB_OK | MB_ICONWARNING | MB_TOPMOST, _r_app_getname (), L"WOW64 WARNING!", L"You are attempting to run the 32-bit executable on 64-bit system.\r\nNote: add \"-nowow64\" argument to avoid this warning.");
+		_r_show_message (NULL, MB_OK | MB_ICONWARNING | MB_TOPMOST, _r_app_getname (), L"WoW64 warning!", L"You are attempting to run the 32-bit executable on 64-bit system.\r\nNote: add \"-nowow64\" argument to avoid this warning.");
 		return FALSE;
 	}
 #endif // !_DEBUG && !_WIN64
@@ -751,7 +751,7 @@ INT _r_app_getshowcode (_In_ HWND hwnd)
 	return show_code;
 }
 
-BOOLEAN _r_app_createwindow (_In_ INT dlg_id, _In_opt_ LONG icon_id, _In_opt_ DLGPROC dlg_proc)
+HWND _r_app_createwindow (_In_ INT dlg_id, _In_opt_ LONG icon_id, _In_opt_ DLGPROC dlg_proc)
 {
 #ifdef APP_HAVE_UPDATES
 	// configure components
@@ -762,34 +762,38 @@ BOOLEAN _r_app_createwindow (_In_ INT dlg_id, _In_opt_ LONG icon_id, _In_opt_ DL
 	_r_update_addcomponent (L"Language pack", L"language", locale_version, _r_app_getlocalepath (), FALSE);
 #endif // APP_HAVE_UPDATES
 
-	// create main window
-	app_global.main.hwnd = CreateDialogParam (NULL, MAKEINTRESOURCE (dlg_id), NULL, dlg_proc, 0);
+	HWND hwnd;
+	LONG dpi_value;
 
-	if (!app_global.main.hwnd)
-		return FALSE;
+	// create main window
+	hwnd = CreateDialogParam (NULL, MAKEINTRESOURCE (dlg_id), NULL, dlg_proc, 0);
+	app_global.main.hwnd = hwnd;
+
+	if (!hwnd)
+		return NULL;
 
 	// set window title
-	SetWindowText (app_global.main.hwnd, _r_app_getname ());
+	SetWindowText (hwnd, _r_app_getname ());
 
 	// set window icon
 	if (icon_id)
 	{
-		LONG dpi_value = _r_dc_getwindowdpi (app_global.main.hwnd);
+		dpi_value = _r_dc_getwindowdpi (hwnd);
 
-		_r_wnd_seticon (app_global.main.hwnd,
+		_r_wnd_seticon (hwnd,
 						_r_loadicon (_r_sys_getimagebase (), MAKEINTRESOURCE (icon_id), _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value), TRUE),
 						_r_loadicon (_r_sys_getimagebase (), MAKEINTRESOURCE (icon_id), _r_dc_getsystemmetrics (SM_CXICON, dpi_value), TRUE)
 		);
 	}
 
 	// set window prop
-	SetProp (app_global.main.hwnd, _r_app_getname (), IntToPtr (42));
+	SetProp (hwnd, _r_app_getname (), IntToPtr (42));
 
 	// set window on top
-	_r_wnd_top (app_global.main.hwnd, _r_config_getboolean (L"AlwaysOnTop", FALSE));
+	_r_wnd_top (hwnd, _r_config_getboolean (L"AlwaysOnTop", FALSE));
 
 	// center window position
-	_r_wnd_center (app_global.main.hwnd, NULL);
+	_r_wnd_center (hwnd, NULL);
 
 	// enable messages bypass uipi (win7+)
 #if !defined(APP_NO_DEPRECATIONS)
@@ -805,30 +809,30 @@ BOOLEAN _r_app_createwindow (_In_ INT dlg_id, _In_opt_ LONG icon_id, _In_opt_ DL
 #endif // APP_HAVE_TRAY
 		};
 
-		_r_wnd_changemessagefilter (app_global.main.hwnd, messages, RTL_NUMBER_OF (messages), MSGFLT_ALLOW);
+		_r_wnd_changemessagefilter (hwnd, messages, RTL_NUMBER_OF (messages), MSGFLT_ALLOW);
 	}
 
 	// subclass window
-	app_global.main.wnd_proc = (WNDPROC)SetWindowLongPtr (app_global.main.hwnd, DWLP_DLGPROC, (LONG_PTR)_r_app_maindlgproc);
+	app_global.main.wnd_proc = (WNDPROC)SetWindowLongPtr (hwnd, DWLP_DLGPROC, (LONG_PTR)_r_app_maindlgproc);
 
 	// restore window position
-	_r_window_restoreposition (app_global.main.hwnd, L"window");
+	_r_window_restoreposition (hwnd, L"window");
 
 	// restore window visibility (or not?)
 #if !defined(APP_STARTMINIMIZED)
-	ShowWindow (app_global.main.hwnd, _r_app_getshowcode (app_global.main.hwnd));
+	ShowWindow (hwnd, _r_app_getshowcode (hwnd));
 #endif // !APP_STARTMINIMIZED
 
 	// common initialization
-	SendMessage (app_global.main.hwnd, RM_INITIALIZE, 0, 0);
-	SendMessage (app_global.main.hwnd, RM_LOCALIZE, 0, 0);
+	SendMessage (hwnd, RM_INITIALIZE, 0, 0);
+	SendMessage (hwnd, RM_LOCALIZE, 0, 0);
 
 #if defined(APP_HAVE_UPDATES)
 	if (_r_config_getboolean (L"CheckUpdates", TRUE))
 		_r_update_check (NULL);
 #endif // APP_HAVE_UPDATES
 
-	return TRUE;
+	return hwnd;
 }
 
 BOOLEAN _r_app_runasadmin ()
@@ -1840,7 +1844,7 @@ BOOLEAN _r_autorun_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 #endif // APP_HAVE_AUTORUN
 
 #if defined(APP_HAVE_UPDATES)
-static THREAD_API _r_update_checkthread (_In_ PVOID arglist)
+static NTSTATUS NTAPI _r_update_checkthread (_In_ PVOID arglist)
 {
 	PR_UPDATE_INFO update_info;
 	HINTERNET hsession;
@@ -2017,7 +2021,7 @@ static THREAD_API _r_update_checkthread (_In_ PVOID arglist)
 
 	update_info->is_checking = FALSE;
 
-	return ERROR_SUCCESS;
+	return STATUS_SUCCESS;
 }
 
 VOID _r_update_check (_In_opt_ HWND hparent)
@@ -2086,7 +2090,7 @@ BOOLEAN NTAPI _r_update_downloadcallback (_In_ ULONG total_written, _In_ ULONG t
 	return TRUE;
 }
 
-THREAD_API _r_update_downloadthread (_In_ PVOID arglist)
+NTSTATUS NTAPI _r_update_downloadthread (_In_ PVOID arglist)
 {
 	PR_UPDATE_INFO update_info;
 
@@ -2238,7 +2242,7 @@ THREAD_API _r_update_downloadthread (_In_ PVOID arglist)
 		}
 	}
 
-	return ERROR_SUCCESS;
+	return STATUS_SUCCESS;
 }
 
 HRESULT CALLBACK _r_update_pagecallback (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM wparam, _In_ LPARAM lparam, _In_ LONG_PTR param)
@@ -3393,19 +3397,25 @@ INT_PTR CALLBACK _r_settings_wndproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 #else
 				case TCN_SELCHANGING:
 				{
-					PR_SETTINGS_PAGE ptr_page = (PR_SETTINGS_PAGE)_r_tab_getitemlparam (hwnd, ctrl_id, -1);
+					PR_SETTINGS_PAGE ptr_page;
+					INT tab_id;
 
-					if (!ptr_page)
-						break;
+					tab_id = _r_tab_getcurrentitem (hwnd, ctrl_id);
+					ptr_page = (PR_SETTINGS_PAGE)_r_tab_getitemlparam (hwnd, ctrl_id, tab_id);
 
-					ShowWindow (ptr_page->hwnd, SW_HIDE);
+					if (ptr_page)
+						ShowWindow (ptr_page->hwnd, SW_HIDE);
 
 					break;
 				}
 
 				case TCN_SELCHANGE:
 				{
-					PR_SETTINGS_PAGE ptr_page = (PR_SETTINGS_PAGE)_r_tab_getitemlparam (hwnd, ctrl_id, -1);
+					PR_SETTINGS_PAGE ptr_page;
+					INT tab_id;
+
+					tab_id = _r_tab_getcurrentitem (hwnd, ctrl_id);
+					ptr_page = (PR_SETTINGS_PAGE)_r_tab_getitemlparam (hwnd, ctrl_id, tab_id);
 
 					if (!ptr_page || !ptr_page->hwnd || _r_wnd_isvisible (ptr_page->hwnd))
 						break;
@@ -3607,7 +3617,7 @@ HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 
 	if (hwnd && is_enable)
 	{
-		if (!_r_app_issecurelocation () && _r_show_message (hwnd, MB_YESNO | MB_ICONWARNING, _r_app_getname (), L"SECURITY WARNING!", L"It is not recommended to enable this option\r\nwhen running from outside a secure location (e.g. Program Files).\r\n\r\nAre you sure you want to continue?") != IDYES)
+		if (!_r_app_issecurelocation () && _r_show_message (hwnd, MB_YESNO | MB_ICONWARNING, _r_app_getname (), L"Security warning!", L"It is not recommended to enable this option\r\nwhen running from outside a secure location (e.g. Program Files).\r\n\r\nAre you sure you want to continue?") != IDYES)
 			return E_ABORT;
 	}
 

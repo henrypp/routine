@@ -215,7 +215,7 @@ BOOLEAN _r_skipuac_run ();
 VOID _r_update_check (_In_opt_ HWND hparent);
 
 BOOLEAN NTAPI _r_update_downloadcallback (_In_ ULONG total_written, _In_ ULONG total_length, _In_ PVOID param);
-THREAD_API _r_update_downloadthread (_In_ PVOID arglist);
+NTSTATUS NTAPI _r_update_downloadthread (_In_ PVOID arglist);
 
 HRESULT CALLBACK _r_update_pagecallback (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM wparam, _In_ LPARAM lparam, _In_ LONG_PTR pdata);
 INT _r_update_pagenavigate (_In_opt_ HWND htaskdlg, _In_opt_ LPCWSTR main_icon, _In_ TASKDIALOG_FLAGS flags, _In_ TASKDIALOG_COMMON_BUTTON_FLAGS buttons, _In_opt_ LPCWSTR main, _In_opt_ LPCWSTR content, _In_ LONG_PTR param);
@@ -263,7 +263,7 @@ LPCWSTR _r_app_getprofiledirectory ();
 LPCWSTR _r_app_getuseragent ();
 
 #if !defined(APP_CONSOLE)
-BOOLEAN _r_app_createwindow (_In_ INT dlg_id, _In_opt_ LONG icon_id, _In_opt_ DLGPROC dlg_proc);
+HWND _r_app_createwindow (_In_ INT dlg_id, _In_opt_ LONG icon_id, _In_opt_ DLGPROC dlg_proc);
 
 BOOLEAN _r_app_runasadmin ();
 VOID _r_app_restart (_In_ HWND hwnd);

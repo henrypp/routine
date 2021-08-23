@@ -50,7 +50,7 @@ PR_STRING _r_format_string_v (_In_ _Printf_format_string_ LPCWSTR format, _In_ v
 	string = _r_obj_createstringex (NULL, length * sizeof (WCHAR));
 
 #pragma warning(push)
-#pragma warning(disable: _UCRT_DISABLED_WARNINGS)
+#pragma warning(disable: 4996)
 	_vsnwprintf (string->buffer, length, format, arg_ptr);
 #pragma warning(pop)
 
@@ -413,7 +413,7 @@ PVOID _r_freelist_allocateitem (_Inout_ PR_FREE_LIST free_list)
 
 	if (list_entry)
 	{
-		_InterlockedDecrement ((PLONG)&free_list->count);
+		_InterlockedDecrement (&free_list->count);
 		entry = CONTAINING_RECORD (list_entry, R_FREE_LIST_ENTRY, list_entry);
 	}
 	else
@@ -1315,15 +1315,13 @@ VOID _r_workqueue_destroy (_Inout_ PR_WORKQUEUE work_queue)
 	work_queue->semaphore_handle = NULL;
 }
 
-PR_WORKQUEUE_ITEM _r_workqueue_createitem (_In_ THREAD_CALLBACK function, _In_opt_ PVOID context)
+PR_WORKQUEUE_ITEM _r_workqueue_createitem (_In_ PR_WORKQUEUE_FUNCTION function_address, _In_opt_ PVOID context)
 {
 	PR_WORKQUEUE_ITEM work_queue_item;
-	PR_FREE_LIST work_queue_free_list;
 
-	work_queue_free_list = _r_workqueue_getfreelist ();
-	work_queue_item = _r_freelist_allocateitem (work_queue_free_list);
+	work_queue_item = _r_freelist_allocateitem (_r_workqueue_getfreelist ());
 
-	work_queue_item->function_address = function;
+	work_queue_item->function_address = function_address;
 	work_queue_item->context = context;
 
 	return work_queue_item;
@@ -1331,19 +1329,15 @@ PR_WORKQUEUE_ITEM _r_workqueue_createitem (_In_ THREAD_CALLBACK function, _In_op
 
 VOID _r_workqueue_destroyitem (_In_ PR_WORKQUEUE_ITEM work_queue_item)
 {
-	PR_FREE_LIST work_queue_free_list;
-
-	work_queue_free_list = _r_workqueue_getfreelist ();
-
-	_r_freelist_deleteitem (work_queue_free_list, work_queue_item);
+	_r_freelist_deleteitem (_r_workqueue_getfreelist (), work_queue_item);
 }
 
-NTSTATUS _r_workqueue_threadproc (_In_ PVOID param)
+NTSTATUS _r_workqueue_threadproc (_In_ PVOID arglist)
 {
 	PR_WORKQUEUE work_queue;
 	PR_WORKQUEUE_ITEM work_queue_item;
 
-	work_queue = (PR_WORKQUEUE)param;
+	work_queue = (PR_WORKQUEUE)arglist;
 
 	while (TRUE)
 	{
@@ -1404,8 +1398,7 @@ NTSTATUS _r_workqueue_threadproc (_In_ PVOID param)
 			{
 				work_queue_item = CONTAINING_RECORD (list_entry, R_WORKQUEUE_ITEM, list_entry);
 
-				work_queue_item->function_address (work_queue_item->context);
-
+				work_queue_item->function_address (work_queue_item->context, work_queue->busy_count);
 				_InterlockedDecrement (&work_queue->busy_count);
 
 				_r_workqueue_destroyitem (work_queue_item);
@@ -1437,11 +1430,11 @@ NTSTATUS _r_workqueue_threadproc (_In_ PVOID param)
 	return STATUS_SUCCESS;
 }
 
-VOID _r_workqueue_queueitem (_Inout_ PR_WORKQUEUE work_queue, _In_ THREAD_CALLBACK function, _In_opt_ PVOID context)
+VOID _r_workqueue_queueitem (_Inout_ PR_WORKQUEUE work_queue, _In_ PR_WORKQUEUE_FUNCTION function_address, _In_opt_ PVOID context)
 {
 	PR_WORKQUEUE_ITEM work_queue_item;
 
-	work_queue_item = _r_workqueue_createitem (function, context);
+	work_queue_item = _r_workqueue_createitem (function_address, context);
 
 	// Enqueue the work item.
 	_r_queuedlock_acquireexclusive (&work_queue->queue_lock);
@@ -1916,7 +1909,7 @@ VOID _r_obj_appendstringbuilderformat_v (_Inout_ PR_STRINGBUILDER string, _In_ _
 		_r_obj_resizestringbuilder (string, string->string->length + length_in_bytes);
 
 #pragma warning(push)
-#pragma warning(disable: _UCRT_DISABLED_WARNINGS)
+#pragma warning(disable: 4996)
 	_vsnwprintf (PTR_ADD_OFFSET (string->string->buffer, string->string->length), length, format, arg_ptr);
 #pragma warning(pop)
 
@@ -1970,7 +1963,7 @@ VOID _r_obj_insertstringbuilderformat_v (_Inout_ PR_STRINGBUILDER string, _In_ S
 	}
 
 #pragma warning(push)
-#pragma warning(disable: _UCRT_DISABLED_WARNINGS)
+#pragma warning(disable: 4996)
 	_vsnwprintf (&string->string->buffer[index], length, format, arg_ptr);
 #pragma warning(pop)
 
@@ -3734,11 +3727,11 @@ BOOLEAN _r_str_append (_Inout_updates_ (buffer_size) _Always_ (_Post_z_) LPWSTR 
 _Success_ (return)
 BOOLEAN _r_str_appendformat (_Inout_updates_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer, _In_ SIZE_T buffer_size, _In_ _Printf_format_string_ LPCWSTR format, ...)
 {
-	if (!buffer || !buffer_size || buffer_size > PR_SIZE_MAX_STRING_LENGTH || !format)
-		return FALSE;
-
 	va_list arg_ptr;
 	SIZE_T dest_length;
+
+	if (!buffer || !buffer_size || buffer_size > PR_SIZE_MAX_STRING_LENGTH || !format)
+		return FALSE;
 
 	dest_length = _r_str_getlength (buffer);
 
@@ -3791,6 +3784,8 @@ BOOLEAN _r_str_copystring (_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR
 _Success_ (return)
 BOOLEAN _r_str_printf (_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer, _In_ SIZE_T buffer_size, _In_ _Printf_format_string_ LPCWSTR format, ...)
 {
+	va_list arg_ptr;
+
 	if (!buffer || !buffer_size)
 		return FALSE;
 
@@ -3799,8 +3794,6 @@ BOOLEAN _r_str_printf (_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buf
 		*buffer = UNICODE_NULL;
 		return FALSE;
 	}
-
-	va_list arg_ptr;
 
 	va_start (arg_ptr, format);
 	_r_str_printf_v (buffer, buffer_size, format, arg_ptr);
@@ -3812,6 +3805,9 @@ BOOLEAN _r_str_printf (_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buf
 _Success_ (return)
 BOOLEAN _r_str_printf_v (_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer, _In_ SIZE_T buffer_size, _In_ _Printf_format_string_ LPCWSTR format, _In_ va_list arg_ptr)
 {
+	SIZE_T max_length;
+	INT format_size;
+
 	if (!buffer || !buffer_size)
 		return FALSE;
 
@@ -3821,11 +3817,11 @@ BOOLEAN _r_str_printf_v (_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR b
 		return FALSE;
 	}
 
-	SIZE_T max_length = buffer_size - 1; // leave the last space for the null terminator
+	max_length = buffer_size - 1; // leave the last space for the null terminator
 
 #pragma warning(push)
-#pragma warning(disable: _UCRT_DISABLED_WARNINGS)
-	INT format_size = _vsnwprintf (buffer, max_length, format, arg_ptr);
+#pragma warning(disable: 4996)
+	format_size = _vsnwprintf (buffer, max_length, format, arg_ptr);
 #pragma warning(pop)
 
 	if (format_size == -1 || (SIZE_T)format_size >= max_length)
@@ -5635,7 +5631,7 @@ static PR_FREE_LIST _r_sys_getthreadfreelist ()
 
 	if (_r_initonce_begin (&init_once))
 	{
-		_r_freelist_initialize (&free_list, sizeof (R_THREAD_CONTEXT), 16);
+		_r_freelist_initialize (&free_list, sizeof (R_THREAD_CONTEXT), 32);
 
 		_r_initonce_end (&init_once);
 	}
@@ -5643,17 +5639,14 @@ static PR_FREE_LIST _r_sys_getthreadfreelist ()
 	return &free_list;
 }
 
-THREAD_API _r_sys_basethreadstart (_In_ PVOID arglist)
+NTSTATUS NTAPI _r_sys_basethreadstart (_In_ PVOID arglist)
 {
 	R_THREAD_CONTEXT context;
-	PR_FREE_LIST free_list;
 	NTSTATUS status;
 	HRESULT hr;
 
-	free_list = _r_sys_getthreadfreelist ();
-
 	RtlCopyMemory (&context, arglist, sizeof (context));
-	_r_freelist_deleteitem (free_list, arglist);
+	_r_freelist_deleteitem (_r_sys_getthreadfreelist (), arglist);
 
 	hr = CoInitializeEx (NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 
@@ -5667,8 +5660,7 @@ THREAD_API _r_sys_basethreadstart (_In_ PVOID arglist)
 	return status;
 }
 
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_sys_createthreadex (_In_ THREAD_CALLBACK start_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE thread_handle, _In_opt_ PR_THREAD_ENVIRONMENT environment)
+NTSTATUS _r_sys_createthreadex (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE thread_handle, _In_opt_ PR_THREAD_ENVIRONMENT environment)
 {
 	NTSTATUS status;
 	HANDLE hthread;
@@ -5679,7 +5671,7 @@ NTSTATUS _r_sys_createthreadex (_In_ THREAD_CALLBACK start_address, _In_opt_ PVO
 
 	context = _r_freelist_allocateitem (free_list);
 
-	context->start_address = start_address;
+	context->function_address = function_address;
 	context->arglist = arglist;
 
 	status = RtlCreateUserThread (NtCurrentProcess (), NULL, TRUE, 0, 0, 0, &_r_sys_basethreadstart, context, &hthread, NULL);
@@ -5704,6 +5696,11 @@ NTSTATUS _r_sys_createthreadex (_In_ THREAD_CALLBACK start_address, _In_opt_ PVO
 	}
 	else
 	{
+		if (thread_handle)
+		{
+			*thread_handle = NULL;
+		}
+
 		_r_freelist_deleteitem (free_list, context);
 	}
 
@@ -9089,12 +9086,12 @@ VOID _r_tab_selectitem (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id)
 #pragma warning(push)
 #pragma warning(disable: 26454)
 	hdr.code = TCN_SELCHANGING;
-	SendMessage (hwnd, WM_NOTIFY, (WPARAM)hdr.idFrom, (LPARAM)&hdr);
+	SendMessage (hwnd, WM_NOTIFY, (WPARAM)ctrl_id, (LPARAM)&hdr);
 
 	SendDlgItemMessage (hwnd, ctrl_id, TCM_SETCURSEL, (WPARAM)item_id, 0);
 
 	hdr.code = TCN_SELCHANGE;
-	SendMessage (hwnd, WM_NOTIFY, (WPARAM)hdr.idFrom, (LPARAM)&hdr);
+	SendMessage (hwnd, WM_NOTIFY, (WPARAM)ctrl_id, (LPARAM)&hdr);
 #pragma warning(pop)
 }
 

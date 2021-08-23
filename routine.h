@@ -538,10 +538,10 @@ FORCEINLINE VOID _r_protection_waitfor (_Inout_ PR_RUNDOWN_PROTECT protection)
 VOID _r_workqueue_initialize (_Out_ PR_WORKQUEUE work_queue, _In_ ULONG minimum_threads, _In_ ULONG maximum_threads, _In_ ULONG no_work_timeout, _In_opt_ PR_THREAD_ENVIRONMENT environment);
 VOID _r_workqueue_destroy (_Inout_ PR_WORKQUEUE work_queue);
 
-PR_WORKQUEUE_ITEM _r_workqueue_createitem (_In_ THREAD_CALLBACK function, _In_opt_ PVOID context);
+PR_WORKQUEUE_ITEM _r_workqueue_createitem (_In_ PR_WORKQUEUE_FUNCTION function_address, _In_opt_ PVOID context);
 VOID _r_workqueue_destroyitem (_In_ PR_WORKQUEUE_ITEM work_queue_item);
 
-VOID _r_workqueue_queueitem (_Inout_ PR_WORKQUEUE work_queue, _In_ THREAD_CALLBACK function, _In_opt_ PVOID context);
+VOID _r_workqueue_queueitem (_Inout_ PR_WORKQUEUE work_queue, _In_ PR_WORKQUEUE_FUNCTION function_address, _In_opt_ PVOID context);
 VOID _r_workqueue_waitforfinish (_Inout_ PR_WORKQUEUE work_queue);
 
 //
@@ -1668,7 +1668,6 @@ FORCEINLINE WCHAR _r_str_upper (_In_ WCHAR chr)
 // System information
 //
 
-
 BOOLEAN _r_sys_iselevated ();
 BOOLEAN _r_sys_isprocessimmersive (_In_ HANDLE hprocess);
 BOOLEAN _r_sys_iswine ();
@@ -1696,10 +1695,8 @@ BOOLEAN _r_sys_createprocessex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR com
 NTSTATUS _r_sys_openprocess (_In_opt_ HANDLE process_id, _In_ ACCESS_MASK desired_access, _Out_ PHANDLE process_handle);
 NTSTATUS _r_sys_queryprocessstring (_In_ HANDLE process_handle, _In_ PROCESSINFOCLASS info_class, _Out_ PVOID_PTR file_name);
 
-THREAD_API _r_sys_basethreadstart (_In_ PVOID arglist);
-
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_sys_createthreadex (_In_ THREAD_CALLBACK start_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE thread_handle, _In_opt_ PR_THREAD_ENVIRONMENT environment);
+NTSTATUS NTAPI _r_sys_basethreadstart (_In_ PVOID arglist);
+NTSTATUS _r_sys_createthreadex (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE thread_handle, _In_opt_ PR_THREAD_ENVIRONMENT environment);
 
 _Ret_maybenull_
 PR_STRING _r_sys_querytaginformation (_In_ HANDLE hprocess, _In_ LPCVOID tag);
@@ -1716,14 +1713,14 @@ FORCEINLINE BOOLEAN _r_sys_createprocess (_In_opt_ LPCWSTR file_name, _In_opt_ L
 }
 
 _Success_ (NT_SUCCESS (return))
-FORCEINLINE NTSTATUS _r_sys_createthread (_In_ THREAD_CALLBACK start_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE hthread)
+FORCEINLINE NTSTATUS _r_sys_createthread (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE hthread)
 {
-	return _r_sys_createthreadex (start_address, arglist, hthread, NULL);
+	return _r_sys_createthreadex (function_address, arglist, hthread, NULL);
 }
 
-FORCEINLINE NTSTATUS _r_sys_createthread2 (_In_ THREAD_CALLBACK start_address, _In_opt_ PVOID arglist)
+FORCEINLINE NTSTATUS _r_sys_createthread2 (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist)
 {
-	return _r_sys_createthreadex (start_address, arglist, NULL, NULL);
+	return _r_sys_createthreadex (function_address, arglist, NULL, NULL);
 }
 
 FORCEINLINE NTSTATUS _r_sys_resumethread (_In_ HANDLE hthread)

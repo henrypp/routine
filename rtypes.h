@@ -64,7 +64,7 @@ typedef BOOL (WINAPI *AWRFD)(LPRECT lpRect, DWORD dwStyle, BOOL bMenu, DWORD dwE
 typedef INT (WINAPI *GSMFD)(INT nIndex, UINT dpi); // GetSystemMetricsForDpi (win10rs1+)
 typedef BOOL (WINAPI *SPIFP)(UINT uiAction, UINT uiParam, PVOID pvParam, UINT fWinIni, UINT dpi); // SystemParametersInfoForDpi (win10rs1+)
 
-typedef INT (WINAPI *GLIEX)(_In_opt_ LPCWSTR lpLocaleName,_In_ LCTYPE LCType,_Out_writes_to_opt_ (cchData, return) LPWSTR lpLCData,_In_ int cchData); // GetLocaleInfoEx (win7+)
+typedef INT (WINAPI *GLIEX)(_In_opt_ LPCWSTR lpLocaleName, _In_ LCTYPE LCType, _Out_writes_to_opt_ (cchData, return) LPWSTR lpLCData, _In_ int cchData); // GetLocaleInfoEx (win7+)
 
 //
 // Printf specifiers
@@ -219,8 +219,8 @@ typedef struct R_FREE_LIST
 
 	SIZE_T size;
 
-	ULONG count;
-	ULONG maximum_count;
+	volatile ULONG count;
+	volatile ULONG maximum_count;
 } R_FREE_LIST, *PR_FREE_LIST;
 
 typedef struct R_FREE_LIST_ENTRY
@@ -326,10 +326,12 @@ typedef struct R_QUEUED_LOCK R_RUNDOWN_PROTECT, *PR_RUNDOWN_PROTECT;
 // Synchronization: Workqueue
 //
 
+typedef VOID (NTAPI *PR_WORKQUEUE_FUNCTION) (_In_ PVOID arglist, _In_ ULONG busy_count);
+
 typedef struct R_WORKQUEUE_ITEM
 {
 	LIST_ENTRY list_entry;
-	PUSER_THREAD_START_ROUTINE function_address;
+	PR_WORKQUEUE_FUNCTION function_address;
 	PVOID context;
 } R_WORKQUEUE_ITEM, *PR_WORKQUEUE_ITEM;
 
@@ -360,8 +362,8 @@ typedef struct R_WORKQUEUE
 	ULONG minimum_threads;
 	ULONG no_work_timeout;
 
-	ULONG current_threads;
-	ULONG busy_count;
+	volatile ULONG current_threads;
+	volatile ULONG busy_count;
 
 	BOOLEAN is_terminating;
 } R_WORKQUEUE, *PR_WORKQUEUE;
@@ -551,18 +553,9 @@ typedef struct R_OBJECT_POINTER
 #define WINDOWS_10_21H2_SERVER 0x0A0D
 #define WINDOWS_11 0x0B00
 
-#define THREAD_API NTSTATUS NTAPI
-typedef PUSER_THREAD_START_ROUTINE THREAD_CALLBACK;
-
-typedef struct R_THREAD_DATA
-{
-	HANDLE handle;
-	BOOLEAN is_handleused;
-} R_THREAD_DATA, *PR_THREAD_DATA;
-
 typedef struct R_THREAD_CONTEXT
 {
-	THREAD_CALLBACK start_address;
+	PUSER_THREAD_START_ROUTINE function_address;
 	PVOID arglist;
 } R_THREAD_CONTEXT, *PR_THREAD_CONTEXT;
 
