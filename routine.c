@@ -5650,7 +5650,7 @@ NTSTATUS NTAPI _r_sys_basethreadstart (_In_ PVOID arglist)
 
 	hr = CoInitializeEx (NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 
-	status = context.start_address (context.arglist);
+	status = context.function_address (context.arglist);
 
 	if (hr == S_OK || hr == S_FALSE)
 	{
