@@ -21,6 +21,10 @@
 #define UMDF_USING_NTSTATUS
 #endif // !UMDF_USING_NTSTATUS
 
+#if !defined(_UCRT_DISABLED_WARNINGS)
+#define _UCRT_DISABLED_WARNINGS 4996 //_CRT_SECURE_NO_WARNINGS
+#endif // !_UCRT_DISABLED_WARNINGS
+
 // crt
 #include <assert.h>
 #include <inttypes.h>
