@@ -1496,7 +1496,7 @@ VOID _r_locale_apply (_In_ PVOID hwnd, _In_ INT ctrl_id, _In_opt_ UINT menu_id)
 		}
 		else
 		{
-			locale_index = ctrl_id - menu_id - 2;
+			locale_index = (UINT_PTR)ctrl_id - (UINT_PTR)menu_id - 2;
 		}
 	}
 	else
