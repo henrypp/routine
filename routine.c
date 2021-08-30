@@ -3241,38 +3241,45 @@ PR_STRING _r_path_dospathfromnt (_In_ LPCWSTR path)
 		if (NT_SUCCESS (NtOpenDirectoryObject (&directory_handle, DIRECTORY_QUERY, &object_attributes)))
 		{
 			NTSTATUS status;
-			POBJECT_DIRECTORY_INFORMATION directory_entry = NULL;
+			POBJECT_DIRECTORY_INFORMATION directory_entry;
 			POBJECT_DIRECTORY_INFORMATION directory_info;
-			SIZE_T i = 0;
+			ULONG i;
 			ULONG buffer_size;
-			BOOLEAN is_firsttime = TRUE;
+			BOOLEAN is_firsttime;
 
 			buffer_size = sizeof (OBJECT_DIRECTORY_INFORMATION) + (MAX_PATH * sizeof (WCHAR));
 			directory_entry = _r_mem_allocatezero (buffer_size);
 
+			is_firsttime = TRUE;
+
 			while (TRUE)
 			{
-				status = NtQueryDirectoryObject (directory_handle, directory_entry, buffer_size, FALSE, is_firsttime, &query_context, NULL);
-
-				while (status == STATUS_MORE_ENTRIES)
+				while (TRUE)
 				{
+					status = NtQueryDirectoryObject (directory_handle, directory_entry, buffer_size, FALSE, is_firsttime, &query_context, NULL);
+
+					if (status != STATUS_MORE_ENTRIES)
+						break;
+
+					// Check if we have at least one entry. If not, we'll double the buffer size and try again.
 					if (directory_entry[0].Name.Buffer)
 						break;
 
+					// Make sure we don't use too much memory.
 					if (buffer_size > PR_SIZE_BUFFER_OVERFLOW)
+					{
+						status = STATUS_INSUFFICIENT_RESOURCES;
 						break;
+					}
 
 					buffer_size *= 2;
 					directory_entry = _r_mem_reallocatezero (directory_entry, buffer_size);
 				}
 
 				if (!NT_SUCCESS (status))
-				{
-					_r_mem_free (directory_entry);
-					directory_entry = NULL;
-
 					break;
-				}
+
+				i = 0;
 
 				while (TRUE)
 				{
@@ -3411,6 +3418,9 @@ PR_STRING _r_path_ntpathfromdos (_In_ LPCWSTR path, _Out_opt_ PULONG error_code)
 	NTSTATUS status;
 	POBJECT_NAME_INFORMATION obj_name_info;
 	HANDLE hfile;
+	PR_STRING string;
+	ULONG buffer_size;
+	ULONG attempts;
 
 	hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
 
@@ -3422,11 +3432,10 @@ PR_STRING _r_path_ntpathfromdos (_In_ LPCWSTR path, _Out_opt_ PULONG error_code)
 		return NULL;
 	}
 
-	PR_STRING string = NULL;
-	ULONG buffer_size = sizeof (OBJECT_NAME_INFORMATION) + (MAX_PATH * sizeof (WCHAR));
-	ULONG attempts = 6;
-
+	buffer_size = sizeof (OBJECT_NAME_INFORMATION) + (MAX_PATH * sizeof (WCHAR));
 	obj_name_info = _r_mem_allocatezero (buffer_size);
+
+	attempts = 6;
 
 	do
 	{
@@ -3435,7 +3444,10 @@ PR_STRING _r_path_ntpathfromdos (_In_ LPCWSTR path, _Out_opt_ PULONG error_code)
 		if (status == STATUS_BUFFER_OVERFLOW || status == STATUS_INFO_LENGTH_MISMATCH || status == STATUS_BUFFER_TOO_SMALL)
 		{
 			if (buffer_size > PR_SIZE_BUFFER_OVERFLOW)
+			{
+				status = STATUS_INSUFFICIENT_RESOURCES;
 				break;
+			}
 
 			obj_name_info = _r_mem_reallocatezero (obj_name_info, buffer_size);
 		}
@@ -3457,6 +3469,8 @@ PR_STRING _r_path_ntpathfromdos (_In_ LPCWSTR path, _Out_opt_ PULONG error_code)
 	}
 	else
 	{
+		string = NULL;
+
 		if (error_code)
 			*error_code = status;
 	}
@@ -4134,6 +4148,49 @@ PR_STRING _r_str_fromguid (_In_ LPCGUID lpguid)
 	}
 
 	return NULL;
+}
+
+PR_STRING _r_str_fromhex (_In_reads_bytes_ (length) PUCHAR buffer, _In_ ULONG length, _In_ BOOLEAN is_uppercase)
+{
+	static CHAR integer_char_upper_table[69] =
+		"0123456789" /* 0 - 9 */
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ" /* 10 - 35 */
+		" !\"#$%&'()*+,-./" /* 36 - 51 */
+		":;<=>?@" /* 52 - 58 */
+		"[\\]^_`" /* 59 - 64 */
+		"{|}~" /* 65 - 68 */
+		;
+
+	static CHAR integer_char_table[69] =
+		"0123456789" /* 0 - 9 */
+		"abcdefghijklmnopqrstuvwxyz" /* 10 - 35 */
+		" !\"#$%&'()*+,-./" /* 36 - 51 */
+		":;<=>?@" /* 52 - 58 */
+		"[\\]^_`" /* 59 - 64 */
+		"{|}~" /* 65 - 68 */
+		;
+
+	PR_STRING string;
+	PCHAR table;
+
+	if (is_uppercase)
+	{
+		table = integer_char_upper_table;
+	}
+	else
+	{
+		table = integer_char_table;
+	}
+
+	string = _r_obj_createstringex (NULL, length * sizeof (WCHAR) * 2);
+
+	for (ULONG i = 0; i < length; i++)
+	{
+		string->buffer[i * sizeof (WCHAR)] = table[buffer[i] >> 4];
+		string->buffer[i * sizeof (WCHAR) + 1] = table[buffer[i] & 0xf];
+	}
+
+	return string;
 }
 
 _Ret_maybenull_

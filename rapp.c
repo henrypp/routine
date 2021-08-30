@@ -147,7 +147,7 @@ static BOOLEAN _r_app_issecurelocation ()
 	return !is_writeable;
 }
 
-#if !defined(APP_CONSOLE) && !defined(_DEBUG)
+#if !defined(_DEBUG)
 static VOID _r_app_exceptionfilter_savedump (_In_ PEXCEPTION_POINTERS exception_ptr)
 {
 	WCHAR dump_directory[512];
@@ -197,7 +197,11 @@ ULONG CALLBACK _r_app_exceptionfilter_callback (_In_ PEXCEPTION_POINTERS excepti
 
 	_r_app_exceptionfilter_savedump (exception_ptr);
 
+#if defined(APP_CONSOLE)
+	wprintf (L"Exception raised :( 0x%08X\r\n", error_code);
+#else
 	_r_show_errormessage (NULL, L"Exception raised :(", error_code, &error_info);
+#endif // !APP_CONSOLE
 
 #if defined(APP_NO_DEPRECATIONS)
 	RtlExitUserProcess (exception_ptr->ExceptionRecord->ExceptionCode);
@@ -207,7 +211,7 @@ ULONG CALLBACK _r_app_exceptionfilter_callback (_In_ PEXCEPTION_POINTERS excepti
 
 	return EXCEPTION_EXECUTE_HANDLER;
 }
-#endif // !APP_CONSOLE && !_DEBUG
+#endif // !_DEBUG
 
 BOOLEAN _r_app_initialize ()
 {
@@ -245,7 +249,7 @@ BOOLEAN _r_app_initialize ()
 #endif // APP_NO_DEPRECATIONS
 
 	// set unhandled exception filter
-#if !defined(APP_CONSOLE) && !defined(_DEBUG)
+#if !defined(_DEBUG)
 	{
 		ULONG error_mode = 0;
 
@@ -262,7 +266,7 @@ BOOLEAN _r_app_initialize ()
 		SetUnhandledExceptionFilter (&_r_app_exceptionfilter_callback);
 #endif // APP_NO_DEPRECATIONS
 	}
-#endif // !APP_CONSOLE && !_DEBUG
+#endif // !_DEBUG
 
 	// initialize COM library
 	{

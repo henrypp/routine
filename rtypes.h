@@ -126,6 +126,12 @@ typedef enum R_LOG_LEVEL
 	LOG_LEVEL_CRITICAL = 5,
 } R_LOG_LEVEL, *PR_LOG_LEVEL;
 
+typedef struct R_ERROR_INFO
+{
+	HINSTANCE hmodule;
+	LPCWSTR description;
+} R_ERROR_INFO, *PR_ERROR_INFO;
+
 //
 // Synchronization: Event
 //
@@ -706,6 +712,7 @@ typedef struct R_URLPARTS
 //
 // Resources
 //
+
 typedef struct VERSION_TRANSLATION
 {
 	WORD lang_id;

@@ -229,12 +229,6 @@ VOID _r_log (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCWST
 VOID _r_log_v (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCWSTR title, _In_ ULONG code, _In_ _Printf_format_string_ LPCWSTR format, ...);
 
 #if !defined(APP_CONSOLE)
-typedef struct R_ERROR_INFO
-{
-	HINSTANCE hmodule;
-	LPCWSTR description;
-} R_ERROR_INFO, *PR_ERROR_INFO;
-
 VOID _r_show_aboutmessage (_In_opt_ HWND hwnd);
 VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG error_code, _In_opt_ PR_ERROR_INFO error_info_ptr);
 BOOLEAN _r_show_confirmmessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ LPCWSTR text, _In_opt_ LPCWSTR config_key);

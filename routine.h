@@ -1483,6 +1483,8 @@ PR_STRING _r_str_unexpandenvironmentstring (_In_ LPCWSTR string);
 _Ret_maybenull_
 PR_STRING _r_str_fromguid (_In_ LPCGUID lpguid);
 
+PR_STRING _r_str_fromhex (_In_reads_bytes_ (length) PUCHAR buffer, _In_ ULONG length, _In_ BOOLEAN is_uppercase);
+
 _Ret_maybenull_
 PR_STRING _r_str_fromsecuritydescriptor (_In_ PSECURITY_DESCRIPTOR lpsd, _In_ SECURITY_INFORMATION information);
 
