@@ -434,7 +434,7 @@ LPCWSTR _r_app_getconfigpath ()
 				}
 
 				// trying to create file
-				if (!_r_obj_isstringempty (new_result) && !_r_fs_exists (new_result->buffer))
+				if (!_r_fs_exists (new_result->buffer))
 				{
 					HANDLE hfile = CreateFile (new_result->buffer, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
@@ -524,7 +524,7 @@ LPCWSTR _r_app_getprofiledirectory ()
 			new_path = _r_path_getknownfolder (CSIDL_APPDATA, L"\\" APP_AUTHOR L"\\" APP_NAME);
 		}
 
-		if (!_r_obj_isstringempty (new_path))
+		if (new_path)
 		{
 			if (!_r_fs_exists (new_path->buffer))
 				_r_fs_mkdir (new_path->buffer);
@@ -830,6 +830,8 @@ HWND _r_app_createwindow (_In_ INT dlg_id, _In_opt_ LONG icon_id, _In_opt_ DLGPR
 	// common initialization
 	SendMessage (hwnd, RM_INITIALIZE, 0, 0);
 	SendMessage (hwnd, RM_LOCALIZE, 0, 0);
+
+	PostMessage (hwnd, RM_INITIALIZE_POST, 0, 0);
 
 #if defined(APP_HAVE_UPDATES)
 	if (_r_config_getboolean (L"CheckUpdates", TRUE))
@@ -2301,15 +2303,9 @@ HRESULT CALLBACK _r_update_pagecallback (_In_ HWND hwnd, _In_ UINT msg, _In_ WPA
 				{
 					update_component = _r_obj_getarrayitem (update_info->components, i);
 
-					if (update_component && update_component->is_installer)
+					if (update_component && update_component->is_haveupdate && update_component->is_installer)
 					{
-						if (_r_update_install (update_component->temp_path->buffer))
-						{
-							SendMessageTimeout (_r_app_gethwnd (), WM_QUIT, 0, 0, SMTO_BLOCK, 5000, NULL);
-
-							ExitProcess (STATUS_SUCCESS);
-						}
-
+						_r_update_install (update_component->temp_path->buffer);
 						break;
 					}
 
@@ -2399,7 +2395,7 @@ BOOLEAN _r_update_install (_In_ LPCWSTR install_path)
 	PR_STRING cmd_string;
 	BOOLEAN is_success;
 
-	cmd_string = _r_format_string (L"\"%s\" /D=\"%s\"",
+	cmd_string = _r_format_string (L"\"%s\" /S /D=\"%s\"",
 								   install_path,
 								   _r_app_getdirectory ()
 	);
@@ -3073,7 +3069,7 @@ VOID _r_settings_adjustchild (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ HWND hchild
 	SetWindowPos (hchild, NULL, (rc_tree.left * 2) + _r_calc_rectwidth (&rc_tree), rc_tree.top, rc_child.right, rc_child.bottom, SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
 
 #else
-	_r_tab_adjustchild (hwnd, IDC_NAV, hchild);
+	_r_tab_adjustchild (hwnd, ctrl_id, hchild);
 #endif // !APP_HAVE_SETTINGS_TABS
 }
 
@@ -3100,24 +3096,25 @@ VOID _r_settings_createwindow (_In_ HWND hwnd, _In_opt_ DLGPROC dlg_proc, _In_op
 	// calculate dialog size
 	if (_r_initonce_begin (&init_once))
 	{
-		LPDLGTEMPLATEEX pdlg;
+		LPDLGTEMPLATEEX dlg_template;
+		PR_SETTINGS_PAGE ptr_page;
 
 		for (SIZE_T i = 0; i < _r_obj_getarraysize (app_global.settings.page_list); i++)
 		{
-			PR_SETTINGS_PAGE ptr_page = _r_obj_getarrayitem (app_global.settings.page_list, i);
+			ptr_page = _r_obj_getarrayitem (app_global.settings.page_list, i);
 
 			if (!ptr_page || !ptr_page->dlg_id)
 				continue;
 
-			pdlg = _r_res_loadresource (_r_sys_getimagebase (), MAKEINTRESOURCE (ptr_page->dlg_id), RT_DIALOG, NULL);
+			dlg_template = _r_res_loadresource (_r_sys_getimagebase (), MAKEINTRESOURCE (ptr_page->dlg_id), RT_DIALOG, NULL);
 
-			if (pdlg && (pdlg->style & WS_CHILD))
+			if (dlg_template && (dlg_template->style & WS_CHILD))
 			{
-				if (width < pdlg->cx)
-					width = pdlg->cx;
+				if (width < dlg_template->cx)
+					width = dlg_template->cx;
 
-				if (height < pdlg->cy)
-					height = pdlg->cy;
+				if (height < dlg_template->cy)
+					height = dlg_template->cy;
 			}
 		}
 
@@ -3132,7 +3129,12 @@ VOID _r_settings_createwindow (_In_ HWND hwnd, _In_opt_ DLGPROC dlg_proc, _In_op
 		_r_initonce_end (&init_once);
 	}
 
+#if defined(APP_HAVE_SETTINGS_TABS)
+	const WORD controls = 4;
+#else
 	const WORD controls = 3;
+#endif
+
 	const SIZE_T size = ((sizeof (DLGTEMPLATEEX) + (sizeof (WORD) * 8)) + ((sizeof (DLGITEMTEMPLATEEX) + (sizeof (WORD) * 3)) * controls)) + 128;
 	PVOID buffer = _r_mem_allocatezero (size);
 	PBYTE ptr = buffer;
@@ -3164,6 +3166,7 @@ VOID _r_settings_createwindow (_In_ HWND hwnd, _In_opt_ DLGPROC dlg_proc, _In_op
 #if defined(APP_HAVE_SETTINGS_TABS)
 	_r_util_templatewritecontrol (&ptr, IDC_NAV, WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | TCS_HOTTRACK | TCS_TOOLTIPS, 8, 6, width - 16, height - 34, WC_TABCONTROL);
 	_r_util_templatewritecontrol (&ptr, IDC_RESET, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON, 8, (height - 22), 50, 14, WC_BUTTON);
+	_r_util_templatewritecontrol (&ptr, IDC_SAVE, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON, (width - 114), (height - 22), 50, 14, WC_BUTTON);
 #else
 	_r_util_templatewritecontrol (&ptr, IDC_NAV, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | TVS_SHOWSELALWAYS | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_TRACKSELECT | TVS_INFOTIP | TVS_NOHSCROLL, 8, 6, 88, height - 14, WC_TREEVIEW);
 	_r_util_templatewritecontrol (&ptr, IDC_RESET, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON, 88 + 14, (height - 22), 50, 14, WC_BUTTON);
@@ -3177,7 +3180,7 @@ VOID _r_settings_createwindow (_In_ HWND hwnd, _In_opt_ DLGPROC dlg_proc, _In_op
 	_r_mem_free (buffer);
 }
 
-INT_PTR CALLBACK _r_settings_wndproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM wparam, _In_ LPARAM lparam)
 {
 	switch (msg)
 	{
@@ -3304,6 +3307,19 @@ INT_PTR CALLBACK _r_settings_wndproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 #else
 #pragma PR_PRINT_WARNING(IDC_RESET)
 #endif // IDC_RESET
+
+#if defined(APP_HAVE_SETTINGS_TABS)
+#ifdef IDC_SAVE
+#ifdef IDS_SAVE
+			_r_ctrl_settext (hwnd, IDC_SAVE, _r_locale_getstring (IDS_SAVE));
+#else
+			_r_ctrl_settext (hwnd, IDC_SAVE, L"OK");
+#pragma PR_PRINT_WARNING(IDS_SAVE)
+#endif // IDS_SAVE
+#else
+#pragma PR_PRINT_WARNING(IDC_SAVE)
+#endif // IDC_SAVE
+#endif // APP_HAVE_SETTINGS_TABS
 
 #ifdef IDC_CLOSE
 #ifdef IDS_CLOSE
@@ -3444,6 +3460,42 @@ INT_PTR CALLBACK _r_settings_wndproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 		{
 			switch (LOWORD (wparam))
 			{
+#if defined(APP_HAVE_SETTINGS_TABS)
+				case IDOK: // process Enter key
+				case IDC_SAVE:
+				{
+					PR_SETTINGS_PAGE ptr_page;
+					INT retn;
+					BOOLEAN is_saved;
+
+					is_saved = TRUE;
+
+					for (INT i = 0; i < _r_tab_getitemcount (hwnd, IDC_NAV); i++)
+					{
+						ptr_page = (PR_SETTINGS_PAGE)_r_tab_getitemlparam (hwnd, IDC_NAV, i);
+
+						if (ptr_page)
+						{
+							if (ptr_page->hwnd)
+							{
+								retn = (INT)SendMessage (ptr_page->hwnd, RM_CONFIG_SAVE, (WPARAM)ptr_page->dlg_id, 0);
+
+								if (retn == -1)
+								{
+									is_saved = FALSE;
+									break;
+								}
+							}
+						}
+					}
+
+					if (!is_saved)
+						break;
+
+					// fall through
+				}
+#endif // APP_HAVE_SETTINGS_TABS
+
 				case IDCANCEL: // process Esc key
 				case IDC_CLOSE:
 				{

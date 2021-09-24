@@ -1256,7 +1256,7 @@ static PR_FREE_LIST _r_workqueue_getfreelist ()
 	return &free_list;
 }
 
-VOID _r_workqueue_initialize (_Out_ PR_WORKQUEUE work_queue, _In_ ULONG minimum_threads, _In_ ULONG maximum_threads, _In_ ULONG no_work_timeout, _In_opt_ PR_THREAD_ENVIRONMENT environment)
+VOID _r_workqueue_initialize (_Out_ PR_WORKQUEUE work_queue, _In_ ULONG minimum_threads, _In_ ULONG maximum_threads, _In_ ULONG no_work_timeout, _In_opt_ PR_ENVIRONMENT environment)
 {
 	InitializeListHead (&work_queue->queue_list_head);
 
@@ -1276,7 +1276,7 @@ VOID _r_workqueue_initialize (_Out_ PR_WORKQUEUE work_queue, _In_ ULONG minimum_
 	}
 	else
 	{
-		_r_sys_setdefaultenvironment (&work_queue->environment);
+		_r_sys_setdefaultthreadenvironment (&work_queue->environment);
 	}
 
 	NtCreateSemaphore (&work_queue->semaphore_handle, SEMAPHORE_ALL_ACCESS, NULL, 0, MAXLONG);
@@ -1841,6 +1841,21 @@ PR_STRING _r_obj_concatstringrefs_v (_In_ SIZE_T count, _In_ va_list arg_ptr)
 	return string;
 }
 
+PR_STRING _r_obj_referenceemptystring ()
+{
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static PR_STRING string = NULL;
+
+	if (_r_initonce_begin (&init_once))
+	{
+		string = _r_obj_createstring (L"");
+
+		_r_initonce_end (&init_once);
+	}
+
+	return _r_obj_referencesafe (string);
+}
+
 VOID _r_obj_removestring (_In_ PR_STRING string, _In_ SIZE_T start_pos, _In_ SIZE_T length)
 {
 	RtlMoveMemory (&string->buffer[start_pos], &string->buffer[start_pos + length], string->length - (length + start_pos) * sizeof (WCHAR));
@@ -2170,9 +2185,10 @@ VOID _r_obj_clearlist (_Inout_ PR_LIST list_node)
 	{
 		for (SIZE_T i = 0; i < count; i++)
 		{
-			if (list_node->items[i])
+			list_item = list_node->items[i];
+
+			if (list_item)
 			{
-				list_item = list_node->items[i];
 				list_node->items[i] = NULL;
 
 				list_node->cleanup_callback (list_item);
@@ -2224,7 +2240,9 @@ VOID _r_obj_removelistitems (_Inout_ PR_LIST list_node, _In_ SIZE_T start_pos, _
 		for (SIZE_T i = start_pos; i < count; i++)
 		{
 			if (list_node->items[i])
+			{
 				list_node->cleanup_callback (list_node->items[i]);
+			}
 		}
 	}
 
@@ -2322,9 +2340,7 @@ FORCEINLINE PVOID _r_obj_addhashtableitemex (_Inout_ PR_HASHTABLE hashtable, _In
 			if (_r_obj_validatehash (hashtable_entry->hash_code) == valid_hash)
 			{
 				if (is_added)
-				{
 					*is_added = FALSE;
-				}
 
 				return &hashtable_entry->body;
 			}
@@ -2340,6 +2356,8 @@ FORCEINLINE PVOID _r_obj_addhashtableitemex (_Inout_ PR_HASHTABLE hashtable, _In
 		if (hashtable->cleanup_callback)
 		{
 			hashtable->cleanup_callback (&hashtable_entry->body);
+
+			RtlSecureZeroMemory (&hashtable_entry->body, hashtable->entry_size);
 		}
 	}
 	else
@@ -2418,6 +2436,8 @@ VOID _r_obj_clearhashtable (_Inout_ PR_HASHTABLE hashtable)
 			if (hashtable_entry->hash_code != SIZE_MAX)
 			{
 				hashtable->cleanup_callback (&hashtable_entry->body);
+
+				RtlSecureZeroMemory (&hashtable_entry->body, hashtable->entry_size);
 			}
 
 			index += 1;
@@ -2513,6 +2533,8 @@ BOOLEAN _r_obj_removehashtableitem (_Inout_ PR_HASHTABLE hashtable, _In_ ULONG_P
 			if (hashtable->cleanup_callback)
 			{
 				hashtable->cleanup_callback (&hashtable_entry->body);
+
+				RtlSecureZeroMemory (&hashtable_entry->body, hashtable->entry_size);
 			}
 
 			return TRUE;
@@ -2595,7 +2617,9 @@ PVOID _r_obj_findhashtablepointer (_In_ PR_HASHTABLE hashtable, _In_ ULONG_PTR h
 	object_ptr = _r_obj_findhashtable (hashtable, hash_code);
 
 	if (object_ptr)
+	{
 		return _r_obj_referencesafe (object_ptr->object_body);
+	}
 
 	return NULL;
 }
@@ -2918,7 +2942,6 @@ PR_STRING _r_path_compact (_In_ LPCWSTR path, _In_ UINT length)
 	return NULL;
 }
 
-_Success_ (return)
 BOOLEAN _r_path_getpathinfo (_In_ PR_STRINGREF path, _Out_opt_ PR_STRINGREF directory, _Out_opt_ PR_STRINGREF basename)
 {
 	R_STRINGREF directory_part;
@@ -3709,11 +3732,11 @@ BOOLEAN _r_str_isendsswith (_In_ PR_STRINGREF string, _In_ PR_STRINGREF suffix, 
 	return _r_str_isequal (&sr, suffix, is_ignorecase);
 }
 
-BOOLEAN _r_str_isendsswith2 (_In_ PR_STRINGREF string, _In_ LPCWSTR prefix, _In_ BOOLEAN is_ignorecase)
+BOOLEAN _r_str_isendsswith2 (_In_ PR_STRINGREF string, _In_ LPCWSTR suffix, _In_ BOOLEAN is_ignorecase)
 {
 	R_STRINGREF sr;
 
-	_r_obj_initializestringrefconst (&sr, prefix);
+	_r_obj_initializestringrefconst (&sr, suffix);
 
 	return _r_str_isendsswith (string, &sr, is_ignorecase);
 }
@@ -5108,8 +5131,7 @@ R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
 
 	if (_r_initonce_begin (&init_once))
 	{
-		TOKEN_ELEVATION elevation = {0};
-		TOKEN_ELEVATION_TYPE elevation_type = TokenElevationTypeDefault;
+		attributes.elevation_type = TokenElevationTypeDefault;
 
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_8_1))
 		{
@@ -5127,11 +5149,21 @@ R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
 
 		if (attributes.token_handle)
 		{
+			TOKEN_ELEVATION elevation;
+			TOKEN_ELEVATION_TYPE elevation_type;
+
 			PTOKEN_USER token_user;
 			ULONG return_length;
 
-			NtQueryInformationToken (attributes.token_handle, TokenElevation, &elevation, sizeof (elevation), &return_length);
-			NtQueryInformationToken (attributes.token_handle, TokenElevationType, &elevation_type, sizeof (elevation_type), &return_length);
+			if (NT_SUCCESS (NtQueryInformationToken (attributes.token_handle, TokenElevation, &elevation, sizeof (elevation), &return_length)))
+			{
+				attributes.is_elevated = !!elevation.TokenIsElevated;
+			}
+
+			if (NT_SUCCESS (NtQueryInformationToken (attributes.token_handle, TokenElevationType, &elevation_type, sizeof (elevation_type), &return_length)))
+			{
+				attributes.elevation_type = elevation_type;
+			}
 
 			if (NT_SUCCESS (_r_sys_querytokeninformation (attributes.token_handle, TokenUser, &token_user)))
 			{
@@ -5140,9 +5172,6 @@ R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
 				_r_mem_free (token_user);
 			}
 		}
-
-		attributes.is_elevated = !!elevation.TokenIsElevated;
-		attributes.elevation_type = elevation_type;
 
 		_r_initonce_end (&init_once);
 	}
@@ -5195,7 +5224,7 @@ LPCWSTR _r_sys_gettempdirectory ()
 	return _r_obj_getstring (path_root);
 }
 
-BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR name, _Out_opt_ PR_STRING * out_value)
+BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR name, _Out_opt_ PR_STRING* out_value)
 {
 	R_STRINGREF key_name;
 	R_STRINGREF key_value;
@@ -5281,7 +5310,7 @@ BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR name, _Out_opt_ PR_STRING
 
 		if (out_value)
 		{
-			if (!_r_obj_isstringempty (&key_value))
+			if (!_r_obj_isstringempty2 (&key_value))
 			{
 				*out_value = _r_obj_createstring3 (&key_value);
 			}
@@ -5717,7 +5746,7 @@ NTSTATUS NTAPI _r_sys_basethreadstart (_In_ PVOID arglist)
 	return status;
 }
 
-NTSTATUS _r_sys_createthreadex (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE thread_handle, _In_opt_ PR_THREAD_ENVIRONMENT environment)
+NTSTATUS _r_sys_createthreadex (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE thread_handle, _In_opt_ PR_ENVIRONMENT environment)
 {
 	NTSTATUS status;
 	HANDLE hthread;
@@ -5737,7 +5766,7 @@ NTSTATUS _r_sys_createthreadex (_In_ PUSER_THREAD_START_ROUTINE function_address
 	{
 		if (environment)
 		{
-			_r_sys_setthreadpriority (hthread, environment);
+			_r_sys_setthreadenvironment (hthread, environment);
 		}
 
 		if (thread_handle)
@@ -5836,24 +5865,67 @@ NTSTATUS _r_sys_querytokeninformation (_In_ HANDLE token_handle, _In_ TOKEN_INFO
 	else
 	{
 		*token_info = NULL;
+
 		_r_mem_free (buffer);
 	}
 
 	return status;
 }
 
-VOID _r_sys_setthreadpriority (_In_ HANDLE thread_handle, _In_ PR_THREAD_ENVIRONMENT environment)
+NTSTATUS _r_sys_setprocessprivilege (_In_ HANDLE process_handle, _In_reads_ (count) PULONG privileges, _In_ ULONG count, _In_ BOOLEAN is_enable)
 {
-	LONG base_priority;
+	NTSTATUS status;
+	HANDLE token_handle;
+	PVOID privileges_buffer;
+	PTOKEN_PRIVILEGES token_privileges;
+
+	status = NtOpenProcessToken (process_handle, TOKEN_ADJUST_PRIVILEGES, &token_handle);
+
+	if (NT_SUCCESS (status))
+	{
+		privileges_buffer = _r_mem_allocatezero (FIELD_OFFSET (TOKEN_PRIVILEGES, Privileges) + (sizeof (LUID_AND_ATTRIBUTES) * count));
+
+		token_privileges = privileges_buffer;
+		token_privileges->PrivilegeCount = count;
+
+		for (ULONG i = 0; i < count; i++)
+		{
+			//token_privileges->Privileges[i].Luid.HighPart = 0;
+			token_privileges->Privileges[i].Luid.LowPart = privileges[i];
+			token_privileges->Privileges[i].Attributes = is_enable ? SE_PRIVILEGE_ENABLED : SE_PRIVILEGE_REMOVED;
+		}
+
+		status = NtAdjustPrivilegesToken (token_handle, FALSE, token_privileges, 0, NULL, NULL);
+
+		_r_mem_free (privileges_buffer);
+
+		NtClose (token_handle);
+	}
+
+	return status;
+}
+
+VOID _r_sys_setenvironment (_Out_ PR_ENVIRONMENT environment, _In_ LONG base_priority, _In_ ULONG io_priority, _In_ ULONG page_priority)
+{
+	environment->base_priority = base_priority;
+	environment->io_priority = io_priority;
+	environment->page_priority = page_priority;
+	environment->is_forced = FALSE;
+}
+
+VOID _r_sys_setprocessenvironment (_In_ HANDLE process_handle, _In_ PR_ENVIRONMENT environment)
+{
 	IO_PRIORITY_HINT io_priority;
-	PAGE_PRIORITY_INFORMATION page_priority_info;
+	PROCESS_PRIORITY_CLASS priority_class = {0};
+	PAGE_PRIORITY_INFORMATION page_priority_info = {0};
 
 	// set base priority
-	if (environment->is_forced || environment->base_priority != THREAD_PRIORITY_NORMAL)
+	if (environment->is_forced || environment->base_priority != PROCESS_PRIORITY_CLASS_NORMAL)
 	{
-		base_priority = environment->base_priority;
+		priority_class.Foreground = FALSE;
+		priority_class.PriorityClass = (UCHAR)environment->base_priority;
 
-		NtSetInformationThread (thread_handle, ThreadBasePriority, &base_priority, sizeof (LONG));
+		NtSetInformationProcess (process_handle, ProcessPriorityClass, &priority_class, sizeof (priority_class));
 	}
 
 	// set i/o priority
@@ -5861,7 +5933,7 @@ VOID _r_sys_setthreadpriority (_In_ HANDLE thread_handle, _In_ PR_THREAD_ENVIRON
 	{
 		io_priority = environment->io_priority;
 
-		NtSetInformationThread (thread_handle, ThreadIoPriority, &io_priority, sizeof (IO_PRIORITY_HINT));
+		NtSetInformationProcess (process_handle, ProcessIoPriority, &io_priority, sizeof (io_priority));
 	}
 
 	// set memory priority
@@ -5869,41 +5941,39 @@ VOID _r_sys_setthreadpriority (_In_ HANDLE thread_handle, _In_ PR_THREAD_ENVIRON
 	{
 		page_priority_info.PagePriority = environment->page_priority;
 
-		NtSetInformationThread (thread_handle, ThreadPagePriority, &page_priority_info, sizeof (PAGE_PRIORITY_INFORMATION));
+		NtSetInformationProcess (process_handle, ProcessPagePriority, &page_priority_info, sizeof (page_priority_info));
 	}
 }
 
-NTSTATUS _r_sys_setprivilege (_In_reads_ (count) PULONG privileges, _In_ ULONG count, _In_ BOOLEAN is_enable)
+VOID _r_sys_setthreadenvironment (_In_ HANDLE thread_handle, _In_ PR_ENVIRONMENT environment)
 {
-	NTSTATUS status;
-	HANDLE token_handle;
-	PVOID privileges_buffer;
-	PTOKEN_PRIVILEGES token_privileges;
+	LONG base_priority;
+	IO_PRIORITY_HINT io_priority;
+	PAGE_PRIORITY_INFORMATION page_priority_info = {0};
 
-	status = NtOpenProcessToken (NtCurrentProcess (), TOKEN_ADJUST_PRIVILEGES, &token_handle);
-
-	if (!NT_SUCCESS (status))
-		return status;
-
-	privileges_buffer = _r_mem_allocatezero (FIELD_OFFSET (TOKEN_PRIVILEGES, Privileges) + (sizeof (LUID_AND_ATTRIBUTES) * count));
-
-	token_privileges = privileges_buffer;
-	token_privileges->PrivilegeCount = count;
-
-	for (ULONG i = 0; i < count; i++)
+	// set base priority
+	if (environment->is_forced || environment->base_priority != THREAD_PRIORITY_NORMAL)
 	{
-		//token_privileges->Privileges[i].Luid.HighPart = 0;
-		token_privileges->Privileges[i].Luid.LowPart = privileges[i];
-		token_privileges->Privileges[i].Attributes = is_enable ? SE_PRIVILEGE_ENABLED : SE_PRIVILEGE_REMOVED;
+		base_priority = environment->base_priority;
+
+		NtSetInformationThread (thread_handle, ThreadBasePriority, &base_priority, sizeof (base_priority));
 	}
 
-	status = NtAdjustPrivilegesToken (token_handle, FALSE, token_privileges, 0, NULL, NULL);
+	// set i/o priority
+	if (environment->is_forced || environment->io_priority != IoPriorityNormal)
+	{
+		io_priority = environment->io_priority;
 
-	_r_mem_free (privileges_buffer);
+		NtSetInformationThread (thread_handle, ThreadIoPriority, &io_priority, sizeof (io_priority));
+	}
 
-	NtClose (token_handle);
+	// set memory priority
+	if (environment->is_forced || environment->page_priority != MEMORY_PRIORITY_NORMAL)
+	{
+		page_priority_info.PagePriority = environment->page_priority;
 
-	return status;
+		NtSetInformationThread (thread_handle, ThreadPagePriority, &page_priority_info, sizeof (page_priority_info));
+	}
 }
 
 //
@@ -7750,7 +7820,6 @@ SIZE_T _r_math_rounduptopoweroftwo (_In_ SIZE_T number)
 // Resources
 //
 
-_Success_ (return != NULL)
 PVOID _r_res_loadresource (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ LPCWSTR type, _Out_opt_ PULONG buffer_size)
 {
 	HRSRC hres;
@@ -7777,6 +7846,9 @@ PVOID _r_res_loadresource (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ LPC
 		}
 	}
 
+	if (buffer_size)
+		*buffer_size = 0;
+
 	return NULL;
 }
 
@@ -7787,6 +7859,7 @@ PR_STRING _r_res_loadstring (_In_opt_ HINSTANCE hinst, _In_ UINT string_id)
 	PR_STRING string;
 	ULONG length;
 
+	buffer = NULL;
 	length = LoadString (hinst, string_id, (LPWSTR)&buffer, 0);
 
 	if (length)
@@ -7800,23 +7873,45 @@ PR_STRING _r_res_loadstring (_In_opt_ HINSTANCE hinst, _In_ UINT string_id)
 }
 
 _Ret_maybenull_
-PR_STRING _r_res_querystring (_In_ PVOID block, _In_ LPCWSTR entry_name, _In_ UINT lang_id, _In_ UINT code_page)
+PR_STRING _r_res_querystring (_In_ PVOID ver_block, _In_ LPCWSTR entry_name, _In_ ULONG lcid)
+{
+	ULONG lcid_arr[] = {
+		lcid,
+		(lcid & 0xFFFF0000) + 1252,
+		PR_LANG_TO_LCID (MAKELANGID (LANG_ENGLISH, SUBLANG_ENGLISH_US), 1200),
+		PR_LANG_TO_LCID (MAKELANGID (LANG_ENGLISH, SUBLANG_ENGLISH_US), 1252),
+		PR_LANG_TO_LCID (MAKELANGID (LANG_ENGLISH, SUBLANG_ENGLISH_US), 0),
+	};
+
+	PR_STRING string;
+
+	for (SIZE_T i = 0; i < RTL_NUMBER_OF (lcid_arr); i++)
+	{
+		string = _r_res_querystring_ex (ver_block, entry_name, lcid_arr[i]);
+
+		if (string)
+			return string;
+	}
+
+	return NULL;
+}
+
+_Ret_maybenull_
+PR_STRING _r_res_querystring_ex (_In_ PVOID ver_block, _In_ LPCWSTR entry_name, _In_ ULONG lcid)
 {
 	WCHAR entry[128];
-	PVOID buffer = NULL;
+	PVOID buffer;
 	PR_STRING string;
 	UINT length;
 
-	_r_str_printf (entry, RTL_NUMBER_OF (entry), L"\\StringFileInfo\\%04x%04x\\%s", lang_id, code_page, entry_name);
+	_r_str_printf (entry, RTL_NUMBER_OF (entry), L"\\StringFileInfo\\%08X\\%s", lcid, entry_name);
 
-	if (VerQueryValue (block, entry, &buffer, &length) && buffer)
+	if (VerQueryValue (ver_block, entry, &buffer, &length) && buffer)
 	{
 		if (length <= sizeof (UNICODE_NULL))
 			return NULL;
 
-		string = _r_obj_createstringex (buffer, length * sizeof (WCHAR));
-
-		_r_obj_trimstringtonullterminator (string);
+		string = _r_obj_createstringex (buffer, (length - 1) * sizeof (WCHAR));
 
 		return string;
 	}
@@ -7824,27 +7919,23 @@ PR_STRING _r_res_querystring (_In_ PVOID block, _In_ LPCWSTR entry_name, _In_ UI
 	return NULL;
 }
 
-_Success_ (return)
-BOOLEAN _r_res_querytranslation (_In_ PVOID block, _Out_ PUINT lang_id, _Out_ PUINT code_page)
+ULONG _r_res_querytranslation (_In_ PVOID ver_block)
 {
-	PVERSION_TRANSLATION buffer = NULL;
+	PR_VERSION_TRANSLATION buffer;
 	UINT length;
 
-	if (VerQueryValue (block, L"\\VarFileInfo\\Translation", &buffer, &length) && buffer)
+	if (VerQueryValue (ver_block, L"\\VarFileInfo\\Translation", &buffer, &length) && buffer)
 	{
-		*lang_id = buffer->lang_id;
-		*code_page = buffer->code_page;
-
-		return TRUE;
+		return PR_LANG_TO_LCID (buffer->lang_id, buffer->code_page);
 	}
 
-	return FALSE;
+	return PR_LANG_TO_LCID (MAKELANGID (LANG_ENGLISH, SUBLANG_ENGLISH_US), 1252);
 }
 
 _Ret_maybenull_
 PR_STRING _r_res_queryversionstring (_In_ LPCWSTR path)
 {
-	VS_FIXEDFILEINFO *ver_info;
+	VS_FIXEDFILEINFO *file_info;
 	PR_STRING string;
 	PVOID ver_data;
 	ULONG ver_size;
@@ -7858,15 +7949,11 @@ PR_STRING _r_res_queryversionstring (_In_ LPCWSTR path)
 
 	if (GetFileVersionInfo (path, 0, ver_size, ver_data))
 	{
-		if (_r_res_queryversion (ver_data, &ver_info))
+		if (_r_res_queryversion (ver_data, &file_info))
 		{
-			if (ver_info->dwSignature == 0xFEEF04BD)
+			if (file_info->dwSignature == VS_FFI_SIGNATURE)
 			{
-				// Doesn't matter if you are on 32 bit or 64 bit,
-				// DWORD is always 32 bits, so first two revision numbers
-				// come from dwFileVersionMS, last two come from dwFileVersionLS
-
-				string = _r_format_string (L"%d.%d.%d.%d", (ver_info->dwFileVersionMS >> 16) & 0xFFFF, (ver_info->dwFileVersionMS >> 0) & 0xFFFF, (ver_info->dwFileVersionLS >> 16) & 0xFFFF, (ver_info->dwFileVersionLS >> 0) & 0xFFFF);
+				string = _r_format_string (L"%d.%d.%d.%d", HIWORD (file_info->dwFileVersionMS), LOWORD (file_info->dwFileVersionMS), HIWORD (file_info->dwFileVersionLS), LOWORD (file_info->dwFileVersionLS));
 
 				_r_mem_free (ver_data);
 
@@ -9406,7 +9493,7 @@ PR_STRING _r_listview_getitemtext (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT it
 
 	_r_obj_trimstringtonullterminator (string);
 
-	if (_r_obj_isstringempty (string))
+	if (_r_obj_isstringempty2 (string))
 	{
 		_r_obj_dereference (string);
 
@@ -9903,8 +9990,8 @@ PR_STRING _r_util_versionformat (_In_ PR_STRINGREF string)
 
 BOOL CALLBACK _r_util_activate_window_callback (_In_ HWND hwnd, _In_ LPARAM lparam)
 {
-	LPCWSTR app_name;
 	WCHAR window_title[128];
+	LPCWSTR app_name;
 	ULONG pid;
 
 	if (!_r_wnd_isdialog (hwnd))
@@ -9918,7 +10005,13 @@ BOOL CALLBACK _r_util_activate_window_callback (_In_ HWND hwnd, _In_ LPARAM lpar
 	app_name = (LPCWSTR)lparam;
 
 	// check window title
-	if (GetWindowText (hwnd, window_title, RTL_NUMBER_OF (window_title)) && _r_str_compare_length (window_title, app_name, _r_str_getlength (app_name)) == 0)
+	if (!GetWindowText (hwnd, window_title, RTL_NUMBER_OF (window_title)))
+		return TRUE;
+
+	if (!(_r_wnd_getstyle (hwnd) & WS_DLGFRAME))
+		return TRUE;
+
+	if (_r_str_compare_length (window_title, app_name, _r_str_getlength (app_name)) == 0)
 	{
 		// check window prop
 		if (GetProp (hwnd, app_name))
@@ -9938,6 +10031,8 @@ VOID NTAPI _r_util_dereferencearrayprocedure (_In_ PVOID entry)
 
 	array_node = entry;
 
+	array_node->allocated_count = 0;
+
 	_r_obj_cleararray (array_node);
 
 	if (array_node->items)
@@ -9956,6 +10051,8 @@ VOID NTAPI _r_util_dereferencelistprocedure (_In_ PVOID entry)
 
 	list_node = entry;
 
+	list_node->allocated_count = 0;
+
 	_r_obj_clearlist (list_node);
 
 	if (list_node->items)
@@ -9970,29 +10067,16 @@ VOID NTAPI _r_util_dereferencelistprocedure (_In_ PVOID entry)
 VOID NTAPI _r_util_dereferencehashtableprocedure (_In_ PVOID entry)
 {
 	PR_HASHTABLE hashtable;
-	PVOID hashtable_entry;
 
 	hashtable = entry;
 
-	hashtable->count = 0;
+	hashtable->allocated_buckets = 0;
+	hashtable->allocated_entries = 0;
 
 	_r_obj_clearhashtable (hashtable);
 
-	if (hashtable->buckets)
-	{
-		hashtable_entry = hashtable->buckets;
-		hashtable->buckets = NULL;
-
-		_r_mem_free (hashtable_entry);
-	}
-
-	if (hashtable->entries)
-	{
-		hashtable_entry = hashtable->entries;
-		hashtable->entries = NULL;
-
-		_r_mem_free (hashtable_entry);
-	}
+	SAFE_DELETE_MEMORY (hashtable->buckets);
+	SAFE_DELETE_MEMORY (hashtable->entries);
 }
 
 VOID NTAPI _r_util_dereferencehashtableptrprocedure (_In_ PVOID entry)

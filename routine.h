@@ -535,7 +535,7 @@ FORCEINLINE VOID _r_protection_waitfor (_Inout_ PR_RUNDOWN_PROTECT protection)
 // Synchronization: Workqueue
 //
 
-VOID _r_workqueue_initialize (_Out_ PR_WORKQUEUE work_queue, _In_ ULONG minimum_threads, _In_ ULONG maximum_threads, _In_ ULONG no_work_timeout, _In_opt_ PR_THREAD_ENVIRONMENT environment);
+VOID _r_workqueue_initialize (_Out_ PR_WORKQUEUE work_queue, _In_ ULONG minimum_threads, _In_ ULONG maximum_threads, _In_ ULONG no_work_timeout, _In_opt_ PR_ENVIRONMENT environment);
 VOID _r_workqueue_destroy (_Inout_ PR_WORKQUEUE work_queue);
 
 PR_WORKQUEUE_ITEM _r_workqueue_createitem (_In_ PR_WORKQUEUE_FUNCTION function_address, _In_opt_ PVOID context);
@@ -695,6 +695,8 @@ PR_STRING _r_obj_concatstrings_v (_In_ SIZE_T count, _In_ va_list arg_ptr);
 
 PR_STRING _r_obj_concatstringrefs (_In_ SIZE_T count, ...);
 PR_STRING _r_obj_concatstringrefs_v (_In_ SIZE_T count, _In_ va_list arg_ptr);
+
+PR_STRING _r_obj_referenceemptystring ();
 
 VOID _r_obj_removestring (_In_ PR_STRING string, _In_ SIZE_T start_pos, _In_ SIZE_T length);
 
@@ -943,10 +945,9 @@ FORCEINLINE VOID _r_obj_insertstringbuilderformat (_Inout_ PR_STRINGBUILDER stri
 
 FORCEINLINE VOID _r_obj_deletestringbuilder (_Inout_ PR_STRINGBUILDER string)
 {
-	if (string->string)
-	{
-		_r_obj_clearreference (&string->string);
-	}
+	string->allocated_length = 0;
+
+	SAFE_DELETE_REFERENCE (string->string);
 }
 
 FORCEINLINE PR_STRING _r_obj_finalstringbuilder (_In_ PR_STRINGBUILDER string)
@@ -1384,7 +1385,6 @@ FORCEINLINE LONG64 _r_fs_getsize (_In_ HANDLE hfile)
 _Ret_maybenull_
 PR_STRING _r_path_compact (_In_ LPCWSTR path, _In_ UINT length);
 
-_Success_ (return)
 BOOLEAN _r_path_getpathinfo (_In_ PR_STRINGREF path, _Out_opt_ PR_STRINGREF directory, _Out_opt_ PR_STRINGREF basename);
 
 _Ret_maybenull_
@@ -1447,7 +1447,7 @@ BOOLEAN _r_str_isstartswith (_In_ PR_STRINGREF string, _In_ PR_STRINGREF prefix,
 BOOLEAN _r_str_isstartswith2 (_In_ PR_STRINGREF string, _In_ LPCWSTR prefix, _In_ BOOLEAN is_ignorecase);
 
 BOOLEAN _r_str_isendsswith (_In_ PR_STRINGREF string, _In_ PR_STRINGREF suffix, _In_ BOOLEAN is_ignorecase);
-BOOLEAN _r_str_isendsswith2 (_In_ PR_STRINGREF string, _In_ LPCWSTR prefix, _In_ BOOLEAN is_ignorecase);
+BOOLEAN _r_str_isendsswith2 (_In_ PR_STRINGREF string, _In_ LPCWSTR suffix, _In_ BOOLEAN is_ignorecase);
 
 _Success_ (return)
 BOOLEAN _r_str_append (_Inout_updates_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer, _In_ SIZE_T buffer_size, _In_ LPCWSTR string);
@@ -1698,23 +1698,25 @@ NTSTATUS _r_sys_openprocess (_In_opt_ HANDLE process_id, _In_ ACCESS_MASK desire
 NTSTATUS _r_sys_queryprocessstring (_In_ HANDLE process_handle, _In_ PROCESSINFOCLASS info_class, _Out_ PVOID_PTR file_name);
 
 NTSTATUS NTAPI _r_sys_basethreadstart (_In_ PVOID arglist);
-NTSTATUS _r_sys_createthreadex (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE thread_handle, _In_opt_ PR_THREAD_ENVIRONMENT environment);
+NTSTATUS _r_sys_createthreadex (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE thread_handle, _In_opt_ PR_ENVIRONMENT environment);
 
 _Ret_maybenull_
 PR_STRING _r_sys_querytaginformation (_In_ HANDLE hprocess, _In_ LPCVOID tag);
 
 NTSTATUS _r_sys_querytokeninformation (_In_ HANDLE token_handle, _In_ TOKEN_INFORMATION_CLASS token_class, _Out_ PVOID_PTR token_info);
 
-VOID _r_sys_setthreadpriority (_In_ HANDLE thread_handle, _In_ PR_THREAD_ENVIRONMENT environment);
+NTSTATUS _r_sys_setprocessprivilege (_In_ HANDLE process_handle, _In_reads_ (count) PULONG privileges, _In_ ULONG count, _In_ BOOLEAN is_enable);
 
-NTSTATUS _r_sys_setprivilege (_In_reads_ (count) PULONG privileges, _In_ ULONG count, _In_ BOOLEAN is_enable);
+VOID _r_sys_setenvironment (_Out_ PR_ENVIRONMENT environment, _In_ LONG base_priority, _In_ ULONG io_priority, _In_ ULONG page_priority);
+
+VOID _r_sys_setprocessenvironment (_In_ HANDLE process_handle, _In_ PR_ENVIRONMENT environment);
+VOID _r_sys_setthreadenvironment (_In_ HANDLE thread_handle, _In_ PR_ENVIRONMENT environment);
 
 FORCEINLINE BOOLEAN _r_sys_createprocess (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory)
 {
 	return _r_sys_createprocessex (file_name, command_line, current_directory, NULL, SW_SHOWDEFAULT, 0);
 }
 
-_Success_ (NT_SUCCESS (return))
 FORCEINLINE NTSTATUS _r_sys_createthread (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE hthread)
 {
 	return _r_sys_createthreadex (function_address, arglist, hthread, NULL);
@@ -1730,15 +1732,12 @@ FORCEINLINE NTSTATUS _r_sys_resumethread (_In_ HANDLE hthread)
 	return NtResumeThread (hthread, NULL);
 }
 
-FORCEINLINE VOID _r_sys_setenvironment (_Out_ PR_THREAD_ENVIRONMENT environment, _In_ LONG base_priority, _In_ ULONG io_priority, _In_ ULONG page_priority)
+FORCEINLINE VOID _r_sys_setdefaultprocessenvironment (_Out_ PR_ENVIRONMENT environment)
 {
-	environment->base_priority = base_priority;
-	environment->io_priority = io_priority;
-	environment->page_priority = page_priority;
-	environment->is_forced = FALSE;
+	_r_sys_setenvironment (environment, PROCESS_PRIORITY_CLASS_NORMAL, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
 }
 
-FORCEINLINE VOID _r_sys_setdefaultenvironment (_Out_ PR_THREAD_ENVIRONMENT environment)
+FORCEINLINE VOID _r_sys_setdefaultthreadenvironment (_Out_ PR_ENVIRONMENT environment)
 {
 	_r_sys_setenvironment (environment, THREAD_PRIORITY_NORMAL, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
 }
@@ -2208,27 +2207,28 @@ FORCEINLINE ULONG _r_math_hashinteger_ptr (_In_ ULONG_PTR value)
 // Resources
 //
 
-_Success_ (return != NULL)
 PVOID _r_res_loadresource (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ LPCWSTR type, _Out_opt_ PULONG buffer_size);
 
 _Ret_maybenull_
 PR_STRING _r_res_loadstring (_In_opt_ HINSTANCE hinst, _In_ UINT string_id);
 
 _Ret_maybenull_
-PR_STRING _r_res_querystring (_In_ PVOID block, _In_ LPCWSTR entry_name, _In_ UINT lang_id, _In_ UINT code_page);
+PR_STRING _r_res_querystring (_In_ PVOID ver_block, _In_ LPCWSTR entry_name, _In_ ULONG lcid);
 
-_Success_ (return)
-BOOLEAN _r_res_querytranslation (_In_ PVOID block, _Out_ PUINT lang_id, _Out_ PUINT code_page);
+_Ret_maybenull_
+PR_STRING _r_res_querystring_ex (_In_ PVOID ver_block, _In_ LPCWSTR entry_name, _In_ ULONG lcid);
+
+ULONG _r_res_querytranslation (_In_ PVOID ver_block);
 
 _Ret_maybenull_
 PR_STRING _r_res_queryversionstring (_In_ LPCWSTR path);
 
 _Success_ (return)
-FORCEINLINE BOOLEAN _r_res_queryversion (_In_ PVOID block, _Out_ VS_FIXEDFILEINFO **ver_info)
+FORCEINLINE BOOLEAN _r_res_queryversion (_In_ PVOID ver_block, _Out_ VS_FIXEDFILEINFO **file_info)
 {
 	UINT length;
 
-	return !!VerQueryValue (block, L"\\", ver_info, &length);
+	return !!VerQueryValue (ver_block, L"\\", file_info, &length);
 }
 
 //

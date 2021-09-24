@@ -180,7 +180,7 @@ LONG64 _r_locale_getversion ();
 VOID _r_settings_addpage (_In_ INT dlg_id, _In_ UINT locale_id);
 VOID _r_settings_adjustchild (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ HWND hchild);
 VOID _r_settings_createwindow (_In_ HWND hwnd, _In_opt_ DLGPROC dlg_proc, _In_opt_ INT dlg_id);
-INT_PTR CALLBACK _r_settings_wndproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
+INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM wparam, _In_ LPARAM lparam);
 
 FORCEINLINE HWND _r_settings_getwindow ()
 {
