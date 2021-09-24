@@ -334,21 +334,21 @@ typedef struct R_QUEUED_LOCK R_RUNDOWN_PROTECT, *PR_RUNDOWN_PROTECT;
 
 typedef VOID (NTAPI *PR_WORKQUEUE_FUNCTION) (_In_ PVOID arglist, _In_ ULONG busy_count);
 
-typedef struct R_WORKQUEUE_ITEM
-{
-	LIST_ENTRY list_entry;
-	PR_WORKQUEUE_FUNCTION function_address;
-	PVOID context;
-} R_WORKQUEUE_ITEM, *PR_WORKQUEUE_ITEM;
-
-typedef struct R_THREAD_ENVIRONMENT
+typedef struct R_ENVIRONMENT
 {
 	LONG base_priority : 6; // Base priority increment
 	ULONG io_priority : 3; // I/O priority hint
 	ULONG page_priority : 3; // Page/memory priority
 	ULONG is_forced : 1;
 	ULONG spare_bits : 19;
-} R_THREAD_ENVIRONMENT, *PR_THREAD_ENVIRONMENT;
+} R_ENVIRONMENT, *PR_ENVIRONMENT;
+
+typedef struct R_WORKQUEUE_ITEM
+{
+	LIST_ENTRY list_entry;
+	PR_WORKQUEUE_FUNCTION function_address;
+	PVOID context;
+} R_WORKQUEUE_ITEM, *PR_WORKQUEUE_ITEM;
 
 typedef struct R_WORKQUEUE
 {
@@ -360,7 +360,7 @@ typedef struct R_WORKQUEUE
 	R_RUNDOWN_PROTECT rundown_protect;
 	R_CONDITION queue_empty_condition;
 
-	R_THREAD_ENVIRONMENT environment;
+	R_ENVIRONMENT environment;
 
 	HANDLE semaphore_handle;
 
@@ -713,11 +713,13 @@ typedef struct R_URLPARTS
 // Resources
 //
 
-typedef struct VERSION_TRANSLATION
+#define PR_LANG_TO_LCID(lang_id,codepage_id) (((lang_id) << 16) + (codepage_id))
+
+typedef struct _R_VERSION_TRANSLATION
 {
 	WORD lang_id;
 	WORD code_page;
-} VERSION_TRANSLATION, *PVERSION_TRANSLATION;
+} R_VERSION_TRANSLATION, *PR_VERSION_TRANSLATION;
 
 //
 // Xml library
