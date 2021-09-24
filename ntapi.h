@@ -848,6 +848,20 @@ typedef struct _TAG_INFO_NAME_FROM_TAG
 	} OutParams;
 } TAG_INFO_NAME_FROM_TAG, *PTAG_INFO_NAME_FROM_TAG;
 
+#define PROCESS_PRIORITY_CLASS_UNKNOWN 0
+#define PROCESS_PRIORITY_CLASS_IDLE 1
+#define PROCESS_PRIORITY_CLASS_NORMAL 2
+#define PROCESS_PRIORITY_CLASS_HIGH 3
+#define PROCESS_PRIORITY_CLASS_REALTIME 4
+#define PROCESS_PRIORITY_CLASS_BELOW_NORMAL 5
+#define PROCESS_PRIORITY_CLASS_ABOVE_NORMAL 6
+
+typedef struct _PROCESS_PRIORITY_CLASS
+{
+	BOOLEAN Foreground;
+	UCHAR PriorityClass;
+} PROCESS_PRIORITY_CLASS, *PPROCESS_PRIORITY_CLASS;
+
 //
 // Synchronization enumerations
 //
@@ -2305,6 +2319,14 @@ RtlCreateServiceSid (
 	_In_ PUNICODE_STRING ServiceName,
 	_Out_writes_bytes_opt_ (*ServiceSidLength) PSID ServiceSid,
 	_Inout_ PULONG ServiceSidLength
+);
+
+NTSYSCALLAPI
+PULONG
+NTAPI
+RtlSubAuthoritySid (
+	_In_ PSID Sid,
+	_In_ ULONG SubAuthority
 );
 
 NTSYSCALLAPI
