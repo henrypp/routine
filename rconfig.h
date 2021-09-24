@@ -44,15 +44,16 @@
 // Callback message codes
 //
 
-#define RM_INITIALIZE (WM_APP + 1)
-#define RM_UNINITIALIZE (WM_APP + 2)
-#define RM_CLOSE (WM_APP + 3)
-#define RM_LOCALIZE (WM_APP + 4)
-#define RM_CONFIG_UPDATE (WM_APP + 5) // update done
-#define RM_CONFIG_RESET (WM_APP + 6) // reset done
-#define RM_TASKBARCREATED (WM_APP + 7) // explorer restarted
+#define RM_INITIALIZE (WM_APP + 1) // application initialization
+#define RM_INITIALIZE_POST (WM_APP + 2) // application one-time initialization
+#define RM_UNINITIALIZE (WM_APP + 3) // application uninitialization
+#define RM_LOCALIZE (WM_APP + 4) // localization applied/changed
+#define RM_TASKBARCREATED (WM_APP + 5) // explorer restarted
+#define RM_CONFIG_SAVE (WM_APP + 6) // save configuration
+#define RM_CONFIG_UPDATE (WM_APP + 7) // update has finished
+#define RM_CONFIG_RESET (WM_APP + 8) // reset configuration has finished
 
-#define WM_TRAYICON (WM_APP + 11)
+#define WM_TRAYICON (WM_APP + 10)
 
 //
 // Project information
