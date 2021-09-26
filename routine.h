@@ -2543,6 +2543,11 @@ FORCEINLINE INT _r_listview_getselectedcount (_In_ HWND hwnd, _In_ INT ctrl_id)
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETSELECTEDCOUNT, 0, 0);
 }
 
+FORCEINLINE INT _r_listview_getnextselected (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id)
+{
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETNEXTITEM, (WPARAM)item_id, (LPARAM)LVNI_SELECTED);
+}
+
 FORCEINLINE ULONG _r_listview_getview (_In_ HWND hwnd, _In_ INT ctrl_id)
 {
 	return (ULONG)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETVIEW, 0, 0);
@@ -2555,12 +2560,12 @@ FORCEINLINE BOOLEAN _r_listview_isgroupviewenabled (_In_ HWND hwnd, _In_ INT ctr
 
 FORCEINLINE BOOLEAN _r_listview_isitemchecked (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id)
 {
-	return !!((INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMSTATE, (WPARAM)item_id, LVIS_STATEIMAGEMASK) == INDEXTOSTATEIMAGEMASK (2));
+	return !!((INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMSTATE, (WPARAM)item_id, (LPARAM)LVIS_STATEIMAGEMASK) == INDEXTOSTATEIMAGEMASK (2));
 }
 
 FORCEINLINE BOOLEAN _r_listview_isitemselected (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id)
 {
-	return !!((INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMSTATE, (WPARAM)item_id, LVNI_SELECTED) == LVNI_SELECTED);
+	return !!((INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMSTATE, (WPARAM)item_id, (LPARAM)LVNI_SELECTED) == LVNI_SELECTED);
 }
 
 FORCEINLINE BOOLEAN _r_listview_isitemvisible (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id)

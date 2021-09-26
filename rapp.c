@@ -865,6 +865,7 @@ BOOLEAN _r_app_runasadmin ()
 
 VOID _r_app_restart (_In_ HWND hwnd)
 {
+	HWND hmain;
 	BOOLEAN is_mutexdestroyed;
 
 	if (_r_show_message (hwnd, MB_YESNO | MB_ICONQUESTION, _r_app_getname (), NULL, L"Restart is required to apply configuration, restart now?") != IDYES)
@@ -880,7 +881,7 @@ VOID _r_app_restart (_In_ HWND hwnd)
 		return;
 	}
 
-	HWND hmain = _r_app_gethwnd ();
+	hmain = _r_app_gethwnd ();
 
 	if (hmain)
 	{
