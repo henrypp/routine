@@ -865,17 +865,14 @@ BOOLEAN _r_app_runasadmin ()
 
 VOID _r_app_restart (_In_ HWND hwnd)
 {
-	WCHAR directory[256] = {0};
 	BOOLEAN is_mutexdestroyed;
 
 	if (_r_show_message (hwnd, MB_YESNO | MB_ICONQUESTION, _r_app_getname (), NULL, L"Restart is required to apply configuration, restart now?") != IDYES)
 		return;
 
-	GetCurrentDirectory (RTL_NUMBER_OF (directory), directory);
-
 	is_mutexdestroyed = _r_mutex_destroy (&app_global.main.hmutex);
 
-	if (!_r_sys_createprocessex (_r_sys_getimagepath (), _r_sys_getimagecommandline (), directory, NULL, SW_SHOW, 0))
+	if (!_r_sys_createprocessex (_r_sys_getimagepath (), _r_sys_getimagecommandline (), _r_sys_getcurrentdirectory (), NULL, SW_SHOW, 0))
 	{
 		if (is_mutexdestroyed)
 			_r_mutex_create (_r_app_getmutexname (), &app_global.main.hmutex); // restore mutex on error

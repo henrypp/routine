@@ -5718,7 +5718,7 @@ BOOLEAN _r_sys_runasadmin (_In_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line
 	shex.nShow = SW_SHOW;
 	shex.lpFile = file_name;
 	shex.lpParameters = command_line;
-	shex.lpDirectory = NtCurrentPeb ()->ProcessParameters->CurrentDirectory.DosPath.Buffer;
+	shex.lpDirectory = _r_sys_getcurrentdirectory ();
 
 	return !!ShellExecuteEx (&shex);
 }

@@ -1766,6 +1766,11 @@ FORCEINLINE LPCWSTR _r_sys_getimagecommandline ()
 	return NtCurrentPeb ()->ProcessParameters->CommandLine.Buffer;
 }
 
+FORCEINLINE LPCWSTR _r_sys_getcurrentdirectory ()
+{
+	return NtCurrentPeb ()->ProcessParameters->CurrentDirectory.DosPath.Buffer;
+}
+
 FORCEINLINE ULONG _r_sys_getprocessorscount ()
 {
 	return NtCurrentPeb ()->NumberOfProcessors;
