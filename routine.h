@@ -1697,6 +1697,8 @@ BOOLEAN _r_sys_createprocessex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR com
 NTSTATUS _r_sys_openprocess (_In_opt_ HANDLE process_id, _In_ ACCESS_MASK desired_access, _Out_ PHANDLE process_handle);
 NTSTATUS _r_sys_queryprocessstring (_In_ HANDLE process_handle, _In_ PROCESSINFOCLASS info_class, _Out_ PVOID_PTR file_name);
 
+BOOLEAN _r_sys_runasadmin (_In_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line);
+
 NTSTATUS NTAPI _r_sys_basethreadstart (_In_ PVOID arglist);
 NTSTATUS _r_sys_createthreadex (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE thread_handle, _In_opt_ PR_ENVIRONMENT environment);
 

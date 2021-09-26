@@ -2356,8 +2356,6 @@ FORCEINLINE PVOID _r_obj_addhashtableitemex (_Inout_ PR_HASHTABLE hashtable, _In
 		if (hashtable->cleanup_callback)
 		{
 			hashtable->cleanup_callback (&hashtable_entry->body);
-
-			RtlSecureZeroMemory (&hashtable_entry->body, hashtable->entry_size);
 		}
 	}
 	else
@@ -5708,6 +5706,21 @@ NTSTATUS _r_sys_queryprocessstring (_In_ HANDLE process_handle, _In_ PROCESSINFO
 	_r_mem_free (buffer);
 
 	return status;
+}
+
+BOOLEAN _r_sys_runasadmin (_In_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line)
+{
+	SHELLEXECUTEINFO shex = {0};
+
+	shex.cbSize = sizeof (shex);
+	shex.fMask = SEE_MASK_UNICODE | SEE_MASK_NOZONECHECKS | SEE_MASK_FLAG_NO_UI | SEE_MASK_NOASYNC;
+	shex.lpVerb = L"runas";
+	shex.nShow = SW_SHOW;
+	shex.lpFile = file_name;
+	shex.lpParameters = command_line;
+	shex.lpDirectory = NtCurrentPeb ()->ProcessParameters->CurrentDirectory.DosPath.Buffer;
+
+	return !!ShellExecuteEx (&shex);
 }
 
 static PR_FREE_LIST _r_sys_getthreadfreelist ()
@@ -9378,10 +9391,10 @@ INT _r_listview_getcolumncount (_In_ HWND hwnd, _In_ INT ctrl_id)
 
 	header = (HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETHEADER, 0, 0);
 
-	if (header)
-		return (INT)SendMessage (header, HDM_GETITEMCOUNT, 0, 0);
+	if (!header)
+		return 0;
 
-	return 0;
+	return (INT)SendMessage (header, HDM_GETITEMCOUNT, 0, 0);
 }
 
 _Ret_maybenull_
@@ -9552,14 +9565,13 @@ VOID _r_listview_setcolumn (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT column_id
 
 VOID _r_listview_setcolumnsortindex (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT column_id, _In_ INT arrow)
 {
+	HDITEM hitem = {0};
 	HWND header;
 
 	header = (HWND)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETHEADER, 0, 0);
 
 	if (!header)
 		return;
-
-	HDITEM hitem = {0};
 
 	hitem.mask = HDI_FORMAT;
 

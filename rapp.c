@@ -852,26 +852,13 @@ BOOLEAN _r_app_runasadmin ()
 		return TRUE;
 #endif // APP_HAVE_SKIPUAC
 
-	SHELLEXECUTEINFO shex = {0};
-
-	WCHAR directory[256] = {0};
-	GetCurrentDirectory (RTL_NUMBER_OF (directory), directory);
-
-	shex.cbSize = sizeof (shex);
-	shex.fMask = SEE_MASK_UNICODE | SEE_MASK_NOZONECHECKS | SEE_MASK_FLAG_NO_UI | SEE_MASK_NOASYNC;
-	shex.lpVerb = L"runas";
-	shex.nShow = SW_SHOW;
-	shex.lpFile = _r_sys_getimagepath ();
-	shex.lpParameters = _r_sys_getimagecommandline ();
-	shex.lpDirectory = directory;
-
-	if (ShellExecuteEx (&shex))
+	if (_r_sys_runasadmin (_r_sys_getimagepath (), _r_sys_getimagecommandline ()))
 		return TRUE;
 
 	if (is_mutexdestroyed)
 		_r_mutex_create (_r_app_getmutexname (), &app_global.main.hmutex); // restore mutex on error
 
-	_r_sleep (250); // HACK!!! prevent loop
+	_r_sleep (500); // HACK!!! prevent loop
 
 	return FALSE;
 }
@@ -2400,7 +2387,9 @@ BOOLEAN _r_update_install (_In_ LPCWSTR install_path)
 								   _r_app_getdirectory ()
 	);
 
-	if (!_r_sys_createprocess (install_path, _r_obj_getstring (cmd_string), NULL))
+	;
+
+	if (!_r_sys_runasadmin (install_path, _r_obj_getstring (cmd_string)))
 	{
 		R_ERROR_INFO error_info = {0};
 		error_info.description = install_path;
