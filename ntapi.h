@@ -2865,5 +2865,98 @@ NtWaitForKeyedEvent (
 	_In_opt_ PLARGE_INTEGER Timeout
 );
 
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlGetCompressionWorkSpaceSize (
+	_In_ USHORT CompressionFormatAndEngine,
+	_Out_ PULONG CompressBufferWorkSpaceSize,
+	_Out_ PULONG CompressFragmentWorkSpaceSize
+);
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlCompressBuffer (
+	_In_ USHORT CompressionFormatAndEngine,
+	_In_reads_bytes_ (UncompressedBufferSize) PUCHAR UncompressedBuffer,
+	_In_ ULONG UncompressedBufferSize,
+	_Out_writes_bytes_to_ (CompressedBufferSize, *FinalCompressedSize) PUCHAR CompressedBuffer,
+	_In_ ULONG CompressedBufferSize,
+	_In_ ULONG UncompressedChunkSize,
+	_Out_ PULONG FinalCompressedSize,
+	_In_ PVOID WorkSpace
+);
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlDecompressBuffer (
+	_In_ USHORT CompressionFormat,
+	_Out_writes_bytes_to_ (UncompressedBufferSize, *FinalUncompressedSize) PUCHAR UncompressedBuffer,
+	_In_ ULONG UncompressedBufferSize,
+	_In_reads_bytes_ (CompressedBufferSize) PUCHAR CompressedBuffer,
+	_In_ ULONG CompressedBufferSize,
+	_Out_ PULONG FinalUncompressedSize
+);
+
+NTSYSAPI// win8+
+NTSTATUS
+NTAPI
+RtlDecompressBufferEx (
+	_In_ USHORT CompressionFormat,
+	_Out_writes_bytes_to_ (UncompressedBufferSize, *FinalUncompressedSize) PUCHAR UncompressedBuffer,
+	_In_ ULONG UncompressedBufferSize,
+	_In_reads_bytes_ (CompressedBufferSize) PUCHAR CompressedBuffer,
+	_In_ ULONG CompressedBufferSize,
+	_Out_ PULONG FinalUncompressedSize,
+	_In_opt_ PVOID WorkSpace
+);
+
+// win81+
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlDecompressBufferEx2 (
+	_In_ USHORT CompressionFormat,
+	_Out_writes_bytes_to_ (UncompressedBufferSize, *FinalUncompressedSize) PUCHAR UncompressedBuffer,
+	_In_ ULONG UncompressedBufferSize,
+	_In_reads_bytes_ (CompressedBufferSize) PUCHAR CompressedBuffer,
+	_In_ ULONG CompressedBufferSize,
+	_In_ ULONG UncompressedChunkSize,
+	_Out_ PULONG FinalUncompressedSize,
+	_In_opt_ PVOID WorkSpace
+);
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlDecompressFragment (
+	_In_ USHORT CompressionFormat,
+	_Out_writes_bytes_to_ (UncompressedFragmentSize, *FinalUncompressedSize) PUCHAR UncompressedFragment,
+	_In_ ULONG UncompressedFragmentSize,
+	_In_reads_bytes_ (CompressedBufferSize) PUCHAR CompressedBuffer,
+	_In_ ULONG CompressedBufferSize,
+	_In_range_ (< , CompressedBufferSize) ULONG FragmentOffset,
+	_Out_ PULONG FinalUncompressedSize,
+	_In_ PVOID WorkSpace
+);
+
+// win81+
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlDecompressFragmentEx (
+	_In_ USHORT CompressionFormat,
+	_Out_writes_bytes_to_ (UncompressedFragmentSize, *FinalUncompressedSize) PUCHAR UncompressedFragment,
+	_In_ ULONG UncompressedFragmentSize,
+	_In_reads_bytes_ (CompressedBufferSize) PUCHAR CompressedBuffer,
+	_In_ ULONG CompressedBufferSize,
+	_In_range_ (< , CompressedBufferSize) ULONG FragmentOffset,
+	_In_ ULONG UncompressedChunkSize,
+	_Out_ PULONG FinalUncompressedSize,
+	_In_ PVOID WorkSpace
+);
+
 // extern c end
 EXTERN_C_END
