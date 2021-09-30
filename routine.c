@@ -1549,7 +1549,9 @@ BOOLEAN _r_mutex_destroy (_Inout_ PHANDLE hmutex)
 HANDLE _r_mem_getheap ()
 {
 	static HANDLE heap_handle = NULL;
-	HANDLE current_handle = InterlockedCompareExchangePointer (&heap_handle, NULL, NULL);
+	HANDLE current_handle;
+
+	current_handle = InterlockedCompareExchangePointer (&heap_handle, NULL, NULL);
 
 	if (!current_handle)
 	{
@@ -5559,6 +5561,87 @@ ULONG _r_sys_getwindowsversion ()
 	}
 
 	return windows_version;
+}
+
+NTSTATUS _r_sys_compressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PVOID_PTR out_buffer, _Out_ PULONG out_length)
+{
+	PVOID memory_buffer;
+	PVOID workspace_buffer;
+	ULONG workspace_buffer_length;
+	ULONG workspace_fragment_length;
+	ULONG allocation_length;
+	ULONG compressed_length;
+	NTSTATUS status;
+
+	status = RtlGetCompressionWorkSpaceSize (format, &workspace_buffer_length, &workspace_fragment_length);
+
+	if (status != STATUS_SUCCESS)
+	{
+		*out_buffer = NULL;
+		*out_length = 0;
+
+		return status;
+	}
+
+	workspace_buffer = _r_mem_allocatezero (workspace_buffer_length);
+
+	allocation_length = buffer_length;
+	memory_buffer = _r_mem_allocatezero (allocation_length);
+
+	status = RtlCompressBuffer (format, buffer, buffer_length, memory_buffer, allocation_length, 4096, &compressed_length, workspace_buffer);
+
+	if (status == STATUS_SUCCESS)
+	{
+		*out_buffer = memory_buffer;
+		*out_length = compressed_length;
+	}
+	else
+	{
+		*out_buffer = NULL;
+		*out_length = 0;
+
+		_r_mem_free (memory_buffer);
+	}
+
+	_r_mem_free (workspace_buffer);
+
+	return status;
+}
+
+NTSTATUS _r_sys_decompressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PVOID_PTR out_buffer, _Out_ PULONG out_length)
+{
+	PVOID memory_buffer;
+	ULONG allocation_length;
+	ULONG uncompressed_length;
+	NTSTATUS status;
+
+	allocation_length = buffer_length * 8;
+	memory_buffer = _r_mem_allocatezero (allocation_length);
+
+	status = RtlDecompressBuffer (format, memory_buffer, allocation_length, buffer, buffer_length, &uncompressed_length);
+
+	if (status == STATUS_BAD_COMPRESSION_BUFFER)
+	{
+		allocation_length *= 4;
+		memory_buffer = _r_mem_reallocatezero (memory_buffer, allocation_length);
+
+		status = RtlDecompressBuffer (format, memory_buffer, allocation_length, buffer, buffer_length, &uncompressed_length);
+	}
+
+	if (status == STATUS_SUCCESS)
+	{
+		*out_buffer = memory_buffer;
+		*out_length = uncompressed_length;
+	}
+	else
+	{
+		*out_buffer = NULL;
+		*out_length = 0;
+
+		_r_mem_free (memory_buffer);
+	}
+
+	return status;
 }
 
 BOOLEAN _r_sys_createprocessex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory, _In_opt_ LPSTARTUPINFO startup_info_ptr, _In_ WORD show_state, _In_ ULONG flags)

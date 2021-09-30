@@ -580,7 +580,9 @@ FORCEINLINE PVOID NTAPI _r_mem_allocatezero (_In_ SIZE_T bytes_count)
 _Post_writable_byte_size_ (bytes_count)
 FORCEINLINE PVOID NTAPI _r_mem_allocateandcopy (_In_ PVOID src, _In_ SIZE_T bytes_count)
 {
-	PVOID dst = _r_mem_allocatezero (bytes_count);
+	PVOID dst;
+
+	dst = _r_mem_allocatezero (bytes_count);
 
 	RtlCopyMemory (dst, src, bytes_count);
 
@@ -1692,6 +1694,9 @@ _Ret_maybenull_
 PR_STRING _r_sys_getusernamefromsid (_In_ PSID sid);
 
 ULONG _r_sys_getwindowsversion ();
+
+NTSTATUS _r_sys_compressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PVOID_PTR out_buffer, _Out_ PULONG out_length);
+NTSTATUS _r_sys_decompressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PVOID_PTR out_buffer, _Out_ PULONG out_length);
 
 BOOLEAN _r_sys_createprocessex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory, _In_opt_ LPSTARTUPINFO startup_info_ptr, _In_ WORD show_state, _In_ ULONG flags);
 NTSTATUS _r_sys_openprocess (_In_opt_ HANDLE process_id, _In_ ACCESS_MASK desired_access, _Out_ PHANDLE process_handle);
