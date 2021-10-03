@@ -532,6 +532,22 @@ typedef struct R_OBJECT_POINTER
 	((ULONG64)(revision) << 0))
 
 //
+// Cryptography
+//
+
+typedef struct _R_HASH_CONTEXT
+{
+	BCRYPT_ALG_HANDLE hash_alg_handle;
+	BCRYPT_ALG_HANDLE sign_alg_handle;
+	BCRYPT_KEY_HANDLE key_handle;
+	BCRYPT_HASH_HANDLE hash_handle;
+	PVOID hash_object;
+	PVOID hash_data;
+	ULONG hash_object_length;
+	ULONG hash_data_length;
+} R_HASH_CONTEXT, *PR_HASH_CONTEXT;
+
+//
 // System information
 //
 
