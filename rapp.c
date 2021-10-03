@@ -3286,9 +3286,9 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 			// localize buttons
 #ifdef IDC_RESET
 #ifdef IDS_RESET
-			_r_ctrl_settext (hwnd, IDC_RESET, _r_locale_getstring (IDS_RESET));
+			_r_ctrl_setstring (hwnd, IDC_RESET, _r_locale_getstring (IDS_RESET));
 #else
-			_r_ctrl_settext (hwnd, IDC_RESET, L"Reset");
+			_r_ctrl_setstring (hwnd, IDC_RESET, L"Reset");
 #pragma PR_PRINT_WARNING(IDS_RESET)
 #endif // IDS_RESET
 #else
@@ -3298,9 +3298,9 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 #if defined(APP_HAVE_SETTINGS_TABS)
 #ifdef IDC_SAVE
 #ifdef IDS_SAVE
-			_r_ctrl_settext (hwnd, IDC_SAVE, _r_locale_getstring (IDS_SAVE));
+			_r_ctrl_setstring (hwnd, IDC_SAVE, _r_locale_getstring (IDS_SAVE));
 #else
-			_r_ctrl_settext (hwnd, IDC_SAVE, L"OK");
+			_r_ctrl_setstring (hwnd, IDC_SAVE, L"OK");
 #pragma PR_PRINT_WARNING(IDS_SAVE)
 #endif // IDS_SAVE
 #else
@@ -3310,9 +3310,9 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 
 #ifdef IDC_CLOSE
 #ifdef IDS_CLOSE
-			_r_ctrl_settext (hwnd, IDC_CLOSE, _r_locale_getstring (IDS_CLOSE));
+			_r_ctrl_setstring (hwnd, IDC_CLOSE, _r_locale_getstring (IDS_CLOSE));
 #else
-			_r_ctrl_settext (hwnd, IDC_CLOSE, L"Close");
+			_r_ctrl_setstring (hwnd, IDC_CLOSE, L"Close");
 #pragma PR_PRINT_WARNING(IDS_CLOSE)
 #endif // IDS_CLOSE
 #else
