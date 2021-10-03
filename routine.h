@@ -51,6 +51,7 @@
 #include <subauth.h>
 #include <taskschd.h>
 #include <uxtheme.h>
+#include <wincrypt.h>
 #include <winhttp.h>
 #include <wtsapi32.h>
 #include <xmllite.h>
@@ -66,6 +67,7 @@
 #include "rlist.h"
 
 // libs
+#pragma comment(lib, "bcrypt.lib")
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "dwmapi.lib")
 #pragma comment(lib, "dbghelp.lib")
@@ -548,8 +550,12 @@ VOID _r_workqueue_waitforfinish (_Inout_ PR_WORKQUEUE work_queue);
 // Synchronization: Mutex
 //
 
-BOOLEAN _r_mutex_create (_In_ LPCWSTR name, _Inout_ PHANDLE hmutex);
+_When_ (return != FALSE, _Acquires_lock_ (*hmutex))
+BOOLEAN _r_mutex_create (_In_ LPCWSTR name, _Out_ PHANDLE hmutex);
+
+_When_ (return != FALSE, _Releases_lock_ (*hmutex))
 BOOLEAN _r_mutex_destroy (_Inout_ PHANDLE hmutex);
+
 BOOLEAN _r_mutex_isexists (_In_ LPCWSTR name);
 
 //
@@ -674,6 +680,16 @@ FORCEINLINE VOID _r_obj_clearreference (_Inout_ PVOID_PTR object_body)
 PR_BYTE _r_obj_createbyteex (_In_opt_ LPSTR buffer, _In_ SIZE_T length);
 
 VOID _r_obj_setbytelength (_Inout_ PR_BYTE string, _In_ SIZE_T length);
+
+FORCEINLINE PR_BYTE _r_obj_createbyte (_In_ LPSTR string)
+{
+	return _r_obj_createbyteex (string, _r_str_getbytelength (string));
+}
+
+FORCEINLINE PR_BYTE _r_obj_createbyte2 (_In_ PR_BYTE string)
+{
+	return _r_obj_createbyteex (string->buffer, string->length);
+}
 
 FORCEINLINE VOID _r_obj_writebytenullterminator (_In_ PR_BYTE string)
 {
@@ -2166,6 +2182,23 @@ ULONG _r_reg_querysubkeylength (_In_ HKEY hkey);
 LONG64 _r_reg_querytimestamp (_In_ HKEY hkey);
 
 //
+// Cryptography
+//
+
+// frobnicate a string
+VOID _r_crypt_frobstring (_Inout_ PR_STRING string);
+
+_Ret_maybenull_
+PR_HASH_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id);
+
+NTSTATUS _r_crypt_hashdata (_In_ PR_HASH_CONTEXT hash_context, _In_ PVOID buffer, _In_ ULONG buffer_length);
+
+_Ret_maybenull_
+PR_STRING _r_crypt_finalhashcontext (_In_ PR_HASH_CONTEXT hash_context, _In_ BOOLEAN is_uppercase);
+
+VOID _r_crypt_destroyhashcontext (_In_ PR_HASH_CONTEXT hash_context);
+
+//
 // Math
 //
 
@@ -2361,18 +2394,18 @@ INT _r_ctrl_isradiobuttonchecked (_In_ HWND hwnd, _In_ INT start_id, _In_ INT en
 LONG64 _r_ctrl_getinteger (_In_ HWND hwnd, _In_ INT ctrl_id, _Out_opt_ PULONG base);
 
 _Ret_maybenull_
-PR_STRING _r_ctrl_gettext (_In_ HWND hwnd, _In_ INT ctrl_id);
+PR_STRING _r_ctrl_getstring (_In_ HWND hwnd, _In_ INT ctrl_id);
 
 LONG _r_ctrl_getwidth (_In_ HWND hwnd, _In_opt_ INT ctrl_id);
 
-VOID _r_ctrl_settextformat (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ _Printf_format_string_ LPCWSTR format, ...);
-
 VOID _r_ctrl_setbuttonmargins (_In_ HWND hwnd, _In_ INT ctrl_id);
-VOID _r_ctrl_settabletext (_In_ HWND hwnd, _In_ INT ctrl_id1, _In_ PR_STRINGREF text1, _In_ INT ctrl_id2, _In_ PR_STRINGREF text2);
-VOID _r_ctrl_settextlength (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ PR_STRINGREF text);
+VOID _r_ctrl_settablestring (_In_ HWND hwnd, _In_ INT ctrl_id1, _In_ PR_STRINGREF text1, _In_ INT ctrl_id2, _In_ PR_STRINGREF text2);
+VOID _r_ctrl_setstringformat (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ _Printf_format_string_ LPCWSTR format, ...);
+VOID _r_ctrl_setstringlength (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ PR_STRINGREF text);
 
 _Ret_maybenull_
 HWND _r_ctrl_createtip (_In_opt_ HWND hparent);
+
 VOID _r_ctrl_settiptext (_In_ HWND htip, _In_ HWND hparent, _In_ INT ctrl_id, _In_ LPCWSTR text);
 VOID _r_ctrl_settiptextformat (_In_ HWND htip, _In_ HWND hparent, _In_ INT ctrl_id, _In_ _Printf_format_string_ LPCWSTR format, ...);
 VOID _r_ctrl_settipstyle (_In_ HWND htip);
@@ -2388,12 +2421,12 @@ FORCEINLINE VOID _r_ctrl_enable (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ BOOLEAN 
 		EnableWindow (hctrl, is_enable);
 }
 
-FORCEINLINE ULONG _r_ctrl_gettextlength (_In_ HWND hwnd, _In_ INT ctrl_id)
+FORCEINLINE ULONG _r_ctrl_getstringlength (_In_ HWND hwnd, _In_ INT ctrl_id)
 {
 	return (ULONG)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXTLENGTH, 0, 0);
 }
 
-FORCEINLINE VOID _r_ctrl_settext (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ LPCWSTR text)
+FORCEINLINE VOID _r_ctrl_setstring (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ LPCWSTR text)
 {
 	SetDlgItemText (hwnd, ctrl_id, text);
 }

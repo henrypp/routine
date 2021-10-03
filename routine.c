@@ -1502,34 +1502,33 @@ BOOLEAN _r_mutex_isexists (_In_ LPCWSTR name)
 	return FALSE;
 }
 
-BOOLEAN _r_mutex_create (_In_ LPCWSTR name, _Inout_ PHANDLE hmutex)
+_When_ (return != FALSE, _Acquires_lock_ (*hmutex))
+BOOLEAN _r_mutex_create (_In_ LPCWSTR name, _Out_ PHANDLE hmutex)
 {
 	HANDLE original_mutex;
 
-	_r_mutex_destroy (hmutex);
+	original_mutex = CreateMutex (NULL, FALSE, name);
 
-	if (name)
+	if (original_mutex)
 	{
-		original_mutex = CreateMutex (NULL, FALSE, name);
+		*hmutex = original_mutex;
 
-		if (original_mutex)
-		{
-			*hmutex = original_mutex;
-
-			return TRUE;
-		}
+		return TRUE;
 	}
+
+	*hmutex = NULL;
 
 	return FALSE;
 }
 
+_When_ (return != FALSE, _Releases_lock_ (*hmutex))
 BOOLEAN _r_mutex_destroy (_Inout_ PHANDLE hmutex)
 {
 	HANDLE original_mutex;
 
 	original_mutex = *hmutex;
 
-	if (_r_fs_isvalidhandle (original_mutex))
+	if (original_mutex)
 	{
 		*hmutex = NULL;
 
@@ -3903,7 +3902,7 @@ ULONG _r_str_crc32 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
 
 	LPWSTR buffer;
 	SIZE_T length;
-	ULONG hash;
+	ULONG hash_code;
 	WCHAR chr;
 
 	if (!string->length)
@@ -3912,7 +3911,7 @@ ULONG _r_str_crc32 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
 	buffer = string->buffer;
 	length = string->length / sizeof (WCHAR);
 
-	hash = ULONG_MAX;
+	hash_code = ULONG_MAX;
 
 	do
 	{
@@ -3925,13 +3924,13 @@ ULONG _r_str_crc32 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
 			chr = *buffer;
 		}
 
-		hash = (hash >> 8) ^ (crc32_table[(hash ^ (UCHAR)chr) & 0xff]);
+		hash_code = (hash_code >> 8) ^ (crc32_table[(hash_code ^ (UCHAR)chr) & 0xff]);
 
 		buffer += 1;
 	}
 	while (--length);
 
-	return hash ^ ULONG_MAX;
+	return hash_code ^ ULONG_MAX;
 }
 
 ULONG64 _r_str_crc64 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
@@ -3984,7 +3983,7 @@ ULONG64 _r_str_crc64 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
 
 	LPWSTR buffer;
 	SIZE_T length;
-	ULONG64 hash;
+	ULONG64 hash_code;
 	WCHAR chr;
 
 	if (!string->length)
@@ -3993,7 +3992,7 @@ ULONG64 _r_str_crc64 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
 	buffer = string->buffer;
 	length = string->length / sizeof (WCHAR);
 
-	hash = 0;
+	hash_code = 0;
 
 	do
 	{
@@ -4006,20 +4005,20 @@ ULONG64 _r_str_crc64 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
 			chr = *buffer;
 		}
 
-		hash = (hash >> 8) ^ (crc64_table[(hash ^ (UCHAR)chr) & 0xff]);
+		hash_code = (hash_code >> 8) ^ (crc64_table[(hash_code ^ (UCHAR)chr) & 0xff]);
 
 		buffer += 1;
 	}
 	while (--length);
 
-	return ~hash;
+	return ~hash_code;
 }
 
 ULONG _r_str_fnv32a (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
 {
 	LPWSTR buffer;
 	SIZE_T length;
-	ULONG hash;
+	ULONG hash_code;
 	WCHAR chr;
 
 	if (!string->length)
@@ -4028,7 +4027,7 @@ ULONG _r_str_fnv32a (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
 	buffer = string->buffer;
 	length = string->length / sizeof (WCHAR);
 
-	hash = 2166136261UL;
+	hash_code = 2166136261UL;
 
 	do
 	{
@@ -4041,20 +4040,20 @@ ULONG _r_str_fnv32a (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
 			chr = *buffer;
 		}
 
-		hash = (hash ^ (UCHAR)chr) * 16777619U;
+		hash_code = (hash_code ^ (UCHAR)chr) * 16777619U;
 
 		buffer += 1;
 	}
 	while (--length);
 
-	return hash;
+	return hash_code;
 }
 
 ULONG64 _r_str_fnv64a (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
 {
 	LPWSTR buffer;
 	SIZE_T length;
-	ULONG64 hash;
+	ULONG64 hash_code;
 	WCHAR chr;
 
 	if (!string->length)
@@ -4063,7 +4062,7 @@ ULONG64 _r_str_fnv64a (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
 	buffer = string->buffer;
 	length = string->length / sizeof (WCHAR);
 
-	hash = 14695981039346656037ULL;
+	hash_code = 14695981039346656037ULL;
 
 	do
 	{
@@ -4076,13 +4075,13 @@ ULONG64 _r_str_fnv64a (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
 			chr = *buffer;
 		}
 
-		hash = (hash ^ (UCHAR)chr) * 1099511628211LL;
+		hash_code = (hash_code ^ (UCHAR)chr) * 1099511628211LL;
 
 		buffer += 1;
 	}
 	while (--length);
 
-	return hash;
+	return hash_code;
 }
 
 ULONG _r_str_gethash (_In_ LPCWSTR string)
@@ -7850,10 +7849,161 @@ LONG64 _r_reg_querytimestamp (_In_ HKEY hkey)
 
 	status = RegQueryInfoKey (hkey, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, &file_time);
 
-	if (status == ERROR_SUCCESS)
-		return _r_unixtime_from_filetime (&file_time);
+	if (status != ERROR_SUCCESS)
+		return 0;
 
-	return 0;
+	return _r_unixtime_from_filetime (&file_time);
+}
+
+//
+// Cryptography
+//
+
+// frobnicate a string
+VOID _r_crypt_frobstring (_Inout_ PR_STRING string)
+{
+	LPWSTR buffer;
+	SIZE_T length;
+
+	if (!string->length)
+		return;
+
+	buffer = string->buffer;
+	length = string->length / sizeof (WCHAR);
+
+	do
+	{
+		*buffer = *buffer ^ 42;
+
+		buffer += 1;
+	}
+	while (--length);
+}
+
+_Ret_maybenull_
+PR_HASH_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id)
+{
+	PR_HASH_CONTEXT hash_context;
+	ULONG query_size;
+	NTSTATUS status;
+
+	hash_context = _r_mem_allocatezero (sizeof (R_HASH_CONTEXT));
+
+	status = BCryptOpenAlgorithmProvider (
+		&hash_context->hash_alg_handle,
+		algorithm_id,
+		NULL,
+		0
+	);
+
+	if (!NT_SUCCESS (status))
+		goto CleanupExit;
+
+	status = BCryptGetProperty (
+		hash_context->hash_alg_handle,
+		BCRYPT_OBJECT_LENGTH,
+		(PUCHAR)&hash_context->hash_object_length,
+		sizeof (ULONG),
+		&query_size,
+		0
+	);
+
+	if (!NT_SUCCESS (status))
+		goto CleanupExit;
+
+	status = BCryptGetProperty (
+		hash_context->hash_alg_handle,
+		BCRYPT_HASH_LENGTH,
+		(PUCHAR)&hash_context->hash_data_length,
+		sizeof (ULONG),
+		&query_size,
+		0
+	);
+
+	if (!NT_SUCCESS (status))
+		goto CleanupExit;
+
+	hash_context->hash_object = _r_mem_allocatezero (hash_context->hash_object_length);
+
+	status = BCryptCreateHash (
+		hash_context->hash_alg_handle,
+		&hash_context->hash_handle,
+		hash_context->hash_object,
+		hash_context->hash_object_length,
+		NULL,
+		0,
+		0
+	);
+
+	if (!NT_SUCCESS (status))
+		goto CleanupExit;
+
+	hash_context->hash_data = _r_mem_allocatezero (hash_context->hash_data_length);
+
+	return hash_context;
+
+CleanupExit:
+
+	if (hash_context->hash_object)
+		_r_mem_free (hash_context->hash_object);
+
+	if (hash_context->hash_data)
+		_r_mem_free (hash_context->hash_data);
+
+	if (hash_context)
+		_r_mem_free (hash_context);
+
+	return NULL;
+}
+
+NTSTATUS _r_crypt_hashdata (_In_ PR_HASH_CONTEXT hash_context, _In_ PVOID buffer, _In_ ULONG buffer_length)
+{
+	NTSTATUS status;
+
+	status = BCryptHashData (hash_context->hash_handle, buffer, buffer_length, 0);
+
+	return status;
+}
+
+_Ret_maybenull_
+PR_STRING _r_crypt_finalhashcontext (_In_ PR_HASH_CONTEXT hash_context, _In_ BOOLEAN is_uppercase)
+{
+	NTSTATUS status;
+
+	status = BCryptFinishHash (
+		hash_context->hash_handle,
+		hash_context->hash_data,
+		hash_context->hash_data_length,
+		0
+	);
+
+	if (!NT_SUCCESS (status))
+		return NULL;
+
+	return _r_str_fromhex (hash_context->hash_data, hash_context->hash_data_length, is_uppercase);
+}
+
+VOID _r_crypt_destroyhashcontext (_In_ PR_HASH_CONTEXT hash_context)
+{
+	if (hash_context->hash_alg_handle)
+		BCryptCloseAlgorithmProvider (hash_context->hash_alg_handle, 0);
+
+	if (hash_context->sign_alg_handle)
+		BCryptCloseAlgorithmProvider (hash_context->sign_alg_handle, 0);
+
+	if (hash_context->hash_handle)
+		BCryptDestroyHash (hash_context->hash_handle);
+
+	if (hash_context->key_handle)
+		BCryptDestroyKey (hash_context->key_handle);
+
+	if (hash_context->hash_object)
+		_r_mem_free (hash_context->hash_object);
+
+	if (hash_context->hash_data)
+		_r_mem_free (hash_context->hash_data);
+
+	_r_mem_free (hash_context);
 }
 
 //
@@ -8853,7 +9003,7 @@ LONG64 _r_ctrl_getinteger (_In_ HWND hwnd, _In_ INT ctrl_id, _Out_opt_ PULONG ba
 	PR_STRING string;
 	LONG64 value;
 
-	string = _r_ctrl_gettext (hwnd, ctrl_id);
+	string = _r_ctrl_getstring (hwnd, ctrl_id);
 
 	if (!string)
 	{
@@ -8871,12 +9021,12 @@ LONG64 _r_ctrl_getinteger (_In_ HWND hwnd, _In_ INT ctrl_id, _Out_opt_ PULONG ba
 }
 
 _Ret_maybenull_
-PR_STRING _r_ctrl_gettext (_In_ HWND hwnd, _In_ INT ctrl_id)
+PR_STRING _r_ctrl_getstring (_In_ HWND hwnd, _In_ INT ctrl_id)
 {
 	PR_STRING string;
 	ULONG length;
 
-	length = _r_ctrl_gettextlength (hwnd, ctrl_id);
+	length = _r_ctrl_getstringlength (hwnd, ctrl_id);
 
 	if (!length)
 		return NULL;
@@ -8919,26 +9069,6 @@ LONG _r_ctrl_getwidth (_In_ HWND hwnd, _In_opt_ INT ctrl_id)
 	return 0;
 }
 
-VOID _r_ctrl_settextformat (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ _Printf_format_string_ LPCWSTR format, ...)
-{
-	va_list arg_ptr;
-	PR_STRING string;
-
-	if (!format)
-		return;
-
-	va_start (arg_ptr, format);
-	string = _r_format_string_v (format, arg_ptr);
-	va_end (arg_ptr);
-
-	if (!string)
-		return;
-
-	_r_ctrl_settext (hwnd, ctrl_id, string->buffer);
-
-	_r_obj_dereference (string);
-}
-
 VOID _r_ctrl_setbuttonmargins (_In_ HWND hwnd, _In_ INT ctrl_id)
 {
 	BUTTON_SPLITINFO bsi;
@@ -8975,7 +9105,7 @@ VOID _r_ctrl_setbuttonmargins (_In_ HWND hwnd, _In_ INT ctrl_id)
 	}
 }
 
-VOID _r_ctrl_settabletext (_In_ HWND hwnd, _In_ INT ctrl_id1, _In_ PR_STRINGREF text1, _In_ INT ctrl_id2, _In_ PR_STRINGREF text2)
+VOID _r_ctrl_settablestring (_In_ HWND hwnd, _In_ INT ctrl_id1, _In_ PR_STRINGREF text1, _In_ INT ctrl_id2, _In_ PR_STRINGREF text2)
 {
 	RECT control_rect = {0};
 	HDWP hdefer;
@@ -9016,8 +9146,8 @@ VOID _r_ctrl_settabletext (_In_ HWND hwnd, _In_ INT ctrl_id1, _In_ PR_STRINGREF 
 		ctrl2_width = min (ctrl2_width, wnd_width - ctrl1_width - wnd_spacing);
 		ctrl1_width = min (ctrl1_width, wnd_width - ctrl2_width - wnd_spacing); // note: changed order for correct priority!
 
-		_r_ctrl_settextlength (hwnd, ctrl_id1, text1);
-		_r_ctrl_settextlength (hwnd, ctrl_id2, text2);
+		_r_ctrl_setstringlength (hwnd, ctrl_id1, text1);
+		_r_ctrl_setstringlength (hwnd, ctrl_id2, text2);
 
 		hdefer = BeginDeferWindowPos (2);
 
@@ -9033,13 +9163,33 @@ VOID _r_ctrl_settabletext (_In_ HWND hwnd, _In_ INT ctrl_id1, _In_ PR_STRINGREF 
 	ReleaseDC (hwnd, hdc);
 }
 
-VOID _r_ctrl_settextlength (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ PR_STRINGREF text)
+VOID _r_ctrl_setstringformat (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ _Printf_format_string_ LPCWSTR format, ...)
+{
+	va_list arg_ptr;
+	PR_STRING string;
+
+	if (!format)
+		return;
+
+	va_start (arg_ptr, format);
+	string = _r_format_string_v (format, arg_ptr);
+	va_end (arg_ptr);
+
+	if (!string)
+		return;
+
+	_r_ctrl_setstring (hwnd, ctrl_id, string->buffer);
+
+	_r_obj_dereference (string);
+}
+
+VOID _r_ctrl_setstringlength (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ PR_STRINGREF text)
 {
 	PR_STRING string;
 
 	string = _r_obj_createstring3 (text);
 
-	_r_ctrl_settext (hwnd, ctrl_id, string->buffer);
+	_r_ctrl_setstring (hwnd, ctrl_id, string->buffer);
 
 	_r_obj_dereference (string);
 }
@@ -9049,13 +9199,24 @@ HWND _r_ctrl_createtip (_In_opt_ HWND hparent)
 {
 	HWND htip;
 
-	htip = CreateWindowEx (WS_EX_TOPMOST, TOOLTIPS_CLASS, NULL, WS_CHILD | WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hparent, NULL, GetModuleHandle (NULL), NULL);
+	htip = CreateWindowEx (
+		WS_EX_TOPMOST,
+		TOOLTIPS_CLASS,
+		NULL,
+		WS_CHILD | WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
+		CW_USEDEFAULT,
+		CW_USEDEFAULT,
+		CW_USEDEFAULT,
+		CW_USEDEFAULT,
+		hparent,
+		NULL,
+		_r_sys_getimagebase (),
+		NULL
+	);
 
 	if (htip)
 	{
 		_r_ctrl_settipstyle (htip);
-
-		SendMessage (htip, TTM_ACTIVATE, TRUE, 0);
 
 		return htip;
 	}
@@ -9065,18 +9226,18 @@ HWND _r_ctrl_createtip (_In_opt_ HWND hparent)
 
 VOID _r_ctrl_settiptext (_In_ HWND htip, _In_ HWND hparent, _In_ INT ctrl_id, _In_ LPCWSTR text)
 {
-	TOOLINFO ti = {0};
+	TOOLINFO tool_info = {0};
 
-	ti.cbSize = sizeof (ti);
-	ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
-	ti.hwnd = hparent;
-	ti.hinst = _r_sys_getimagebase ();
-	ti.uId = (UINT_PTR)GetDlgItem (hparent, ctrl_id);
-	ti.lpszText = (LPWSTR)text;
+	tool_info.cbSize = sizeof (tool_info);
+	tool_info.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
+	tool_info.hwnd = hparent;
+	tool_info.hinst = _r_sys_getimagebase ();
+	tool_info.uId = (UINT_PTR)GetDlgItem (hparent, ctrl_id);
+	tool_info.lpszText = (LPWSTR)text;
 
-	GetClientRect (hparent, &ti.rect);
+	GetClientRect (hparent, &tool_info.rect);
 
-	SendMessage (htip, TTM_ADDTOOL, 0, (LPARAM)&ti);
+	SendMessage (htip, TTM_ADDTOOL, 0, (LPARAM)&tool_info);
 }
 
 VOID _r_ctrl_settiptextformat (_In_ HWND htip, _In_ HWND hparent, _In_ INT ctrl_id, _In_ _Printf_format_string_ LPCWSTR format, ...)
