@@ -5223,7 +5223,7 @@ LPCWSTR _r_sys_gettempdirectory ()
 	return _r_obj_getstring (path_root);
 }
 
-BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR name, _Out_opt_ PR_STRING* out_value)
+BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR name, _Out_opt_ PR_STRING_PTR out_value)
 {
 	R_STRINGREF key_name;
 	R_STRINGREF key_value;

@@ -445,6 +445,8 @@ typedef struct R_STRING
 	WCHAR data[1];
 } R_STRING, *PR_STRING;
 
+typedef PR_STRING *PR_STRING_PTR;
+
 #define PR_STRINGREF_INIT(string) { sizeof(string) - sizeof(UNICODE_NULL), (string) }
 #define PR_BYTESREF_INIT(string) { sizeof(string) - sizeof(ANSI_NULL), (string) }
 

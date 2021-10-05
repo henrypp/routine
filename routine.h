@@ -1698,7 +1698,7 @@ R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ();
 LPCWSTR _r_sys_getsystemdirectory ();
 LPCWSTR _r_sys_gettempdirectory ();
 
-BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR name, _Out_opt_ PR_STRING* out_value);
+BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR name, _Out_opt_ PR_STRING_PTR out_value);
 
 _Ret_maybenull_
 PSID _r_sys_getservicesid (_In_ PR_STRINGREF name);
