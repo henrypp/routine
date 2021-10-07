@@ -4178,21 +4178,21 @@ PR_STRING _r_str_fromguid (_In_ LPCGUID lpguid)
 PR_STRING _r_str_fromhex (_In_reads_bytes_ (length) PUCHAR buffer, _In_ ULONG length, _In_ BOOLEAN is_uppercase)
 {
 	static CHAR integer_char_upper_table[69] =
-		"0123456789" /* 0 - 9 */
-		"ABCDEFGHIJKLMNOPQRSTUVWXYZ" /* 10 - 35 */
-		" !\"#$%&'()*+,-./" /* 36 - 51 */
-		":;<=>?@" /* 52 - 58 */
-		"[\\]^_`" /* 59 - 64 */
-		"{|}~" /* 65 - 68 */
+		"0123456789" // 0 - 9
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ" // 10 - 35
+		" !\"#$%&'()*+,-./" // 36 - 51
+		":;<=>?@" // 52 - 58
+		"[\\]^_`" // 59 - 64
+		"{|}~" // 65 - 68
 		;
 
 	static CHAR integer_char_table[69] =
-		"0123456789" /* 0 - 9 */
-		"abcdefghijklmnopqrstuvwxyz" /* 10 - 35 */
-		" !\"#$%&'()*+,-./" /* 36 - 51 */
-		":;<=>?@" /* 52 - 58 */
-		"[\\]^_`" /* 59 - 64 */
-		"{|}~" /* 65 - 68 */
+		"0123456789" // 0 - 9
+		"abcdefghijklmnopqrstuvwxyz" // 10 - 35
+		" !\"#$%&'()*+,-./" // 36 - 51
+		":;<=>?@" // 52 - 58
+		"[\\]^_`" // 59 - 64
+		"{|}~" // 65 - 68
 		;
 
 	PR_STRING string;
