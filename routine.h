@@ -567,20 +567,32 @@ HANDLE NTAPI _r_mem_getheap ();
 _Post_writable_byte_size_ (bytes_count)
 FORCEINLINE PVOID NTAPI _r_mem_allocate (_In_ SIZE_T bytes_count)
 {
-	return RtlAllocateHeap (_r_mem_getheap (), HEAP_GENERATE_EXCEPTIONS, bytes_count);
-}
+	HANDLE heap_handle;
 
-_Ret_maybenull_
-_Post_writable_byte_size_ (bytes_count)
-FORCEINLINE PVOID NTAPI _r_mem_allocatesafe (_In_ SIZE_T bytes_count)
-{
-	return RtlAllocateHeap (_r_mem_getheap (), HEAP_ZERO_MEMORY, bytes_count);
+	heap_handle = _r_mem_getheap ();
+
+	return RtlAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS, bytes_count);
 }
 
 _Post_writable_byte_size_ (bytes_count)
 FORCEINLINE PVOID NTAPI _r_mem_allocatezero (_In_ SIZE_T bytes_count)
 {
-	return RtlAllocateHeap (_r_mem_getheap (), HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, bytes_count);
+	HANDLE heap_handle;
+
+	heap_handle = _r_mem_getheap ();
+
+	return RtlAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, bytes_count);
+}
+
+_Ret_maybenull_
+_Post_writable_byte_size_ (bytes_count)
+FORCEINLINE PVOID NTAPI _r_mem_allocatezerosafe (_In_ SIZE_T bytes_count)
+{
+	HANDLE heap_handle;
+
+	heap_handle = _r_mem_getheap ();
+
+	return RtlAllocateHeap (heap_handle, HEAP_ZERO_MEMORY, bytes_count);
 }
 
 _Post_writable_byte_size_ (bytes_count)
@@ -601,25 +613,41 @@ FORCEINLINE PVOID NTAPI _r_mem_allocateandcopy (_In_ PVOID src, _In_ SIZE_T byte
 _Post_writable_byte_size_ (bytes_count)
 FORCEINLINE PVOID NTAPI _r_mem_reallocate (_Frees_ptr_opt_ PVOID memory_address, _In_ SIZE_T bytes_count)
 {
-	return RtlReAllocateHeap (_r_mem_getheap (), HEAP_GENERATE_EXCEPTIONS, memory_address, bytes_count);
-}
+	HANDLE heap_handle;
 
-_Ret_maybenull_
-_Post_writable_byte_size_ (bytes_count)
-FORCEINLINE PVOID NTAPI _r_mem_reallocatesafe (_Frees_ptr_opt_ PVOID memory_address, _In_ SIZE_T bytes_count)
-{
-	return RtlReAllocateHeap (_r_mem_getheap (), HEAP_ZERO_MEMORY, memory_address, bytes_count);
+	heap_handle = _r_mem_getheap ();
+
+	return RtlReAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS, memory_address, bytes_count);
 }
 
 _Post_writable_byte_size_ (bytes_count)
 FORCEINLINE PVOID NTAPI _r_mem_reallocatezero (_Frees_ptr_opt_ PVOID memory_address, _In_ SIZE_T bytes_count)
 {
-	return RtlReAllocateHeap (_r_mem_getheap (), HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, memory_address, bytes_count);
+	HANDLE heap_handle;
+
+	heap_handle = _r_mem_getheap ();
+
+	return RtlReAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, memory_address, bytes_count);
+}
+
+_Ret_maybenull_
+_Post_writable_byte_size_ (bytes_count)
+FORCEINLINE PVOID NTAPI _r_mem_reallocatezerosafe (_Frees_ptr_opt_ PVOID memory_address, _In_ SIZE_T bytes_count)
+{
+	HANDLE heap_handle;
+
+	heap_handle = _r_mem_getheap ();
+
+	return RtlReAllocateHeap (heap_handle, HEAP_ZERO_MEMORY, memory_address, bytes_count);
 }
 
 FORCEINLINE VOID NTAPI _r_mem_free (_Frees_ptr_opt_ PVOID memory_address)
 {
-	RtlFreeHeap (_r_mem_getheap (), 0, memory_address);
+	HANDLE heap_handle;
+
+	heap_handle = _r_mem_getheap ();
+
+	RtlFreeHeap (heap_handle, 0, memory_address);
 }
 
 //
@@ -1714,14 +1742,14 @@ ULONG _r_sys_getwindowsversion ();
 NTSTATUS _r_sys_compressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PVOID_PTR out_buffer, _Out_ PULONG out_length);
 NTSTATUS _r_sys_decompressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PVOID_PTR out_buffer, _Out_ PULONG out_length);
 
-BOOLEAN _r_sys_createprocessex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory, _In_opt_ LPSTARTUPINFO startup_info_ptr, _In_ WORD show_state, _In_ ULONG flags);
+BOOLEAN _r_sys_createprocess_ex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory, _In_opt_ LPSTARTUPINFO startup_info_ptr, _In_ WORD show_state, _In_ ULONG flags);
 NTSTATUS _r_sys_openprocess (_In_opt_ HANDLE process_id, _In_ ACCESS_MASK desired_access, _Out_ PHANDLE process_handle);
 NTSTATUS _r_sys_queryprocessstring (_In_ HANDLE process_handle, _In_ PROCESSINFOCLASS info_class, _Out_ PVOID_PTR file_name);
 
 BOOLEAN _r_sys_runasadmin (_In_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line);
 
 NTSTATUS NTAPI _r_sys_basethreadstart (_In_ PVOID arglist);
-NTSTATUS _r_sys_createthreadex (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE thread_handle, _In_opt_ PR_ENVIRONMENT environment);
+NTSTATUS _r_sys_createthread_ex (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE thread_handle, _In_opt_ PR_ENVIRONMENT environment);
 
 _Ret_maybenull_
 PR_STRING _r_sys_querytaginformation (_In_ HANDLE hprocess, _In_ LPCVOID tag);
@@ -1737,17 +1765,17 @@ VOID _r_sys_setthreadenvironment (_In_ HANDLE thread_handle, _In_ PR_ENVIRONMENT
 
 FORCEINLINE BOOLEAN _r_sys_createprocess (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory)
 {
-	return _r_sys_createprocessex (file_name, command_line, current_directory, NULL, SW_SHOWDEFAULT, 0);
+	return _r_sys_createprocess_ex (file_name, command_line, current_directory, NULL, SW_SHOWDEFAULT, 0);
 }
 
 FORCEINLINE NTSTATUS _r_sys_createthread (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE hthread)
 {
-	return _r_sys_createthreadex (function_address, arglist, hthread, NULL);
+	return _r_sys_createthread_ex (function_address, arglist, hthread, NULL);
 }
 
 FORCEINLINE NTSTATUS _r_sys_createthread2 (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist)
 {
-	return _r_sys_createthreadex (function_address, arglist, NULL, NULL);
+	return _r_sys_createthread_ex (function_address, arglist, NULL, NULL);
 }
 
 FORCEINLINE NTSTATUS _r_sys_resumethread (_In_ HANDLE hthread)
@@ -1873,24 +1901,20 @@ FORCEINLINE LONG64 _r_sys_getexecutiontime ()
 {
 	LARGE_INTEGER li;
 
-	if (QueryPerformanceCounter (&li))
-	{
-		return li.QuadPart;
-	}
+	if (!QueryPerformanceCounter (&li))
+		return 0;
 
-	return 0;
+	return li.QuadPart;
 }
 
 FORCEINLINE DOUBLE _r_sys_finalexecutiontime (_In_ LONG64 start_time)
 {
 	LARGE_INTEGER li;
 
-	if (QueryPerformanceFrequency (&li))
-	{
-		return ((_r_sys_getexecutiontime () - start_time) * 1000.0) / li.QuadPart / 1000.0;
-	}
+	if (!QueryPerformanceFrequency (&li))
+		return 0.0;
 
-	return 0.0;
+	return ((_r_sys_getexecutiontime () - start_time) * 1000.0) / li.QuadPart / 1000.0;
 }
 
 //

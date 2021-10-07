@@ -569,12 +569,12 @@ FORCEINLINE BOOLEAN _r_queuedlock_pushwaitblock (_Inout_ PR_QUEUED_LOCK queued_l
 
 FORCEINLINE VOID _r_queuedlock_optimizelistex (_Inout_ PR_QUEUED_LOCK queued_lock, _In_ ULONG_PTR Value, _In_ BOOLEAN is_ignoreowned)
 {
+	ULONG_PTR value;
+	ULONG_PTR new_value;
 	PR_QUEUED_WAIT_BLOCK wait_block;
 	PR_QUEUED_WAIT_BLOCK first_wait_block;
 	PR_QUEUED_WAIT_BLOCK last_wait_block;
 	PR_QUEUED_WAIT_BLOCK previous_wait_block;
-	ULONG_PTR value;
-	ULONG_PTR new_value;
 
 	value = Value;
 
@@ -590,7 +590,6 @@ FORCEINLINE VOID _r_queuedlock_optimizelistex (_Inout_ PR_QUEUED_LOCK queued_loc
 		}
 
 		// Perform the optimization.
-
 		wait_block = _r_queuedlock_getwaitblock (value);
 		first_wait_block = wait_block;
 
@@ -657,12 +656,12 @@ FORCEINLINE ULONG _r_queuedlock_getspincount ()
 
 FORCEINLINE PR_QUEUED_WAIT_BLOCK _r_queuedlock_preparetowake (_Inout_ PR_QUEUED_LOCK queued_lock, _In_ ULONG_PTR current_value, _In_ BOOLEAN is_ignoreowned, _In_ BOOLEAN is_wakeall)
 {
+	ULONG_PTR value;
+	ULONG_PTR new_value;
 	PR_QUEUED_WAIT_BLOCK wait_block;
 	PR_QUEUED_WAIT_BLOCK first_wait_block;
 	PR_QUEUED_WAIT_BLOCK last_wait_block;
 	PR_QUEUED_WAIT_BLOCK previous_wait_block;
-	ULONG_PTR value;
-	ULONG_PTR new_value;
 
 	value = current_value;
 
@@ -1168,6 +1167,7 @@ VOID FASTCALL _r_protection_release_ex (_Inout_ PR_RUNDOWN_PROTECT protection)
 {
 	ULONG_PTR value;
 	ULONG_PTR new_value;
+	PR_RUNDOWN_WAIT_BLOCK wait_block;
 
 	while (TRUE)
 	{
@@ -1175,8 +1175,6 @@ VOID FASTCALL _r_protection_release_ex (_Inout_ PR_RUNDOWN_PROTECT protection)
 
 		if (value & PR_RUNDOWN_ACTIVE)
 		{
-			PR_RUNDOWN_WAIT_BLOCK wait_block;
-
 			// Since rundown is active, the reference count has been moved to the waiter's wait
 			// block. If we are the last user, we must wake up the waiter.
 			wait_block = (PR_RUNDOWN_WAIT_BLOCK)(value & ~PR_RUNDOWN_ACTIVE);
@@ -1318,8 +1316,11 @@ VOID _r_workqueue_destroy (_Inout_ PR_WORKQUEUE work_queue)
 PR_WORKQUEUE_ITEM _r_workqueue_createitem (_In_ PR_WORKQUEUE_FUNCTION function_address, _In_opt_ PVOID context)
 {
 	PR_WORKQUEUE_ITEM work_queue_item;
+	PR_FREE_LIST work_queue_free_list;
 
-	work_queue_item = _r_freelist_allocateitem (_r_workqueue_getfreelist ());
+	work_queue_free_list = _r_workqueue_getfreelist ();
+
+	work_queue_item = _r_freelist_allocateitem (work_queue_free_list);
 
 	work_queue_item->function_address = function_address;
 	work_queue_item->context = context;
@@ -1329,21 +1330,25 @@ PR_WORKQUEUE_ITEM _r_workqueue_createitem (_In_ PR_WORKQUEUE_FUNCTION function_a
 
 VOID _r_workqueue_destroyitem (_In_ PR_WORKQUEUE_ITEM work_queue_item)
 {
-	_r_freelist_deleteitem (_r_workqueue_getfreelist (), work_queue_item);
+	PR_FREE_LIST work_queue_free_list;
+
+	work_queue_free_list = _r_workqueue_getfreelist ();
+
+	_r_freelist_deleteitem (work_queue_free_list, work_queue_item);
 }
 
 NTSTATUS _r_workqueue_threadproc (_In_ PVOID arglist)
 {
 	PR_WORKQUEUE work_queue;
 	PR_WORKQUEUE_ITEM work_queue_item;
+	PLIST_ENTRY list_entry;
+	LARGE_INTEGER timeout;
+	NTSTATUS status;
 
 	work_queue = (PR_WORKQUEUE)arglist;
 
 	while (TRUE)
 	{
-		LARGE_INTEGER timeout;
-		NTSTATUS status;
-
 		// Check if we have more threads than the limit.
 		if (work_queue->current_threads > work_queue->maximum_threads)
 		{
@@ -1379,8 +1384,6 @@ NTSTATUS _r_workqueue_threadproc (_In_ PVOID arglist)
 
 		if (status == STATUS_WAIT_0 && !work_queue->is_terminating)
 		{
-			PLIST_ENTRY list_entry;
-
 			// Dequeue the work item.
 			_r_queuedlock_acquireexclusive (&work_queue->queue_lock);
 
@@ -1456,7 +1459,7 @@ VOID _r_workqueue_queueitem (_Inout_ PR_WORKQUEUE work_queue, _In_ PR_WORKQUEUE_
 		// Make sure the structure doesn't get deleted while the thread is running.
 		if (_r_protection_acquire (&work_queue->rundown_protect))
 		{
-			if (NT_SUCCESS (_r_sys_createthreadex (&_r_workqueue_threadproc, work_queue, NULL, &work_queue->environment)))
+			if (NT_SUCCESS (_r_sys_createthread_ex (&_r_workqueue_threadproc, work_queue, NULL, &work_queue->environment)))
 			{
 				work_queue->current_threads += 1;
 			}
@@ -3437,12 +3440,12 @@ PR_STRING _r_path_dospathfromnt (_In_ LPCWSTR path)
 _Ret_maybenull_
 PR_STRING _r_path_ntpathfromdos (_In_ LPCWSTR path, _Out_opt_ PULONG error_code)
 {
-	NTSTATUS status;
 	POBJECT_NAME_INFORMATION obj_name_info;
 	HANDLE hfile;
 	PR_STRING string;
 	ULONG buffer_size;
 	ULONG attempts;
+	NTSTATUS status;
 
 	hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
 
@@ -5643,7 +5646,7 @@ NTSTATUS _r_sys_decompressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ UL
 	return status;
 }
 
-BOOLEAN _r_sys_createprocessex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory, _In_opt_ LPSTARTUPINFO startup_info_ptr, _In_ WORD show_state, _In_ ULONG flags)
+BOOLEAN _r_sys_createprocess_ex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory, _In_opt_ LPSTARTUPINFO startup_info_ptr, _In_ WORD show_state, _In_ ULONG flags)
 {
 	BOOLEAN is_success;
 
@@ -5823,11 +5826,14 @@ static PR_FREE_LIST _r_sys_getthreadfreelist ()
 NTSTATUS NTAPI _r_sys_basethreadstart (_In_ PVOID arglist)
 {
 	R_THREAD_CONTEXT context;
+	PR_FREE_LIST thread_free_list;
 	NTSTATUS status;
 	HRESULT hr;
 
+	thread_free_list = _r_sys_getthreadfreelist ();
+
 	RtlCopyMemory (&context, arglist, sizeof (context));
-	_r_freelist_deleteitem (_r_sys_getthreadfreelist (), arglist);
+	_r_freelist_deleteitem (thread_free_list, arglist);
 
 	hr = CoInitializeEx (NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 
@@ -5841,16 +5847,16 @@ NTSTATUS NTAPI _r_sys_basethreadstart (_In_ PVOID arglist)
 	return status;
 }
 
-NTSTATUS _r_sys_createthreadex (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE thread_handle, _In_opt_ PR_ENVIRONMENT environment)
+NTSTATUS _r_sys_createthread_ex (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE thread_handle, _In_opt_ PR_ENVIRONMENT environment)
 {
 	NTSTATUS status;
 	HANDLE hthread;
 	PR_THREAD_CONTEXT context;
-	PR_FREE_LIST free_list;
+	PR_FREE_LIST thread_free_list;
 
-	free_list = _r_sys_getthreadfreelist ();
+	thread_free_list = _r_sys_getthreadfreelist ();
 
-	context = _r_freelist_allocateitem (free_list);
+	context = _r_freelist_allocateitem (thread_free_list);
 
 	context->function_address = function_address;
 	context->arglist = arglist;
@@ -5882,7 +5888,7 @@ NTSTATUS _r_sys_createthreadex (_In_ PUSER_THREAD_START_ROUTINE function_address
 			*thread_handle = NULL;
 		}
 
-		_r_freelist_deleteitem (free_list, context);
+		_r_freelist_deleteitem (thread_free_list, context);
 	}
 
 	return status;
@@ -6014,6 +6020,11 @@ VOID _r_sys_setprocessenvironment (_In_ HANDLE process_handle, _In_ PR_ENVIRONME
 	PROCESS_PRIORITY_CLASS priority_class = {0};
 	PAGE_PRIORITY_INFORMATION page_priority_info = {0};
 
+#if !defined(APP_NO_DEPRECATIONS)
+	if (_r_sys_isosversionlower (WINDOWS_VISTA))
+		return;
+#endif // !APP_NO_DEPRECATIONS
+
 	// set base priority
 	if (environment->is_forced || environment->base_priority != PROCESS_PRIORITY_CLASS_NORMAL)
 	{
@@ -6045,6 +6056,11 @@ VOID _r_sys_setthreadenvironment (_In_ HANDLE thread_handle, _In_ PR_ENVIRONMENT
 	LONG base_priority;
 	IO_PRIORITY_HINT io_priority;
 	PAGE_PRIORITY_INFORMATION page_priority_info = {0};
+
+#if !defined(APP_NO_DEPRECATIONS)
+	if (_r_sys_isosversionlower (WINDOWS_VISTA))
+		return;
+#endif // !APP_NO_DEPRECATIONS
 
 	// set base priority
 	if (environment->is_forced || environment->base_priority != THREAD_PRIORITY_NORMAL)
