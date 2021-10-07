@@ -873,7 +873,7 @@ VOID _r_app_restart (_In_ HWND hwnd)
 
 	is_mutexdestroyed = _r_mutex_destroy (&app_global.main.hmutex);
 
-	if (!_r_sys_createprocessex (_r_sys_getimagepath (), _r_sys_getimagecommandline (), _r_sys_getcurrentdirectory (), NULL, SW_SHOW, 0))
+	if (!_r_sys_createprocess_ex (_r_sys_getimagepath (), _r_sys_getimagecommandline (), _r_sys_getcurrentdirectory (), NULL, SW_SHOW, 0))
 	{
 		if (is_mutexdestroyed)
 			_r_mutex_create (_r_app_getmutexname (), &app_global.main.hmutex); // restore mutex on error
