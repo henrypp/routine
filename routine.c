@@ -9014,6 +9014,25 @@ INT _r_ctrl_isradiobuttonchecked (_In_ HWND hwnd, _In_ INT start_id, _In_ INT en
 	return 0;
 }
 
+VOID _r_ctrl_enable (_In_ HWND hwnd, _In_opt_ INT ctrl_id, _In_ BOOLEAN is_enable)
+{
+	HWND htarget;
+
+	if (ctrl_id)
+	{
+		htarget = GetDlgItem (hwnd, ctrl_id);
+
+		if (!htarget)
+			return;
+	}
+	else
+	{
+		htarget = hwnd;
+	}
+
+	EnableWindow (htarget, is_enable);
+}
+
 LONG64 _r_ctrl_getinteger (_In_ HWND hwnd, _In_ INT ctrl_id, _Out_opt_ PULONG base)
 {
 	PR_STRING string;
