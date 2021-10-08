@@ -435,18 +435,18 @@ FORCEINLINE BOOLEAN _r_queuedlock_tryacquireexclusive (_Inout_ PR_QUEUED_LOCK qu
 	}
 }
 
-_When_ (return != FALSE, _Acquires_shared_lock_ (*queued_lock))
-FORCEINLINE BOOLEAN _r_queuedlock_tryacquireshared (_Inout_ PR_QUEUED_LOCK queued_lock)
-{
-	if (!_InterlockedBitTestAndSetPointer ((PLONG_PTR)&queued_lock->value, PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC))
-	{
-		return TRUE;
-	}
-	else
-	{
-		return FALSE;
-	}
-}
+//_When_ (return != FALSE, _Acquires_shared_lock_ (*queued_lock))
+//FORCEINLINE BOOLEAN _r_queuedlock_tryacquireshared (_Inout_ PR_QUEUED_LOCK queued_lock)
+//{
+//	if (!_InterlockedBitTestAndSetPointer ((PLONG_PTR)&queued_lock->value, PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC))
+//	{
+//		return TRUE;
+//	}
+//	else
+//	{
+//		return FALSE;
+//	}
+//}
 
 FORCEINLINE BOOLEAN _r_queuedlock_islocked (_In_ const PR_QUEUED_LOCK spin_lock)
 {
@@ -2415,6 +2415,8 @@ BOOLEAN _r_tray_destroy (_In_ HWND hwnd, _In_ LPCGUID guid);
 BOOLEAN _r_ctrl_isenabled (_In_ HWND hwnd, _In_ INT ctrl_id);
 INT _r_ctrl_isradiobuttonchecked (_In_ HWND hwnd, _In_ INT start_id, _In_ INT end_id);
 
+VOID _r_ctrl_enable (_In_ HWND hwnd, _In_opt_ INT ctrl_id, _In_ BOOLEAN is_enable);
+
 LONG64 _r_ctrl_getinteger (_In_ HWND hwnd, _In_ INT ctrl_id, _Out_opt_ PULONG base);
 
 _Ret_maybenull_
@@ -2436,14 +2438,6 @@ VOID _r_ctrl_settipstyle (_In_ HWND htip);
 
 VOID _r_ctrl_showballoontip (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT icon_id, _In_opt_ LPCWSTR title, _In_ LPCWSTR text);
 VOID _r_ctrl_showballoontipformat (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT icon_id, _In_opt_ LPCWSTR title, _In_ _Printf_format_string_ LPCWSTR format, ...);
-
-FORCEINLINE VOID _r_ctrl_enable (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ BOOLEAN is_enable)
-{
-	HWND hctrl = GetDlgItem (hwnd, ctrl_id);
-
-	if (hctrl)
-		EnableWindow (hctrl, is_enable);
-}
 
 FORCEINLINE ULONG _r_ctrl_getstringlength (_In_ HWND hwnd, _In_ INT ctrl_id)
 {
