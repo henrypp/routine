@@ -7960,14 +7960,16 @@ PR_HASH_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id)
 
 CleanupExit:
 
-	if (hash_context->hash_object)
-		_r_mem_free (hash_context->hash_object);
-
-	if (hash_context->hash_data)
-		_r_mem_free (hash_context->hash_data);
-
 	if (hash_context)
+	{
+		if (hash_context->hash_object)
+			_r_mem_free (hash_context->hash_object);
+
+		if (hash_context->hash_data)
+			_r_mem_free (hash_context->hash_data);
+
 		_r_mem_free (hash_context);
+	}
 
 	return NULL;
 }
@@ -8292,7 +8294,7 @@ HICON _r_loadicon (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR icon_name, _In_ LONG i
 	if (!hicon)
 	{
 		hicon = (HICON)LoadImage (hinst, icon_name, IMAGE_ICON, icon_size, icon_size, 0);
-	}
+}
 
 #endif // APP_NO_DEPRECATIONS
 
@@ -8817,7 +8819,7 @@ static VOID _r_tray_initialize (_Inout_ PNOTIFYICONDATA nid, _In_ HWND hwnd, _In
 	else
 	{
 		nid->uID = guid->Data2;
-	}
+}
 
 #endif // APP_NO_DEPRECATIONS
 }
