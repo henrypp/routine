@@ -7876,24 +7876,34 @@ LONG64 _r_reg_querytimestamp (_In_ HKEY hkey)
 //
 
 // frobnicate a string
-VOID _r_crypt_frobstring (_Inout_ PR_STRING string)
+BOOLEAN _r_crypt_frobstring (_Inout_ PR_STRING string)
 {
+	static INT xor_code = 42;
+
 	LPWSTR buffer;
 	SIZE_T length;
+	WCHAR chr;
 
 	if (!string->length)
-		return;
+		return FALSE;
 
 	buffer = string->buffer;
 	length = string->length / sizeof (WCHAR);
 
 	do
 	{
-		*buffer = *buffer ^ 42;
+		chr = *buffer;
+
+		if (chr != UNICODE_NULL && chr != xor_code)
+		{
+			*buffer = chr ^ xor_code;
+		}
 
 		buffer += 1;
 	}
 	while (--length);
+
+	return TRUE;
 }
 
 _Ret_maybenull_
@@ -8294,7 +8304,7 @@ HICON _r_loadicon (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR icon_name, _In_ LONG i
 	if (!hicon)
 	{
 		hicon = (HICON)LoadImage (hinst, icon_name, IMAGE_ICON, icon_size, icon_size, 0);
-}
+	}
 
 #endif // APP_NO_DEPRECATIONS
 
@@ -8819,7 +8829,7 @@ static VOID _r_tray_initialize (_Inout_ PNOTIFYICONDATA nid, _In_ HWND hwnd, _In
 	else
 	{
 		nid->uID = guid->Data2;
-}
+	}
 
 #endif // APP_NO_DEPRECATIONS
 }

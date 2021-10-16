@@ -2210,7 +2210,7 @@ LONG64 _r_reg_querytimestamp (_In_ HKEY hkey);
 //
 
 // frobnicate a string
-VOID _r_crypt_frobstring (_Inout_ PR_STRING string);
+BOOLEAN _r_crypt_frobstring (_Inout_ PR_STRING string);
 
 _Ret_maybenull_
 PR_HASH_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id);
