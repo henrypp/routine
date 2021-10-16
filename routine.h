@@ -172,7 +172,7 @@ FORCEINLINE BOOLEAN _InterlockedBitTestAndSetPointer (_Inout_ _Interlocked_opera
 #endif
 }
 
-FORCEINLINE LONG_PTR _InterlockedExchangeAddPointer (_Inout_ _Interlocked_operand_ LONG_PTR volatile *addend, _In_ LONG_PTR value)
+FORCEINLINE LONG_PTR InterlockedExchangeAddPointer (_Inout_ _Interlocked_operand_ LONG_PTR volatile *addend, _In_ LONG_PTR value)
 {
 #ifdef _WIN64
 	return (LONG_PTR)_InterlockedExchangeAdd64 ((PLONG64)addend, (LONG64)value);
@@ -181,7 +181,7 @@ FORCEINLINE LONG_PTR _InterlockedExchangeAddPointer (_Inout_ _Interlocked_operan
 #endif
 }
 
-FORCEINLINE LONG_PTR _InterlockedIncrementPointer (_Inout_ _Interlocked_operand_ LONG_PTR volatile *addend)
+FORCEINLINE LONG_PTR InterlockedIncrementPointer (_Inout_ _Interlocked_operand_ LONG_PTR volatile *addend)
 {
 #ifdef _WIN64
 	return (LONG_PTR)_InterlockedIncrement64 ((PLONG64)addend);
@@ -190,7 +190,7 @@ FORCEINLINE LONG_PTR _InterlockedIncrementPointer (_Inout_ _Interlocked_operand_
 #endif
 }
 
-FORCEINLINE LONG_PTR _InterlockedDecrementPointer (_Inout_ _Interlocked_operand_ LONG_PTR volatile *addend)
+FORCEINLINE LONG_PTR InterlockedDecrementPointer (_Inout_ _Interlocked_operand_ LONG_PTR volatile *addend)
 {
 #ifdef _WIN64
 	return (LONG_PTR)_InterlockedDecrement64 ((PLONG64)addend);
@@ -227,14 +227,14 @@ FORCEINLINE BOOLEAN _r_event_test (_In_ PR_EVENT event_object)
 
 FORCEINLINE VOID _r_event_reference (_Inout_ PR_EVENT event_object)
 {
-	_InterlockedExchangeAddPointer ((PLONG_PTR)(&event_object->value), PR_EVENT_REFCOUNT_INC);
+	InterlockedExchangeAddPointer ((PLONG_PTR)(&event_object->value), PR_EVENT_REFCOUNT_INC);
 }
 
 FORCEINLINE VOID _r_event_dereference (_Inout_ PR_EVENT event_object, _In_opt_ HANDLE event_handle)
 {
 	ULONG_PTR value;
 
-	value = _InterlockedExchangeAddPointer ((PLONG_PTR)(&event_object->value), -PR_EVENT_REFCOUNT_INC);
+	value = InterlockedExchangeAddPointer ((PLONG_PTR)(&event_object->value), -PR_EVENT_REFCOUNT_INC);
 
 	if (((value >> PR_EVENT_REFCOUNT_SHIFT) & PR_EVENT_REFCOUNT_MASK) - 1 == 0)
 	{
@@ -398,7 +398,7 @@ FORCEINLINE VOID _r_queuedlock_releaseexclusive (_Inout_ PR_QUEUED_LOCK queued_l
 {
 	ULONG_PTR value;
 
-	value = (ULONG_PTR)_InterlockedExchangeAddPointer ((PLONG_PTR)&queued_lock->value, -(LONG_PTR)PR_QUEUED_LOCK_OWNED);
+	value = (ULONG_PTR)InterlockedExchangeAddPointer ((PLONG_PTR)&queued_lock->value, -(LONG_PTR)PR_QUEUED_LOCK_OWNED);
 
 	if ((value & (PR_QUEUED_LOCK_WAITERS | PR_QUEUED_LOCK_TRAVERSING)) == PR_QUEUED_LOCK_WAITERS)
 	{

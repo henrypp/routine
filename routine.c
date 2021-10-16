@@ -727,7 +727,7 @@ FORCEINLINE PR_QUEUED_WAIT_BLOCK _r_queuedlock_preparetowake (_Inout_ PR_QUEUED_
 			if (!is_ignoreowned)
 			{
 				// Clear the traversing bit.
-				_InterlockedExchangeAddPointer ((PLONG_PTR)&queued_lock->value, -(LONG_PTR)PR_QUEUED_LOCK_TRAVERSING);
+				InterlockedExchangeAddPointer ((PLONG_PTR)&queued_lock->value, -(LONG_PTR)PR_QUEUED_LOCK_TRAVERSING);
 			}
 
 			break;
@@ -1179,7 +1179,7 @@ VOID FASTCALL _r_protection_release_ex (_Inout_ PR_RUNDOWN_PROTECT protection)
 			// block. If we are the last user, we must wake up the waiter.
 			wait_block = (PR_RUNDOWN_WAIT_BLOCK)(value & ~PR_RUNDOWN_ACTIVE);
 
-			if (_InterlockedDecrementPointer (&wait_block->count) == 0)
+			if (InterlockedDecrementPointer (&wait_block->count) == 0)
 			{
 				_r_event_set (&wait_block->wake_event);
 			}
