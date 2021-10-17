@@ -272,7 +272,7 @@ BOOLEAN _r_app_initialize ()
 	{
 		HRESULT hr = CoInitializeEx (NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 
-		if (FAILED (hr))
+		if (!SUCCEEDED (hr))
 		{
 #if defined(APP_CONSOLE)
 			wprintf (L"Error! COM library initialization failed 0x%08" TEXT (PRIX32) L"!\r\n", hr);
