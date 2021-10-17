@@ -5616,18 +5616,35 @@ NTSTATUS _r_sys_decompressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ UL
 	ULONG allocation_length;
 	ULONG uncompressed_length;
 	NTSTATUS status;
+	ULONG attempts;
 
-	allocation_length = buffer_length * 8;
+	allocation_length = buffer_length * 4;
 	memory_buffer = _r_mem_allocatezero (allocation_length);
 
 	status = RtlDecompressBuffer (format, memory_buffer, allocation_length, buffer, buffer_length, &uncompressed_length);
 
 	if (status == STATUS_BAD_COMPRESSION_BUFFER)
 	{
-		allocation_length *= 4;
-		memory_buffer = _r_mem_reallocatezero (memory_buffer, allocation_length);
+		attempts = 6;
 
-		status = RtlDecompressBuffer (format, memory_buffer, allocation_length, buffer, buffer_length, &uncompressed_length);
+		do
+		{
+			allocation_length *= 2;
+
+			if (allocation_length > PR_SIZE_BUFFER_OVERFLOW)
+			{
+				status = STATUS_INSUFFICIENT_RESOURCES;
+				break;
+			}
+
+			memory_buffer = _r_mem_reallocatezero (memory_buffer, allocation_length);
+
+			status = RtlDecompressBuffer (format, memory_buffer, allocation_length, buffer, buffer_length, &uncompressed_length);
+
+			if (status != STATUS_BAD_COMPRESSION_BUFFER)
+				break;
+		}
+		while (--attempts);
 	}
 
 	if (status == STATUS_SUCCESS)
@@ -8254,6 +8271,7 @@ HICON _r_loadicon (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR icon_name, _In_ LONG i
 
 	HICON hicon = NULL;
 	ULONG hash_code;
+	ULONG name_hash;
 
 	if (is_shared)
 	{
@@ -8266,7 +8284,16 @@ HICON _r_loadicon (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR icon_name, _In_ LONG i
 			_r_initonce_end (&init_once);
 		}
 
-		hash_code = (PtrToUlong (icon_name) ^ (PtrToUlong (hinst) >> 5) ^ (icon_size << 3) ^ icon_size);
+		if (IS_INTRESOURCE (icon_name))
+		{
+			name_hash = PtrToUlong (icon_name);
+		}
+		else
+		{
+			name_hash = _r_str_gethash (icon_name);
+		}
+
+		hash_code = (name_hash ^ (PtrToUlong (hinst) >> 5) ^ (icon_size << 3) ^ icon_size);
 
 		_r_queuedlock_acquireshared (&queued_lock);
 
