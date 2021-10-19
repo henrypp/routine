@@ -1586,6 +1586,9 @@ SIZE_T _r_str_findchar (_In_ PR_STRINGREF string, _In_ WCHAR character, _In_ BOO
 _Success_ (return != SIZE_MAX)
 SIZE_T _r_str_findlastchar (_In_ PR_STRINGREF string, _In_ WCHAR character, _In_ BOOLEAN is_ignorecase);
 
+_Success_ (return != SIZE_MAX)
+SIZE_T _r_str_findstring (_In_ PR_STRINGREF string, _In_ PR_STRINGREF sub_string, _In_ BOOLEAN is_ignorecase);
+
 _Success_ (return)
 BOOLEAN _r_str_match (_In_ LPCWSTR string, _In_ LPCWSTR pattern, _In_ BOOLEAN is_ignorecase);
 
@@ -2668,6 +2671,11 @@ LONG _r_status_getheight (_In_ HWND hwnd, _In_ INT ctrl_id);
 VOID _r_status_setstyle (_In_ HWND hwnd, _In_ INT ctrl_id, _In_opt_ INT height);
 VOID _r_status_settextformat (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT part_id, _In_ _Printf_format_string_ LPCWSTR format, ...);
 
+FORCEINLINE VOID _r_status_setparts (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT count, _In_reads_ (count) PINT parts)
+{
+	SendDlgItemMessage (hwnd, ctrl_id, SB_SETPARTS, (WPARAM)count, (LPARAM)parts);
+}
+
 FORCEINLINE VOID _r_status_settext (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT part_id, _In_opt_ LPCWSTR text)
 {
 	SendDlgItemMessage (hwnd, ctrl_id, SB_SETTEXT, MAKEWPARAM (part_id, 0), (LPARAM)text);
@@ -2677,7 +2685,7 @@ FORCEINLINE VOID _r_status_settext (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT p
 // Control: rebar
 //
 
-VOID _r_rebar_insertband (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ UINT band_id, _In_ HWND hchild, _In_ UINT style, _In_ UINT width, _In_ UINT height);
+VOID _r_rebar_insertband (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ UINT band_id, _In_ HWND hchild, _In_opt_ UINT style, _In_ UINT width, _In_ UINT height);
 VOID _r_rebar_deleteband (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ UINT band_id);
 
 FORCEINLINE LONG _r_rebar_getheight (_In_ HWND hwnd, _In_ INT ctrl_id)

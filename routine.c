@@ -3727,8 +3727,8 @@ BOOLEAN _r_str_isendsswith (_In_ PR_STRINGREF string, _In_ PR_STRINGREF suffix, 
 		return FALSE;
 
 	_r_obj_initializestringref_ex (&sr,
-								  (LPWSTR)PTR_ADD_OFFSET (string->buffer, string->length - suffix->length),
-								  suffix->length
+								   (LPWSTR)PTR_ADD_OFFSET (string->buffer, string->length - suffix->length),
+								   suffix->length
 	);
 
 	return _r_str_isequal (&sr, suffix, is_ignorecase);
@@ -4550,6 +4550,69 @@ SIZE_T _r_str_findlastchar (_In_ PR_STRINGREF string, _In_ WCHAR character, _In_
 	return SIZE_MAX;
 }
 
+_Success_ (return != SIZE_MAX)
+SIZE_T _r_str_findstring (_In_ PR_STRINGREF string, _In_ PR_STRINGREF sub_string, _In_ BOOLEAN is_ignorecase)
+{
+	R_STRINGREF sr1;
+	R_STRINGREF sr2;
+	SIZE_T length1;
+	SIZE_T length2;
+
+	WCHAR chr1;
+	WCHAR chr2;
+
+	length1 = string->length / sizeof (WCHAR);
+	length2 = sub_string->length / sizeof (WCHAR);
+
+	// Can't be a substring if it's bigger than the first string.
+	if (length2 > length1)
+		return SIZE_MAX;
+
+	// We always get a match if the substring is zero-length.
+	if (length2 == 0)
+		return 0;
+
+	_r_obj_initializestringref_ex (
+		&sr1,
+		string->buffer,
+		sub_string->length - sizeof (WCHAR)
+	);
+
+	_r_obj_initializestringref_ex (
+		&sr2,
+		sub_string->buffer,
+		sub_string->length - sizeof (WCHAR)
+	);
+
+	if (is_ignorecase)
+	{
+		chr2 = _r_str_lower (*sr2.buffer++);
+	}
+	else
+	{
+		chr2 = *sr2.buffer++;
+	}
+
+	for (SIZE_T i = length1 - length2 + 1; i != 0; i--)
+	{
+		if (is_ignorecase)
+		{
+			chr1 = _r_str_lower (*sr1.buffer++);
+		}
+		else
+		{
+			chr1 = *sr1.buffer++;
+		}
+
+		if (chr2 == chr1 && _r_str_isequal (&sr1, &sr2, is_ignorecase))
+		{
+			return (SIZE_T)(sr1.buffer - string->buffer - 1);
+		}
+	}
+
+	return SIZE_MAX;
+}
+
 _Success_ (return)
 BOOLEAN _r_str_match (_In_ LPCWSTR string, _In_ LPCWSTR pattern, _In_ BOOLEAN is_ignorecase)
 {
@@ -4637,13 +4700,13 @@ BOOLEAN _r_str_splitatchar (_In_ PR_STRINGREF string, _In_ WCHAR separator, _Out
 	}
 
 	_r_obj_initializestringref_ex (first_part,
-								  input.buffer,
-								  index * sizeof (WCHAR)
+								   input.buffer,
+								   index * sizeof (WCHAR)
 	);
 
 	_r_obj_initializestringref_ex (second_part,
-								  PTR_ADD_OFFSET (input.buffer, index * sizeof (WCHAR) + sizeof (UNICODE_NULL)),
-								  input.length - index * sizeof (WCHAR) - sizeof (UNICODE_NULL)
+								   PTR_ADD_OFFSET (input.buffer, index * sizeof (WCHAR) + sizeof (UNICODE_NULL)),
+								   input.length - index * sizeof (WCHAR) - sizeof (UNICODE_NULL)
 	);
 
 	return TRUE;
@@ -4666,13 +4729,13 @@ BOOLEAN _r_str_splitatlastchar (_In_ PR_STRINGREF string, _In_ WCHAR separator, 
 	}
 
 	_r_obj_initializestringref_ex (first_part,
-								  input.buffer,
-								  index * sizeof (WCHAR)
+								   input.buffer,
+								   index * sizeof (WCHAR)
 	);
 
 	_r_obj_initializestringref_ex (second_part,
-								  PTR_ADD_OFFSET (input.buffer, index * sizeof (WCHAR) + sizeof (UNICODE_NULL)),
-								  input.length - index * sizeof (WCHAR) - sizeof (UNICODE_NULL)
+								   PTR_ADD_OFFSET (input.buffer, index * sizeof (WCHAR) + sizeof (UNICODE_NULL)),
+								   input.length - index * sizeof (WCHAR) - sizeof (UNICODE_NULL)
 	);
 
 	return TRUE;
@@ -10175,7 +10238,7 @@ VOID _r_status_settextformat (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT part_id
 // Control: rebar
 //
 
-VOID _r_rebar_insertband (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ UINT band_id, _In_ HWND hchild, _In_ UINT style, _In_ UINT width, _In_ UINT height)
+VOID _r_rebar_insertband (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ UINT band_id, _In_ HWND hchild, _In_opt_ UINT style, _In_ UINT width, _In_ UINT height)
 {
 	REBARBANDINFO rbi = {0};
 
@@ -10186,7 +10249,7 @@ VOID _r_rebar_insertband (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ UINT band_id, _
 	rbi.cxMinChild = width;
 	rbi.cyMinChild = height;
 
-	if(style)
+	if (style)
 	{
 		rbi.fMask |= RBBIM_STYLE;
 		rbi.fStyle = style;
