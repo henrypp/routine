@@ -299,7 +299,7 @@ FORCEINLINE VOID FASTCALL _r_initonce_end (_Inout_ PR_INITONCE init_once)
 VOID _r_freelist_initialize (_Out_ PR_FREE_LIST free_list, _In_ SIZE_T size, _In_ ULONG maximum_count);
 PVOID _r_freelist_allocateitem (_Inout_ PR_FREE_LIST free_list);
 VOID _r_freelist_destroy (_Inout_ PR_FREE_LIST free_list);
-VOID _r_freelist_deleteitem (_Inout_ PR_FREE_LIST free_list, _In_ PVOID memory);
+VOID _r_freelist_deleteitem (_Inout_ PR_FREE_LIST free_list, _In_ PVOID memory_address);
 
 //
 // Synchronization: Queued lock
@@ -705,18 +705,18 @@ FORCEINLINE VOID _r_obj_clearreference (_Inout_ PVOID_PTR object_body)
 #define _r_obj_isbyteempty(string) \
     ((string) == NULL || (string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == ANSI_NULL)
 
-PR_BYTE _r_obj_createbyteex (_In_opt_ LPSTR buffer, _In_ SIZE_T length);
+PR_BYTE _r_obj_createbyte_ex (_In_opt_ LPSTR buffer, _In_ SIZE_T length);
 
 VOID _r_obj_setbytelength (_Inout_ PR_BYTE string, _In_ SIZE_T length);
 
 FORCEINLINE PR_BYTE _r_obj_createbyte (_In_ LPSTR string)
 {
-	return _r_obj_createbyteex (string, _r_str_getbytelength (string));
+	return _r_obj_createbyte_ex (string, _r_str_getbytelength (string));
 }
 
 FORCEINLINE PR_BYTE _r_obj_createbyte2 (_In_ PR_BYTE string)
 {
-	return _r_obj_createbyteex (string->buffer, string->length);
+	return _r_obj_createbyte_ex (string->buffer, string->length);
 }
 
 FORCEINLINE VOID _r_obj_writebytenullterminator (_In_ PR_BYTE string)
@@ -734,7 +734,7 @@ FORCEINLINE VOID _r_obj_writebytenullterminator (_In_ PR_BYTE string)
 #define _r_obj_isstringempty2(string) \
     ((string)->length == 0 || (string)->buffer[0] == UNICODE_NULL)
 
-PR_STRING _r_obj_createstringex (_In_opt_ LPCWSTR buffer, _In_ SIZE_T length);
+PR_STRING _r_obj_createstring_ex (_In_opt_ LPCWSTR buffer, _In_ SIZE_T length);
 
 PR_STRING _r_obj_concatstrings (_In_ SIZE_T count, ...);
 PR_STRING _r_obj_concatstrings_v (_In_ SIZE_T count, _In_ va_list arg_ptr);
@@ -750,22 +750,22 @@ VOID _r_obj_setstringlength (_Inout_ PR_STRING string, _In_ SIZE_T length);
 
 FORCEINLINE PR_STRING _r_obj_createstring (_In_ LPCWSTR string)
 {
-	return _r_obj_createstringex (string, _r_str_getlength (string) * sizeof (WCHAR));
+	return _r_obj_createstring_ex (string, _r_str_getlength (string) * sizeof (WCHAR));
 }
 
 FORCEINLINE PR_STRING _r_obj_createstring2 (_In_ PR_STRING string)
 {
-	return _r_obj_createstringex (string->buffer, string->length);
+	return _r_obj_createstring_ex (string->buffer, string->length);
 }
 
 FORCEINLINE PR_STRING _r_obj_createstring3 (_In_ PR_STRINGREF string)
 {
-	return _r_obj_createstringex (string->buffer, string->length);
+	return _r_obj_createstring_ex (string->buffer, string->length);
 }
 
 FORCEINLINE PR_STRING _r_obj_createstringfromunicodestring (_In_ PUNICODE_STRING string)
 {
-	return _r_obj_createstringex (string->Buffer, string->Length);
+	return _r_obj_createstring_ex (string->Buffer, string->Length);
 }
 
 _Ret_maybenull_
@@ -836,7 +836,7 @@ FORCEINLINE VOID _r_obj_trimstringtonullterminator (_In_ PR_STRING string)
 // 8-bit string reference object
 //
 
-FORCEINLINE VOID _r_obj_initializebyterefex (_Out_ PR_BYTEREF string, _In_opt_ LPSTR buffer, _In_opt_ SIZE_T length)
+FORCEINLINE VOID _r_obj_initializebyteref_ex (_Out_ PR_BYTEREF string, _In_opt_ LPSTR buffer, _In_opt_ SIZE_T length)
 {
 	string->buffer = buffer;
 	string->length = length;
@@ -844,34 +844,34 @@ FORCEINLINE VOID _r_obj_initializebyterefex (_Out_ PR_BYTEREF string, _In_opt_ L
 
 FORCEINLINE VOID _r_obj_initializebyterefempty (_Out_ PR_BYTEREF string)
 {
-	_r_obj_initializebyterefex (string, NULL, 0);
+	_r_obj_initializebyteref_ex (string, NULL, 0);
 }
 
 FORCEINLINE VOID _r_obj_initializebyterefconst (_Out_ PR_BYTEREF string, _In_ LPCSTR buffer)
 {
-	_r_obj_initializebyterefex (string, (LPSTR)buffer, _r_str_getbytelength (buffer));
+	_r_obj_initializebyteref_ex (string, (LPSTR)buffer, _r_str_getbytelength (buffer));
 }
 
 FORCEINLINE VOID _r_obj_initializebyteref (_Out_ PR_BYTEREF string, _In_ LPSTR buffer)
 {
-	_r_obj_initializebyterefex (string, buffer, _r_str_getbytelength (buffer));
+	_r_obj_initializebyteref_ex (string, buffer, _r_str_getbytelength (buffer));
 }
 
 FORCEINLINE VOID _r_obj_initializebyteref2 (_Out_ PR_BYTEREF string, _In_ PR_BYTE buffer)
 {
-	_r_obj_initializebyterefex (string, buffer->buffer, buffer->length);
+	_r_obj_initializebyteref_ex (string, buffer->buffer, buffer->length);
 }
 
 FORCEINLINE VOID _r_obj_initializebyteref3 (_Out_ PR_BYTEREF string, _In_ PR_BYTEREF buffer)
 {
-	_r_obj_initializebyterefex (string, buffer->buffer, buffer->length);
+	_r_obj_initializebyteref_ex (string, buffer->buffer, buffer->length);
 }
 
 //
 // 16-bit string reference object
 //
 
-FORCEINLINE VOID _r_obj_initializestringrefex (_Out_ PR_STRINGREF string, _In_opt_ LPWSTR buffer, _In_opt_ SIZE_T length)
+FORCEINLINE VOID _r_obj_initializestringref_ex (_Out_ PR_STRINGREF string, _In_opt_ LPWSTR buffer, _In_opt_ SIZE_T length)
 {
 	string->buffer = buffer;
 	string->length = length;
@@ -879,39 +879,39 @@ FORCEINLINE VOID _r_obj_initializestringrefex (_Out_ PR_STRINGREF string, _In_op
 
 FORCEINLINE VOID _r_obj_initializestringrefempty (_Out_ PR_STRINGREF string)
 {
-	_r_obj_initializestringrefex (string, NULL, 0);
+	_r_obj_initializestringref_ex (string, NULL, 0);
 }
 
 FORCEINLINE VOID _r_obj_initializestringrefconst (_Out_ PR_STRINGREF string, _In_ LPCWSTR buffer)
 {
-	_r_obj_initializestringrefex (string, (LPWSTR)buffer, _r_str_getlength (buffer) * sizeof (WCHAR));
+	_r_obj_initializestringref_ex (string, (LPWSTR)buffer, _r_str_getlength (buffer) * sizeof (WCHAR));
 }
 
 FORCEINLINE VOID _r_obj_initializestringref (_Out_ PR_STRINGREF string, _In_ LPWSTR buffer)
 {
-	_r_obj_initializestringrefex (string, buffer, _r_str_getlength (buffer) * sizeof (WCHAR));
+	_r_obj_initializestringref_ex (string, buffer, _r_str_getlength (buffer) * sizeof (WCHAR));
 }
 
 FORCEINLINE VOID _r_obj_initializestringref2 (_Out_ PR_STRINGREF string, _In_ PR_STRING buffer)
 {
-	_r_obj_initializestringrefex (string, buffer->buffer, buffer->length);
+	_r_obj_initializestringref_ex (string, buffer->buffer, buffer->length);
 }
 
 FORCEINLINE VOID _r_obj_initializestringref3 (_Out_ PR_STRINGREF string, _In_ PR_STRINGREF buffer)
 {
-	_r_obj_initializestringrefex (string, buffer->buffer, buffer->length);
+	_r_obj_initializestringref_ex (string, buffer->buffer, buffer->length);
 }
 
 FORCEINLINE VOID _r_obj_initializestringref4 (_Out_ PR_STRINGREF string, _In_ PUNICODE_STRING buffer)
 {
-	_r_obj_initializestringrefex (string, buffer->Buffer, buffer->Length);
+	_r_obj_initializestringref_ex (string, buffer->Buffer, buffer->Length);
 }
 
 //
 // Unicode string object
 //
 
-FORCEINLINE BOOLEAN _r_obj_initializeunicodestringex (_Out_ PUNICODE_STRING string, _In_opt_ LPWSTR buffer, _In_opt_ USHORT length, _In_opt_ USHORT max_length)
+FORCEINLINE BOOLEAN _r_obj_initializeunicodestring_ex (_Out_ PUNICODE_STRING string, _In_opt_ LPWSTR buffer, _In_opt_ USHORT length, _In_opt_ USHORT max_length)
 {
 	string->Length = length;
 	string->MaximumLength = max_length;
@@ -922,12 +922,12 @@ FORCEINLINE BOOLEAN _r_obj_initializeunicodestringex (_Out_ PUNICODE_STRING stri
 
 FORCEINLINE BOOLEAN _r_obj_initializeunicodestring2 (_Out_ PUNICODE_STRING string, _In_ PR_STRING buffer)
 {
-	return _r_obj_initializeunicodestringex (string, buffer->buffer, (USHORT)buffer->length, (USHORT)buffer->length + sizeof (UNICODE_NULL));
+	return _r_obj_initializeunicodestring_ex (string, buffer->buffer, (USHORT)buffer->length, (USHORT)buffer->length + sizeof (UNICODE_NULL));
 }
 
 FORCEINLINE BOOLEAN _r_obj_initializeunicodestring3 (_Out_ PUNICODE_STRING string, _In_ PR_STRINGREF buffer)
 {
-	return _r_obj_initializeunicodestringex (string, buffer->buffer, (USHORT)buffer->length, (USHORT)buffer->length + sizeof (UNICODE_NULL));
+	return _r_obj_initializeunicodestring_ex (string, buffer->buffer, (USHORT)buffer->length, (USHORT)buffer->length + sizeof (UNICODE_NULL));
 }
 
 //
@@ -935,25 +935,25 @@ FORCEINLINE BOOLEAN _r_obj_initializeunicodestring3 (_Out_ PUNICODE_STRING strin
 //
 
 VOID _r_obj_initializestringbuilder (_Out_ PR_STRINGBUILDER string);
-VOID _r_obj_appendstringbuilderex (_Inout_ PR_STRINGBUILDER string, _In_ LPCWSTR text, _In_ SIZE_T length);
+VOID _r_obj_appendstringbuilder_ex (_Inout_ PR_STRINGBUILDER string, _In_ LPCWSTR text, _In_ SIZE_T length);
 VOID _r_obj_appendstringbuilderformat_v (_Inout_ PR_STRINGBUILDER string, _In_ _Printf_format_string_ LPCWSTR format, _In_ va_list arg_ptr);
-VOID _r_obj_insertstringbuilderex (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ LPCWSTR text, _In_ SIZE_T length);
+VOID _r_obj_insertstringbuilder_ex (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ LPCWSTR text, _In_ SIZE_T length);
 VOID _r_obj_insertstringbuilderformat_v (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ _Printf_format_string_ LPCWSTR format, _In_ va_list arg_ptr);
 VOID _r_obj_resizestringbuilder (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T new_capacity);
 
 FORCEINLINE VOID _r_obj_appendstringbuilder (_Inout_ PR_STRINGBUILDER string, _In_ LPCWSTR text)
 {
-	_r_obj_appendstringbuilderex (string, text, _r_str_getlength (text) * sizeof (WCHAR));
+	_r_obj_appendstringbuilder_ex (string, text, _r_str_getlength (text) * sizeof (WCHAR));
 }
 
 FORCEINLINE VOID _r_obj_appendstringbuilder2 (_Inout_ PR_STRINGBUILDER string, _In_ PR_STRING text)
 {
-	_r_obj_appendstringbuilderex (string, text->buffer, text->length);
+	_r_obj_appendstringbuilder_ex (string, text->buffer, text->length);
 }
 
 FORCEINLINE VOID _r_obj_appendstringbuilder3 (_Inout_ PR_STRINGBUILDER string, _In_ PR_STRINGREF text)
 {
-	_r_obj_appendstringbuilderex (string, text->buffer, text->length);
+	_r_obj_appendstringbuilder_ex (string, text->buffer, text->length);
 }
 
 FORCEINLINE VOID _r_obj_appendstringbuilderformat (_Inout_ PR_STRINGBUILDER string, _In_ _Printf_format_string_ LPCWSTR format, ...)
@@ -967,17 +967,17 @@ FORCEINLINE VOID _r_obj_appendstringbuilderformat (_Inout_ PR_STRINGBUILDER stri
 
 FORCEINLINE VOID _r_obj_insertstringbuilder (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ LPCWSTR text)
 {
-	_r_obj_insertstringbuilderex (string, index, text, _r_str_getlength (text) * sizeof (WCHAR));
+	_r_obj_insertstringbuilder_ex (string, index, text, _r_str_getlength (text) * sizeof (WCHAR));
 }
 
 FORCEINLINE VOID _r_obj_insertstringbuilder2 (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ PR_STRING text)
 {
-	_r_obj_insertstringbuilderex (string, index, text->buffer, text->length);
+	_r_obj_insertstringbuilder_ex (string, index, text->buffer, text->length);
 }
 
 FORCEINLINE VOID _r_obj_insertstringbuilder3 (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ PR_STRINGREF text)
 {
-	_r_obj_insertstringbuilderex (string, index, text->buffer, text->length);
+	_r_obj_insertstringbuilder_ex (string, index, text->buffer, text->length);
 }
 
 FORCEINLINE VOID _r_obj_insertstringbuilderformat (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ _Printf_format_string_ LPCWSTR format, ...)
@@ -1008,7 +1008,7 @@ FORCEINLINE PR_STRING _r_obj_finalstringbuilder (_In_ PR_STRINGBUILDER string)
 #define _r_obj_isarrayempty(array_node) \
     ((array_node) == NULL || (array_node)->count == 0)
 
-PR_ARRAY _r_obj_createarrayex (_In_ SIZE_T item_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
+PR_ARRAY _r_obj_createarray_ex (_In_ SIZE_T item_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
 
 _Ret_maybenull_
 PVOID _r_obj_getarrayitem (_In_opt_ PR_ARRAY array_node, _In_ SIZE_T index);
@@ -1017,7 +1017,7 @@ VOID _r_obj_cleararray (_Inout_ PR_ARRAY array_node);
 VOID _r_obj_resizearray (_Inout_ PR_ARRAY array_node, _In_ SIZE_T new_capacity);
 
 _Ret_maybenull_
-PVOID _r_obj_addarrayitemex (_Inout_ PR_ARRAY array_node, _In_opt_ PVOID item, _Out_opt_ PSIZE_T new_index);
+PVOID _r_obj_addarrayitem_ex (_Inout_ PR_ARRAY array_node, _In_opt_ PVOID item, _Out_opt_ PSIZE_T new_index);
 
 VOID _r_obj_addarrayitems (_Inout_ PR_ARRAY array_node, _In_ PVOID items, _In_ SIZE_T count);
 VOID _r_obj_removearrayitems (_Inout_ PR_ARRAY array_node, _In_ SIZE_T start_pos, _In_ SIZE_T count);
@@ -1025,12 +1025,12 @@ VOID _r_obj_removearrayitems (_Inout_ PR_ARRAY array_node, _In_ SIZE_T start_pos
 _Ret_maybenull_
 FORCEINLINE PVOID _r_obj_addarrayitem (_Inout_ PR_ARRAY array_node, _In_opt_ PVOID item)
 {
-	return _r_obj_addarrayitemex (array_node, item, NULL);
+	return _r_obj_addarrayitem_ex (array_node, item, NULL);
 }
 
 FORCEINLINE PR_ARRAY _r_obj_createarray (_In_ SIZE_T item_size, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
 {
-	return _r_obj_createarrayex (item_size, 2, cleanup_callback);
+	return _r_obj_createarray_ex (item_size, 2, cleanup_callback);
 }
 
 _Ret_maybenull_
@@ -1062,10 +1062,10 @@ FORCEINLINE VOID _r_obj_removearrayitem (_In_ PR_ARRAY array_node, _In_ SIZE_T i
 #define _r_obj_islistempty(list_node) \
     ((list_node) == NULL || (list_node)->count == 0)
 
-PR_LIST _r_obj_createlistex (_In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
+PR_LIST _r_obj_createlist_ex (_In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
 
 _Ret_maybenull_
-PVOID _r_obj_addlistitemex (_Inout_ PR_LIST list_node, _In_opt_ PVOID item, _Out_opt_ PSIZE_T new_index);
+PVOID _r_obj_addlistitem_ex (_Inout_ PR_LIST list_node, _In_opt_ PVOID item, _Out_opt_ PSIZE_T new_index);
 
 VOID _r_obj_clearlist (_Inout_ PR_LIST list_node);
 SIZE_T _r_obj_findlistitem (_In_ PR_LIST list_node, _In_ PVOID list_item);
@@ -1077,12 +1077,12 @@ VOID _r_obj_setlistitem (_Inout_ PR_LIST list_node, _In_ SIZE_T index, _In_opt_ 
 _Ret_maybenull_
 FORCEINLINE PVOID _r_obj_addlistitem (_Inout_ PR_LIST list_node, _In_opt_ PVOID item)
 {
-	return _r_obj_addlistitemex (list_node, item, NULL);
+	return _r_obj_addlistitem_ex (list_node, item, NULL);
 }
 
 FORCEINLINE PR_LIST _r_obj_createlist (_In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
 {
-	return _r_obj_createlistex (2, cleanup_callback);
+	return _r_obj_createlist_ex (2, cleanup_callback);
 }
 
 _Ret_maybenull_
@@ -1118,7 +1118,7 @@ FORCEINLINE VOID _r_obj_removelistitem (_Inout_ PR_LIST list_node, _In_ SIZE_T i
 #define _r_obj_ishashtableempty(hashtable) \
     ((hashtable) == NULL || (hashtable)->count == 0)
 
-PR_HASHTABLE _r_obj_createhashtableex (_In_ SIZE_T entry_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
+PR_HASHTABLE _r_obj_createhashtable_ex (_In_ SIZE_T entry_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
 
 _Ret_maybenull_
 PVOID _r_obj_addhashtableitem (_Inout_ PR_HASHTABLE hashtable, _In_ ULONG_PTR hash_code, _In_opt_ PVOID entry);
@@ -1136,7 +1136,7 @@ VOID _r_obj_resizehashtable (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T new_cap
 
 FORCEINLINE PR_HASHTABLE _r_obj_createhashtable (_In_ SIZE_T entry_size, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
 {
-	return _r_obj_createhashtableex (entry_size, 2, cleanup_callback);
+	return _r_obj_createhashtable_ex (entry_size, 2, cleanup_callback);
 }
 
 FORCEINLINE SIZE_T _r_obj_gethashtablesize (_In_opt_ PR_HASHTABLE hashtable)
@@ -1153,7 +1153,7 @@ FORCEINLINE SIZE_T _r_obj_gethashtablesize (_In_opt_ PR_HASHTABLE hashtable)
 
 FORCEINLINE PR_HASHTABLE _r_obj_createhashtablepointer (_In_ SIZE_T initial_capacity)
 {
-	return _r_obj_createhashtableex (sizeof (R_OBJECT_POINTER), initial_capacity, &_r_util_dereferencehashtableptrprocedure);
+	return _r_obj_createhashtable_ex (sizeof (R_OBJECT_POINTER), initial_capacity, &_r_util_dereferencehashtableptrprocedure);
 }
 
 _Ret_maybenull_
@@ -1195,10 +1195,10 @@ _Success_ (return)
 BOOLEAN _r_format_bytesize64 (_Out_writes_ (buffer_size) LPWSTR buffer, _In_ UINT buffer_size, _In_ ULONG64 bytes);
 
 _Ret_maybenull_
-PR_STRING _r_format_filetimeex (_In_ LPFILETIME file_time, _In_ ULONG flags);
+PR_STRING _r_format_filetime_ex (_In_ LPFILETIME file_time, _In_ ULONG flags);
 
 _Ret_maybenull_
-PR_STRING _r_format_unixtimeex (_In_ LONG64 unixtime, _In_ ULONG flags);
+PR_STRING _r_format_unixtime_ex (_In_ LONG64 unixtime, _In_ ULONG flags);
 
 _Ret_maybenull_
 PR_STRING _r_format_interval (_In_ LONG64 seconds, _In_ INT digits);
@@ -1209,7 +1209,7 @@ BOOLEAN _r_format_number (_Out_writes_ (buffer_size) LPWSTR buffer, _In_ ULONG b
 _Ret_maybenull_
 FORCEINLINE PR_STRING _r_fmt_unixtime (_In_ LONG64 unixtime)
 {
-	return _r_format_unixtimeex (unixtime, FDTF_DEFAULT);
+	return _r_format_unixtime_ex (unixtime, FDTF_DEFAULT);
 }
 
 //
@@ -1541,19 +1541,19 @@ BOOLEAN _r_str_touinteger64 (_In_ PR_STRINGREF string, _In_ ULONG base, _Out_ PU
 BOOLEAN _r_str_tointeger64 (_In_ PR_STRINGREF string, _In_ ULONG base, _Out_opt_ PULONG new_base, _Out_ PLONG64 integer);
 
 BOOLEAN _r_str_toboolean (_In_ PR_STRINGREF string);
-LONG _r_str_tolongex (_In_ PR_STRINGREF string, _In_ ULONG base);
+LONG _r_str_tolong_ex (_In_ PR_STRINGREF string, _In_ ULONG base);
 LONG64 _r_str_tolong64 (_In_ PR_STRINGREF string);
-ULONG _r_str_toulongex (_In_ PR_STRINGREF string, _In_ ULONG base);
+ULONG _r_str_toulong_ex (_In_ PR_STRINGREF string, _In_ ULONG base);
 ULONG64 _r_str_toulong64 (_In_ PR_STRINGREF string);
 
 FORCEINLINE LONG _r_str_tolong (_In_ PR_STRINGREF string)
 {
-	return _r_str_tolongex (string, 10);
+	return _r_str_tolong_ex (string, 10);
 }
 
 FORCEINLINE ULONG _r_str_toulong (_In_ PR_STRINGREF string)
 {
-	return _r_str_toulongex (string, 10);
+	return _r_str_toulong_ex (string, 10);
 }
 
 FORCEINLINE INT _r_str_tointeger (_In_ PR_STRINGREF string)
@@ -2444,6 +2444,11 @@ FORCEINLINE ULONG _r_ctrl_getstringlength (_In_ HWND hwnd, _In_ INT ctrl_id)
 	return (ULONG)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXTLENGTH, 0, 0);
 }
 
+FORCEINLINE VOID _r_ctrl_setcuebanner (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ LPCWSTR text)
+{
+	SendDlgItemMessage (hwnd, ctrl_id, EM_SETCUEBANNER, FALSE, (LPARAM)text);
+}
+
 FORCEINLINE VOID _r_ctrl_setstring (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ LPCWSTR text)
 {
 	SetDlgItemText (hwnd, ctrl_id, text);
@@ -2534,7 +2539,7 @@ FORCEINLINE INT _r_tab_getitemcount (_In_ HWND hwnd, _In_ INT ctrl_id)
 
 INT _r_listview_addcolumn (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT column_id, _In_opt_ LPCWSTR title, _In_opt_ INT width, _In_opt_ INT fmt);
 INT _r_listview_addgroup (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT group_id, _In_opt_ LPCWSTR title, _In_opt_ UINT align, _In_opt_ UINT state, _In_opt_ UINT state_mask);
-INT _r_listview_additemex (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id, _In_opt_ LPCWSTR text, _In_ INT image_id, _In_ INT group_id, _In_opt_ LPARAM lparam);
+INT _r_listview_additem_ex (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id, _In_opt_ LPCWSTR text, _In_ INT image_id, _In_ INT group_id, _In_opt_ LPARAM lparam);
 
 _Success_ (return != -1)
 INT _r_listview_finditem (_In_ HWND hwnd, _In_ INT listview_id, _In_ INT start_pos, _In_ LPARAM lparam);
@@ -2558,7 +2563,7 @@ VOID _r_listview_redraw (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id);
 
 VOID _r_listview_setcolumn (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT column_id, _In_opt_ LPCWSTR text, _In_opt_ INT width);
 VOID _r_listview_setcolumnsortindex (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT column_id, _In_ INT);
-VOID _r_listview_setitemex (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id, _In_ INT subitem_id, _In_opt_ LPCWSTR text, _In_ INT image_id, _In_ INT group_id, _In_opt_ LPARAM lparam);
+VOID _r_listview_setitem_ex (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id, _In_ INT subitem_id, _In_opt_ LPCWSTR text, _In_ INT image_id, _In_ INT group_id, _In_opt_ LPARAM lparam);
 VOID _r_listview_setitemcheck (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id, _In_ BOOLEAN is_check);
 VOID _r_listview_setitemvisible (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id);
 VOID _r_listview_setgroup (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT group_id, _In_opt_ LPCWSTR title, _In_opt_ UINT state, _In_opt_ UINT state_mask);
@@ -2566,7 +2571,7 @@ VOID _r_listview_setstyle (_In_ HWND hwnd, _In_ INT ctrl_id, _In_opt_ ULONG exst
 
 FORCEINLINE INT _r_listview_additem (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id, _In_ LPCWSTR text)
 {
-	return _r_listview_additemex (hwnd, ctrl_id, item_id, text, I_IMAGENONE, I_GROUPIDNONE, 0);
+	return _r_listview_additem_ex (hwnd, ctrl_id, item_id, text, I_IMAGENONE, I_GROUPIDNONE, 0);
 }
 
 FORCEINLINE VOID _r_listview_deleteallgroups (HWND hwnd, INT ctrl_id)
@@ -2631,7 +2636,7 @@ FORCEINLINE BOOLEAN _r_listview_isitemvisible (_In_ HWND hwnd, _In_ INT ctrl_id,
 
 FORCEINLINE VOID _r_listview_setitem (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id, _In_ INT subitem_id, _In_opt_ LPCWSTR text)
 {
-	_r_listview_setitemex (hwnd, ctrl_id, item_id, subitem_id, text, I_IMAGENONE, I_GROUPIDNONE, 0);
+	_r_listview_setitem_ex (hwnd, ctrl_id, item_id, subitem_id, text, I_IMAGENONE, I_GROUPIDNONE, 0);
 }
 
 FORCEINLINE VOID _r_listview_setimagelist (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ HIMAGELIST himg)
@@ -2672,6 +2677,9 @@ FORCEINLINE VOID _r_status_settext (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT p
 // Control: rebar
 //
 
+VOID _r_rebar_insertband (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ UINT band_id, _In_ HWND hchild, _In_ UINT style, _In_ UINT width, _In_ UINT height);
+VOID _r_rebar_deleteband (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ UINT band_id);
+
 FORCEINLINE LONG _r_rebar_getheight (_In_ HWND hwnd, _In_ INT ctrl_id)
 {
 	return (LONG)SendDlgItemMessage (hwnd, ctrl_id, RB_GETBARHEIGHT, 0, 0);
@@ -2699,6 +2707,11 @@ FORCEINLINE VOID _r_toolbar_enablebutton (_In_ HWND hwnd, _In_ INT ctrl_id, _In_
 FORCEINLINE INT _r_toolbar_getbuttoncount (_In_ HWND hwnd, _In_ INT ctrl_id)
 {
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, TB_BUTTONCOUNT, 0, 0);
+}
+
+FORCEINLINE INT _r_toolbar_getbuttonsize (_In_ HWND hwnd, _In_ INT ctrl_id)
+{
+	return (ULONG)SendDlgItemMessage (hwnd, ctrl_id, TB_GETBUTTONSIZE, 0, 0);
 }
 
 FORCEINLINE BOOLEAN _r_toolbar_isbuttonenabled (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ UINT command_id)

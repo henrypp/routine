@@ -47,7 +47,7 @@ PR_STRING _r_format_string_v (_In_ _Printf_format_string_ LPCWSTR format, _In_ v
 	if (length == 0 || length == -1)
 		return NULL;
 
-	string = _r_obj_createstringex (NULL, length * sizeof (WCHAR));
+	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
 #pragma warning(push)
 #pragma warning(disable: 4996)
@@ -93,13 +93,13 @@ BOOLEAN _r_format_bytesize64 (_Out_writes_ (buffer_size) LPWSTR buffer, _In_ UIN
 }
 
 _Ret_maybenull_
-PR_STRING _r_format_filetimeex (_In_ LPFILETIME file_time, _In_ ULONG flags)
+PR_STRING _r_format_filetime_ex (_In_ LPFILETIME file_time, _In_ ULONG flags)
 {
 	PR_STRING string;
 	UINT buffer_size;
 
 	buffer_size = 128;
-	string = _r_obj_createstringex (NULL, buffer_size * sizeof (WCHAR));
+	string = _r_obj_createstring_ex (NULL, buffer_size * sizeof (WCHAR));
 
 	if (SHFormatDateTime (file_time, &flags, string->buffer, buffer_size))
 	{
@@ -114,12 +114,12 @@ PR_STRING _r_format_filetimeex (_In_ LPFILETIME file_time, _In_ ULONG flags)
 }
 
 _Ret_maybenull_
-PR_STRING _r_format_unixtimeex (_In_ LONG64 unixtime, _In_ ULONG flags)
+PR_STRING _r_format_unixtime_ex (_In_ LONG64 unixtime, _In_ ULONG flags)
 {
 	FILETIME file_time;
 	_r_unixtime_to_filetime (unixtime, &file_time);
 
-	return _r_format_filetimeex (&file_time, flags);
+	return _r_format_filetime_ex (&file_time, flags);
 }
 
 _Ret_maybenull_
@@ -129,7 +129,7 @@ PR_STRING _r_format_interval (_In_ LONG64 seconds, _In_ INT digits)
 	UINT buffer_size;
 
 	buffer_size = 128;
-	string = _r_obj_createstringex (NULL, buffer_size * sizeof (WCHAR));
+	string = _r_obj_createstring_ex (NULL, buffer_size * sizeof (WCHAR));
 
 	if (StrFromTimeInterval (string->buffer, buffer_size, _r_calc_seconds2milliseconds ((LONG)seconds), digits))
 	{
@@ -424,11 +424,11 @@ PVOID _r_freelist_allocateitem (_Inout_ PR_FREE_LIST free_list)
 	return &entry->body;
 }
 
-VOID _r_freelist_deleteitem (_Inout_ PR_FREE_LIST free_list, _In_ PVOID memory)
+VOID _r_freelist_deleteitem (_Inout_ PR_FREE_LIST free_list, _In_ PVOID memory_address)
 {
 	PR_FREE_LIST_ENTRY entry;
 
-	entry = CONTAINING_RECORD (memory, R_FREE_LIST_ENTRY, body);
+	entry = CONTAINING_RECORD (memory_address, R_FREE_LIST_ENTRY, body);
 
 	// We don't enforce count <= maximum_count (that would require locking), but we do check it.
 	if (free_list->count < free_list->maximum_count)
@@ -567,7 +567,7 @@ FORCEINLINE BOOLEAN _r_queuedlock_pushwaitblock (_Inout_ PR_QUEUED_LOCK queued_l
 	return (new_value == value);
 }
 
-FORCEINLINE VOID _r_queuedlock_optimizelistex (_Inout_ PR_QUEUED_LOCK queued_lock, _In_ ULONG_PTR Value, _In_ BOOLEAN is_ignoreowned)
+FORCEINLINE VOID _r_queuedlock_optimizelist_ex (_Inout_ PR_QUEUED_LOCK queued_lock, _In_ ULONG_PTR Value, _In_ BOOLEAN is_ignoreowned)
 {
 	ULONG_PTR value;
 	ULONG_PTR new_value;
@@ -1043,7 +1043,7 @@ VOID FASTCALL _r_queuedlock_releaseshared_ex (_Inout_ PR_QUEUED_LOCK queued_lock
 
 VOID FASTCALL _r_queuedlock_optimizelist (_Inout_ PR_QUEUED_LOCK queued_lock, _In_ ULONG_PTR value)
 {
-	_r_queuedlock_optimizelistex (queued_lock, value, FALSE);
+	_r_queuedlock_optimizelist_ex (queued_lock, value, FALSE);
 }
 
 VOID FASTCALL _r_queuedlock_wake (_Inout_ PR_QUEUED_LOCK queued_lock, _In_ ULONG_PTR value)
@@ -1120,7 +1120,7 @@ VOID FASTCALL _r_condition_waitfor (_Inout_ PR_CONDITION condition, _Inout_ PR_Q
 		{
 			if (is_optimize)
 			{
-				_r_queuedlock_optimizelistex (condition, current_value, TRUE);
+				_r_queuedlock_optimizelist_ex (condition, current_value, TRUE);
 			}
 
 			_r_queuedlock_releaseexclusive (queued_lock);
@@ -1654,7 +1654,7 @@ VOID _r_obj_dereference_ex (_In_ PVOID object_body, _In_ LONG ref_count)
 // 8-bit string object
 //
 
-PR_BYTE _r_obj_createbyteex (_In_opt_ LPSTR buffer, _In_ SIZE_T length)
+PR_BYTE _r_obj_createbyte_ex (_In_opt_ LPSTR buffer, _In_ SIZE_T length)
 {
 	PR_BYTE byte;
 
@@ -1693,7 +1693,7 @@ VOID _r_obj_setbytelength (_Inout_ PR_BYTE string, _In_ SIZE_T length)
 // 16-bit string object
 //
 
-PR_STRING _r_obj_createstringex (_In_opt_ LPCWSTR buffer, _In_ SIZE_T length)
+PR_STRING _r_obj_createstring_ex (_In_opt_ LPCWSTR buffer, _In_ SIZE_T length)
 {
 	PR_STRING string;
 
@@ -1762,7 +1762,7 @@ PR_STRING _r_obj_concatstrings_v (_In_ SIZE_T count, _In_ va_list arg_ptr)
 			cached_length[i] = string_length;
 	}
 
-	string = _r_obj_createstringex (NULL, total_length);
+	string = _r_obj_createstring_ex (NULL, total_length);
 	total_length = 0;
 
 	argptr = arg_ptr;
@@ -1825,7 +1825,7 @@ PR_STRING _r_obj_concatstringrefs_v (_In_ SIZE_T count, _In_ va_list arg_ptr)
 		total_length += arg->length;
 	}
 
-	string = _r_obj_createstringex (NULL, total_length);
+	string = _r_obj_createstring_ex (NULL, total_length);
 	total_length = 0;
 
 	argptr = arg_ptr;
@@ -1887,15 +1887,15 @@ VOID _r_obj_setstringlength (_Inout_ PR_STRING string, _In_ SIZE_T length)
 
 VOID _r_obj_initializestringbuilder (_Out_ PR_STRINGBUILDER string)
 {
-	string->allocated_length = 512 * sizeof (WCHAR);
+	string->allocated_length = 256 * sizeof (WCHAR);
 
-	string->string = _r_obj_createstringex (NULL, string->allocated_length);
+	string->string = _r_obj_createstring_ex (NULL, string->allocated_length);
 
 	string->string->length = 0;
 	string->string->buffer[0] = UNICODE_NULL;
 }
 
-VOID _r_obj_appendstringbuilderex (_Inout_ PR_STRINGBUILDER string, _In_ LPCWSTR text, _In_ SIZE_T length)
+VOID _r_obj_appendstringbuilder_ex (_Inout_ PR_STRINGBUILDER string, _In_ LPCWSTR text, _In_ SIZE_T length)
 {
 	if (!text || !length)
 		return;
@@ -1936,7 +1936,7 @@ VOID _r_obj_appendstringbuilderformat_v (_Inout_ PR_STRINGBUILDER string, _In_ _
 	_r_obj_writestringnullterminator (string->string);
 }
 
-VOID _r_obj_insertstringbuilderex (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ LPCWSTR text, _In_ SIZE_T length)
+VOID _r_obj_insertstringbuilder_ex (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ LPCWSTR text, _In_ SIZE_T length)
 {
 	if (!text || !length)
 		return;
@@ -2003,7 +2003,7 @@ VOID _r_obj_resizestringbuilder (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T ne
 	if (new_size < new_capacity)
 		new_size = new_capacity;
 
-	new_string = _r_obj_createstringex (NULL, new_size);
+	new_string = _r_obj_createstring_ex (NULL, new_size);
 
 	RtlCopyMemory (new_string->buffer, string->string->buffer, string->string->length + sizeof (UNICODE_NULL));
 
@@ -2016,7 +2016,7 @@ VOID _r_obj_resizestringbuilder (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T ne
 // Array object
 //
 
-PR_ARRAY _r_obj_createarrayex (_In_ SIZE_T item_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
+PR_ARRAY _r_obj_createarray_ex (_In_ SIZE_T item_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
 {
 	PR_ARRAY array_node;
 
@@ -2068,7 +2068,7 @@ VOID _r_obj_resizearray (_Inout_ PR_ARRAY array_node, _In_ SIZE_T new_capacity)
 }
 
 _Ret_maybenull_
-PVOID _r_obj_addarrayitemex (_Inout_ PR_ARRAY array_node, _In_opt_ PVOID item, _Out_opt_ PSIZE_T new_index)
+PVOID _r_obj_addarrayitem_ex (_Inout_ PR_ARRAY array_node, _In_opt_ PVOID item, _Out_opt_ PSIZE_T new_index)
 {
 	PVOID dst;
 
@@ -2141,7 +2141,7 @@ VOID _r_obj_removearrayitems (_Inout_ PR_ARRAY array_node, _In_ SIZE_T start_pos
 // List object
 //
 
-PR_LIST _r_obj_createlistex (_In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
+PR_LIST _r_obj_createlist_ex (_In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
 {
 	PR_LIST list_node;
 
@@ -2159,7 +2159,7 @@ PR_LIST _r_obj_createlistex (_In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CL
 }
 
 _Ret_maybenull_
-PVOID _r_obj_addlistitemex (_Inout_ PR_LIST list_node, _In_opt_ PVOID item, _Out_opt_ PSIZE_T new_index)
+PVOID _r_obj_addlistitem_ex (_Inout_ PR_LIST list_node, _In_opt_ PVOID item, _Out_opt_ PSIZE_T new_index)
 {
 	if (list_node->count == list_node->allocated_count)
 		_r_obj_resizelist (list_node, list_node->allocated_count * 2);
@@ -2288,7 +2288,7 @@ VOID _r_obj_setlistitem (_Inout_ PR_LIST list_node, _In_ SIZE_T index, _In_opt_ 
 // array. This improves locality but may be inefficient when resizing the hashtable. It is a good
 // idea to store pointers to objects as entries, as opposed to the objects themselves.
 
-PR_HASHTABLE _r_obj_createhashtableex (_In_ SIZE_T entry_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
+PR_HASHTABLE _r_obj_createhashtable_ex (_In_ SIZE_T entry_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback)
 {
 	PR_HASHTABLE hashtable;
 
@@ -2724,7 +2724,7 @@ PR_STRING _r_clipboard_get (_In_opt_ HWND hwnd)
 			{
 				length = GlobalSize (memory);
 
-				string = _r_obj_createstringex (memory, length);
+				string = _r_obj_createstring_ex (memory, length);
 			}
 
 			GlobalUnlock (hdata);
@@ -2799,7 +2799,7 @@ BOOLEAN _r_fs_deletedirectory (_In_ LPCWSTR path, _In_ BOOLEAN is_recurse)
 		return FALSE;
 
 	length = _r_str_getlength (path) + 1;
-	string = _r_obj_createstringex (NULL, length * sizeof (WCHAR)); // required to set 2 nulls at end
+	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR)); // required to set 2 nulls at end
 
 	_r_str_copy (string->buffer, length, path);
 
@@ -2907,7 +2907,7 @@ PR_BYTE _r_fs_readfile (_In_ HANDLE hfile)
 
 		if (file_map)
 		{
-			buffer = _r_obj_createbyteex (file_map, file_size);
+			buffer = _r_obj_createbyte_ex (file_map, file_size);
 
 			UnmapViewOfFile (file_map);
 			CloseHandle (hmap);
@@ -2930,7 +2930,7 @@ PR_STRING _r_path_compact (_In_ LPCWSTR path, _In_ UINT length)
 {
 	PR_STRING string;
 
-	string = _r_obj_createstringex (NULL, length * sizeof (WCHAR));
+	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
 	if (PathCompactPathEx (string->buffer, path, length, 0))
 	{
@@ -3046,7 +3046,7 @@ PR_STRING _r_path_getfullpath (_In_ LPCWSTR path)
 	ULONG return_length;
 
 	length = 256;
-	full_path = _r_obj_createstringex (NULL, length * sizeof (WCHAR));
+	full_path = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
 	return_length = RtlGetFullPathName_U (path, length, full_path->buffer, NULL);
 
@@ -3054,7 +3054,7 @@ PR_STRING _r_path_getfullpath (_In_ LPCWSTR path)
 	{
 		length = return_length;
 
-		_r_obj_movereference (&full_path, _r_obj_createstringex (NULL, length * sizeof (WCHAR)));
+		_r_obj_movereference (&full_path, _r_obj_createstring_ex (NULL, length * sizeof (WCHAR)));
 
 		return_length = RtlGetFullPathName_U (path, length, full_path->buffer, NULL);
 	}
@@ -3078,7 +3078,7 @@ PR_STRING _r_path_getknownfolder (_In_ ULONG folder, _In_opt_ LPCWSTR append)
 	SIZE_T append_length;
 
 	append_length = append ? _r_str_getlength (append) * sizeof (WCHAR) : 0;
-	string = _r_obj_createstringex (NULL, (256 * sizeof (WCHAR)) + append_length);
+	string = _r_obj_createstring_ex (NULL, (256 * sizeof (WCHAR)) + append_length);
 
 	if (SUCCEEDED (SHGetFolderPath (NULL, folder, NULL, SHGFP_TYPE_CURRENT, string->buffer)))
 	{
@@ -3105,7 +3105,7 @@ PR_STRING _r_path_getmodulepath (_In_opt_ HMODULE hmodule)
 	ULONG length;
 
 	length = 256;
-	string = _r_obj_createstringex (NULL, length * sizeof (WCHAR));
+	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
 	if (GetModuleFileName (hmodule, string->buffer, length))
 	{
@@ -3126,7 +3126,7 @@ PR_STRING _r_path_search (_In_ LPCWSTR path)
 	UINT length;
 
 	length = 1024;
-	string = _r_obj_createstringex (NULL, length * sizeof (WCHAR));
+	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
 	if (PathSearchAndQualify (path, string->buffer, length))
 	{
@@ -3221,13 +3221,13 @@ PR_STRING _r_path_dospathfromnt (_In_ LPCWSTR path)
 
 				device_name_buffer[4] = L'A' + (WCHAR)i;
 
-				_r_obj_initializeunicodestringex (&device_name, device_name_buffer, (RTL_NUMBER_OF (device_name_buffer) - 1) * sizeof (WCHAR), RTL_NUMBER_OF (device_name_buffer) * sizeof (WCHAR));
+				_r_obj_initializeunicodestring_ex (&device_name, device_name_buffer, (RTL_NUMBER_OF (device_name_buffer) - 1) * sizeof (WCHAR), RTL_NUMBER_OF (device_name_buffer) * sizeof (WCHAR));
 
 				InitializeObjectAttributes (&object_attributes, &device_name, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
 				if (NT_SUCCESS (NtOpenSymbolicLinkObject (&link_handle, SYMBOLIC_LINK_QUERY, &object_attributes)))
 				{
-					_r_obj_initializeunicodestringex (&device_prefix, device_prefix_buffer, 0, RTL_NUMBER_OF (device_prefix_buffer) * sizeof (WCHAR));
+					_r_obj_initializeunicodestring_ex (&device_prefix, device_prefix_buffer, 0, RTL_NUMBER_OF (device_prefix_buffer) * sizeof (WCHAR));
 
 					if (NT_SUCCESS (NtQuerySymbolicLinkObject (link_handle, &device_prefix, NULL)))
 					{
@@ -3319,7 +3319,7 @@ PR_STRING _r_path_dospathfromnt (_In_ LPCWSTR path)
 
 						if (NT_SUCCESS (NtOpenSymbolicLinkObject (&link_handle, SYMBOLIC_LINK_QUERY, &object_attributes)))
 						{
-							_r_obj_initializeunicodestringex (&device_prefix, device_prefix_buffer, 0, RTL_NUMBER_OF (device_prefix_buffer) * sizeof (WCHAR));
+							_r_obj_initializeunicodestring_ex (&device_prefix, device_prefix_buffer, 0, RTL_NUMBER_OF (device_prefix_buffer) * sizeof (WCHAR));
 
 							if (NT_SUCCESS (NtQuerySymbolicLinkObject (link_handle, &device_prefix, NULL)))
 							{
@@ -3434,7 +3434,7 @@ PR_STRING _r_path_dospathfromnt (_In_ LPCWSTR path)
 		}
 	}
 
-	return _r_obj_createstringex (path, path_length * sizeof (WCHAR));
+	return _r_obj_createstring_ex (path, path_length * sizeof (WCHAR));
 }
 
 _Ret_maybenull_
@@ -3705,7 +3705,7 @@ BOOLEAN _r_str_isstartswith (_In_ PR_STRINGREF string, _In_ PR_STRINGREF prefix,
 	if (string->length < prefix->length)
 		return FALSE;
 
-	_r_obj_initializestringrefex (&sr, string->buffer, prefix->length);
+	_r_obj_initializestringref_ex (&sr, string->buffer, prefix->length);
 
 	return _r_str_isequal (&sr, prefix, is_ignorecase);
 }
@@ -3726,7 +3726,7 @@ BOOLEAN _r_str_isendsswith (_In_ PR_STRINGREF string, _In_ PR_STRINGREF suffix, 
 	if (suffix->length > string->length)
 		return FALSE;
 
-	_r_obj_initializestringrefex (&sr,
+	_r_obj_initializestringref_ex (&sr,
 								  (LPWSTR)PTR_ADD_OFFSET (string->buffer, string->length - suffix->length),
 								  suffix->length
 	);
@@ -4109,17 +4109,17 @@ PR_STRING _r_str_expandenvironmentstring (_In_ PR_STRINGREF string)
 		return NULL;
 
 	buffer_size = 512 * sizeof (WCHAR);
-	buffer_string = _r_obj_createstringex (NULL, buffer_size);
+	buffer_string = _r_obj_createstring_ex (NULL, buffer_size);
 
-	_r_obj_initializeunicodestringex (&output_string, buffer_string->buffer, 0, (USHORT)buffer_size);
+	_r_obj_initializeunicodestring_ex (&output_string, buffer_string->buffer, 0, (USHORT)buffer_size);
 
 	status = RtlExpandEnvironmentStrings_U (NULL, &input_string, &output_string, &buffer_size);
 
 	if (status == STATUS_BUFFER_TOO_SMALL)
 	{
-		_r_obj_movereference (&buffer_string, _r_obj_createstringex (NULL, buffer_size));
+		_r_obj_movereference (&buffer_string, _r_obj_createstring_ex (NULL, buffer_size));
 
-		_r_obj_initializeunicodestringex (&output_string, buffer_string->buffer, 0, (USHORT)buffer_size);
+		_r_obj_initializeunicodestring_ex (&output_string, buffer_string->buffer, 0, (USHORT)buffer_size);
 
 		status = RtlExpandEnvironmentStrings_U (NULL, &input_string, &output_string, &buffer_size);
 	}
@@ -4143,7 +4143,7 @@ PR_STRING _r_str_unexpandenvironmentstring (_In_ LPCWSTR string)
 	SIZE_T buffer_length;
 
 	buffer_length = 512;
-	buffer = _r_obj_createstringex (NULL, buffer_length * sizeof (WCHAR));
+	buffer = _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR));
 
 	if (PathUnExpandEnvStrings (string, buffer->buffer, (UINT)buffer_length))
 	{
@@ -4207,7 +4207,7 @@ PR_STRING _r_str_fromhex (_In_reads_bytes_ (length) PUCHAR buffer, _In_ ULONG le
 		table = integer_char_table;
 	}
 
-	string = _r_obj_createstringex (NULL, length * sizeof (WCHAR) * 2);
+	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR) * 2);
 
 	for (ULONG i = 0; i < length; i++)
 	{
@@ -4227,7 +4227,7 @@ PR_STRING _r_str_fromsecuritydescriptor (_In_ PSECURITY_DESCRIPTOR lpsd, _In_ SE
 
 	if (ConvertSecurityDescriptorToStringSecurityDescriptor (lpsd, SDDL_REVISION, information, &security_string, &security_string_length))
 	{
-		string = _r_obj_createstringex (security_string, security_string_length * sizeof (WCHAR));
+		string = _r_obj_createstring_ex (security_string, security_string_length * sizeof (WCHAR));
 
 		LocalFree (security_string);
 
@@ -4243,7 +4243,7 @@ PR_STRING _r_str_fromsid (_In_ PSID lpsid)
 	UNICODE_STRING us;
 	PR_STRING string;
 
-	string = _r_obj_createstringex (NULL, SECURITY_MAX_SID_STRING_CHARACTERS * sizeof (WCHAR));
+	string = _r_obj_createstring_ex (NULL, SECURITY_MAX_SID_STRING_CHARACTERS * sizeof (WCHAR));
 
 	_r_obj_initializeunicodestring3 (&us, &string->sr);
 
@@ -4434,7 +4434,7 @@ BOOLEAN _r_str_toboolean (_In_ PR_STRINGREF string)
 	return _r_str_isequal (string, &value, TRUE);
 }
 
-LONG _r_str_tolongex (_In_ PR_STRINGREF string, _In_ ULONG base)
+LONG _r_str_tolong_ex (_In_ PR_STRINGREF string, _In_ ULONG base)
 {
 	LONG64 value;
 
@@ -4454,7 +4454,7 @@ LONG64 _r_str_tolong64 (_In_ PR_STRINGREF string)
 	return 0;
 }
 
-ULONG _r_str_toulongex (_In_ PR_STRINGREF string, _In_ ULONG base)
+ULONG _r_str_toulong_ex (_In_ PR_STRINGREF string, _In_ ULONG base)
 {
 	LONG64 value;
 
@@ -4636,12 +4636,12 @@ BOOLEAN _r_str_splitatchar (_In_ PR_STRINGREF string, _In_ WCHAR separator, _Out
 		return FALSE;
 	}
 
-	_r_obj_initializestringrefex (first_part,
+	_r_obj_initializestringref_ex (first_part,
 								  input.buffer,
 								  index * sizeof (WCHAR)
 	);
 
-	_r_obj_initializestringrefex (second_part,
+	_r_obj_initializestringref_ex (second_part,
 								  PTR_ADD_OFFSET (input.buffer, index * sizeof (WCHAR) + sizeof (UNICODE_NULL)),
 								  input.length - index * sizeof (WCHAR) - sizeof (UNICODE_NULL)
 	);
@@ -4665,12 +4665,12 @@ BOOLEAN _r_str_splitatlastchar (_In_ PR_STRINGREF string, _In_ WCHAR separator, 
 		return FALSE;
 	}
 
-	_r_obj_initializestringrefex (first_part,
+	_r_obj_initializestringref_ex (first_part,
 								  input.buffer,
 								  index * sizeof (WCHAR)
 	);
 
-	_r_obj_initializestringrefex (second_part,
+	_r_obj_initializestringref_ex (second_part,
 								  PTR_ADD_OFFSET (input.buffer, index * sizeof (WCHAR) + sizeof (UNICODE_NULL)),
 								  input.length - index * sizeof (WCHAR) - sizeof (UNICODE_NULL)
 	);
@@ -4979,7 +4979,7 @@ PR_STRING _r_str_multibyte2unicode (_In_ PR_BYTEREF string)
 		return NULL;
 	}
 
-	output_string = _r_obj_createstringex (NULL, output_size);
+	output_string = _r_obj_createstring_ex (NULL, output_size);
 	status = RtlMultiByteToUnicodeN (output_string->buffer, (ULONG)output_string->length, NULL, string->buffer, (ULONG)string->length);
 
 	if (NT_SUCCESS (status))
@@ -5006,7 +5006,7 @@ PR_BYTE _r_str_unicode2multibyte (_In_ PR_STRINGREF string)
 		return NULL;
 	}
 
-	output_string = _r_obj_createbyteex (NULL, output_size);
+	output_string = _r_obj_createbyte_ex (NULL, output_size);
 	status = RtlUnicodeToMultiByteN (output_string->buffer, (ULONG)output_string->length, NULL, string->buffer, (ULONG)string->length);
 
 	if (NT_SUCCESS (status))
@@ -5207,7 +5207,7 @@ LPCWSTR _r_sys_gettempdirectory ()
 		ULONG buffer_size;
 
 		buffer_size = 512;
-		string = _r_obj_createstringex (NULL, buffer_size * sizeof (WCHAR));
+		string = _r_obj_createstring_ex (NULL, buffer_size * sizeof (WCHAR));
 
 		if (GetTempPath (buffer_size, string->buffer))
 		{
@@ -5369,7 +5369,7 @@ PR_STRING _r_sys_getsessioninfo (_In_ WTS_INFO_CLASS wts_info)
 
 	if (WTSQuerySessionInformation (WTS_CURRENT_SERVER_HANDLE, WTS_CURRENT_SESSION, wts_info, &buffer, &length))
 	{
-		string = _r_obj_createstringex (buffer, length * sizeof (WCHAR));
+		string = _r_obj_createstring_ex (buffer, length * sizeof (WCHAR));
 
 		WTSFreeMemory (buffer);
 
@@ -5408,7 +5408,7 @@ PR_STRING _r_sys_getusernamefromsid (_In_ PSID sid)
 
 					if (trust_info->Name.Buffer)
 					{
-						_r_obj_appendstringbuilderex (&string, trust_info->Name.Buffer, trust_info->Name.Length);
+						_r_obj_appendstringbuilder_ex (&string, trust_info->Name.Buffer, trust_info->Name.Length);
 
 						if (is_hasname)
 						{
@@ -5419,7 +5419,7 @@ PR_STRING _r_sys_getusernamefromsid (_In_ PSID sid)
 
 				if (is_hasname)
 				{
-					_r_obj_appendstringbuilderex (&string, names[0].Name.Buffer, names[0].Name.Length);
+					_r_obj_appendstringbuilder_ex (&string, names[0].Name.Buffer, names[0].Name.Length);
 				}
 			}
 
@@ -6723,7 +6723,7 @@ FORCEINLINE ULONG _r_layout_getcontrolflags (_In_ HWND hwnd)
 
 	if (length)
 	{
-		_r_obj_initializestringrefex (&sr, class_name, length * sizeof (WCHAR));
+		_r_obj_initializestringref_ex (&sr, class_name, length * sizeof (WCHAR));
 
 		if (_r_str_isequal2 (&sr, WC_STATIC, TRUE))
 		{
@@ -6763,7 +6763,7 @@ BOOLEAN _r_layout_initializemanager (_Inout_ PR_LAYOUT_MANAGER layout_manager, _
 	SetRectEmpty (&layout_manager->root_item.anchor);
 	SetRectEmpty (&layout_manager->root_item.margin);
 
-	layout_manager->list = _r_obj_createlistex (8, &_r_mem_free);
+	layout_manager->list = _r_obj_createlist_ex (8, &_r_mem_free);
 
 	// Add sizing border for windows
 	_r_wnd_addstyle (hwnd, 0, WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SIZEBOX, WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SIZEBOX, GWL_STYLE);
@@ -7570,7 +7570,7 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Inout_ 
 		_r_obj_initializestringbuilder (&buffer_string);
 
 	allocated_length = 65536;
-	content_bytes = _r_obj_createbyteex (NULL, allocated_length);
+	content_bytes = _r_obj_createbyte_ex (NULL, allocated_length);
 
 	while (_r_inet_readrequest (hrequest, content_bytes->buffer, allocated_length, &readed_current, &readed_total))
 	{
@@ -7650,7 +7650,7 @@ ULONG _r_inet_queryurlparts (_In_ LPCWSTR url, _Out_ PR_URLPARTS url_parts, _In_
 
 	if ((flags & PR_URLPARTS_HOST))
 	{
-		url_parts->host = _r_obj_createstringex (NULL, 256 * sizeof (WCHAR));
+		url_parts->host = _r_obj_createstring_ex (NULL, 256 * sizeof (WCHAR));
 
 		url_comp.lpszHostName = url_parts->host->buffer;
 		url_comp.dwHostNameLength = (ULONG)(url_parts->host->length / sizeof (WCHAR));
@@ -7658,7 +7658,7 @@ ULONG _r_inet_queryurlparts (_In_ LPCWSTR url, _Out_ PR_URLPARTS url_parts, _In_
 
 	if ((flags & PR_URLPARTS_PATH))
 	{
-		url_parts->path = _r_obj_createstringex (NULL, 256 * sizeof (WCHAR));
+		url_parts->path = _r_obj_createstring_ex (NULL, 256 * sizeof (WCHAR));
 
 		url_comp.lpszUrlPath = url_parts->path->buffer;
 		url_comp.dwUrlPathLength = (ULONG)(url_parts->path->length / sizeof (WCHAR));
@@ -7666,7 +7666,7 @@ ULONG _r_inet_queryurlparts (_In_ LPCWSTR url, _Out_ PR_URLPARTS url_parts, _In_
 
 	if ((flags & PR_URLPARTS_USER))
 	{
-		url_parts->user = _r_obj_createstringex (NULL, 256 * sizeof (WCHAR));
+		url_parts->user = _r_obj_createstring_ex (NULL, 256 * sizeof (WCHAR));
 
 		url_comp.lpszUserName = url_parts->user->buffer;
 		url_comp.dwUserNameLength = (ULONG)(url_parts->user->length / sizeof (WCHAR));
@@ -7674,7 +7674,7 @@ ULONG _r_inet_queryurlparts (_In_ LPCWSTR url, _Out_ PR_URLPARTS url_parts, _In_
 
 	if ((flags & PR_URLPARTS_PASS))
 	{
-		url_parts->pass = _r_obj_createstringex (NULL, 256 * sizeof (WCHAR));
+		url_parts->pass = _r_obj_createstring_ex (NULL, 256 * sizeof (WCHAR));
 
 		url_comp.lpszPassword = url_parts->pass->buffer;
 		url_comp.dwPasswordLength = (ULONG)(url_parts->pass->length / sizeof (WCHAR));
@@ -7729,7 +7729,7 @@ PR_BYTE _r_reg_querybinary (_In_ HKEY hkey, _In_opt_ LPCWSTR subkey, _In_opt_ LP
 	{
 		if (type == REG_BINARY)
 		{
-			PR_BYTE buffer = _r_obj_createbyteex (NULL, size);
+			PR_BYTE buffer = _r_obj_createbyte_ex (NULL, size);
 
 			status = RegQueryValueEx (hkey, value, NULL, NULL, (PBYTE)buffer->buffer, &size);
 
@@ -7756,14 +7756,14 @@ PR_STRING _r_reg_querystring (_In_ HKEY hkey, _In_opt_ LPCWSTR subkey, _In_opt_ 
 	{
 		if (type == REG_SZ || type == REG_EXPAND_SZ || type == REG_MULTI_SZ)
 		{
-			PR_STRING buffer = _r_obj_createstringex (NULL, size * sizeof (WCHAR));
+			PR_STRING buffer = _r_obj_createstring_ex (NULL, size * sizeof (WCHAR));
 
 			size = (ULONG)buffer->length;
 			status = RegGetValue (hkey, subkey, value, RRF_RT_ANY, NULL, (PBYTE)buffer->buffer, &size);
 
 			if (status == ERROR_MORE_DATA)
 			{
-				_r_obj_movereference (&buffer, _r_obj_createstringex (NULL, size * sizeof (WCHAR)));
+				_r_obj_movereference (&buffer, _r_obj_createstring_ex (NULL, size * sizeof (WCHAR)));
 
 				size = (ULONG)buffer->length;
 				status = RegGetValue (hkey, subkey, value, RRF_RT_ANY, NULL, (PBYTE)buffer->buffer, &size);
@@ -8155,7 +8155,7 @@ PR_STRING _r_res_loadstring (_In_opt_ HINSTANCE hinst, _In_ UINT string_id)
 
 	if (length)
 	{
-		string = _r_obj_createstringex (buffer, length * sizeof (WCHAR));
+		string = _r_obj_createstring_ex (buffer, length * sizeof (WCHAR));
 
 		return string;
 	}
@@ -8202,7 +8202,7 @@ PR_STRING _r_res_querystring_ex (_In_ PVOID ver_block, _In_ LPCWSTR entry_name, 
 		if (length <= sizeof (UNICODE_NULL))
 			return NULL;
 
-		string = _r_obj_createstringex (buffer, (length - 1) * sizeof (WCHAR));
+		string = _r_obj_createstring_ex (buffer, (length - 1) * sizeof (WCHAR));
 
 		return string;
 	}
@@ -8370,7 +8370,7 @@ PR_HASHTABLE _r_parseini (_In_ LPCWSTR path, _Inout_opt_ PR_LIST section_list)
 
 	// read section names
 	allocated_length = 0x0800; // maximum length for GetPrivateProfileSectionNames
-	sections_string = _r_obj_createstringex (NULL, allocated_length * sizeof (WCHAR));
+	sections_string = _r_obj_createstring_ex (NULL, allocated_length * sizeof (WCHAR));
 
 	out_length = GetPrivateProfileSectionNames (sections_string->buffer, allocated_length, path);
 
@@ -8384,7 +8384,7 @@ PR_HASHTABLE _r_parseini (_In_ LPCWSTR path, _Inout_opt_ PR_LIST section_list)
 	_r_obj_setstringlength (sections_string, out_length * sizeof (WCHAR));
 
 	allocated_length = 0x7fff; // maximum length for GetPrivateProfileSection
-	values_string = _r_obj_createstringex (NULL, allocated_length * sizeof (WCHAR));
+	values_string = _r_obj_createstring_ex (NULL, allocated_length * sizeof (WCHAR));
 
 	// initialize section iterator
 	_r_obj_initializestringref (&sections_iterator, sections_string->buffer);
@@ -8562,7 +8562,7 @@ BOOLEAN _r_xml_getattribute (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR at
 	if (hr != S_OK || _r_str_isempty (value_string) || !value_length)
 		return FALSE;
 
-	_r_obj_initializestringrefex (value, (LPWSTR)value_string, value_length * sizeof (WCHAR));
+	_r_obj_initializestringref_ex (value, (LPWSTR)value_string, value_length * sizeof (WCHAR));
 
 	return TRUE;
 }
@@ -8672,7 +8672,7 @@ BOOLEAN _r_xml_enumchilditemsbytagname (_Inout_ PR_XML_LIBRARY xml_library, _In_
 			if (_r_str_isempty (buffer))
 				return FALSE;
 
-			_r_obj_initializestringrefex (&sr1, buffer, length * sizeof (WCHAR));
+			_r_obj_initializestringref_ex (&sr1, buffer, length * sizeof (WCHAR));
 
 			if (_r_str_isequal (&sr1, &sr2, TRUE))
 				return TRUE;
@@ -8719,7 +8719,7 @@ BOOLEAN _r_xml_findchildbytagname (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCW
 			if (_r_str_isempty (buffer))
 				break;
 
-			_r_obj_initializestringrefex (&sr1, buffer, length * sizeof (WCHAR));
+			_r_obj_initializestringref_ex (&sr1, buffer, length * sizeof (WCHAR));
 
 			if (_r_str_isequal (&sr1, &sr2, TRUE))
 				return TRUE;
@@ -9105,7 +9105,7 @@ PR_STRING _r_ctrl_getstring (_In_ HWND hwnd, _In_ INT ctrl_id)
 	if (!length)
 		return NULL;
 
-	string = _r_obj_createstringex (NULL, length * sizeof (WCHAR));
+	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
 	if ((ULONG)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXT, (WPARAM)length + 1, (LPARAM)string->buffer))
 	{
@@ -9648,7 +9648,7 @@ INT _r_listview_addgroup (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT group_id, _
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTGROUP, (WPARAM)group_id, (LPARAM)&lvg);
 }
 
-INT _r_listview_additemex (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id, _In_opt_ LPCWSTR text, _In_ INT image_id, _In_ INT group_id, _In_opt_ LPARAM lparam)
+INT _r_listview_additem_ex (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id, _In_opt_ LPCWSTR text, _In_ INT image_id, _In_ INT group_id, _In_opt_ LPARAM lparam)
 {
 	LVITEM lvi = {0};
 
@@ -9723,7 +9723,7 @@ PR_STRING _r_listview_getcolumntext (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT 
 	ULONG allocated_count;
 
 	allocated_count = 256;
-	string = _r_obj_createstringex (NULL, allocated_count * sizeof (WCHAR));
+	string = _r_obj_createstring_ex (NULL, allocated_count * sizeof (WCHAR));
 
 	lvc.mask = LVCF_TEXT;
 	lvc.pszText = string->buffer;
@@ -9813,7 +9813,7 @@ PR_STRING _r_listview_getitemtext (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT it
 	while (count >= allocated_count)
 	{
 		allocated_count *= 2;
-		_r_obj_movereference (&string, _r_obj_createstringex (NULL, allocated_count * sizeof (WCHAR)));
+		_r_obj_movereference (&string, _r_obj_createstring_ex (NULL, allocated_count * sizeof (WCHAR)));
 
 		lvi.iSubItem = subitem_id;
 		lvi.pszText = string->buffer;
@@ -9912,7 +9912,7 @@ VOID _r_listview_setcolumnsortindex (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT 
 	Header_SetItem (header, column_id, &hitem);
 }
 
-VOID _r_listview_setitemex (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id, _In_ INT subitem_id, _In_opt_ LPCWSTR text, _In_ INT image_id, _In_ INT group_id, _In_opt_ LPARAM lparam)
+VOID _r_listview_setitem_ex (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id, _In_ INT subitem_id, _In_opt_ LPCWSTR text, _In_ INT image_id, _In_ INT group_id, _In_opt_ LPARAM lparam)
 {
 	LVITEM lvi = {0};
 
@@ -10172,6 +10172,42 @@ VOID _r_status_settextformat (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT part_id
 }
 
 //
+// Control: rebar
+//
+
+VOID _r_rebar_insertband (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ UINT band_id, _In_ HWND hchild, _In_ UINT style, _In_ UINT width, _In_ UINT height)
+{
+	REBARBANDINFO rbi = {0};
+
+	rbi.cbSize = sizeof (rbi);
+	rbi.fMask = RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_ID;
+	rbi.wID = band_id;
+	rbi.hwndChild = hchild;
+	rbi.cxMinChild = width;
+	rbi.cyMinChild = height;
+
+	if(style)
+	{
+		rbi.fMask |= RBBIM_STYLE;
+		rbi.fStyle = style;
+	}
+
+	SendDlgItemMessage (hwnd, ctrl_id, RB_INSERTBAND, (WPARAM)-1, (LPARAM)&rbi);
+}
+
+VOID _r_rebar_deleteband (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ UINT band_id)
+{
+	UINT index;
+
+	index = (UINT)SendDlgItemMessage (hwnd, ctrl_id, RB_IDTOINDEX, (WPARAM)band_id, 0);
+
+	if (index == UINT_MAX)
+		return;
+
+	SendDlgItemMessage (hwnd, ctrl_id, RB_DELETEBAND, (WPARAM)index, 0);
+}
+
+//
 // Control: toolbar
 //
 
@@ -10312,7 +10348,7 @@ PR_STRING _r_util_versionformat (_In_ PR_STRINGREF string)
 {
 	if (_r_str_isnumeric (string))
 	{
-		return _r_format_unixtimeex (_r_str_tolong64 (string), FDTF_SHORTDATE | FDTF_SHORTTIME);
+		return _r_format_unixtime_ex (_r_str_tolong64 (string), FDTF_SHORTDATE | FDTF_SHORTTIME);
 	}
 
 	return _r_obj_createstring3 (string);

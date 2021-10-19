@@ -307,7 +307,7 @@ BOOLEAN _r_app_initialize ()
 		ULONG length;
 
 		app_global.locale.resource_name = _r_obj_createstring (APP_LANGUAGE_DEFAULT);
-		app_global.locale.default_name = _r_obj_createstringex (NULL, LOCALE_NAME_MAX_LENGTH * sizeof (WCHAR));
+		app_global.locale.default_name = _r_obj_createstring_ex (NULL, LOCALE_NAME_MAX_LENGTH * sizeof (WCHAR));
 
 		length = GetLocaleInfo (LOCALE_USER_DEFAULT, LOCALE_SENGLISHLANGUAGENAME, app_global.locale.default_name->buffer, LOCALE_NAME_MAX_LENGTH);
 
@@ -1753,7 +1753,7 @@ LONG64 _r_locale_getversion ()
 
 	if (length)
 	{
-		_r_obj_initializestringrefex (&string, timestamp_string, length * sizeof (WCHAR));
+		_r_obj_initializestringref_ex (&string, timestamp_string, length * sizeof (WCHAR));
 
 		return _r_str_tolong64 (&string);
 	}
@@ -2492,7 +2492,7 @@ VOID _r_log (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCWST
 		return;
 
 	current_timestamp = _r_unixtime_now ();
-	date_string = _r_format_unixtimeex (current_timestamp, FDTF_SHORTDATE | FDTF_LONGTIME);
+	date_string = _r_format_unixtime_ex (current_timestamp, FDTF_SHORTDATE | FDTF_LONGTIME);
 
 	level_string = _r_logleveltostring (log_level);
 
