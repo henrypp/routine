@@ -534,6 +534,9 @@ typedef struct R_OBJECT_POINTER
 	((ULONG64)(build) << 16) | \
 	((ULONG64)(revision) << 0))
 
+#define PR_TRIM_END_ONLY 0x0001
+#define PR_TRIM_START_ONLY 0x002
+
 //
 // Cryptography
 //
@@ -795,7 +798,8 @@ typedef struct R_UPDATE_INFO
 	PR_ARRAY components;
 	HWND htaskdlg;
 	HWND hparent;
-	BOOLEAN is_checking;
+	HWND hthread;
+	volatile LONG lock;
 	BOOLEAN is_downloaded;
 } R_UPDATE_INFO, *PR_UPDATE_INFO;
 
