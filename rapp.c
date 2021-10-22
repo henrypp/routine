@@ -418,7 +418,7 @@ LPCWSTR _r_app_getconfigpath ()
 		// parse config path from arguments
 		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"ini", &buffer))
 		{
-			_r_str_trimstring2 (buffer, L".\\/\" ");
+			_r_str_trimstring2 (buffer, L".\\/\" ", 0);
 
 			_r_obj_movereference (&buffer, _r_str_expandenvironmentstring (&buffer->sr));
 
@@ -852,7 +852,7 @@ BOOLEAN _r_app_runasadmin ()
 		return TRUE;
 #endif // APP_HAVE_SKIPUAC
 
-	if (_r_sys_runasadmin (_r_sys_getimagepath (), _r_sys_getimagecommandline ()))
+	if (_r_sys_runasadmin (_r_sys_getimagepath (), _r_sys_getimagecommandline (), _r_sys_getcurrentdirectory ()))
 		return TRUE;
 
 	if (is_mutexdestroyed)
@@ -1838,17 +1838,20 @@ BOOLEAN _r_autorun_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 static NTSTATUS NTAPI _r_update_checkthread (_In_ PVOID arglist)
 {
 	PR_UPDATE_INFO update_info;
+
+	WCHAR str_content[256];
+	R_DOWNLOAD_INFO download_info;
+	PR_STRING update_url;
 	HINTERNET hsession;
 
 	update_info = arglist;
+
+	InterlockedIncrement (&update_info->lock);
 
 	hsession = _r_inet_createsession (_r_app_getuseragent ());
 
 	if (hsession)
 	{
-		R_DOWNLOAD_INFO download_info;
-		PR_STRING update_url;
-
 		update_url = _r_obj_concatstrings (3, _r_app_getwebsite_url (), L"/update.php?api=3&product=", _r_app_getnameshort ());
 
 		_r_inet_initializedownload (&download_info, NULL, NULL, NULL);
@@ -1857,8 +1860,6 @@ static NTSTATUS NTAPI _r_update_checkthread (_In_ PVOID arglist)
 		{
 			if (update_info->hparent)
 			{
-				WCHAR str_content[256];
-
 #ifdef IDS_UPDATE_ERROR
 				_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_ERROR));
 #else
@@ -1866,18 +1867,7 @@ static NTSTATUS NTAPI _r_update_checkthread (_In_ PVOID arglist)
 #pragma PR_PRINT_WARNING(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
 
-#ifndef APP_NO_DEPRECATIONS
-				if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
-#endif // !APP_NO_DEPRECATIONS
-				{
-					_r_update_pagenavigate (update_info->htaskdlg, TD_WARNING_ICON, 0, TDCBF_CLOSE_BUTTON, NULL, str_content, (LONG_PTR)&app_global.update.info);
-				}
-#ifndef APP_NO_DEPRECATIONS
-				else
-				{
-					_r_show_message (update_info->hparent, MB_OK | MB_ICONWARNING, NULL, NULL, str_content);
-				}
-#endif // !APP_NO_DEPRECATIONS
+				_r_update_pagenavigate (update_info->htaskdlg, TD_WARNING_ICON, 0, TDCBF_CLOSE_BUTTON, NULL, str_content, (LONG_PTR)&app_global.update.info);
 			}
 		}
 		else
@@ -1890,6 +1880,7 @@ static NTSTATUS NTAPI _r_update_checkthread (_In_ PVOID arglist)
 			PR_STRING version_string = NULL;
 			R_STRINGREF new_version_string;
 			R_STRINGREF new_url_string;
+			PR_STRING string;
 			BOOLEAN is_updateavailable = FALSE;
 
 			string_table = _r_str_unserialize (&download_info.string->sr, L';', L'=');
@@ -1907,38 +1898,36 @@ static NTSTATUS NTAPI _r_update_checkthread (_In_ PVOID arglist)
 
 					if (string_value)
 					{
-						if (_r_str_splitatchar (&string_value->sr, L'|', &new_version_string, &new_url_string))
+						if (!_r_str_splitatchar (&string_value->sr, L'|', &new_version_string, &new_url_string))
+							continue;
+
+						if (_r_str_versioncompare (&update_component->version->sr, &new_version_string) != -1)
+							continue;
+
+						is_updateavailable = TRUE;
+						update_component->is_haveupdate = TRUE;
+
+						_r_obj_movereference (&version_string, _r_util_versionformat (&new_version_string));
+
+						_r_obj_movereference (&update_component->new_version, _r_obj_createstring3 (&new_version_string));
+						_r_obj_movereference (&update_component->url, _r_obj_createstring3 (&new_url_string));
+
+						_r_str_appendformat (updates_text, RTL_NUMBER_OF (updates_text), L"%s %s\r\n", _r_obj_getstring (update_component->full_name), version_string->buffer);
+
+						if (update_component->is_installer)
 						{
-							if (_r_str_versioncompare (&update_component->version->sr, &new_version_string) == -1)
-							{
-								is_updateavailable = TRUE;
-								update_component->is_haveupdate = TRUE;
+							string = _r_obj_concatstrings (6, _r_sys_gettempdirectory (), L"\\", _r_app_getnameshort (), L"-", _r_obj_getstring (update_component->new_version), L".exe");
+							_r_obj_movereference (&update_component->temp_path, string);
 
-								_r_obj_movereference (&version_string, _r_util_versionformat (&new_version_string));
+							_r_obj_dereference (string_value);
 
-								_r_obj_movereference (&update_component->new_version, _r_obj_createstring3 (&new_version_string));
-								_r_obj_movereference (&update_component->url, _r_obj_createstring3 (&new_url_string));
-
-								_r_str_appendformat (updates_text, RTL_NUMBER_OF (updates_text), L"%s %s\r\n", _r_obj_getstring (update_component->full_name), version_string->buffer);
-
-								if (update_component->is_installer)
-								{
-									PR_STRING string = _r_obj_concatstrings (6, _r_sys_gettempdirectory (), L"\\", _r_app_getnameshort (), L"-", _r_obj_getstring (update_component->new_version), L".exe");
-
-									_r_obj_movereference (&update_component->temp_path, string);
-
-									_r_obj_dereference (string_value);
-
-									// do not check components when new version of application available
-									break;
-								}
-								else
-								{
-									PR_STRING string = _r_obj_concatstrings (8, _r_sys_gettempdirectory (), L"\\", _r_app_getnameshort (), L"-", _r_obj_getstring (update_component->short_name), L"-", _r_obj_getstring (update_component->new_version), L".tmp");
-
-									_r_obj_movereference (&update_component->temp_path, string);
-								}
-							}
+							// do not check components when new version of application available
+							break;
+						}
+						else
+						{
+							string = _r_obj_concatstrings (8, _r_sys_gettempdirectory (), L"\\", _r_app_getnameshort (), L"-", _r_obj_getstring (update_component->short_name), L"-", _r_obj_getstring (update_component->new_version), L".tmp");
+							_r_obj_movereference (&update_component->temp_path, string);
 						}
 
 						_r_obj_dereference (string_value);
@@ -1957,38 +1946,19 @@ static NTSTATUS NTAPI _r_update_checkthread (_In_ PVOID arglist)
 			{
 				_r_str_trim (updates_text, L"\r\n ");
 
-				WCHAR str_main[256];
-
 #ifdef IDS_UPDATE_YES
-				_r_str_copy (str_main, RTL_NUMBER_OF (str_main), _r_locale_getstring (IDS_UPDATE_YES));
+				_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_YES));
 #else
-				_r_str_copy (str_main, RTL_NUMBER_OF (str_main), L"Update available. Download and install now?");
+				_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Update available. Download and install now?");
 #pragma PR_PRINT_WARNING(IDS_UPDATE_YES)
 #endif // IDS_UPDATE_YES
 
-#ifndef APP_NO_DEPRECATIONS
-				if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
-#endif // !APP_NO_DEPRECATIONS
-				{
-					_r_update_pagenavigate (update_info->htaskdlg, NULL, 0, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, str_main, updates_text, (LONG_PTR)&app_global.update.info);
-				}
-#ifndef APP_NO_DEPRECATIONS
-				else
-				{
-					if (_r_show_message (update_info->hparent, MB_YESNO | MB_USERICON, NULL, str_main, updates_text) == IDYES)
-					{
-						_r_shell_opendefault (_r_app_getwebsite_url ());
-					}
-				}
-#endif // !APP_NO_DEPRECATIONS
-
+				_r_update_pagenavigate (update_info->htaskdlg, NULL, 0, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, str_content, updates_text, (LONG_PTR)&app_global.update.info);
 			}
 			else
 			{
 				if (update_info->htaskdlg)
 				{
-					WCHAR str_content[256];
-
 #ifdef IDS_UPDATE_NO
 					_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_NO));
 #else
@@ -2010,7 +1980,7 @@ static NTSTATUS NTAPI _r_update_checkthread (_In_ PVOID arglist)
 		_r_inet_close (hsession);
 	}
 
-	update_info->is_checking = FALSE;
+	InterlockedDecrement (&update_info->lock);
 
 	return STATUS_SUCCESS;
 }
@@ -2019,62 +1989,67 @@ VOID _r_update_check (_In_opt_ HWND hparent)
 {
 	PR_UPDATE_INFO update_info;
 
+	// Security note:
+	//
+	// Windows Vista and lower are unsafe for establish internet access,
+	// because it does not support required TLS 1.3 standart which is used
+	// on the www.github.com and www.henrypp.org webpages.
+
+#ifndef APP_NO_DEPRECATIONS
+	if (_r_sys_isosversionlowerorequal (WINDOWS_VISTA))
+	{
+		if (hparent)
+			_r_show_message (hparent, MB_OK | MB_ICONWARNING, _r_app_getname (), L"Security warning!", L"Update checking restricted.\r\nThis operating system are obsolete and does not meet security requirements for connecting to the internet.");
+
+		return;
+	}
+#endif // APP_NO_DEPRECATIONS
+
 	update_info = &app_global.update.info;
 
-	if (update_info->is_checking)
+	if (InterlockedCompareExchange (&update_info->lock, 0, 0) != 0)
 		return;
 
 	if (!hparent && (!_r_config_getboolean (L"CheckUpdates", TRUE) || (_r_unixtime_now () - _r_config_getlong64 (L"CheckUpdatesLast", 0)) <= APP_UPDATE_PERIOD))
 		return;
 
-	update_info->is_checking = TRUE;
+	if (!NT_SUCCESS (_r_sys_createthread (&_r_update_checkthread, update_info, &update_info->hthread)))
+		return;
+
 	update_info->htaskdlg = NULL;
 	update_info->hparent = hparent;
 
-	if (update_info->hparent)
+	if (hparent)
 	{
-#ifndef APP_NO_DEPRECATIONS
-		if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
-#endif // APP_NO_DEPRECATIONS
-		{
-			WCHAR str_content[256];
+		WCHAR str_content[256];
 
 #ifdef IDS_UPDATE_INIT
-			_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_INIT));
+		_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_INIT));
 #else
-			_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Checking for new releases...");
+		_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Checking for new releases...");
 #pragma PR_PRINT_WARNING(IDS_UPDATE_INIT)
 #endif // IDS_UPDATE_INIT
 
-			_r_update_pagenavigate (NULL, NULL, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, NULL, str_content, (LONG_PTR)update_info);
-		}
+		_r_update_pagenavigate (NULL, NULL, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, NULL, str_content, (LONG_PTR)update_info);
+
+		return;
 	}
-	else
-	{
-		_r_sys_createthread2 (&_r_update_checkthread, update_info);
-	}
+
+	_r_sys_resumethread (update_info->hthread);
 }
 
 BOOLEAN NTAPI _r_update_downloadcallback (_In_ ULONG total_written, _In_ ULONG total_length, _In_ PVOID param)
 {
 	PR_UPDATE_INFO update_info;
 
+	LONG percent;
+
 	update_info = param;
 
 	if (update_info->htaskdlg)
 	{
-		LONG percent = _r_calc_percentof (total_written, total_length);
+		percent = _r_calc_percentof (total_written, total_length);
 
-		WCHAR str_content[256];
-
-#ifdef IDS_UPDATE_DOWNLOAD
-		_r_str_printf (str_content, RTL_NUMBER_OF (str_content), L"%s %" TEXT (PR_LONG) L"%%", _r_locale_getstring (IDS_UPDATE_DOWNLOAD), percent);
-#else
-		_r_str_printf (str_content, RTL_NUMBER_OF (str_content), L"Downloading update... %" PR_LONG L"%%", percent);
-#pragma PR_PRINT_WARNING(IDS_UPDATE_DOWNLOAD)
-#endif // IDS_UPDATE_DOWNLOAD
-
-		SendMessage (update_info->htaskdlg, TDM_SET_ELEMENT_TEXT, TDE_CONTENT, (LPARAM)str_content);
 		SendMessage (update_info->htaskdlg, TDM_SET_PROGRESS_BAR_POS, (WPARAM)percent, 0);
 	}
 
@@ -2085,8 +2060,12 @@ NTSTATUS NTAPI _r_update_downloadthread (_In_ PVOID arglist)
 {
 	PR_UPDATE_INFO update_info;
 
+	PR_UPDATE_COMPONENT update_component;
+	R_DOWNLOAD_INFO download_info;
+
 	HINTERNET hsession;
 	HWND hwindow;
+	HANDLE hfile;
 
 	BOOLEAN is_downloaded = FALSE;
 	BOOLEAN is_downloaded_installer = FALSE;
@@ -2098,123 +2077,108 @@ NTSTATUS NTAPI _r_update_downloadthread (_In_ PVOID arglist)
 
 	if (hsession)
 	{
-		PR_UPDATE_COMPONENT update_component;
-
 		for (SIZE_T i = 0; i < _r_obj_getarraysize (update_info->components); i++)
 		{
 			update_component = _r_obj_getarrayitem (update_info->components, i);
 
-			if (!update_component)
+			if (!update_component || !update_component->is_haveupdate || !update_component->temp_path)
 				continue;
 
-			if (update_component->is_haveupdate)
+			hfile = CreateFile (update_component->temp_path->buffer, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+
+			if (!_r_fs_isvalidhandle (hfile))
+				continue;
+
+			_r_inet_initializedownload (&download_info, hfile, &_r_update_downloadcallback, update_info);
+
+			if (_r_inet_begindownload (hsession, update_component->url->buffer, &download_info) == ERROR_SUCCESS)
 			{
-				if (!_r_obj_isstringempty (update_component->temp_path))
+				is_downloaded = TRUE;
+
+				_r_inet_destroydownload (&download_info); // required!
+
+				if (update_component->is_installer)
 				{
-					HANDLE hfile = CreateFile (update_component->temp_path->buffer, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+					is_downloaded_installer = TRUE;
+					is_updated = FALSE;
 
-					if (_r_fs_isvalidhandle (hfile))
+					break;
+				}
+				else
+				{
+					if (update_component->target_path)
 					{
-						R_DOWNLOAD_INFO download_info;
+						// copy required files
+						SetFileAttributes (update_component->target_path->buffer, FILE_ATTRIBUTE_NORMAL);
 
-						_r_inet_initializedownload (&download_info, hfile, &_r_update_downloadcallback, update_info);
+						_r_fs_movefile (update_component->temp_path->buffer, update_component->target_path->buffer, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
+						_r_fs_deletefile (update_component->temp_path->buffer, TRUE);
 
-						if (_r_inet_begindownload (hsession, update_component->url->buffer, &download_info) == ERROR_SUCCESS)
-						{
-							is_downloaded = TRUE;
-							update_component->is_haveupdate = FALSE;
+						// set new version
+						_r_obj_movereference (&update_component->version, update_component->new_version);
+						update_component->new_version = NULL;
 
-							_r_inet_destroydownload (&download_info); // required!
-
-							if (update_component->is_installer)
-							{
-								is_downloaded_installer = TRUE;
-								break;
-							}
-							else
-							{
-								LPCWSTR path = _r_obj_getstring (update_component->target_path);
-
-								if (path)
-								{
-									// copy required files
-									SetFileAttributes (path, FILE_ATTRIBUTE_NORMAL);
-
-									_r_fs_movefile (update_component->temp_path->buffer, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
-									_r_fs_deletefile (update_component->temp_path->buffer, TRUE);
-
-									// set new version
-									_r_obj_movereference (&update_component->version, update_component->new_version);
-									update_component->new_version = NULL;
-
-									is_updated = TRUE;
-								}
-							}
-						}
-						else
-						{
-							_r_inet_destroydownload (&download_info); // required!
-						}
+						is_updated = TRUE;
 					}
 				}
+			}
+			else
+			{
+				_r_inet_destroydownload (&download_info); // required!
 			}
 		}
 
 		_r_inet_close (hsession);
 	}
 
-	// show result text
-	WCHAR str_content[256];
-
-	if (is_downloaded)
+	// set result text and navigate taskdialog
 	{
-		if (is_downloaded_installer)
+		TASKDIALOG_COMMON_BUTTON_FLAGS buttons;
+		WCHAR str_content[256];
+		LPCWSTR main_icon;
+
+		if (is_downloaded)
 		{
+			main_icon = NULL;
+
+			if (is_downloaded_installer)
+			{
+				buttons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
+
 #ifdef IDS_UPDATE_INSTALL
-			_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_INSTALL));
+				_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_INSTALL));
 #else
-			_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Update available. Do you want to install it now?");
+				_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Update available. Do you want to install it now?");
 #pragma PR_PRINT_WARNING(IDS_UPDATE_INSTALL)
 #endif // IDS_UPDATE_INSTALL
+			}
+			else
+			{
+				buttons = TDCBF_CLOSE_BUTTON;
+
+#ifdef IDS_UPDATE_DONE
+				_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_DONE));
+#else
+				_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Downloading update was finished.");
+#pragma PR_PRINT_WARNING(IDS_UPDATE_DONE)
+#endif // IDS_UPDATE_DONE
+			}
 		}
 		else
 		{
-#ifdef IDS_UPDATE_DONE
-			_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_DONE));
-#else
-			_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Downloading update finished.");
-#pragma PR_PRINT_WARNING(IDS_UPDATE_DONE)
-#endif // IDS_UPDATE_DONE
-		}
-	}
-	else
-	{
+			main_icon = TD_WARNING_ICON;
+			buttons = TDCBF_CLOSE_BUTTON;
+
 #ifdef IDS_UPDATE_ERROR
-		_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_ERROR));
+			_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_ERROR));
 #else
-		_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Update server connection error.");
+			_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Update server connection error.");
 #pragma PR_PRINT_WARNING(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
-	}
+		}
 
-#if !defined(APP_NO_DEPRECATIONS)
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
-	{
-#endif // !APP_NO_DEPRECATIONS
-		if (update_info->htaskdlg)
-		{
-			_r_update_pagenavigate (update_info->htaskdlg, (is_downloaded ? NULL : TD_WARNING_ICON), 0, is_downloaded_installer ? TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON : TDCBF_CLOSE_BUTTON, NULL, str_content, (LONG_PTR)&app_global.update.info);
-		}
-#if !defined(APP_NO_DEPRECATIONS)
+		_r_update_pagenavigate (update_info->htaskdlg, main_icon, 0, buttons, NULL, str_content, (LONG_PTR)&app_global.update.info);
 	}
-	else
-	{
-		if (update_info->hparent)
-		{
-			_r_show_message (update_info->hparent, is_downloaded_installer ? MB_OKCANCEL : MB_OK | (is_downloaded ? MB_USERICON : MB_ICONWARNING), NULL, NULL, str_content);
-		}
-	}
-#endif // !APP_NO_DEPRECATIONS
 
 	// install update
 	if (is_updated)
@@ -2262,18 +2226,29 @@ HRESULT CALLBACK _r_update_pagecallback (_In_ HWND hwnd, _In_ UINT msg, _In_ WPA
 
 		case TDN_BUTTON_CLICKED:
 		{
-			if (wparam == IDYES)
+			if (wparam == IDCANCEL)
+			{
+				if (update_info->hthread)
+				{
+					NtTerminateThread (update_info->hthread, STATUS_FATAL_APP_EXIT);
+
+					_r_sys_closehandle (&update_info->hthread);
+				}
+			}
+			else if (wparam == IDYES)
 			{
 				WCHAR str_content[256];
 
 #ifdef IDS_UPDATE_DOWNLOAD
-				_r_str_printf (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_DOWNLOAD), 0);
+				_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_DOWNLOAD));
 #else
 				_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Downloading update...");
 #pragma PR_PRINT_WARNING(IDS_UPDATE_DOWNLOAD)
 #endif
 
-				if (NT_SUCCESS (_r_sys_createthread2 (&_r_update_downloadthread, update_info)))
+				_r_sys_closehandle (&update_info->hthread);
+
+				if (NT_SUCCESS (_r_sys_createthread (&_r_update_downloadthread, update_info, &update_info->hthread)))
 				{
 					_r_update_pagenavigate (hwnd, NULL, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, NULL, str_content, (LONG_PTR)update_info);
 
@@ -2288,15 +2263,29 @@ HRESULT CALLBACK _r_update_pagecallback (_In_ HWND hwnd, _In_ UINT msg, _In_ WPA
 				{
 					update_component = _r_obj_getarrayitem (update_info->components, i);
 
-					if (update_component && update_component->is_haveupdate && update_component->is_installer)
+					if (update_component && update_component->is_installer)
 					{
-						_r_update_install (update_component->temp_path->buffer);
-						break;
+						if (update_component->is_haveupdate && update_component->temp_path)
+							_r_update_install (update_component->temp_path);
 					}
-
 				}
+			}
 
-				return S_FALSE;
+			break;
+		}
+
+		case TDN_DESTROYED:
+		{
+			_r_sys_closehandle (&update_info->hthread);
+			break;
+		}
+
+		case TDN_NAVIGATED:
+		{
+			if (update_info->hthread)
+			{
+				_r_sys_resumethread (update_info->hthread);
+				_r_sys_closehandle (&update_info->hthread);
 			}
 
 			break;
@@ -2306,7 +2295,7 @@ HRESULT CALLBACK _r_update_pagecallback (_In_ HWND hwnd, _In_ UINT msg, _In_ WPA
 	return S_OK;
 }
 
-INT _r_update_pagenavigate (_In_opt_ HWND htaskdlg, _In_opt_ LPCWSTR main_icon, _In_ TASKDIALOG_FLAGS flags, _In_ TASKDIALOG_COMMON_BUTTON_FLAGS buttons, _In_opt_ LPCWSTR main, _In_opt_ LPCWSTR content, _In_ LONG_PTR param)
+VOID _r_update_pagenavigate (_In_opt_ HWND htaskdlg, _In_opt_ LPCWSTR main_icon, _In_ TASKDIALOG_FLAGS flags, _In_ TASKDIALOG_COMMON_BUTTON_FLAGS buttons, _In_opt_ LPCWSTR main, _In_opt_ LPCWSTR content, _In_ LONG_PTR param)
 {
 	TASKDIALOGCONFIG tdc = {0};
 
@@ -2340,18 +2329,14 @@ INT _r_update_pagenavigate (_In_opt_ HWND htaskdlg, _In_opt_ LPCWSTR main_icon, 
 	if (content)
 		tdc.pszContent = content;
 
-	INT command_id = 0;
-
 	if (htaskdlg)
 	{
 		SendMessage (htaskdlg, TDM_NAVIGATE_PAGE, 0, (LPARAM)&tdc);
 	}
 	else
 	{
-		_r_msg_taskdialog (&tdc, &command_id, NULL, NULL);
+		_r_msg_taskdialog (&tdc, NULL, NULL, NULL);
 	}
-
-	return command_id;
 }
 
 VOID _r_update_addcomponent (_In_opt_ LPCWSTR full_name, _In_opt_ LPCWSTR short_name, _In_opt_ LPCWSTR version, _In_opt_ LPCWSTR target_path, _In_ BOOLEAN is_installer)
@@ -2375,38 +2360,25 @@ VOID _r_update_addcomponent (_In_opt_ LPCWSTR full_name, _In_opt_ LPCWSTR short_
 	_r_obj_addarrayitem (app_global.update.info.components, &update_component);
 }
 
-BOOLEAN _r_update_install (_In_ LPCWSTR install_path)
+VOID _r_update_install (_In_ PR_STRING install_path)
 {
 	PR_STRING cmd_string;
-	BOOLEAN is_success;
 
-	cmd_string = _r_format_string (L"\"%s\" /S /D=\"%s\"",
-								   install_path,
+	cmd_string = _r_format_string (L"\"%s\" /S /D=%s",
+								   install_path->buffer,
 								   _r_app_getdirectory ()
 	);
 
-	;
-
-	if (!_r_sys_runasadmin (install_path, _r_obj_getstring (cmd_string)))
+	if (!_r_sys_runasadmin (install_path->buffer, cmd_string->buffer, NULL))
 	{
 		R_ERROR_INFO error_info = {0};
-		error_info.description = install_path;
+		error_info.description = install_path->buffer;
 
 		_r_show_errormessage (NULL, NULL, GetLastError (), &error_info);
-
-		is_success = FALSE;
-	}
-	else
-	{
-		is_success = TRUE;
 	}
 
-	if (cmd_string)
-		_r_obj_dereference (cmd_string);
-
-	return is_success;
+	_r_obj_dereference (cmd_string);
 }
-
 #endif // APP_HAVE_UPDATES
 
 FORCEINLINE LPCWSTR _r_logleveltostring (_In_ R_LOG_LEVEL log_level)
