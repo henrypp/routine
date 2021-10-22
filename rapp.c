@@ -768,6 +768,10 @@ HWND _r_app_createwindow (_In_ INT dlg_id, _In_opt_ LONG icon_id, _In_opt_ DLGPR
 
 	HWND hwnd;
 	LONG dpi_value;
+	LONG icon_small_x;
+	LONG icon_small_y;
+	LONG icon_large_x;
+	LONG icon_large_y;
 
 	// create main window
 	hwnd = CreateDialogParam (NULL, MAKEINTRESOURCE (dlg_id), NULL, dlg_proc, 0);
@@ -784,9 +788,15 @@ HWND _r_app_createwindow (_In_ INT dlg_id, _In_opt_ LONG icon_id, _In_opt_ DLGPR
 	{
 		dpi_value = _r_dc_getwindowdpi (hwnd);
 
+		icon_small_x = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
+		icon_small_y = _r_dc_getsystemmetrics (SM_CYSMICON, dpi_value);
+
+		icon_large_x = _r_dc_getsystemmetrics (SM_CXICON, dpi_value);
+		icon_large_y = _r_dc_getsystemmetrics (SM_CYICON, dpi_value);
+
 		_r_wnd_seticon (hwnd,
-						_r_loadicon (_r_sys_getimagebase (), MAKEINTRESOURCE (icon_id), _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value), TRUE),
-						_r_loadicon (_r_sys_getimagebase (), MAKEINTRESOURCE (icon_id), _r_dc_getsystemmetrics (SM_CXICON, dpi_value), TRUE)
+						_r_sys_loadicon (_r_sys_getimagebase (), MAKEINTRESOURCE (icon_id), icon_small_x, icon_small_y, TRUE),
+						_r_sys_loadicon (_r_sys_getimagebase (), MAKEINTRESOURCE (icon_id), icon_large_x, icon_large_y, TRUE)
 		);
 	}
 
@@ -3148,11 +3158,25 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 			app_global.settings.hwnd = hwnd;
 
 #ifdef IDI_MAIN
-			LONG dpi_value = _r_dc_getwindowdpi (_r_app_gethwnd ());
+			LONG dpi_value;
+
+			LONG icon_small_x;
+			LONG icon_small_y;
+
+			LONG icon_large_x;
+			LONG icon_large_y;
+
+			dpi_value = _r_dc_getwindowdpi (hwnd);
+
+			icon_small_x = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
+			icon_small_y = _r_dc_getsystemmetrics (SM_CYSMICON, dpi_value);
+
+			icon_large_x = _r_dc_getsystemmetrics (SM_CXICON, dpi_value);
+			icon_large_y = _r_dc_getsystemmetrics (SM_CYICON, dpi_value);
 
 			_r_wnd_seticon (hwnd,
-							_r_loadicon (_r_sys_getimagebase (), MAKEINTRESOURCE (IDI_MAIN), _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value), TRUE),
-							_r_loadicon (_r_sys_getimagebase (), MAKEINTRESOURCE (IDI_MAIN), _r_dc_getsystemmetrics (SM_CXICON, dpi_value), TRUE)
+							_r_sys_loadicon (_r_sys_getimagebase (), MAKEINTRESOURCE (IDI_MAIN), icon_small_x, icon_small_y, TRUE),
+							_r_sys_loadicon (_r_sys_getimagebase (), MAKEINTRESOURCE (IDI_MAIN), icon_large_x, icon_large_y, TRUE)
 			);
 #else
 #pragma PR_PRINT_WARNING(IDI_MAIN)
