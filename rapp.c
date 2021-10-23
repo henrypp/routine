@@ -795,8 +795,8 @@ HWND _r_app_createwindow (_In_ INT dlg_id, _In_opt_ LONG icon_id, _In_opt_ DLGPR
 		icon_large_y = _r_dc_getsystemmetrics (SM_CYICON, dpi_value);
 
 		_r_wnd_seticon (hwnd,
-						_r_sys_loadicon (_r_sys_getimagebase (), MAKEINTRESOURCE (icon_id), icon_small_x, icon_small_y, TRUE),
-						_r_sys_loadicon (_r_sys_getimagebase (), MAKEINTRESOURCE (icon_id), icon_large_x, icon_large_y, TRUE)
+						_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCE (icon_id), icon_small_x, icon_small_y),
+						_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCE (icon_id), icon_large_x, icon_large_y)
 		);
 	}
 
@@ -1664,7 +1664,7 @@ SIZE_T _r_locale_getcount ()
 }
 
 _Ret_maybenull_
-PR_STRING _r_locale_getstringex (_In_ UINT uid)
+PR_STRING _r_locale_getstring_ex (_In_ UINT uid)
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	PR_STRING hash_string;
@@ -1739,7 +1739,7 @@ LPCWSTR _r_locale_getstring (_In_ UINT uid)
 	PR_STRING string;
 	LPCWSTR result;
 
-	string = _r_locale_getstringex (uid);
+	string = _r_locale_getstring_ex (uid);
 
 	if (string)
 	{
@@ -3180,8 +3180,8 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 			icon_large_y = _r_dc_getsystemmetrics (SM_CYICON, dpi_value);
 
 			_r_wnd_seticon (hwnd,
-							_r_sys_loadicon (_r_sys_getimagebase (), MAKEINTRESOURCE (IDI_MAIN), icon_small_x, icon_small_y, TRUE),
-							_r_sys_loadicon (_r_sys_getimagebase (), MAKEINTRESOURCE (IDI_MAIN), icon_large_x, icon_large_y, TRUE)
+							_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCE (IDI_MAIN), icon_small_x, icon_small_y),
+							_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCE (IDI_MAIN), icon_large_x, icon_large_y)
 			);
 #else
 #pragma PR_PRINT_WARNING(IDI_MAIN)
