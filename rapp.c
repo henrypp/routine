@@ -832,14 +832,14 @@ HWND _r_app_createwindow (_In_ INT dlg_id, _In_opt_ LONG icon_id, _In_opt_ DLGPR
 	// restore window position
 	_r_window_restoreposition (hwnd, L"window");
 
+	// common initialization
+	SendMessage (hwnd, RM_INITIALIZE, 0, 0);
+	SendMessage (hwnd, RM_LOCALIZE, 0, 0);
+
 	// restore window visibility (or not?)
 #if !defined(APP_STARTMINIMIZED)
 	ShowWindow (hwnd, _r_app_getshowcode (hwnd));
 #endif // !APP_STARTMINIMIZED
-
-	// common initialization
-	SendMessage (hwnd, RM_INITIALIZE, 0, 0);
-	SendMessage (hwnd, RM_LOCALIZE, 0, 0);
 
 	PostMessage (hwnd, RM_INITIALIZE_POST, 0, 0);
 
