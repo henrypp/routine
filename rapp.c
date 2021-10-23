@@ -3140,7 +3140,7 @@ VOID _r_settings_createwindow (_In_ HWND hwnd, _In_opt_ DLGPROC dlg_proc, _In_op
 #if defined(APP_HAVE_SETTINGS_TABS)
 	_r_util_templatewritecontrol (&buffer_ptr, IDC_NAV, WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | TCS_HOTTRACK | TCS_TOOLTIPS, 8, 6, width - 16, height - 34, WC_TABCONTROL);
 	_r_util_templatewritecontrol (&buffer_ptr, IDC_RESET, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON, 8, (height - 22), 50, 14, WC_BUTTON);
-	_r_util_templatewritecontrol (&buffer_ptr, IDC_SAVE, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON, (width - 114), (height - 22), 50, 14, WC_BUTTON);
+	_r_util_templatewritecontrol (&buffer_ptr, IDC_SAVE, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON, (width - 112), (height - 22), 50, 14, WC_BUTTON);
 #else
 	_r_util_templatewritecontrol (&buffer_ptr, IDC_NAV, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | TVS_SHOWSELALWAYS | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_TRACKSELECT | TVS_INFOTIP | TVS_NOHSCROLL, 8, 6, 88, height - 14, WC_TREEVIEW);
 	_r_util_templatewritecontrol (&buffer_ptr, IDC_RESET, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON, 88 + 14, (height - 22), 50, 14, WC_BUTTON);
