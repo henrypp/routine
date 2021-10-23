@@ -28,6 +28,7 @@
 //
 
 typedef PVOID *PVOID_PTR;
+typedef PBYTE *PBYTE_PTR;
 typedef HICON *HICON_PTR;
 
 //
