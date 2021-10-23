@@ -165,7 +165,7 @@ VOID _r_locale_enum (_In_ PVOID hwnd, _In_ INT ctrl_id, _In_opt_ UINT menu_id);
 SIZE_T _r_locale_getcount ();
 
 _Ret_maybenull_
-PR_STRING _r_locale_getstringex (_In_ UINT uid);
+PR_STRING _r_locale_getstring_ex (_In_ UINT uid);
 
 LPCWSTR _r_locale_getstring (_In_ UINT uid);
 
