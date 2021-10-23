@@ -1856,8 +1856,6 @@ static NTSTATUS NTAPI _r_update_checkthread (_In_ PVOID arglist)
 
 	update_info = arglist;
 
-	InterlockedIncrement (&update_info->lock);
-
 	hsession = _r_inet_createsession (_r_app_getuseragent ());
 
 	if (hsession)
@@ -2028,6 +2026,8 @@ VOID _r_update_check (_In_opt_ HWND hparent)
 
 	update_info->htaskdlg = NULL;
 	update_info->hparent = hparent;
+
+	InterlockedIncrement (&update_info->lock);
 
 	if (hparent)
 	{
@@ -2229,8 +2229,6 @@ HRESULT CALLBACK _r_update_pagecallback (_In_ HWND hwnd, _In_ UINT msg, _In_ WPA
 				_r_wnd_top (hwnd, TRUE);
 			}
 
-			_r_sys_createthread2 (&_r_update_checkthread, update_info);
-
 			break;
 		}
 
@@ -2284,12 +2282,7 @@ HRESULT CALLBACK _r_update_pagecallback (_In_ HWND hwnd, _In_ UINT msg, _In_ WPA
 			break;
 		}
 
-		case TDN_DESTROYED:
-		{
-			_r_sys_closehandle (&update_info->hthread);
-			break;
-		}
-
+		case TDN_DIALOG_CONSTRUCTED:
 		case TDN_NAVIGATED:
 		{
 			if (update_info->hthread)
@@ -2298,6 +2291,12 @@ HRESULT CALLBACK _r_update_pagecallback (_In_ HWND hwnd, _In_ UINT msg, _In_ WPA
 				_r_sys_closehandle (&update_info->hthread);
 			}
 
+			break;
+		}
+
+		case TDN_DESTROYED:
+		{
+			_r_sys_closehandle (&update_info->hthread);
 			break;
 		}
 	}
@@ -3044,6 +3043,16 @@ VOID _r_settings_adjustchild (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ HWND hchild
 
 VOID _r_settings_createwindow (_In_ HWND hwnd, _In_opt_ DLGPROC dlg_proc, _In_opt_ INT dlg_id)
 {
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static SHORT width = 0;
+	static SHORT height = 0;
+
+	PVOID buffer;
+	PBYTE buffer_ptr;
+
+	SIZE_T size;
+	WORD controls;
+
 	assert (!_r_obj_isarrayempty (app_global.settings.page_list));
 
 	if (_r_settings_getwindow ())
@@ -3052,17 +3061,7 @@ VOID _r_settings_createwindow (_In_ HWND hwnd, _In_opt_ DLGPROC dlg_proc, _In_op
 		return;
 	}
 
-	if (dlg_id)
-		_r_config_setinteger (L"SettingsLastPage", dlg_id);
-
-	if (dlg_proc)
-		app_global.settings.wnd_proc = dlg_proc;
-
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static SHORT width = 0;
-	static SHORT height = 0;
-
-	// calculate dialog size
+	// calculate maximum dialog size
 	if (_r_initonce_begin (&init_once))
 	{
 		LPDLGTEMPLATEEX dlg_template;
@@ -3099,50 +3098,56 @@ VOID _r_settings_createwindow (_In_ HWND hwnd, _In_opt_ DLGPROC dlg_proc, _In_op
 	}
 
 #if defined(APP_HAVE_SETTINGS_TABS)
-	const WORD controls = 4;
+	controls = 4;
 #else
-	const WORD controls = 3;
+	controls = 3;
 #endif
 
-	const SIZE_T size = ((sizeof (DLGTEMPLATEEX) + (sizeof (WORD) * 8)) + ((sizeof (DLGITEMTEMPLATEEX) + (sizeof (WORD) * 3)) * controls)) + 128;
-	PVOID buffer = _r_mem_allocatezero (size);
-	PBYTE ptr = buffer;
+	size = ((sizeof (DLGTEMPLATEEX) + (sizeof (WORD) * 8)) + ((sizeof (DLGITEMTEMPLATEEX) + (sizeof (WORD) * 3)) * controls)) + 128;
+	buffer = _r_mem_allocatezero (size);
+	buffer_ptr = buffer;
+
+	if (dlg_id)
+		_r_config_setinteger (L"SettingsLastPage", dlg_id);
+
+	if (dlg_proc)
+		app_global.settings.wnd_proc = dlg_proc;
 
 	// set dialog information by filling DLGTEMPLATEEX structure
-	_r_util_templatewriteshort (&ptr, 1); // dlgVer
-	_r_util_templatewriteshort (&ptr, USHRT_MAX); // signature
-	_r_util_templatewriteulong (&ptr, 0); // helpID
-	_r_util_templatewriteulong (&ptr, WS_EX_APPWINDOW | WS_EX_CONTROLPARENT); // exStyle
-	_r_util_templatewriteulong (&ptr, WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP | WS_BORDER | WS_SYSMENU | WS_CAPTION | DS_SHELLFONT | DS_MODALFRAME); // style
-	_r_util_templatewriteshort (&ptr, controls); // cdit
-	_r_util_templatewriteshort (&ptr, 0); // x
-	_r_util_templatewriteshort (&ptr, 0); // y
-	_r_util_templatewriteshort (&ptr, width); // cx
-	_r_util_templatewriteshort (&ptr, height); // cy
+	_r_util_templatewriteshort (&buffer_ptr, 1); // dlgVer
+	_r_util_templatewriteshort (&buffer_ptr, USHRT_MAX); // signature
+	_r_util_templatewriteulong (&buffer_ptr, 0); // helpID
+	_r_util_templatewriteulong (&buffer_ptr, WS_EX_APPWINDOW | WS_EX_CONTROLPARENT); // exStyle
+	_r_util_templatewriteulong (&buffer_ptr, WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP | WS_BORDER | WS_SYSMENU | WS_CAPTION | DS_SHELLFONT | DS_MODALFRAME); // style
+	_r_util_templatewriteshort (&buffer_ptr, controls); // cdit
+	_r_util_templatewriteshort (&buffer_ptr, 0); // x
+	_r_util_templatewriteshort (&buffer_ptr, 0); // y
+	_r_util_templatewriteshort (&buffer_ptr, width); // cx
+	_r_util_templatewriteshort (&buffer_ptr, height); // cy
 
 	// set dialog additional data
-	_r_util_templatewritestring (&ptr, L""); // menu
-	_r_util_templatewritestring (&ptr, L""); // windowClass
-	_r_util_templatewritestring (&ptr, L""); // title
+	_r_util_templatewritestring (&buffer_ptr, L""); // menu
+	_r_util_templatewritestring (&buffer_ptr, L""); // windowClass
+	_r_util_templatewritestring (&buffer_ptr, L""); // title
 
 	// set dialog font
-	_r_util_templatewriteshort (&ptr, 8); // pointsize
-	_r_util_templatewriteshort (&ptr, FW_NORMAL); // weight
-	_r_util_templatewriteshort (&ptr, FALSE); // bItalic
-	_r_util_templatewritestring (&ptr, L"MS Shell Dlg"); // font
+	_r_util_templatewriteshort (&buffer_ptr, 8); // pointsize
+	_r_util_templatewriteshort (&buffer_ptr, FW_NORMAL); // weight
+	_r_util_templatewriteshort (&buffer_ptr, FALSE); // bItalic
+	_r_util_templatewritestring (&buffer_ptr, L"MS Shell Dlg"); // font
 
 	// insert dialog controls
 #if defined(APP_HAVE_SETTINGS_TABS)
-	_r_util_templatewritecontrol (&ptr, IDC_NAV, WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | TCS_HOTTRACK | TCS_TOOLTIPS, 8, 6, width - 16, height - 34, WC_TABCONTROL);
-	_r_util_templatewritecontrol (&ptr, IDC_RESET, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON, 8, (height - 22), 50, 14, WC_BUTTON);
-	_r_util_templatewritecontrol (&ptr, IDC_SAVE, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON, (width - 114), (height - 22), 50, 14, WC_BUTTON);
+	_r_util_templatewritecontrol (&buffer_ptr, IDC_NAV, WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | TCS_HOTTRACK | TCS_TOOLTIPS, 8, 6, width - 16, height - 34, WC_TABCONTROL);
+	_r_util_templatewritecontrol (&buffer_ptr, IDC_RESET, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON, 8, (height - 22), 50, 14, WC_BUTTON);
+	_r_util_templatewritecontrol (&buffer_ptr, IDC_SAVE, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON, (width - 114), (height - 22), 50, 14, WC_BUTTON);
 #else
-	_r_util_templatewritecontrol (&ptr, IDC_NAV, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | TVS_SHOWSELALWAYS | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_TRACKSELECT | TVS_INFOTIP | TVS_NOHSCROLL, 8, 6, 88, height - 14, WC_TREEVIEW);
-	_r_util_templatewritecontrol (&ptr, IDC_RESET, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON, 88 + 14, (height - 22), 50, 14, WC_BUTTON);
+	_r_util_templatewritecontrol (&buffer_ptr, IDC_NAV, WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | TVS_SHOWSELALWAYS | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_TRACKSELECT | TVS_INFOTIP | TVS_NOHSCROLL, 8, 6, 88, height - 14, WC_TREEVIEW);
+	_r_util_templatewritecontrol (&buffer_ptr, IDC_RESET, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON, 88 + 14, (height - 22), 50, 14, WC_BUTTON);
 
 #endif // APP_HAVE_SETTINGS_TABS
 
-	_r_util_templatewritecontrol (&ptr, IDC_CLOSE, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON, (width - 58), (height - 22), 50, 14, WC_BUTTON);
+	_r_util_templatewritecontrol (&buffer_ptr, IDC_CLOSE, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON, (width - 58), (height - 22), 50, 14, WC_BUTTON);
 
 	DialogBoxIndirect (NULL, buffer, hwnd, &_r_settings_wndproc);
 
@@ -3234,6 +3239,8 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 
 		case RM_LOCALIZE:
 		{
+			PR_SETTINGS_PAGE ptr_page;
+
 			// localize window
 #ifdef IDS_SETTINGS
 			SetWindowText (hwnd, _r_locale_getstring (IDS_SETTINGS));
@@ -3244,15 +3251,18 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 
 			// localize navigation
 #if !defined(APP_HAVE_SETTINGS_TABS)
-			LONG dpi_value = _r_dc_getwindowdpi (hwnd);
+			HTREEITEM hitem;
+			LONG dpi_value;
+
+			dpi_value = _r_dc_getwindowdpi (hwnd);
 
 			_r_treeview_setstyle (hwnd, IDC_NAV, 0, _r_dc_getdpi (PR_SIZE_ITEMHEIGHT, dpi_value), _r_dc_getdpi (PR_SIZE_TREEINDENT, dpi_value));
 
-			HTREEITEM hitem = (HTREEITEM)SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_ROOT, 0);
+			hitem = (HTREEITEM)SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_ROOT, 0);
 
 			while (hitem)
 			{
-				PR_SETTINGS_PAGE ptr_page = (PR_SETTINGS_PAGE)_r_treeview_getlparam (hwnd, IDC_NAV, hitem);
+				ptr_page = (PR_SETTINGS_PAGE)_r_treeview_getlparam (hwnd, IDC_NAV, hitem);
 
 				if (ptr_page)
 				{
@@ -3267,7 +3277,7 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 #else
 			for (INT i = 0; i < _r_tab_getitemcount (hwnd, IDC_NAV); i++)
 			{
-				PR_SETTINGS_PAGE ptr_page = (PR_SETTINGS_PAGE)_r_tab_getitemlparam (hwnd, IDC_NAV, i);
+				ptr_page = (PR_SETTINGS_PAGE)_r_tab_getitemlparam (hwnd, IDC_NAV, i);
 
 				if (ptr_page)
 				{
@@ -3365,8 +3375,11 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 
 		case WM_NOTIFY:
 		{
-			LPNMHDR lphdr = (LPNMHDR)lparam;
-			INT ctrl_id = (INT)(INT_PTR)lphdr->idFrom;
+			LPNMHDR lphdr;
+			INT ctrl_id;
+
+			lphdr = (LPNMHDR)lparam;
+			ctrl_id = (INT)(INT_PTR)lphdr->idFrom;
 
 			if (ctrl_id != IDC_NAV)
 				break;
@@ -3376,10 +3389,15 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 #if !defined(APP_HAVE_SETTINGS_TABS)
 				case TVN_SELCHANGING:
 				{
-					LPNMTREEVIEW lptv = (LPNMTREEVIEW)lparam;
+					LPNMTREEVIEW lpnmtv;
 
-					PR_SETTINGS_PAGE ptr_page_old = (PR_SETTINGS_PAGE)lptv->itemOld.lParam;
-					PR_SETTINGS_PAGE ptr_page_new = (PR_SETTINGS_PAGE)lptv->itemNew.lParam;
+					PR_SETTINGS_PAGE ptr_page_old;
+					PR_SETTINGS_PAGE ptr_page_new;
+
+					lpnmtv = (LPNMTREEVIEW)lparam;
+
+					ptr_page_old = (PR_SETTINGS_PAGE)lpnmtv->itemOld.lParam;
+					ptr_page_new = (PR_SETTINGS_PAGE)lpnmtv->itemNew.lParam;
 
 					if (ptr_page_old && ptr_page_old->hwnd && _r_wnd_isvisible (ptr_page_old->hwnd))
 						ShowWindow (ptr_page_old->hwnd, SW_HIDE);
@@ -3393,7 +3411,8 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 
 					PostMessage (ptr_page_new->hwnd, RM_LOCALIZE, (WPARAM)ptr_page_new->dlg_id, 0);
 
-					ShowWindow (ptr_page_new->hwnd, SW_SHOW);
+					ShowWindow (ptr_page_new->hwnd, SW_SHOWNA);
+					SetFocus (NULL);
 
 					break;
 				}
@@ -3429,7 +3448,8 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 
 					PostMessage (ptr_page->hwnd, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
 
-					ShowWindow (ptr_page->hwnd, SW_SHOW);
+					ShowWindow (ptr_page->hwnd, SW_SHOWNA);
+					SetFocus (NULL);
 
 					break;
 				}
@@ -3489,6 +3509,9 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 #ifdef IDC_RESET
 				case IDC_RESET:
 				{
+					PR_SETTINGS_PAGE ptr_page;
+					HWND hwindow;
+
 					if (_r_show_message (hwnd, MB_YESNO | MB_ICONWARNING, _r_app_getname (), NULL, L"Are you really sure you want to reset all application settings?") != IDYES)
 						break;
 
@@ -3508,16 +3531,16 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 #endif // APP_HAVE_SKIPUAC
 
 					// reinitialize application
-					HWND hmain = _r_app_gethwnd ();
+					hwindow = _r_app_gethwnd ();
 
-					if (hmain)
+					if (hwindow)
 					{
-						SendMessage (hmain, RM_INITIALIZE, 0, 0);
-						SendMessage (hmain, RM_LOCALIZE, 0, 0);
+						SendMessage (hwindow, RM_INITIALIZE, 0, 0);
+						SendMessage (hwindow, RM_LOCALIZE, 0, 0);
 
-						SendMessage (hmain, WM_EXITSIZEMOVE, 0, 0); // reset size and pos
+						SendMessage (hwindow, WM_EXITSIZEMOVE, 0, 0); // reset size and pos
 
-						SendMessage (hmain, RM_CONFIG_RESET, 0, 0);
+						SendMessage (hwindow, RM_CONFIG_RESET, 0, 0);
 					}
 
 					// reinitialize settings
@@ -3525,7 +3548,7 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 
 					for (SIZE_T i = 0; i < _r_obj_getarraysize (app_global.settings.page_list); i++)
 					{
-						PR_SETTINGS_PAGE ptr_page = _r_obj_getarrayitem (app_global.settings.page_list, i);
+						ptr_page = _r_obj_getarrayitem (app_global.settings.page_list, i);
 
 						if (ptr_page)
 						{
