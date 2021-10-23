@@ -600,7 +600,7 @@ LRESULT CALLBACK _r_app_maindlgproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM 
 		{
 			if ((_r_wnd_getstyle (hwnd) & WS_MAXIMIZEBOX))
 			{
-				_r_config_setbooleanex (L"IsMaximized", _r_wnd_ismaximized (hwnd), L"window");
+				_r_config_setboolean_ex (L"IsMaximized", _r_wnd_ismaximized (hwnd), L"window");
 			}
 
 			break;
@@ -732,7 +732,7 @@ INT _r_app_getshowcode (_In_ HWND hwnd)
 
 	if ((_r_wnd_getstyle (hwnd) & WS_MAXIMIZEBOX) != 0)
 	{
-		if (show_code == SW_SHOWMAXIMIZED || _r_config_getbooleanex (L"IsMaximized", FALSE, L"window"))
+		if (show_code == SW_SHOWMAXIMIZED || _r_config_getboolean_ex (L"IsMaximized", FALSE, L"window"))
 		{
 			if (is_windowhidden)
 			{
@@ -928,12 +928,12 @@ VOID _r_config_initialize ()
 	_r_queuedlock_releaseexclusive (&app_global.config.lock);
 }
 
-BOOLEAN _r_config_getbooleanex (_In_ LPCWSTR key_name, _In_opt_ BOOLEAN def_value, _In_opt_ LPCWSTR section_name)
+BOOLEAN _r_config_getboolean_ex (_In_ LPCWSTR key_name, _In_opt_ BOOLEAN def_value, _In_opt_ LPCWSTR section_name)
 {
 	PR_STRING string;
 	BOOLEAN result;
 
-	string = _r_config_getstringex (key_name, def_value ? L"true" : L"false", section_name);
+	string = _r_config_getstring_ex (key_name, def_value ? L"true" : L"false", section_name);
 
 	if (string)
 	{
@@ -947,7 +947,7 @@ BOOLEAN _r_config_getbooleanex (_In_ LPCWSTR key_name, _In_opt_ BOOLEAN def_valu
 	return FALSE;
 }
 
-INT _r_config_getintegerex (_In_ LPCWSTR key_name, _In_opt_ INT def_value, _In_opt_ LPCWSTR section_name)
+INT _r_config_getinteger_ex (_In_ LPCWSTR key_name, _In_opt_ INT def_value, _In_opt_ LPCWSTR section_name)
 {
 	WCHAR number_string[64];
 	PR_STRING string;
@@ -955,7 +955,7 @@ INT _r_config_getintegerex (_In_ LPCWSTR key_name, _In_opt_ INT def_value, _In_o
 
 	_r_str_frominteger (number_string, RTL_NUMBER_OF (number_string), def_value);
 
-	string = _r_config_getstringex (key_name, number_string, section_name);
+	string = _r_config_getstring_ex (key_name, number_string, section_name);
 
 	if (string)
 	{
@@ -969,7 +969,7 @@ INT _r_config_getintegerex (_In_ LPCWSTR key_name, _In_opt_ INT def_value, _In_o
 	return 0;
 }
 
-UINT _r_config_getuintegerex (_In_ LPCWSTR key_name, _In_opt_ UINT def_value, _In_opt_ LPCWSTR section_name)
+UINT _r_config_getuinteger_ex (_In_ LPCWSTR key_name, _In_opt_ UINT def_value, _In_opt_ LPCWSTR section_name)
 {
 	WCHAR number_string[64];
 	PR_STRING string;
@@ -977,7 +977,7 @@ UINT _r_config_getuintegerex (_In_ LPCWSTR key_name, _In_opt_ UINT def_value, _I
 
 	_r_str_fromuinteger (number_string, RTL_NUMBER_OF (number_string), def_value);
 
-	string = _r_config_getstringex (key_name, number_string, section_name);
+	string = _r_config_getstring_ex (key_name, number_string, section_name);
 
 	if (string)
 	{
@@ -991,7 +991,7 @@ UINT _r_config_getuintegerex (_In_ LPCWSTR key_name, _In_opt_ UINT def_value, _I
 	return 0;
 }
 
-LONG _r_config_getlongex (_In_ LPCWSTR key_name, _In_opt_ LONG def_value, _In_opt_ LPCWSTR section_name)
+LONG _r_config_getlong_ex (_In_ LPCWSTR key_name, _In_opt_ LONG def_value, _In_opt_ LPCWSTR section_name)
 {
 	WCHAR number_string[64];
 	PR_STRING string;
@@ -999,7 +999,7 @@ LONG _r_config_getlongex (_In_ LPCWSTR key_name, _In_opt_ LONG def_value, _In_op
 
 	_r_str_fromlong (number_string, RTL_NUMBER_OF (number_string), def_value);
 
-	string = _r_config_getstringex (key_name, number_string, section_name);
+	string = _r_config_getstring_ex (key_name, number_string, section_name);
 
 	if (string)
 	{
@@ -1013,7 +1013,7 @@ LONG _r_config_getlongex (_In_ LPCWSTR key_name, _In_opt_ LONG def_value, _In_op
 	return 0;
 }
 
-LONG64 _r_config_getlong64ex (_In_ LPCWSTR key_name, _In_opt_ LONG64 def_value, _In_opt_ LPCWSTR section_name)
+LONG64 _r_config_getlong64_ex (_In_ LPCWSTR key_name, _In_opt_ LONG64 def_value, _In_opt_ LPCWSTR section_name)
 {
 	WCHAR number_string[64];
 	PR_STRING string;
@@ -1021,7 +1021,7 @@ LONG64 _r_config_getlong64ex (_In_ LPCWSTR key_name, _In_opt_ LONG64 def_value, 
 
 	_r_str_fromlong64 (number_string, RTL_NUMBER_OF (number_string), def_value);
 
-	string = _r_config_getstringex (key_name, number_string, section_name);
+	string = _r_config_getstring_ex (key_name, number_string, section_name);
 
 	if (string)
 	{
@@ -1035,7 +1035,7 @@ LONG64 _r_config_getlong64ex (_In_ LPCWSTR key_name, _In_opt_ LONG64 def_value, 
 	return 0;
 }
 
-ULONG _r_config_getulongex (_In_ LPCWSTR key_name, _In_opt_ ULONG def_value, _In_opt_ LPCWSTR section_name)
+ULONG _r_config_getulong_ex (_In_ LPCWSTR key_name, _In_opt_ ULONG def_value, _In_opt_ LPCWSTR section_name)
 {
 	WCHAR number_string[64];
 	PR_STRING string;
@@ -1043,7 +1043,7 @@ ULONG _r_config_getulongex (_In_ LPCWSTR key_name, _In_opt_ ULONG def_value, _In
 
 	_r_str_fromulong (number_string, RTL_NUMBER_OF (number_string), def_value);
 
-	string = _r_config_getstringex (key_name, number_string, section_name);
+	string = _r_config_getstring_ex (key_name, number_string, section_name);
 
 	if (string)
 	{
@@ -1057,7 +1057,7 @@ ULONG _r_config_getulongex (_In_ LPCWSTR key_name, _In_opt_ ULONG def_value, _In
 	return 0;
 }
 
-ULONG64 _r_config_getulong64ex (_In_ LPCWSTR key_name, _In_opt_ ULONG64 def_value, _In_opt_ LPCWSTR section_name)
+ULONG64 _r_config_getulong64_ex (_In_ LPCWSTR key_name, _In_opt_ ULONG64 def_value, _In_opt_ LPCWSTR section_name)
 {
 	WCHAR number_string[64];
 	PR_STRING string;
@@ -1065,7 +1065,7 @@ ULONG64 _r_config_getulong64ex (_In_ LPCWSTR key_name, _In_opt_ ULONG64 def_valu
 
 	_r_str_fromulong64 (number_string, RTL_NUMBER_OF (number_string), def_value);
 
-	string = _r_config_getstringex (key_name, number_string, section_name);
+	string = _r_config_getstring_ex (key_name, number_string, section_name);
 
 	if (string)
 	{
@@ -1079,9 +1079,11 @@ ULONG64 _r_config_getulong64ex (_In_ LPCWSTR key_name, _In_opt_ ULONG64 def_valu
 	return 0;
 }
 
-VOID _r_config_getfontex (_In_ LPCWSTR key_name, _Inout_ PLOGFONT logfont, _In_ LONG dpi_value, _In_opt_ LPCWSTR section_name)
+VOID _r_config_getfont_ex (_In_ LPCWSTR key_name, _Inout_ PLOGFONT logfont, _In_ LONG dpi_value, _In_opt_ LPCWSTR section_name)
 {
-	PR_STRING font_config = _r_config_getstringex (key_name, NULL, section_name);
+	PR_STRING font_config;
+
+	font_config = _r_config_getstring_ex (key_name, NULL, section_name);
 
 	if (font_config)
 	{
@@ -1147,7 +1149,7 @@ VOID _r_config_getsize (_In_ LPCWSTR key_name, _Out_ PR_SIZE size, _In_opt_ PR_S
 
 	size->cx = size->cy = 0; // initialize size values
 
-	pair_config = _r_config_getstringex (key_name, NULL, section_name);
+	pair_config = _r_config_getstring_ex (key_name, NULL, section_name);
 
 	if (pair_config)
 	{
@@ -1175,12 +1177,12 @@ VOID _r_config_getsize (_In_ LPCWSTR key_name, _Out_ PR_SIZE size, _In_opt_ PR_S
 }
 
 _Ret_maybenull_
-PR_STRING _r_config_getstringexpandex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_value, _In_opt_ LPCWSTR section_name)
+PR_STRING _r_config_getstringexpand_ex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_value, _In_opt_ LPCWSTR section_name)
 {
 	PR_STRING string;
 	PR_STRING config_value;
 
-	config_value = _r_config_getstringex (key_name, def_value, section_name);
+	config_value = _r_config_getstring_ex (key_name, def_value, section_name);
 
 	if (config_value)
 	{
@@ -1204,7 +1206,7 @@ PR_STRING _r_config_getstringexpandex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR d
 }
 
 _Ret_maybenull_
-PR_STRING _r_config_getstringex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_value, _In_opt_ LPCWSTR section_name)
+PR_STRING _r_config_getstring_ex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_value, _In_opt_ LPCWSTR section_name)
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	PR_OBJECT_POINTER object_ptr;
@@ -1268,65 +1270,65 @@ PR_STRING _r_config_getstringex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_val
 	return NULL;
 }
 
-VOID _r_config_setbooleanex (_In_ LPCWSTR key_name, _In_ BOOLEAN value, _In_opt_ LPCWSTR section_name)
+VOID _r_config_setboolean_ex (_In_ LPCWSTR key_name, _In_ BOOLEAN value, _In_opt_ LPCWSTR section_name)
 {
-	_r_config_setstringex (key_name, value ? L"true" : L"false", section_name);
+	_r_config_setstring_ex (key_name, value ? L"true" : L"false", section_name);
 }
 
-VOID _r_config_setintegerex (_In_ LPCWSTR key_name, _In_ INT value, _In_opt_ LPCWSTR section_name)
+VOID _r_config_setinteger_ex (_In_ LPCWSTR key_name, _In_ INT value, _In_opt_ LPCWSTR section_name)
 {
 	WCHAR value_text[64];
 	_r_str_frominteger (value_text, RTL_NUMBER_OF (value_text), value);
 
-	_r_config_setstringex (key_name, value_text, section_name);
+	_r_config_setstring_ex (key_name, value_text, section_name);
 }
 
-VOID _r_config_setuintegerex (_In_ LPCWSTR key_name, _In_ UINT value, _In_opt_ LPCWSTR section_name)
+VOID _r_config_setuinteger_ex (_In_ LPCWSTR key_name, _In_ UINT value, _In_opt_ LPCWSTR section_name)
 {
 	WCHAR value_text[64];
 	_r_str_fromuinteger (value_text, RTL_NUMBER_OF (value_text), value);
 
-	_r_config_setstringex (key_name, value_text, section_name);
+	_r_config_setstring_ex (key_name, value_text, section_name);
 }
 
-VOID _r_config_setlongex (_In_ LPCWSTR key_name, _In_ LONG value, _In_opt_ LPCWSTR section_name)
+VOID _r_config_setlong_ex (_In_ LPCWSTR key_name, _In_ LONG value, _In_opt_ LPCWSTR section_name)
 {
 	WCHAR value_text[64];
 	_r_str_fromlong (value_text, RTL_NUMBER_OF (value_text), value);
 
-	_r_config_setstringex (key_name, value_text, section_name);
+	_r_config_setstring_ex (key_name, value_text, section_name);
 }
 
-VOID _r_config_setlong64ex (_In_ LPCWSTR key_name, _In_ LONG64 value, _In_opt_ LPCWSTR section_name)
+VOID _r_config_setlong64_ex (_In_ LPCWSTR key_name, _In_ LONG64 value, _In_opt_ LPCWSTR section_name)
 {
 	WCHAR value_text[64];
 	_r_str_fromlong64 (value_text, RTL_NUMBER_OF (value_text), value);
 
-	_r_config_setstringex (key_name, value_text, section_name);
+	_r_config_setstring_ex (key_name, value_text, section_name);
 }
 
-VOID _r_config_setulongex (_In_ LPCWSTR key_name, _In_ ULONG value, _In_opt_ LPCWSTR section_name)
+VOID _r_config_setulong_ex (_In_ LPCWSTR key_name, _In_ ULONG value, _In_opt_ LPCWSTR section_name)
 {
 	WCHAR value_text[64];
 	_r_str_fromulong (value_text, RTL_NUMBER_OF (value_text), value);
 
-	_r_config_setstringex (key_name, value_text, section_name);
+	_r_config_setstring_ex (key_name, value_text, section_name);
 }
 
-VOID _r_config_setulong64ex (_In_ LPCWSTR key_name, _In_ ULONG64 value, _In_opt_ LPCWSTR section_name)
+VOID _r_config_setulong64_ex (_In_ LPCWSTR key_name, _In_ ULONG64 value, _In_opt_ LPCWSTR section_name)
 {
 	WCHAR value_text[64];
 	_r_str_fromulong64 (value_text, RTL_NUMBER_OF (value_text), value);
 
-	_r_config_setstringex (key_name, value_text, section_name);
+	_r_config_setstring_ex (key_name, value_text, section_name);
 }
 
-VOID _r_config_setfontex (_In_ LPCWSTR key_name, _In_ PLOGFONT logfont, _In_ LONG dpi_value, _In_opt_ LPCWSTR section_name)
+VOID _r_config_setfont_ex (_In_ LPCWSTR key_name, _In_ PLOGFONT logfont, _In_ LONG dpi_value, _In_opt_ LPCWSTR section_name)
 {
 	WCHAR value_text[128];
 	_r_str_printf (value_text, RTL_NUMBER_OF (value_text), L"%s;%" TEXT (PR_LONG) L";%" TEXT (PR_LONG), logfont->lfFaceName, logfont->lfHeight ? _r_dc_fontheighttosize (logfont->lfHeight, dpi_value) : 0, logfont->lfWeight);
 
-	_r_config_setstringex (key_name, value_text, section_name);
+	_r_config_setstring_ex (key_name, value_text, section_name);
 }
 
 VOID _r_config_setsize (_In_ LPCWSTR key_name, _In_ PR_SIZE size, _In_opt_ LPCWSTR section_name)
@@ -1334,23 +1336,29 @@ VOID _r_config_setsize (_In_ LPCWSTR key_name, _In_ PR_SIZE size, _In_opt_ LPCWS
 	WCHAR value_text[128];
 	_r_str_printf (value_text, RTL_NUMBER_OF (value_text), L"%" TEXT (PR_LONG) L",%" TEXT (PR_LONG), size->cx, size->cy);
 
-	_r_config_setstringex (key_name, value_text, section_name);
+	_r_config_setstring_ex (key_name, value_text, section_name);
 }
 
-VOID _r_config_setstringexpandex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_opt_ LPCWSTR section_name)
+VOID _r_config_setstringexpand_ex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_opt_ LPCWSTR section_name)
 {
-	PR_STRING string = NULL;
+	PR_STRING string;
 
 	if (value)
+	{
 		string = _r_str_unexpandenvironmentstring (value);
+	}
+	else
+	{
+		string = NULL;
+	}
 
-	_r_config_setstringex (key_name, _r_obj_getstring (string), section_name);
+	_r_config_setstring_ex (key_name, _r_obj_getstring (string), section_name);
 
 	if (string)
 		_r_obj_dereference (string);
 }
 
-VOID _r_config_setstringex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_opt_ LPCWSTR section_name)
+VOID _r_config_setstring_ex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_opt_ LPCWSTR section_name)
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	WCHAR section_string[128];
