@@ -649,9 +649,9 @@ typedef struct R_LAYOUT_MANAGER
 
 typedef struct R_LAYOUT_ENUM
 {
-	HWND root_hwnd;
-	PR_LAYOUT_ITEM layout_item;
 	PR_LAYOUT_MANAGER layout_manager;
+	PR_LAYOUT_ITEM layout_item;
+	HWND root_hwnd;
 } R_LAYOUT_ENUM, *PR_LAYOUT_ENUM;
 
 #define PR_LAYOUT_ANCHOR_LEFT 0x0001
