@@ -624,47 +624,6 @@ typedef struct R_FILE_DIALOG
 #define PR_FILEDIALOG_ISIFILEDIALOG 0x0008
 
 //
-// Window layout
-//
-
-typedef struct R_LAYOUT_ITEM
-{
-	HWND hwnd;
-	HDWP defer_handle;
-	struct R_LAYOUT_ITEM *parent_item;
-	RECT rect;
-	RECT anchor;
-	RECT margin;
-	ULONG number_of_children;
-	ULONG flags;
-} R_LAYOUT_ITEM, *PR_LAYOUT_ITEM;
-
-typedef struct R_LAYOUT_MANAGER
-{
-	R_LAYOUT_ITEM root_item;
-	POINT original_size;
-	PR_LIST list;
-	BOOLEAN is_initialized;
-} R_LAYOUT_MANAGER, *PR_LAYOUT_MANAGER;
-
-typedef struct R_LAYOUT_ENUM
-{
-	PR_LAYOUT_MANAGER layout_manager;
-	PR_LAYOUT_ITEM layout_item;
-	HWND root_hwnd;
-} R_LAYOUT_ENUM, *PR_LAYOUT_ENUM;
-
-#define PR_LAYOUT_ANCHOR_LEFT 0x0001
-#define PR_LAYOUT_ANCHOR_TOP 0x0002
-#define PR_LAYOUT_ANCHOR_RIGHT 0x0004
-#define PR_LAYOUT_ANCHOR_BOTTOM 0x0008
-#define PR_LAYOUT_ANCHOR_ALL 0x000F
-
-#define PR_LAYOUT_FORCE_INVALIDATE 0x1000 // invalidate the control when it is resized
-#define PR_LAYOUT_SEND_NOTIFY 0x2000 // send WM_SIZE message on resize
-#define PR_LAYOUT_NO_ANCHOR 0x4000 // do not calculate anchors for control
-
-//
 // Window management
 //
 
@@ -696,6 +655,47 @@ typedef struct R_RECTANGLE
 		};
 	};
 } R_RECTANGLE, *PR_RECTANGLE;
+
+//
+// Window layout
+//
+
+typedef struct R_LAYOUT_ITEM
+{
+	HWND hwnd;
+	HDWP defer_handle;
+	struct R_LAYOUT_ITEM *parent_item;
+	R_RECTANGLE rect;
+	R_RECTANGLE prev_rect;
+	ULONG number_of_children;
+	ULONG flags;
+} R_LAYOUT_ITEM, *PR_LAYOUT_ITEM;
+
+typedef struct R_LAYOUT_MANAGER
+{
+	R_LAYOUT_ITEM root_item;
+	R_SIZE original_size;
+	PR_LIST list;
+	LONG dpi_value;
+	BOOLEAN is_initialized;
+} R_LAYOUT_MANAGER, *PR_LAYOUT_MANAGER;
+
+typedef struct R_LAYOUT_ENUM
+{
+	PR_LAYOUT_MANAGER layout_manager;
+	PR_LAYOUT_ITEM layout_item;
+	HWND root_hwnd;
+} R_LAYOUT_ENUM, *PR_LAYOUT_ENUM;
+
+#define PR_LAYOUT_ANCHOR_LEFT 0x0001
+#define PR_LAYOUT_ANCHOR_TOP 0x0002
+#define PR_LAYOUT_ANCHOR_RIGHT 0x0004
+#define PR_LAYOUT_ANCHOR_BOTTOM 0x0008
+#define PR_LAYOUT_ANCHOR_ALL 0x000F
+
+#define PR_LAYOUT_FORCE_INVALIDATE 0x1000 // invalidate the control when it is resized
+#define PR_LAYOUT_SEND_NOTIFY 0x2000 // send WM_SIZE message on resize
+#define PR_LAYOUT_NO_ANCHOR 0x4000 // do not calculate anchors for control
 
 //
 // Inernet access (WinHTTP)
