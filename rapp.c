@@ -2015,7 +2015,7 @@ VOID _r_update_check (_In_opt_ HWND hparent)
 	if (_r_sys_isosversionlowerorequal (WINDOWS_VISTA))
 	{
 		if (hparent)
-			_r_show_message (hparent, MB_OK | MB_ICONWARNING, _r_app_getname (), L"Security warning!", L"Update checking restricted.\r\nThis operating system are obsolete and does not meet security requirements for connecting to the internet.");
+			_r_show_message (hparent, MB_OK | MB_ICONWARNING, _r_app_getname (), L"Security warning!", L"Update checking restricted.\r\nThis operating system are obsolete and does not\r\nmeet security requirements for connecting to the internet.");
 
 		return;
 	}
@@ -3417,10 +3417,9 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 
 					_r_settings_adjustchild (hwnd, IDC_NAV, ptr_page_new->hwnd);
 
-					PostMessage (ptr_page_new->hwnd, RM_LOCALIZE, (WPARAM)ptr_page_new->dlg_id, 0);
+					SendMessage (ptr_page_new->hwnd, RM_LOCALIZE, (WPARAM)ptr_page_new->dlg_id, 0);
 
-					ShowWindow (ptr_page_new->hwnd, SW_SHOWNA);
-					SetFocus (NULL);
+					ShowWindow (ptr_page_new->hwnd, SW_SHOW);
 
 					break;
 				}
@@ -3454,10 +3453,9 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 
 					_r_tab_adjustchild (hwnd, ctrl_id, ptr_page->hwnd);
 
-					PostMessage (ptr_page->hwnd, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
+					SendMessage (ptr_page->hwnd, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
 
-					ShowWindow (ptr_page->hwnd, SW_SHOWNA);
-					SetFocus (NULL);
+					ShowWindow (ptr_page->hwnd, SW_SHOW);
 
 					break;
 				}
