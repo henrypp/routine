@@ -1958,7 +1958,7 @@ VOID _r_update_check (_In_opt_ HWND hparent)
 	if (!hparent && (!_r_config_getboolean (L"CheckUpdates", TRUE) || (_r_unixtime_now () - _r_config_getlong64 (L"CheckUpdatesLast", 0)) <= APP_UPDATE_PERIOD))
 		return;
 
-	if (!NT_SUCCESS (_r_sys_createthread (&_r_update_checkthread, update_info, &update_info->hthread)))
+	if (!NT_SUCCESS (_r_sys_createthread (&_r_update_checkthread, update_info, &update_info->hthread, NULL)))
 		return;
 
 	update_info->htaskdlg = NULL;
@@ -1982,7 +1982,10 @@ VOID _r_update_check (_In_opt_ HWND hparent)
 		return;
 	}
 
-	_r_sys_resumethread (update_info->hthread);
+	NtResumeThread (update_info->hthread, NULL);
+	NtClose (update_info->hthread);
+
+	update_info->hthread = NULL;
 }
 
 BOOLEAN NTAPI _r_update_downloadcallback (_In_ ULONG total_written, _In_ ULONG total_length, _In_ PVOID param)
@@ -2175,9 +2178,10 @@ HRESULT CALLBACK _r_update_pagecallback (_In_ HWND hwnd, _In_ UINT msg, _In_ WPA
 			{
 				if (update_info->hthread)
 				{
-					NtTerminateThread (update_info->hthread, STATUS_FATAL_APP_EXIT);
+					NtTerminateThread (update_info->hthread, STATUS_CANCELLED);
+					NtClose (update_info->hthread);
 
-					_r_sys_closehandle (&update_info->hthread);
+					update_info->hthread = NULL;
 				}
 			}
 			else if (wparam == IDYES)
@@ -2191,9 +2195,7 @@ HRESULT CALLBACK _r_update_pagecallback (_In_ HWND hwnd, _In_ UINT msg, _In_ WPA
 #pragma PR_PRINT_WARNING(IDS_UPDATE_DOWNLOAD)
 #endif
 
-				_r_sys_closehandle (&update_info->hthread);
-
-				if (NT_SUCCESS (_r_sys_createthread (&_r_update_downloadthread, update_info, &update_info->hthread)))
+				if (NT_SUCCESS (_r_sys_createthread (&_r_update_downloadthread, update_info, &update_info->hthread, NULL)))
 				{
 					_r_update_pagenavigate (hwnd, NULL, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, NULL, str_content, (LONG_PTR)update_info);
 
@@ -2224,8 +2226,10 @@ HRESULT CALLBACK _r_update_pagecallback (_In_ HWND hwnd, _In_ UINT msg, _In_ WPA
 		{
 			if (update_info->hthread)
 			{
-				_r_sys_resumethread (update_info->hthread);
-				_r_sys_closehandle (&update_info->hthread);
+				NtResumeThread (update_info->hthread, NULL);
+				NtClose (update_info->hthread);
+
+				update_info->hthread = NULL;
 			}
 
 			break;
@@ -2233,7 +2237,13 @@ HRESULT CALLBACK _r_update_pagecallback (_In_ HWND hwnd, _In_ UINT msg, _In_ WPA
 
 		case TDN_DESTROYED:
 		{
-			_r_sys_closehandle (&update_info->hthread);
+			if (update_info->hthread)
+			{
+				NtClose (update_info->hthread);
+
+				update_info->hthread = NULL;
+			}
+
 			break;
 		}
 	}
