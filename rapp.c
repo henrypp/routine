@@ -947,50 +947,6 @@ BOOLEAN _r_config_getboolean_ex (_In_ LPCWSTR key_name, _In_opt_ BOOLEAN def_val
 	return FALSE;
 }
 
-INT _r_config_getinteger_ex (_In_ LPCWSTR key_name, _In_opt_ INT def_value, _In_opt_ LPCWSTR section_name)
-{
-	WCHAR number_string[64];
-	PR_STRING string;
-	INT result;
-
-	_r_str_frominteger (number_string, RTL_NUMBER_OF (number_string), def_value);
-
-	string = _r_config_getstring_ex (key_name, number_string, section_name);
-
-	if (string)
-	{
-		result = _r_str_tointeger (&string->sr);
-
-		_r_obj_dereference (string);
-
-		return result;
-	}
-
-	return 0;
-}
-
-UINT _r_config_getuinteger_ex (_In_ LPCWSTR key_name, _In_opt_ UINT def_value, _In_opt_ LPCWSTR section_name)
-{
-	WCHAR number_string[64];
-	PR_STRING string;
-	UINT result;
-
-	_r_str_fromuinteger (number_string, RTL_NUMBER_OF (number_string), def_value);
-
-	string = _r_config_getstring_ex (key_name, number_string, section_name);
-
-	if (string)
-	{
-		result = _r_str_touinteger (&string->sr);
-
-		_r_obj_dereference (string);
-
-		return result;
-	}
-
-	return 0;
-}
-
 LONG _r_config_getlong_ex (_In_ LPCWSTR key_name, _In_opt_ LONG def_value, _In_opt_ LPCWSTR section_name)
 {
 	WCHAR number_string[64];
@@ -1089,20 +1045,18 @@ VOID _r_config_getfont_ex (_In_ LPCWSTR key_name, _Inout_ PLOGFONT logfont, _In_
 	{
 		R_STRINGREF remaining_part;
 		R_STRINGREF first_part;
-		INT font_size;
+		LONG font_size;
 
 		_r_obj_initializestringref2 (&remaining_part, font_config);
 
 		// get font face name
 		if (_r_str_splitatchar (&remaining_part, L';', &first_part, &remaining_part))
-		{
 			_r_str_copystring (logfont->lfFaceName, RTL_NUMBER_OF (logfont->lfFaceName), &first_part);
-		}
 
 		// get font size
 		_r_str_splitatchar (&remaining_part, L';', &first_part, &remaining_part);
 
-		font_size = _r_str_tointeger (&first_part);
+		font_size = _r_str_tolong (&first_part);
 
 		if (font_size)
 			logfont->lfHeight = _r_dc_fontsizetoheight (font_size, dpi_value);
@@ -1259,9 +1213,7 @@ PR_STRING _r_config_getstring_ex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_va
 		if (!object_ptr->object_body)
 		{
 			if (!_r_str_isempty (def_value))
-			{
 				_r_obj_movereference (&object_ptr->object_body, _r_obj_createstring (def_value));
-			}
 		}
 
 		return _r_obj_referencesafe (object_ptr->object_body);
@@ -1273,22 +1225,6 @@ PR_STRING _r_config_getstring_ex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_va
 VOID _r_config_setboolean_ex (_In_ LPCWSTR key_name, _In_ BOOLEAN value, _In_opt_ LPCWSTR section_name)
 {
 	_r_config_setstring_ex (key_name, value ? L"true" : L"false", section_name);
-}
-
-VOID _r_config_setinteger_ex (_In_ LPCWSTR key_name, _In_ INT value, _In_opt_ LPCWSTR section_name)
-{
-	WCHAR value_text[64];
-	_r_str_frominteger (value_text, RTL_NUMBER_OF (value_text), value);
-
-	_r_config_setstring_ex (key_name, value_text, section_name);
-}
-
-VOID _r_config_setuinteger_ex (_In_ LPCWSTR key_name, _In_ UINT value, _In_opt_ LPCWSTR section_name)
-{
-	WCHAR value_text[64];
-	_r_str_fromuinteger (value_text, RTL_NUMBER_OF (value_text), value);
-
-	_r_config_setstring_ex (key_name, value_text, section_name);
 }
 
 VOID _r_config_setlong_ex (_In_ LPCWSTR key_name, _In_ LONG value, _In_opt_ LPCWSTR section_name)
@@ -1369,9 +1305,7 @@ VOID _r_config_setstring_ex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_
 	if (_r_initonce_begin (&init_once))
 	{
 		if (_r_obj_ishashtableempty (app_global.config.table))
-		{
 			_r_config_initialize ();
-		}
 
 		_r_initonce_end (&init_once);
 	}
@@ -1752,6 +1686,7 @@ LPCWSTR _r_locale_getstring (_In_ UINT uid)
 	if (string)
 	{
 		result = string->buffer;
+
 		_r_obj_dereference (string);
 
 		return result;
@@ -1785,7 +1720,9 @@ BOOLEAN _r_autorun_isenabled ()
 {
 	HKEY hkey;
 	PR_STRING path;
-	BOOLEAN is_enabled = FALSE;
+	BOOLEAN is_enabled;
+
+	is_enabled = FALSE;
 
 	if (RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_READ, &hkey) == ERROR_SUCCESS)
 	{
@@ -1799,9 +1736,7 @@ BOOLEAN _r_autorun_isenabled ()
 			_r_obj_trimstringtonullterminator (path);
 
 			if (_r_str_isequal2 (&path->sr, _r_sys_getimagepath (), TRUE))
-			{
 				is_enabled = TRUE;
-			}
 
 			_r_obj_dereference (path);
 		}
@@ -1835,18 +1770,14 @@ BOOLEAN _r_autorun_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 			status = RegDeleteValue (hkey, _r_app_getname ());
 
 			if (status == ERROR_FILE_NOT_FOUND)
-			{
 				status = ERROR_SUCCESS;
-			}
 		}
 
 		RegCloseKey (hkey);
 	}
 
 	if (hwnd && status != ERROR_SUCCESS)
-	{
 		_r_show_errormessage (hwnd, NULL, status, NULL);
-	}
 
 	return (status == ERROR_SUCCESS);
 }
@@ -1951,9 +1882,7 @@ static NTSTATUS NTAPI _r_update_checkthread (_In_ PVOID arglist)
 				}
 
 				if (version_string)
-				{
 					_r_obj_dereference (version_string);
-				}
 
 				_r_obj_dereference (string_table);
 			}
@@ -2007,7 +1936,7 @@ VOID _r_update_check (_In_opt_ HWND hparent)
 
 	// Security note:
 	//
-	// Windows Vista and lower are unsafe for establish internet access,
+	// Windows Vista and lower are unsafe for establish internet connections,
 	// because it does not support required TLS 1.3 standart which is used
 	// on the www.github.com and www.henrypp.org webpages.
 
@@ -2404,7 +2333,7 @@ FORCEINLINE LPCWSTR _r_logleveltostring (_In_ R_LOG_LEVEL log_level)
 		return L"Debug";
 
 	if (log_level == LOG_LEVEL_INFO)
-		return L"LOG_LEVEL_INFO";
+		return L"Info";
 
 	if (log_level == LOG_LEVEL_WARNING)
 		return L"Warning";
@@ -2434,24 +2363,26 @@ FORCEINLINE ULONG _r_logleveltrayicon (_In_ R_LOG_LEVEL log_level)
 
 VOID _r_log (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCWSTR title, _In_ ULONG code, _In_opt_ LPCWSTR description)
 {
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static HANDLE hfile = NULL;
+	static LONG log_level_config = 0;
+
 	PR_STRING error_string;
 	PR_STRING date_string;
 	LPCWSTR level_string;
 	LONG64 current_timestamp;
 	ULONG unused;
 
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static HANDLE hfile = NULL;
-	static INT log_level_config = 0;
-
 	if (_r_initonce_begin (&init_once))
 	{
-		log_level_config = _r_config_getinteger (L"ErrorLevel", 0);
+		log_level_config = _r_config_getlong (L"ErrorLevel", 0);
 
 		// write to file only when readonly mode is not specified
 		if (!_r_app_isreadonly ())
 		{
-			LPCWSTR path = _r_app_getlogpath ();
+			LPCWSTR path;
+
+			path = _r_app_getlogpath ();
 
 			if (path)
 			{
@@ -2556,13 +2487,13 @@ VOID _r_show_aboutmessage (_In_opt_ HWND hwnd)
 {
 	static BOOLEAN is_opened = FALSE;
 
+	LPCWSTR str_title;
+	WCHAR str_content[512];
+
 	if (is_opened)
 		return;
 
 	is_opened = TRUE;
-
-	LPCWSTR str_title;
-	WCHAR str_content[512];
 
 #ifdef IDS_ABOUT
 	str_title = _r_locale_getstring (IDS_ABOUT);
@@ -2678,7 +2609,11 @@ VOID _r_show_aboutmessage (_In_opt_ HWND hwnd)
 
 VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG error_code, _In_opt_ PR_ERROR_INFO error_info_ptr)
 {
-	HLOCAL buffer = NULL;
+	R_STRINGBUILDER string_builder;
+	LPCWSTR str_main;
+	LPCWSTR str_footer;
+	PR_STRING string;
+	HLOCAL buffer;
 	HINSTANCE hmodule;
 
 	if (error_info_ptr && error_info_ptr->hmodule)
@@ -2690,12 +2625,8 @@ VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG
 		hmodule = GetModuleHandle (L"kernel32.dll"); // FORMAT_MESSAGE_FROM_SYSTEM
 	}
 
+	buffer = NULL;
 	FormatMessage (FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_HMODULE | FORMAT_MESSAGE_IGNORE_INSERTS, hmodule, error_code, 0, (LPWSTR)&buffer, 0, NULL);
-
-	R_STRINGBUILDER string_builder;
-	LPCWSTR str_main;
-	LPCWSTR str_footer;
-	PR_STRING string;
 
 	str_main = main ? main : L"It happens ;(";
 	str_footer = L"This information may provide clues as to what went wrong and how to fix it.";
@@ -2708,9 +2639,7 @@ VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG
 	_r_obj_appendstringbuilderformat (&string_builder, L"%s (0x%08" TEXT (PRIX32) L")", buffer ? (LPWSTR)buffer : L"n/a", error_code);
 
 	if (error_info_ptr && error_info_ptr->description)
-	{
 		_r_obj_appendstringbuilderformat (&string_builder, L"\r\n\r\n\"%s\"", error_info_ptr->description);
-	}
 
 	string = _r_obj_finalstringbuilder (&string_builder);
 
@@ -2760,9 +2689,7 @@ VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG
 		if (_r_msg_taskdialog (&tdc, &command_id, NULL, NULL))
 		{
 			if (command_id == td_buttons[0].nButtonID)
-			{
 				_r_clipboard_set (NULL, &string->sr);
-			}
 		}
 	}
 #if !defined(APP_NO_DEPRECATIONS)
@@ -2786,11 +2713,11 @@ VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG
 
 BOOLEAN _r_show_confirmmessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ LPCWSTR text, _In_opt_ LPCWSTR config_key)
 {
-	if (config_key && !_r_config_getboolean (config_key, TRUE))
-		return TRUE;
-
 	INT command_id = 0;
 	BOOL is_flagchecked = FALSE;
+
+	if (config_key && !_r_config_getboolean (config_key, TRUE))
+		return TRUE;
 
 #if !defined(APP_NO_DEPRECATIONS)
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
@@ -3049,7 +2976,7 @@ VOID _r_settings_adjustchild (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ HWND hchild
 #endif // !APP_HAVE_SETTINGS_TABS
 }
 
-VOID _r_settings_createwindow (_In_ HWND hwnd, _In_opt_ DLGPROC dlg_proc, _In_opt_ INT dlg_id)
+VOID _r_settings_createwindow (_In_ HWND hwnd, _In_opt_ DLGPROC dlg_proc, _In_opt_ LONG dlg_id)
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static SHORT width = 0;
@@ -3116,7 +3043,7 @@ VOID _r_settings_createwindow (_In_ HWND hwnd, _In_opt_ DLGPROC dlg_proc, _In_op
 	buffer_ptr = buffer;
 
 	if (dlg_id)
-		_r_config_setinteger (L"SettingsLastPage", dlg_id);
+		_r_config_setlong (L"SettingsLastPage", dlg_id);
 
 	if (dlg_proc)
 		app_global.settings.wnd_proc = dlg_proc;
@@ -3168,6 +3095,8 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 	{
 		case WM_INITDIALOG:
 		{
+			LONG dlg_id;
+
 			app_global.settings.hwnd = hwnd;
 
 #ifdef IDI_MAIN
@@ -3199,7 +3128,7 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 			_r_wnd_center (hwnd, GetParent (hwnd));
 
 			// configure navigation control
-			INT dlg_id = _r_config_getinteger (L"SettingsLastPage", 0);
+			dlg_id = _r_config_getlong (L"SettingsLastPage", 0);
 
 #if defined(APP_HAVE_SETTINGS_TABS)
 			INT index = 0;
@@ -3413,7 +3342,7 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 					if (!ptr_page_new || !ptr_page_new->hwnd || _r_wnd_isvisible (ptr_page_new->hwnd))
 						break;
 
-					_r_config_setinteger (L"SettingsLastPage", ptr_page_new->dlg_id);
+					_r_config_setlong (L"SettingsLastPage", ptr_page_new->dlg_id);
 
 					_r_settings_adjustchild (hwnd, IDC_NAV, ptr_page_new->hwnd);
 
@@ -3449,7 +3378,7 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 					if (!ptr_page || !ptr_page->hwnd || _r_wnd_isvisible (ptr_page->hwnd))
 						break;
 
-					_r_config_setinteger (L"SettingsLastPage", ptr_page->dlg_id);
+					_r_config_setlong (L"SettingsLastPage", ptr_page->dlg_id);
 
 					_r_tab_adjustchild (hwnd, ctrl_id, ptr_page->hwnd);
 
@@ -3556,13 +3485,10 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 					{
 						ptr_page = _r_obj_getarrayitem (app_global.settings.page_list, i);
 
-						if (ptr_page)
-						{
-							if (ptr_page->hwnd)
-							{
-								SendMessage (ptr_page->hwnd, RM_INITIALIZE, (WPARAM)ptr_page->dlg_id, 0);
-							}
-						}
+						if (!ptr_page || !ptr_page->hwnd)
+							continue;
+
+						SendMessage (ptr_page->hwnd, RM_INITIALIZE, (WPARAM)ptr_page->dlg_id, 0);
 					}
 
 					break;
@@ -3600,46 +3526,64 @@ BOOLEAN _r_skipuac_isenabled ()
 	BSTR task_name = NULL;
 	BSTR task_path = NULL;
 
+	HRESULT hr;
+
 	BOOLEAN is_enabled = FALSE;
 
-	if (FAILED (CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service)))
+	hr = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
+
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	if (FAILED (ITaskService_Connect (task_service, empty, empty, empty, empty)))
+	hr = ITaskService_Connect (task_service, empty, empty, empty, empty);
+
+	if (FAILED (hr))
 		goto CleanupExit;
 
 	task_root = SysAllocString (L"\\");
 
-	if (FAILED (ITaskService_GetFolder (task_service, task_root, &task_folder)))
+	hr = ITaskService_GetFolder (task_service, task_root, &task_folder);
+
+	if (FAILED (hr))
 		goto CleanupExit;
 
 	task_name = SysAllocString (APP_SKIPUAC_NAME);
 
-	if (FAILED (ITaskFolder_GetTask (task_folder, task_name, &registered_task)))
+	hr = ITaskFolder_GetTask (task_folder, task_name, &registered_task);
+
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	if (FAILED (IRegisteredTask_get_Definition (registered_task, &task_definition)))
+	hr = IRegisteredTask_get_Definition (registered_task, &task_definition);
+
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	if (FAILED (ITaskDefinition_get_Actions (task_definition, &action_collection)))
+	hr = ITaskDefinition_get_Actions (task_definition, &action_collection);
+
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	if (FAILED (IActionCollection_get_Item (action_collection, 1, &action)))
+	hr = IActionCollection_get_Item (action_collection, 1, &action);
+
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	if (FAILED (IAction_QueryInterface (action, &IID_IExecAction, &exec_action)))
+	hr = IAction_QueryInterface (action, &IID_IExecAction, &exec_action);
+
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	if (FAILED (IExecAction_get_Path (exec_action, &task_path)))
+	hr = IExecAction_get_Path (exec_action, &task_path);
+
+	if (FAILED (hr))
 		goto CleanupExit;
 
 	// check path is to current module
 	PathUnquoteSpaces (task_path);
 
 	if (_r_str_compare (task_path, _r_sys_getimagepath ()) == 0)
-	{
 		is_enabled = TRUE;
-	}
 
 CleanupExit:
 
@@ -3712,37 +3656,37 @@ HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 	BSTR task_directory = NULL;
 	BSTR task_args = NULL;
 
-	HRESULT status;
+	HRESULT hr;
 
-	status = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
+	hr = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	status = ITaskService_Connect (task_service, empty, empty, empty, empty);
+	hr = ITaskService_Connect (task_service, empty, empty, empty, empty);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
 	task_root = SysAllocString (L"\\");
 
-	status = ITaskService_GetFolder (task_service, task_root, &task_folder);
+	hr = ITaskService_GetFolder (task_service, task_root, &task_folder);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
 	task_name = SysAllocString (APP_SKIPUAC_NAME);
 
 	if (is_enable)
 	{
-		status = ITaskService_NewTask (task_service, 0, &task_definition);
+		hr = ITaskService_NewTask (task_service, 0, &task_definition);
 
-		if (FAILED (status))
+		if (FAILED (hr))
 			goto CleanupExit;
 
-		status = ITaskDefinition_get_RegistrationInfo (task_definition, &registration_info);
+		hr = ITaskDefinition_get_RegistrationInfo (task_definition, &registration_info);
 
-		if (FAILED (status))
+		if (FAILED (hr))
 			goto CleanupExit;
 
 		task_author = SysAllocString (_r_app_getauthor ());
@@ -3751,9 +3695,9 @@ HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 		IRegistrationInfo_put_Author (registration_info, task_author);
 		IRegistrationInfo_put_URI (registration_info, task_url);
 
-		status = ITaskDefinition_get_Settings (task_definition, &task_settings);
+		hr = ITaskDefinition_get_Settings (task_definition, &task_settings);
 
-		if (FAILED (status))
+		if (FAILED (hr))
 			goto CleanupExit;
 
 		// Set task compatibility (win7+)
@@ -3790,27 +3734,27 @@ HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 		ITaskSettings_put_StopIfGoingOnBatteries (task_settings, VARIANT_FALSE);
 		//ITaskSettings_put_Priority (task_settings, 4); // NORMAL_PRIORITY_CLASS
 
-		status = ITaskDefinition_get_Principal (task_definition, &principal);
+		hr = ITaskDefinition_get_Principal (task_definition, &principal);
 
-		if (FAILED (status))
+		if (FAILED (hr))
 			goto CleanupExit;
 
 		IPrincipal_put_RunLevel (principal, TASK_RUNLEVEL_HIGHEST);
 		IPrincipal_put_LogonType (principal, TASK_LOGON_INTERACTIVE_TOKEN);
 
-		status = ITaskDefinition_get_Actions (task_definition, &action_collection);
+		hr = ITaskDefinition_get_Actions (task_definition, &action_collection);
 
-		if (FAILED (status))
+		if (FAILED (hr))
 			goto CleanupExit;
 
-		status = IActionCollection_Create (action_collection, TASK_ACTION_EXEC, &action);
+		hr = IActionCollection_Create (action_collection, TASK_ACTION_EXEC, &action);
 
-		if (FAILED (status))
+		if (FAILED (hr))
 			goto CleanupExit;
 
-		status = IAction_QueryInterface (action, &IID_IExecAction, &exec_action);
+		hr = IAction_QueryInterface (action, &IID_IExecAction, &exec_action);
 
-		if (FAILED (status))
+		if (FAILED (hr))
 			goto CleanupExit;
 
 		task_path = SysAllocString (_r_sys_getimagepath ());
@@ -3823,16 +3767,14 @@ HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 
 		ITaskFolder_DeleteTask (task_folder, task_name, 0);
 
-		status = ITaskFolder_RegisterTaskDefinition (task_folder, task_name, task_definition, TASK_CREATE_OR_UPDATE, empty, empty, TASK_LOGON_INTERACTIVE_TOKEN, empty, &registered_task);
+		hr = ITaskFolder_RegisterTaskDefinition (task_folder, task_name, task_definition, TASK_CREATE_OR_UPDATE, empty, empty, TASK_LOGON_INTERACTIVE_TOKEN, empty, &registered_task);
 	}
 	else
 	{
-		status = ITaskFolder_DeleteTask (task_folder, task_name, 0);
+		hr = ITaskFolder_DeleteTask (task_folder, task_name, 0);
 
-		if (status == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND))
-		{
-			status = S_OK;
-		}
+		if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND))
+			hr = S_OK;
 	}
 
 CleanupExit:
@@ -3891,12 +3833,10 @@ CleanupExit:
 	if (task_service)
 		ITaskService_Release (task_service);
 
-	if (hwnd && FAILED (status))
-	{
-		_r_show_errormessage (hwnd, NULL, status, NULL);
-	}
+	if (hwnd && FAILED (hr))
+		_r_show_errormessage (hwnd, NULL, hr, NULL);
 
-	return status;
+	return hr;
 }
 
 BOOLEAN _r_skipuac_run ()
@@ -3929,51 +3869,51 @@ BOOLEAN _r_skipuac_run ()
 	LONG action_count;
 	INT numargs;
 
-	HRESULT status;
+	HRESULT hr;
 
-	status = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
+	hr = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	status = ITaskService_Connect (task_service, empty, empty, empty, empty);
+	hr = ITaskService_Connect (task_service, empty, empty, empty, empty);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
 	task_root = SysAllocString (L"\\");
 
-	status = ITaskService_GetFolder (task_service, task_root, &task_folder);
+	hr = ITaskService_GetFolder (task_service, task_root, &task_folder);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
 	task_name = SysAllocString (APP_SKIPUAC_NAME);
 
-	status = ITaskFolder_GetTask (task_folder, task_name, &registered_task);
+	hr = ITaskFolder_GetTask (task_folder, task_name, &registered_task);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	status = IRegisteredTask_get_Definition (registered_task, &task_definition);
+	hr = IRegisteredTask_get_Definition (registered_task, &task_definition);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	status = ITaskDefinition_get_Actions (task_definition, &action_collection);
+	hr = ITaskDefinition_get_Actions (task_definition, &action_collection);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
 	// check actions count is equal to 1
-	status = IActionCollection_get_Count (action_collection, &action_count);
+	hr = IActionCollection_get_Count (action_collection, &action_count);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
 	if (action_count != 1)
 	{
-		status = E_ABORT;
+		hr = E_ABORT;
 
 		goto CleanupExit;
 	}
@@ -3989,7 +3929,7 @@ BOOLEAN _r_skipuac_run ()
 
 				if (_r_str_compare (task_path, _r_sys_getimagepath ()) != 0)
 				{
-					status = E_ABORT;
+					hr = E_ABORT;
 
 					goto CleanupExit;
 				}
@@ -4025,12 +3965,12 @@ BOOLEAN _r_skipuac_run ()
 		params = empty;
 	}
 
-	status = IRegisteredTask_RunEx (registered_task, params, TASK_RUN_AS_SELF, 0, NULL, &running_task);
+	hr = IRegisteredTask_RunEx (registered_task, params, TASK_RUN_AS_SELF, 0, NULL, &running_task);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	status = E_ABORT;
+	hr = E_ABORT;
 
 	// check if run succesfull
 	TASK_STATE state;
@@ -4049,7 +3989,7 @@ BOOLEAN _r_skipuac_run ()
 			}
 			else if (state == TASK_STATE_RUNNING || state == TASK_STATE_UNKNOWN)
 			{
-				status = S_OK;
+				hr = S_OK;
 				break;
 			}
 		}
@@ -4096,6 +4036,6 @@ CleanupExit:
 	if (task_service)
 		ITaskService_Release (task_service);
 
-	return SUCCEEDED (status);
+	return SUCCEEDED (hr);
 }
 #endif // APP_HAVE_SKIPUAC

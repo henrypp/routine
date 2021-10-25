@@ -23,8 +23,6 @@ DECLSPEC_SELECTANY APP_GLOBAL_CONFIG app_global = {0};
 VOID _r_config_initialize ();
 
 BOOLEAN _r_config_getboolean_ex (_In_ LPCWSTR key_name, _In_opt_ BOOLEAN def_value, _In_opt_ LPCWSTR section_name);
-INT _r_config_getinteger_ex (_In_ LPCWSTR key_name, _In_opt_ INT def_value, _In_opt_ LPCWSTR section_name);
-UINT _r_config_getuinteger_ex (_In_ LPCWSTR key_name, _In_opt_ UINT def_value, _In_opt_ LPCWSTR section_name);
 LONG _r_config_getlong_ex (_In_ LPCWSTR key_name, _In_opt_ LONG def_value, _In_opt_ LPCWSTR section_name);
 LONG64 _r_config_getlong64_ex (_In_ LPCWSTR key_name, _In_opt_ LONG64 def_value, _In_opt_ LPCWSTR section_name);
 ULONG _r_config_getulong_ex (_In_ LPCWSTR key_name, _In_opt_ ULONG def_value, _In_opt_ LPCWSTR section_name);
@@ -41,16 +39,6 @@ PR_STRING _r_config_getstring_ex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_va
 FORCEINLINE BOOLEAN _r_config_getboolean (_In_ LPCWSTR key_name, _In_ BOOLEAN def_value)
 {
 	return _r_config_getboolean_ex (key_name, def_value, NULL);
-}
-
-FORCEINLINE INT _r_config_getinteger (_In_ LPCWSTR key_name, _In_ INT def_value)
-{
-	return _r_config_getinteger_ex (key_name, def_value, NULL);
-}
-
-FORCEINLINE UINT _r_config_getuinteger (_In_ LPCWSTR key_name, _In_ UINT def_value)
-{
-	return _r_config_getuinteger_ex (key_name, def_value, NULL);
 }
 
 FORCEINLINE LONG _r_config_getlong (_In_ LPCWSTR key_name, _In_ LONG def_value)
@@ -91,8 +79,6 @@ FORCEINLINE PR_STRING _r_config_getstring (_In_ LPCWSTR key_name, _In_opt_ LPCWS
 }
 
 VOID _r_config_setboolean_ex (_In_ LPCWSTR key_name, _In_ BOOLEAN value, _In_opt_ LPCWSTR section_name);
-VOID _r_config_setinteger_ex (_In_ LPCWSTR key_name, _In_ INT value, _In_opt_ LPCWSTR section_name);
-VOID _r_config_setuinteger_ex (_In_ LPCWSTR key_name, _In_ UINT value, _In_opt_ LPCWSTR section_name);
 VOID _r_config_setlong_ex (_In_ LPCWSTR key_name, _In_ LONG value, _In_opt_ LPCWSTR section_name);
 VOID _r_config_setlong64_ex (_In_ LPCWSTR key_name, _In_ LONG64 value, _In_opt_ LPCWSTR section_name);
 VOID _r_config_setulong_ex (_In_ LPCWSTR key_name, _In_ ULONG value, _In_opt_ LPCWSTR section_name);
@@ -105,16 +91,6 @@ VOID _r_config_setstring_ex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_
 FORCEINLINE VOID _r_config_setboolean (_In_ LPCWSTR key_name, _In_ BOOLEAN value)
 {
 	_r_config_setboolean_ex (key_name, value, NULL);
-}
-
-FORCEINLINE VOID _r_config_setinteger (_In_ LPCWSTR key_name, _In_ INT value)
-{
-	_r_config_setinteger_ex (key_name, value, NULL);
-}
-
-FORCEINLINE VOID _r_config_setuinteger (_In_ LPCWSTR key_name, _In_ UINT value)
-{
-	_r_config_setuinteger_ex (key_name, value, NULL);
 }
 
 FORCEINLINE VOID _r_config_setlong (_In_ LPCWSTR key_name, _In_ LONG value)
@@ -179,7 +155,7 @@ LONG64 _r_locale_getversion ();
 #if defined(APP_HAVE_SETTINGS)
 VOID _r_settings_addpage (_In_ INT dlg_id, _In_ UINT locale_id);
 VOID _r_settings_adjustchild (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ HWND hchild);
-VOID _r_settings_createwindow (_In_ HWND hwnd, _In_opt_ DLGPROC dlg_proc, _In_opt_ INT dlg_id);
+VOID _r_settings_createwindow (_In_ HWND hwnd, _In_opt_ DLGPROC dlg_proc, _In_opt_ LONG dlg_id);
 INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM wparam, _In_ LPARAM lparam);
 
 FORCEINLINE HWND _r_settings_getwindow ()
