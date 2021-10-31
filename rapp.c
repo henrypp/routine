@@ -13,7 +13,7 @@ static LPCWSTR _r_app_getmutexname ()
 
 	if (_r_initonce_begin (&init_once))
 	{
-		_r_str_printf (name, RTL_NUMBER_OF (name), L"%s_%" TEXT (PR_ULONG) L"_%" TEXT (PR_ULONG), _r_app_getnameshort (), _r_str_gethash (_r_sys_getimagepath ()), _r_str_gethash (_r_sys_getimagecommandline ()));
+		_r_str_printf (name, RTL_NUMBER_OF (name), L"%s_%" TEXT (PR_ULONG) L"_%" TEXT (PR_ULONG), _r_app_getnameshort (), _r_str_gethash (_r_sys_getimagepath (), TRUE), _r_str_gethash (_r_sys_getimagecommandline (), TRUE));
 
 		_r_initonce_end (&init_once);
 	}
@@ -720,15 +720,11 @@ INT _r_app_getshowcode (_In_ HWND hwnd)
 	// if window have tray - check arguments
 #if defined(APP_HAVE_TRAY)
 	if (_r_config_getboolean (L"IsStartMinimized", FALSE) || _r_sys_getopt (_r_sys_getimagecommandline (), L"minimized", NULL))
-	{
 		is_windowhidden = TRUE;
-	}
 #endif // APP_HAVE_TRAY
 
 	if (show_code == SW_HIDE || show_code == SW_MINIMIZE || show_code == SW_SHOWMINNOACTIVE || show_code == SW_FORCEMINIMIZE)
-	{
 		is_windowhidden = TRUE;
-	}
 
 	if ((_r_wnd_getstyle (hwnd) & WS_MAXIMIZEBOX) != 0)
 	{
@@ -747,15 +743,13 @@ INT _r_app_getshowcode (_In_ HWND hwnd)
 
 #if defined(APP_HAVE_TRAY)
 	if (is_windowhidden)
-	{
 		show_code = SW_HIDE;
-	}
 #endif // APP_HAVE_TRAY
 
 	return show_code;
 }
 
-HWND _r_app_createwindow (_In_ INT dlg_id, _In_opt_ LONG icon_id, _In_opt_ DLGPROC dlg_proc)
+HWND _r_app_createwindow (_In_ LPCWSTR dlg_name, _In_opt_ LPCWSTR icon_name, _In_ DLGPROC dlg_proc)
 {
 #ifdef APP_HAVE_UPDATES
 	// configure components
@@ -774,7 +768,7 @@ HWND _r_app_createwindow (_In_ INT dlg_id, _In_opt_ LONG icon_id, _In_opt_ DLGPR
 	LONG icon_large_y;
 
 	// create main window
-	hwnd = CreateDialogParam (NULL, MAKEINTRESOURCE (dlg_id), NULL, dlg_proc, 0);
+	hwnd = _r_wnd_createwindow (NULL, dlg_name, NULL, dlg_proc, NULL);
 	app_global.main.hwnd = hwnd;
 
 	if (!hwnd)
@@ -784,7 +778,7 @@ HWND _r_app_createwindow (_In_ INT dlg_id, _In_opt_ LONG icon_id, _In_opt_ DLGPR
 	SetWindowText (hwnd, _r_app_getname ());
 
 	// set window icon
-	if (icon_id)
+	if (icon_name)
 	{
 		dpi_value = _r_dc_getwindowdpi (hwnd);
 
@@ -795,8 +789,8 @@ HWND _r_app_createwindow (_In_ INT dlg_id, _In_opt_ LONG icon_id, _In_opt_ DLGPR
 		icon_large_y = _r_dc_getsystemmetrics (SM_CYICON, dpi_value);
 
 		_r_wnd_seticon (hwnd,
-						_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCE (icon_id), icon_small_x, icon_small_y),
-						_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCE (icon_id), icon_large_x, icon_large_y)
+						_r_sys_loadsharedicon (_r_sys_getimagebase (), icon_name, icon_small_x, icon_small_y),
+						_r_sys_loadsharedicon (_r_sys_getimagebase (), icon_name, icon_large_x, icon_large_y)
 		);
 	}
 
@@ -827,7 +821,8 @@ HWND _r_app_createwindow (_In_ INT dlg_id, _In_opt_ LONG icon_id, _In_opt_ DLGPR
 	}
 
 	// subclass window
-	app_global.main.wnd_proc = (WNDPROC)SetWindowLongPtr (hwnd, DWLP_DLGPROC, (LONG_PTR)_r_app_maindlgproc);
+	app_global.main.wnd_proc = (WNDPROC)GetWindowLongPtr (hwnd, DWLP_DLGPROC);
+	SetWindowLongPtr (hwnd, DWLP_DLGPROC, (LONG_PTR)_r_app_maindlgproc);
 
 	// restore window position
 	_r_window_restoreposition (hwnd, L"window");
@@ -3108,6 +3103,7 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 	{
 		case WM_INITDIALOG:
 		{
+			PR_SETTINGS_PAGE ptr_page;
 			LONG dlg_id;
 
 			app_global.settings.hwnd = hwnd;
@@ -3149,9 +3145,14 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 
 			for (SIZE_T i = 0; i < _r_obj_getarraysize (app_global.settings.page_list); i++)
 			{
-				PR_SETTINGS_PAGE ptr_page = _r_obj_getarrayitem (app_global.settings.page_list, i);
+				ptr_page = _r_obj_getarrayitem (app_global.settings.page_list, i);
 
-				if (!ptr_page || !ptr_page->dlg_id || !(ptr_page->hwnd = CreateDialog (NULL, MAKEINTRESOURCE (ptr_page->dlg_id), hwnd, app_global.settings.wnd_proc)))
+				if (!ptr_page || !ptr_page->dlg_id)
+					continue;
+
+				ptr_page->hwnd = _r_wnd_createwindow (NULL, MAKEINTRESOURCE (ptr_page->dlg_id), hwnd, app_global.settings.wnd_proc, 0);
+
+				if (!ptr_page->hwnd)
 					continue;
 
 				BringWindowToTop (ptr_page->hwnd); // HACK!!!
@@ -3159,7 +3160,9 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 				SendMessage (ptr_page->hwnd, RM_INITIALIZE, (WPARAM)ptr_page->dlg_id, 0);
 
 #if !defined(APP_HAVE_SETTINGS_TABS)
-				HTREEITEM hitem = _r_treeview_additem (hwnd, IDC_NAV, _r_locale_getstring (ptr_page->locale_id), NULL, I_IMAGENONE, (LPARAM)ptr_page);
+				HTREEITEM hitem;
+
+				hitem = _r_treeview_additem (hwnd, IDC_NAV, _r_locale_getstring (ptr_page->locale_id), NULL, I_IMAGENONE, (LPARAM)ptr_page);
 
 				if (dlg_id && ptr_page->dlg_id == dlg_id)
 					SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)hitem);

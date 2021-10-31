@@ -233,7 +233,7 @@ LPCWSTR _r_app_getprofiledirectory ();
 LPCWSTR _r_app_getuseragent ();
 
 #if !defined(APP_CONSOLE)
-HWND _r_app_createwindow (_In_ INT dlg_id, _In_opt_ LONG icon_id, _In_opt_ DLGPROC dlg_proc);
+HWND _r_app_createwindow (_In_ LPCWSTR dlg_name, _In_opt_ LPCWSTR icon_name, _In_ DLGPROC dlg_proc);
 
 BOOLEAN _r_app_runasadmin ();
 VOID _r_app_restart (_In_ HWND hwnd);
