@@ -157,6 +157,8 @@ typedef struct R_EVENT
 	HANDLE event_handle;
 } R_EVENT, *PR_EVENT;
 
+C_ASSERT (sizeof (R_EVENT) == sizeof (ULONG_PTR) + sizeof (HANDLE));
+
 #define PR_EVENT_SET 0x01
 #define PR_EVENT_SET_SHIFT 0x00
 #define PR_EVENT_REFCOUNT_SHIFT 0x01
@@ -164,8 +166,6 @@ typedef struct R_EVENT
 #define PR_EVENT_REFCOUNT_MASK (((ULONG_PTR)1 << 15) - 1)
 
 #define PR_EVENT_INIT { { PR_EVENT_REFCOUNT_INC }, NULL }
-
-C_ASSERT (sizeof (R_EVENT) == sizeof (ULONG_PTR) + sizeof (HANDLE));
 
 //
 // Synchronization: One-time initialization
@@ -542,17 +542,18 @@ typedef struct R_OBJECT_POINTER
 // Cryptography
 //
 
-typedef struct _R_HASH_CONTEXT
+typedef struct _R_CRYPT_CONTEXT
 {
 	BCRYPT_ALG_HANDLE hash_alg_handle;
-	BCRYPT_ALG_HANDLE sign_alg_handle;
-	BCRYPT_KEY_HANDLE key_handle;
 	BCRYPT_HASH_HANDLE hash_handle;
-	PVOID hash_object;
+	BCRYPT_KEY_HANDLE key_handle;
+	PVOID object_data;
 	PVOID hash_data;
-	ULONG hash_object_length;
-	ULONG hash_data_length;
-} R_HASH_CONTEXT, *PR_HASH_CONTEXT;
+	PVOID block_data;
+	ULONG object_length;
+	ULONG block_length;
+	ULONG hash_length;
+} R_CRYPT_CONTEXT, *PR_CRYPT_CONTEXT;
 
 //
 // System information
@@ -633,6 +634,8 @@ typedef struct R_SIZE
 	LONG cy;
 } R_SIZE, *PR_SIZE;
 
+C_ASSERT (sizeof (R_SIZE) == sizeof (POINT));
+
 typedef struct R_RECTANGLE
 {
 	union
@@ -655,6 +658,8 @@ typedef struct R_RECTANGLE
 		};
 	};
 } R_RECTANGLE, *PR_RECTANGLE;
+
+C_ASSERT (sizeof (R_RECTANGLE) == sizeof (RECT));
 
 //
 // Window layout
@@ -691,7 +696,13 @@ typedef struct R_LAYOUT_ENUM
 #define PR_LAYOUT_ANCHOR_TOP 0x0002
 #define PR_LAYOUT_ANCHOR_RIGHT 0x0004
 #define PR_LAYOUT_ANCHOR_BOTTOM 0x0008
-#define PR_LAYOUT_ANCHOR_ALL 0x000F
+
+#define PR_LAYOUT_DOCK_LEFT 0x0010
+#define PR_LAYOUT_DOCK_TOP 0x0020
+#define PR_LAYOUT_DOCK_RIGHT 0x0040
+#define PR_LAYOUT_DOCK_BOTTOM 0x0080
+
+#define PR_LAYOUT_ANCHOR_ALL 0x00FF
 
 #define PR_LAYOUT_FORCE_INVALIDATE 0x1000 // invalidate the control when it is resized
 #define PR_LAYOUT_SEND_NOTIFY 0x2000 // send WM_SIZE message on resize
