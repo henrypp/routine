@@ -6,6 +6,15 @@
 #pragma once
 
 //
+// Warning message macro
+//
+
+#define STRINGIZE_HELPER(x) #x
+#define STRINGIZE(x) STRINGIZE_HELPER(x)
+#define PR_PRINT_WARNING(desc) message("[WARNING!] Compile-time warning: " #desc " (" STRINGIZE(__FILE__) ":" STRINGIZE(__LINE__) ")")
+#define PR_PRINT_WARNING_DEFINE(desc) message("[WARNING!] Config already defined: " #desc " (" STRINGIZE(__FILE__) ":" STRINGIZE(__LINE__) ")")
+
+//
 // Available project configurations
 //
 
@@ -53,36 +62,34 @@
 #define RM_CONFIG_UPDATE (WM_APP + 7) // update has finished
 #define RM_CONFIG_RESET (WM_APP + 8) // reset configuration has finished
 
-#define WM_TRAYICON (WM_APP + 10)
+#define RM_TRAYICON (WM_APP + 10)
 
 //
-// Project information
+// Project configuration
 //
 
 #define APP_LANGUAGE_DEFAULT L"English"
 #define APP_SKIPUAC_NAME APP_NAME_SHORT L"Task"
 
-#if !defined(APP_COMMENT)
+#if defined(APP_COMMENT)
+#pragma PR_PRINT_WARNING_DEFINE(APP_COMMENT)
+#else
 #	define APP_COMMENT "What a tragedy it is for these words to fall upon deaf ears doomed to never reach their subject..."
-#endif /// !APP_COMMENT
+#endif /// APP_COMMENT
 
+#if defined(APP_UPDATE_PERIOD)
+#pragma PR_PRINT_WARNING_DEFINE(APP_UPDATE_PERIOD)
+#else
 #if defined(_DEBUG) || defined(APP_BETA)
 #	define APP_UPDATE_PERIOD _r_calc_days2seconds (1) // update checking period for pre-release is 1 day
 #else
 #	define APP_UPDATE_PERIOD _r_calc_days2seconds (7) // update checking period for stable release is 7 days
 #endif // _APP_BETA || _APP_BETA_RC
+#endif // APP_UPDATE_PERIOD
 
 //
 // Debug header
 //
 
 #define PR_DEBUG_HEADER L"Level,Date,Function,Code,Description,Version,OS Version\r\n"
-
-//
-// Warning message macro
-//
-
-#define STRINGIZE_HELPER(x) #x
-#define STRINGIZE(x) STRINGIZE_HELPER(x)
-#define PR_PRINT_WARNING(desc) message("[WARNING!] Compile-time warning: " #desc " (" STRINGIZE(__FILE__) ":" STRINGIZE(__LINE__) ")")
 
