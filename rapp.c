@@ -1885,7 +1885,7 @@ static NTSTATUS NTAPI _r_update_checkthread (_In_ PVOID arglist)
 
 						if (update_component->is_installer)
 						{
-							string = _r_obj_concatstrings (6, _r_sys_gettempdirectory (), L"\\", _r_app_getnameshort (), L"-", _r_obj_getstring (update_component->new_version), L".exe");
+							string = _r_obj_concatstrings (6, _r_sys_gettempdirectory ()->buffer, L"\\", _r_app_getnameshort (), L"-", _r_obj_getstring (update_component->new_version), L".exe");
 							_r_obj_movereference (&update_component->temp_path, string);
 
 							_r_obj_dereference (string_value);
@@ -1895,7 +1895,7 @@ static NTSTATUS NTAPI _r_update_checkthread (_In_ PVOID arglist)
 						}
 						else
 						{
-							string = _r_obj_concatstrings (8, _r_sys_gettempdirectory (), L"\\", _r_app_getnameshort (), L"-", _r_obj_getstring (update_component->short_name), L"-", _r_obj_getstring (update_component->new_version), L".tmp");
+							string = _r_obj_concatstrings (8, _r_sys_gettempdirectory ()->buffer, L"\\", _r_app_getnameshort (), L"-", _r_obj_getstring (update_component->short_name), L"-", _r_obj_getstring (update_component->new_version), L".tmp");
 							_r_obj_movereference (&update_component->temp_path, string);
 						}
 
