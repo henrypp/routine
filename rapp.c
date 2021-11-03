@@ -52,7 +52,7 @@ static BOOLEAN _r_app_isportable ()
 
 			for (SIZE_T i = 0; i < RTL_NUMBER_OF (file_names); i++)
 			{
-				string = _r_obj_concatstrings (5, _r_app_getdirectory (), L"\\", file_names[i], L".", file_exts[i]);
+				string = _r_obj_concatstrings (5, _r_app_getdirectory ()->buffer, L"\\", file_names[i], L".", file_exts[i]);
 
 				if (_r_fs_exists (string->buffer))
 					is_portable = TRUE;
@@ -93,75 +93,22 @@ static BOOLEAN _r_app_isreadonly ()
 }
 #endif // APP_NO_CONFIG || APP_CONSOLE
 
-static BOOLEAN _r_app_issecurelocation ()
-{
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static BOOLEAN is_writeable = FALSE;
-
-	if (_r_initonce_begin (&init_once))
-	{
-		PSECURITY_DESCRIPTOR security_descriptor;
-		PACL dacl;
-		ULONG status;
-
-		status = GetNamedSecurityInfo (_r_sys_getimagepath (), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, NULL, NULL, &dacl, NULL, &security_descriptor);
-
-		if (status == ERROR_SUCCESS)
-		{
-			if (!dacl)
-			{
-				is_writeable = TRUE;
-			}
-			else
-			{
-				PSID current_user_sid;
-				PACCESS_ALLOWED_ACE ace;
-
-				current_user_sid = _r_sys_getcurrenttoken ().token_sid;
-
-				for (WORD ace_index = 0; ace_index < dacl->AceCount; ace_index++)
-				{
-					if (!GetAce (dacl, ace_index, &ace))
-						continue;
-
-					if (ace->Header.AceType != ACCESS_ALLOWED_ACE_TYPE)
-						continue;
-
-					if (RtlEqualSid (&ace->SidStart, &SeAuthenticatedUserSid) || RtlEqualSid (&ace->SidStart, current_user_sid))
-					{
-						if ((ace->Mask & (DELETE | ACTRL_FILE_WRITE_ATTRIB | SYNCHRONIZE | READ_CONTROL)) != 0)
-						{
-							is_writeable = TRUE;
-							break;
-						}
-					}
-				}
-			}
-
-			LocalFree (security_descriptor);
-		}
-
-		_r_initonce_end (&init_once);
-	}
-
-	return !is_writeable;
-}
-
 #if !defined(_DEBUG)
 static VOID _r_app_exceptionfilter_savedump (_In_ PEXCEPTION_POINTERS exception_ptr)
 {
-	WCHAR dump_directory[512];
 	WCHAR dump_path[512];
+	PR_STRING directory;
 	LONG64 current_time;
 	HANDLE hfile;
 
 	current_time = _r_unixtime_now ();
 
-	_r_str_printf (dump_directory, RTL_NUMBER_OF (dump_directory), L"%s\\crashdump", _r_app_getprofiledirectory ());
-	_r_str_printf (dump_path, RTL_NUMBER_OF (dump_path), L"%s\\%s-%" TEXT (PR_LONG64) L".dmp", dump_directory, _r_app_getnameshort (), current_time);
+	directory = _r_app_getcrashdirectory ();
 
-	if (!_r_fs_exists (dump_directory))
-		_r_fs_mkdir (dump_directory);
+	_r_str_printf (dump_path, RTL_NUMBER_OF (dump_path), L"%s\\%s-%s-%" TEXT (PR_LONG64) L".dmp", directory->buffer, _r_app_getnameshort (), _r_app_getversion (), current_time);
+
+	if (!_r_fs_exists (directory->buffer))
+		_r_fs_mkdir (directory->buffer);
 
 	hfile = CreateFile (dump_path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
@@ -371,41 +318,44 @@ BOOLEAN _r_app_initialize ()
 
 	// if profile directory does not exist, we cannot save configuration
 	if (!_r_app_isreadonly ())
-	{
-		LPCWSTR directory = _r_app_getprofiledirectory ();
-
-		if (directory)
-		{
-			if (!_r_fs_exists (directory))
-			{
-				_r_fs_mkdir (directory);
-			}
-		}
-	}
+		_r_app_getprofiledirectory (); // this will create profile directory if it does not exists
 
 	return TRUE;
 }
 
-LPCWSTR _r_app_getdirectory ()
+PR_STRING _r_app_getdirectory ()
 {
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static PR_STRING cached_result = NULL;
+	static PR_STRING cached_path = NULL;
 
-	if (_r_initonce_begin (&init_once))
+	PR_STRING current_path;
+	PR_STRING new_path;
+
+	current_path = InterlockedCompareExchangePointer (&cached_path, NULL, NULL);
+
+	if (!current_path)
 	{
 		R_STRINGREF path;
 
 		_r_obj_initializestringrefconst (&path, _r_sys_getimagepath ());
 
-		cached_result = _r_path_getbasedirectory (&path);
+		new_path = _r_path_getbasedirectory (&path);
 
-		_r_initonce_end (&init_once);
+		current_path = InterlockedCompareExchangePointer (&cached_path, new_path, NULL);
+
+		if (!current_path)
+		{
+			current_path = new_path;
+		}
+		else
+		{
+			_r_obj_dereference (new_path);
+		}
 	}
 
-	return _r_obj_getstring (cached_result);
+	return current_path;
 }
 
-LPCWSTR _r_app_getconfigpath ()
+PR_STRING _r_app_getconfigpath ()
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static PR_STRING cached_result = NULL;
@@ -413,10 +363,13 @@ LPCWSTR _r_app_getconfigpath ()
 	if (_r_initonce_begin (&init_once))
 	{
 		PR_STRING buffer;
-		PR_STRING new_result = NULL;
+		PR_STRING new_result;
+		HANDLE hfile;
+
+		new_result = NULL;
 
 		// parse config path from arguments
-		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"ini", &buffer))
+		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"ini", &buffer) && buffer)
 		{
 			_r_str_trimstring2 (buffer, L".\\/\" ", 0);
 
@@ -426,17 +379,17 @@ LPCWSTR _r_app_getconfigpath ()
 			{
 				if (PathGetDriveNumber (buffer->buffer) == -1)
 				{
-					_r_obj_movereference (&new_result, _r_obj_concatstrings (3, _r_app_getdirectory (), L"\\", buffer->buffer));
+					_r_obj_movereference (&new_result, _r_obj_concatstrings (3, _r_app_getdirectory ()->buffer, L"\\", buffer->buffer));
 				}
 				else
 				{
-					_r_obj_movereference (&new_result, _r_obj_reference (buffer));
+					_r_obj_swapreference (&new_result, buffer);
 				}
 
 				// trying to create file
 				if (!_r_fs_exists (new_result->buffer))
 				{
-					HANDLE hfile = CreateFile (new_result->buffer, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+					hfile = CreateFile (new_result->buffer, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
 					if (!_r_fs_isvalidhandle (hfile))
 					{
@@ -458,7 +411,7 @@ LPCWSTR _r_app_getconfigpath ()
 		{
 			if (_r_app_isportable ())
 			{
-				_r_obj_movereference (&new_result, _r_obj_concatstrings (4, _r_app_getdirectory (), L"\\", _r_app_getnameshort (), L".ini"));
+				_r_obj_movereference (&new_result, _r_obj_concatstrings (4, _r_app_getdirectory ()->buffer, L"\\", _r_app_getnameshort (), L".ini"));
 			}
 			else
 			{
@@ -471,97 +424,161 @@ LPCWSTR _r_app_getconfigpath ()
 		_r_initonce_end (&init_once);
 	}
 
-	return _r_obj_getstring (cached_result);
+	return cached_result;
 }
 
-LPCWSTR _r_app_getlogpath ()
+PR_STRING _r_app_getcrashdirectory ()
 {
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static PR_STRING cached_result = NULL;
+	static PR_STRING cached_path = NULL;
 
-	if (_r_initonce_begin (&init_once))
+	PR_STRING current_path;
+	PR_STRING new_path;
+
+	current_path = InterlockedCompareExchangePointer (&cached_path, NULL, NULL);
+
+	if (!current_path)
 	{
-		cached_result = _r_obj_concatstrings (4, _r_app_getprofiledirectory (), L"\\", _r_app_getnameshort (), L"_debug.log");
+		new_path = _r_obj_concatstrings (2, _r_app_getprofiledirectory ()->buffer, L"\\crashdump");
+		current_path = InterlockedCompareExchangePointer (&cached_path, new_path, NULL);
 
-		_r_initonce_end (&init_once);
+		if (!current_path)
+		{
+			current_path = new_path;
+		}
+		else
+		{
+			_r_obj_dereference (new_path);
+		}
 	}
 
-	return _r_obj_getstring (cached_result);
+	return current_path;
 }
 
 #if !defined(APP_CONSOLE)
-LPCWSTR _r_app_getlocalepath ()
+PR_STRING _r_app_getlocalepath ()
 {
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static PR_STRING cached_result = NULL;
+	static PR_STRING cached_path = NULL;
 
-	if (_r_initonce_begin (&init_once))
+	PR_STRING current_path;
+	PR_STRING new_path;
+
+	current_path = InterlockedCompareExchangePointer (&cached_path, NULL, NULL);
+
+	if (!current_path)
 	{
-		cached_result = _r_obj_concatstrings (4, _r_app_getdirectory (), L"\\", _r_app_getnameshort (), L".lng");
+		new_path = _r_obj_concatstrings (4, _r_app_getdirectory ()->buffer, L"\\", _r_app_getnameshort (), L".lng");
 
-		_r_initonce_end (&init_once);
+		current_path = InterlockedCompareExchangePointer (&cached_path, new_path, NULL);
+
+		if (!current_path)
+		{
+			current_path = new_path;
+		}
+		else
+		{
+			_r_obj_dereference (new_path);
+		}
 	}
 
-	return _r_obj_getstring (cached_result);
+	return current_path;
 }
 #endif // !APP_CONSOLE
 
-LPCWSTR _r_app_getprofiledirectory ()
+PR_STRING _r_app_getlogpath ()
 {
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static PR_STRING cached_result = NULL;
+	static PR_STRING cached_path = NULL;
 
-	if (_r_initonce_begin (&init_once))
+	PR_STRING current_path;
+	PR_STRING new_path;
+
+	current_path = InterlockedCompareExchangePointer (&cached_path, NULL, NULL);
+
+	if (!current_path)
 	{
-		PR_STRING new_path = NULL;
+		new_path = _r_obj_concatstrings (4, _r_app_getprofiledirectory ()->buffer, L"\\", _r_app_getnameshort (), L"_debug.log");
 
+		current_path = InterlockedCompareExchangePointer (&cached_path, new_path, NULL);
+
+		if (!current_path)
+		{
+			current_path = new_path;
+		}
+		else
+		{
+			_r_obj_dereference (new_path);
+		}
+	}
+
+	return current_path;
+}
+
+PR_STRING _r_app_getprofiledirectory ()
+{
+	static PR_STRING cached_path = NULL;
+
+	PR_STRING current_path;
+	PR_STRING new_path;
+
+	current_path = InterlockedCompareExchangePointer (&cached_path, NULL, NULL);
+
+	if (!current_path)
+	{
 		if (_r_app_isportable ())
 		{
-			new_path = _r_obj_createstring (_r_app_getdirectory ());
+			new_path = _r_obj_createstring2 (_r_app_getdirectory ());
 		}
 		else
 		{
 			new_path = _r_path_getknownfolder (CSIDL_APPDATA, L"\\" APP_AUTHOR L"\\" APP_NAME);
 		}
 
-		if (new_path)
+		current_path = InterlockedCompareExchangePointer (&cached_path, new_path, NULL);
+
+		if (!current_path)
 		{
-			if (!_r_fs_exists (new_path->buffer))
-				_r_fs_mkdir (new_path->buffer);
-		}
-
-		cached_result = new_path;
-
-		_r_initonce_end (&init_once);
-	}
-
-	return _r_obj_getstring (cached_result);
-}
-
-LPCWSTR _r_app_getuseragent ()
-{
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static PR_STRING cached_result = NULL;
-
-	if (_r_initonce_begin (&init_once))
-	{
-		PR_STRING useragent_config = _r_config_getstring (L"UserAgent", NULL);
-
-		if (useragent_config)
-		{
-			cached_result = _r_obj_createstring2 (useragent_config);
-
-			_r_obj_dereference (useragent_config);
+			current_path = new_path;
 		}
 		else
 		{
-			cached_result = _r_obj_concatstrings (6, _r_app_getname (), L"/", _r_app_getversion (), L" (+", _r_app_getwebsite_url (), L")");
+			_r_obj_dereference (new_path);
 		}
 
-		_r_initonce_end (&init_once);
+		if (!_r_fs_exists (current_path->buffer))
+			_r_fs_mkdir (current_path->buffer);
 	}
 
-	return _r_obj_getstring (cached_result);
+	return current_path;
+}
+
+PR_STRING _r_app_getuseragent ()
+{
+	static PR_STRING cached_agent = NULL;
+
+	PR_STRING current_agent;
+	PR_STRING new_agent;
+
+	current_agent = InterlockedCompareExchangePointer (&cached_agent, NULL, NULL);
+
+	if (!current_agent)
+	{
+		new_agent = _r_config_getstring (L"UserAgent", NULL);
+
+		if (_r_obj_isstringempty (new_agent))
+			_r_obj_movereference (&new_agent, _r_obj_concatstrings (6, _r_app_getname (), L"/", _r_app_getversion (), L" (+", _r_app_getwebsite_url (), L")"));
+
+		current_agent = InterlockedCompareExchangePointer (&cached_agent, new_agent, NULL);
+
+		if (!current_agent)
+		{
+			current_agent = new_agent;
+		}
+		else
+		{
+			_r_obj_dereference (new_agent);
+		}
+	}
+
+	return current_agent;
 }
 
 #if !defined(APP_CONSOLE)
@@ -863,7 +880,7 @@ BOOLEAN _r_app_runasadmin ()
 	if (is_mutexdestroyed)
 		_r_mutex_create (_r_app_getmutexname (), &app_global.main.hmutex); // restore mutex on error
 
-	_r_sleep (500); // HACK!!! prevent loop
+	_r_sys_sleep (500); // HACK!!! prevent loop
 
 	return FALSE;
 }
@@ -905,6 +922,7 @@ VOID _r_app_restart (_In_ HWND hwnd)
 VOID _r_config_initialize ()
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
+
 	PR_HASHTABLE config_table;
 
 	if (_r_initonce_begin (&init_once))
@@ -1074,7 +1092,9 @@ VOID _r_config_getfont_ex (_In_ LPCWSTR key_name, _Inout_ PLOGFONT logfont, _In_
 
 	if (SystemParametersInfo (SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, 0))
 	{
-		PLOGFONT system_font = &ncm.lfMessageFont;
+		PLOGFONT system_font;
+
+		system_font = &ncm.lfMessageFont;
 
 		if (_r_str_isempty (logfont->lfFaceName))
 			_r_str_copy (logfont->lfFaceName, LF_FACESIZE, system_font->lfFaceName);
@@ -1158,6 +1178,7 @@ _Ret_maybenull_
 PR_STRING _r_config_getstring_ex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_value, _In_opt_ LPCWSTR section_name)
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
+
 	PR_OBJECT_POINTER object_ptr;
 	PR_STRING section_string;
 	ULONG hash_code;
@@ -1292,6 +1313,7 @@ VOID _r_config_setstringexpand_ex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value
 VOID _r_config_setstring_ex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_opt_ LPCWSTR section_name)
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
+
 	WCHAR section_string[128];
 	PR_STRING section_string_full;
 	PR_OBJECT_POINTER object_ptr;
@@ -1355,7 +1377,7 @@ VOID _r_config_setstring_ex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_
 		// write to configuration file
 		if (!_r_app_isreadonly ())
 		{
-			WritePrivateProfileString (section_string, key_name, _r_obj_getstring (object_ptr->object_body), _r_app_getconfigpath ());
+			WritePrivateProfileString (section_string, key_name, _r_obj_getstring (object_ptr->object_body), _r_app_getconfigpath ()->buffer);
 		}
 	}
 }
@@ -1368,6 +1390,7 @@ VOID _r_config_setstring_ex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_
 VOID _r_locale_initialize ()
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
+
 	PR_HASHTABLE locale_table;
 	PR_LIST locale_names;
 	PR_STRING language_config;
@@ -1604,6 +1627,7 @@ _Ret_maybenull_
 PR_STRING _r_locale_getstring_ex (_In_ UINT uid)
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
+
 	PR_STRING hash_string;
 	PR_STRING value_string;
 	ULONG hash_code;
@@ -1697,7 +1721,7 @@ LONG64 _r_locale_getversion ()
 	ULONG length;
 
 	// HACK!!! Use "Russian" section and default timestamp key (000) for compatibility with old releases...
-	length = GetPrivateProfileString (L"Russian", L"000", NULL, timestamp_string, RTL_NUMBER_OF (timestamp_string), _r_app_getlocalepath ());
+	length = GetPrivateProfileString (L"Russian", L"000", NULL, timestamp_string, RTL_NUMBER_OF (timestamp_string), _r_app_getlocalepath ()->buffer);
 
 	if (length)
 	{
@@ -2293,7 +2317,7 @@ VOID _r_update_pagenavigate (_In_opt_ HWND htaskdlg, _In_opt_ LPCWSTR main_icon,
 	}
 }
 
-VOID _r_update_addcomponent (_In_opt_ LPCWSTR full_name, _In_opt_ LPCWSTR short_name, _In_opt_ LPCWSTR version, _In_opt_ LPCWSTR target_path, _In_ BOOLEAN is_installer)
+VOID _r_update_addcomponent (_In_opt_ LPCWSTR full_name, _In_opt_ LPCWSTR short_name, _In_opt_ LPCWSTR version, _In_opt_ PR_STRING target_path, _In_ BOOLEAN is_installer)
 {
 	R_UPDATE_COMPONENT update_component = {0};
 
@@ -2307,7 +2331,7 @@ VOID _r_update_addcomponent (_In_opt_ LPCWSTR full_name, _In_opt_ LPCWSTR short_
 		update_component.version = _r_obj_createstring (version);
 
 	if (target_path)
-		update_component.target_path = _r_obj_createstring (target_path);
+		update_component.target_path = _r_obj_createstring2 (target_path);
 
 	update_component.is_installer = is_installer;
 
@@ -2372,6 +2396,7 @@ FORCEINLINE ULONG _r_logleveltrayicon (_In_ R_LOG_LEVEL log_level)
 VOID _r_log (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCWSTR title, _In_ ULONG code, _In_opt_ LPCWSTR description)
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
+
 	static HANDLE hfile = NULL;
 	static LONG log_level_config = 0;
 
@@ -2383,18 +2408,18 @@ VOID _r_log (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCWST
 
 	if (_r_initonce_begin (&init_once))
 	{
-		log_level_config = _r_config_getlong (L"ErrorLevel", 0);
+		PR_STRING path;
+
+		log_level_config = _r_config_getlong (L"ErrorLevel", LOG_LEVEL_INFO);
 
 		// write to file only when readonly mode is not specified
 		if (!_r_app_isreadonly ())
 		{
-			LPCWSTR path;
-
 			path = _r_app_getlogpath ();
 
 			if (path)
 			{
-				hfile = CreateFile (path, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+				hfile = CreateFile (path->buffer, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
 				if (_r_fs_isvalidhandle (hfile))
 				{
@@ -2416,7 +2441,7 @@ VOID _r_log (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCWST
 		_r_initonce_end (&init_once);
 	}
 
-	if (log_level_config >= log_level)
+	if (log_level_config > log_level)
 		return;
 
 	current_timestamp = _r_unixtime_now ();
@@ -2425,7 +2450,7 @@ VOID _r_log (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCWST
 	level_string = _r_logleveltostring (log_level);
 
 	// print log for debuggers
-	_r_debug_v (L"[%s], %s, 0x%08" TEXT (PRIX32) L", %s\r\n",
+	_r_debug_v (L"[%s],%s,0x%08" TEXT (PRIX32) L",%s\r\n",
 				level_string,
 				title,
 				code,
@@ -2618,9 +2643,10 @@ VOID _r_show_aboutmessage (_In_opt_ HWND hwnd)
 VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG error_code, _In_opt_ PR_ERROR_INFO error_info_ptr)
 {
 	R_STRINGBUILDER string_builder;
+	WCHAR str_footer[256];
 	LPCWSTR str_main;
-	LPCWSTR str_footer;
 	PR_STRING string;
+	PR_STRING directory;
 	HLOCAL buffer;
 	HINSTANCE hmodule;
 
@@ -2637,7 +2663,24 @@ VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG
 	FormatMessage (FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_HMODULE | FORMAT_MESSAGE_IGNORE_INSERTS, hmodule, error_code, 0, (LPWSTR)&buffer, 0, NULL);
 
 	str_main = main ? main : L"It happens ;(";
-	str_footer = L"This information may provide clues as to what went wrong and how to fix it.";
+
+	_r_str_copy (
+		str_footer,
+		RTL_NUMBER_OF (str_footer),
+		L"This information may provide clues as to what went wrong and how to fix it."
+	);
+
+	directory = _r_app_getcrashdirectory ();
+
+	if (_r_fs_exists (directory->buffer))
+	{
+		_r_str_appendformat (
+			str_footer,
+			RTL_NUMBER_OF (str_footer),
+			L" Open <a href=\"%s\">crash dumps</a> directory.",
+			directory->buffer
+		);
+	}
 
 	if (buffer)
 		_r_str_trim (buffer, L"\r\n ");
@@ -2657,9 +2700,10 @@ VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG
 	{
 		TASKDIALOGCONFIG tdc = {0};
 		TASKDIALOG_BUTTON td_buttons[2] = {0};
+		INT command_id;
 
 		tdc.cbSize = sizeof (tdc);
-		tdc.dwFlags = TDF_NO_SET_FOREGROUND | TDF_SIZE_TO_CONTENT;
+		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_NO_SET_FOREGROUND | TDF_SIZE_TO_CONTENT;
 		tdc.hwndParent = hwnd;
 		tdc.hInstance = _r_sys_getimagebase ();
 		tdc.pszFooterIcon = TD_WARNING_ICON;
@@ -2673,26 +2717,13 @@ VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG
 		tdc.pButtons = td_buttons;
 		tdc.cButtons = RTL_NUMBER_OF (td_buttons);
 
+		td_buttons[0].pszButtonText = L"Copy";
 		td_buttons[0].nButtonID = IDYES;
+
+		td_buttons[1].pszButtonText = L"Close";
 		td_buttons[1].nButtonID = IDCLOSE;
 
-		tdc.nDefaultButton = td_buttons[1].nButtonID;
-
-#if defined(IDS_COPY)
-		td_buttons[0].pszButtonText = _r_locale_getstring (IDS_COPY);
-#else
-		td_buttons[0].pszButtonText = L"Copy";
-#pragma PR_PRINT_WARNING(IDS_COPY)
-#endif // IDS_COPY
-
-#if defined(IDS_CLOSE)
-		td_buttons[1].pszButtonText = _r_locale_getstring (IDS_CLOSE);
-#else
-		td_buttons[1].pszButtonText = L"Close";
-#pragma PR_PRINT_WARNING(IDS_CLOSE)
-#endif // IDS_CLOSE
-
-		INT command_id;
+		tdc.nDefaultButton = IDYES;
 
 		if (_r_msg_taskdialog (&tdc, &command_id, NULL, NULL))
 		{
@@ -2707,7 +2738,7 @@ VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG
 
 		message_string = _r_obj_concatstrings (5, str_main, L"\r\n\r\n", string->buffer, L"\r\n\r\n", str_footer);
 
-		MessageBox (hwnd, message_string->buffer, _r_app_getname (), MB_OK | MB_ICONERROR);
+		MessageBox (hwnd, message_string->buffer, _r_app_getname (), MB_OK | MB_ICONERROR | MB_TOPMOST);
 
 		_r_obj_dereference (message_string);
 	}
@@ -2987,6 +3018,7 @@ VOID _r_settings_adjustchild (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ HWND hchild
 VOID _r_settings_createwindow (_In_ HWND hwnd, _In_opt_ DLGPROC dlg_proc, _In_opt_ LONG dlg_id)
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
+
 	static SHORT width = 0;
 	static SHORT height = 0;
 
@@ -3467,7 +3499,7 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 						break;
 
 					// made backup of existing configuration
-					_r_fs_makebackup (_r_app_getconfigpath (), TRUE);
+					_r_fs_makebackup (_r_app_getconfigpath ()->buffer, TRUE);
 
 					// reinitialize configuration
 					_r_config_initialize (); // reload config
@@ -3645,8 +3677,11 @@ HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 
 	if (hwnd && is_enable)
 	{
-		if (!_r_app_issecurelocation () && _r_show_message (hwnd, MB_YESNO | MB_ICONWARNING, _r_app_getname (), L"Security warning!", L"It is not recommended to enable this option\r\nwhen running from outside a secure location (e.g. Program Files).\r\n\r\nAre you sure you want to continue?") != IDYES)
-			return E_ABORT;
+		if (!_r_path_issecurelocation (_r_sys_getimagepath ()))
+		{
+			if (_r_show_message (hwnd, MB_YESNO | MB_ICONWARNING, _r_app_getname (), L"Security warning!", L"It is not recommended to enable this option\r\nwhen running from outside a secure location (e.g. Program Files).\r\n\r\nAre you sure you want to continue?") != IDYES)
+				return E_ABORT;
+		}
 	}
 
 	VARIANT empty = {VT_EMPTY};
@@ -3774,7 +3809,7 @@ HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 			goto CleanupExit;
 
 		task_path = SysAllocString (_r_sys_getimagepath ());
-		task_directory = SysAllocString (_r_app_getdirectory ());
+		task_directory = SysAllocString (_r_app_getdirectory ()->buffer);
 		task_args = SysAllocString (L"$(Arg0)");
 
 		IExecAction_put_Path (exec_action, task_path);
@@ -4010,7 +4045,7 @@ BOOLEAN _r_skipuac_run ()
 			}
 		}
 
-		_r_sleep (150);
+		_r_sys_sleep (150);
 	}
 	while (--attempts);
 
