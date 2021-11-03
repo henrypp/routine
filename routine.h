@@ -5,6 +5,16 @@
 
 #pragma once
 
+// fix windot11.h errors
+#if !defined(__WINDOT11_H__)
+#define __WINDOT11_H__
+#endif // !__WINDOT11_H__
+
+// fix winbase.h errors
+#if !defined(MICROSOFT_WINDOWS_WINBASE_H_DEFINE_INTERLOCKED_CPLUSPLUS_OVERLOADS)
+#define MICROSOFT_WINDOWS_WINBASE_H_DEFINE_INTERLOCKED_CPLUSPLUS_OVERLOADS 0
+#endif // !MICROSOFT_WINDOWS_WINBASE_H_DEFINE_INTERLOCKED_CPLUSPLUS_OVERLOADS
+
 #if !defined(WIN32_LEAN_AND_MEAN)
 #define WIN32_LEAN_AND_MEAN
 #endif // !WIN32_LEAN_AND_MEAN
@@ -16,6 +26,10 @@
 #if !defined(COBJMACROS)
 #define COBJMACROS
 #endif // !COBJMACROS
+
+#if !defined(INITGUID)
+#define INITGUID
+#endif // !INITGUID
 
 #if !defined(UMDF_USING_NTSTATUS)
 #define UMDF_USING_NTSTATUS
@@ -51,6 +65,9 @@
 #include <subauth.h>
 #include <taskschd.h>
 #include <uxtheme.h>
+#include <vsstyle.h>
+#include <vssym32.h>
+#include <wincodec.h>
 #include <wincrypt.h>
 #include <winhttp.h>
 #include <wtsapi32.h>
@@ -77,6 +94,7 @@
 #pragma comment(lib, "taskschd.lib")
 #pragma comment(lib, "uxtheme.lib")
 #pragma comment(lib, "version.lib")
+#pragma comment(lib, "windowscodecs.lib")
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "wtsapi32.lib")
 #pragma comment(lib, "xmllite.lib")
@@ -107,10 +125,13 @@ static SID SeNetworkServiceSid = {SID_REVISION, 1, SECURITY_NT_AUTHORITY, {SECUR
 // extern
 extern FORCEINLINE SIZE_T _r_str_getlength (_In_ LPCWSTR string);
 extern FORCEINLINE SIZE_T _r_str_getbytelength (_In_ LPCSTR string);
+
 extern ULONG _r_str_crc32 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase);
 extern ULONG64 _r_str_crc64 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase);
 extern ULONG _r_str_fnv32a (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase);
 extern ULONG64 _r_str_fnv64a (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase);
+extern ULONG _r_str_x65599 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase);
+
 extern R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ();
 
 // safe clenup memory
@@ -299,7 +320,7 @@ FORCEINLINE VOID FASTCALL _r_initonce_end (_Inout_ PR_INITONCE init_once)
 VOID _r_freelist_initialize (_Out_ PR_FREE_LIST free_list, _In_ SIZE_T size, _In_ ULONG maximum_count);
 PVOID _r_freelist_allocateitem (_Inout_ PR_FREE_LIST free_list);
 VOID _r_freelist_destroy (_Inout_ PR_FREE_LIST free_list);
-VOID _r_freelist_deleteitem (_Inout_ PR_FREE_LIST free_list, _In_ PVOID memory_address);
+VOID _r_freelist_deleteitem (_Inout_ PR_FREE_LIST free_list, _In_ PVOID base_address);
 
 //
 // Synchronization: Queued lock
@@ -565,7 +586,7 @@ BOOLEAN _r_mutex_isexists (_In_ LPCWSTR name);
 HANDLE NTAPI _r_mem_getheap ();
 
 _Post_writable_byte_size_ (bytes_count)
-FORCEINLINE PVOID NTAPI _r_mem_allocate (_In_ SIZE_T bytes_count)
+FORCEINLINE PVOID _r_mem_allocate (_In_ SIZE_T bytes_count)
 {
 	HANDLE heap_handle;
 
@@ -575,7 +596,7 @@ FORCEINLINE PVOID NTAPI _r_mem_allocate (_In_ SIZE_T bytes_count)
 }
 
 _Post_writable_byte_size_ (bytes_count)
-FORCEINLINE PVOID NTAPI _r_mem_allocatezero (_In_ SIZE_T bytes_count)
+FORCEINLINE PVOID _r_mem_allocatezero (_In_ SIZE_T bytes_count)
 {
 	HANDLE heap_handle;
 
@@ -586,7 +607,7 @@ FORCEINLINE PVOID NTAPI _r_mem_allocatezero (_In_ SIZE_T bytes_count)
 
 _Ret_maybenull_
 _Post_writable_byte_size_ (bytes_count)
-FORCEINLINE PVOID NTAPI _r_mem_allocatezerosafe (_In_ SIZE_T bytes_count)
+FORCEINLINE PVOID _r_mem_allocatezerosafe (_In_ SIZE_T bytes_count)
 {
 	HANDLE heap_handle;
 
@@ -596,7 +617,7 @@ FORCEINLINE PVOID NTAPI _r_mem_allocatezerosafe (_In_ SIZE_T bytes_count)
 }
 
 _Post_writable_byte_size_ (bytes_count)
-FORCEINLINE PVOID NTAPI _r_mem_allocateandcopy (_In_ PVOID src, _In_ SIZE_T bytes_count)
+FORCEINLINE PVOID _r_mem_allocateandcopy (_In_ LPCVOID src, _In_ SIZE_T bytes_count)
 {
 	PVOID dst;
 
@@ -611,43 +632,43 @@ FORCEINLINE PVOID NTAPI _r_mem_allocateandcopy (_In_ PVOID src, _In_ SIZE_T byte
 // // https://docs.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heaprealloc
 
 _Post_writable_byte_size_ (bytes_count)
-FORCEINLINE PVOID NTAPI _r_mem_reallocate (_Frees_ptr_opt_ PVOID memory_address, _In_ SIZE_T bytes_count)
+FORCEINLINE PVOID _r_mem_reallocate (_Frees_ptr_opt_ PVOID base_address, _In_ SIZE_T bytes_count)
 {
 	HANDLE heap_handle;
 
 	heap_handle = _r_mem_getheap ();
 
-	return RtlReAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS, memory_address, bytes_count);
+	return RtlReAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS, base_address, bytes_count);
 }
 
 _Post_writable_byte_size_ (bytes_count)
-FORCEINLINE PVOID NTAPI _r_mem_reallocatezero (_Frees_ptr_opt_ PVOID memory_address, _In_ SIZE_T bytes_count)
+FORCEINLINE PVOID _r_mem_reallocatezero (_Frees_ptr_opt_ PVOID base_address, _In_ SIZE_T bytes_count)
 {
 	HANDLE heap_handle;
 
 	heap_handle = _r_mem_getheap ();
 
-	return RtlReAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, memory_address, bytes_count);
+	return RtlReAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, base_address, bytes_count);
 }
 
 _Ret_maybenull_
 _Post_writable_byte_size_ (bytes_count)
-FORCEINLINE PVOID NTAPI _r_mem_reallocatezerosafe (_Frees_ptr_opt_ PVOID memory_address, _In_ SIZE_T bytes_count)
+FORCEINLINE PVOID _r_mem_reallocatezerosafe (_Frees_ptr_opt_ PVOID base_address, _In_ SIZE_T bytes_count)
 {
 	HANDLE heap_handle;
 
 	heap_handle = _r_mem_getheap ();
 
-	return RtlReAllocateHeap (heap_handle, HEAP_ZERO_MEMORY, memory_address, bytes_count);
+	return RtlReAllocateHeap (heap_handle, HEAP_ZERO_MEMORY, base_address, bytes_count);
 }
 
-FORCEINLINE VOID NTAPI _r_mem_free (_Frees_ptr_opt_ PVOID memory_address)
+FORCEINLINE VOID _r_mem_free (_Frees_ptr_opt_ PVOID base_address)
 {
 	HANDLE heap_handle;
 
 	heap_handle = _r_mem_getheap ();
 
-	RtlFreeHeap (heap_handle, 0, memory_address);
+	RtlFreeHeap (heap_handle, 0, base_address);
 }
 
 //
@@ -655,10 +676,10 @@ FORCEINLINE VOID NTAPI _r_mem_free (_Frees_ptr_opt_ PVOID memory_address)
 //
 
 _Post_writable_byte_size_ (bytes_count)
-PVOID _r_obj_allocate (_In_ SIZE_T bytes_count, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
+PVOID NTAPI _r_obj_allocate (_In_ SIZE_T bytes_count, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
 
-PVOID _r_obj_reference (_In_ PVOID object_body);
-VOID _r_obj_dereference_ex (_In_ PVOID object_body, _In_ LONG ref_count);
+PVOID NTAPI _r_obj_reference (_In_ PVOID object_body);
+VOID NTAPI _r_obj_dereference_ex (_In_ PVOID object_body, _In_ LONG ref_count);
 
 _Ret_maybenull_
 FORCEINLINE PVOID _r_obj_referencesafe (_In_opt_ PVOID object_body)
@@ -677,9 +698,21 @@ FORCEINLINE VOID _r_obj_dereference (_In_ PVOID object_body)
 FORCEINLINE VOID _r_obj_dereferencelist (_In_reads_ (count) PVOID_PTR objects, _In_ SIZE_T count)
 {
 	for (SIZE_T i = 0; i < count; i++)
-	{
 		_r_obj_dereference_ex (objects[i], 1);
-	}
+}
+
+FORCEINLINE VOID _r_obj_swapreference (_Inout_ PVOID_PTR object_body, _In_opt_ PVOID new_object)
+{
+	PVOID old_object;
+
+	old_object = *object_body;
+	*object_body = new_object;
+
+	if (old_object)
+		_r_obj_dereference (old_object);
+
+	if (new_object)
+		_r_obj_reference (new_object);
 }
 
 FORCEINLINE VOID _r_obj_movereference (_Inout_ PVOID_PTR object_body, _In_opt_ PVOID new_object)
@@ -705,7 +738,7 @@ FORCEINLINE VOID _r_obj_clearreference (_Inout_ PVOID_PTR object_body)
 #define _r_obj_isbyteempty(string) \
     ((string) == NULL || (string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == ANSI_NULL)
 
-PR_BYTE _r_obj_createbyte_ex (_In_opt_ LPSTR buffer, _In_ SIZE_T length);
+PR_BYTE _r_obj_createbyte_ex (_In_opt_ LPCSTR buffer, _In_ SIZE_T length);
 
 VOID _r_obj_setbytelength (_Inout_ PR_BYTE string, _In_ SIZE_T length);
 
@@ -803,9 +836,9 @@ FORCEINLINE SIZE_T _r_obj_getstringreflength (_In_ PR_STRINGREF string)
 	return string->length / sizeof (WCHAR);
 }
 
-FORCEINLINE ULONG _r_obj_getstringrefhash (_In_ PR_STRINGREF string)
+FORCEINLINE ULONG _r_obj_getstringrefhash (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
 {
-	return _r_str_fnv32a (string, TRUE);
+	return _r_str_x65599 (string, is_ignorecase);
 }
 
 FORCEINLINE SIZE_T _r_obj_getstringlength (_In_ PR_STRING string)
@@ -813,9 +846,16 @@ FORCEINLINE SIZE_T _r_obj_getstringlength (_In_ PR_STRING string)
 	return string->length / sizeof (WCHAR);
 }
 
-FORCEINLINE ULONG _r_obj_getstringhash (_In_ PR_STRING string)
+FORCEINLINE ULONG _r_obj_getstringhash (_In_ PR_STRING string, _In_ BOOLEAN is_ignorecase)
 {
-	return _r_str_fnv32a (&string->sr, TRUE);
+	return _r_str_x65599 (&string->sr, is_ignorecase);
+}
+
+FORCEINLINE BOOLEAN _r_obj_isstringnullterminated (_In_ PR_STRINGREF string)
+{
+	assert (!(string->length & 0x01));
+
+	return (string->buffer[string->length / sizeof (WCHAR)] == UNICODE_NULL);
 }
 
 FORCEINLINE VOID _r_obj_writestringnullterminator (_In_ PR_STRING string)
@@ -1017,13 +1057,13 @@ VOID _r_obj_cleararray (_Inout_ PR_ARRAY array_node);
 VOID _r_obj_resizearray (_Inout_ PR_ARRAY array_node, _In_ SIZE_T new_capacity);
 
 _Ret_maybenull_
-PVOID _r_obj_addarrayitem_ex (_Inout_ PR_ARRAY array_node, _In_opt_ PVOID item, _Out_opt_ PSIZE_T new_index);
+PVOID _r_obj_addarrayitem_ex (_Inout_ PR_ARRAY array_node, _In_opt_ LPCVOID item, _Out_opt_ PSIZE_T new_index);
 
-VOID _r_obj_addarrayitems (_Inout_ PR_ARRAY array_node, _In_ PVOID items, _In_ SIZE_T count);
+VOID _r_obj_addarrayitems (_Inout_ PR_ARRAY array_node, _In_ LPCVOID items, _In_ SIZE_T count);
 VOID _r_obj_removearrayitems (_Inout_ PR_ARRAY array_node, _In_ SIZE_T start_pos, _In_ SIZE_T count);
 
 _Ret_maybenull_
-FORCEINLINE PVOID _r_obj_addarrayitem (_Inout_ PR_ARRAY array_node, _In_opt_ PVOID item)
+FORCEINLINE PVOID _r_obj_addarrayitem (_Inout_ PR_ARRAY array_node, _In_opt_ LPCVOID item)
 {
 	return _r_obj_addarrayitem_ex (array_node, item, NULL);
 }
@@ -1062,13 +1102,16 @@ FORCEINLINE VOID _r_obj_removearrayitem (_In_ PR_ARRAY array_node, _In_ SIZE_T i
 #define _r_obj_islistempty(list_node) \
     ((list_node) == NULL || (list_node)->count == 0)
 
+#define _r_obj_islistempty2(list_node) \
+    ((list_node)->count == 0)
+
 PR_LIST _r_obj_createlist_ex (_In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
 
 _Ret_maybenull_
 PVOID _r_obj_addlistitem_ex (_Inout_ PR_LIST list_node, _In_opt_ PVOID item, _Out_opt_ PSIZE_T new_index);
 
 VOID _r_obj_clearlist (_Inout_ PR_LIST list_node);
-SIZE_T _r_obj_findlistitem (_In_ PR_LIST list_node, _In_ PVOID list_item);
+SIZE_T _r_obj_findlistitem (_In_ PR_LIST list_node, _In_ LPCVOID list_item);
 VOID _r_obj_insertlistitems (_Inout_ PR_LIST list_node, _In_ SIZE_T start_pos, _In_ PVOID_PTR items, _In_ SIZE_T count);
 VOID _r_obj_removelistitems (_Inout_ PR_LIST list_node, _In_ SIZE_T start_pos, _In_ SIZE_T count);
 VOID _r_obj_resizelist (_Inout_ PR_LIST list_node, _In_ SIZE_T new_capacity);
@@ -1121,7 +1164,10 @@ FORCEINLINE VOID _r_obj_removelistitem (_Inout_ PR_LIST list_node, _In_ SIZE_T i
 PR_HASHTABLE _r_obj_createhashtable_ex (_In_ SIZE_T entry_size, _In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback);
 
 _Ret_maybenull_
-PVOID _r_obj_addhashtableitem (_Inout_ PR_HASHTABLE hashtable, _In_ ULONG_PTR hash_code, _In_opt_ PVOID entry);
+PVOID _r_obj_addhashtableitem (_Inout_ PR_HASHTABLE hashtable, _In_ ULONG_PTR hash_code, _In_opt_ LPCVOID entry);
+
+_Ret_maybenull_
+PVOID _r_obj_addhashtableitemnocheck (_Inout_ PR_HASHTABLE hashtable, _In_ ULONG_PTR hash_code, _In_opt_ LPCVOID entry);
 
 VOID _r_obj_clearhashtable (_Inout_ PR_HASHTABLE hashtable);
 
@@ -1251,12 +1297,12 @@ FORCEINLINE LONG64 _r_calc_percentval64 (_In_ LONG64 percent, _In_ LONG64 total_
 	return (total_length * percent) / 100;
 }
 
-FORCEINLINE LONG _r_calc_rectheight (_In_ PRECT rect)
+FORCEINLINE LONG _r_calc_rectheight (_In_ LPCRECT rect)
 {
 	return rect->bottom - rect->top;
 }
 
-FORCEINLINE LONG _r_calc_rectwidth (_In_ PRECT rect)
+FORCEINLINE LONG _r_calc_rectwidth (_In_ LPCRECT rect)
 {
 	return rect->right - rect->left;
 }
@@ -1353,7 +1399,7 @@ FORCEINLINE ULONG64 _r_byteswap_ulong64 (_In_ ULONG64 number)
 // Modal dialogs
 //
 
-HRESULT CALLBACK _r_msg_callback (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam, LONG_PTR lpdata);
+HRESULT CALLBACK _r_msg_callback (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM wparam, _In_ LPARAM lparam, _In_opt_ LONG_PTR lpdata);
 
 #if !defined(APP_NO_DEPRECATIONS)
 _Success_ (return)
@@ -1455,13 +1501,23 @@ PR_STRING _r_path_getknownfolder (_In_ ULONG folder, _In_opt_ LPCWSTR append);
 _Ret_maybenull_
 PR_STRING _r_path_getmodulepath (_In_opt_ HMODULE hmodule);
 
+BOOLEAN _r_path_issecurelocation (_In_ LPCWSTR file_path);
+
+BOOLEAN _r_path_parsecommandlinefuzzy (_In_ PR_STRINGREF args, _Out_ PR_STRINGREF path, _Out_ PR_STRINGREF command_line, _Out_opt_ PR_STRING_PTR full_file_name);
+
+_Ret_maybenull_
+PR_STRING _r_path_resolvedeviceprefix (_In_ PR_STRING path);
+
 _Ret_maybenull_
 PR_STRING _r_path_search (_In_ LPCWSTR path);
 
-PR_STRING _r_path_dospathfromnt (_In_ LPCWSTR path);
+_Ret_maybenull_
+PR_STRING _r_path_searchfile (_In_ LPCWSTR path, _In_opt_ LPCWSTR extension);
+
+PR_STRING _r_path_dospathfromnt (_In_ PR_STRING path);
 
 _Ret_maybenull_
-PR_STRING _r_path_ntpathfromdos (_In_ LPCWSTR path, _Out_opt_ PULONG error_code);
+PR_STRING _r_path_ntpathfromdos (_In_ PR_STRING path, _Out_opt_ PULONG error_code);
 
 //
 // Shell
@@ -1517,8 +1573,12 @@ ULONG _r_str_crc32 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase);
 ULONG64 _r_str_crc64 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase);
 ULONG _r_str_fnv32a (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase);
 ULONG64 _r_str_fnv64a (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase);
+ULONG _r_str_x65599 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase);
 
-ULONG _r_str_gethash (_In_ LPCWSTR string);
+// frobnicate a string (xor by 42)
+BOOLEAN _r_str_frobstring (_Inout_ PR_STRING string, _In_ INT xor_code);
+
+ULONG _r_str_gethash (_In_ LPCWSTR string, _In_ BOOLEAN is_ignorecase);
 
 _Ret_maybenull_
 PR_STRING _r_str_expandenvironmentstring (_In_ PR_STRINGREF string);
@@ -1527,7 +1587,7 @@ _Ret_maybenull_
 PR_STRING _r_str_unexpandenvironmentstring (_In_ LPCWSTR string);
 
 _Ret_maybenull_
-PR_STRING _r_str_fromguid (_In_ LPCGUID lpguid);
+PR_STRING _r_str_fromguid (_In_ LPCGUID lpguid, _In_ BOOLEAN is_uppercase);
 
 PR_STRING _r_str_fromhex (_In_reads_bytes_ (length) PUCHAR buffer, _In_ ULONG length, _In_ BOOLEAN is_uppercase);
 
@@ -1554,16 +1614,6 @@ FORCEINLINE LONG _r_str_tolong (_In_ PR_STRINGREF string)
 FORCEINLINE ULONG _r_str_toulong (_In_ PR_STRINGREF string)
 {
 	return _r_str_toulong_ex (string, 10);
-}
-
-FORCEINLINE INT _r_str_tointeger (_In_ PR_STRINGREF string)
-{
-	return (INT)_r_str_tolong (string);
-}
-
-FORCEINLINE UINT _r_str_touinteger (_In_ PR_STRINGREF string)
-{
-	return (UINT)_r_str_toulong (string);
 }
 
 #if defined(_WIN64)
@@ -1600,8 +1650,8 @@ PR_HASHTABLE _r_str_unserialize (_In_ PR_STRINGREF string, _In_ WCHAR key_delime
 
 VOID _r_str_replacechar (_Inout_ PR_STRINGREF string, _In_ WCHAR char_from, _In_ WCHAR char_to);
 
-VOID _r_str_trimstringref (_Inout_ PR_STRINGREF string, _In_ PR_STRINGREF charset);
-VOID _r_str_trimstringref2 (_Inout_ PR_STRINGREF string, _In_ LPCWSTR charset);
+VOID _r_str_trimstringref (_Inout_ PR_STRINGREF string, _In_ PR_STRINGREF charset, _In_ ULONG flags);
+VOID _r_str_trimstringref2 (_Inout_ PR_STRINGREF string, _In_ LPCWSTR charset, _In_ ULONG flags);
 
 VOID _r_str_tolower (_Inout_ PR_STRINGREF string);
 VOID _r_str_toupper (_Inout_ PR_STRINGREF string);
@@ -1691,16 +1741,16 @@ FORCEINLINE VOID _r_str_trim (_Inout_ LPWSTR string, _In_ LPCWSTR charset)
 	StrTrim (string, charset);
 }
 
-FORCEINLINE VOID _r_str_trimstring (_Inout_ PR_STRING string, _In_ PR_STRINGREF charset)
+FORCEINLINE VOID _r_str_trimstring (_Inout_ PR_STRING string, _In_ PR_STRINGREF charset, _In_ ULONG flags)
 {
-	_r_str_trimstringref (&string->sr, charset);
+	_r_str_trimstringref (&string->sr, charset, flags);
 
 	_r_obj_writestringnullterminator (string);
 }
 
-FORCEINLINE VOID _r_str_trimstring2 (_Inout_ PR_STRING string, _In_ LPCWSTR charset)
+FORCEINLINE VOID _r_str_trimstring2 (_Inout_ PR_STRING string, _In_ LPCWSTR charset, _In_ ULONG flags)
 {
-	_r_str_trimstringref2 (&string->sr, charset);
+	_r_str_trimstringref2 (&string->sr, charset, flags);
 
 	_r_obj_writestringnullterminator (string);
 }
@@ -1726,8 +1776,10 @@ BOOLEAN _r_sys_iswow64 ();
 
 R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ();
 
-LPCWSTR _r_sys_getsystemdirectory ();
-LPCWSTR _r_sys_gettempdirectory ();
+VOID _r_sys_getsystemroot (_Out_ PR_STRINGREF path);
+
+PR_STRING _r_sys_getsystemdirectory ();
+PR_STRING _r_sys_gettempdirectory ();
 
 BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR name, _Out_opt_ PR_STRING_PTR out_value);
 
@@ -1749,10 +1801,20 @@ BOOLEAN _r_sys_createprocess_ex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR co
 NTSTATUS _r_sys_openprocess (_In_opt_ HANDLE process_id, _In_ ACCESS_MASK desired_access, _Out_ PHANDLE process_handle);
 NTSTATUS _r_sys_queryprocessstring (_In_ HANDLE process_handle, _In_ PROCESSINFOCLASS info_class, _Out_ PVOID_PTR file_name);
 
-BOOLEAN _r_sys_runasadmin (_In_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line);
+BOOLEAN _r_sys_runasadmin (_In_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory);
+
+VOID _r_sys_sleep (_In_ ULONG milliseconds);
 
 NTSTATUS NTAPI _r_sys_basethreadstart (_In_ PVOID arglist);
-NTSTATUS _r_sys_createthread_ex (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE thread_handle, _In_opt_ PR_ENVIRONMENT environment);
+PR_FREE_LIST _r_sys_getthreadfreelist ();
+
+NTSTATUS _r_sys_createthread (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE thread_handle, _In_opt_ PR_ENVIRONMENT environment);
+
+_Ret_maybenull_
+HICON _r_sys_loadicon (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR icon_name, _In_ LONG x, _In_ LONG y);
+
+_Ret_maybenull_
+HICON _r_sys_loadsharedicon (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR icon_name, _In_ LONG x, _In_ LONG y);
 
 _Ret_maybenull_
 PR_STRING _r_sys_querytaginformation (_In_ HANDLE hprocess, _In_ LPCVOID tag);
@@ -1766,24 +1828,22 @@ VOID _r_sys_setenvironment (_Out_ PR_ENVIRONMENT environment, _In_ LONG base_pri
 VOID _r_sys_setprocessenvironment (_In_ HANDLE process_handle, _In_ PR_ENVIRONMENT environment);
 VOID _r_sys_setthreadenvironment (_In_ HANDLE thread_handle, _In_ PR_ENVIRONMENT environment);
 
+FORCEINLINE VOID _r_sys_closehandle (_Inout_ PVOID_PTR handle_address)
+{
+	HANDLE handle;
+
+	if (*handle_address)
+	{
+		handle = *handle_address;
+		*handle_address = NULL;
+
+		NtClose (handle);
+	}
+}
+
 FORCEINLINE BOOLEAN _r_sys_createprocess (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory)
 {
 	return _r_sys_createprocess_ex (file_name, command_line, current_directory, NULL, SW_SHOWDEFAULT, 0);
-}
-
-FORCEINLINE NTSTATUS _r_sys_createthread (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist, _Out_opt_ PHANDLE hthread)
-{
-	return _r_sys_createthread_ex (function_address, arglist, hthread, NULL);
-}
-
-FORCEINLINE NTSTATUS _r_sys_createthread2 (_In_ PUSER_THREAD_START_ROUTINE function_address, _In_opt_ PVOID arglist)
-{
-	return _r_sys_createthread_ex (function_address, arglist, NULL, NULL);
-}
-
-FORCEINLINE NTSTATUS _r_sys_resumethread (_In_ HANDLE hthread)
-{
-	return NtResumeThread (hthread, NULL);
 }
 
 FORCEINLINE VOID _r_sys_setdefaultprocessenvironment (_Out_ PR_ENVIRONMENT environment)
@@ -1900,6 +1960,11 @@ FORCEINLINE BOOLEAN _r_sys_isosversionlower (_In_ ULONG version)
 	return _r_sys_getwindowsversion () < version;
 }
 
+FORCEINLINE BOOLEAN _r_sys_isosversionlowerorequal (_In_ ULONG version)
+{
+	return _r_sys_getwindowsversion () <= version;
+}
+
 FORCEINLINE LONG64 _r_sys_getexecutiontime ()
 {
 	LARGE_INTEGER li;
@@ -1940,17 +2005,39 @@ LONG64 _r_unixtime_from_systemtime (_In_ const SYSTEMTIME * system_time);
 _Success_ (return)
 BOOLEAN _r_dc_adjustwindowrect (_Inout_ LPRECT rect, _In_ ULONG style, _In_ ULONG style_ex, _In_ LONG dpi_value, _In_ BOOL is_menu);
 
+_Ret_maybenull_
+HBITMAP _r_dc_bitmapfromicon (_In_ HICON hicon, _In_ INT x, _In_ INT y);
+
+_Ret_maybenull_
+HICON _r_dc_bitmaptoicon (_In_ HBITMAP hbitmap, _In_ INT x, _In_ INT y);
+
+_Ret_maybenull_
+HBITMAP _r_dc_imagetobitmap (_In_ LPCGUID format, _In_ WICInProcPointer buffer, _In_ ULONG buffer_length, _In_ INT x, _In_ INT y);
+
+BOOLEAN _r_dc_drawwindowdefault (_In_ HDC hdc, _In_ HWND hwnd, _In_ BOOLEAN is_drawfooter);
+BOOLEAN _r_dc_drawimagelisticon (_In_ HDC hdc, _In_ HIMAGELIST himglist, _In_ INT index, _In_ INT x, _In_ INT y, _In_opt_ ULONG state, _In_opt_ UINT style);
+
 _Success_ (return)
-BOOLEAN _r_dc_getsystemparametersinfo (_In_ UINT action, _In_ UINT param1, _In_ PVOID param2, _In_ LONG dpi_value);
+BOOLEAN _r_dc_getsystemparametersinfo (_In_ UINT action, _In_ UINT param1, _Pre_maybenull_ _Post_valid_ PVOID param2, _In_ LONG dpi_value);
 
-VOID _r_dc_fillrect (_In_ HDC hdc, _In_ PRECT lprc, _In_ COLORREF clr);
+VOID _r_dc_fillrect (_In_ HDC hdc, _In_ LPCRECT rect, _In_ COLORREF clr);
 COLORREF _r_dc_getcolorbrightness (_In_ COLORREF clr);
-COLORREF _r_dc_getcolorshade (_In_ COLORREF clr, _In_ INT percent);
+COLORREF _r_dc_getcolorshade (_In_ COLORREF clr, _In_ ULONG percent);
 
-LONG _r_dc_getdpivalue (_In_opt_ HWND hwnd, _In_opt_ PRECT rect);
+LONG _r_dc_getdpivalue (_In_opt_ HWND hwnd, _In_opt_ LPCRECT rect);
 INT _r_dc_getsystemmetrics (_In_ INT index, _In_ LONG dpi_value);
 LONG _r_dc_getfontwidth (_In_ HDC hdc, _In_ PR_STRINGREF string);
 VOID _r_dc_getsizedpivalue (_Inout_ PR_SIZE size, _In_ LONG dpi_value, _In_ BOOLEAN is_unpack);
+
+FORCEINLINE VOID _r_dc_fixcontrolfont (_In_ HDC hdc, _In_ HWND hwnd, _In_ INT ctrl_id)
+{
+	SelectObject (hdc, (HFONT)SendDlgItemMessage (hwnd, ctrl_id, WM_GETFONT, 0, 0));
+}
+
+FORCEINLINE VOID _r_dc_fixwindowfont (_In_ HDC hdc, _In_ HWND hwnd)
+{
+	SelectObject (hdc, (HFONT)SendMessage (hwnd, WM_GETFONT, 0, 0));
+}
 
 FORCEINLINE LONG _r_dc_getdpi (_In_ INT number, _In_ LONG dpi_value)
 {
@@ -1967,17 +2054,17 @@ FORCEINLINE LONG _r_dc_getwindowdpi (_In_ HWND hwnd)
 	return _r_dc_getdpivalue (hwnd, NULL);
 }
 
-FORCEINLINE LONG _r_dc_getmonitordpi (_In_ PRECT rect)
+FORCEINLINE LONG _r_dc_getmonitordpi (_In_ LPCRECT rect)
 {
 	return _r_dc_getdpivalue (NULL, rect);
 }
 
-FORCEINLINE LONG _r_dc_fontheighttosize (_In_ INT height, _In_ LONG dpi_value)
+FORCEINLINE LONG _r_dc_fontheighttosize (_In_ LONG height, _In_ LONG dpi_value)
 {
 	return _r_calc_multipledividesigned (-height, 72, dpi_value);
 }
 
-FORCEINLINE LONG _r_dc_fontsizetoheight (_In_ INT size, _In_ LONG dpi_value)
+FORCEINLINE LONG _r_dc_fontsizetoheight (_In_ LONG size, _In_ LONG dpi_value)
 {
 	return -_r_calc_multipledividesigned (size, dpi_value, 72);
 }
@@ -2008,29 +2095,17 @@ VOID _r_layout_destroymanager (_Inout_ PR_LAYOUT_MANAGER layout_manager);
 _Ret_maybenull_
 PR_LAYOUT_ITEM _r_layout_additem (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_ PR_LAYOUT_ITEM parent_item, _In_ HWND hwnd, _In_ ULONG flags);
 
-VOID _r_layout_resizeitem (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAYOUT_ITEM layout_item);
+VOID _r_layout_enumcontrols (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_ PR_LAYOUT_ITEM layout_item, _In_ HWND hwnd);
+
+ULONG _r_layout_getcontrolflags (_In_ HWND hwnd);
+VOID _r_layout_getitemanchor (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAYOUT_ITEM layout_item);
+
 BOOLEAN _r_layout_resize (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_ WPARAM wparam);
+VOID _r_layout_resizeitem (_Inout_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAYOUT_ITEM layout_item);
+VOID _r_layout_resizeminimumsize (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ LPARAM lparam);
 
-VOID _r_layout_setitemanchor (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAYOUT_ITEM layout_item, _In_ ULONG anchor);
-BOOLEAN _r_layout_setitemsanchorbyhandle (_In_ PR_LAYOUT_MANAGER layout_manager, _In_ HWND hwnd, _In_ ULONG anchor);
-
-FORCEINLINE VOID _r_layout_resizeminimumsize (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ LPARAM lparam)
-{
-	PMINMAXINFO mmi;
-
-	if (!layout_manager->is_initialized)
-		return;
-
-	mmi = (PMINMAXINFO)lparam;
-
-	mmi->ptMinTrackSize = layout_manager->original_size;
-}
-
-FORCEINLINE VOID _r_layout_setoriginalsize (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_ LONG width, _In_ LONG height)
-{
-	layout_manager->original_size.x = width;
-	layout_manager->original_size.y = height;
-}
+VOID _r_layout_setoriginalsize (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_ LONG width, _In_ LONG height);
+BOOLEAN _r_layout_setwindowsanchor (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_ HWND hwnd, _In_ ULONG anchor);
 
 //
 // Window management
@@ -2042,11 +2117,21 @@ VOID _r_wnd_calculateoverlappedrect (_In_ HWND hwnd, _Inout_ PRECT window_rect);
 VOID _r_wnd_center (_In_ HWND hwnd, _In_opt_ HWND hparent);
 VOID _r_wnd_changemessagefilter (_In_ HWND hwnd, _In_reads_ (count) PUINT messages, _In_ SIZE_T count, _In_ ULONG action);
 VOID _r_wnd_changesettings (_In_ HWND hwnd, _In_opt_ WPARAM wparam, _In_opt_ LPARAM lparam);
+
+_Ret_maybenull_
+HWND _r_wnd_createwindow (_In_opt_ HINSTANCE hinstance, _In_ LPCWSTR name, _In_opt_ HWND hparent, _In_ DLGPROC dlg_proc, _In_opt_ PVOID lparam);
+
+INT_PTR _r_wnd_createmodalwindow (_In_opt_ HINSTANCE hinstance, _In_ LPCWSTR name, _In_opt_ HWND hparent, _In_ DLGPROC dlg_proc, _In_opt_ PVOID lparam);
+INT _r_wnd_messageloop (_In_ HWND main_wnd, _In_ LPCWSTR accelerator_table);
+
 BOOLEAN _r_wnd_isfullscreenmode ();
 BOOLEAN _r_wnd_isoverlapped (_In_ HWND hwnd);
 BOOLEAN _r_wnd_isundercursor (_In_ HWND hwnd);
 VOID _r_wnd_setposition (_In_ HWND hwnd, _In_opt_ PR_SIZE position, _In_opt_ PR_SIZE size);
 VOID _r_wnd_toggle (_In_ HWND hwnd, _In_ BOOLEAN is_show);
+
+_Success_ (return)
+BOOLEAN _r_wnd_getclientsize (_In_ HWND hwnd, _Out_ PR_RECTANGLE rectangle);
 
 _Success_ (return)
 BOOLEAN _r_wnd_getposition (_In_ HWND hwnd, _Out_ PR_RECTANGLE rectangle);
@@ -2066,9 +2151,9 @@ FORCEINLINE VOID _r_wnd_setstyle (_In_ HWND hwnd, _In_ LONG_PTR style)
 	SetWindowLongPtr (hwnd, GWL_STYLE, style);
 }
 
-FORCEINLINE VOID _r_wnd_setstyle_ex (_In_ HWND hwnd, _In_ LONG_PTR exstyle)
+FORCEINLINE VOID _r_wnd_setstyle_ex (_In_ HWND hwnd, _In_ LONG_PTR ex_style)
 {
-	SetWindowLongPtr (hwnd, GWL_EXSTYLE, exstyle);
+	SetWindowLongPtr (hwnd, GWL_EXSTYLE, ex_style);
 }
 
 FORCEINLINE VOID _r_wnd_adjustrectangletobounds (_Inout_ PR_RECTANGLE rectangle, _In_ PR_RECTANGLE bounds)
@@ -2092,15 +2177,17 @@ FORCEINLINE VOID _r_wnd_centerwindowrect (_In_ PR_RECTANGLE rectangle, _In_ PR_R
 	rectangle->top = bounds->top + (bounds->height - rectangle->height) / 2;
 }
 
-FORCEINLINE VOID _r_wnd_setrectangle (_Out_ PR_RECTANGLE rectangle, _In_ LONG left, _In_ LONG top, _In_ LONG width, _In_ LONG height)
+FORCEINLINE VOID _r_wnd_copyrectangle (_Out_ PR_RECTANGLE rectangle_dst, _In_ PR_RECTANGLE rectangle_src)
 {
-	rectangle->left = left;
-	rectangle->top = top;
-	rectangle->width = width;
-	rectangle->height = height;
+	CopyRect ((LPRECT)rectangle_dst, (LPCRECT)rectangle_src);
 }
 
-FORCEINLINE VOID _r_wnd_recttorectangle (_Out_ PR_RECTANGLE rectangle, _In_ PRECT rect)
+FORCEINLINE VOID _r_wnd_setrectangle (_Out_ PR_RECTANGLE rectangle, _In_ LONG left, _In_ LONG top, _In_ LONG width, _In_ LONG height)
+{
+	SetRect ((LPRECT)rectangle, left, top, width, height);
+}
+
+FORCEINLINE VOID _r_wnd_recttorectangle (_Out_ PR_RECTANGLE rectangle, _In_ LPCRECT rect)
 {
 	_r_wnd_setrectangle (rectangle, rect->left, rect->top, _r_calc_rectwidth (rect), _r_calc_rectheight (rect));
 }
@@ -2161,7 +2248,7 @@ FORCEINLINE VOID _r_wnd_top (_In_ HWND hwnd, _In_ BOOLEAN is_enable)
 //
 
 _Ret_maybenull_
-HINTERNET _r_inet_createsession (_In_opt_ LPCWSTR useragent);
+HINTERNET _r_inet_createsession (_In_opt_ PR_STRING useragent);
 
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTERNET pconnect, _Out_ LPHINTERNET prequest, _Out_opt_ PULONG total_length);
@@ -2197,33 +2284,40 @@ FORCEINLINE VOID _r_inet_close (_In_ HINTERNET handle)
 //
 
 _Ret_maybenull_
-PR_BYTE _r_reg_querybinary (_In_ HKEY hkey, _In_opt_ LPCWSTR subkey, _In_opt_ LPCWSTR value);
+PR_BYTE _r_reg_querybinary (_In_ HKEY hkey, _In_opt_ LPCWSTR subkey, _In_ LPCWSTR value_name);
 
 _Ret_maybenull_
-PR_STRING _r_reg_querystring (_In_ HKEY hkey, _In_opt_ LPCWSTR subkey, _In_opt_ LPCWSTR value);
+PR_STRING _r_reg_querystring (_In_ HKEY hkey, _In_opt_ LPCWSTR subkey, _In_opt_ LPCWSTR value_name);
 
-ULONG _r_reg_queryulong (_In_ HKEY hkey, _In_opt_ LPCWSTR subkey, _In_ LPCWSTR value);
-ULONG64 _r_reg_queryulong64 (_In_ HKEY hkey, _In_opt_ LPCWSTR subkey, _In_ LPCWSTR value);
+ULONG _r_reg_queryulong (_In_ HKEY hkey, _In_opt_ LPCWSTR subkey, _In_ LPCWSTR value_name);
+ULONG64 _r_reg_queryulong64 (_In_ HKEY hkey, _In_opt_ LPCWSTR subkey, _In_ LPCWSTR value_name);
 
 ULONG _r_reg_querysubkeylength (_In_ HKEY hkey);
 LONG64 _r_reg_querytimestamp (_In_ HKEY hkey);
+
+LSTATUS _r_reg_queryvalue (_In_ HKEY hkey, _In_opt_ LPCWSTR subkey, _In_opt_ LPCWSTR value_name, _Out_opt_ PULONG type, _Out_writes_bytes_to_opt_ (*buffer_length, *buffer_length) PBYTE buffer, _When_ (buffer == NULL, _Out_opt_) _When_ (buffer != NULL, _Inout_opt_) PULONG buffer_length);
 
 //
 // Cryptography
 //
 
-// frobnicate a string
-BOOLEAN _r_crypt_frobstring (_Inout_ PR_STRING string);
+_Ret_maybenull_
+PR_CRYPT_CONTEXT _r_crypt_createcryptcontext (_In_ LPCWSTR algorithm_id);
 
 _Ret_maybenull_
-PR_HASH_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id);
+PR_BYTE _r_crypt_encryptdata (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_size);
 
-NTSTATUS _r_crypt_hashdata (_In_ PR_HASH_CONTEXT hash_context, _In_ PVOID buffer, _In_ ULONG buffer_length);
+NTSTATUS _r_crypt_setkey (_Inout_ PR_CRYPT_CONTEXT context, _In_ PR_BYTE key, _In_ PR_BYTE nonce);
 
 _Ret_maybenull_
-PR_STRING _r_crypt_finalhashcontext (_In_ PR_HASH_CONTEXT hash_context, _In_ BOOLEAN is_uppercase);
+PR_CRYPT_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id);
 
-VOID _r_crypt_destroyhashcontext (_In_ PR_HASH_CONTEXT hash_context);
+NTSTATUS _r_crypt_hashdata (_In_ PR_CRYPT_CONTEXT context, _In_ PVOID buffer, _In_ ULONG buffer_length);
+
+_Ret_maybenull_
+PR_STRING _r_crypt_finalhashcontext (_In_ PR_CRYPT_CONTEXT context, _In_ BOOLEAN is_uppercase);
+
+VOID _r_crypt_destroycryptcontext (_In_ PR_CRYPT_CONTEXT context);
 
 //
 // Math
@@ -2285,18 +2379,18 @@ _Ret_maybenull_
 PR_STRING _r_res_loadstring (_In_opt_ HINSTANCE hinst, _In_ UINT string_id);
 
 _Ret_maybenull_
-PR_STRING _r_res_querystring (_In_ PVOID ver_block, _In_ LPCWSTR entry_name, _In_ ULONG lcid);
+PR_STRING _r_res_querystring (_In_ LPCVOID ver_block, _In_ LPCWSTR entry_name, _In_ ULONG lcid);
 
 _Ret_maybenull_
-PR_STRING _r_res_querystring_ex (_In_ PVOID ver_block, _In_ LPCWSTR entry_name, _In_ ULONG lcid);
+PR_STRING _r_res_querystring_ex (_In_ LPCVOID ver_block, _In_ LPCWSTR entry_name, _In_ ULONG lcid);
 
-ULONG _r_res_querytranslation (_In_ PVOID ver_block);
+ULONG _r_res_querytranslation (_In_ LPCVOID ver_block);
 
 _Ret_maybenull_
 PR_STRING _r_res_queryversionstring (_In_ LPCWSTR path);
 
 _Success_ (return)
-FORCEINLINE BOOLEAN _r_res_queryversion (_In_ PVOID ver_block, _Out_ VS_FIXEDFILEINFO **file_info)
+FORCEINLINE BOOLEAN _r_res_queryversion (_In_ LPCVOID ver_block, _Out_ PVOID_PTR file_info)
 {
 	UINT length;
 
@@ -2307,12 +2401,7 @@ FORCEINLINE BOOLEAN _r_res_queryversion (_In_ PVOID ver_block, _Out_ VS_FIXEDFIL
 // Other
 //
 
-_Ret_maybenull_
-HICON _r_loadicon (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR icon_name, _In_ LONG icon_size, _In_ BOOLEAN is_shared);
-
-PR_HASHTABLE _r_parseini (_In_ LPCWSTR path, _Inout_opt_ PR_LIST section_list);
-
-VOID _r_sleep (_In_ ULONG milliseconds);
+PR_HASHTABLE _r_parseini (_In_ PR_STRING path, _Inout_opt_ PR_LIST section_list);
 
 //
 // Xml library
@@ -2321,11 +2410,13 @@ VOID _r_sleep (_In_ ULONG milliseconds);
 _Success_ (return == S_OK)
 HRESULT _r_xml_initializelibrary (_Out_ PR_XML_LIBRARY xml_library, _In_ BOOLEAN is_reader, _In_opt_ PR_XML_STREAM_CALLBACK stream_callback);
 
+VOID _r_xml_destroylibrary (_Inout_ PR_XML_LIBRARY xml_library);
+
 _Success_ (return == S_OK)
 HRESULT _r_xml_parsefile (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR file_path);
 
 _Success_ (return == S_OK)
-HRESULT _r_xml_parsestring (_Inout_ PR_XML_LIBRARY xml_library, _In_ PVOID buffer, _In_ ULONG buffer_size);
+HRESULT _r_xml_parsestring (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCVOID buffer, _In_ ULONG buffer_size);
 
 _Success_ (return)
 BOOLEAN _r_xml_getattribute (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name, _Out_ PR_STRINGREF value);
@@ -2334,11 +2425,10 @@ _Ret_maybenull_
 PR_STRING _r_xml_getattribute_string (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name);
 
 BOOLEAN _r_xml_getattribute_boolean (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name);
-INT _r_xml_getattribute_integer (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name);
+LONG _r_xml_getattribute_long (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name);
 LONG64 _r_xml_getattribute_long64 (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name);
-ULONG64 _r_xml_getattribute_ulong64 (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name);
 
-FORCEINLINE VOID _r_xml_setattribute (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name, _In_ LPCWSTR value)
+FORCEINLINE VOID _r_xml_setattribute (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name, _In_opt_ LPCWSTR value)
 {
 	IXmlWriter_WriteAttributeString (xml_library->writer, NULL, name, NULL, value);
 }
@@ -2348,9 +2438,8 @@ FORCEINLINE VOID _r_xml_setattribute_boolean (_Inout_ PR_XML_LIBRARY xml_library
 	_r_xml_setattribute (xml_library, name, value ? L"true" : L"false");
 }
 
-VOID _r_xml_setattribute_integer (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name, _In_ INT value);
+VOID _r_xml_setattribute_long (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name, _In_ LONG value);
 VOID _r_xml_setattribute_long64 (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name, _In_ LONG64 value);
-VOID _r_xml_setattribute_ulong64 (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name, _In_ ULONG64 value);
 
 _Success_ (return)
 BOOLEAN _r_xml_enumchilditemsbytagname (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR tag_name);
@@ -2375,6 +2464,16 @@ FORCEINLINE VOID _r_xml_writewhitespace (_Inout_ PR_XML_LIBRARY xml_library, _In
 	IXmlWriter_WriteWhitespace (xml_library->writer, whitespace);
 }
 
+FORCEINLINE VOID _r_xml_writestartelement (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name)
+{
+	IXmlWriter_WriteStartElement (xml_library->writer, NULL, name, NULL);
+}
+
+FORCEINLINE VOID _r_xml_writeendelement (_Inout_ PR_XML_LIBRARY xml_library)
+{
+	IXmlWriter_WriteEndElement (xml_library->writer);
+}
+
 FORCEINLINE VOID _r_xml_writestartdocument (_Inout_ PR_XML_LIBRARY xml_library)
 {
 	IXmlWriter_WriteStartDocument (xml_library->writer, XmlStandalone_Omit);
@@ -2386,18 +2485,6 @@ FORCEINLINE VOID _r_xml_writeenddocument (_Inout_ PR_XML_LIBRARY xml_library)
 
 	IXmlWriter_Flush (xml_library->writer);
 }
-
-FORCEINLINE VOID _r_xml_writestartelement (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name)
-{
-	IXmlWriter_WriteStartElement (xml_library->writer, NULL, name, NULL);
-}
-
-FORCEINLINE VOID _r_xml_writeendelement (_Inout_ PR_XML_LIBRARY xml_library)
-{
-	IXmlWriter_WriteEndElement (xml_library->writer);
-}
-
-VOID _r_xml_destroylibrary (_Inout_ PR_XML_LIBRARY xml_library);
 
 //
 // System tray
@@ -2427,10 +2514,10 @@ PR_STRING _r_ctrl_getstring (_In_ HWND hwnd, _In_ INT ctrl_id);
 
 LONG _r_ctrl_getwidth (_In_ HWND hwnd, _In_opt_ INT ctrl_id);
 
-VOID _r_ctrl_setbuttonmargins (_In_ HWND hwnd, _In_ INT ctrl_id);
+VOID _r_ctrl_setbuttonmargins (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ LONG dpi_value);
 VOID _r_ctrl_settablestring (_In_ HWND hwnd, _In_ INT ctrl_id1, _In_ PR_STRINGREF text1, _In_ INT ctrl_id2, _In_ PR_STRINGREF text2);
 VOID _r_ctrl_setstringformat (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ _Printf_format_string_ LPCWSTR format, ...);
-VOID _r_ctrl_setstringlength (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ PR_STRINGREF text);
+VOID _r_ctrl_setstringlength (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ PR_STRINGREF string);
 
 _Ret_maybenull_
 HWND _r_ctrl_createtip (_In_opt_ HWND hparent);
@@ -2445,11 +2532,6 @@ VOID _r_ctrl_showballoontipformat (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT ic
 FORCEINLINE ULONG _r_ctrl_getstringlength (_In_ HWND hwnd, _In_ INT ctrl_id)
 {
 	return (ULONG)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXTLENGTH, 0, 0);
-}
-
-FORCEINLINE VOID _r_ctrl_setcuebanner (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ LPCWSTR text)
-{
-	SendDlgItemMessage (hwnd, ctrl_id, EM_SETCUEBANNER, FALSE, (LPARAM)text);
 }
 
 FORCEINLINE VOID _r_ctrl_setstring (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ LPCWSTR text)
@@ -2495,7 +2577,17 @@ FORCEINLINE VOID _r_combobox_setitemparam (_In_ HWND hwnd, _In_ INT ctrl_id, _In
 // Control: editbox
 //
 
-FORCEINLINE VOID _r_edit_settextlimit (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ SIZE_T length)
+FORCEINLINE VOID _r_edit_setcuebanner (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ LPCWSTR text)
+{
+	SendDlgItemMessage (hwnd, ctrl_id, EM_SETCUEBANNER, FALSE, (LPARAM)text);
+}
+
+FORCEINLINE VOID _r_edit_setselection (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT selection)
+{
+	SendDlgItemMessage (hwnd, ctrl_id, EM_SETSEL, 0, (LPARAM)selection);
+}
+
+FORCEINLINE VOID _r_edit_settextlimit (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ ULONG length)
 {
 	SendDlgItemMessage (hwnd, ctrl_id, EM_LIMITTEXT, (WPARAM)length, 0);
 }
@@ -2567,10 +2659,10 @@ VOID _r_listview_redraw (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id);
 VOID _r_listview_setcolumn (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT column_id, _In_opt_ LPCWSTR text, _In_opt_ INT width);
 VOID _r_listview_setcolumnsortindex (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT column_id, _In_ INT);
 VOID _r_listview_setitem_ex (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id, _In_ INT subitem_id, _In_opt_ LPCWSTR text, _In_ INT image_id, _In_ INT group_id, _In_opt_ LPARAM lparam);
-VOID _r_listview_setitemcheck (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id, _In_ BOOLEAN is_check);
+VOID _r_listview_setitemstate (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id, _In_ UINT state, _In_opt_ UINT state_mask);
 VOID _r_listview_setitemvisible (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id);
 VOID _r_listview_setgroup (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT group_id, _In_opt_ LPCWSTR title, _In_opt_ UINT state, _In_opt_ UINT state_mask);
-VOID _r_listview_setstyle (_In_ HWND hwnd, _In_ INT ctrl_id, _In_opt_ ULONG exstyle, _In_ BOOL is_groupview);
+VOID _r_listview_setstyle (_In_ HWND hwnd, _In_ INT ctrl_id, _In_opt_ ULONG ex_style, _In_ BOOL is_groupview);
 
 FORCEINLINE INT _r_listview_additem (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id, _In_ LPCWSTR text)
 {
@@ -2590,6 +2682,11 @@ FORCEINLINE VOID _r_listview_deleteallitems (_In_ HWND hwnd, _In_ INT ctrl_id)
 FORCEINLINE VOID _r_listview_deleteitem (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id)
 {
 	SendDlgItemMessage (hwnd, ctrl_id, LVM_DELETEITEM, (WPARAM)item_id, 0);
+}
+
+FORCEINLINE VOID _r_listview_ensurevisible (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id)
+{
+	SendDlgItemMessage (hwnd, ctrl_id, LVM_ENSUREVISIBLE, (WPARAM)item_id, FALSE);
 }
 
 FORCEINLINE ULONG _r_listview_getexstyle (_In_ HWND hwnd, _In_ INT ctrl_id)
@@ -2642,13 +2739,18 @@ FORCEINLINE VOID _r_listview_setitem (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT
 	_r_listview_setitem_ex (hwnd, ctrl_id, item_id, subitem_id, text, I_IMAGENONE, I_GROUPIDNONE, 0);
 }
 
+FORCEINLINE VOID _r_listview_setitemcheck (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT item_id, _In_ BOOLEAN is_check)
+{
+	_r_listview_setitemstate (hwnd, ctrl_id, item_id, INDEXTOSTATEIMAGEMASK (is_check ? 2 : 1), LVIS_STATEIMAGEMASK);
+}
+
 FORCEINLINE VOID _r_listview_setimagelist (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ HIMAGELIST himg)
 {
 	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETIMAGELIST, LVSIL_SMALL, (LPARAM)himg);
 	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETIMAGELIST, LVSIL_NORMAL, (LPARAM)himg);
 }
 
-FORCEINLINE VOID _r_listview_setview (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT view_type)
+FORCEINLINE VOID _r_listview_setview (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ LONG view_type)
 {
 	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETVIEW, (WPARAM)view_type, 0);
 }
@@ -2660,7 +2762,7 @@ FORCEINLINE VOID _r_listview_setview (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT
 HTREEITEM _r_treeview_additem (_In_ HWND hwnd, _In_ INT ctrl_id, _In_opt_ LPCWSTR text, _In_opt_ HTREEITEM hparent, _In_ INT image_id, _In_opt_ LPARAM lparam);
 LPARAM _r_treeview_getlparam (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ HTREEITEM hitem);
 VOID _r_treeview_setitem (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ HTREEITEM hitem, _In_opt_ LPCWSTR text, _In_ INT image, _In_opt_ LPARAM lparam);
-VOID _r_treeview_setstyle (_In_ HWND hwnd, _In_ INT ctrl_id, _In_opt_ ULONG exstyle, _In_opt_ INT height, _In_opt_ INT indent);
+VOID _r_treeview_setstyle (_In_ HWND hwnd, _In_ INT ctrl_id, _In_opt_ ULONG ex_style, _In_opt_ INT height, _In_opt_ INT indent);
 
 //
 // Control: statusbar
@@ -2671,7 +2773,7 @@ LONG _r_status_getheight (_In_ HWND hwnd, _In_ INT ctrl_id);
 VOID _r_status_setstyle (_In_ HWND hwnd, _In_ INT ctrl_id, _In_opt_ INT height);
 VOID _r_status_settextformat (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT part_id, _In_ _Printf_format_string_ LPCWSTR format, ...);
 
-FORCEINLINE VOID _r_status_setparts (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT count, _In_reads_ (count) PINT parts)
+FORCEINLINE VOID _r_status_setparts (_In_ HWND hwnd, _In_ INT ctrl_id, _In_reads_ (count) PINT parts, _In_ INT count)
 {
 	SendDlgItemMessage (hwnd, ctrl_id, SB_SETPARTS, (WPARAM)count, (LPARAM)parts);
 }
@@ -2688,6 +2790,11 @@ FORCEINLINE VOID _r_status_settext (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT p
 VOID _r_rebar_insertband (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ UINT band_id, _In_ HWND hchild, _In_opt_ UINT style, _In_ UINT width, _In_ UINT height);
 VOID _r_rebar_deleteband (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ UINT band_id);
 
+FORCEINLINE UINT _r_rebar_getcount (_In_ HWND hwnd, _In_ INT ctrl_id)
+{
+	return (UINT)SendDlgItemMessage (hwnd, ctrl_id, RB_GETBANDCOUNT, 0, 0);
+}
+
 FORCEINLINE LONG _r_rebar_getheight (_In_ HWND hwnd, _In_ INT ctrl_id)
 {
 	return (LONG)SendDlgItemMessage (hwnd, ctrl_id, RB_GETBARHEIGHT, 0, 0);
@@ -2700,7 +2807,7 @@ FORCEINLINE LONG _r_rebar_getheight (_In_ HWND hwnd, _In_ INT ctrl_id)
 VOID _r_toolbar_addbutton (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ UINT command_id, _In_ INT style, _In_opt_ INT_PTR text, _In_ INT state, _In_ INT image);
 INT _r_toolbar_getwidth (_In_ HWND hwnd, _In_ INT ctrl_id);
 VOID _r_toolbar_setbutton (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ UINT command_id, _In_opt_ LPCWSTR text, _In_opt_ INT style, _In_opt_ INT state, _In_ INT image);
-VOID _r_toolbar_setstyle (_In_ HWND hwnd, _In_ INT ctrl_id, _In_opt_ ULONG exstyle);
+VOID _r_toolbar_setstyle (_In_ HWND hwnd, _In_ INT ctrl_id, _In_opt_ ULONG ex_style);
 
 FORCEINLINE VOID _r_toolbar_addseparator (_In_ HWND hwnd, _In_ INT ctrl_id)
 {
@@ -2717,7 +2824,7 @@ FORCEINLINE INT _r_toolbar_getbuttoncount (_In_ HWND hwnd, _In_ INT ctrl_id)
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, TB_BUTTONCOUNT, 0, 0);
 }
 
-FORCEINLINE INT _r_toolbar_getbuttonsize (_In_ HWND hwnd, _In_ INT ctrl_id)
+FORCEINLINE ULONG _r_toolbar_getbuttonsize (_In_ HWND hwnd, _In_ INT ctrl_id)
 {
 	return (ULONG)SendDlgItemMessage (hwnd, ctrl_id, TB_GETBUTTONSIZE, 0, 0);
 }
@@ -2742,24 +2849,25 @@ VOID _r_progress_setmarquee (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ BOOL is_enab
 // Util
 //
 
-FORCEINLINE VOID _r_util_templatewrite (_Inout_ PBYTE * ptr, _In_bytecount_ (size) LPCVOID data, _In_ SIZE_T size)
+FORCEINLINE VOID _r_util_templatewrite (_Inout_ PBYTE_PTR ptr, _In_bytecount_ (size) LPCVOID data, _In_ SIZE_T size)
 {
 	RtlCopyMemory (*ptr, data, size);
 	*ptr += size;
 }
 
-FORCEINLINE VOID _r_util_templatewriteulong (_Inout_ PBYTE * ptr, _In_ ULONG data)
+FORCEINLINE VOID _r_util_templatewriteulong (_Inout_ PBYTE_PTR ptr, _In_ ULONG data)
 {
 	_r_util_templatewrite (ptr, &data, sizeof (data));
 }
 
-FORCEINLINE VOID _r_util_templatewriteshort (_Inout_ PBYTE * ptr, _In_ WORD data)
+FORCEINLINE VOID _r_util_templatewriteshort (_Inout_ PBYTE_PTR ptr, _In_ WORD data)
 {
 	_r_util_templatewrite (ptr, &data, sizeof (data));
 }
 
-VOID _r_util_templatewritestring (_Inout_ PBYTE * ptr, _In_ LPCWSTR string);
-VOID _r_util_templatewritecontrol (_Inout_ PBYTE * ptr, _In_ ULONG ctrl_id, _In_ ULONG style, _In_ SHORT x, _In_ SHORT y, _In_ SHORT cx, _In_ SHORT cy, _In_ LPCWSTR class_name);
+VOID _r_util_templatewritestring (_Inout_ PBYTE_PTR ptr, _In_ LPCWSTR string);
+VOID _r_util_templatewritecontrol (_Inout_ PBYTE_PTR ptr, _In_ ULONG ctrl_id, _In_ ULONG style, _In_ SHORT x, _In_ SHORT y, _In_ SHORT cx, _In_ SHORT cy, _In_ LPCWSTR class_name);
+
 PR_STRING _r_util_versionformat (_In_ PR_STRINGREF string);
 BOOL CALLBACK _r_util_activate_window_callback (_In_ HWND hwnd, _In_ LPARAM lparam);
 
