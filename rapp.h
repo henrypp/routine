@@ -310,4 +310,3 @@ FORCEINLINE LPCWSTR _r_app_getversion ()
 {
 	return APP_VERSION;
 }
-

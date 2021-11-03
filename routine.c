@@ -6605,7 +6605,7 @@ VOID _r_sys_setprocessenvironment (_In_ HANDLE process_handle, _In_ PR_ENVIRONME
 		priority_class.PriorityClass = (UCHAR)environment->base_priority;
 
 		NtSetInformationProcess (process_handle, ProcessPriorityClass, &priority_class, sizeof (priority_class));
-}
+	}
 
 	// set i/o priority
 	if (environment->is_forced || environment->io_priority != IoPriorityNormal)
@@ -6641,7 +6641,7 @@ VOID _r_sys_setthreadenvironment (_In_ HANDLE thread_handle, _In_ PR_ENVIRONMENT
 		base_priority = environment->base_priority;
 
 		NtSetInformationThread (thread_handle, ThreadBasePriority, &base_priority, sizeof (base_priority));
-}
+	}
 
 	// set i/o priority
 	if (environment->is_forced || environment->io_priority != IoPriorityNormal)
@@ -8217,12 +8217,13 @@ INT _r_wnd_messageloop (_In_ HWND main_wnd, _In_ LPCWSTR accelerator_table)
 	MSG msg;
 	HWND hwnd;
 	HACCEL haccel;
-	BOOL result;
+	INT result;
 
 	haccel = LoadAccelerators (NULL, accelerator_table);
 
 	if (!haccel)
 		return GetLastError ();
+
 
 	while (TRUE)
 	{
@@ -8633,14 +8634,14 @@ ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTER
 
 		_r_inet_close (hrequest);
 		_r_inet_close (hconnect);
-		}
+	}
 
 CleanupExit:
 
 	_r_inet_destroyurlparts (&url_parts);
 
 	return code;
-	}
+}
 
 _Success_ (return)
 BOOLEAN _r_inet_readrequest (_In_ HINTERNET hrequest, _Out_writes_bytes_ (buffer_size) PVOID buffer, _In_ ULONG buffer_size, _Out_opt_ PULONG readed, _Inout_opt_ PULONG total_readed)
@@ -10043,7 +10044,7 @@ BOOLEAN _r_tray_create (_In_ HWND hwnd, _In_ LPCGUID guid, _In_ UINT code, _In_o
 	}
 
 	return FALSE;
-	}
+}
 
 BOOLEAN _r_tray_popup (_In_ HWND hwnd, _In_ LPCGUID guid, _In_opt_ ULONG icon_id, _In_opt_ LPCWSTR title, _In_opt_ LPCWSTR text)
 {
@@ -10118,7 +10119,7 @@ BOOLEAN _r_tray_setinfo (_In_ HWND hwnd, _In_ LPCGUID guid, _In_opt_ HICON hicon
 	}
 
 	return !!Shell_NotifyIcon (NIM_MODIFY, &nid);
-	}
+}
 
 BOOLEAN _r_tray_setinfoformat (_In_ HWND hwnd, _In_ LPCGUID guid, _In_opt_ HICON hicon, _In_ _Printf_format_string_ LPCWSTR format, ...)
 {

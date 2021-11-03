@@ -786,7 +786,8 @@ HWND _r_app_createwindow (_In_ LPCWSTR dlg_name, _In_opt_ LPCWSTR icon_name, _In
 
 	// create main window
 	hwnd = _r_wnd_createwindow (NULL, dlg_name, NULL, dlg_proc, NULL);
-	app_global.main.hwnd = hwnd;
+
+	_r_app_sethwnd (hwnd);
 
 	if (!hwnd)
 		return NULL;
