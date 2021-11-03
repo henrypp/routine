@@ -673,12 +673,13 @@ typedef enum _OBJECT_INFORMATION_CLASS
 	MaxObjectInfoClass
 } OBJECT_INFORMATION_CLASS;
 
-typedef enum _SC_SERVICE_TAG_QUERY_TYPE
+typedef enum _TAG_INFO_LEVEL
 {
-	ServiceNameFromTagInformation = 1,
-	ServiceNamesReferencingModuleInformation,
-	ServiceNameTagMappingInformation
-} SC_SERVICE_TAG_QUERY_TYPE, *PSC_SERVICE_TAG_QUERY_TYPE;
+	TagInfoLevelNameFromTag = 1, // TAG_INFO_NAME_FROM_TAG
+	TagInfoLevelNamesReferencingModule, // TAG_INFO_NAMES_REFERENCING_MODULE
+	TagInfoLevelNameTagMapping, // TAG_INFO_NAME_TAG_MAPPING
+	TagInfoLevelMax
+} TAG_INFO_LEVEL, *PTAG_INFO_LEVEL;
 
 // private
 typedef enum _SYSTEM_MEMORY_LIST_COMMAND
