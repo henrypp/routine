@@ -45,28 +45,121 @@ typedef HICON *HICON_PTR;
 // Exported function definitions
 //
 
-typedef BOOL (WINAPI *IW64P)(HANDLE hProcess, PBOOL Wow64Process); // IsWow64Process
-typedef ULONG (NTAPI *IQTI) (PVOID, SC_SERVICE_TAG_QUERY_TYPE, PTAG_INFO_NAME_FROM_TAG); // I_QueryTagInformation
+// IsWow64Process
+typedef BOOL (WINAPI *IW64P)(
+	_In_ HANDLE hProcess,
+	_Out_ PBOOL Wow64Process
+	);
 
-typedef HRESULT (WINAPI *LIWSD)(HINSTANCE hinst, LPCWSTR pszName, INT cx, INT cy, HICON *phico); // LoadIconWithScaleDown (vista+)
-typedef HRESULT (WINAPI *SHQUNS)(QUERY_USER_NOTIFICATION_STATE *pquns); // SHQueryUserNotificationState (vista+)
-typedef HRESULT (WINAPI *SFBSE)(ULONG64 ull, SFBS_FLAGS flags, LPWSTR pszBuf, INT cchBuf); // StrFormatByteSizeEx (vista+)
-typedef HRESULT (WINAPI *TDI)(const TASKDIALOGCONFIG *pTaskConfig, PINT pnButton, PINT pnRadioButton, LPBOOL pfVerificationFlagChecked); // TaskDialogIndirect (vista+)
+// I_QueryTagInformation
+typedef ULONG (NTAPI *IQTI) (
+	_In_opt_ PCWSTR MachineName,
+	_In_ TAG_INFO_LEVEL InfoLevel,
+	_Inout_ PTAG_INFO_NAME_FROM_TAG TagInfo
+	);
 
-typedef BOOL (WINAPI *CWMFEX)(HWND hwnd, UINT message, ULONG action, PCHANGEFILTERSTRUCT pChangeFilterStruct); // ChangeWindowMessageFilterEx (win7+)
-typedef BOOL (WINAPI *SSPM)(ULONG Flags); // SetSearchPathMode (win7+)
-typedef BOOL (WINAPI *SDDD)(ULONG DirectoryFlags); // SetDefaultDllDirectories (win7sp1+)
+// LoadIconWithScaleDown (vista+)
+typedef HRESULT (WINAPI *LIWSD)(
+	_In_ HINSTANCE hinst,
+	_In_ LPCWSTR pszName,
+	_In_ INT cx,
+	_In_ INT cy,
+	_Out_ HICON *phico
+	);
 
-typedef BOOL (WINAPI *IIP) (HANDLE); // IsImmersiveProcess (win8+)
+// SHQueryUserNotificationState (vista+)
+typedef HRESULT (WINAPI *SHQUNS)(
+	_Out_ QUERY_USER_NOTIFICATION_STATE *pquns
+	);
 
-typedef HRESULT (WINAPI *GDFM)(HMONITOR hmonitor, MONITOR_DPI_TYPE dpiType, PUINT dpiX, PUINT dpiY); // GetDpiForMonitor (win81+)
-typedef UINT (WINAPI *GDFW)(HWND hwnd); // GetDpiForWindow (win10rs1+)
-typedef UINT (WINAPI *GDFS)(void); // GetDpiForSystem (win10rs1+)
-typedef BOOL (WINAPI *AWRFD)(LPRECT lpRect, DWORD dwStyle, BOOL bMenu, DWORD dwExStyle, UINT dpi); // AdjustWindowRectExForDpi (win10rs1+)
-typedef INT (WINAPI *GSMFD)(INT nIndex, UINT dpi); // GetSystemMetricsForDpi (win10rs1+)
-typedef BOOL (WINAPI *SPIFP)(UINT uiAction, UINT uiParam, PVOID pvParam, UINT fWinIni, UINT dpi); // SystemParametersInfoForDpi (win10rs1+)
+// StrFormatByteSizeEx (vista+)
+typedef HRESULT (WINAPI *SFBSE)(
+	ULONG64 ull,
+	SFBS_FLAGS flags,
+	_Out_writes_ (cchBuf) LPWSTR pszBuf,
+	_In_range_ (> , 0) UINT cchBuf
+	);
 
-typedef INT (WINAPI *GLIEX)(_In_opt_ LPCWSTR lpLocaleName, _In_ LCTYPE LCType, _Out_writes_to_opt_ (cchData, return) LPWSTR lpLCData, _In_ int cchData); // GetLocaleInfoEx (win7+)
+// TaskDialogIndirect (vista+)
+typedef HRESULT (WINAPI *TDI)(
+	_In_ const TASKDIALOGCONFIG *pTaskConfig,
+	_Out_opt_ PINT pnButton,
+	_Out_opt_ PINT pnRadioButton,
+	_Out_opt_ LPBOOL pfVerificationFlagChecked
+	);
+
+// ChangeWindowMessageFilterEx (win7+)
+typedef BOOL (WINAPI *CWMFEX)(
+	_In_ HWND hwnd,
+	_In_ UINT message,
+	_In_ ULONG action,
+	_Inout_opt_ PCHANGEFILTERSTRUCT pChangeFilterStruct
+	);
+
+// GetLocaleInfoEx (win7+)
+typedef INT (WINAPI *GLIEX)(
+	_In_opt_ LPCWSTR lpLocaleName,
+	_In_ LCTYPE LCType,
+	_Out_writes_to_opt_ (cchData, return) LPWSTR lpLCData,
+	_In_ INT cchData
+	);
+
+// SetSearchPathMode (win7+)
+typedef BOOL (WINAPI *SSPM)(
+	_In_ ULONG Flags
+	);
+
+// SetDefaultDllDirectories (win7sp1+)
+typedef BOOL (WINAPI *SDDD)(
+	_In_ ULONG DirectoryFlags
+	);
+
+// IsImmersiveProcess (win8+)
+typedef BOOL (WINAPI *IIP) (
+	_In_ HANDLE hProcess
+	);
+
+// GetDpiForMonitor (win81+)
+typedef HRESULT (WINAPI *GDFM)(
+	_In_ HMONITOR hmonitor,
+	_In_ MONITOR_DPI_TYPE dpiType,
+	_Out_ PUINT dpiX,
+	_Out_ PUINT dpiY
+	);
+
+// AdjustWindowRectExForDpi (win10rs1+)
+typedef BOOL (WINAPI *AWRFD)(
+	_Inout_ LPRECT lpRect,
+	_In_ DWORD dwStyle,
+	_In_ BOOL bMenu,
+	_In_ DWORD dwExStyle,
+	_In_ UINT dpi
+	);
+
+// GetDpiForSystem (win10rs1+)
+typedef UINT (WINAPI *GDFS)(
+	VOID
+	);
+
+// GetDpiForWindow (win10rs1+)
+typedef UINT (WINAPI *GDFW)(
+	_In_ HWND hwnd
+	);
+
+// GetSystemMetricsForDpi (win10rs1+)
+typedef INT (WINAPI *GSMFD)(
+	_In_ INT nIndex,
+	_In_ UINT dpi
+	);
+
+// SystemParametersInfoForDpi (win10rs1+)
+typedef BOOL (WINAPI *SPIFP)(
+	_In_ UINT uiAction,
+	_In_ UINT uiParam,
+	_Pre_maybenull_ _Post_valid_ PVOID pvParam,
+	_In_ UINT fWinIni,
+	_In_ UINT dpi
+	);
 
 //
 // Printf specifiers
