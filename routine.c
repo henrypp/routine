@@ -7328,7 +7328,7 @@ LONG _r_dc_getfontwidth (_In_ HDC hdc, _In_ PR_STRINGREF string)
 	if (!string->length)
 		return 0;
 
-	if (!GetTextExtentPoint32 (hdc, string->buffer, (INT)(string->length / sizeof (WCHAR)), &size))
+	if (!GetTextExtentPoint32 (hdc, string->buffer, (INT)_r_obj_getstringreflength (string), &size))
 		return 200; // fallback
 
 	return size.cx;
@@ -8215,15 +8215,15 @@ INT_PTR _r_wnd_createmodalwindow (_In_opt_ HINSTANCE hinstance, _In_ LPCWSTR nam
 INT _r_wnd_messageloop (_In_ HWND main_wnd, _In_ LPCWSTR accelerator_table)
 {
 	MSG msg;
-	HWND hwnd;
-	HACCEL haccel;
+	HWND hactive_wnd;
+	HACCEL haccelerator;
 	INT result;
+	BOOLEAN is_processed;
 
-	haccel = LoadAccelerators (NULL, accelerator_table);
+	haccelerator = LoadAccelerators (NULL, accelerator_table);
 
-	if (!haccel)
+	if (!haccelerator)
 		return GetLastError ();
-
 
 	while (TRUE)
 	{
@@ -8232,26 +8232,27 @@ INT _r_wnd_messageloop (_In_ HWND main_wnd, _In_ LPCWSTR accelerator_table)
 		if (result <= 0)
 			break;
 
-		if (msg.hwnd && _r_wnd_isdialog (msg.hwnd))
+		is_processed = FALSE;
+
+		hactive_wnd = GetActiveWindow ();
+
+		if (!hactive_wnd)
+			hactive_wnd = msg.hwnd;
+
+		if (TranslateAccelerator (hactive_wnd, haccelerator, &msg))
+			is_processed = TRUE;
+
+		if (IsDialogMessage (main_wnd, &msg))
+			is_processed = TRUE;
+
+		if (!is_processed)
 		{
-			hwnd = msg.hwnd;
+			TranslateMessage (&msg);
+			DispatchMessage (&msg);
 		}
-		else
-		{
-			hwnd = main_wnd;
-		}
-
-		if (TranslateAccelerator (hwnd, haccel, &msg))
-			continue;
-
-		if (IsDialogMessage (hwnd, &msg))
-			continue;
-
-		TranslateMessage (&msg);
-		DispatchMessage (&msg);
 	}
 
-	DestroyAcceleratorTable (haccel);
+	DestroyAcceleratorTable (haccelerator);
 
 	return ERROR_SUCCESS;
 }
@@ -10323,9 +10324,7 @@ VOID _r_ctrl_settablestring (_In_ HWND hwnd, _In_ INT ctrl_id1, _In_ PR_STRINGRE
 	HDWP hdefer;
 	HWND hctrl1;
 	HWND hctrl2;
-	HDC hdc1;
-	HDC hdc2;
-	LONG dpi_value;
+	HDC hdc;
 	LONG window_width;
 	LONG wnd_spacing;
 	LONG ctrl1_width;
@@ -10337,11 +10336,10 @@ VOID _r_ctrl_settablestring (_In_ HWND hwnd, _In_ INT ctrl_id1, _In_ PR_STRINGRE
 	if (!hctrl1 || !hctrl2)
 		return;
 
-	hdc1 = GetDC (hctrl1);
-	hdc2 = GetDC (hctrl2);
+	hdc = GetDC (hwnd);
 
-	if (!hdc1 || !hdc2)
-		goto CleanupExit;
+	if (!hdc)
+		return;
 
 	window_width = _r_ctrl_getwidth (hwnd, 0);
 
@@ -10353,19 +10351,16 @@ VOID _r_ctrl_settablestring (_In_ HWND hwnd, _In_ INT ctrl_id1, _In_ PR_STRINGRE
 
 	MapWindowPoints (HWND_DESKTOP, hwnd, (PPOINT)&control_rect, 2);
 
-	dpi_value = _r_dc_getwindowdpi (hwnd);
+	wnd_spacing = control_rect.left;
+	window_width -= (wnd_spacing * 2);
 
-	wnd_spacing = _r_dc_getdpi (8, dpi_value);
-	window_width -= control_rect.left * 2;
+	_r_dc_fixwindowfont (hdc, hctrl1); // fix
 
-	_r_dc_fixwindowfont (hdc1, hctrl1); // fix
-	_r_dc_fixwindowfont (hdc2, hctrl2); // fix
+	ctrl1_width = _r_dc_getfontwidth (hdc, text1) + wnd_spacing;
+	ctrl2_width = _r_dc_getfontwidth (hdc, text2) + wnd_spacing;
 
-	ctrl1_width = _r_dc_getfontwidth (hdc1, text1);
-	ctrl2_width = _r_dc_getfontwidth (hdc2, text2);
-
-	ctrl2_width = min (ctrl2_width, window_width - ctrl1_width);
-	ctrl1_width = min (ctrl1_width, window_width - ctrl2_width); // note: changed order for correct priority!
+	ctrl2_width = min (ctrl2_width, window_width - ctrl1_width - wnd_spacing);
+	ctrl1_width = min (ctrl1_width, window_width - ctrl2_width - wnd_spacing); // note: changed order for correct priority!
 
 	_r_ctrl_setstringlength (hwnd, ctrl_id1, text1);
 	_r_ctrl_setstringlength (hwnd, ctrl_id2, text2);
@@ -10381,9 +10376,9 @@ VOID _r_ctrl_settablestring (_In_ HWND hwnd, _In_ INT ctrl_id1, _In_ PR_STRINGRE
 			NULL,
 			control_rect.left,
 			control_rect.top,
-			ctrl1_width + wnd_spacing,
+			ctrl1_width,
 			_r_calc_rectheight (&control_rect),
-			SWP_NOZORDER | SWP_FRAMECHANGED | SWP_NOOWNERZORDER
+			SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER
 		);
 
 		// resize control #2
@@ -10391,11 +10386,11 @@ VOID _r_ctrl_settablestring (_In_ HWND hwnd, _In_ INT ctrl_id1, _In_ PR_STRINGRE
 			hdefer,
 			hctrl2,
 			NULL,
-			window_width - ctrl2_width + wnd_spacing,
+			window_width - ctrl2_width,
 			control_rect.top,
 			ctrl2_width + wnd_spacing,
 			_r_calc_rectheight (&control_rect),
-			SWP_NOZORDER | SWP_FRAMECHANGED | SWP_NOOWNERZORDER
+			SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER
 		);
 
 		EndDeferWindowPos (hdefer);
@@ -10403,11 +10398,8 @@ VOID _r_ctrl_settablestring (_In_ HWND hwnd, _In_ INT ctrl_id1, _In_ PR_STRINGRE
 
 CleanupExit:
 
-	if (hdc1)
-		ReleaseDC (hctrl1, hdc1);
-
-	if (hdc2)
-		ReleaseDC (hctrl2, hdc2);
+	if (hdc)
+		ReleaseDC (hwnd, hdc);
 }
 
 VOID _r_ctrl_setstringformat (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ _Printf_format_string_ LPCWSTR format, ...)
