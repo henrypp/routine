@@ -5,24 +5,42 @@
 
 #include "rapp.h"
 
-#if defined(APP_NO_MUTEX)
-static LPCWSTR _r_app_getmutexname ()
+#if !defined(APP_NO_MUTEX)
+#define _r_app_getmutexname _r_app_getnameshort
+#else
+LPCWSTR _r_app_getmutexname ()
 {
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static WCHAR name[128] = {0};
+	static PR_STRING cached_name = NULL;
 
-	if (_r_initonce_begin (&init_once))
+	PR_STRING current_name;
+	PR_STRING new_name;
+
+	current_name = InterlockedCompareExchangePointer (&cached_name, NULL, NULL);
+
+	if (!current_name)
 	{
-		_r_str_printf (name, RTL_NUMBER_OF (name), L"%s_%" TEXT (PR_ULONG) L"_%" TEXT (PR_ULONG), _r_app_getnameshort (), _r_str_gethash (_r_sys_getimagepath (), TRUE), _r_str_gethash (_r_sys_getimagecommandline (), TRUE));
+		new_name = _r_format_string (
+			L"%s-%" TEXT (PR_ULONG) L"-%" TEXT (PR_ULONG),
+			_r_app_getnameshort (),
+			_r_str_gethash (_r_sys_getimagepath (), TRUE),
+			_r_str_gethash (_r_sys_getimagecommandline (), TRUE)
+		);
 
-		_r_initonce_end (&init_once);
+		current_name = InterlockedCompareExchangePointer (&cached_name, new_name, NULL);
+
+		if (!current_name)
+		{
+			current_name = new_name;
+		}
+		else
+		{
+			_r_obj_dereference (new_name);
+		}
 	}
 
-	return name;
+	return current_name->buffer;
 }
-#else
-#define _r_app_getmutexname _r_app_getnameshort
-#endif // APP_NO_MUTEX
+#endif // !APP_NO_MUTEX
 
 #if defined(APP_NO_APPDATA) || defined(APP_CONSOLE)
 FORCEINLINE BOOLEAN _r_app_isportable ()
@@ -30,7 +48,7 @@ FORCEINLINE BOOLEAN _r_app_isportable ()
 	return TRUE;
 }
 #else
-static BOOLEAN _r_app_isportable ()
+BOOLEAN _r_app_isportable ()
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static BOOLEAN is_portable = FALSE;
@@ -77,7 +95,7 @@ FORCEINLINE BOOLEAN _r_app_isreadonly ()
 	return TRUE;
 }
 #else
-static BOOLEAN _r_app_isreadonly ()
+BOOLEAN _r_app_isreadonly ()
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static BOOLEAN is_readonly = FALSE;
@@ -94,7 +112,7 @@ static BOOLEAN _r_app_isreadonly ()
 #endif // APP_NO_CONFIG || APP_CONSOLE
 
 #if !defined(_DEBUG)
-static VOID _r_app_exceptionfilter_savedump (_In_ PEXCEPTION_POINTERS exception_ptr)
+VOID _r_app_exceptionfilter_savedump (_In_ PEXCEPTION_POINTERS exception_ptr)
 {
 	WCHAR dump_path[512];
 	PR_STRING directory;
@@ -927,16 +945,7 @@ VOID _r_app_restart (_In_ HWND hwnd)
 
 VOID _r_config_initialize ()
 {
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-
 	PR_HASHTABLE config_table;
-
-	if (_r_initonce_begin (&init_once))
-	{
-		_r_queuedlock_initialize (&app_global.config.lock);
-
-		_r_initonce_end (&init_once);
-	}
 
 	config_table = _r_parseini (_r_app_getconfigpath (), NULL);
 
@@ -1191,7 +1200,8 @@ PR_STRING _r_config_getstring_ex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_va
 
 	if (_r_initonce_begin (&init_once))
 	{
-		_r_config_initialize ();
+		if (_r_obj_ishashtableempty (app_global.config.table))
+			_r_config_initialize ();
 
 		_r_initonce_end (&init_once);
 	}
@@ -1395,18 +1405,9 @@ VOID _r_config_setstring_ex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_
 #if !defined(APP_CONSOLE)
 VOID _r_locale_initialize ()
 {
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-
 	PR_HASHTABLE locale_table;
 	PR_LIST locale_names;
 	PR_STRING language_config;
-
-	if (_r_initonce_begin (&init_once))
-	{
-		_r_queuedlock_initialize (&app_global.locale.lock);
-
-		_r_initonce_end (&init_once);
-	}
 
 	language_config = _r_config_getstring (L"Language", NULL);
 
@@ -1640,7 +1641,8 @@ PR_STRING _r_locale_getstring_ex (_In_ UINT uid)
 
 	if (_r_initonce_begin (&init_once))
 	{
-		_r_locale_initialize ();
+		if (_r_obj_ishashtableempty (app_global.locale.table))
+			_r_locale_initialize ();
 
 		_r_initonce_end (&init_once);
 	}
