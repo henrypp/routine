@@ -81,9 +81,9 @@
 #pragma PR_PRINT_WARNING_DEFINE(APP_UPDATE_PERIOD)
 #else
 #if defined(_DEBUG) || defined(APP_BETA)
-#	define APP_UPDATE_PERIOD _r_calc_days2seconds (1) // update checking period for pre-release is 1 day
+#	define APP_UPDATE_PERIOD 1 // update checking period for pre-release is 1 day
 #else
-#	define APP_UPDATE_PERIOD _r_calc_days2seconds (7) // update checking period for stable release is 7 days
+#	define APP_UPDATE_PERIOD 7 // update checking period for stable release is 7 days
 #endif // _APP_BETA || _APP_BETA_RC
 #endif // APP_UPDATE_PERIOD
 
