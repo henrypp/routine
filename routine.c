@@ -3336,9 +3336,20 @@ PR_STRING _r_path_resolvedeviceprefix (_In_ PR_STRING path)
 
 			device_name_buffer[4] = L'A' + (WCHAR)i;
 
-			_r_obj_initializeunicodestring_ex (&device_name, device_name_buffer, (RTL_NUMBER_OF (device_name_buffer) - 1) * sizeof (WCHAR), RTL_NUMBER_OF (device_name_buffer) * sizeof (WCHAR));
+			_r_obj_initializeunicodestring_ex (
+				&device_name,
+				device_name_buffer,
+				(RTL_NUMBER_OF (device_name_buffer) - 1) * sizeof (WCHAR),
+				RTL_NUMBER_OF (device_name_buffer) * sizeof (WCHAR)
+			);
 
-			InitializeObjectAttributes (&object_attributes, &device_name, OBJ_CASE_INSENSITIVE, NULL, NULL);
+			InitializeObjectAttributes (
+				&object_attributes,
+				&device_name,
+				OBJ_CASE_INSENSITIVE | (_r_sys_isosversiongreaterorequal (WINDOWS_10) ? OBJ_DONT_REPARSE : 0),
+				NULL,
+				NULL
+			);
 
 			if (NT_SUCCESS (NtOpenSymbolicLinkObject (&link_handle, SYMBOLIC_LINK_QUERY, &object_attributes)))
 			{
@@ -3439,7 +3450,13 @@ PR_STRING _r_path_resolvedeviceprefix (_In_ PR_STRING path)
 
 				if (directory_info->Name.Length == (2 * sizeof (WCHAR)) && directory_info->Name.Buffer[1] == L':')
 				{
-					InitializeObjectAttributes (&object_attributes, &directory_info->Name, OBJ_CASE_INSENSITIVE, directory_handle, NULL);
+					InitializeObjectAttributes (
+						&object_attributes,
+						&directory_info->Name,
+						OBJ_CASE_INSENSITIVE | (_r_sys_isosversiongreaterorequal (WINDOWS_10) ? OBJ_DONT_REPARSE : 0),
+						directory_handle,
+						NULL
+					);
 
 					if (NT_SUCCESS (NtOpenSymbolicLinkObject (&link_handle, SYMBOLIC_LINK_QUERY, &object_attributes)))
 					{
@@ -5871,7 +5888,13 @@ PR_STRING _r_sys_getusernamefromsid (_In_ PSID sid)
 	BOOLEAN is_hasdomain;
 	BOOLEAN is_hasname;
 
-	InitializeObjectAttributes (&object_attributes, NULL, 0, NULL, NULL);
+	InitializeObjectAttributes (
+		&object_attributes,
+		NULL,
+		0,
+		NULL,
+		NULL
+	);
 
 	if (NT_SUCCESS (LsaOpenPolicy (NULL, &object_attributes, POLICY_LOOKUP_NAMES, &policy_handle)))
 	{
@@ -6245,7 +6268,13 @@ NTSTATUS _r_sys_openprocess (_In_opt_ HANDLE process_id, _In_ ACCESS_MASK desire
 	CLIENT_ID client_id;
 	NTSTATUS status;
 
-	InitializeObjectAttributes (&object_attributes, NULL, 0, NULL, NULL);
+	InitializeObjectAttributes (
+		&object_attributes,
+		NULL,
+		0,
+		NULL,
+		NULL
+	);
 
 	client_id.UniqueProcess = process_id;
 	client_id.UniqueThread = NULL;
