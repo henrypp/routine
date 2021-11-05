@@ -7325,6 +7325,36 @@ LONG _r_dc_getdpivalue (_In_opt_ HWND hwnd, _In_opt_ LPCRECT rect)
 	return USER_DEFAULT_SCREEN_DPI;
 }
 
+LONG _r_dc_getfontwidth (_In_ HDC hdc, _In_ PR_STRINGREF string)
+{
+	SIZE size;
+
+	if (!string->length)
+		return 0;
+
+	if (!GetTextExtentPoint32 (hdc, string->buffer, (INT)_r_obj_getstringreflength (string), &size))
+		return 200; // fallback
+
+	return size.cx;
+}
+
+VOID _r_dc_getsizedpivalue (_Inout_ PR_SIZE size, _In_ LONG dpi_value, _In_ BOOLEAN is_unpack)
+{
+	if (dpi_value == USER_DEFAULT_SCREEN_DPI)
+		return;
+
+	if (is_unpack)
+	{
+		size->cx = _r_calc_multipledividesigned (size->cx, dpi_value, USER_DEFAULT_SCREEN_DPI);
+		size->cy = _r_calc_multipledividesigned (size->cy, dpi_value, USER_DEFAULT_SCREEN_DPI);
+	}
+	else
+	{
+		size->cx = _r_calc_multipledividesigned (size->cx, USER_DEFAULT_SCREEN_DPI, dpi_value);
+		size->cy = _r_calc_multipledividesigned (size->cy, USER_DEFAULT_SCREEN_DPI, dpi_value);
+	}
+}
+
 INT _r_dc_getsystemmetrics (_In_ INT index, _In_ LONG dpi_value)
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
@@ -7355,36 +7385,6 @@ INT _r_dc_getsystemmetrics (_In_ INT index, _In_ LONG dpi_value)
 		return _GetSystemMetricsForDpi (index, dpi_value);
 
 	return GetSystemMetrics (index);
-}
-
-LONG _r_dc_getfontwidth (_In_ HDC hdc, _In_ PR_STRINGREF string)
-{
-	SIZE size;
-
-	if (!string->length)
-		return 0;
-
-	if (!GetTextExtentPoint32 (hdc, string->buffer, (INT)_r_obj_getstringreflength (string), &size))
-		return 200; // fallback
-
-	return size.cx;
-}
-
-VOID _r_dc_getsizedpivalue (_Inout_ PR_SIZE size, _In_ LONG dpi_value, _In_ BOOLEAN is_unpack)
-{
-	if (dpi_value == USER_DEFAULT_SCREEN_DPI)
-		return;
-
-	if (is_unpack)
-	{
-		size->cx = _r_calc_multipledividesigned (size->cx, dpi_value, USER_DEFAULT_SCREEN_DPI);
-		size->cy = _r_calc_multipledividesigned (size->cy, dpi_value, USER_DEFAULT_SCREEN_DPI);
-	}
-	else
-	{
-		size->cx = _r_calc_multipledividesigned (size->cx, USER_DEFAULT_SCREEN_DPI, dpi_value);
-		size->cy = _r_calc_multipledividesigned (size->cy, USER_DEFAULT_SCREEN_DPI, dpi_value);
-	}
 }
 
 //
