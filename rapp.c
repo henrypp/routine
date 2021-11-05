@@ -880,7 +880,7 @@ HWND _r_app_createwindow (_In_ LPCWSTR dlg_name, _In_opt_ LPCWSTR icon_name, _In
 	PostMessage (hwnd, RM_INITIALIZE_POST, 0, 0);
 
 #if defined(APP_HAVE_UPDATES)
-	if (_r_config_getboolean (L"CheckUpdates", TRUE))
+	if (_r_update_isenabled (TRUE))
 		_r_update_check (NULL);
 #endif // APP_HAVE_UPDATES
 
@@ -1811,7 +1811,7 @@ BOOLEAN _r_autorun_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 #endif // APP_HAVE_AUTORUN
 
 #if defined(APP_HAVE_UPDATES)
-static NTSTATUS NTAPI _r_update_checkthread (_In_ PVOID arglist)
+NTSTATUS NTAPI _r_update_checkthread (_In_ PVOID arglist)
 {
 	PR_UPDATE_INFO update_info;
 
@@ -1960,6 +1960,48 @@ static NTSTATUS NTAPI _r_update_checkthread (_In_ PVOID arglist)
 	return STATUS_SUCCESS;
 }
 
+VOID _r_update_enable (_In_ BOOLEAN is_enable)
+{
+	LONG value;
+
+	if (is_enable)
+	{
+		value = APP_UPDATE_PERIOD;
+	}
+	else
+	{
+		value = 0;
+	}
+
+	_r_config_setlong (L"CheckUpdatesPeriod", value);
+}
+
+BOOLEAN _r_update_isenabled (_In_ BOOLEAN is_checktimestamp)
+{
+	LONG64 current_timestamp;
+	LONG64 update_last_timestamp;
+	LONG update_period;
+	LONG update_current_timestamp;
+
+	update_period = _r_config_getlong (L"CheckUpdatesPeriod", APP_UPDATE_PERIOD);
+
+	if (update_period <= 0)
+		return FALSE;
+
+	if (is_checktimestamp)
+	{
+		current_timestamp = _r_unixtime_now ();
+
+		update_last_timestamp = _r_config_getlong64 (L"CheckUpdatesLast", 0);
+		update_current_timestamp = _r_calc_days2seconds (update_period);
+
+		if ((current_timestamp - update_last_timestamp) <= update_current_timestamp)
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
 VOID _r_update_check (_In_opt_ HWND hparent)
 {
 	PR_UPDATE_INFO update_info;
@@ -1985,7 +2027,7 @@ VOID _r_update_check (_In_opt_ HWND hparent)
 	if (InterlockedCompareExchange (&update_info->lock, 0, 0) != 0)
 		return;
 
-	if (!hparent && (!_r_config_getboolean (L"CheckUpdates", TRUE) || (_r_unixtime_now () - _r_config_getlong64 (L"CheckUpdatesLast", 0)) <= APP_UPDATE_PERIOD))
+	if (!hparent && !_r_update_isenabled (TRUE))
 		return;
 
 	if (!NT_SUCCESS (_r_sys_createthread (&_r_update_checkthread, update_info, &update_info->hthread, NULL)))
@@ -2413,6 +2455,13 @@ VOID _r_log (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCWST
 	PR_STRING date_string;
 	LPCWSTR level_string;
 	LONG64 current_timestamp;
+
+#if defined(APP_HAVE_TRAY)
+	LONG64 notification_timestamp;
+	LONG64 notification_period;
+	ULONG icon_id;
+#endif // APP_HAVE_TRAY
+
 	ULONG unused;
 
 	if (_r_initonce_begin (&init_once))
@@ -2498,9 +2547,17 @@ VOID _r_log (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCWST
 	{
 		if (_r_config_getboolean (L"IsErrorNotificationsEnabled", TRUE))
 		{
-			if ((current_timestamp - _r_config_getlong64 (L"ErrorNotificationsTimestamp", 0)) >= _r_config_getlong64 (L"ErrorNotificationsPeriod", 4)) // check for timeout (sec.)
+			notification_timestamp = _r_config_getlong64 (L"ErrorNotificationsTimestamp", 0);
+			notification_period = _r_config_getlong64 (L"ErrorNotificationsPeriod", 10);
+
+			icon_id = _r_logleveltrayicon (log_level);
+
+			if (!_r_config_getboolean (L"IsNotificationsSound", TRUE))
+				icon_id |= NIIF_NOSOUND;
+
+			if ((current_timestamp - notification_timestamp) >= notification_period) // check for timeout (sec.)
 			{
-				_r_tray_popup (_r_app_gethwnd (), tray_guid, _r_logleveltrayicon (log_level) | (_r_config_getboolean (L"IsNotificationsSound", TRUE) ? 0 : NIIF_NOSOUND), _r_app_getname (), L"Something went wrong. Open debug log file in profile directory.");
+				_r_tray_popup (_r_app_gethwnd (), tray_guid, icon_id, _r_app_getname (), L"Something went wrong. Open debug log file in profile directory.");
 
 				_r_config_setlong64 (L"ErrorNotificationsTimestamp", current_timestamp);
 			}
@@ -2810,8 +2867,8 @@ BOOLEAN _r_show_confirmmessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ 
 	{
 		if (config_key)
 		{
-			HKEY hkey;
 			WCHAR config_string[128];
+			HKEY hkey;
 
 			_r_str_printf (config_string, RTL_NUMBER_OF (config_string), L"%s\\%s", _r_app_getnameshort (), config_key);
 
@@ -3360,7 +3417,7 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 			_r_wnd_top (_r_app_gethwnd (), _r_config_getboolean (L"AlwaysOnTop", FALSE));
 
 #ifdef APP_HAVE_UPDATES
-			if (_r_config_getboolean (L"CheckUpdates", TRUE))
+			if (_r_update_isenabled (TRUE))
 				_r_update_check (NULL);
 #endif // APP_HAVE_UPDATES
 

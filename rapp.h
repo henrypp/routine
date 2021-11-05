@@ -188,6 +188,9 @@ BOOLEAN _r_skipuac_run ();
 //
 
 #if defined(APP_HAVE_UPDATES)
+VOID _r_update_enable (_In_ BOOLEAN is_enable);
+BOOLEAN _r_update_isenabled (_In_ BOOLEAN is_checktimestamp);
+
 VOID _r_update_check (_In_opt_ HWND hparent);
 
 BOOLEAN NTAPI _r_update_downloadcallback (_In_ ULONG total_written, _In_ ULONG total_length, _In_ PVOID param);
