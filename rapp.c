@@ -128,18 +128,27 @@ static VOID _r_app_exceptionfilter_savedump (_In_ PEXCEPTION_POINTERS exception_
 
 ULONG CALLBACK _r_app_exceptionfilter_callback (_In_ PEXCEPTION_POINTERS exception_ptr)
 {
-	R_ERROR_INFO error_info = {0};
+#if !defined(APP_CONSOLE)
+	R_ERROR_INFO error_info;
+#endif // !APP_CONSOLE
+
 	ULONG error_code;
 
 	if (NT_NTWIN32 (exception_ptr->ExceptionRecord->ExceptionCode))
 	{
 		error_code = WIN32_FROM_NTSTATUS (exception_ptr->ExceptionRecord->ExceptionCode);
-		//error_info.hmodule = NULL;
+
+#if !defined(APP_CONSOLE)
+		_r_error_initialize (&error_info, NULL, NULL);
+#endif // !APP_CONSOLE
 	}
 	else
 	{
 		error_code = exception_ptr->ExceptionRecord->ExceptionCode;
-		error_info.hmodule = GetModuleHandle (L"ntdll.dll");
+
+#if !defined(APP_CONSOLE)
+		_r_error_initialize (&error_info, GetModuleHandle (L"ntdll.dll"), NULL);
+#endif // !APP_CONSOLE
 	}
 
 	_r_app_exceptionfilter_savedump (exception_ptr);
@@ -148,7 +157,7 @@ ULONG CALLBACK _r_app_exceptionfilter_callback (_In_ PEXCEPTION_POINTERS excepti
 	wprintf (L"Exception raised :( 0x%08X\r\n", error_code);
 #else
 	_r_show_errormessage (NULL, L"Exception raised :(", error_code, &error_info);
-#endif // !APP_CONSOLE
+#endif // APP_CONSOLE
 
 #if defined(APP_NO_DEPRECATIONS)
 	RtlExitUserProcess (exception_ptr->ExceptionRecord->ExceptionCode);
@@ -278,9 +287,7 @@ BOOLEAN _r_app_initialize ()
 	if (!_r_sys_iselevated ())
 	{
 		if (!_r_app_runasadmin ())
-		{
 			_r_show_errormessage (NULL, L"Administrative privileges are required!", ERROR_DS_INSUFF_ACCESS_RIGHTS, NULL);
-		}
 
 		return FALSE;
 	}
@@ -296,8 +303,6 @@ BOOLEAN _r_app_initialize ()
 
 	// set updates path
 #if defined(APP_HAVE_UPDATES)
-	RtlSecureZeroMemory (&app_global.update.info, sizeof (R_UPDATE_INFO));
-
 	// initialize objects
 	app_global.update.info.components = _r_obj_createarray (sizeof (R_UPDATE_COMPONENT), NULL);
 #endif // APP_HAVE_UPDATES
@@ -2345,13 +2350,14 @@ VOID _r_update_install (_In_ PR_STRING install_path)
 
 	cmd_string = _r_format_string (L"\"%s\" /S /D=%s",
 								   install_path->buffer,
-								   _r_app_getdirectory ()
+								   _r_app_getdirectory ()->buffer
 	);
 
 	if (!_r_sys_runasadmin (install_path->buffer, cmd_string->buffer, NULL))
 	{
-		R_ERROR_INFO error_info = {0};
-		error_info.description = install_path->buffer;
+		R_ERROR_INFO error_info;
+
+		_r_error_initialize (&error_info, NULL, install_path->buffer);
 
 		_r_show_errormessage (NULL, NULL, GetLastError (), &error_info);
 	}
