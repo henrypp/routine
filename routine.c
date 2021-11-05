@@ -7325,6 +7325,18 @@ LONG _r_dc_getdpivalue (_In_opt_ HWND hwnd, _In_opt_ LPCRECT rect)
 	return USER_DEFAULT_SCREEN_DPI;
 }
 
+LONG _r_dc_gettaskbardpi ()
+{
+	APPBARDATA taskbar_rect = {0};
+
+	taskbar_rect.cbSize = sizeof (APPBARDATA);
+
+	if (SHAppBarMessage (ABM_GETTASKBARPOS, &taskbar_rect))
+		return _r_dc_getmonitordpi (&taskbar_rect.rc);
+
+	return _r_dc_getdpivalue (NULL, NULL);
+}
+
 LONG _r_dc_getfontwidth (_In_ HDC hdc, _In_ PR_STRINGREF string)
 {
 	SIZE size;

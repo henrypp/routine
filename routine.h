@@ -2035,6 +2035,7 @@ COLORREF _r_dc_getcolorbrightness (_In_ COLORREF clr);
 COLORREF _r_dc_getcolorshade (_In_ COLORREF clr, _In_ ULONG percent);
 
 LONG _r_dc_getdpivalue (_In_opt_ HWND hwnd, _In_opt_ LPCRECT rect);
+LONG _r_dc_gettaskbardpi ();
 LONG _r_dc_getfontwidth (_In_ HDC hdc, _In_ PR_STRINGREF string);
 VOID _r_dc_getsizedpivalue (_Inout_ PR_SIZE size, _In_ LONG dpi_value, _In_ BOOLEAN is_unpack);
 INT _r_dc_getsystemmetrics (_In_ INT index, _In_ LONG dpi_value);
@@ -2052,11 +2053,6 @@ FORCEINLINE VOID _r_dc_fixwindowfont (_In_ HDC hdc, _In_ HWND hwnd)
 FORCEINLINE LONG _r_dc_getdpi (_In_ INT number, _In_ LONG dpi_value)
 {
 	return _r_calc_multipledividesigned (number, dpi_value, USER_DEFAULT_SCREEN_DPI);
-}
-
-FORCEINLINE LONG _r_dc_getsystemdpi ()
-{
-	return _r_dc_getdpivalue (NULL, NULL);
 }
 
 FORCEINLINE LONG _r_dc_getwindowdpi (_In_ HWND hwnd)
