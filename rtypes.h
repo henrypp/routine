@@ -60,7 +60,7 @@ typedef ULONG (NTAPI *IQTI) (
 
 // LoadIconWithScaleDown (vista+)
 typedef HRESULT (WINAPI *LIWSD)(
-	_In_ HINSTANCE hinst,
+	_In_opt_ HINSTANCE hinst,
 	_In_ LPCWSTR pszName,
 	_In_ INT cx,
 	_In_ INT cy,
