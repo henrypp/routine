@@ -1220,12 +1220,18 @@ FORCEINLINE BOOLEAN _r_obj_removehashtablepointer (_Inout_ PR_HASHTABLE hashtabl
 // Debugging
 //
 
+VOID _r_debug_v (_In_ _Printf_format_string_ LPCWSTR format, ...);
+
 FORCEINLINE VOID _r_debug (_In_ LPCWSTR string)
 {
 	OutputDebugString (string);
 }
 
-VOID _r_debug_v (_In_ _Printf_format_string_ LPCWSTR format, ...);
+FORCEINLINE VOID _r_error_initialize (_Out_ PR_ERROR_INFO error_info, _In_opt_ HINSTANCE hmodule, _In_opt_ LPCWSTR description)
+{
+	error_info->hmodule = hmodule;
+	error_info->description = description;
+}
 
 #define RDBG(a) _r_debug ((a))
 #define RDBG2(a, ...) _r_debug_v ((a), __VA_ARGS__)
