@@ -379,6 +379,8 @@ FORCEINLINE VOID _r_queuedlock_initialize (_Out_ PR_QUEUED_LOCK queued_lock)
 	queued_lock->value = 0;
 }
 
+HANDLE _r_queuedlock_getevent ();
+
 VOID FASTCALL _r_queuedlock_acquireexclusive_ex (_Inout_ PR_QUEUED_LOCK queued_lock);
 VOID FASTCALL _r_queuedlock_acquireshared_ex (_Inout_ PR_QUEUED_LOCK queued_lock);
 
@@ -557,6 +559,8 @@ FORCEINLINE VOID _r_protection_waitfor (_Inout_ PR_RUNDOWN_PROTECT protection)
 //
 // Synchronization: Workqueue
 //
+
+PR_FREE_LIST _r_workqueue_getfreelist ();
 
 VOID _r_workqueue_initialize (_Out_ PR_WORKQUEUE work_queue, _In_ ULONG minimum_threads, _In_ ULONG maximum_threads, _In_ ULONG no_work_timeout, _In_opt_ PR_ENVIRONMENT environment);
 VOID _r_workqueue_destroy (_Inout_ PR_WORKQUEUE work_queue);
@@ -2009,7 +2013,7 @@ LONG64 _r_unixtime_from_systemtime (_In_ const SYSTEMTIME * system_time);
 //
 
 _Success_ (return)
-BOOLEAN _r_dc_adjustwindowrect (_Inout_ LPRECT rect, _In_ ULONG style, _In_ ULONG style_ex, _In_ LONG dpi_value, _In_ BOOL is_menu);
+BOOLEAN _r_dc_adjustwindowrect (_Inout_ LPRECT rect, _In_ ULONG style, _In_ ULONG ex_style, _In_ LONG dpi_value, _In_ BOOL is_menu);
 
 _Ret_maybenull_
 HBITMAP _r_dc_bitmapfromicon (_In_ HICON hicon, _In_ INT x, _In_ INT y);

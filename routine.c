@@ -618,24 +618,37 @@ FORCEINLINE VOID _r_queuedlock_optimizelist_ex (_Inout_ PR_QUEUED_LOCK queued_lo
 	}
 }
 
-static HANDLE _r_queuedlock_getevent ()
+HANDLE _r_queuedlock_getevent ()
 {
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static HANDLE hevent = NULL;
+	static HANDLE cached_event = NULL;
 
-	if (_r_initonce_begin (&init_once))
+	HANDLE current_hevent;
+	HANDLE new_hevent;
+
+	current_hevent = InterlockedCompareExchangePointer (&cached_event, NULL, NULL);
+
+	if (!current_hevent)
 	{
 		NTSTATUS status;
 
-		status = NtCreateKeyedEvent (&hevent, KEYEDEVENT_ALL_ACCESS, NULL, 0);
+		status = NtCreateKeyedEvent (&new_hevent, KEYEDEVENT_ALL_ACCESS, NULL, 0);
 
 		if (!NT_SUCCESS (status))
 			RtlRaiseStatus (status);
 
-		_r_initonce_end (&init_once);
+		current_hevent = InterlockedCompareExchangePointer (&cached_event, new_hevent, NULL);
+
+		if (!current_hevent)
+		{
+			current_hevent = new_hevent;
+		}
+		else
+		{
+			NtClose (new_hevent);
+		}
 	}
 
-	return hevent;
+	return current_hevent;
 }
 
 FORCEINLINE ULONG _r_queuedlock_getspincount ()
@@ -1188,7 +1201,7 @@ VOID FASTCALL _r_protection_waitfor_ex (_Inout_ PR_RUNDOWN_PROTECT protection)
 // Synchronization: Workqueue
 //
 
-static PR_FREE_LIST _r_workqueue_getfreelist ()
+PR_FREE_LIST _r_workqueue_getfreelist ()
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static R_FREE_LIST free_list = {0};
@@ -1786,17 +1799,30 @@ PR_STRING _r_obj_concatstringrefs_v (_In_ SIZE_T count, _In_ va_list arg_ptr)
 
 PR_STRING _r_obj_referenceemptystring ()
 {
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static PR_STRING string = NULL;
+	static PR_STRING cached_string = NULL;
 
-	if (_r_initonce_begin (&init_once))
+	PR_STRING current_string;
+	PR_STRING new_string;
+
+	current_string = InterlockedCompareExchangePointer (&cached_string, NULL, NULL);
+
+	if (!current_string)
 	{
-		string = _r_obj_createstring (L"");
+		new_string = _r_obj_createstring_ex (NULL, 0);
 
-		_r_initonce_end (&init_once);
+		current_string = InterlockedCompareExchangePointer (&cached_string, new_string, NULL);
+
+		if (!current_string)
+		{
+			current_string = new_string;
+		}
+		else
+		{
+			_r_obj_dereference (new_string);
+		}
 	}
 
-	return _r_obj_referencesafe (string);
+	return _r_obj_reference (current_string);
 }
 
 VOID _r_obj_removestring (_In_ PR_STRING string, _In_ SIZE_T start_pos, _In_ SIZE_T length)
@@ -6723,7 +6749,7 @@ LONG64 _r_unixtime_from_systemtime (_In_ const SYSTEMTIME * system_time)
 //
 
 _Success_ (return)
-BOOLEAN _r_dc_adjustwindowrect (_Inout_ LPRECT rect, _In_ ULONG style, _In_ ULONG style_ex, _In_ LONG dpi_value, _In_ BOOL is_menu)
+BOOLEAN _r_dc_adjustwindowrect (_Inout_ LPRECT rect, _In_ ULONG style, _In_ ULONG ex_style, _In_ LONG dpi_value, _In_ BOOL is_menu)
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static AWRFD _AdjustWindowRectExForDpi = NULL;
@@ -6750,9 +6776,9 @@ BOOLEAN _r_dc_adjustwindowrect (_Inout_ LPRECT rect, _In_ ULONG style, _In_ ULON
 
 	// win10rs1+
 	if (_AdjustWindowRectExForDpi)
-		return !!_AdjustWindowRectExForDpi (rect, style, is_menu, style_ex, dpi_value);
+		return !!_AdjustWindowRectExForDpi (rect, style, is_menu, ex_style, dpi_value);
 
-	return !!AdjustWindowRectEx (rect, style, is_menu, style_ex);
+	return !!AdjustWindowRectEx (rect, style, is_menu, ex_style);
 }
 
 _Ret_maybenull_
@@ -7258,12 +7284,22 @@ LONG _r_dc_getdpivalue (_In_opt_ HWND hwnd, _In_opt_ LPCRECT rect)
 	{
 		if (rect || hwnd)
 		{
-			if (hwnd && _GetDpiForWindow)
-				return _GetDpiForWindow (hwnd); // win10rs1+
+			if (_GetDpiForWindow)
+			{
+				if (hwnd)
+					return _GetDpiForWindow (hwnd); // win10rs1+
+			}
 
 			if (_GetDpiForMonitor)
 			{
-				hmonitor = rect ? MonitorFromRect (rect, MONITOR_DEFAULTTONEAREST) : MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+				if (rect)
+				{
+					hmonitor = MonitorFromRect (rect, MONITOR_DEFAULTTONEAREST);
+				}
+				else
+				{
+					hmonitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+				}
 
 				if (_GetDpiForMonitor (hmonitor, MDT_EFFECTIVE_DPI, &dpi_x, &dpi_y) == S_OK) // win81+
 					return dpi_x;
@@ -9942,18 +9978,25 @@ HRESULT _r_xml_setlibrarystream (_Inout_ PR_XML_LIBRARY xml_library, _In_ PR_XML
 
 VOID _r_tray_initialize (_Inout_ PNOTIFYICONDATA nid, _In_ HWND hwnd, _In_ LPCGUID guid)
 {
-	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static ULONG hash_code = 0;
 
-	if (_r_initonce_begin (&init_once))
+	ULONG current_code;
+	ULONG new_code;
+
+	current_code = InterlockedCompareExchange (&hash_code, 0, 0);
+
+	if (!current_code)
 	{
 		R_STRINGREF string;
 
-		_r_obj_initializestringref (&string, NtCurrentPeb ()->ProcessParameters->ImagePathName.Buffer);
+		_r_obj_initializestringref4 (&string, &NtCurrentPeb ()->ProcessParameters->ImagePathName);
 
-		hash_code = _r_obj_getstringrefhash (&string, TRUE);
+		new_code = _r_obj_getstringrefhash (&string, TRUE);
 
-		_r_initonce_end (&init_once);
+		current_code = InterlockedCompareExchange (&hash_code, new_code, 0);
+
+		if (!current_code)
+			current_code = new_code;
 	}
 
 #if defined(APP_NO_DEPRECATIONS)
@@ -9972,7 +10015,7 @@ VOID _r_tray_initialize (_Inout_ PNOTIFYICONDATA nid, _In_ HWND hwnd, _In_ LPCGU
 	// when the existing icon was registered. Once that information is removed, you can move the binary file to
 	// a new location and reregister it with a new GUID.
 
-	nid->guidItem.Data1 = hash_code; // HACK!!!
+	nid->guidItem.Data1 = current_code; // HACK!!!
 
 #else
 
@@ -9988,7 +10031,7 @@ VOID _r_tray_initialize (_Inout_ PNOTIFYICONDATA nid, _In_ HWND hwnd, _In_ LPCGU
 
 		RtlCopyMemory (&nid->guidItem, guid, sizeof (GUID));
 
-		nid->guidItem.Data1 = hash_code; // HACK!!!
+		nid->guidItem.Data1 = current_code; // HACK!!!
 	}
 	else
 	{
