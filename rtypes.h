@@ -214,6 +214,7 @@ typedef BOOL (WINAPI *SPIFP)(
 
 typedef enum R_LOG_LEVEL
 {
+	LOG_LEVEL_DISABLED = 0,
 	LOG_LEVEL_DEBUG = 1,
 	LOG_LEVEL_INFO = 2,
 	LOG_LEVEL_WARNING = 3,
@@ -923,6 +924,11 @@ typedef struct APP_GLOBAL_CONFIG
 		R_QUEUED_LOCK lock;
 		PR_HASHTABLE table;
 	} config;
+
+	struct
+	{
+		LONG64 last_timestamp;
+	} error;
 
 #if !defined(APP_CONSOLE)
 	struct
