@@ -917,6 +917,8 @@ FORCEINLINE VOID _r_obj_initializebyteref3 (_Out_ PR_BYTEREF string, _In_ PR_BYT
 
 FORCEINLINE VOID _r_obj_initializestringref_ex (_Out_ PR_STRINGREF string, _In_opt_ LPWSTR buffer, _In_opt_ SIZE_T length)
 {
+	assert (!(length & 0x01));
+
 	string->buffer = buffer;
 	string->length = length;
 }
@@ -2496,13 +2498,19 @@ FORCEINLINE VOID _r_xml_writeenddocument (_Inout_ PR_XML_LIBRARY xml_library)
 // System tray
 //
 
+VOID _r_tray_initialize (_Inout_ PNOTIFYICONDATA nid, _In_ HWND hwnd, _In_ LPCGUID guid);
+VOID _r_tray_setversion (_Inout_ PNOTIFYICONDATA nid);
+
 BOOLEAN _r_tray_create (_In_ HWND hwnd, _In_ LPCGUID guid, _In_ UINT code, _In_opt_ HICON hicon, _In_opt_ LPCWSTR tooltip, _In_ BOOLEAN is_hidden);
+BOOLEAN _r_tray_destroy (_In_ HWND hwnd, _In_ LPCGUID guid);
+
 BOOLEAN _r_tray_popup (_In_ HWND hwnd, _In_ LPCGUID guid, _In_opt_ ULONG icon_id, _In_opt_ LPCWSTR title, _In_opt_ LPCWSTR text);
 BOOLEAN _r_tray_popupformat (_In_ HWND hwnd, _In_ LPCGUID guid, _In_opt_ ULONG icon_id, _In_opt_ LPCWSTR title, _In_ _Printf_format_string_ LPCWSTR format, ...);
+
 BOOLEAN _r_tray_setinfo (_In_ HWND hwnd, _In_ LPCGUID guid, _In_opt_ HICON hicon, _In_opt_ LPCWSTR tooltip);
 BOOLEAN _r_tray_setinfoformat (_In_ HWND hwnd, _In_ LPCGUID guid, _In_opt_ HICON hicon, _In_ _Printf_format_string_ LPCWSTR format, ...);
+
 BOOLEAN _r_tray_toggle (_In_ HWND hwnd, _In_ LPCGUID guid, _In_ BOOLEAN is_show);
-BOOLEAN _r_tray_destroy (_In_ HWND hwnd, _In_ LPCGUID guid);
 
 //
 // Control: common

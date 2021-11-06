@@ -10045,7 +10045,6 @@ VOID _r_tray_initialize (_Inout_ PNOTIFYICONDATA nid, _In_ HWND hwnd, _In_ LPCGU
 	nid->cbSize = sizeof (NOTIFYICONDATA);
 
 	nid->uFlags |= NIF_GUID;
-	nid->uVersion = NOTIFYICON_VERSION_4;
 	nid->hWnd = hwnd;
 
 	RtlCopyMemory (&nid->guidItem, guid, sizeof (GUID));
@@ -10060,10 +10059,11 @@ VOID _r_tray_initialize (_Inout_ PNOTIFYICONDATA nid, _In_ HWND hwnd, _In_ LPCGU
 
 #else
 
-	BOOLEAN is_vistaorlater = _r_sys_isosversiongreaterorequal (WINDOWS_VISTA);
+	BOOLEAN is_vistaorlater;
+
+	is_vistaorlater = _r_sys_isosversiongreaterorequal (WINDOWS_VISTA);
 
 	nid->cbSize = (is_vistaorlater ? sizeof (NOTIFYICONDATA) : NOTIFYICONDATA_V3_SIZE);
-	nid->uVersion = (is_vistaorlater ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
 	nid->hWnd = hwnd;
 
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_7))
@@ -10080,6 +10080,25 @@ VOID _r_tray_initialize (_Inout_ PNOTIFYICONDATA nid, _In_ HWND hwnd, _In_ LPCGU
 	}
 
 #endif // APP_NO_DEPRECATIONS
+}
+
+VOID _r_tray_setversion (_Inout_ PNOTIFYICONDATA nid)
+{
+#if defined(APP_NO_DEPRECATIONS)
+
+	nid->uVersion = NOTIFYICON_VERSION_4;
+
+#else
+
+	BOOLEAN is_vistaorlater;
+
+	is_vistaorlater = _r_sys_isosversiongreaterorequal (WINDOWS_VISTA);
+
+	nid->uVersion = (is_vistaorlater ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
+
+#endif // APP_NO_DEPRECATIONS
+
+	Shell_NotifyIcon (NIM_SETVERSION, nid);
 }
 
 BOOLEAN _r_tray_create (_In_ HWND hwnd, _In_ LPCGUID guid, _In_ UINT code, _In_opt_ HICON hicon, _In_opt_ LPCWSTR tooltip, _In_ BOOLEAN is_hidden)
@@ -10123,12 +10142,21 @@ BOOLEAN _r_tray_create (_In_ HWND hwnd, _In_ LPCGUID guid, _In_ UINT code, _In_o
 
 	if (Shell_NotifyIcon (NIM_ADD, &nid))
 	{
-		Shell_NotifyIcon (NIM_SETVERSION, &nid);
+		_r_tray_setversion (&nid);
 
 		return TRUE;
 	}
 
 	return FALSE;
+}
+
+BOOLEAN _r_tray_destroy (_In_ HWND hwnd, _In_ LPCGUID guid)
+{
+	NOTIFYICONDATA nid = {0};
+
+	_r_tray_initialize (&nid, hwnd, guid);
+
+	return !!Shell_NotifyIcon (NIM_DELETE, &nid);
 }
 
 BOOLEAN _r_tray_popup (_In_ HWND hwnd, _In_ LPCGUID guid, _In_opt_ ULONG icon_id, _In_opt_ LPCWSTR title, _In_opt_ LPCWSTR text)
@@ -10137,7 +10165,12 @@ BOOLEAN _r_tray_popup (_In_ HWND hwnd, _In_ LPCGUID guid, _In_opt_ ULONG icon_id
 
 	_r_tray_initialize (&nid, hwnd, guid);
 
+#if defined(APP_NO_DEPRECATIONS)
 	nid.uFlags |= NIF_REALTIME;
+#else
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
+		nid.uFlags |= NIF_REALTIME;
+#endif // APP_NO_DEPRECATIONS
 
 	if (icon_id)
 	{
@@ -10241,15 +10274,6 @@ BOOLEAN _r_tray_toggle (_In_ HWND hwnd, _In_ LPCGUID guid, _In_ BOOLEAN is_show)
 	nid.dwStateMask = NIS_HIDDEN;
 
 	return !!Shell_NotifyIcon (NIM_MODIFY, &nid);
-}
-
-BOOLEAN _r_tray_destroy (_In_ HWND hwnd, _In_ LPCGUID guid)
-{
-	NOTIFYICONDATA nid = {0};
-
-	_r_tray_initialize (&nid, hwnd, guid);
-
-	return !!Shell_NotifyIcon (NIM_DELETE, &nid);
 }
 
 //
