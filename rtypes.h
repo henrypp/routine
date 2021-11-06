@@ -806,24 +806,24 @@ typedef struct R_LAYOUT_ENUM
 // Inernet access (WinHTTP)
 //
 
-typedef BOOLEAN (NTAPI *PR_INET_DOWNLOAD_FUNCTION) (_In_ ULONG total_written, _In_ ULONG total_length, _In_opt_ PVOID pdata);
+typedef BOOLEAN (NTAPI *PR_INET_DOWNLOAD_FUNCTION) (_In_ ULONG total_written, _In_ ULONG total_length, _In_opt_ PVOID lparam);
 
 typedef struct R_DOWNLOAD_INFO
 {
 	HANDLE hfile;
 	PR_STRING string;
 	PR_INET_DOWNLOAD_FUNCTION download_callback;
-	PVOID data;
+	PVOID lparam;
 } R_DOWNLOAD_INFO, *PR_DOWNLOAD_INFO;
 
 typedef struct R_URLPARTS
 {
-	ULONG flags;
-
 	PR_STRING host;
 	PR_STRING path;
 	PR_STRING user;
 	PR_STRING pass;
+
+	ULONG flags;
 
 	INTERNET_SCHEME scheme;
 	INTERNET_PORT port;
