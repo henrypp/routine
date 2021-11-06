@@ -5553,24 +5553,20 @@ BOOLEAN _r_sys_iswine ()
 BOOLEAN _r_sys_iswow64 ()
 {
 #if !defined(_WIN64)
-	// IsWow64Process is not available on all supported versions of Windows.
-	// Use GetModuleHandle to get a handle to the DLL that contains the function
-	// and GetProcAddress to get a pointer to the function if available.
+	NTSTATUS status;
+	ULONG_PTR iswow64;
 
-	HMODULE hkernel32 = GetModuleHandle (L"kernel32.dll");
+	status = NtQueryInformationProcess (
+		NtCurrentProcess(),
+		ProcessWow64Information,
+		&iswow64,
+		sizeof (ULONG_PTR),
+		NULL
+	);
 
-	if (hkernel32)
-	{
-		const IW64P _IsWow64Process = (IW64P)GetProcAddress (hkernel32, "IsWow64Process");
+	if (NT_SUCCESS (status))
+		return !!iswow64;
 
-		if (_IsWow64Process)
-		{
-			BOOL iswow64;
-
-			if (_IsWow64Process (NtCurrentProcess (), &iswow64))
-				return !!iswow64;
-		}
-	}
 #endif // _WIN64
 
 	return FALSE;
