@@ -172,9 +172,9 @@ ULONG CALLBACK _r_app_exceptionfilter_callback (_In_ PEXCEPTION_POINTERS excepti
 	_r_app_exceptionfilter_savedump (exception_ptr);
 
 #if defined(APP_CONSOLE)
-	wprintf (L"Exception raised :( 0x%08X\r\n", error_code);
+	wprintf (APP_EXCEPTION_TITLE L" 0x%08X\r\n", error_code);
 #else
-	_r_show_errormessage (NULL, L"Exception raised :(", error_code, &error_info);
+	_r_show_errormessage (NULL, APP_EXCEPTION_TITLE, error_code, &error_info);
 #endif // APP_CONSOLE
 
 #if defined(APP_NO_DEPRECATIONS)
@@ -249,9 +249,9 @@ BOOLEAN _r_app_initialize ()
 		if (!SUCCEEDED (hr))
 		{
 #if defined(APP_CONSOLE)
-			wprintf (L"Error! COM library initialization failed 0x%08" TEXT (PRIX32) L"!\r\n", hr);
+			wprintf (APP_FAILED_COM_INITIALIZE L" 0x%08" TEXT (PRIX32) L"!\r\n", hr);
 #else
-			_r_show_errormessage (NULL, L"COM library initialization failed!", hr, NULL);
+			_r_show_errormessage (NULL, APP_FAILED_COM_INITIALIZE, hr, NULL);
 #endif // APP_CONSOLE
 
 			return FALSE;
@@ -305,7 +305,7 @@ BOOLEAN _r_app_initialize ()
 	if (!_r_sys_iselevated ())
 	{
 		if (!_r_app_runasadmin ())
-			_r_show_errormessage (NULL, L"Administrative privileges are required!", ERROR_DS_INSUFF_ACCESS_RIGHTS, NULL);
+			_r_show_errormessage (NULL, APP_FAILED_ADMIN_RIGHTS, ERROR_DS_INSUFF_ACCESS_RIGHTS, NULL);
 
 		return FALSE;
 	}
@@ -333,7 +333,7 @@ BOOLEAN _r_app_initialize ()
 #if !defined(_DEBUG) && !defined(_WIN64)
 	if (_r_sys_iswow64 () && !_r_sys_getopt (_r_sys_getimagecommandline (), L"nowow64", NULL))
 	{
-		_r_show_message (NULL, MB_OK | MB_ICONWARNING | MB_TOPMOST, _r_app_getname (), L"WoW64 warning!", L"You are attempting to run the 32-bit executable on 64-bit system.\r\nNote: add \"-nowow64\" argument to avoid this warning.");
+		_r_show_message (NULL, MB_OK | MB_ICONWARNING | MB_TOPMOST, _r_app_getname (), APP_WARNING_WOW64_TITLE, APP_WARNING_WOW64_TEXT);
 		return FALSE;
 	}
 #endif // !_DEBUG && !_WIN64
@@ -914,7 +914,7 @@ VOID _r_app_restart (_In_ HWND hwnd)
 	HWND hmain;
 	BOOLEAN is_mutexdestroyed;
 
-	if (_r_show_message (hwnd, MB_YESNO | MB_ICONQUESTION, _r_app_getname (), NULL, L"Restart is required to apply configuration, restart now?") != IDYES)
+	if (_r_show_message (hwnd, MB_YESNO | MB_ICONQUESTION, _r_app_getname (), NULL, APP_QUESTION_RESTART) != IDYES)
 		return;
 
 	is_mutexdestroyed = _r_mutex_destroy (&app_global.main.hmutex);
@@ -2016,7 +2016,7 @@ VOID _r_update_check (_In_opt_ HWND hparent)
 	if (_r_sys_isosversionlowerorequal (WINDOWS_VISTA))
 	{
 		if (hparent)
-			_r_show_message (hparent, MB_OK | MB_ICONWARNING, _r_app_getname (), L"Security warning!", L"Update checking are restricted.\r\n\r\nThis operating system are obsolete and does not meet security requirements for secure internet connection.");
+			_r_show_message (hparent, MB_OK | MB_ICONWARNING, _r_app_getname (), APP_SECURITY_TITLE, APP_WARNING_UPDATE_TEXT);
 
 		return;
 	}
@@ -3587,7 +3587,7 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 					PR_SETTINGS_PAGE ptr_page;
 					HWND hwindow;
 
-					if (_r_show_message (hwnd, MB_YESNO | MB_ICONWARNING, _r_app_getname (), NULL, L"Are you really sure you want to reset all application settings?") != IDYES)
+					if (_r_show_message (hwnd, MB_YESNO | MB_ICONWARNING, _r_app_getname (), NULL, APP_QUESTION_RESET) != IDYES)
 						break;
 
 					// made backup of existing configuration
@@ -3771,7 +3771,7 @@ HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 	{
 		if (!_r_path_issecurelocation (_r_sys_getimagepath ()))
 		{
-			if (_r_show_message (hwnd, MB_YESNO | MB_ICONWARNING, _r_app_getname (), L"Security warning!", L"It is not recommended to enable this option\r\nwhen running from outside a secure location (e.g. Program Files).\r\n\r\nAre you sure you want to continue?") != IDYES)
+			if (_r_show_message (hwnd, MB_YESNO | MB_ICONWARNING, _r_app_getname (), APP_SECURITY_TITLE, APP_WARNING_UAC_TEXT) != IDYES)
 				return E_ABORT;
 		}
 	}
