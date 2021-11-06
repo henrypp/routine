@@ -77,14 +77,22 @@
 #	define APP_COMMENT "What a tragedy it is for these words to fall upon deaf ears doomed to never reach their subject..."
 #endif /// APP_COMMENT
 
+// update checking period (in days)
 #if defined(APP_UPDATE_PERIOD)
 #pragma PR_PRINT_WARNING_DEFINE(APP_UPDATE_PERIOD)
 #else
 #if defined(_DEBUG) || defined(APP_BETA)
-#	define APP_UPDATE_PERIOD 1 // update checking period for pre-release is 1 day
+#	define APP_UPDATE_PERIOD 1 
 #else
-#	define APP_UPDATE_PERIOD 7 // update checking period for stable release is 7 days
+#	define APP_UPDATE_PERIOD 7
 #endif // _APP_BETA || _APP_BETA_RC
+#endif // APP_UPDATE_PERIOD
+
+// error tray balloon period (in seconds)
+#if defined(APP_ERROR_PERIOD)
+#pragma PR_PRINT_WARNING_DEFINE(APP_ERROR_PERIOD)
+#else
+#define APP_ERROR_PERIOD 4
 #endif // APP_UPDATE_PERIOD
 
 //
@@ -92,4 +100,5 @@
 //
 
 #define PR_DEBUG_HEADER L"Level,Date,Function,Code,Description,Version,OS Version\r\n"
+#define PR_DEBUG_BODY L"\"%s\",\"%s\",\"%s\",\"0x%08" TEXT (PRIX32) L"\",\"%s\"" L",\"%s\",\"%" TEXT (PR_ULONG) L".%" TEXT (PR_ULONG) L" build %d\"\r\n"
 
