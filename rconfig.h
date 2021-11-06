@@ -96,6 +96,25 @@
 #endif // APP_UPDATE_PERIOD
 
 //
+// Messages
+//
+
+#define APP_EXCEPTION_TITLE L"Exception raised :("
+#define APP_SECURITY_TITLE L"Security warning!"
+
+#define APP_FAILED_COM_INITIALIZE L"COM library initialization failed!"
+#define APP_FAILED_ADMIN_RIGHTS L"Administrative privileges are required!"
+
+#define APP_WARNING_WOW64_TITLE L"WoW64 warning!"
+#define APP_WARNING_WOW64_TEXT L"This application was not designed to run under WoW64. Do not run 32-bit executables\r\non 64-bit system because of performance loss and increased memory consumption.\r\n\r\nNote: Add \"-nowow64\" argument to avoid this warning and take responsibility for the consequences."
+
+#define APP_WARNING_UAC_TEXT L"It is not recommended to enable this option\r\nwhen running from outside a secure location (e.g. Program Files).\r\n\r\nAre you sure you want to continue?"
+#define APP_WARNING_UPDATE_TEXT L"This operating system are obsolete and does not meet security requirements for secure internet connection."
+
+#define APP_QUESTION_RESTART L"Restart is required to apply configuration, restart now?"
+#define APP_QUESTION_RESET L"Are you really sure you want to reset all application settings?"
+
+//
 // Debug header
 //
 
