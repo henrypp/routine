@@ -204,6 +204,11 @@ VOID _r_update_install (_In_ PR_STRING install_path);
 
 #endif // APP_HAVE_UPDATES
 
+BOOLEAN _r_log_isenabled (_In_ R_LOG_LEVEL log_level_check);
+
+_Ret_maybenull_
+HANDLE _r_log_getfilehandle ();
+
 VOID _r_log (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCWSTR title, _In_ ULONG code, _In_opt_ LPCWSTR description);
 VOID _r_log_v (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCWSTR title, _In_ ULONG code, _In_ _Printf_format_string_ LPCWSTR format, ...);
 

@@ -2444,62 +2444,90 @@ FORCEINLINE ULONG _r_logleveltrayicon (_In_ R_LOG_LEVEL log_level)
 	return NIIF_NONE;
 }
 
+BOOLEAN _r_log_isenabled (_In_ R_LOG_LEVEL log_level_check)
+{
+	R_LOG_LEVEL log_level;
+
+	log_level = _r_config_getlong (L"ErrorLevel", LOG_LEVEL_DEBUG);
+
+	if (log_level == LOG_LEVEL_DISABLED)
+		return FALSE;
+
+	if (log_level_check != LOG_LEVEL_DISABLED)
+	{
+		if (log_level > log_level_check)
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+_Ret_maybenull_
+HANDLE _r_log_getfilehandle ()
+{
+	static HANDLE cached_hfile = NULL;
+
+	HANDLE current_hfile;
+	HANDLE new_hfile;
+
+	PR_STRING string;
+	ULONG unused;
+
+	// write to file only when readonly mode is not specified
+	if (_r_app_isreadonly ())
+		return NULL;
+
+	current_hfile = InterlockedCompareExchangePointer (&cached_hfile, NULL, NULL);
+
+	if (!current_hfile)
+	{
+		string = _r_app_getlogpath ();
+
+		if (string)
+		{
+			new_hfile = CreateFile (string->buffer, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+
+			if (_r_fs_isvalidhandle (new_hfile))
+			{
+				if (GetLastError () != ERROR_ALREADY_EXISTS)
+				{
+					BYTE bom[] = {0xFF, 0xFE};
+
+					WriteFile (new_hfile, bom, sizeof (bom), &unused, NULL); // write utf-16 le byte order mask
+					WriteFile (new_hfile, PR_DEBUG_HEADER, (ULONG)(_r_str_getlength (PR_DEBUG_HEADER) * sizeof (WCHAR)), &unused, NULL); // adds csv header
+				}
+				else
+				{
+					_r_fs_setpos (new_hfile, 0, FILE_END);
+				}
+
+				current_hfile = InterlockedCompareExchangePointer (&cached_hfile, new_hfile, NULL);
+
+				if (!current_hfile)
+				{
+					current_hfile = new_hfile;
+				}
+				else
+				{
+					CloseHandle (new_hfile);
+				}
+			}
+		}
+	}
+
+	return current_hfile;
+}
+
 VOID _r_log (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCWSTR title, _In_ ULONG code, _In_opt_ LPCWSTR description)
 {
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-
-	static HANDLE hfile = NULL;
-	static LONG log_level_config = 0;
-
 	PR_STRING error_string;
 	PR_STRING date_string;
 	LPCWSTR level_string;
 	LONG64 current_timestamp;
-
-#if defined(APP_HAVE_TRAY)
-	LONG64 notification_timestamp;
-	LONG64 notification_period;
-	ULONG icon_id;
-#endif // APP_HAVE_TRAY
-
+	HANDLE hfile;
 	ULONG unused;
 
-	if (_r_initonce_begin (&init_once))
-	{
-		PR_STRING path;
-
-		log_level_config = _r_config_getlong (L"ErrorLevel", LOG_LEVEL_INFO);
-
-		// write to file only when readonly mode is not specified
-		if (!_r_app_isreadonly ())
-		{
-			path = _r_app_getlogpath ();
-
-			if (path)
-			{
-				hfile = CreateFile (path->buffer, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-
-				if (_r_fs_isvalidhandle (hfile))
-				{
-					if (GetLastError () != ERROR_ALREADY_EXISTS)
-					{
-						BYTE bom[] = {0xFF, 0xFE};
-
-						WriteFile (hfile, bom, sizeof (bom), &unused, NULL); // write utf-16 le byte order mask
-						WriteFile (hfile, PR_DEBUG_HEADER, (ULONG)(_r_str_getlength (PR_DEBUG_HEADER) * sizeof (WCHAR)), &unused, NULL); // adds csv header
-					}
-					else
-					{
-						_r_fs_setpos (hfile, 0, FILE_END);
-					}
-				}
-			}
-		}
-
-		_r_initonce_end (&init_once);
-	}
-
-	if (log_level_config > log_level)
+	if (!_r_log_isenabled (log_level))
 		return;
 
 	current_timestamp = _r_unixtime_now ();
@@ -2515,10 +2543,12 @@ VOID _r_log (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCWST
 				description
 	);
 
-	if (_r_fs_isvalidhandle (hfile))
+	hfile = _r_log_getfilehandle ();
+
+	if (hfile)
 	{
 		error_string = _r_format_string (
-			L"\"%s\",\"%s\",\"%s\",\"0x%08" TEXT (PRIX32) L"\",\"%s\"" L",\"%s\",\"%d.%d build %d\"\r\n",
+			PR_DEBUG_BODY,
 			level_string,
 			_r_obj_getstring (date_string),
 			title,
@@ -2530,12 +2560,9 @@ VOID _r_log (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCWST
 			NtCurrentPeb ()->OSBuildNumber
 		);
 
-		if (error_string)
-		{
-			WriteFile (hfile, error_string->buffer, (ULONG)error_string->length, &unused, NULL);
+		WriteFile (hfile, error_string->buffer, (ULONG)error_string->length, &unused, NULL);
 
-			_r_obj_dereference (error_string);
-		}
+		_r_obj_dereference (error_string);
 	}
 
 	if (date_string)
@@ -2545,21 +2572,20 @@ VOID _r_log (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCWST
 #if defined(APP_HAVE_TRAY)
 	if (tray_guid)
 	{
+		ULONG icon_id;
+
 		if (_r_config_getboolean (L"IsErrorNotificationsEnabled", TRUE))
 		{
-			notification_timestamp = _r_config_getlong64 (L"ErrorNotificationsTimestamp", 0);
-			notification_period = _r_config_getlong64 (L"ErrorNotificationsPeriod", 10);
-
 			icon_id = _r_logleveltrayicon (log_level);
 
 			if (!_r_config_getboolean (L"IsNotificationsSound", TRUE))
 				icon_id |= NIIF_NOSOUND;
 
-			if ((current_timestamp - notification_timestamp) >= notification_period) // check for timeout (sec.)
+			if ((current_timestamp - app_global.error.last_timestamp) > APP_ERROR_PERIOD) // check for timeout (sec.)
 			{
 				_r_tray_popup (_r_app_gethwnd (), tray_guid, icon_id, _r_app_getname (), L"Something went wrong. Open debug log file in profile directory.");
 
-				_r_config_setlong64 (L"ErrorNotificationsTimestamp", current_timestamp);
+				app_global.error.last_timestamp = current_timestamp;
 			}
 		}
 	}
