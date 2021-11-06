@@ -2259,17 +2259,17 @@ _Ret_maybenull_
 HINTERNET _r_inet_createsession (_In_opt_ PR_STRING useragent);
 
 _Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTERNET pconnect, _Out_ LPHINTERNET prequest, _Out_opt_ PULONG total_length);
+ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTERNET hconnect_ptr, _Out_ LPHINTERNET hrequest_ptr, _Out_opt_ PULONG total_length);
 
 _Success_ (return)
 BOOLEAN _r_inet_readrequest (_In_ HINTERNET hrequest, _Out_writes_bytes_ (buffer_size) PVOID buffer, _In_ ULONG buffer_size, _Out_opt_ PULONG readed, _Inout_opt_ PULONG total_readed);
 
-FORCEINLINE VOID _r_inet_initializedownload (_Out_ PR_DOWNLOAD_INFO pdi, _In_opt_ HANDLE hfile, _In_opt_ PR_INET_DOWNLOAD_FUNCTION download_callback, _In_opt_ PVOID data)
+FORCEINLINE VOID _r_inet_initializedownload (_Out_ PR_DOWNLOAD_INFO pdi, _In_opt_ HANDLE hfile, _In_opt_ PR_INET_DOWNLOAD_FUNCTION download_callback, _In_opt_ PVOID lparam)
 {
 	pdi->hfile = hfile;
 	pdi->string = NULL;
 	pdi->download_callback = download_callback;
-	pdi->data = data;
+	pdi->lparam = lparam;
 }
 
 _Success_ (return == ERROR_SUCCESS)
@@ -2309,13 +2309,13 @@ LSTATUS _r_reg_queryvalue (_In_ HKEY hkey, _In_opt_ LPCWSTR subkey, _In_opt_ LPC
 // Cryptography
 //
 
-_Ret_maybenull_
-PR_CRYPT_CONTEXT _r_crypt_createcryptcontext (_In_ LPCWSTR algorithm_id);
-
-_Ret_maybenull_
-PR_BYTE _r_crypt_encryptdata (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_size);
-
-NTSTATUS _r_crypt_setkey (_Inout_ PR_CRYPT_CONTEXT context, _In_ PR_BYTE key, _In_ PR_BYTE nonce);
+//_Ret_maybenull_
+//PR_CRYPT_CONTEXT _r_crypt_createcryptcontext (_In_ LPCWSTR algorithm_id);
+//
+//_Ret_maybenull_
+//PR_BYTE _r_crypt_encryptdata (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_size);
+//
+//NTSTATUS _r_crypt_setkey (_Inout_ PR_CRYPT_CONTEXT context, _In_ PR_BYTE key, _In_ PR_BYTE nonce);
 
 _Ret_maybenull_
 PR_CRYPT_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id);

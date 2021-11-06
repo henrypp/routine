@@ -5557,7 +5557,7 @@ BOOLEAN _r_sys_iswow64 ()
 	ULONG_PTR iswow64;
 
 	status = NtQueryInformationProcess (
-		NtCurrentProcess(),
+		NtCurrentProcess (),
 		ProcessWow64Information,
 		&iswow64,
 		sizeof (ULONG_PTR),
@@ -8569,15 +8569,23 @@ _Ret_maybenull_
 HINTERNET _r_inet_createsession (_In_opt_ PR_STRING useragent)
 {
 	HINTERNET hsession;
-	BOOLEAN is_win81;
+	ULONG access_type;
 
-	is_win81 = _r_sys_isosversiongreaterorequal (WINDOWS_8_1);
-	hsession = WinHttpOpen (useragent ? useragent->buffer : NULL, is_win81 ? WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY : WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_8_1))
+	{
+		access_type = WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY;
+	}
+	else
+	{
+		access_type = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
+	}
+
+	hsession = WinHttpOpen (_r_obj_getstring (useragent), access_type, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
 
 	if (!hsession)
 		return NULL;
 
-	if (!is_win81)
+	if (_r_sys_isosversionlowerorequal (WINDOWS_8))
 	{
 		// enable secure protocols
 		WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2}, sizeof (ULONG));
@@ -8587,11 +8595,14 @@ HINTERNET _r_inet_createsession (_In_opt_ PR_STRING useragent)
 		// enable secure protocols
 		WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3}, sizeof (ULONG));
 
-		// enable compression feature (win81+)
+		// disable redirect from https to http
+		WinHttpSetOption (hsession, WINHTTP_OPTION_REDIRECT_POLICY, &(ULONG){WINHTTP_OPTION_REDIRECT_POLICY_DISALLOW_HTTPS_TO_HTTP}, sizeof (ULONG));
+
+		// enable compression feature
 		WinHttpSetOption (hsession, WINHTTP_OPTION_DECOMPRESSION, &(ULONG){WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE}, sizeof (ULONG));
 
-		// enable http2 protocol (win10rs1+)
-		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1607))
+		// enable http2 protocol (win10+)
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_10))
 			WinHttpSetOption (hsession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &(ULONG){WINHTTP_PROTOCOL_FLAG_HTTP2}, sizeof (ULONG));
 	}
 
@@ -8599,116 +8610,118 @@ HINTERNET _r_inet_createsession (_In_opt_ PR_STRING useragent)
 }
 
 _Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTERNET pconnect, _Out_ LPHINTERNET prequest, _Out_opt_ PULONG total_length)
+ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTERNET hconnect_ptr, _Out_ LPHINTERNET hrequest_ptr, _Out_opt_ PULONG total_length)
 {
 	R_URLPARTS url_parts;
 	HINTERNET hconnect;
 	HINTERNET hrequest;
+	ULONG attempts;
 	ULONG flags;
 	ULONG code;
+
+	*hconnect_ptr = NULL;
+	*hrequest_ptr = NULL;
 
 	code = _r_inet_queryurlparts (url, &url_parts, PR_URLPARTS_SCHEME | PR_URLPARTS_PORT | PR_URLPARTS_HOST | PR_URLPARTS_PATH);
 
 	if (code != ERROR_SUCCESS)
+		goto CleanupExit;
+
+	hconnect = WinHttpConnect (hsession, url_parts.host->buffer, url_parts.port, 0);
+
+	if (!hconnect)
 	{
+		code = GetLastError ();
+
 		goto CleanupExit;
 	}
-	else
+
+	flags = WINHTTP_FLAG_REFRESH;
+
+	if (url_parts.scheme == INTERNET_SCHEME_HTTPS)
+		flags |= WINHTTP_FLAG_SECURE;
+
+	hrequest = WinHttpOpenRequest (hconnect, NULL, url_parts.path->buffer, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
+
+	if (!hrequest)
 	{
-		hconnect = WinHttpConnect (hsession, url_parts.host->buffer, url_parts.port, 0);
+		code = GetLastError ();
 
-		if (!hconnect)
-		{
-			code = GetLastError ();
+		_r_inet_close (hconnect);
 
-			goto CleanupExit;
-		}
+		goto CleanupExit;
+	}
 
-		flags = WINHTTP_FLAG_REFRESH;
-
-		if (url_parts.scheme == INTERNET_SCHEME_HTTPS)
-			flags |= WINHTTP_FLAG_SECURE;
-
-		hrequest = WinHttpOpenRequest (hconnect, NULL, url_parts.path->buffer, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
-
-		if (!hrequest)
-		{
-			code = GetLastError ();
-
-			_r_inet_close (hconnect);
-
-			goto CleanupExit;
-		}
-
-		// disable "keep-alive" feature (win7+)
+	// disable "keep-alive" feature (win7+)
 #if !defined(APP_NO_DEPRECATIONS)
-		if (_r_sys_isosversiongreaterorequal (WINDOWS_7))
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_7))
 #endif // !APP_NO_DEPRECATIONS
-		{
-			WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &(ULONG){WINHTTP_DISABLE_KEEP_ALIVE}, sizeof (ULONG));
-		}
+	{
+		WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &(ULONG){WINHTTP_DISABLE_KEEP_ALIVE}, sizeof (ULONG));
+	}
 
-		ULONG attempts = 6;
+	attempts = 6;
 
-		do
+	do
+	{
+		if (!WinHttpSendRequest (hrequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH, 0))
 		{
-			if (!WinHttpSendRequest (hrequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH, 0))
+			code = GetLastError ();
+
+			if (code == ERROR_WINHTTP_RESEND_REQUEST)
 			{
-				code = GetLastError ();
-
-				if (code == ERROR_WINHTTP_RESEND_REQUEST)
-				{
-					continue;
-				}
-				else if (code == ERROR_WINHTTP_NAME_NOT_RESOLVED || code == ERROR_NOT_ENOUGH_MEMORY)
-				{
+				continue;
+			}
+			else if (code == ERROR_WINHTTP_NAME_NOT_RESOLVED || code == ERROR_NOT_ENOUGH_MEMORY)
+			{
+				break;
+			}
+			else if (code == ERROR_WINHTTP_CONNECTION_ERROR)
+			{
+				if (!WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2}, sizeof (ULONG)))
 					break;
-				}
-				else if (code == ERROR_WINHTTP_CONNECTION_ERROR)
-				{
-					if (!WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2}, sizeof (ULONG)))
-						break;
-				}
-				else if (code == ERROR_WINHTTP_SECURE_FAILURE)
-				{
-					if (!WinHttpSetOption (hrequest, WINHTTP_OPTION_SECURITY_FLAGS, &(ULONG){SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE}, sizeof (ULONG)))
-						break;
-				}
-				else
-				{
-					break; // ERROR_WINHTTP_CANNOT_CONNECT etc.
-				}
+			}
+			else if (code == ERROR_WINHTTP_SECURE_FAILURE)
+			{
+				if (!WinHttpSetOption (hrequest, WINHTTP_OPTION_SECURITY_FLAGS, &(ULONG){SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE}, sizeof (ULONG)))
+					break;
 			}
 			else
 			{
-				if (!WinHttpReceiveResponse (hrequest, NULL))
-				{
-					code = GetLastError ();
-				}
-				else
-				{
-					if (total_length)
-					{
-						ULONG param_size = sizeof (ULONG);
-
-						if (!WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, total_length, &param_size, WINHTTP_NO_HEADER_INDEX))
-							*total_length = 0;
-					}
-
-					*pconnect = hconnect;
-					*prequest = hrequest;
-
-					code = ERROR_SUCCESS;
-
-					goto CleanupExit;
-				}
+				break; // ERROR_WINHTTP_CANNOT_CONNECT etc.
 			}
 		}
-		while (--attempts);
+		else
+		{
+			if (!WinHttpReceiveResponse (hrequest, NULL))
+			{
+				code = GetLastError ();
+			}
+			else
+			{
+				if (total_length)
+				{
+					ULONG param_size;
 
-		_r_inet_close (hrequest);
-		_r_inet_close (hconnect);
+					param_size = sizeof (ULONG);
+
+					if (!WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, total_length, &param_size, WINHTTP_NO_HEADER_INDEX))
+						*total_length = 0;
+				}
+
+				*hconnect_ptr = hconnect;
+				*hrequest_ptr = hrequest;
+
+				code = ERROR_SUCCESS;
+
+				goto CleanupExit;
+			}
+		}
 	}
+	while (--attempts);
+
+	_r_inet_close (hrequest);
+	_r_inet_close (hconnect);
 
 CleanupExit:
 
@@ -8793,7 +8806,7 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Inout_ 
 			}
 		}
 
-		if (pdi->download_callback && !pdi->download_callback (readed_total, max (readed_total, length_total), pdi->data))
+		if (pdi->download_callback && !pdi->download_callback (readed_total, max (readed_total, length_total), pdi->lparam))
 		{
 			code = ERROR_CANCELLED;
 			break;
@@ -8897,10 +8910,17 @@ ULONG _r_inet_queryurlparts (_In_ LPCWSTR url, _Out_ PR_URLPARTS url_parts, _In_
 
 VOID _r_inet_destroyurlparts (_Inout_ PR_URLPARTS url_parts)
 {
-	SAFE_DELETE_REFERENCE (url_parts->host);
-	SAFE_DELETE_REFERENCE (url_parts->path);
-	SAFE_DELETE_REFERENCE (url_parts->user);
-	SAFE_DELETE_REFERENCE (url_parts->pass);
+	if (url_parts->host)
+		_r_obj_dereference (url_parts->host);
+
+	if (url_parts->path)
+		_r_obj_dereference (url_parts->path);
+
+	if (url_parts->user)
+		_r_obj_dereference (url_parts->user);
+
+	if (url_parts->pass)
+		_r_obj_dereference (url_parts->pass);
 }
 
 //
