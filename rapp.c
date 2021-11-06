@@ -1830,7 +1830,7 @@ NTSTATUS NTAPI _r_update_checkthread (_In_ PVOID arglist)
 
 		_r_inet_initializedownload (&download_info, NULL, NULL, NULL);
 
-		if (_r_inet_begindownload (hsession, update_url->buffer, &download_info) != ERROR_SUCCESS)
+		if (_r_inet_begindownload (hsession, update_url, &download_info) != ERROR_SUCCESS)
 		{
 			if (update_info->hparent)
 			{
@@ -2113,7 +2113,7 @@ NTSTATUS NTAPI _r_update_downloadthread (_In_ PVOID arglist)
 
 			_r_inet_initializedownload (&download_info, hfile, &_r_update_downloadcallback, update_info);
 
-			if (_r_inet_begindownload (hsession, update_component->url->buffer, &download_info) == ERROR_SUCCESS)
+			if (_r_inet_begindownload (hsession, update_component->url, &download_info) == ERROR_SUCCESS)
 			{
 				is_downloaded = TRUE;
 
