@@ -2012,15 +2012,15 @@ VOID _r_update_check (_In_opt_ HWND hparent)
 	// because it does not support required TLS 1.3 standart which is used
 	// on the www.github.com and www.henrypp.org webpages.
 
-#ifndef APP_NO_DEPRECATIONS
+#if !defined(APP_NO_DEPRECATIONS)
 	if (_r_sys_isosversionlowerorequal (WINDOWS_VISTA))
 	{
 		if (hparent)
-			_r_show_message (hparent, MB_OK | MB_ICONWARNING, _r_app_getname (), L"Security warning!", L"Update checking are restricted.\r\nThis operating system are obsolete and does not\r\nmeet security requirements for secure internet connection.");
+			_r_show_message (hparent, MB_OK | MB_ICONWARNING, _r_app_getname (), L"Security warning!", L"Update checking are restricted.\r\n\r\nThis operating system are obsolete and does not meet security requirements for secure internet connection.");
 
 		return;
 	}
-#endif // APP_NO_DEPRECATIONS
+#endif // !APP_NO_DEPRECATIONS
 
 	update_info = &app_global.update.info;
 
