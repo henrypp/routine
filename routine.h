@@ -2259,26 +2259,26 @@ _Ret_maybenull_
 HINTERNET _r_inet_createsession (_In_opt_ PR_STRING useragent);
 
 _Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTERNET hconnect_ptr, _Out_ LPHINTERNET hrequest_ptr, _Out_opt_ PULONG total_length);
+ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ PR_STRING url, _Out_ LPHINTERNET hconnect_ptr, _Out_ LPHINTERNET hrequest_ptr, _Out_opt_ PULONG total_length);
 
 _Success_ (return)
 BOOLEAN _r_inet_readrequest (_In_ HINTERNET hrequest, _Out_writes_bytes_ (buffer_size) PVOID buffer, _In_ ULONG buffer_size, _Out_opt_ PULONG readed, _Inout_opt_ PULONG total_readed);
 
-FORCEINLINE VOID _r_inet_initializedownload (_Out_ PR_DOWNLOAD_INFO pdi, _In_opt_ HANDLE hfile, _In_opt_ PR_INET_DOWNLOAD_FUNCTION download_callback, _In_opt_ PVOID lparam)
+FORCEINLINE VOID _r_inet_initializedownload (_Out_ PR_DOWNLOAD_INFO download_info, _In_opt_ HANDLE hfile, _In_opt_ PR_INET_DOWNLOAD_FUNCTION download_callback, _In_opt_ PVOID lparam)
 {
-	pdi->hfile = hfile;
-	pdi->string = NULL;
-	pdi->download_callback = download_callback;
-	pdi->lparam = lparam;
+	download_info->hfile = hfile;
+	download_info->string = NULL;
+	download_info->download_callback = download_callback;
+	download_info->lparam = lparam;
 }
 
 _Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Inout_ PR_DOWNLOAD_INFO pdi);
+ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ PR_STRING url, _Inout_ PR_DOWNLOAD_INFO download_info);
 
-VOID _r_inet_destroydownload (_Inout_ PR_DOWNLOAD_INFO pdi);
+VOID _r_inet_destroydownload (_Inout_ PR_DOWNLOAD_INFO download_info);
 
 _Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_queryurlparts (_In_ LPCWSTR url, _Out_ PR_URLPARTS url_parts, _In_ ULONG flags);
+ULONG _r_inet_queryurlparts (_In_ PR_STRING url, _Out_ PR_URLPARTS url_parts, _In_ ULONG flags);
 
 VOID _r_inet_destroyurlparts (_Inout_ PR_URLPARTS url_parts);
 

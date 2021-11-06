@@ -8610,7 +8610,7 @@ HINTERNET _r_inet_createsession (_In_opt_ PR_STRING useragent)
 }
 
 _Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Out_ LPHINTERNET hconnect_ptr, _Out_ LPHINTERNET hrequest_ptr, _Out_opt_ PULONG total_length)
+ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ PR_STRING url, _Out_ LPHINTERNET hconnect_ptr, _Out_ LPHINTERNET hrequest_ptr, _Out_opt_ PULONG total_length)
 {
 	R_URLPARTS url_parts;
 	HINTERNET hconnect;
@@ -8751,7 +8751,7 @@ BOOLEAN _r_inet_readrequest (_In_ HINTERNET hrequest, _Out_writes_bytes_ (buffer
 }
 
 _Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Inout_ PR_DOWNLOAD_INFO pdi)
+ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ PR_STRING url, _Inout_ PR_DOWNLOAD_INFO download_info)
 {
 	HINTERNET hconnect;
 	HINTERNET hrequest;
@@ -8770,7 +8770,7 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Inout_ 
 	if (code != ERROR_SUCCESS)
 		return code;
 
-	if (!pdi->hfile)
+	if (!download_info->hfile)
 		_r_obj_initializestringbuilder (&buffer_string);
 
 	allocated_length = 65536;
@@ -8782,9 +8782,9 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Inout_ 
 
 		_r_obj_setbytelength (content_bytes, readed_current);
 
-		if (pdi->hfile)
+		if (download_info->hfile)
 		{
-			if (!WriteFile (pdi->hfile, content_bytes->buffer, readed_current, &unused, NULL))
+			if (!WriteFile (download_info->hfile, content_bytes->buffer, readed_current, &unused, NULL))
 			{
 				code = GetLastError ();
 				break;
@@ -8806,18 +8806,21 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Inout_ 
 			}
 		}
 
-		if (pdi->download_callback && !pdi->download_callback (readed_total, max (readed_total, length_total), pdi->lparam))
+		if (download_info->download_callback)
 		{
-			code = ERROR_CANCELLED;
-			break;
+			if (!download_info->download_callback (readed_total, max (readed_total, length_total), download_info->lparam))
+			{
+				code = ERROR_CANCELLED;
+				break;
+			}
 		}
 	}
 
-	if (!pdi->hfile)
+	if (!download_info->hfile)
 	{
 		if (code == ERROR_SUCCESS)
 		{
-			pdi->string = _r_obj_finalstringbuilder (&buffer_string);
+			download_info->string = _r_obj_finalstringbuilder (&buffer_string);
 		}
 		else
 		{
@@ -8835,16 +8838,17 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ LPCWSTR url, _Inout_ 
 	return code;
 }
 
-VOID _r_inet_destroydownload (_Inout_ PR_DOWNLOAD_INFO pdi)
+VOID _r_inet_destroydownload (_Inout_ PR_DOWNLOAD_INFO download_info)
 {
-	SAFE_DELETE_HANDLE (pdi->hfile);
-	SAFE_DELETE_REFERENCE (pdi->string);
+	SAFE_DELETE_HANDLE (download_info->hfile);
+	SAFE_DELETE_REFERENCE (download_info->string);
 }
 
 _Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_queryurlparts (_In_ LPCWSTR url, _Out_ PR_URLPARTS url_parts, _In_ ULONG flags)
+ULONG _r_inet_queryurlparts (_In_ PR_STRING url, _Out_ PR_URLPARTS url_parts, _In_ ULONG flags)
 {
 	URL_COMPONENTS url_comp = {0};
+	ULONG length;
 
 	url_comp.dwStructSize = sizeof (url_comp);
 
@@ -8852,40 +8856,46 @@ ULONG _r_inet_queryurlparts (_In_ LPCWSTR url, _Out_ PR_URLPARTS url_parts, _In_
 
 	url_parts->flags = flags;
 
+	length = 256;
+
 	if ((flags & PR_URLPARTS_HOST))
 	{
-		url_parts->host = _r_obj_createstring_ex (NULL, 256 * sizeof (WCHAR));
+		url_parts->host = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
 		url_comp.lpszHostName = url_parts->host->buffer;
-		url_comp.dwHostNameLength = (ULONG)(url_parts->host->length / sizeof (WCHAR));
+		url_comp.dwHostNameLength = length;
 	}
 
 	if ((flags & PR_URLPARTS_PATH))
 	{
-		url_parts->path = _r_obj_createstring_ex (NULL, 256 * sizeof (WCHAR));
+		url_parts->path = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
 		url_comp.lpszUrlPath = url_parts->path->buffer;
-		url_comp.dwUrlPathLength = (ULONG)(url_parts->path->length / sizeof (WCHAR));
+		url_comp.dwUrlPathLength = length;
 	}
 
 	if ((flags & PR_URLPARTS_USER))
 	{
-		url_parts->user = _r_obj_createstring_ex (NULL, 256 * sizeof (WCHAR));
+		url_parts->user = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
 		url_comp.lpszUserName = url_parts->user->buffer;
-		url_comp.dwUserNameLength = (ULONG)(url_parts->user->length / sizeof (WCHAR));
+		url_comp.dwUserNameLength = length;
 	}
 
 	if ((flags & PR_URLPARTS_PASS))
 	{
-		url_parts->pass = _r_obj_createstring_ex (NULL, 256 * sizeof (WCHAR));
+		url_parts->pass = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
 		url_comp.lpszPassword = url_parts->pass->buffer;
-		url_comp.dwPasswordLength = (ULONG)(url_parts->pass->length / sizeof (WCHAR));
+		url_comp.dwPasswordLength = length;
 	}
 
-	if (!WinHttpCrackUrl (url, (ULONG)_r_str_getlength (url), ICU_DECODE, &url_comp))
+	if (!WinHttpCrackUrl (url->buffer, (ULONG)_r_obj_getstringlength (url), ICU_DECODE, &url_comp))
+	{
+		_r_inet_destroyurlparts (url_parts);
+
 		return GetLastError ();
+	}
 
 	if ((flags & PR_URLPARTS_SCHEME))
 		url_parts->scheme = url_comp.nScheme;
@@ -8910,17 +8920,10 @@ ULONG _r_inet_queryurlparts (_In_ LPCWSTR url, _Out_ PR_URLPARTS url_parts, _In_
 
 VOID _r_inet_destroyurlparts (_Inout_ PR_URLPARTS url_parts)
 {
-	if (url_parts->host)
-		_r_obj_dereference (url_parts->host);
-
-	if (url_parts->path)
-		_r_obj_dereference (url_parts->path);
-
-	if (url_parts->user)
-		_r_obj_dereference (url_parts->user);
-
-	if (url_parts->pass)
-		_r_obj_dereference (url_parts->pass);
+	SAFE_DELETE_REFERENCE (url_parts->host);
+	SAFE_DELETE_REFERENCE (url_parts->path);
+	SAFE_DELETE_REFERENCE (url_parts->user);
+	SAFE_DELETE_REFERENCE (url_parts->pass);
 }
 
 //
