@@ -2016,7 +2016,7 @@ VOID _r_update_check (_In_opt_ HWND hparent)
 	if (_r_sys_isosversionlowerorequal (WINDOWS_VISTA))
 	{
 		if (hparent)
-			_r_show_message (hparent, MB_OK | MB_ICONWARNING, _r_app_getname (), L"Security warning!", L"Update checking restricted.\r\nThis operating system are obsolete and does not\r\nmeet security requirements for connecting to the internet.");
+			_r_show_message (hparent, MB_OK | MB_ICONWARNING, _r_app_getname (), L"Security warning!", L"Update checking restricted.\r\nThis operating system are obsolete and does not\r\nmeet security requirements for secure internet connection.");
 
 		return;
 	}
