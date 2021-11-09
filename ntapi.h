@@ -2435,6 +2435,14 @@ RtlStringFromGUID (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
+RtlGUIDFromString (
+	_In_ PUNICODE_STRING GuidString,
+	_Out_ LPGUID Guid
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
 RtlCreateServiceSid (
 	_In_ PUNICODE_STRING ServiceName,
 	_Out_writes_bytes_opt_ (*ServiceSidLength) PSID ServiceSid,
