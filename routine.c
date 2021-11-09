@@ -4642,6 +4642,17 @@ PR_STRING _r_str_fromsid (_In_ PSID lpsid)
 	return NULL;
 }
 
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_str_toguid (_In_ PR_STRINGREF string, _Out_ LPGUID guid)
+{
+	UNICODE_STRING us;
+
+	if (!_r_obj_initializeunicodestring3 (&us, string))
+		return STATUS_BUFFER_OVERFLOW;
+
+	return RtlGUIDFromString (&us, guid);
+}
+
 BOOLEAN _r_str_touinteger64 (_In_ PR_STRINGREF string, _In_ ULONG base, _Out_ PULONG64 integer)
 {
 	LPWSTR buffer;

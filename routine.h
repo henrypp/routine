@@ -1609,6 +1609,9 @@ PR_STRING _r_str_fromsecuritydescriptor (_In_ PSECURITY_DESCRIPTOR lpsd, _In_ SE
 _Ret_maybenull_
 PR_STRING _r_str_fromsid (_In_ PSID lpsid);
 
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_str_toguid (_In_ PR_STRINGREF string, _Out_ LPGUID guid);
+
 BOOLEAN _r_str_touinteger64 (_In_ PR_STRINGREF string, _In_ ULONG base, _Out_ PULONG64 integer);
 BOOLEAN _r_str_tointeger64 (_In_ PR_STRINGREF string, _In_ ULONG base, _Out_opt_ PULONG new_base, _Out_ PLONG64 integer);
 
