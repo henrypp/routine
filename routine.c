@@ -1511,35 +1511,66 @@ BOOLEAN _r_mutex_destroy (_Inout_ PHANDLE hmutex)
 HANDLE _r_mem_getheap ()
 {
 	static HANDLE heap_handle = NULL;
+
 	HANDLE current_handle;
+	HANDLE new_handle;
 
 	current_handle = InterlockedCompareExchangePointer (&heap_handle, NULL, NULL);
 
 	if (!current_handle)
 	{
-		HANDLE new_handle = NULL;
+		new_handle = NULL;
 
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_8)) // win8+
-			new_handle = RtlCreateHeap (HEAP_GROWABLE | HEAP_CLASS_1 | HEAP_CREATE_SEGMENT_HEAP, NULL, 0, 0, NULL, NULL);
+		{
+			new_handle = RtlCreateHeap (
+				HEAP_GROWABLE | HEAP_CLASS_1 | HEAP_CREATE_SEGMENT_HEAP,
+				NULL,
+				0,
+				0,
+				NULL,
+				NULL
+			);
+		}
 
 		if (!new_handle)
-			new_handle = RtlCreateHeap (HEAP_GROWABLE | HEAP_CLASS_1, NULL, _r_calc_megabytes2bytes (2), _r_calc_megabytes2bytes (1), NULL, NULL);
+		{
+			new_handle = RtlCreateHeap (
+				HEAP_GROWABLE | HEAP_CLASS_1,
+				NULL,
+				_r_calc_megabytes2bytes (2),
+				_r_calc_megabytes2bytes (1),
+				NULL,
+				NULL
+			);
+		}
 
 		if (new_handle)
 		{
 			if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
-				RtlSetHeapInformation (new_handle, HeapCompatibilityInformation, &(ULONG){HEAP_COMPATIBILITY_LFH}, sizeof (ULONG));
-
-			current_handle = InterlockedCompareExchangePointer (&heap_handle, new_handle, NULL);
-
-			if (!current_handle)
 			{
-				current_handle = new_handle;
+				RtlSetHeapInformation (
+					new_handle,
+					HeapCompatibilityInformation,
+					&(ULONG){HEAP_COMPATIBILITY_LFH},
+					sizeof (ULONG)
+				);
 			}
-			else
-			{
-				RtlDestroyHeap (new_handle);
-			}
+		}
+		else
+		{
+			RtlRaiseStatus (STATUS_NO_MEMORY);
+		}
+
+		current_handle = InterlockedCompareExchangePointer (&heap_handle, new_handle, NULL);
+
+		if (!current_handle)
+		{
+			current_handle = new_handle;
+		}
+		else
+		{
+			RtlDestroyHeap (new_handle);
 		}
 	}
 
@@ -1690,13 +1721,14 @@ PR_STRING _r_obj_concatstrings_v (_In_ SIZE_T count, _In_ va_list arg_ptr)
 {
 	va_list argptr;
 	SIZE_T cached_length[PR_SIZE_CONCAT_LENGTH_CACHE] = {0};
-	SIZE_T total_length = 0;
+	SIZE_T total_length;
 	SIZE_T string_length;
 	SIZE_T i;
 	LPWSTR arg;
 	PR_STRING string;
 
 	argptr = arg_ptr;
+	total_length = 0;
 
 	for (i = 0; i < count; i++)
 	{
@@ -1706,8 +1738,6 @@ PR_STRING _r_obj_concatstrings_v (_In_ SIZE_T count, _In_ va_list arg_ptr)
 			continue;
 
 		string_length = _r_str_getlength (arg) * sizeof (WCHAR);
-		//va_end (arg);
-
 		total_length += string_length;
 
 		if (i < PR_SIZE_CONCAT_LENGTH_CACHE)
@@ -1715,9 +1745,9 @@ PR_STRING _r_obj_concatstrings_v (_In_ SIZE_T count, _In_ va_list arg_ptr)
 	}
 
 	string = _r_obj_createstring_ex (NULL, total_length);
-	total_length = 0;
 
 	argptr = arg_ptr;
+	total_length = 0;
 
 	for (i = 0; i < count; i++)
 	{
@@ -1760,12 +1790,13 @@ PR_STRING _r_obj_concatstringrefs (_In_ SIZE_T count, ...)
 PR_STRING _r_obj_concatstringrefs_v (_In_ SIZE_T count, _In_ va_list arg_ptr)
 {
 	va_list argptr;
-	SIZE_T total_length = 0;
+	SIZE_T total_length;
 	SIZE_T i;
 	PR_STRINGREF arg;
 	PR_STRING string;
 
 	argptr = arg_ptr;
+	total_length = 0;
 
 	for (i = 0; i < count; i++)
 	{
@@ -1778,9 +1809,9 @@ PR_STRING _r_obj_concatstringrefs_v (_In_ SIZE_T count, _In_ va_list arg_ptr)
 	}
 
 	string = _r_obj_createstring_ex (NULL, total_length);
-	total_length = 0;
 
 	argptr = arg_ptr;
+	total_length = 0;
 
 	for (i = 0; i < count; i++)
 	{
@@ -2936,14 +2967,10 @@ BOOLEAN _r_path_getpathinfo (_In_ PR_STRINGREF path, _Out_opt_ PR_STRINGREF dire
 	is_success = _r_str_splitatlastchar (path, OBJ_NAME_PATH_SEPARATOR, &directory_part, &basename_part);
 
 	if (directory)
-	{
 		_r_obj_initializestringref3 (directory, &directory_part);
-	}
 
 	if (basename)
-	{
 		_r_obj_initializestringref3 (basename, &basename_part);
-	}
 
 	return is_success;
 }
@@ -2955,9 +2982,7 @@ PR_STRING _r_path_getbasedirectory (_In_ PR_STRINGREF path)
 	R_STRINGREF basename_part;
 
 	if (!_r_path_getpathinfo (path, &directory_part, &basename_part))
-	{
 		return NULL;
-	}
 
 	return _r_obj_createstring3 (&directory_part);
 }
@@ -2971,9 +2996,7 @@ LPCWSTR _r_path_getbasename (_In_ LPCWSTR path)
 	_r_obj_initializestringrefconst (&fullpath_part, path);
 
 	if (!_r_path_getpathinfo (&fullpath_part, &directory_part, &basename_part))
-	{
 		return path;
-	}
 
 	return basename_part.buffer;
 }
@@ -2984,9 +3007,7 @@ PR_STRING _r_path_getbasenamestring (_In_ PR_STRINGREF path)
 	R_STRINGREF basename_part;
 
 	if (!_r_path_getpathinfo (path, &directory_part, &basename_part))
-	{
 		return _r_obj_createstring3 (path);
-	}
 
 	return _r_obj_createstring3 (&basename_part);
 }
