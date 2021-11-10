@@ -2709,6 +2709,40 @@ RtlAssert (
 	_In_opt_ PSTR MutableMessage
 );
 
+// Vectored Exception Handlers
+
+NTSYSAPI
+PVOID
+NTAPI
+RtlAddVectoredExceptionHandler (
+	_In_ ULONG First,
+	_In_ PVECTORED_EXCEPTION_HANDLER Handler
+);
+
+NTSYSAPI
+ULONG
+NTAPI
+RtlRemoveVectoredExceptionHandler (
+	_In_ PVOID Handle
+);
+
+NTSYSAPI
+PVOID
+NTAPI
+RtlAddVectoredContinueHandler (
+	_In_ ULONG First,
+	_In_ PVECTORED_EXCEPTION_HANDLER Handler
+);
+
+NTSYSAPI
+ULONG
+NTAPI
+RtlRemoveVectoredContinueHandler (
+	_In_ PVOID Handle
+);
+
+// Runtime exception handling
+
 typedef ULONG (NTAPI *PRTLP_UNHANDLED_EXCEPTION_FILTER)(
 	_In_ PEXCEPTION_POINTERS ExceptionInfo
 	);
@@ -2718,6 +2752,31 @@ VOID
 NTAPI
 RtlSetUnhandledExceptionFilter (
 	_In_ PRTLP_UNHANDLED_EXCEPTION_FILTER UnhandledExceptionFilter
+);
+
+// rev
+NTSYSAPI
+LONG
+NTAPI
+RtlUnhandledExceptionFilter (
+	_In_ PEXCEPTION_POINTERS ExceptionPointers
+);
+
+// rev
+NTSYSAPI
+LONG
+NTAPI
+RtlUnhandledExceptionFilter2 (
+	_In_ PEXCEPTION_POINTERS ExceptionPointers,
+	_In_ ULONG Flags
+);
+
+// rev
+NTSYSAPI
+LONG
+NTAPI
+RtlKnownExceptionFilter (
+	_In_ PEXCEPTION_POINTERS ExceptionPointers
 );
 
 // winbase:InitializeSRWLock
