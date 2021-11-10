@@ -1613,12 +1613,12 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_toguid (_In_ PR_STRINGREF string, _Out_ LPGUID guid);
 
 BOOLEAN _r_str_touinteger64 (_In_ PR_STRINGREF string, _In_ ULONG base, _Out_ PULONG64 integer);
-BOOLEAN _r_str_tointeger64 (_In_ PR_STRINGREF string, _In_ ULONG base, _Out_opt_ PULONG new_base, _Out_ PLONG64 integer);
+BOOLEAN _r_str_tointeger64 (_In_ PR_STRINGREF string, _In_opt_ ULONG base, _Out_opt_ PULONG new_base, _Out_ PLONG64 integer);
 
 BOOLEAN _r_str_toboolean (_In_ PR_STRINGREF string);
-LONG _r_str_tolong_ex (_In_ PR_STRINGREF string, _In_ ULONG base);
+LONG _r_str_tolong_ex (_In_ PR_STRINGREF string, _In_opt_ ULONG base);
 LONG64 _r_str_tolong64 (_In_ PR_STRINGREF string);
-ULONG _r_str_toulong_ex (_In_ PR_STRINGREF string, _In_ ULONG base);
+ULONG _r_str_toulong_ex (_In_ PR_STRINGREF string, _In_opt_ ULONG base);
 ULONG64 _r_str_toulong64 (_In_ PR_STRINGREF string);
 
 FORCEINLINE LONG _r_str_tolong (_In_ PR_STRINGREF string)

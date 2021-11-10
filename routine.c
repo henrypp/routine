@@ -4655,11 +4655,6 @@ NTSTATUS _r_str_toguid (_In_ PR_STRINGREF string, _Out_ LPGUID guid)
 
 BOOLEAN _r_str_touinteger64 (_In_ PR_STRINGREF string, _In_ ULONG base, _Out_ PULONG64 integer)
 {
-	LPWSTR buffer;
-	SIZE_T length;
-	ULONG64 result;
-	BOOLEAN is_valid;
-
 	static ULONG char_to_integer[256] =
 	{
 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 0 - 15
@@ -4680,6 +4675,11 @@ BOOLEAN _r_str_touinteger64 (_In_ PR_STRINGREF string, _In_ ULONG base, _Out_ PU
 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 224 - 239
 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 // 240 - 255
 	};
+
+	LPWSTR buffer;
+	SIZE_T length;
+	ULONG64 result;
+	BOOLEAN is_valid;
 
 	buffer = string->buffer;
 	length = string->length / sizeof (WCHAR);
@@ -4714,7 +4714,7 @@ BOOLEAN _r_str_touinteger64 (_In_ PR_STRINGREF string, _In_ ULONG base, _Out_ PU
 	return is_valid;
 }
 
-BOOLEAN _r_str_tointeger64 (_In_ PR_STRINGREF string, _In_ ULONG base, _Out_opt_ PULONG new_base, _Out_ PLONG64 integer)
+BOOLEAN _r_str_tointeger64 (_In_ PR_STRINGREF string, _In_opt_ ULONG base, _Out_opt_ PULONG new_base, _Out_ PLONG64 integer)
 {
 	R_STRINGREF input;
 	ULONG64 result;
@@ -4739,9 +4739,7 @@ BOOLEAN _r_str_tointeger64 (_In_ PR_STRINGREF string, _In_ ULONG base, _Out_opt_
 	if ((input.buffer[0] == L'-' || input.buffer[0] == L'+'))
 	{
 		if (input.buffer[0] == L'-')
-		{
 			is_negative = TRUE;
-		}
 
 		_r_str_skiplength (&input, sizeof (WCHAR));
 	}
@@ -4802,9 +4800,7 @@ BOOLEAN _r_str_tointeger64 (_In_ PR_STRINGREF string, _In_ ULONG base, _Out_opt_
 			}
 
 			if (base_used != 10)
-			{
 				_r_str_skiplength (&input, 2 * sizeof (WCHAR));
-			}
 		}
 	}
 
@@ -4828,7 +4824,7 @@ BOOLEAN _r_str_toboolean (_In_ PR_STRINGREF string)
 	return _r_str_isequal (string, &value, TRUE);
 }
 
-LONG _r_str_tolong_ex (_In_ PR_STRINGREF string, _In_ ULONG base)
+LONG _r_str_tolong_ex (_In_ PR_STRINGREF string, _In_opt_ ULONG base)
 {
 	LONG64 value;
 
@@ -4848,7 +4844,7 @@ LONG64 _r_str_tolong64 (_In_ PR_STRINGREF string)
 	return 0;
 }
 
-ULONG _r_str_toulong_ex (_In_ PR_STRINGREF string, _In_ ULONG base)
+ULONG _r_str_toulong_ex (_In_ PR_STRINGREF string, _In_opt_ ULONG base)
 {
 	LONG64 value;
 
