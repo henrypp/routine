@@ -3543,7 +3543,7 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 				case IDC_SAVE:
 				{
 					PR_SETTINGS_PAGE ptr_page;
-					INT retn;
+					LONG_PTR retn;
 					BOOLEAN is_saved;
 
 					is_saved = TRUE;
@@ -3556,7 +3556,7 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 						{
 							if (ptr_page->hwnd)
 							{
-								retn = (INT)SendMessage (ptr_page->hwnd, RM_CONFIG_SAVE, (WPARAM)ptr_page->dlg_id, 0);
+								retn = (LONG_PTR)SendMessage (ptr_page->hwnd, RM_CONFIG_SAVE, (WPARAM)ptr_page->dlg_id, 0);
 
 								if (retn == -1)
 								{
