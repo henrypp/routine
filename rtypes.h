@@ -58,6 +58,11 @@ typedef ULONG (NTAPI *IQTI) (
 	_Inout_ PTAG_INFO_NAME_FROM_TAG TagInfo
 	);
 
+// RtlSetUnhandledExceptionFilter (vista+)
+typedef VOID (NTAPI *RSUEF) (
+	_In_ PRTLP_UNHANDLED_EXCEPTION_FILTER UnhandledExceptionFilter
+	);
+
 // LoadIconWithScaleDown (vista+)
 typedef HRESULT (WINAPI *LIWSD)(
 	_In_opt_ HINSTANCE hinst,
@@ -226,6 +231,7 @@ typedef struct R_ERROR_INFO
 {
 	HINSTANCE hmodule;
 	LPCWSTR description;
+	PEXCEPTION_POINTERS exception_ptr;
 } R_ERROR_INFO, *PR_ERROR_INFO;
 
 //
