@@ -2651,7 +2651,7 @@ BOOLEAN _r_msg_taskdialog (_In_ const TASKDIALOGCONFIG * task_dialog, _Out_opt_ 
 	{
 		HMODULE hcomctl32;
 
-		hcomctl32 = LoadLibraryEx (L"comctl32.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+		hcomctl32 = _r_sys_loadlibrary (L"comctl32.dll");
 
 		if (hcomctl32)
 		{
@@ -5536,7 +5536,7 @@ BOOLEAN _r_sys_isprocessimmersive (_In_ HANDLE hprocess)
 	{
 		HMODULE huser32;
 
-		huser32 = LoadLibraryEx (L"user32.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+		huser32 = _r_sys_loadlibrary (L"user32.dll");
 
 		if (huser32)
 		{
@@ -5563,7 +5563,7 @@ BOOLEAN _r_sys_iswine ()
 	{
 		HMODULE hntdll;
 
-		hntdll = LoadLibraryEx (L"ntdll.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+		hntdll = _r_sys_loadlibrary (L"ntdll.dll");
 
 		if (hntdll)
 		{
@@ -6189,6 +6189,30 @@ NTSTATUS _r_sys_decompressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ UL
 	return status;
 }
 
+_Ret_maybenull_
+HMODULE _r_sys_loadlibrary (_In_ LPCWSTR lib_name)
+{
+	HMODULE hlib;
+	ULONG flags;
+
+#if defined(APP_NO_DEPRECATIONS)
+	flags = LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32;
+#else
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
+	{
+		flags = LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32;
+	}
+	else
+	{
+		flags = 0;
+	}
+#endif // APP_NO_DEPRECATIONS
+
+	hlib = LoadLibraryEx (lib_name, NULL, flags);
+
+	return hlib;
+}
+
 BOOLEAN _r_sys_createprocess_ex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory, _In_opt_ LPSTARTUPINFO startup_info_ptr, _In_ WORD show_state, _In_ ULONG flags)
 {
 	BOOLEAN is_success;
@@ -6468,7 +6492,7 @@ HICON _r_sys_loadicon (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR icon_name, _In_ LO
 	{
 		HMODULE hcomctl32;
 
-		hcomctl32 = LoadLibraryEx (L"comctl32.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+		hcomctl32 = _r_sys_loadlibrary (L"comctl32.dll");
 
 		if (hcomctl32)
 		{
@@ -6554,7 +6578,7 @@ PR_STRING _r_sys_querytaginformation (_In_ HANDLE hprocess, _In_ LPCVOID tag)
 	{
 		HMODULE hadvapi32;
 
-		hadvapi32 = LoadLibraryEx (L"advapi32.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+		hadvapi32 = _r_sys_loadlibrary (L"advapi32.dll");
 
 		if (hadvapi32)
 		{
@@ -6814,7 +6838,7 @@ BOOLEAN _r_dc_adjustwindowrect (_Inout_ LPRECT rect, _In_ ULONG style, _In_ ULON
 		{
 			HMODULE huser32;
 
-			huser32 = LoadLibraryEx (L"user32.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+			huser32 = _r_sys_loadlibrary (L"user32.dll");
 
 			if (huser32)
 			{
@@ -7213,7 +7237,7 @@ BOOLEAN _r_dc_getsystemparametersinfo (_In_ UINT action, _In_ UINT param1, _Pre_
 		{
 			HMODULE huser32;
 
-			huser32 = LoadLibraryEx (L"user32.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+			huser32 = _r_sys_loadlibrary (L"user32.dll");
 
 			if (huser32)
 			{
@@ -7311,8 +7335,8 @@ LONG _r_dc_getdpivalue (_In_opt_ HWND hwnd, _In_opt_ LPCRECT rect)
 			HMODULE hshcore;
 			HMODULE huser32;
 
-			hshcore = LoadLibraryEx (L"shcore.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
-			huser32 = LoadLibraryEx (L"user32.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+			hshcore = _r_sys_loadlibrary (L"shcore.dll");
+			huser32 = _r_sys_loadlibrary (L"user32.dll");
 
 			if (hshcore)
 			{
@@ -7432,7 +7456,7 @@ INT _r_dc_getsystemmetrics (_In_ INT index, _In_ LONG dpi_value)
 		{
 			HMODULE huser32;
 
-			huser32 = LoadLibraryEx (L"user32.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+			huser32 = _r_sys_loadlibrary (L"user32.dll");
 
 			if (huser32)
 			{
@@ -8249,7 +8273,7 @@ VOID _r_wnd_changemessagefilter (_In_ HWND hwnd, _In_reads_ (count) PUINT messag
 
 	HMODULE huser32;
 
-	huser32 = LoadLibraryEx (L"user32.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+	huser32 = _r_sys_loadlibrary (L"user32.dll");
 
 	if (huser32)
 	{

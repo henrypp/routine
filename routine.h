@@ -132,8 +132,6 @@ extern ULONG _r_str_fnv32a (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase
 extern ULONG64 _r_str_fnv64a (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase);
 extern ULONG _r_str_x65599 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase);
 
-extern R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ();
-
 // safe clenup memory
 #ifndef SAFE_DELETE_MEMORY
 #define SAFE_DELETE_MEMORY(p) {if(p) {_r_mem_free (p); (p)=NULL;}}
@@ -1233,10 +1231,16 @@ FORCEINLINE VOID _r_debug (_In_ LPCWSTR string)
 	OutputDebugString (string);
 }
 
-FORCEINLINE VOID _r_error_initialize (_Out_ PR_ERROR_INFO error_info, _In_opt_ HINSTANCE hmodule, _In_opt_ LPCWSTR description)
+FORCEINLINE VOID _r_error_initialize_ex (_Out_ PR_ERROR_INFO error_info, _In_opt_ HINSTANCE hmodule, _In_opt_ LPCWSTR description, _In_opt_ PEXCEPTION_POINTERS exception_ptr)
 {
 	error_info->hmodule = hmodule;
 	error_info->description = description;
+	error_info->exception_ptr = exception_ptr;
+}
+
+FORCEINLINE VOID _r_error_initialize (_Out_ PR_ERROR_INFO error_info, _In_opt_ HINSTANCE hmodule, _In_opt_ LPCWSTR description)
+{
+	_r_error_initialize_ex (error_info, hmodule, description, NULL);
 }
 
 #define RDBG(a) _r_debug ((a))
@@ -1812,6 +1816,9 @@ ULONG _r_sys_getwindowsversion ();
 NTSTATUS _r_sys_compressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PVOID_PTR out_buffer, _Out_ PULONG out_length);
 NTSTATUS _r_sys_decompressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PVOID_PTR out_buffer, _Out_ PULONG out_length);
 
+_Ret_maybenull_
+HMODULE _r_sys_loadlibrary (_In_ LPCWSTR lib_name);
+
 BOOLEAN _r_sys_createprocess_ex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory, _In_opt_ LPSTARTUPINFO startup_info_ptr, _In_ WORD show_state, _In_ ULONG flags);
 NTSTATUS _r_sys_openprocess (_In_opt_ HANDLE process_id, _In_ ACCESS_MASK desired_access, _Out_ PHANDLE process_handle);
 NTSTATUS _r_sys_queryprocessstring (_In_ HANDLE process_handle, _In_ PROCESSINFOCLASS info_class, _Out_ PVOID_PTR file_name);
@@ -1859,6 +1866,15 @@ FORCEINLINE VOID _r_sys_closehandle (_Inout_ PVOID_PTR handle_address)
 FORCEINLINE BOOLEAN _r_sys_createprocess (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR command_line, _In_opt_ LPCWSTR current_directory)
 {
 	return _r_sys_createprocess_ex (file_name, command_line, current_directory, NULL, SW_SHOWDEFAULT, 0);
+}
+
+FORCEINLINE VOID _r_sys_exitprocess (_In_ ULONG code)
+{
+#if defined(APP_NO_DEPRECATIONS)
+	RtlExitUserProcess (code);
+#else
+	ExitProcess (code);
+#endif // APP_NO_DEPRECATIONS
 }
 
 FORCEINLINE VOID _r_sys_setdefaultprocessenvironment (_Out_ PR_ENVIRONMENT environment)
