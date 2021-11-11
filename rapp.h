@@ -232,7 +232,7 @@ BOOLEAN _r_app_initialize ();
 PR_STRING _r_app_getdirectory ();
 PR_STRING _r_app_getconfigpath ();
 
-PR_STRING _r_app_getcrashdirectory ();
+LPCWSTR _r_app_getcrashdirectory ();
 
 #if !defined(APP_CONSOLE)
 PR_STRING _r_app_getlocalepath ();
