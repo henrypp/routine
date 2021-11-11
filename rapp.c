@@ -67,10 +67,13 @@ BOOLEAN _r_app_isportable ()
 		else
 		{
 			PR_STRING string;
+			PR_STRING directory;
+
+			directory = _r_app_getdirectory ();
 
 			for (SIZE_T i = 0; i < RTL_NUMBER_OF (file_names); i++)
 			{
-				string = _r_obj_concatstrings (5, _r_app_getdirectory ()->buffer, L"\\", file_names[i], L".", file_exts[i]);
+				string = _r_obj_concatstrings (5, directory->buffer, L"\\", file_names[i], L".", file_exts[i]);
 
 				if (_r_fs_exists (string->buffer))
 					is_portable = TRUE;
@@ -114,37 +117,37 @@ BOOLEAN _r_app_isreadonly ()
 #if !defined(_DEBUG)
 VOID _r_app_exceptionfilter_savedump (_In_ PEXCEPTION_POINTERS exception_ptr)
 {
+	MINIDUMP_EXCEPTION_INFORMATION minidump_info;
 	WCHAR dump_path[512];
-	PR_STRING directory;
 	LONG64 current_time;
 	HANDLE hfile;
 
 	current_time = _r_unixtime_now ();
 
-	directory = _r_app_getcrashdirectory ();
-
-	_r_str_printf (dump_path, RTL_NUMBER_OF (dump_path), L"%s\\%s-%s-%" TEXT (PR_LONG64) L".dmp", directory->buffer, _r_app_getnameshort (), _r_app_getversion (), current_time);
-
-	if (!_r_fs_exists (directory->buffer))
-		_r_fs_mkdir (directory->buffer);
+	_r_str_printf (
+		dump_path,
+		RTL_NUMBER_OF (dump_path),
+		L"%s\\%s-%" TEXT (PR_LONG64) L".dmp",
+		_r_app_getcrashdirectory (),
+		_r_app_getnameshort (),
+		current_time & MAXLONG
+	);
 
 	hfile = CreateFile (dump_path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
-	if (_r_fs_isvalidhandle (hfile))
-	{
-		MINIDUMP_EXCEPTION_INFORMATION minidump_info = {0};
+	if (!_r_fs_isvalidhandle (hfile))
+		return;
 
-		minidump_info.ThreadId = HandleToUlong (NtCurrentThreadId ());
-		minidump_info.ExceptionPointers = exception_ptr;
-		minidump_info.ClientPointers = FALSE;
+	minidump_info.ThreadId = HandleToUlong (NtCurrentThreadId ());
+	minidump_info.ExceptionPointers = exception_ptr;
+	minidump_info.ClientPointers = FALSE;
 
-		MiniDumpWriteDump (NtCurrentProcess (), HandleToUlong (NtCurrentProcessId ()), hfile, MiniDumpNormal, &minidump_info, NULL, NULL);
+	MiniDumpWriteDump (NtCurrentProcess (), HandleToUlong (NtCurrentProcessId ()), hfile, MiniDumpNormal, &minidump_info, NULL, NULL);
 
-		CloseHandle (hfile);
-	}
+	CloseHandle (hfile);
 }
 
-ULONG CALLBACK _r_app_exceptionfilter_callback (_In_ PEXCEPTION_POINTERS exception_ptr)
+LONG NTAPI _r_app_exceptionfilter_callback (_In_ PEXCEPTION_POINTERS exception_ptr)
 {
 #if !defined(APP_CONSOLE)
 	R_ERROR_INFO error_info;
@@ -157,7 +160,7 @@ ULONG CALLBACK _r_app_exceptionfilter_callback (_In_ PEXCEPTION_POINTERS excepti
 		error_code = WIN32_FROM_NTSTATUS (exception_ptr->ExceptionRecord->ExceptionCode);
 
 #if !defined(APP_CONSOLE)
-		_r_error_initialize (&error_info, NULL, NULL);
+		_r_error_initialize_ex (&error_info, NULL, NULL, exception_ptr);
 #endif // !APP_CONSOLE
 	}
 	else
@@ -165,7 +168,7 @@ ULONG CALLBACK _r_app_exceptionfilter_callback (_In_ PEXCEPTION_POINTERS excepti
 		error_code = exception_ptr->ExceptionRecord->ExceptionCode;
 
 #if !defined(APP_CONSOLE)
-		_r_error_initialize (&error_info, GetModuleHandle (L"ntdll.dll"), NULL);
+		_r_error_initialize_ex (&error_info, GetModuleHandle (L"ntdll.dll"), NULL, exception_ptr);
 #endif // !APP_CONSOLE
 	}
 
@@ -177,32 +180,86 @@ ULONG CALLBACK _r_app_exceptionfilter_callback (_In_ PEXCEPTION_POINTERS excepti
 	_r_show_errormessage (NULL, APP_EXCEPTION_TITLE, error_code, &error_info);
 #endif // APP_CONSOLE
 
-#if defined(APP_NO_DEPRECATIONS)
-	RtlExitUserProcess (exception_ptr->ExceptionRecord->ExceptionCode);
-#else
-	ExitProcess (exception_ptr->ExceptionRecord->ExceptionCode);
-#endif // APP_NO_DEPRECATIONS
+	_r_sys_exitprocess (exception_ptr->ExceptionRecord->ExceptionCode);
 
 	return EXCEPTION_EXECUTE_HANDLER;
 }
+
+FORCEINLINE VOID _r_app_exceptionfilter_subscribe ()
+{
+	ULONG error_mode = 0;
+
+	if (NT_SUCCESS (NtQueryInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (ULONG), NULL)))
+	{
+		error_mode &= ~(SEM_NOOPENFILEERRORBOX | SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+
+		NtSetInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (ULONG));
+	}
+
+#if defined(APP_NO_DEPRECATIONS)
+	RtlSetUnhandledExceptionFilter (&_r_app_exceptionfilter_callback);
+#else
+
+	HMODULE hlib;
+	BOOLEAN is_set;
+
+	is_set = FALSE;
+
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
+	{
+		hlib = _r_sys_loadlibrary (L"ntdll.dll");
+
+		if (hlib)
+		{
+			const RSUEF _RtlSetUnhandledExceptionFilter = (RSUEF)GetProcAddress (hlib, "RtlSetUnhandledExceptionFilter");
+
+			if (_RtlSetUnhandledExceptionFilter)
+			{
+				_RtlSetUnhandledExceptionFilter (&_r_app_exceptionfilter_callback);
+				is_set = TRUE;
+			}
+
+			FreeLibrary (hlib);
+		}
+	}
+
+	if (!is_set)
+		SetUnhandledExceptionFilter (&_r_app_exceptionfilter_callback);
+#endif // APP_NO_DEPRECATIONS
+}
+
 #endif // !_DEBUG
 
 BOOLEAN _r_app_initialize ()
 {
+#if !defined(APP_CONSOLE)
+	// initialize controls
+	{
+		INITCOMMONCONTROLSEX icex = {0};
+
+		icex.dwSize = sizeof (icex);
+		icex.dwICC = ICC_LISTVIEW_CLASSES | ICC_TREEVIEW_CLASSES;
+
+		InitCommonControlsEx (&icex);
+	}
+#endif // !APP_CONSOLE
+
 	// Safe DLL loading
 	// This prevents DLL planting in the application directory.
 	// Check for SetDefaultDllDirectories since it requires KB2533623.
 
 	SetDllDirectory (L"");
 
-#ifdef APP_NO_DEPRECATIONS
+#if defined(APP_NO_DEPRECATIONS)
 	// win7+
 	SetSearchPathMode (BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
 
 	SetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 #else
 	{
-		HMODULE hkernel32 = LoadLibraryEx (L"kernel32.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+		HMODULE hkernel32;
+
+		hkernel32 = _r_sys_loadlibrary (L"kernel32.dll");
 
 		if (hkernel32)
 		{
@@ -215,7 +272,24 @@ BOOLEAN _r_app_initialize ()
 			const SDDD _SetDefaultDllDirectories = (SDDD)GetProcAddress (hkernel32, "SetDefaultDllDirectories");
 
 			if (_SetDefaultDllDirectories)
+			{
 				_SetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+			}
+			else
+			{
+				if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
+				{
+					R_ERROR_INFO error_info;
+
+					_r_error_initialize (&error_info, NULL, APP_FAILED_KB2533623_TEXT);
+
+					_r_show_errormessage (NULL, APP_FAILED_KB2533623, ERROR_DLL_INIT_FAILED, &error_info);
+
+					FreeLibrary (hkernel32);
+
+					return FALSE;
+				}
+			}
 
 			FreeLibrary (hkernel32);
 		}
@@ -224,22 +298,7 @@ BOOLEAN _r_app_initialize ()
 
 	// set unhandled exception filter
 #if !defined(_DEBUG)
-	{
-		ULONG error_mode = 0;
-
-		if (NT_SUCCESS (NtQueryInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (ULONG), NULL)))
-		{
-			error_mode &= ~(SEM_NOOPENFILEERRORBOX | SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
-
-			NtSetInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (ULONG));
-		}
-
-#if defined(APP_NO_DEPRECATIONS)
-		RtlSetUnhandledExceptionFilter (&_r_app_exceptionfilter_callback);
-#else
-		SetUnhandledExceptionFilter (&_r_app_exceptionfilter_callback);
-#endif // APP_NO_DEPRECATIONS
-	}
+	_r_app_exceptionfilter_subscribe ();
 #endif // !_DEBUG
 
 	// initialize COM library
@@ -259,16 +318,6 @@ BOOLEAN _r_app_initialize ()
 	}
 
 #if !defined(APP_CONSOLE)
-	// initialize controls
-	{
-		INITCOMMONCONTROLSEX icex = {0};
-
-		icex.dwSize = sizeof (icex);
-		icex.dwICC = ICC_LISTVIEW_CLASSES | ICC_TREEVIEW_CLASSES;
-
-		InitCommonControlsEx (&icex);
-	}
-
 	// prevent app duplicates
 	if (_r_mutex_isexists (_r_app_getmutexname ()))
 	{
@@ -357,11 +406,11 @@ PR_STRING _r_app_getdirectory ()
 
 	if (!current_path)
 	{
-		R_STRINGREF path;
+		R_STRINGREF sr;
 
-		_r_obj_initializestringrefconst (&path, _r_sys_getimagepath ());
+		_r_obj_initializestringrefconst (&sr, _r_sys_getimagepath ());
 
-		new_path = _r_path_getbasedirectory (&path);
+		new_path = _r_path_getbasedirectory (&sr);
 
 		current_path = InterlockedCompareExchangePointer (&cached_path, new_path, NULL);
 
@@ -450,31 +499,19 @@ PR_STRING _r_app_getconfigpath ()
 	return cached_result;
 }
 
-PR_STRING _r_app_getcrashdirectory ()
+LPCWSTR _r_app_getcrashdirectory ()
 {
-	static PR_STRING cached_path = NULL;
+	static WCHAR cached_path[512] = {0};
 
-	PR_STRING current_path;
-	PR_STRING new_path;
-
-	current_path = InterlockedCompareExchangePointer (&cached_path, NULL, NULL);
-
-	if (!current_path)
+	if (_r_str_isempty (cached_path))
 	{
-		new_path = _r_obj_concatstrings (2, _r_app_getprofiledirectory ()->buffer, L"\\crashdump");
-		current_path = InterlockedCompareExchangePointer (&cached_path, new_path, NULL);
-
-		if (!current_path)
-		{
-			current_path = new_path;
-		}
-		else
-		{
-			_r_obj_dereference (new_path);
-		}
+		_r_str_printf (cached_path, RTL_NUMBER_OF (cached_path), L"%s\\crashdump", _r_app_getprofiledirectory ()->buffer);
 	}
 
-	return current_path;
+	if (!_r_fs_exists (cached_path))
+		_r_fs_mkdir (cached_path);
+
+	return cached_path;
 }
 
 #if !defined(APP_CONSOLE)
@@ -569,6 +606,9 @@ PR_STRING _r_app_getprofiledirectory ()
 		if (!_r_fs_exists (current_path->buffer))
 			_r_fs_mkdir (current_path->buffer);
 	}
+
+	if (!_r_fs_exists (current_path->buffer))
+		_r_fs_mkdir (current_path->buffer);
 
 	return current_path;
 }
@@ -2734,11 +2774,9 @@ VOID _r_show_aboutmessage (_In_opt_ HWND hwnd)
 
 VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG error_code, _In_opt_ PR_ERROR_INFO error_info_ptr)
 {
-	R_STRINGBUILDER string_builder;
-	WCHAR str_footer[256];
+	WCHAR str_content[1024];
 	LPCWSTR str_main;
-	PR_STRING string;
-	PR_STRING directory;
+	LPCWSTR str_footer;
 	HLOCAL buffer;
 	HINSTANCE hmodule;
 
@@ -2755,36 +2793,21 @@ VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG
 	FormatMessage (FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_HMODULE | FORMAT_MESSAGE_IGNORE_INSERTS, hmodule, error_code, 0, (LPWSTR)&buffer, 0, NULL);
 
 	str_main = main ? main : L"It happens ;(";
-
-	_r_str_copy (
-		str_footer,
-		RTL_NUMBER_OF (str_footer),
-		L"This information may provide clues as to what went wrong and how to fix it."
-	);
-
-	directory = _r_app_getcrashdirectory ();
-
-	if (_r_fs_exists (directory->buffer))
-	{
-		_r_str_appendformat (
-			str_footer,
-			RTL_NUMBER_OF (str_footer),
-			L" Open <a href=\"%s\">crash dumps</a> directory.",
-			directory->buffer
-		);
-	}
+	str_footer = L"This information may provide clues as to what went wrong and how to fix it.";
 
 	if (buffer)
 		_r_str_trim (buffer, L"\r\n ");
 
-	_r_obj_initializestringbuilder (&string_builder);
+	_r_str_printf (str_content, RTL_NUMBER_OF (str_content), L"%s (0x%08" TEXT (PRIX32) L")", buffer ? (LPWSTR)buffer : L"n/a", error_code);
 
-	_r_obj_appendstringbuilderformat (&string_builder, L"%s (0x%08" TEXT (PRIX32) L")", buffer ? (LPWSTR)buffer : L"n/a", error_code);
-
-	if (error_info_ptr && error_info_ptr->description)
-		_r_obj_appendstringbuilderformat (&string_builder, L"\r\n\r\n\"%s\"", error_info_ptr->description);
-
-	string = _r_obj_finalstringbuilder (&string_builder);
+	if (error_info_ptr)
+	{
+		if (!_r_str_isempty (error_info_ptr->description))
+		{
+			_r_str_append (str_content, RTL_NUMBER_OF (str_content), L"\r\n\r\n");
+			_r_str_append (str_content, RTL_NUMBER_OF (str_content), error_info_ptr->description);
+		}
+	}
 
 #if !defined(APP_NO_DEPRECATIONS)
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
@@ -2801,42 +2824,62 @@ VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG
 		tdc.pszFooterIcon = TD_WARNING_ICON;
 		tdc.pszWindowTitle = _r_app_getname ();
 		tdc.pszMainInstruction = str_main;
-		tdc.pszContent = string->buffer;
+		tdc.pszContent = str_content;
 		tdc.pszFooter = str_footer;
 		tdc.pfCallback = &_r_msg_callback;
 		tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
 
-		tdc.pButtons = td_buttons;
-		tdc.cButtons = RTL_NUMBER_OF (td_buttons);
+		if (error_info_ptr && error_info_ptr->exception_ptr)
+		{
+			// add "Crash dumps" button
+			td_buttons[0].pszButtonText = L"Crash dumps";
+			td_buttons[0].nButtonID = IDYES;
+		}
+		else
+		{
+			// add "Copy" button
+			td_buttons[0].pszButtonText = L"Copy";
+			td_buttons[0].nButtonID = IDNO;
+		}
 
-		td_buttons[0].pszButtonText = L"Copy";
-		td_buttons[0].nButtonID = IDYES;
-
+		// add "Close" button
 		td_buttons[1].pszButtonText = L"Close";
 		td_buttons[1].nButtonID = IDCLOSE;
 
-		tdc.nDefaultButton = IDYES;
+		tdc.pButtons = td_buttons;
+		tdc.cButtons = RTL_NUMBER_OF (td_buttons);
+
+		tdc.nDefaultButton = IDCLOSE;
 
 		if (_r_msg_taskdialog (&tdc, &command_id, NULL, NULL))
 		{
-			if (command_id == td_buttons[0].nButtonID)
-				_r_clipboard_set (NULL, &string->sr);
+			if (command_id == IDYES)
+			{
+				LPCWSTR path;
+
+				path = _r_app_getcrashdirectory ();
+
+				_r_shell_opendefault (path);
+			}
+			else if (command_id == IDNO)
+			{
+				R_STRINGREF sr;
+
+				_r_obj_initializestringref (&sr, str_content);
+				_r_clipboard_set (NULL, &sr);
+			}
 		}
 	}
 #if !defined(APP_NO_DEPRECATIONS)
 	else
 	{
-		PR_STRING message_string;
+		WCHAR buffer[1024];
 
-		message_string = _r_obj_concatstrings (5, str_main, L"\r\n\r\n", string->buffer, L"\r\n\r\n", str_footer);
+		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%s\r\n\r\n%s\r\n\r\n%s", str_main, str_content, str_footer);
 
-		MessageBox (hwnd, message_string->buffer, _r_app_getname (), MB_OK | MB_ICONERROR | MB_TOPMOST);
-
-		_r_obj_dereference (message_string);
+		MessageBox (hwnd, buffer, _r_app_getname (), MB_OK | MB_ICONWARNING | MB_TOPMOST);
 	}
 #endif // !APP_NO_DEPRECATIONS
-
-	_r_obj_deletestringbuilder (&string_builder);
 
 	if (buffer)
 		LocalFree (buffer);
