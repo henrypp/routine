@@ -2388,7 +2388,7 @@ RtlDosPathNameToNtPathName_U_WithStatus (
 );
 
 // server2003+
-NTSYSAPI
+NTSYSCALLAPI
 VOID
 NTAPI
 RtlReleaseRelativeName (
@@ -2711,7 +2711,7 @@ RtlAssert (
 
 // Vectored Exception Handlers
 
-NTSYSAPI
+NTSYSCALLAPI
 PVOID
 NTAPI
 RtlAddVectoredExceptionHandler (
@@ -2719,14 +2719,14 @@ RtlAddVectoredExceptionHandler (
 	_In_ PVECTORED_EXCEPTION_HANDLER Handler
 );
 
-NTSYSAPI
+NTSYSCALLAPI
 ULONG
 NTAPI
 RtlRemoveVectoredExceptionHandler (
 	_In_ PVOID Handle
 );
 
-NTSYSAPI
+NTSYSCALLAPI
 PVOID
 NTAPI
 RtlAddVectoredContinueHandler (
@@ -2734,7 +2734,7 @@ RtlAddVectoredContinueHandler (
 	_In_ PVECTORED_EXCEPTION_HANDLER Handler
 );
 
-NTSYSAPI
+NTSYSCALLAPI
 ULONG
 NTAPI
 RtlRemoveVectoredContinueHandler (
@@ -2747,7 +2747,8 @@ typedef ULONG (NTAPI *PRTLP_UNHANDLED_EXCEPTION_FILTER)(
 	_In_ PEXCEPTION_POINTERS ExceptionInfo
 	);
 
-NTSYSAPI
+// vista+
+NTSYSCALLAPI
 VOID
 NTAPI
 RtlSetUnhandledExceptionFilter (
@@ -2755,7 +2756,7 @@ RtlSetUnhandledExceptionFilter (
 );
 
 // rev
-NTSYSAPI
+NTSYSCALLAPI
 LONG
 NTAPI
 RtlUnhandledExceptionFilter (
@@ -2763,7 +2764,7 @@ RtlUnhandledExceptionFilter (
 );
 
 // rev
-NTSYSAPI
+NTSYSCALLAPI
 LONG
 NTAPI
 RtlUnhandledExceptionFilter2 (
@@ -2772,7 +2773,7 @@ RtlUnhandledExceptionFilter2 (
 );
 
 // rev
-NTSYSAPI
+NTSYSCALLAPI
 LONG
 NTAPI
 RtlKnownExceptionFilter (
@@ -2933,7 +2934,7 @@ NtWaitForKeyedEvent (
 	_In_opt_ PLARGE_INTEGER Timeout
 );
 
-NTSYSAPI
+NTSYSCALLAPI
 NTSTATUS
 NTAPI
 RtlGetCompressionWorkSpaceSize (
@@ -2942,7 +2943,7 @@ RtlGetCompressionWorkSpaceSize (
 	_Out_ PULONG CompressFragmentWorkSpaceSize
 );
 
-NTSYSAPI
+NTSYSCALLAPI
 NTSTATUS
 NTAPI
 RtlCompressBuffer (
@@ -2956,7 +2957,7 @@ RtlCompressBuffer (
 	_In_ PVOID WorkSpace
 );
 
-NTSYSAPI
+NTSYSCALLAPI
 NTSTATUS
 NTAPI
 RtlDecompressBuffer (
@@ -2968,7 +2969,7 @@ RtlDecompressBuffer (
 	_Out_ PULONG FinalUncompressedSize
 );
 
-NTSYSAPI// win8+
+NTSYSCALLAPI// win8+
 NTSTATUS
 NTAPI
 RtlDecompressBufferEx (
@@ -2982,7 +2983,7 @@ RtlDecompressBufferEx (
 );
 
 // win81+
-NTSYSAPI
+NTSYSCALLAPI
 NTSTATUS
 NTAPI
 RtlDecompressBufferEx2 (
@@ -2996,7 +2997,7 @@ RtlDecompressBufferEx2 (
 	_In_opt_ PVOID WorkSpace
 );
 
-NTSYSAPI
+NTSYSCALLAPI
 NTSTATUS
 NTAPI
 RtlDecompressFragment (
@@ -3011,7 +3012,7 @@ RtlDecompressFragment (
 );
 
 // win81+
-NTSYSAPI
+NTSYSCALLAPI
 NTSTATUS
 NTAPI
 RtlDecompressFragmentEx (
