@@ -1508,7 +1508,7 @@ BOOLEAN _r_mutex_destroy (_Inout_ PHANDLE hmutex)
 // Memory allocation
 //
 
-HANDLE _r_mem_getheap ()
+HANDLE NTAPI _r_mem_getheap ()
 {
 	static HANDLE heap_handle = NULL;
 
@@ -1557,10 +1557,6 @@ HANDLE _r_mem_getheap ()
 				);
 			}
 		}
-		else
-		{
-			RtlRaiseStatus (STATUS_NO_MEMORY);
-		}
 
 		current_handle = InterlockedCompareExchangePointer (&heap_handle, new_handle, NULL);
 
@@ -1575,6 +1571,92 @@ HANDLE _r_mem_getheap ()
 	}
 
 	return current_handle;
+}
+
+_Post_writable_byte_size_ (bytes_count)
+PVOID NTAPI _r_mem_allocate (_In_ SIZE_T bytes_count)
+{
+	HANDLE heap_handle;
+
+	heap_handle = _r_mem_getheap ();
+
+	return RtlAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS, bytes_count);
+}
+
+_Post_writable_byte_size_ (bytes_count)
+PVOID NTAPI _r_mem_allocatezero (_In_ SIZE_T bytes_count)
+{
+	HANDLE heap_handle;
+
+	heap_handle = _r_mem_getheap ();
+
+	return RtlAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, bytes_count);
+}
+
+_Ret_maybenull_
+_Post_writable_byte_size_ (bytes_count)
+PVOID NTAPI _r_mem_allocatezerosafe (_In_ SIZE_T bytes_count)
+{
+	HANDLE heap_handle;
+
+	heap_handle = _r_mem_getheap ();
+
+	return RtlAllocateHeap (heap_handle, HEAP_ZERO_MEMORY, bytes_count);
+}
+
+_Post_writable_byte_size_ (bytes_count)
+PVOID NTAPI _r_mem_allocateandcopy (_In_ LPCVOID src, _In_ SIZE_T bytes_count)
+{
+	PVOID dst;
+
+	dst = _r_mem_allocatezero (bytes_count);
+
+	RtlCopyMemory (dst, src, bytes_count);
+
+	return dst;
+}
+
+// // If RtlReAllocateHeap fails, the original memory is not freed, and the original handle and pointer are still valid.
+// // https://docs.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heaprealloc
+
+_Post_writable_byte_size_ (bytes_count)
+PVOID NTAPI _r_mem_reallocate (_Frees_ptr_opt_ PVOID base_address, _In_ SIZE_T bytes_count)
+{
+	HANDLE heap_handle;
+
+	heap_handle = _r_mem_getheap ();
+
+	return RtlReAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS, base_address, bytes_count);
+}
+
+_Post_writable_byte_size_ (bytes_count)
+PVOID NTAPI _r_mem_reallocatezero (_Frees_ptr_opt_ PVOID base_address, _In_ SIZE_T bytes_count)
+{
+	HANDLE heap_handle;
+
+	heap_handle = _r_mem_getheap ();
+
+	return RtlReAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, base_address, bytes_count);
+}
+
+_Ret_maybenull_
+_Post_writable_byte_size_ (bytes_count)
+PVOID NTAPI _r_mem_reallocatezerosafe (_Frees_ptr_opt_ PVOID base_address, _In_ SIZE_T bytes_count)
+{
+	HANDLE heap_handle;
+
+	heap_handle = _r_mem_getheap ();
+
+	return RtlReAllocateHeap (heap_handle, HEAP_ZERO_MEMORY, base_address, bytes_count);
+}
+
+VOID NTAPI _r_mem_free (_Frees_ptr_opt_ PVOID base_address)
+{
+	HANDLE heap_handle;
+
+	heap_handle = _r_mem_getheap ();
+
+	RtlFreeHeap (heap_handle, 0, base_address);
 }
 
 //
