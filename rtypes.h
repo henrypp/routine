@@ -682,6 +682,7 @@ typedef struct _R_CRYPT_CONTEXT
 #define WINDOWS_10_21H2 0x0A0C // LTSC 2022
 #define WINDOWS_10_21H2_SERVER 0x0A0D
 #define WINDOWS_11 0x0B00
+#define WINDOWS_11_21H2 WINDOWS_11
 
 typedef struct R_THREAD_CONTEXT
 {
@@ -710,11 +711,18 @@ typedef struct R_TOKEN_ATTRIBUTES
 
 typedef struct R_FILE_DIALOG
 {
+#if defined(APP_NO_DEPRECATIONS)
+	struct
+	{
+		IFileDialog *ifd; // vista+
+	} u;
+#else
 	union
 	{
-		IFileDialog *ifd;
+		IFileDialog *ifd; // vista+
 		LPOPENFILENAME ofn;
 	} u;
+#endif // APP_NO_DEPRECATIONS
 
 	ULONG flags;
 } R_FILE_DIALOG, *PR_FILE_DIALOG;
@@ -833,12 +841,11 @@ typedef struct R_URLPARTS
 
 	INTERNET_SCHEME scheme;
 	INTERNET_PORT port;
-
 } R_URLPARTS, *PR_URLPARTS;
 
 #define PR_URLPARTS_SCHEME 0x000001
-#define PR_URLPARTS_PORT 0x000002
-#define PR_URLPARTS_HOST 0x000004
+#define PR_URLPARTS_HOST 0x000002
+#define PR_URLPARTS_PORT 0x000004
 #define PR_URLPARTS_PATH 0x000008
 #define PR_URLPARTS_USER 0x000010
 #define PR_URLPARTS_PASS 0x000020
