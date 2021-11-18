@@ -175,7 +175,7 @@ LONG NTAPI _r_app_exceptionfilter_callback (_In_ PEXCEPTION_POINTERS exception_p
 	_r_app_exceptionfilter_savedump (exception_ptr);
 
 #if defined(APP_CONSOLE)
-	wprintf (APP_EXCEPTION_TITLE L" 0x%08X\r\n", error_code);
+	_r_console_writestringformat (APP_EXCEPTION_TITLE L" 0x%08X\r\n", error_code);
 #else
 	_r_show_errormessage (NULL, APP_EXCEPTION_TITLE, error_code, &error_info);
 #endif // APP_CONSOLE
@@ -308,7 +308,7 @@ BOOLEAN _r_app_initialize ()
 		if (!SUCCEEDED (hr))
 		{
 #if defined(APP_CONSOLE)
-			wprintf (APP_FAILED_COM_INITIALIZE L" 0x%08" TEXT (PRIX32) L"!\r\n", hr);
+			_r_console_writestringformat (APP_FAILED_COM_INITIALIZE L" 0x%08" TEXT (PRIX32) L"!\r\n", hr);
 #else
 			_r_show_errormessage (NULL, APP_FAILED_COM_INITIALIZE, hr, NULL);
 #endif // APP_CONSOLE
