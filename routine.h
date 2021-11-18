@@ -1189,6 +1189,13 @@ FORCEINLINE VOID _r_error_initialize (_Out_ PR_ERROR_INFO error_info, _In_opt_ H
 #define RDBG2(a, ...) _r_debug_v ((a), __VA_ARGS__)
 
 //
+// Console
+//
+
+VOID _r_console_writestring (_In_ PR_STRING string);
+VOID _r_console_writestringformat (_In_ _Printf_format_string_ LPCWSTR format, ...);
+
+//
 // Format strings, dates, numbers
 //
 
@@ -2220,10 +2227,10 @@ _Ret_maybenull_
 HINTERNET _r_inet_createsession (_In_opt_ PR_STRING useragent);
 
 _Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ PR_STRING url, _Out_ LPHINTERNET hconnect_ptr, _Out_ LPHINTERNET hrequest_ptr, _Out_opt_ PULONG total_length);
+ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ PR_STRING url, _Out_ LPHINTERNET hconnect_ptr, _Out_ LPHINTERNET hrequest_ptr, _Out_opt_ PULONG total_length_ptr);
 
 _Success_ (return)
-BOOLEAN _r_inet_readrequest (_In_ HINTERNET hrequest, _Out_writes_bytes_ (buffer_size) PVOID buffer, _In_ ULONG buffer_size, _Out_opt_ PULONG readed, _Inout_opt_ PULONG total_readed);
+BOOLEAN _r_inet_readrequest (_In_ HINTERNET hrequest, _Out_writes_bytes_ (buffer_size) PVOID buffer, _In_ ULONG buffer_size, _Out_opt_ PULONG readed_ptr, _Inout_opt_ PULONG total_readed_ptr);
 
 FORCEINLINE VOID _r_inet_initializedownload (_Out_ PR_DOWNLOAD_INFO download_info, _In_opt_ HANDLE hfile, _In_opt_ PR_INET_DOWNLOAD_FUNCTION download_callback, _In_opt_ PVOID lparam)
 {

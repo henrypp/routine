@@ -22,6 +22,39 @@ VOID _r_debug_v (_In_ _Printf_format_string_ LPCWSTR format, ...)
 }
 
 //
+// Console
+//
+
+VOID _r_console_writestring (_In_ PR_STRING string)
+{
+	HANDLE hstdhandle;
+
+	hstdhandle = GetStdHandle (STD_OUTPUT_HANDLE);
+
+	if (!_r_fs_isvalidhandle (hstdhandle))
+		return;
+
+	WriteConsole (hstdhandle, string->buffer, (ULONG)_r_obj_getstringlength (string), NULL, NULL);
+}
+
+VOID _r_console_writestringformat (_In_ _Printf_format_string_ LPCWSTR format, ...)
+{
+	va_list arg_ptr;
+	PR_STRING string;
+
+	va_start (arg_ptr, format);
+	string = _r_format_string_v (format, arg_ptr);
+	va_end (arg_ptr);
+
+	if (!string)
+		return;
+
+	_r_console_writestring (string);
+
+	_r_obj_dereference (string);
+}
+
+//
 // Format strings, dates, numbers
 //
 
@@ -2695,9 +2728,7 @@ BOOLEAN _r_obj_enumhashtablepointer (_In_ PR_HASHTABLE hashtable, _Outptr_opt_ P
 	if (is_success)
 	{
 		if (entry)
-		{
 			*entry = object_ptr->object_body;
-		}
 	}
 
 	return is_success;
@@ -6096,9 +6127,9 @@ ULONG _r_sys_getwindowsversion ()
 			}
 			else if (version_info.dwMajorVersion == 10 && version_info.dwMinorVersion == 0)
 			{
-				if (version_info.dwBuildNumber >= 21996)
+				if (version_info.dwBuildNumber >= 22000)
 				{
-					windows_version = WINDOWS_11; // leaked pre-beta have 21996 build number
+					windows_version = WINDOWS_11_21H2;
 				}
 				else if (version_info.dwBuildNumber >= 20348)
 				{
@@ -8744,19 +8775,24 @@ HINTERNET _r_inet_createsession (_In_opt_ PR_STRING useragent)
 }
 
 _Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ PR_STRING url, _Out_ LPHINTERNET hconnect_ptr, _Out_ LPHINTERNET hrequest_ptr, _Out_opt_ PULONG total_length)
+ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ PR_STRING url, _Out_ LPHINTERNET hconnect_ptr, _Out_ LPHINTERNET hrequest_ptr, _Out_opt_ PULONG total_length_ptr)
 {
 	R_URLPARTS url_parts;
 	HINTERNET hconnect;
 	HINTERNET hrequest;
 	ULONG attempts;
+	ULONG param_size;
+	ULONG param;
 	ULONG flags;
 	ULONG code;
 
 	*hconnect_ptr = NULL;
 	*hrequest_ptr = NULL;
 
-	code = _r_inet_queryurlparts (url, &url_parts, PR_URLPARTS_SCHEME | PR_URLPARTS_PORT | PR_URLPARTS_HOST | PR_URLPARTS_PATH);
+	if (total_length_ptr)
+		*total_length_ptr = 0;
+
+	code = _r_inet_queryurlparts (url, &url_parts, PR_URLPARTS_SCHEME | PR_URLPARTS_HOST | PR_URLPARTS_PORT | PR_URLPARTS_PATH);
 
 	if (code != ERROR_SUCCESS)
 		goto CleanupExit;
@@ -8833,20 +8869,30 @@ ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ PR_STRING url, _Out_ LPHINT
 			}
 			else
 			{
-				if (total_length)
+				param = 0;
+				param_size = sizeof (ULONG);
+
+				if (WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, NULL, &param, &param_size, NULL))
 				{
-					ULONG param_size;
+					if (param >= HTTP_STATUS_OK && param <= HTTP_STATUS_PARTIAL_CONTENT)
+					{
+						if (total_length_ptr)
+						{
+							param = 0;
+							param_size = sizeof (ULONG);
 
-					param_size = sizeof (ULONG);
+							if (!WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &param, &param_size, WINHTTP_NO_HEADER_INDEX))
+								param = 0;
 
-					if (!WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, total_length, &param_size, WINHTTP_NO_HEADER_INDEX))
-						*total_length = 0;
+							*total_length_ptr = param;
+						}
+
+						*hconnect_ptr = hconnect;
+						*hrequest_ptr = hrequest;
+
+						code = ERROR_SUCCESS;
+					}
 				}
-
-				*hconnect_ptr = hconnect;
-				*hrequest_ptr = hrequest;
-
-				code = ERROR_SUCCESS;
 
 				goto CleanupExit;
 			}
@@ -8865,7 +8911,7 @@ CleanupExit:
 }
 
 _Success_ (return)
-BOOLEAN _r_inet_readrequest (_In_ HINTERNET hrequest, _Out_writes_bytes_ (buffer_size) PVOID buffer, _In_ ULONG buffer_size, _Out_opt_ PULONG readed, _Inout_opt_ PULONG total_readed)
+BOOLEAN _r_inet_readrequest (_In_ HINTERNET hrequest, _Out_writes_bytes_ (buffer_size) PVOID buffer, _In_ ULONG buffer_size, _Out_opt_ PULONG readed_ptr, _Inout_opt_ PULONG total_readed_ptr)
 {
 	ULONG bytes_count;
 
@@ -8875,11 +8921,11 @@ BOOLEAN _r_inet_readrequest (_In_ HINTERNET hrequest, _Out_writes_bytes_ (buffer
 	if (!bytes_count)
 		return FALSE;
 
-	if (readed)
-		*readed = bytes_count;
+	if (readed_ptr)
+		*readed_ptr = bytes_count;
 
-	if (total_readed)
-		*total_readed += bytes_count;
+	if (total_readed_ptr)
+		*total_readed_ptr += bytes_count;
 
 	return TRUE;
 }
