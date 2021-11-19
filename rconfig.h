@@ -121,5 +121,5 @@
 //
 
 #define PR_DEBUG_HEADER L"Level,Date,Function,Code,Description,Version,OS Version\r\n"
-#define PR_DEBUG_BODY L"\"%s\",\"%s\",\"%s\",\"0x%08" TEXT (PRIX32) L"\",\"%s\"" L",\"%s\",\"%" TEXT (PR_ULONG) L".%" TEXT (PR_ULONG) L" build %d\"\r\n"
+#define PR_DEBUG_BODY L"\"%s\",\"%s\",\"%s\",\"0x%08" TEXT (PRIX32) L"\",\"%s\"" L",\"%s\",\"%" TEXT (PR_ULONG) L".%" TEXT (PR_ULONG) L" build %" TEXT (PRIu32) L"\"\r\n"
 
