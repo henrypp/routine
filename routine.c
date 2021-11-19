@@ -8781,8 +8781,6 @@ ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ PR_STRING url, _Out_ LPHINT
 	HINTERNET hconnect;
 	HINTERNET hrequest;
 	ULONG attempts;
-	ULONG param_size;
-	ULONG param;
 	ULONG flags;
 	ULONG code;
 
@@ -8792,7 +8790,7 @@ ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ PR_STRING url, _Out_ LPHINT
 	if (total_length_ptr)
 		*total_length_ptr = 0;
 
-	code = _r_inet_queryurlparts (url, &url_parts, PR_URLPARTS_SCHEME | PR_URLPARTS_HOST | PR_URLPARTS_PORT | PR_URLPARTS_PATH);
+	code = _r_inet_queryurlparts (url, PR_URLPARTS_SCHEME | PR_URLPARTS_HOST | PR_URLPARTS_PORT | PR_URLPARTS_PATH, &url_parts);
 
 	if (code != ERROR_SUCCESS)
 		goto CleanupExit;
@@ -8869,29 +8867,15 @@ ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ PR_STRING url, _Out_ LPHINT
 			}
 			else
 			{
-				param = 0;
-				param_size = sizeof (ULONG);
-
-				if (WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, NULL, &param, &param_size, NULL))
+				if (_r_inet_querystatuscode (hrequest) == HTTP_STATUS_OK)
 				{
-					if (param >= HTTP_STATUS_OK && param <= HTTP_STATUS_PARTIAL_CONTENT)
-					{
-						if (total_length_ptr)
-						{
-							param = 0;
-							param_size = sizeof (ULONG);
+					if (total_length_ptr)
+						*total_length_ptr = _r_inet_querycontentlength (hrequest);
 
-							if (!WinHttpQueryHeaders (hrequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &param, &param_size, WINHTTP_NO_HEADER_INDEX))
-								param = 0;
+					*hconnect_ptr = hconnect;
+					*hrequest_ptr = hrequest;
 
-							*total_length_ptr = param;
-						}
-
-						*hconnect_ptr = hconnect;
-						*hrequest_ptr = hrequest;
-
-						code = ERROR_SUCCESS;
-					}
+					code = ERROR_SUCCESS;
 				}
 
 				goto CleanupExit;
@@ -8930,6 +8914,72 @@ BOOLEAN _r_inet_readrequest (_In_ HINTERNET hrequest, _Out_writes_bytes_ (buffer
 	return TRUE;
 }
 
+ULONG _r_inet_querycontentlength (_In_ HINTERNET hrequest)
+{
+	ULONG content_length;
+	ULONG size;
+
+	size = sizeof (ULONG);
+
+	if (WinHttpQueryHeaders (
+		hrequest,
+		WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER,
+		WINHTTP_HEADER_NAME_BY_INDEX,
+		&content_length,
+		&size,
+		WINHTTP_NO_HEADER_INDEX
+		))
+	{
+		return content_length;
+	}
+
+	return 0;
+}
+
+LONG64 _r_inet_querylastmodified (_In_ HINTERNET hrequest)
+{
+	SYSTEMTIME lastmod;
+	ULONG size;
+
+	size = sizeof (SYSTEMTIME);
+
+	if (WinHttpQueryHeaders (
+		hrequest,
+		WINHTTP_QUERY_LAST_MODIFIED | WINHTTP_QUERY_FLAG_SYSTEMTIME,
+		WINHTTP_HEADER_NAME_BY_INDEX,
+		&lastmod,
+		&size,
+		WINHTTP_NO_HEADER_INDEX
+		))
+	{
+		return _r_unixtime_from_systemtime (&lastmod);
+	}
+
+	return 0;
+}
+
+ULONG _r_inet_querystatuscode (_In_ HINTERNET hrequest)
+{
+	ULONG status;
+	ULONG size;
+
+	size = sizeof (ULONG);
+
+	if (WinHttpQueryHeaders (
+		hrequest,
+		WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+		WINHTTP_HEADER_NAME_BY_INDEX,
+		&status,
+		&size,
+		WINHTTP_NO_HEADER_INDEX
+		))
+	{
+		return status;
+	}
+
+	return 0;
+}
+
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ PR_STRING url, _Inout_ PR_DOWNLOAD_INFO download_info)
 {
@@ -8940,8 +8990,8 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ PR_STRING url, _Inout
 	PR_BYTE content_bytes;
 	ULONG allocated_length;
 	ULONG readed_current;
-	ULONG readed_total = 0;
-	ULONG length_total = 0;
+	ULONG readed_total;
+	ULONG length_total;
 	ULONG unused;
 	ULONG code;
 
@@ -8955,6 +9005,8 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ PR_STRING url, _Inout
 
 	allocated_length = 65536;
 	content_bytes = _r_obj_createbyte_ex (NULL, allocated_length);
+
+	readed_total = 0;
 
 	while (_r_inet_readrequest (hrequest, content_bytes->buffer, allocated_length, &readed_current, &readed_total))
 	{
@@ -9025,7 +9077,7 @@ VOID _r_inet_destroydownload (_Inout_ PR_DOWNLOAD_INFO download_info)
 }
 
 _Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_queryurlparts (_In_ PR_STRING url, _Out_ PR_URLPARTS url_parts, _In_ ULONG flags)
+ULONG _r_inet_queryurlparts (_In_ PR_STRING url, _In_ ULONG flags, _Out_ PR_URLPARTS url_parts)
 {
 	URL_COMPONENTS url_comp = {0};
 	ULONG length;
@@ -9775,7 +9827,13 @@ PR_STRING _r_res_queryversionstring (_In_ LPCWSTR path)
 		{
 			if (file_info->dwSignature == VS_FFI_SIGNATURE)
 			{
-				string = _r_format_string (L"%d.%d.%d.%d", HIWORD (file_info->dwFileVersionMS), LOWORD (file_info->dwFileVersionMS), HIWORD (file_info->dwFileVersionLS), LOWORD (file_info->dwFileVersionLS));
+				string = _r_format_string (
+					L"%" TEXT (PR_ULONG) L".%" TEXT (PR_ULONG) L".%" TEXT (PR_ULONG) L".%" TEXT (PR_ULONG),
+					HIWORD (file_info->dwFileVersionMS),
+					LOWORD (file_info->dwFileVersionMS),
+					HIWORD (file_info->dwFileVersionLS),
+					LOWORD (file_info->dwFileVersionLS)
+				);
 
 				_r_mem_free (ver_block);
 

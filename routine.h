@@ -2232,6 +2232,10 @@ ULONG _r_inet_openurl (_In_ HINTERNET hsession, _In_ PR_STRING url, _Out_ LPHINT
 _Success_ (return)
 BOOLEAN _r_inet_readrequest (_In_ HINTERNET hrequest, _Out_writes_bytes_ (buffer_size) PVOID buffer, _In_ ULONG buffer_size, _Out_opt_ PULONG readed_ptr, _Inout_opt_ PULONG total_readed_ptr);
 
+ULONG _r_inet_querycontentlength (_In_ HINTERNET hrequest);
+LONG64 _r_inet_querylastmodified (_In_ HINTERNET hrequest);
+ULONG _r_inet_querystatuscode (_In_ HINTERNET hrequest);
+
 FORCEINLINE VOID _r_inet_initializedownload (_Out_ PR_DOWNLOAD_INFO download_info, _In_opt_ HANDLE hfile, _In_opt_ PR_INET_DOWNLOAD_FUNCTION download_callback, _In_opt_ PVOID lparam)
 {
 	download_info->hfile = hfile;
@@ -2246,7 +2250,7 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ PR_STRING url, _Inout
 VOID _r_inet_destroydownload (_Inout_ PR_DOWNLOAD_INFO download_info);
 
 _Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_queryurlparts (_In_ PR_STRING url, _Out_ PR_URLPARTS url_parts, _In_ ULONG flags);
+ULONG _r_inet_queryurlparts (_In_ PR_STRING url, _In_ ULONG flags, _Out_ PR_URLPARTS url_parts);
 
 VOID _r_inet_destroyurlparts (_Inout_ PR_URLPARTS url_parts);
 
