@@ -2901,7 +2901,7 @@ BOOLEAN _r_fs_deletefile (_In_ LPCWSTR path, _In_ BOOLEAN is_force)
 
 BOOLEAN _r_fs_deletedirectory (_In_ LPCWSTR path, _In_ BOOLEAN is_recurse)
 {
-	SHFILEOPSTRUCT shfop;
+	SHFILEOPSTRUCT shfop = {0};
 	PR_STRING string;
 	SIZE_T length;
 	BOOLEAN result;
@@ -2913,8 +2913,6 @@ BOOLEAN _r_fs_deletedirectory (_In_ LPCWSTR path, _In_ BOOLEAN is_recurse)
 	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR)); // required to set 2 nulls at end
 
 	_r_str_copy (string->buffer, length, path);
-
-	RtlZeroMemory (&shfop, sizeof (shfop));
 
 	shfop.wFunc = FO_DELETE;
 	shfop.fFlags = FOF_NO_UI;
@@ -3438,12 +3436,10 @@ PR_STRING _r_path_resolvedeviceprefix (_In_ PR_STRING path)
 	ULONG query_context = 0;
 
 #ifndef _WIN64
-	PROCESS_DEVICEMAP_INFORMATION device_map;
+	PROCESS_DEVICEMAP_INFORMATION device_map = {0};
 #else
-	PROCESS_DEVICEMAP_INFORMATION_EX device_map;
+	PROCESS_DEVICEMAP_INFORMATION_EX device_map = {0};
 #endif
-
-	RtlZeroMemory (&device_map, sizeof (device_map));
 
 	if (NT_SUCCESS (NtQueryInformationProcess (NtCurrentProcess (), ProcessDeviceMap, &device_map, sizeof (device_map), NULL)))
 	{
@@ -6310,7 +6306,7 @@ BOOLEAN _r_sys_createprocess_ex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR co
 {
 	BOOLEAN is_success;
 
-	STARTUPINFO startup_info;
+	STARTUPINFO startup_info = {0};
 	PROCESS_INFORMATION process_info = {0};
 
 	PR_STRING file_name_string = NULL;
@@ -6319,8 +6315,6 @@ BOOLEAN _r_sys_createprocess_ex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR co
 
 	if (!startup_info_ptr)
 	{
-		RtlZeroMemory (&startup_info, sizeof (startup_info));
-
 		startup_info_ptr = &startup_info;
 
 		startup_info_ptr->cb = sizeof (startup_info);
@@ -6954,9 +6948,9 @@ BOOLEAN _r_dc_adjustwindowrect (_Inout_ LPRECT rect, _In_ ULONG style, _In_ ULON
 _Ret_maybenull_
 HBITMAP _r_dc_bitmapfromicon (_In_ HICON hicon, _In_ INT x, _In_ INT y)
 {
-	BITMAPINFO bitmap_info;
-	BLENDFUNCTION blend_func;
-	BP_PAINTPARAMS paint_params;
+	BITMAPINFO bitmap_info = {0};
+	BLENDFUNCTION blend_func = {0};
+	BP_PAINTPARAMS paint_params = {0};
 	RECT icon_rect;
 	HPAINTBUFFER hpaint_buffer;
 	HGDIOBJ old_bitmap;
@@ -6978,8 +6972,6 @@ HBITMAP _r_dc_bitmapfromicon (_In_ HICON hicon, _In_ INT x, _In_ INT y)
 	if (!screen_hdc)
 		goto CleanupExit;
 
-	RtlZeroMemory (&bitmap_info, sizeof (bitmap_info));
-
 	bitmap_info.bmiHeader.biSize = sizeof (bitmap_info);
 	bitmap_info.bmiHeader.biPlanes = 1;
 	bitmap_info.bmiHeader.biCompression = BI_RGB;
@@ -6995,13 +6987,9 @@ HBITMAP _r_dc_bitmapfromicon (_In_ HICON hicon, _In_ INT x, _In_ INT y)
 
 	old_bitmap = SelectObject (screen_hdc, hbitmap);
 
-	RtlZeroMemory (&blend_func, sizeof (blend_func));
-
 	//blend_func.BlendOp = AC_SRC_OVER;
 	blend_func.AlphaFormat = AC_SRC_ALPHA;
 	blend_func.SourceConstantAlpha = 255;
-
-	RtlZeroMemory (&paint_params, sizeof (paint_params));
 
 	paint_params.cbSize = sizeof (paint_params);
 	paint_params.dwFlags = BPPF_ERASE;
@@ -7072,7 +7060,7 @@ HICON _r_dc_bitmaptoicon (_In_ HBITMAP hbitmap, _In_ INT x, _In_ INT y)
 _Ret_maybenull_
 HBITMAP _r_dc_imagetobitmap (_In_ LPCGUID format, _In_ WICInProcPointer buffer, _In_ ULONG buffer_length, _In_ INT x, _In_ INT y)
 {
-	BITMAPINFO bmi;
+	BITMAPINFO bmi = {0};
 
 	HDC hdc = NULL;
 	HDC hdc_buffer = NULL;
@@ -7172,8 +7160,6 @@ HBITMAP _r_dc_imagetobitmap (_In_ LPCGUID format, _In_ WICInProcPointer buffer, 
 		// Dispose the old frame now that the converted frame is in wicBitmapSource.
 		IWICBitmapFrameDecode_Release (wicFrame);
 	}
-
-	RtlZeroMemory (&bmi, sizeof (bmi));
 
 	bmi.bmiHeader.biSize = sizeof (BITMAPINFOHEADER);
 	bmi.bmiHeader.biWidth = x;
@@ -8320,7 +8306,7 @@ VOID _r_wnd_calculateoverlappedrect (_In_ HWND hwnd, _Inout_ PRECT window_rect)
 
 VOID _r_wnd_center (_In_ HWND hwnd, _In_opt_ HWND hparent)
 {
-	MONITORINFO monitor_info;
+	MONITORINFO monitor_info = {0};
 	R_RECTANGLE rect;
 	R_RECTANGLE parent_rect;
 
@@ -8340,7 +8326,6 @@ VOID _r_wnd_center (_In_ HWND hwnd, _In_opt_ HWND hparent)
 		}
 	}
 
-	RtlZeroMemory (&monitor_info, sizeof (monitor_info));
 	monitor_info.cbSize = sizeof (monitor_info);
 
 	if (GetMonitorInfo (MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST), &monitor_info))
@@ -8395,7 +8380,6 @@ VOID _r_wnd_changesettings (_In_ HWND hwnd, _In_opt_ WPARAM wparam, _In_opt_ LPA
 	if (_r_str_compare (type, L"WindowMetrics") == 0)
 	{
 		SendMessage (hwnd, RM_LOCALIZE, 0, 0);
-		SendMessage (hwnd, WM_THEMECHANGED, 0, 0);
 	}
 }
 
@@ -8630,12 +8614,10 @@ BOOLEAN _r_wnd_isundercursor (_In_ HWND hwnd)
 
 VOID _r_wnd_setposition (_In_ HWND hwnd, _In_opt_ PR_SIZE position, _In_opt_ PR_SIZE size)
 {
-	R_RECTANGLE rectangle;
+	R_RECTANGLE rectangle = {0};
 	UINT swp_flags;
 
 	swp_flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER;
-
-	RtlZeroMemory (&rectangle, sizeof (rectangle));
 
 	if (position)
 	{
@@ -10639,7 +10621,7 @@ LONG _r_ctrl_getwidth (_In_ HWND hwnd, _In_opt_ INT ctrl_id)
 
 VOID _r_ctrl_setbuttonmargins (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ LONG dpi_value)
 {
-	BUTTON_SPLITINFO bsi;
+	BUTTON_SPLITINFO bsi = {0};
 	RECT padding_rect;
 	HWND hctrl;
 	LONG padding;
@@ -10659,8 +10641,6 @@ VOID _r_ctrl_setbuttonmargins (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ LONG dpi_v
 	// set button split margin
 	if ((_r_wnd_getstyle (hctrl) & BS_SPLITBUTTON) == BS_SPLITBUTTON)
 	{
-		RtlZeroMemory (&bsi, sizeof (bsi));
-
 		bsi.mask = BCSIF_SIZE;
 
 		bsi.size.cx = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value) + _r_dc_getdpi (2, dpi_value);
