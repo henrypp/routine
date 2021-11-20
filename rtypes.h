@@ -5,6 +5,16 @@
 
 #pragma once
 
+// fix windot11.h errors
+#if !defined(__WINDOT11_H__)
+#define __WINDOT11_H__
+#endif // !__WINDOT11_H__
+
+// fix winbase.h errors
+#if !defined(MICROSOFT_WINDOWS_WINBASE_H_DEFINE_INTERLOCKED_CPLUSPLUS_OVERLOADS)
+#define MICROSOFT_WINDOWS_WINBASE_H_DEFINE_INTERLOCKED_CPLUSPLUS_OVERLOADS 0
+#endif // !MICROSOFT_WINDOWS_WINBASE_H_DEFINE_INTERLOCKED_CPLUSPLUS_OVERLOADS
+
 #if !defined(WIN32_LEAN_AND_MEAN)
 #define WIN32_LEAN_AND_MEAN
 #endif // !WIN32_LEAN_AND_MEAN
@@ -16,6 +26,10 @@
 #if !defined(COBJMACROS)
 #define COBJMACROS
 #endif // !COBJMACROS
+
+#if !defined(INITGUID)
+#define INITGUID
+#endif // !INITGUID
 
 #if !defined(UMDF_USING_NTSTATUS)
 #define UMDF_USING_NTSTATUS
@@ -611,10 +625,10 @@ typedef struct R_HASHTABLE
 	SIZE_T count;
 } R_HASHTABLE, *PR_HASHTABLE;
 
-#define HASHTABLE_ENTRY_SIZE(inner_size) (UFIELD_OFFSET(R_HASHTABLE_ENTRY, body) + (inner_size))
-#define HASHTABLE_GET_ENTRY(hashtable, index) ((PR_HASHTABLE_ENTRY)PTR_ADD_OFFSET((hashtable)->entries, HASHTABLE_ENTRY_SIZE((hashtable)->entry_size) * (index)))
-#define HASHTABLE_GET_ENTRY_INDEX(hashtable, entry) ((SIZE_T)(PTR_ADD_OFFSET(entry, -(hashtable)->entries) / HASHTABLE_ENTRY_SIZE((hashtable)->entry_size)))
-#define HASHTABLE_INIT_VALUE 0xFF
+#define PR_HASHTABLE_ENTRY_SIZE(inner_size) (UFIELD_OFFSET(R_HASHTABLE_ENTRY, body) + (inner_size))
+#define PR_HASHTABLE_GET_ENTRY(hashtable, index) ((PR_HASHTABLE_ENTRY)PTR_ADD_OFFSET((hashtable)->entries, PR_HASHTABLE_ENTRY_SIZE((hashtable)->entry_size) * (index)))
+#define PR_HASHTABLE_GET_ENTRY_INDEX(hashtable, entry) ((SIZE_T)(PTR_ADD_OFFSET(entry, -(hashtable)->entries) / PR_HASHTABLE_ENTRY_SIZE((hashtable)->entry_size)))
+#define PR_HASHTABLE_INIT_VALUE 0xFF
 
 //
 // Hashtable object pointer object
@@ -744,6 +758,9 @@ typedef struct R_SIZE
 
 C_ASSERT (sizeof (R_SIZE) == sizeof (POINT));
 
+C_ASSERT (FIELD_OFFSET (R_SIZE, cx) == FIELD_OFFSET (POINT, x));
+C_ASSERT (FIELD_OFFSET (R_SIZE, cy) == FIELD_OFFSET (POINT, y));
+
 typedef struct R_RECTANGLE
 {
 	union
@@ -768,6 +785,11 @@ typedef struct R_RECTANGLE
 } R_RECTANGLE, *PR_RECTANGLE;
 
 C_ASSERT (sizeof (R_RECTANGLE) == sizeof (RECT));
+
+C_ASSERT (FIELD_OFFSET (R_RECTANGLE, left) == FIELD_OFFSET (RECT, left));
+C_ASSERT (FIELD_OFFSET (R_RECTANGLE, top) == FIELD_OFFSET (RECT, top));
+C_ASSERT (FIELD_OFFSET (R_RECTANGLE, width) == FIELD_OFFSET (RECT, right));
+C_ASSERT (FIELD_OFFSET (R_RECTANGLE, height) == FIELD_OFFSET (RECT, bottom));
 
 //
 // Window layout
