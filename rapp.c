@@ -2758,7 +2758,6 @@ VOID _r_show_aboutmessage (_In_opt_ HWND hwnd)
 #if defined(IDI_MAIN)
 		mbp.lpszIcon = MAKEINTRESOURCE (IDI_MAIN);
 #else
-		mbp.lpszIcon = MAKEINTRESOURCE (100);
 #pragma PR_PRINT_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
 
@@ -2991,8 +2990,6 @@ INT _r_show_message (_In_opt_ HWND hwnd, _In_ ULONG flags, _In_opt_ LPCWSTR titl
 		{
 #ifdef IDI_MAIN
 			tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
-#else
-			tdc.pszMainIcon = MAKEINTRESOURCE (100);
 #pragma PR_PRINT_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
 		}
