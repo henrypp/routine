@@ -34,7 +34,7 @@ VOID _r_console_writestring (_In_ PR_STRING string)
 	if (!_r_fs_isvalidhandle (hstdhandle))
 		return;
 
-	WriteConsole (hstdhandle, string->buffer, (ULONG)_r_obj_getstringlength (string), NULL, NULL);
+	WriteConsole (hstdhandle, string->buffer, (ULONG)_r_str_getlength2 (string), NULL, NULL);
 }
 
 VOID _r_console_writestringformat (_In_ _Printf_format_string_ LPCWSTR format, ...)
@@ -3187,7 +3187,7 @@ PR_STRING _r_path_getknownfolder (_In_ ULONG folder, _In_opt_ LPCWSTR append)
 
 		if (append)
 		{
-			RtlCopyMemory (&string->buffer[string->length / sizeof (WCHAR)], append, append_length + sizeof (UNICODE_NULL));
+			RtlCopyMemory (&string->buffer[_r_str_getlength2 (string)], append, append_length + sizeof (UNICODE_NULL));
 			string->length += append_length;
 		}
 
@@ -3360,7 +3360,7 @@ BOOLEAN _r_path_parsecommandlinefuzzy (_In_ PR_STRINGREF args, _Out_ PR_STRINGRE
 	temp.buffer = _r_mem_allocatezero (args_sr.length + sizeof (UNICODE_NULL));
 	RtlCopyMemory (temp.buffer, args_sr.buffer, args_sr.length);
 
-	temp.buffer[args_sr.length / sizeof (WCHAR)] = UNICODE_NULL;
+	temp.buffer[_r_str_getlength3 (&args_sr)] = UNICODE_NULL;
 	temp.length = args_sr.length;
 
 	remaining_part = temp;
@@ -3482,7 +3482,7 @@ PR_STRING _r_path_resolvedeviceprefix (_In_ PR_STRING path)
 
 					if (_r_str_isstartswith (&path->sr, &device_prefix_sr, TRUE))
 					{
-						prefix_length = device_prefix.Length / sizeof (WCHAR);
+						prefix_length = _r_str_getlength4 (&device_prefix);
 
 						// To ensure we match the longest prefix, make sure the next character is a
 						// backslash or the path is equal to the prefix.
@@ -3589,7 +3589,7 @@ PR_STRING _r_path_resolvedeviceprefix (_In_ PR_STRING path)
 
 							if (_r_str_isstartswith (&path->sr, &device_prefix_sr, TRUE))
 							{
-								prefix_length = device_prefix.Length / sizeof (WCHAR);
+								prefix_length = _r_str_getlength4 (&device_prefix);
 
 								// To ensure we match the longest prefix, make sure the next character is a
 								// backslash or the path is equal to the prefix.
@@ -3671,7 +3671,7 @@ PR_STRING _r_path_resolvedeviceprefix (_In_ PR_STRING path)
 						{
 							if (_r_str_isstartswith (&path->sr, &device_name_string->sr, TRUE))
 							{
-								prefix_length = device_name_string->length / sizeof (WCHAR);
+								prefix_length = _r_str_getlength2 (device_name_string);
 
 								// To ensure we match the longest prefix, make sure the next character is a
 								// backslash. Don't resolve if the name *is* the prefix. Otherwise, we will end
@@ -3747,7 +3747,7 @@ PR_STRING _r_path_searchfile (_In_ LPCWSTR path, _In_opt_ LPCWSTR extension)
 	buffer_length = 256;
 	full_path = _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR));
 
-	return_length = SearchPath (NULL, path, extension, (ULONG)(full_path->length / sizeof (WCHAR)), full_path->buffer, NULL);
+	return_length = SearchPath (NULL, path, extension, (ULONG)_r_str_getlength2 (full_path), full_path->buffer, NULL);
 
 	if (!return_length && return_length <= buffer_length)
 		goto CleanupExit;
@@ -3758,7 +3758,7 @@ PR_STRING _r_path_searchfile (_In_ LPCWSTR path, _In_opt_ LPCWSTR extension)
 
 		_r_obj_movereference (&full_path, _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR)));
 
-		return_length = SearchPath (NULL, path, extension, (ULONG)(full_path->length / sizeof (WCHAR)), full_path->buffer, NULL);
+		return_length = SearchPath (NULL, path, extension, buffer_length, full_path->buffer, NULL);
 	}
 
 	if (!return_length && return_length <= buffer_length)
@@ -3790,7 +3790,7 @@ PR_STRING _r_path_dospathfromnt (_In_ PR_STRING path)
 	PR_STRING string;
 	SIZE_T path_length;
 
-	path_length = _r_obj_getstringlength (path);
+	path_length = _r_str_getlength2 (path);
 
 	// "\??\" refers to \GLOBAL??\. Just remove it.
 	if (_r_str_isstartswith2 (&path->sr, L"\\??\\", TRUE))
@@ -3822,7 +3822,7 @@ PR_STRING _r_path_dospathfromnt (_In_ PR_STRING path)
 
 		RtlCopyMemory (string->buffer, system_root.buffer, system_root.length);
 
-		string->buffer[system_root.length / sizeof (WCHAR)] = OBJ_NAME_PATH_SEPARATOR;
+		string->buffer[_r_str_getlength3 (&system_root)] = OBJ_NAME_PATH_SEPARATOR;
 
 		RtlCopyMemory (PTR_ADD_OFFSET (string->buffer, system_root.length + sizeof (WCHAR)), path->buffer, path->length);
 
@@ -3839,7 +3839,7 @@ PR_STRING _r_path_dospathfromnt (_In_ PR_STRING path)
 
 		RtlCopyMemory (string->buffer, system_root.buffer, system_root.length);
 
-		string->buffer[system_root.length / sizeof (WCHAR)] = OBJ_NAME_PATH_SEPARATOR;
+		string->buffer[_r_str_getlength3 (&system_root)] = OBJ_NAME_PATH_SEPARATOR;
 
 		RtlCopyMemory (PTR_ADD_OFFSET (string->buffer, system_root.length + sizeof (UNICODE_NULL)), path->buffer, path->length);
 
@@ -3928,7 +3928,7 @@ PR_STRING _r_path_ntpathfromdos (_In_ PR_STRING path, _Out_opt_ PULONG error_cod
 
 	if (NT_SUCCESS (status))
 	{
-		string = _r_obj_createstringfromunicodestring (&obj_name_info->Name);
+		string = _r_obj_createstring4 (&obj_name_info->Name);
 
 		_r_str_tolower (&string->sr); // lower is important!
 
@@ -4130,7 +4130,7 @@ BOOLEAN _r_str_isnumeric (_In_ PR_STRINGREF string)
 	if (!string->length)
 		return FALSE;
 
-	length = string->length / sizeof (WCHAR);
+	length = _r_str_getlength3 (string);
 
 	for (SIZE_T i = 0; i < length; i++)
 	{
@@ -4255,7 +4255,7 @@ BOOLEAN _r_str_copystring (_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR
 {
 	SIZE_T length;
 
-	length = string->length / sizeof (WCHAR) + 1;
+	length = _r_str_getlength3 (string) + 1;
 
 	if (length > buffer_size)
 		length = buffer_size;
@@ -4355,7 +4355,7 @@ ULONG _r_str_crc32 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
 		return 0;
 
 	buffer = string->buffer;
-	length = string->length / sizeof (WCHAR);
+	length = _r_str_getlength3 (string);
 
 	hash_code = ULONG_MAX;
 
@@ -4436,7 +4436,7 @@ ULONG64 _r_str_crc64 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
 		return 0;
 
 	buffer = string->buffer;
-	length = string->length / sizeof (WCHAR);
+	length = _r_str_getlength3 (string);
 
 	hash_code = 0;
 
@@ -4471,7 +4471,7 @@ ULONG _r_str_fnv32a (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
 		return 0;
 
 	buffer = string->buffer;
-	length = string->length / sizeof (WCHAR);
+	length = _r_str_getlength3 (string);
 
 	hash_code = 2166136261UL;
 
@@ -4506,7 +4506,7 @@ ULONG64 _r_str_fnv64a (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
 		return 0;
 
 	buffer = string->buffer;
-	length = string->length / sizeof (WCHAR);
+	length = _r_str_getlength3 (string);
 
 	hash_code = 14695981039346656037ULL;
 
@@ -4539,7 +4539,7 @@ ULONG _r_str_x65599 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
 	if (!string->length)
 		return 0;
 
-	end_buffer = string->buffer + (string->length / sizeof (WCHAR));
+	end_buffer = string->buffer + _r_str_getlength3 (string);
 
 	hash_code = 0;
 
@@ -4562,7 +4562,7 @@ ULONG _r_str_x65599 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
 }
 
 // frobnicate a string (xor by 42)
-BOOLEAN _r_str_frobstring (_Inout_ PR_STRING string, _In_ INT xor_code)
+BOOLEAN _r_str_frobstring (_Inout_ PR_STRINGREF string, _In_ INT xor_code)
 {
 	LPWSTR buffer;
 	SIZE_T length;
@@ -4572,7 +4572,7 @@ BOOLEAN _r_str_frobstring (_Inout_ PR_STRING string, _In_ INT xor_code)
 		return FALSE;
 
 	buffer = string->buffer;
-	length = string->length / sizeof (WCHAR);
+	length = _r_str_getlength3 (string);
 
 	do
 	{
@@ -4594,7 +4594,7 @@ ULONG _r_str_gethash (_In_ LPCWSTR string, _In_ BOOLEAN is_ignorecase)
 
 	_r_obj_initializestringrefconst (&sr, string);
 
-	return _r_obj_getstringrefhash (&sr, is_ignorecase);
+	return _r_str_gethash3 (&sr, is_ignorecase);
 }
 
 _Ret_maybenull_
@@ -4666,7 +4666,7 @@ PR_STRING _r_str_fromguid (_In_ LPCGUID lpguid, _In_ BOOLEAN is_uppercase)
 
 	if (NT_SUCCESS (RtlStringFromGUID ((LPGUID)lpguid, &us)))
 	{
-		string = _r_obj_createstringfromunicodestring (&us);
+		string = _r_obj_createstring4 (&us);
 
 		if (is_uppercase)
 			_r_str_toupper (&string->sr);
@@ -4803,7 +4803,7 @@ BOOLEAN _r_str_touinteger64 (_In_ PR_STRINGREF string, _In_ ULONG base, _Out_ PU
 	BOOLEAN is_valid;
 
 	buffer = string->buffer;
-	length = string->length / sizeof (WCHAR);
+	length = _r_str_getlength3 (string);
 
 	result = 0;
 	is_valid = TRUE;
@@ -4996,7 +4996,7 @@ SIZE_T _r_str_findchar (_In_ PR_STRINGREF string, _In_ WCHAR character, _In_ BOO
 		return SIZE_MAX;
 
 	buffer = string->buffer;
-	length = string->length / sizeof (WCHAR);
+	length = _r_str_getlength3 (string);
 
 	if (is_ignorecase)
 		character = _r_str_lower (character);
@@ -5013,7 +5013,7 @@ SIZE_T _r_str_findchar (_In_ PR_STRINGREF string, _In_ WCHAR character, _In_ BOO
 		}
 
 		if (chr == character)
-			return (string->length / sizeof (WCHAR)) - length;
+			return _r_str_getlength3 (string) - length;
 
 		buffer += 1;
 	}
@@ -5033,7 +5033,7 @@ SIZE_T _r_str_findlastchar (_In_ PR_STRINGREF string, _In_ WCHAR character, _In_
 		return SIZE_MAX;
 
 	buffer = PTR_ADD_OFFSET (string->buffer, string->length);
-	length = string->length / sizeof (WCHAR);
+	length = _r_str_getlength3 (string);
 
 	if (is_ignorecase)
 		character = _r_str_lower (character);
@@ -5072,8 +5072,8 @@ SIZE_T _r_str_findstring (_In_ PR_STRINGREF string, _In_ PR_STRINGREF sub_string
 	WCHAR chr1;
 	WCHAR chr2;
 
-	length1 = string->length / sizeof (WCHAR);
-	length2 = sub_string->length / sizeof (WCHAR);
+	length1 = _r_str_getlength3 (string);
+	length2 = _r_str_getlength3 (sub_string);
 
 	// Can't be a substring if it's bigger than the first string.
 	if (length2 > length1)
@@ -5270,7 +5270,7 @@ PR_HASHTABLE _r_str_unserialize (_In_ PR_STRINGREF string, _In_ WCHAR key_delime
 
 		if (_r_str_splitatchar (&values_part, value_delimeter, &key_part, &value_part))
 		{
-			hash_code = _r_obj_getstringrefhash (&key_part, TRUE);
+			hash_code = _r_str_gethash3 (&key_part, TRUE);
 
 			if (hash_code)
 			{
@@ -5298,7 +5298,7 @@ VOID _r_str_replacechar (_Inout_ PR_STRINGREF string, _In_ WCHAR char_from, _In_
 	if (!string->length)
 		return;
 
-	length = string->length / sizeof (WCHAR);
+	length = _r_str_getlength3 (string);
 
 	for (i = 0; i < length; i++)
 	{
@@ -5331,7 +5331,7 @@ VOID _r_str_trimstringref (_Inout_ PR_STRINGREF string, _In_ PR_STRINGREF charse
 		if (!(flags & PR_TRIM_END_ONLY))
 		{
 			trim_count = 0;
-			count = string->length / sizeof (WCHAR);
+			count = _r_str_getlength3 (string);
 			buffer = string->buffer;
 
 			while (count-- != 0)
@@ -5348,7 +5348,7 @@ VOID _r_str_trimstringref (_Inout_ PR_STRINGREF string, _In_ PR_STRINGREF charse
 		if (!(flags & PR_TRIM_START_ONLY))
 		{
 			trim_count = 0;
-			count = string->length / sizeof (WCHAR);
+			count = _r_str_getlength3 (string);
 			buffer = PTR_ADD_OFFSET (string->buffer, string->length - sizeof (WCHAR));
 
 			while (count-- != 0)
@@ -5367,7 +5367,7 @@ VOID _r_str_trimstringref (_Inout_ PR_STRINGREF string, _In_ PR_STRINGREF charse
 	}
 
 	charset_buff = charset->buffer;
-	charset_count = charset->length / sizeof (WCHAR);
+	charset_count = _r_str_getlength3 (charset);
 
 	memset (charset_table, 0, sizeof (charset_table));
 
@@ -5385,7 +5385,7 @@ VOID _r_str_trimstringref (_Inout_ PR_STRINGREF string, _In_ PR_STRINGREF charse
 	if (!(flags & PR_TRIM_END_ONLY))
 	{
 		trim_count = 0;
-		count = string->length / sizeof (WCHAR);
+		count = _r_str_getlength3 (string);
 		buffer = string->buffer;
 
 		while (count-- != 0)
@@ -5416,7 +5416,7 @@ CharFound:
 	if (!(flags & PR_TRIM_START_ONLY))
 	{
 		trim_count = 0;
-		count = string->length / sizeof (WCHAR);
+		count = _r_str_getlength3 (string);
 		buffer = PTR_ADD_OFFSET (string->buffer, string->length - sizeof (WCHAR));
 
 		while (count-- != 0)
@@ -5462,7 +5462,7 @@ VOID _r_str_tolower (_Inout_ PR_STRINGREF string)
 	if (!string->length)
 		return;
 
-	length = string->length / sizeof (WCHAR);
+	length = _r_str_getlength3 (string);
 
 	for (i = 0; i < length; i++)
 	{
@@ -5478,7 +5478,7 @@ VOID _r_str_toupper (_Inout_ PR_STRINGREF string)
 	if (!string->length)
 		return;
 
-	length = string->length / sizeof (WCHAR);
+	length = _r_str_getlength3 (string);
 
 	for (i = 0; i < length; i++)
 	{
@@ -5656,24 +5656,17 @@ BOOLEAN _r_sys_isprocessimmersive (_In_ HANDLE hprocess)
 
 BOOLEAN _r_sys_iswine ()
 {
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static BOOLEAN is_wine = FALSE;
+	HMODULE hntdll;
+	BOOLEAN is_wine;
 
-	if (_r_initonce_begin (&init_once))
-	{
-		HMODULE hntdll;
+	hntdll = _r_sys_loadlibrary (L"ntdll.dll");
 
-		hntdll = _r_sys_loadlibrary (L"ntdll.dll");
+	if (!hntdll)
+		return FALSE;
 
-		if (hntdll)
-		{
-			is_wine = (GetProcAddress (hntdll, "wine_get_version") != NULL);
+	is_wine = (GetProcAddress (hntdll, "wine_get_version") != NULL);
 
-			FreeLibrary (hntdll);
-		}
-
-		_r_initonce_end (&init_once);
-	}
+	FreeLibrary (hntdll);
 
 	return is_wine;
 }
@@ -5770,7 +5763,7 @@ VOID _r_sys_getsystemroot (_Out_ PR_STRINGREF path)
 	_r_obj_initializestringref (&local_system_root, USER_SHARED_DATA->NtSystemRoot);
 
 	// Make sure the system root string doesn't have a trailing backslash.
-	if (local_system_root.buffer[(local_system_root.length / sizeof (WCHAR)) - 1] == OBJ_NAME_PATH_SEPARATOR)
+	if (local_system_root.buffer[_r_str_getlength3 (&local_system_root) - 1] == OBJ_NAME_PATH_SEPARATOR)
 		local_system_root.length -= sizeof (WCHAR);
 
 	*path = local_system_root;
@@ -5890,7 +5883,7 @@ BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR name, _Out_opt_ PR_STRING
 		// parse key name
 		if (_r_str_isstartswith (&key_name, &name_sr, TRUE))
 		{
-			option_length = name_sr.length / sizeof (WCHAR);
+			option_length = _r_str_getlength3 (&name_sr);
 		}
 		else
 		{
@@ -6454,7 +6447,7 @@ NTSTATUS _r_sys_queryprocessstring (_In_ HANDLE process_handle, _In_ PROCESSINFO
 
 	if (NT_SUCCESS (status))
 	{
-		*file_name = _r_obj_createstringfromunicodestring (buffer);
+		*file_name = _r_obj_createstring4 (buffer);
 	}
 	else
 	{
@@ -7521,7 +7514,7 @@ LONG _r_dc_getfontwidth (_In_ HDC hdc, _In_ PR_STRINGREF string)
 	if (!string->length)
 		return 0;
 
-	if (!GetTextExtentPoint32 (hdc, string->buffer, (INT)_r_obj_getstringreflength (string), &size))
+	if (!GetTextExtentPoint32 (hdc, string->buffer, (INT)_r_str_getlength3 (string), &size))
 		return 200; // fallback
 
 	return size.cx;
@@ -7761,7 +7754,7 @@ VOID _r_filedialog_setpath (_Inout_ PR_FILE_DIALOG file_dialog, _In_ LPCWSTR pat
 		if (_r_str_findchar (&sr, L'/', FALSE) != SIZE_MAX || _r_str_findchar (&sr, L'\"', FALSE) != SIZE_MAX)
 			return;
 
-		ofn->nMaxFile = (ULONG)max ((sr.length / sizeof (WCHAR)) + 1, 1024);
+		ofn->nMaxFile = (ULONG)max (_r_str_getlength3 (&sr) + 1, 1024);
 		ofn->lpstrFile = _r_mem_reallocatezero (ofn->lpstrFile, ofn->nMaxFile * sizeof (WCHAR));
 
 		RtlCopyMemory (ofn->lpstrFile, sr.buffer, sr.length + sizeof (UNICODE_NULL));
@@ -9134,7 +9127,7 @@ ULONG _r_inet_queryurlparts (_In_ PR_STRING url, _In_ ULONG flags, _Out_ PR_URLP
 		url_comp.dwPasswordLength = length;
 	}
 
-	if (!WinHttpCrackUrl (url->buffer, (ULONG)_r_obj_getstringlength (url), ICU_DECODE, &url_comp))
+	if (!WinHttpCrackUrl (url->buffer, (ULONG)_r_str_getlength2 (url), ICU_DECODE, &url_comp))
 	{
 		_r_inet_destroyurlparts (url_parts);
 
@@ -9925,7 +9918,7 @@ PR_HASHTABLE _r_parseini (_In_ PR_STRING path, _Inout_opt_ PR_LIST section_list)
 					{
 						// set hash code in table to "section\key" string
 						hash_string = _r_obj_concatstringrefs (3, &sections_iterator, &delimeter, &key_string);
-						hash_code = _r_obj_getstringhash (hash_string, TRUE);
+						hash_code = _r_str_gethash2 (hash_string, TRUE);
 
 						if (hash_code)
 						{

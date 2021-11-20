@@ -124,13 +124,10 @@ static SID SeNetworkServiceSid = {SID_REVISION, 1, SECURITY_NT_AUTHORITY, {SECUR
 
 // extern
 extern FORCEINLINE SIZE_T _r_str_getlength (_In_ LPCWSTR string);
-extern FORCEINLINE SIZE_T _r_str_getbytelength (_In_ LPCSTR string);
+extern FORCEINLINE SIZE_T _r_str_getlength2 (_In_ PR_STRING string);
+extern FORCEINLINE SIZE_T _r_str_getlength3 (_In_ PR_STRINGREF string);
 
-extern ULONG _r_str_crc32 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase);
-extern ULONG64 _r_str_crc64 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase);
-extern ULONG _r_str_fnv32a (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase);
-extern ULONG64 _r_str_fnv64a (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase);
-extern ULONG _r_str_x65599 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase);
+extern FORCEINLINE SIZE_T _r_str_getbytelength (_In_ LPCSTR string);
 
 // safe clenup memory
 #ifndef SAFE_DELETE_MEMORY
@@ -740,7 +737,7 @@ FORCEINLINE PR_STRING _r_obj_createstring3 (_In_ PR_STRINGREF string)
 	return _r_obj_createstring_ex (string->buffer, string->length);
 }
 
-FORCEINLINE PR_STRING _r_obj_createstringfromunicodestring (_In_ PUNICODE_STRING string)
+FORCEINLINE PR_STRING _r_obj_createstring4 (_In_ PUNICODE_STRING string)
 {
 	return _r_obj_createstring_ex (string->Buffer, string->Length);
 }
@@ -770,36 +767,9 @@ FORCEINLINE LPCWSTR _r_obj_getstringordefault (_In_opt_ PR_STRING string, _In_op
 	return def;
 }
 
-FORCEINLINE SIZE_T _r_obj_getstringrefsize (_In_ PR_STRINGREF string)
-{
-	return string->length;
-}
-
-FORCEINLINE SIZE_T _r_obj_getstringreflength (_In_ PR_STRINGREF string)
-{
-	return string->length / sizeof (WCHAR);
-}
-
-FORCEINLINE ULONG _r_obj_getstringrefhash (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
-{
-	return _r_str_x65599 (string, is_ignorecase);
-}
-
-FORCEINLINE SIZE_T _r_obj_getstringlength (_In_ PR_STRING string)
-{
-	return string->length / sizeof (WCHAR);
-}
-
-FORCEINLINE ULONG _r_obj_getstringhash (_In_ PR_STRING string, _In_ BOOLEAN is_ignorecase)
-{
-	return _r_str_x65599 (&string->sr, is_ignorecase);
-}
-
 FORCEINLINE BOOLEAN _r_obj_isstringnullterminated (_In_ PR_STRINGREF string)
 {
-	assert (!(string->length & 0x01));
-
-	return (string->buffer[string->length / sizeof (WCHAR)] == UNICODE_NULL);
+	return (string->buffer[_r_str_getlength3 (string)] == UNICODE_NULL);
 }
 
 FORCEINLINE VOID _r_obj_writestringnullterminator (_In_ PR_STRING string)
@@ -1546,9 +1516,19 @@ ULONG64 _r_str_fnv64a (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase);
 ULONG _r_str_x65599 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase);
 
 // frobnicate a string (xor by 42)
-BOOLEAN _r_str_frobstring (_Inout_ PR_STRING string, _In_ INT xor_code);
+BOOLEAN _r_str_frobstring (_Inout_ PR_STRINGREF string, _In_ INT xor_code);
 
 ULONG _r_str_gethash (_In_ LPCWSTR string, _In_ BOOLEAN is_ignorecase);
+
+FORCEINLINE ULONG _r_str_gethash2 (_In_ PR_STRING string, _In_ BOOLEAN is_ignorecase)
+{
+	return _r_str_x65599 (&string->sr, is_ignorecase);
+}
+
+FORCEINLINE ULONG _r_str_gethash3 (_In_ PR_STRINGREF string, _In_ BOOLEAN is_ignorecase)
+{
+	return _r_str_x65599 (string, is_ignorecase);
+}
 
 _Ret_maybenull_
 PR_STRING _r_str_expandenvironmentstring (_In_ PR_STRINGREF string);
@@ -1696,6 +1676,27 @@ FORCEINLINE BOOLEAN _r_str_fromulong64 (_Out_writes_ (buffer_size) LPWSTR buffer
 FORCEINLINE SIZE_T _r_str_getlength (_In_ LPCWSTR string)
 {
 	return wcsnlen_s (string, PR_SIZE_MAX_STRING_LENGTH);
+}
+
+FORCEINLINE SIZE_T _r_str_getlength2 (_In_ PR_STRING string)
+{
+	assert (!(string->length & 0x01));
+
+	return string->length / sizeof (WCHAR);
+}
+
+FORCEINLINE SIZE_T _r_str_getlength3 (_In_ PR_STRINGREF string)
+{
+	assert (!(string->length & 0x01));
+
+	return string->length / sizeof (WCHAR);
+}
+
+FORCEINLINE SIZE_T _r_str_getlength4 (_In_ PUNICODE_STRING string)
+{
+	assert (!(string->Length & 0x01));
+
+	return string->Length / sizeof (WCHAR);
 }
 
 FORCEINLINE SIZE_T _r_str_getbytelength (_In_ LPCSTR string)

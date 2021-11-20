@@ -1258,7 +1258,7 @@ PR_STRING _r_config_getstring_ex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR def_va
 		section_string = _r_obj_concatstrings (3, _r_app_getnameshort (), L"\\", key_name);
 	}
 
-	hash_code = _r_obj_getstringhash (section_string, TRUE);
+	hash_code = _r_str_gethash2 (section_string, TRUE);
 
 	_r_obj_dereference (section_string);
 
@@ -1397,7 +1397,7 @@ VOID _r_config_setstring_ex (_In_ LPCWSTR key_name, _In_opt_ LPCWSTR value, _In_
 		section_string_full = _r_obj_concatstrings (3, _r_app_getnameshort (), L"\\", key_name);
 	}
 
-	hash_code = _r_obj_getstringhash (section_string_full, TRUE);
+	hash_code = _r_str_gethash2 (section_string_full, TRUE);
 
 	_r_obj_dereference (section_string_full);
 
@@ -1693,7 +1693,7 @@ PR_STRING _r_locale_getstring_ex (_In_ UINT uid)
 	if (app_global.locale.current_name)
 	{
 		hash_string = _r_format_string (L"%s\\%03" TEXT (PRIu32), app_global.locale.current_name->buffer, uid);
-		hash_code = _r_obj_getstringhash (hash_string, TRUE);
+		hash_code = _r_str_gethash2 (hash_string, TRUE);
 
 		_r_queuedlock_acquireshared (&app_global.locale.lock);
 
@@ -1713,7 +1713,7 @@ PR_STRING _r_locale_getstring_ex (_In_ UINT uid)
 		if (app_global.locale.resource_name)
 		{
 			hash_string = _r_format_string (L"%s\\%03" TEXT (PRIu32), app_global.locale.resource_name->buffer, uid);
-			hash_code = _r_obj_getstringhash (hash_string, TRUE);
+			hash_code = _r_str_gethash2 (hash_string, TRUE);
 
 			_r_queuedlock_acquireshared (&app_global.locale.lock);
 
@@ -1910,7 +1910,7 @@ NTSTATUS NTAPI _r_update_checkthread (_In_ PVOID arglist)
 					if (!update_component)
 						continue;
 
-					hash_code = _r_obj_getstringhash (update_component->short_name, TRUE);
+					hash_code = _r_str_gethash2 (update_component->short_name, TRUE);
 					string_value = _r_obj_findhashtablepointer (string_table, hash_code);
 
 					if (string_value)
