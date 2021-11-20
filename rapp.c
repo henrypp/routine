@@ -1868,7 +1868,7 @@ NTSTATUS NTAPI _r_update_checkthread (_In_ PVOID arglist)
 	{
 		update_url = _r_obj_concatstrings (3, _r_app_getwebsite_url (), L"/update.php?api=3&product=", _r_app_getnameshort ());
 
-		_r_inet_initializedownload (&download_info, NULL, NULL, NULL);
+		_r_inet_initializedownload (&download_info);
 
 		if (_r_inet_begindownload (hsession, update_url, &download_info) != ERROR_SUCCESS)
 		{
@@ -1899,7 +1899,7 @@ NTSTATUS NTAPI _r_update_checkthread (_In_ PVOID arglist)
 
 			BOOLEAN is_updateavailable = FALSE;
 
-			string_table = _r_str_unserialize (&download_info.string->sr, L';', L'=');
+			string_table = _r_str_unserialize (&download_info.u.string->sr, L';', L'=');
 
 			if (string_table)
 			{
@@ -2151,7 +2151,7 @@ NTSTATUS NTAPI _r_update_downloadthread (_In_ PVOID arglist)
 			if (!_r_fs_isvalidhandle (hfile))
 				continue;
 
-			_r_inet_initializedownload (&download_info, hfile, &_r_update_downloadcallback, update_info);
+			_r_inet_initializedownload_ex (&download_info, hfile, &_r_update_downloadcallback, update_info);
 
 			if (_r_inet_begindownload (hsession, update_component->url, &download_info) == ERROR_SUCCESS)
 			{
@@ -2636,9 +2636,6 @@ VOID _r_log_v (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCW
 {
 	WCHAR string[1024];
 	va_list arg_ptr;
-
-	if (!format)
-		return;
 
 	va_start (arg_ptr, format);
 	_r_str_printf_v (string, RTL_NUMBER_OF (string), format, arg_ptr);
