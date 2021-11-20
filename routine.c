@@ -2401,10 +2401,10 @@ PR_HASHTABLE _r_obj_createhashtable_ex (_In_ SIZE_T entry_size, _In_ SIZE_T init
 	hashtable->allocated_buckets = _r_math_rounduptopoweroftwo (initial_capacity);
 	hashtable->buckets = _r_mem_allocatezero (hashtable->allocated_buckets * sizeof (SIZE_T));
 
-	memset (hashtable->buckets, HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
+	memset (hashtable->buckets, PR_HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
 
 	hashtable->allocated_entries = hashtable->allocated_buckets;
-	hashtable->entries = _r_mem_allocatezero (hashtable->allocated_entries * HASHTABLE_ENTRY_SIZE (entry_size));
+	hashtable->entries = _r_mem_allocatezero (hashtable->allocated_entries * PR_HASHTABLE_ENTRY_SIZE (entry_size));
 
 	hashtable->count = 0;
 	hashtable->free_entry = SIZE_MAX;
@@ -2437,7 +2437,7 @@ FORCEINLINE PVOID _r_obj_addhashtableitem_ex (_Inout_ PR_HASHTABLE hashtable, _I
 	{
 		for (SIZE_T i = hashtable->buckets[index]; i != SIZE_MAX; i = hashtable_entry->next)
 		{
-			hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, i);
+			hashtable_entry = PR_HASHTABLE_GET_ENTRY (hashtable, i);
 
 			if (_r_obj_validatehash (hashtable_entry->hash_code) == valid_hash)
 			{
@@ -2452,7 +2452,7 @@ FORCEINLINE PVOID _r_obj_addhashtableitem_ex (_Inout_ PR_HASHTABLE hashtable, _I
 	if (hashtable->free_entry != SIZE_MAX)
 	{
 		free_entry = hashtable->free_entry;
-		hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, free_entry);
+		hashtable_entry = PR_HASHTABLE_GET_ENTRY (hashtable, free_entry);
 		hashtable->free_entry = hashtable_entry->next;
 
 		if (hashtable->cleanup_callback)
@@ -2470,7 +2470,7 @@ FORCEINLINE PVOID _r_obj_addhashtableitem_ex (_Inout_ PR_HASHTABLE hashtable, _I
 		}
 
 		free_entry = hashtable->next_entry++;
-		hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, free_entry);
+		hashtable_entry = PR_HASHTABLE_GET_ENTRY (hashtable, free_entry);
 	}
 
 	hashtable_entry->hash_code = hash_code;
@@ -2533,7 +2533,7 @@ VOID _r_obj_clearhashtable (_Inout_ PR_HASHTABLE hashtable)
 
 	next_entry = hashtable->next_entry;
 
-	memset (hashtable->buckets, HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
+	memset (hashtable->buckets, PR_HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
 
 	hashtable->count = 0;
 	hashtable->free_entry = SIZE_MAX;
@@ -2545,7 +2545,7 @@ VOID _r_obj_clearhashtable (_Inout_ PR_HASHTABLE hashtable)
 
 		while (index < next_entry)
 		{
-			hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, index);
+			hashtable_entry = PR_HASHTABLE_GET_ENTRY (hashtable, index);
 
 			if (hashtable_entry->hash_code != SIZE_MAX)
 			{
@@ -2566,7 +2566,7 @@ BOOLEAN _r_obj_enumhashtable (_In_ PR_HASHTABLE hashtable, _Outptr_opt_ PVOID_PT
 
 	while (*enum_key < hashtable->next_entry)
 	{
-		hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, *enum_key);
+		hashtable_entry = PR_HASHTABLE_GET_ENTRY (hashtable, *enum_key);
 
 		(*enum_key) += 1;
 
@@ -2601,7 +2601,7 @@ PVOID _r_obj_findhashtable (_In_ PR_HASHTABLE hashtable, _In_ ULONG_PTR hash_cod
 
 	for (SIZE_T i = hashtable->buckets[index]; i != SIZE_MAX; i = hashtable_entry->next)
 	{
-		hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, i);
+		hashtable_entry = PR_HASHTABLE_GET_ENTRY (hashtable, i);
 
 		if (_r_obj_validatehash (hashtable_entry->hash_code) == valid_hash)
 		{
@@ -2625,7 +2625,7 @@ BOOLEAN _r_obj_removehashtableitem (_Inout_ PR_HASHTABLE hashtable, _In_ ULONG_P
 
 	for (SIZE_T i = hashtable->buckets[index]; i != SIZE_MAX; i = hashtable_entry->next)
 	{
-		hashtable_entry = HASHTABLE_GET_ENTRY (hashtable, i);
+		hashtable_entry = PR_HASHTABLE_GET_ENTRY (hashtable, i);
 
 		if (_r_obj_validatehash (hashtable_entry->hash_code) == valid_hash)
 		{
@@ -2635,7 +2635,7 @@ BOOLEAN _r_obj_removehashtableitem (_Inout_ PR_HASHTABLE hashtable, _In_ ULONG_P
 			}
 			else
 			{
-				HASHTABLE_GET_ENTRY (hashtable, previous_index)->next = hashtable_entry->next;
+				PR_HASHTABLE_GET_ENTRY (hashtable, previous_index)->next = hashtable_entry->next;
 			}
 
 			hashtable_entry->hash_code = SIZE_MAX;
@@ -2669,10 +2669,10 @@ VOID _r_obj_resizehashtable (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T new_cap
 
 	hashtable->buckets = _r_mem_reallocatezero (hashtable->buckets, hashtable->allocated_buckets * sizeof (SIZE_T));
 
-	memset (hashtable->buckets, HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
+	memset (hashtable->buckets, PR_HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
 
 	hashtable->allocated_entries = hashtable->allocated_buckets;
-	hashtable->entries = _r_mem_reallocatezero (hashtable->entries, HASHTABLE_ENTRY_SIZE (hashtable->entry_size) * hashtable->allocated_entries);
+	hashtable->entries = _r_mem_reallocatezero (hashtable->entries, PR_HASHTABLE_ENTRY_SIZE (hashtable->entry_size) * hashtable->allocated_entries);
 
 	hashtable_entry = hashtable->entries;
 
@@ -2686,7 +2686,7 @@ VOID _r_obj_resizehashtable (_Inout_ PR_HASHTABLE hashtable, _In_ SIZE_T new_cap
 			hashtable->buckets[index] = i;
 		}
 
-		hashtable_entry = PTR_ADD_OFFSET (hashtable_entry, HASHTABLE_ENTRY_SIZE (hashtable->entry_size));
+		hashtable_entry = PTR_ADD_OFFSET (hashtable_entry, PR_HASHTABLE_ENTRY_SIZE (hashtable->entry_size));
 	}
 }
 
