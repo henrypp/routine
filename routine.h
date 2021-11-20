@@ -1823,7 +1823,7 @@ FORCEINLINE BOOLEAN _r_sys_createprocess (_In_opt_ LPCWSTR file_name, _In_opt_ L
 	return _r_sys_createprocess_ex (file_name, command_line, current_directory, NULL, SW_SHOWDEFAULT, 0);
 }
 
-FORCEINLINE VOID _r_sys_exitprocess (_In_ ULONG code)
+FORCEINLINE VOID _r_sys_exitprocess (_In_ NTSTATUS code)
 {
 #if defined(APP_NO_DEPRECATIONS)
 	RtlExitUserProcess (code);
