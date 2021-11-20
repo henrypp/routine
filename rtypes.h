@@ -824,10 +824,16 @@ typedef BOOLEAN (NTAPI *PR_INET_DOWNLOAD_FUNCTION) (_In_ ULONG total_written, _I
 
 typedef struct R_DOWNLOAD_INFO
 {
-	HANDLE hfile;
-	PR_STRING string;
+	union
+	{
+		HANDLE hfile;
+		PR_STRING string;
+	} u;
+
 	PR_INET_DOWNLOAD_FUNCTION download_callback;
 	PVOID lparam;
+
+	BOOLEAN is_savetofile;
 } R_DOWNLOAD_INFO, *PR_DOWNLOAD_INFO;
 
 typedef struct R_URLPARTS
@@ -836,8 +842,6 @@ typedef struct R_URLPARTS
 	PR_STRING path;
 	PR_STRING user;
 	PR_STRING pass;
-
-	ULONG flags;
 
 	INTERNET_SCHEME scheme;
 	INTERNET_PORT port;
