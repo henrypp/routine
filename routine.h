@@ -920,71 +920,76 @@ FORCEINLINE BOOLEAN _r_obj_initializeunicodestring3 (_Out_ PUNICODE_STRING strin
 // String builder
 //
 
-VOID _r_obj_initializestringbuilder (_Out_ PR_STRINGBUILDER string);
-VOID _r_obj_appendstringbuilder_ex (_Inout_ PR_STRINGBUILDER string, _In_ LPCWSTR text, _In_ SIZE_T length);
-VOID _r_obj_appendstringbuilderformat_v (_Inout_ PR_STRINGBUILDER string, _In_ _Printf_format_string_ LPCWSTR format, _In_ va_list arg_ptr);
-VOID _r_obj_insertstringbuilder_ex (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ LPCWSTR text, _In_ SIZE_T length);
-VOID _r_obj_insertstringbuilderformat_v (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ _Printf_format_string_ LPCWSTR format, _In_ va_list arg_ptr);
-VOID _r_obj_resizestringbuilder (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T new_capacity);
+VOID _r_obj_initializestringbuilder_ex (_Out_ PR_STRINGBUILDER builder, _In_ SIZE_T initial_capacity);
+VOID _r_obj_appendstringbuilder_ex (_Inout_ PR_STRINGBUILDER builder, _In_ LPCWSTR string, _In_ SIZE_T length);
+VOID _r_obj_appendstringbuilderformat_v (_Inout_ PR_STRINGBUILDER builder, _In_ _Printf_format_string_ LPCWSTR format, _In_ va_list arg_ptr);
+VOID _r_obj_insertstringbuilder_ex (_Inout_ PR_STRINGBUILDER builder, _In_ SIZE_T index, _In_ LPCWSTR string, _In_ SIZE_T length);
+VOID _r_obj_insertstringbuilderformat_v (_Inout_ PR_STRINGBUILDER builder, _In_ SIZE_T index, _In_ _Printf_format_string_ LPCWSTR format, _In_ va_list arg_ptr);
+VOID _r_obj_resizestringbuilder (_Inout_ PR_STRINGBUILDER builder, _In_ SIZE_T new_capacity);
 
-FORCEINLINE VOID _r_obj_appendstringbuilder (_Inout_ PR_STRINGBUILDER string, _In_ LPCWSTR text)
+FORCEINLINE VOID _r_obj_initializestringbuilder (_Out_ PR_STRINGBUILDER builder)
 {
-	_r_obj_appendstringbuilder_ex (string, text, _r_str_getlength (text) * sizeof (WCHAR));
+	_r_obj_initializestringbuilder_ex (builder, 256 * sizeof (WCHAR));
 }
 
-FORCEINLINE VOID _r_obj_appendstringbuilder2 (_Inout_ PR_STRINGBUILDER string, _In_ PR_STRING text)
+FORCEINLINE VOID _r_obj_appendstringbuilder (_Inout_ PR_STRINGBUILDER builder, _In_ LPCWSTR string)
 {
-	_r_obj_appendstringbuilder_ex (string, text->buffer, text->length);
+	_r_obj_appendstringbuilder_ex (builder, string, _r_str_getlength (string) * sizeof (WCHAR));
 }
 
-FORCEINLINE VOID _r_obj_appendstringbuilder3 (_Inout_ PR_STRINGBUILDER string, _In_ PR_STRINGREF text)
+FORCEINLINE VOID _r_obj_appendstringbuilder2 (_Inout_ PR_STRINGBUILDER builder, _In_ PR_STRING string)
 {
-	_r_obj_appendstringbuilder_ex (string, text->buffer, text->length);
+	_r_obj_appendstringbuilder_ex (builder, string->buffer, string->length);
 }
 
-FORCEINLINE VOID _r_obj_appendstringbuilderformat (_Inout_ PR_STRINGBUILDER string, _In_ _Printf_format_string_ LPCWSTR format, ...)
+FORCEINLINE VOID _r_obj_appendstringbuilder3 (_Inout_ PR_STRINGBUILDER builder, _In_ PR_STRINGREF string)
+{
+	_r_obj_appendstringbuilder_ex (builder, string->buffer, string->length);
+}
+
+FORCEINLINE VOID _r_obj_appendstringbuilderformat (_Inout_ PR_STRINGBUILDER builder, _In_ _Printf_format_string_ LPCWSTR format, ...)
 {
 	va_list arg_ptr;
 
 	va_start (arg_ptr, format);
-	_r_obj_appendstringbuilderformat_v (string, format, arg_ptr);
+	_r_obj_appendstringbuilderformat_v (builder, format, arg_ptr);
 	va_end (arg_ptr);
 }
 
-FORCEINLINE VOID _r_obj_insertstringbuilder (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ LPCWSTR text)
+FORCEINLINE VOID _r_obj_insertstringbuilder (_Inout_ PR_STRINGBUILDER builder, _In_ SIZE_T index, _In_ LPCWSTR string)
 {
-	_r_obj_insertstringbuilder_ex (string, index, text, _r_str_getlength (text) * sizeof (WCHAR));
+	_r_obj_insertstringbuilder_ex (builder, index, string, _r_str_getlength (string) * sizeof (WCHAR));
 }
 
-FORCEINLINE VOID _r_obj_insertstringbuilder2 (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ PR_STRING text)
+FORCEINLINE VOID _r_obj_insertstringbuilder2 (_Inout_ PR_STRINGBUILDER builder, _In_ SIZE_T index, _In_ PR_STRING string)
 {
-	_r_obj_insertstringbuilder_ex (string, index, text->buffer, text->length);
+	_r_obj_insertstringbuilder_ex (builder, index, string->buffer, string->length);
 }
 
-FORCEINLINE VOID _r_obj_insertstringbuilder3 (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ PR_STRINGREF text)
+FORCEINLINE VOID _r_obj_insertstringbuilder3 (_Inout_ PR_STRINGBUILDER builder, _In_ SIZE_T index, _In_ PR_STRINGREF string)
 {
-	_r_obj_insertstringbuilder_ex (string, index, text->buffer, text->length);
+	_r_obj_insertstringbuilder_ex (builder, index, string->buffer, string->length);
 }
 
-FORCEINLINE VOID _r_obj_insertstringbuilderformat (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ _Printf_format_string_ LPCWSTR format, ...)
+FORCEINLINE VOID _r_obj_insertstringbuilderformat (_Inout_ PR_STRINGBUILDER builder, _In_ SIZE_T index, _In_ _Printf_format_string_ LPCWSTR format, ...)
 {
 	va_list arg_ptr;
 
 	va_start (arg_ptr, format);
-	_r_obj_insertstringbuilderformat_v (string, index, format, arg_ptr);
+	_r_obj_insertstringbuilderformat_v (builder, index, format, arg_ptr);
 	va_end (arg_ptr);
 }
 
-FORCEINLINE VOID _r_obj_deletestringbuilder (_Inout_ PR_STRINGBUILDER string)
+FORCEINLINE VOID _r_obj_deletestringbuilder (_Inout_ PR_STRINGBUILDER builder)
 {
-	string->allocated_length = 0;
+	builder->allocated_length = 0;
 
-	SAFE_DELETE_REFERENCE (string->string);
+	SAFE_DELETE_REFERENCE (builder->string);
 }
 
-FORCEINLINE PR_STRING _r_obj_finalstringbuilder (_In_ PR_STRINGBUILDER string)
+FORCEINLINE PR_STRING _r_obj_finalstringbuilder (_In_ PR_STRINGBUILDER builder)
 {
-	return string->string;
+	return builder->string;
 }
 
 //
@@ -2236,18 +2241,17 @@ ULONG _r_inet_querycontentlength (_In_ HINTERNET hrequest);
 LONG64 _r_inet_querylastmodified (_In_ HINTERNET hrequest);
 ULONG _r_inet_querystatuscode (_In_ HINTERNET hrequest);
 
-FORCEINLINE VOID _r_inet_initializedownload (_Out_ PR_DOWNLOAD_INFO download_info, _In_opt_ HANDLE hfile, _In_opt_ PR_INET_DOWNLOAD_FUNCTION download_callback, _In_opt_ PVOID lparam)
-{
-	download_info->hfile = hfile;
-	download_info->string = NULL;
-	download_info->download_callback = download_callback;
-	download_info->lparam = lparam;
-}
+VOID _r_inet_initializedownload_ex (_Out_ PR_DOWNLOAD_INFO download_info, _In_opt_ HANDLE hfile, _In_opt_ PR_INET_DOWNLOAD_FUNCTION download_callback, _In_opt_ PVOID lparam);
 
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ PR_STRING url, _Inout_ PR_DOWNLOAD_INFO download_info);
 
 VOID _r_inet_destroydownload (_Inout_ PR_DOWNLOAD_INFO download_info);
+
+FORCEINLINE VOID _r_inet_initializedownload (_Out_ PR_DOWNLOAD_INFO download_info)
+{
+	_r_inet_initializedownload_ex (download_info, NULL, NULL, NULL);
+}
 
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_inet_queryurlparts (_In_ PR_STRING url, _In_ ULONG flags, _Out_ PR_URLPARTS url_parts);

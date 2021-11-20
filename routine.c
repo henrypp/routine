@@ -46,9 +46,6 @@ VOID _r_console_writestringformat (_In_ _Printf_format_string_ LPCWSTR format, .
 	string = _r_format_string_v (format, arg_ptr);
 	va_end (arg_ptr);
 
-	if (!string)
-		return;
-
 	_r_console_writestring (string);
 
 	_r_obj_dereference (string);
@@ -1996,37 +1993,36 @@ VOID _r_obj_setstringlength (_Inout_ PR_STRING string, _In_ SIZE_T length)
 // String builder
 //
 
-VOID _r_obj_initializestringbuilder (_Out_ PR_STRINGBUILDER string)
+VOID _r_obj_initializestringbuilder_ex (_Out_ PR_STRINGBUILDER builder, _In_ SIZE_T initial_capacity)
 {
-	string->allocated_length = 256 * sizeof (WCHAR);
+	// Make sure the initial capacity is even, as required for all string objects.
+	if (initial_capacity & 0x01)
+		initial_capacity += 1;
 
-	string->string = _r_obj_createstring_ex (NULL, string->allocated_length);
+	builder->allocated_length = initial_capacity;
 
-	string->string->length = 0;
-	string->string->buffer[0] = UNICODE_NULL;
+	builder->string = _r_obj_createstring_ex (NULL, builder->allocated_length);
+
+	builder->string->buffer[0] = UNICODE_NULL;
+	builder->string->length = 0;
 }
 
-VOID _r_obj_appendstringbuilder_ex (_Inout_ PR_STRINGBUILDER string, _In_ LPCWSTR text, _In_ SIZE_T length)
+VOID _r_obj_appendstringbuilder_ex (_Inout_ PR_STRINGBUILDER builder, _In_ LPCWSTR string, _In_ SIZE_T length)
 {
-	if (!text || !length)
-		return;
+	if (builder->allocated_length < builder->string->length + length)
+		_r_obj_resizestringbuilder (builder, builder->string->length + length);
 
-	if (string->allocated_length < string->string->length + length)
-		_r_obj_resizestringbuilder (string, string->string->length + length);
+	RtlCopyMemory (PTR_ADD_OFFSET (builder->string->buffer, builder->string->length), string, length);
 
-	RtlCopyMemory (PTR_ADD_OFFSET (string->string->buffer, string->string->length), text, length);
+	builder->string->length += length;
 
-	string->string->length += length;
-	_r_obj_writestringnullterminator (string->string);
+	_r_obj_writestringnullterminator (builder->string);
 }
 
-VOID _r_obj_appendstringbuilderformat_v (_Inout_ PR_STRINGBUILDER string, _In_ _Printf_format_string_ LPCWSTR format, _In_ va_list arg_ptr)
+VOID _r_obj_appendstringbuilderformat_v (_Inout_ PR_STRINGBUILDER builder, _In_ _Printf_format_string_ LPCWSTR format, _In_ va_list arg_ptr)
 {
 	SIZE_T length_in_bytes;
 	INT length;
-
-	if (!format)
-		return;
 
 	length = _vscwprintf (format, arg_ptr);
 
@@ -2035,47 +2031,39 @@ VOID _r_obj_appendstringbuilderformat_v (_Inout_ PR_STRINGBUILDER string, _In_ _
 
 	length_in_bytes = length * sizeof (WCHAR);
 
-	if (string->allocated_length < string->string->length + length_in_bytes)
-		_r_obj_resizestringbuilder (string, string->string->length + length_in_bytes);
+	if (builder->allocated_length < builder->string->length + length_in_bytes)
+		_r_obj_resizestringbuilder (builder, builder->string->length + length_in_bytes);
 
 #pragma warning(push)
 #pragma warning(disable: 4996)
-	_vsnwprintf (PTR_ADD_OFFSET (string->string->buffer, string->string->length), length, format, arg_ptr);
+	_vsnwprintf (PTR_ADD_OFFSET (builder->string->buffer, builder->string->length), length, format, arg_ptr);
 #pragma warning(pop)
 
-	string->string->length += length_in_bytes;
-	_r_obj_writestringnullterminator (string->string);
+	builder->string->length += length_in_bytes;
+
+	_r_obj_writestringnullterminator (builder->string);
 }
 
-VOID _r_obj_insertstringbuilder_ex (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ LPCWSTR text, _In_ SIZE_T length)
+VOID _r_obj_insertstringbuilder_ex (_Inout_ PR_STRINGBUILDER builder, _In_ SIZE_T index, _In_ LPCWSTR string, _In_ SIZE_T length)
 {
-	if (!text || !length)
-		return;
+	if (builder->allocated_length < builder->string->length + length)
+		_r_obj_resizestringbuilder (builder, builder->string->length + length);
 
-	if (string->allocated_length < string->string->length + length)
-		_r_obj_resizestringbuilder (string, string->string->length + length);
+	if ((index * sizeof (WCHAR)) < builder->string->length)
+		RtlMoveMemory (&builder->string->buffer[index + (length / sizeof (WCHAR))], &builder->string->buffer[index], builder->string->length - (index * sizeof (WCHAR)));
 
-	if ((index * sizeof (WCHAR)) < string->string->length)
-	{
-		RtlMoveMemory (&string->string->buffer[index + (length / sizeof (WCHAR))], &string->string->buffer[index], string->string->length - (index * sizeof (WCHAR)));
-	}
+	if (!_r_str_isempty (string))
+		RtlCopyMemory (&builder->string->buffer[index], string, length);
 
-	if (!_r_str_isempty (text))
-	{
-		RtlCopyMemory (&string->string->buffer[index], text, length);
-	}
+	builder->string->length += length;
 
-	string->string->length += length;
-	_r_obj_writestringnullterminator (string->string);
+	_r_obj_writestringnullterminator (builder->string);
 }
 
-VOID _r_obj_insertstringbuilderformat_v (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T index, _In_ _Printf_format_string_ LPCWSTR format, _In_ va_list arg_ptr)
+VOID _r_obj_insertstringbuilderformat_v (_Inout_ PR_STRINGBUILDER builder, _In_ SIZE_T index, _In_ _Printf_format_string_ LPCWSTR format, _In_ va_list arg_ptr)
 {
 	SIZE_T length_in_bytes;
 	INT length;
-
-	if (!format)
-		return;
 
 	length = _vscwprintf (format, arg_ptr);
 
@@ -2084,29 +2072,28 @@ VOID _r_obj_insertstringbuilderformat_v (_Inout_ PR_STRINGBUILDER string, _In_ S
 
 	length_in_bytes = length * sizeof (WCHAR);
 
-	if (string->allocated_length < string->string->length + length_in_bytes)
-		_r_obj_resizestringbuilder (string, string->string->length + length_in_bytes);
+	if (builder->allocated_length < builder->string->length + length_in_bytes)
+		_r_obj_resizestringbuilder (builder, builder->string->length + length_in_bytes);
 
-	if ((index * sizeof (WCHAR)) < string->string->length)
-	{
-		RtlMoveMemory (&string->string->buffer[index + length], &string->string->buffer[index], string->string->length - (index * sizeof (WCHAR)));
-	}
+	if ((index * sizeof (WCHAR)) < builder->string->length)
+		RtlMoveMemory (&builder->string->buffer[index + length], &builder->string->buffer[index], builder->string->length - (index * sizeof (WCHAR)));
 
 #pragma warning(push)
 #pragma warning(disable: 4996)
-	_vsnwprintf (&string->string->buffer[index], length, format, arg_ptr);
+	_vsnwprintf (&builder->string->buffer[index], length, format, arg_ptr);
 #pragma warning(pop)
 
-	string->string->length += length_in_bytes;
-	_r_obj_writestringnullterminator (string->string);
+	builder->string->length += length_in_bytes;
+
+	_r_obj_writestringnullterminator (builder->string);
 }
 
-VOID _r_obj_resizestringbuilder (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T new_capacity)
+VOID _r_obj_resizestringbuilder (_Inout_ PR_STRINGBUILDER builder, _In_ SIZE_T new_capacity)
 {
 	PR_STRING new_string;
 	SIZE_T new_size;
 
-	new_size = string->allocated_length * 2;
+	new_size = builder->allocated_length * 2;
 
 	if (new_capacity & 0x01)
 		new_capacity += 1;
@@ -2116,11 +2103,11 @@ VOID _r_obj_resizestringbuilder (_Inout_ PR_STRINGBUILDER string, _In_ SIZE_T ne
 
 	new_string = _r_obj_createstring_ex (NULL, new_size);
 
-	RtlCopyMemory (new_string->buffer, string->string->buffer, string->string->length + sizeof (UNICODE_NULL));
+	RtlCopyMemory (new_string->buffer, builder->string->buffer, builder->string->length + sizeof (UNICODE_NULL));
 
-	new_string->length = string->string->length;
+	new_string->length = builder->string->length;
 
-	_r_obj_movereference (&string->string, new_string);
+	_r_obj_movereference (&builder->string, new_string);
 }
 
 //
@@ -8495,7 +8482,7 @@ INT _r_wnd_messageloop (_In_ HWND main_wnd, _In_ LPCWSTR accelerator_table)
 	return ERROR_SUCCESS;
 }
 
-static BOOLEAN _r_wnd_isplatformfullscreenmode ()
+BOOLEAN _r_wnd_isplatformfullscreenmode ()
 {
 	QUERY_USER_NOTIFICATION_STATE state = 0;
 
@@ -8524,7 +8511,7 @@ static BOOLEAN _r_wnd_isplatformfullscreenmode ()
 	return (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
 }
 
-static BOOLEAN _r_wnd_isfullscreenwindowmode ()
+BOOLEAN _r_wnd_isfullscreenwindowmode ()
 {
 	MONITORINFO monitor_info = {0};
 	RECT wnd_rect;
@@ -8572,7 +8559,7 @@ static BOOLEAN _r_wnd_isfullscreenwindowmode ()
 	return !((style & (WS_DLGFRAME | WS_THICKFRAME)) || (ex_style & (WS_EX_WINDOWEDGE | WS_EX_TOOLWINDOW)));
 }
 
-static BOOLEAN _r_wnd_isfullscreenconsolemode ()
+BOOLEAN _r_wnd_isfullscreenconsolemode ()
 {
 	HWND hwnd;
 	ULONG pid = 0;
@@ -8980,43 +8967,60 @@ ULONG _r_inet_querystatuscode (_In_ HINTERNET hrequest)
 	return 0;
 }
 
+VOID _r_inet_initializedownload_ex (_Out_ PR_DOWNLOAD_INFO download_info, _In_opt_ HANDLE hfile, _In_opt_ PR_INET_DOWNLOAD_FUNCTION download_callback, _In_opt_ PVOID lparam)
+{
+	download_info->is_savetofile = (hfile != NULL);
+
+	if (download_info->is_savetofile)
+	{
+		download_info->u.hfile = hfile;
+	}
+	else
+	{
+		download_info->u.string = NULL;
+	}
+
+	download_info->download_callback = download_callback;
+	download_info->lparam = lparam;
+}
+
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ PR_STRING url, _Inout_ PR_DOWNLOAD_INFO download_info)
 {
+	R_STRINGBUILDER sb;
 	HINTERNET hconnect;
 	HINTERNET hrequest;
-	R_STRINGBUILDER buffer_string = {0};
-	PR_STRING decoded_string;
+	PR_STRING string;
 	PR_BYTE content_bytes;
 	ULONG allocated_length;
-	ULONG readed_current;
-	ULONG readed_total;
-	ULONG length_total;
+	ULONG total_readed;
+	ULONG total_length;
+	ULONG readed_length;
 	ULONG unused;
 	ULONG code;
 
-	code = _r_inet_openurl (hsession, url, &hconnect, &hrequest, &length_total);
+	code = _r_inet_openurl (hsession, url, &hconnect, &hrequest, &total_length);
 
 	if (code != ERROR_SUCCESS)
 		return code;
 
-	if (!download_info->hfile)
-		_r_obj_initializestringbuilder (&buffer_string);
+	if (!download_info->is_savetofile)
+		_r_obj_initializestringbuilder (&sb);
 
 	allocated_length = 65536;
 	content_bytes = _r_obj_createbyte_ex (NULL, allocated_length);
 
-	readed_total = 0;
+	total_readed = 0;
 
-	while (_r_inet_readrequest (hrequest, content_bytes->buffer, allocated_length, &readed_current, &readed_total))
+	while (_r_inet_readrequest (hrequest, content_bytes->buffer, allocated_length, &readed_length, &total_readed))
 	{
 		_r_sys_setthreadexecutionstate (ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED);
 
-		_r_obj_setbytelength (content_bytes, readed_current);
+		_r_obj_setbytelength (content_bytes, readed_length);
 
-		if (download_info->hfile)
+		if (download_info->is_savetofile)
 		{
-			if (!WriteFile (download_info->hfile, content_bytes->buffer, readed_current, &unused, NULL))
+			if (!WriteFile (download_info->u.hfile, content_bytes->buffer, readed_length, &unused, NULL))
 			{
 				code = GetLastError ();
 				break;
@@ -9024,12 +9028,12 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ PR_STRING url, _Inout
 		}
 		else
 		{
-			decoded_string = _r_str_multibyte2unicode (&content_bytes->sr);
+			string = _r_str_multibyte2unicode (&content_bytes->sr);
 
-			if (decoded_string)
+			if (string)
 			{
-				_r_obj_appendstringbuilder2 (&buffer_string, decoded_string);
-				_r_obj_dereference (decoded_string);
+				_r_obj_appendstringbuilder2 (&sb, string);
+				_r_obj_dereference (string);
 			}
 			else
 			{
@@ -9040,7 +9044,7 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ PR_STRING url, _Inout
 
 		if (download_info->download_callback)
 		{
-			if (!download_info->download_callback (readed_total, max (readed_total, length_total), download_info->lparam))
+			if (!download_info->download_callback (total_readed, max (total_readed, total_length), download_info->lparam))
 			{
 				code = ERROR_CANCELLED;
 				break;
@@ -9048,15 +9052,19 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ PR_STRING url, _Inout
 		}
 	}
 
-	if (!download_info->hfile)
+	if (!download_info->is_savetofile)
 	{
 		if (code == ERROR_SUCCESS)
 		{
-			download_info->string = _r_obj_finalstringbuilder (&buffer_string);
+			string = _r_obj_finalstringbuilder (&sb);
+
+			download_info->u.string = string;
 		}
 		else
 		{
-			_r_obj_deletestringbuilder (&buffer_string);
+			_r_obj_deletestringbuilder (&sb);
+
+			download_info->u.string = NULL;
 		}
 	}
 
@@ -9072,8 +9080,14 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ PR_STRING url, _Inout
 
 VOID _r_inet_destroydownload (_Inout_ PR_DOWNLOAD_INFO download_info)
 {
-	SAFE_DELETE_HANDLE (download_info->hfile);
-	SAFE_DELETE_REFERENCE (download_info->string);
+	if (download_info->is_savetofile)
+	{
+		SAFE_DELETE_HANDLE (download_info->u.hfile);
+	}
+	else
+	{
+		SAFE_DELETE_REFERENCE (download_info->u.string);
+	}
 }
 
 _Success_ (return == ERROR_SUCCESS)
@@ -9085,8 +9099,6 @@ ULONG _r_inet_queryurlparts (_In_ PR_STRING url, _In_ ULONG flags, _Out_ PR_URLP
 	url_comp.dwStructSize = sizeof (url_comp);
 
 	RtlZeroMemory (url_parts, sizeof (R_URLPARTS));
-
-	url_parts->flags = flags;
 
 	length = 256;
 
@@ -10285,11 +10297,7 @@ VOID _r_tray_initialize (_Inout_ PNOTIFYICONDATA nid, _In_ HWND hwnd, _In_ LPCGU
 
 	if (!current_code)
 	{
-		R_STRINGREF string;
-
-		_r_obj_initializestringref4 (&string, &NtCurrentPeb ()->ProcessParameters->ImagePathName);
-
-		new_code = _r_obj_getstringrefhash (&string, TRUE);
+		new_code = _r_str_gethash (_r_sys_getimagepath (), TRUE);
 
 		current_code = InterlockedCompareExchange (&hash_code, new_code, 0);
 
@@ -10303,6 +10311,7 @@ VOID _r_tray_initialize (_Inout_ PNOTIFYICONDATA nid, _In_ HWND hwnd, _In_ LPCGU
 
 	nid->uFlags |= NIF_GUID;
 	nid->hWnd = hwnd;
+	nid->uID = guid->Data2;
 
 	RtlCopyMemory (&nid->guidItem, guid, sizeof (GUID));
 
@@ -10322,6 +10331,7 @@ VOID _r_tray_initialize (_Inout_ PNOTIFYICONDATA nid, _In_ HWND hwnd, _In_ LPCGU
 
 	nid->cbSize = (is_vistaorlater ? sizeof (NOTIFYICONDATA) : NOTIFYICONDATA_V3_SIZE);
 	nid->hWnd = hwnd;
+	nid->uID = guid->Data2;
 
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_7))
 	{
@@ -10330,10 +10340,6 @@ VOID _r_tray_initialize (_Inout_ PNOTIFYICONDATA nid, _In_ HWND hwnd, _In_ LPCGU
 		RtlCopyMemory (&nid->guidItem, guid, sizeof (GUID));
 
 		nid->guidItem.Data1 = current_code; // HACK!!!
-	}
-	else
-	{
-		nid->uID = guid->Data2;
 	}
 
 #endif // APP_NO_DEPRECATIONS
@@ -10450,15 +10456,9 @@ BOOLEAN _r_tray_popupformat (_In_ HWND hwnd, _In_ LPCGUID guid, _In_opt_ ULONG i
 	PR_STRING string;
 	BOOLEAN status;
 
-	if (!format)
-		return FALSE;
-
 	va_start (arg_ptr, format);
 	string = _r_format_string_v (format, arg_ptr);
 	va_end (arg_ptr);
-
-	if (!string)
-		return FALSE;
 
 	status = _r_tray_popup (hwnd, guid, icon_id, title, string->buffer);
 
@@ -10502,15 +10502,9 @@ BOOLEAN _r_tray_setinfoformat (_In_ HWND hwnd, _In_ LPCGUID guid, _In_opt_ HICON
 	PR_STRING string;
 	BOOLEAN status;
 
-	if (!format)
-		return FALSE;
-
 	va_start (arg_ptr, format);
 	string = _r_format_string_v (format, arg_ptr);
 	va_end (arg_ptr);
-
-	if (!string)
-		return FALSE;
 
 	status = _r_tray_setinfo (hwnd, guid, hicon, string->buffer);
 
@@ -10772,15 +10766,9 @@ VOID _r_ctrl_setstringformat (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ _Printf_for
 	va_list arg_ptr;
 	PR_STRING string;
 
-	if (!format)
-		return;
-
 	va_start (arg_ptr, format);
 	string = _r_format_string_v (format, arg_ptr);
 	va_end (arg_ptr);
-
-	if (!string)
-		return;
 
 	_r_ctrl_setstring (hwnd, ctrl_id, string->buffer);
 
@@ -10857,15 +10845,9 @@ VOID _r_ctrl_settiptextformat (_In_ HWND htip, _In_ HWND hparent, _In_ INT ctrl_
 	va_list arg_ptr;
 	PR_STRING string;
 
-	if (!format)
-		return;
-
 	va_start (arg_ptr, format);
 	string = _r_format_string_v (format, arg_ptr);
 	va_end (arg_ptr);
-
-	if (!string)
-		return;
 
 	_r_ctrl_settiptext (htip, hparent, ctrl_id, string->buffer);
 
@@ -10897,15 +10879,9 @@ VOID _r_ctrl_showballoontipformat (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT ic
 	va_list arg_ptr;
 	PR_STRING string;
 
-	if (!format)
-		return;
-
 	va_start (arg_ptr, format);
 	string = _r_format_string_v (format, arg_ptr);
 	va_end (arg_ptr);
-
-	if (!string)
-		return;
 
 	_r_ctrl_showballoontip (hwnd, ctrl_id, icon_id, title, string->buffer);
 
@@ -10924,7 +10900,7 @@ VOID _r_menu_checkitem (_In_ HMENU hmenu, _In_ UINT item_id_start, _In_opt_ UINT
 	}
 	else
 	{
-		CheckMenuItem (hmenu, item_id_start, position_flag | ((check_id != 0) ? MF_CHECKED : MF_UNCHECKED));
+		CheckMenuItem (hmenu, item_id_start, position_flag | (check_id ? MF_CHECKED : MF_UNCHECKED));
 	}
 }
 
@@ -10967,15 +10943,9 @@ VOID _r_menu_setitemtextformat (_In_ HMENU hmenu, _In_ UINT item_id, _In_ BOOL i
 	va_list arg_ptr;
 	PR_STRING string;
 
-	if (!format)
-		return;
-
 	va_start (arg_ptr, format);
 	string = _r_format_string_v (format, arg_ptr);
 	va_end (arg_ptr);
-
-	if (!string)
-		return;
 
 	_r_menu_setitemtext (hmenu, item_id, is_byposition, string->buffer);
 
@@ -11685,15 +11655,9 @@ VOID _r_status_settextformat (_In_ HWND hwnd, _In_ INT ctrl_id, _In_ INT part_id
 	va_list arg_ptr;
 	PR_STRING string;
 
-	if (!format)
-		return;
-
 	va_start (arg_ptr, format);
 	string = _r_format_string_v (format, arg_ptr);
 	va_end (arg_ptr);
-
-	if (!string)
-		return;
 
 	_r_status_settext (hwnd, ctrl_id, part_id, string->buffer);
 
