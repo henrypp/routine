@@ -648,12 +648,15 @@ PR_STRING _r_app_getuseragent ()
 LRESULT CALLBACK _r_app_maindlgproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
 #if defined(APP_HAVE_TRAY)
-	if (app_global.main.taskbar_msg && msg == app_global.main.taskbar_msg)
+	if (app_global.main.taskbar_msg)
 	{
-		if (app_global.main.wnd_proc)
-			return CallWindowProc (app_global.main.wnd_proc, hwnd, RM_TASKBARCREATED, 0, 0);
+		if (msg == app_global.main.taskbar_msg)
+		{
+			if (app_global.main.wnd_proc)
+				return CallWindowProc (app_global.main.wnd_proc, hwnd, RM_TASKBARCREATED, 0, 0);
 
-		return FALSE;
+			return FALSE;
+		}
 	}
 #endif // APP_HAVE_TRAY
 
@@ -661,16 +664,14 @@ LRESULT CALLBACK _r_app_maindlgproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM 
 	{
 		case RM_LOCALIZE:
 		{
-			LRESULT result;
-
 			if (app_global.main.wnd_proc)
 			{
-				result = CallWindowProc (app_global.main.wnd_proc, hwnd, msg, wparam, lparam);
+				CallWindowProc (app_global.main.wnd_proc, hwnd, msg, wparam, lparam);
 
 				RedrawWindow (hwnd, NULL, NULL, RDW_ERASENOW | RDW_INVALIDATE);
 				DrawMenuBar (hwnd); // HACK!!!
 
-				return result;
+				return FALSE;
 			}
 
 			break;
@@ -679,9 +680,7 @@ LRESULT CALLBACK _r_app_maindlgproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM 
 		case WM_DESTROY:
 		{
 			if ((_r_wnd_getstyle (hwnd) & WS_MAXIMIZEBOX))
-			{
 				_r_config_setboolean_ex (L"IsMaximized", _r_wnd_ismaximized (hwnd), L"window");
-			}
 
 			break;
 		}
@@ -716,7 +715,8 @@ LRESULT CALLBACK _r_app_maindlgproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM 
 #if defined(APP_HAVE_TRAY)
 			else if (wparam == SIZE_MINIMIZED)
 			{
-				ShowWindow (hwnd, SW_HIDE);
+				if (_r_config_getboolean (L"IsMinimizeToTray", TRUE))
+					ShowWindow (hwnd, SW_HIDE);
 			}
 #endif // APP_HAVE_TRAY
 
@@ -737,8 +737,11 @@ LRESULT CALLBACK _r_app_maindlgproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM 
 		{
 			if (wparam == SC_CLOSE)
 			{
-				ShowWindow (hwnd, SW_HIDE);
-				return TRUE;
+				if (_r_config_getboolean (L"IsCloseToTray", TRUE))
+				{
+					ShowWindow (hwnd, SW_HIDE);
+					return TRUE;
+				}
 			}
 
 			break;
@@ -747,10 +750,13 @@ LRESULT CALLBACK _r_app_maindlgproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM 
 
 		case WM_SHOWWINDOW:
 		{
-			if (wparam && app_global.main.is_needmaximize)
+			if (wparam)
 			{
-				ShowWindow (hwnd, SW_SHOWMAXIMIZED);
-				app_global.main.is_needmaximize = FALSE;
+				if (app_global.main.is_needmaximize)
+				{
+					ShowWindow (hwnd, SW_SHOWMAXIMIZED);
+					app_global.main.is_needmaximize = FALSE;
+				}
 			}
 
 			break;
@@ -787,14 +793,17 @@ LRESULT CALLBACK _r_app_maindlgproc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM 
 INT _r_app_getshowcode (_In_ HWND hwnd)
 {
 	STARTUPINFO startup_info = {0};
-	INT show_code = SW_SHOWNORMAL;
-	BOOLEAN is_windowhidden = FALSE;
+	INT show_code;
+	BOOLEAN is_windowhidden;
+
+	show_code = SW_SHOWNORMAL;
+	is_windowhidden = FALSE;
 
 	startup_info.cb = sizeof (startup_info);
 
 	GetStartupInfo (&startup_info);
 
-	if ((startup_info.dwFlags & STARTF_USESHOWWINDOW) != 0)
+	if (startup_info.dwFlags & STARTF_USESHOWWINDOW)
 		show_code = startup_info.wShowWindow;
 
 	// if window have tray - check arguments
@@ -806,7 +815,7 @@ INT _r_app_getshowcode (_In_ HWND hwnd)
 	if (show_code == SW_HIDE || show_code == SW_MINIMIZE || show_code == SW_SHOWMINNOACTIVE || show_code == SW_FORCEMINIMIZE)
 		is_windowhidden = TRUE;
 
-	if ((_r_wnd_getstyle (hwnd) & WS_MAXIMIZEBOX) != 0)
+	if (_r_wnd_getstyle (hwnd) & WS_MAXIMIZEBOX)
 	{
 		if (show_code == SW_SHOWMAXIMIZED || _r_config_getboolean_ex (L"IsMaximized", FALSE, L"window"))
 		{
@@ -829,6 +838,7 @@ INT _r_app_getshowcode (_In_ HWND hwnd)
 	return show_code;
 }
 
+_Ret_maybenull_
 HWND _r_app_createwindow (_In_ LPCWSTR dlg_name, _In_opt_ LPCWSTR icon_name, _In_ DLGPROC dlg_proc)
 {
 #ifdef APP_HAVE_UPDATES
@@ -949,7 +959,7 @@ BOOLEAN _r_app_runasadmin ()
 	return FALSE;
 }
 
-VOID _r_app_restart (_In_ HWND hwnd)
+VOID _r_app_restart (_In_opt_ HWND hwnd)
 {
 	HWND hmain;
 	BOOLEAN is_mutexdestroyed;
@@ -959,7 +969,14 @@ VOID _r_app_restart (_In_ HWND hwnd)
 
 	is_mutexdestroyed = _r_mutex_destroy (&app_global.main.hmutex);
 
-	if (!_r_sys_createprocess_ex (_r_sys_getimagepath (), _r_sys_getimagecommandline (), _r_sys_getcurrentdirectory (), NULL, SW_SHOW, 0))
+	if (!_r_sys_createprocess_ex (
+		_r_sys_getimagepath (),
+		_r_sys_getimagecommandline (),
+		_r_sys_getcurrentdirectory (),
+		NULL,
+		SW_SHOW,
+		0)
+		)
 	{
 		if (is_mutexdestroyed)
 			_r_mutex_create (_r_app_getmutexname (), &app_global.main.hmutex); // restore mutex on error
@@ -972,10 +989,11 @@ VOID _r_app_restart (_In_ HWND hwnd)
 	if (hmain)
 	{
 		DestroyWindow (hmain);
-		WaitForSingleObjectEx (hmain, 3000, FALSE); // wait for exit
+
+		WaitForSingleObjectEx (hmain, 4000, FALSE); // wait for exit
 	}
 
-	ExitProcess (ERROR_SUCCESS);
+	_r_sys_exitprocess (STATUS_SUCCESS);
 }
 #endif // !APP_CONSOLE
 
@@ -3682,6 +3700,87 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 #endif // APP_HAVE_SETTINGS
 
 #if defined(APP_HAVE_SKIPUAC)
+HRESULT _r_skipuac_checkmodulepath (_In_ IRegisteredTask *registered_task)
+{
+	ITaskDefinition *task_definition = NULL;
+	IActionCollection *action_collection = NULL;
+	IAction *action = NULL;
+	IExecAction *exec_action = NULL;
+
+	BSTR task_path = NULL;
+
+	LONG count;
+
+	HRESULT hr;
+
+	hr = IRegisteredTask_get_Definition (registered_task, &task_definition);
+
+	if (FAILED (hr))
+		goto CleanupExit;
+
+	hr = ITaskDefinition_get_Actions (task_definition, &action_collection);
+
+	if (FAILED (hr))
+		goto CleanupExit;
+
+	// check actions count is equal to 1
+	hr = IActionCollection_get_Count (action_collection, &count);
+
+	if (FAILED (hr))
+		goto CleanupExit;
+
+	if (count != 1)
+	{
+		hr = SCHED_E_INVALID_TASK;
+
+		goto CleanupExit;
+	}
+
+	hr = IActionCollection_get_Item (action_collection, 1, &action);
+
+	if (FAILED (hr))
+		goto CleanupExit;
+
+	hr = IAction_QueryInterface (action, &IID_IExecAction, &exec_action);
+
+	if (FAILED (hr))
+		goto CleanupExit;
+
+	hr = IExecAction_get_Path (exec_action, &task_path);
+
+	if (FAILED (hr))
+		goto CleanupExit;
+
+	// check path is for current module
+	PathUnquoteSpaces (task_path);
+
+	if (_r_str_compare (task_path, _r_sys_getimagepath ()) != 0)
+	{
+		hr = SCHED_E_INVALID_TASK;
+
+		goto CleanupExit;
+	}
+
+CleanupExit:
+
+	if (task_path)
+		SysFreeString (task_path);
+
+	if (exec_action)
+		IExecAction_Release (exec_action);
+
+	if (action)
+		IAction_Release (action);
+
+	if (action_collection)
+		IActionCollection_Release (action_collection);
+
+	if (task_definition)
+		ITaskDefinition_Release (task_definition);
+
+	return hr;
+}
+
 BOOLEAN _r_skipuac_isenabled ()
 {
 #ifndef APP_NO_DEPRECATIONS
@@ -3693,19 +3792,12 @@ BOOLEAN _r_skipuac_isenabled ()
 
 	ITaskService *task_service = NULL;
 	ITaskFolder *task_folder = NULL;
-	ITaskDefinition *task_definition = NULL;
-	IActionCollection *action_collection = NULL;
-	IAction *action = NULL;
-	IExecAction *exec_action = NULL;
 	IRegisteredTask *registered_task = NULL;
 
 	BSTR task_root = NULL;
 	BSTR task_name = NULL;
-	BSTR task_path = NULL;
 
 	HRESULT hr;
-
-	BOOLEAN is_enabled = FALSE;
 
 	hr = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
 
@@ -3731,36 +3823,10 @@ BOOLEAN _r_skipuac_isenabled ()
 	if (FAILED (hr))
 		goto CleanupExit;
 
-	hr = IRegisteredTask_get_Definition (registered_task, &task_definition);
+	hr = _r_skipuac_checkmodulepath (registered_task);
 
 	if (FAILED (hr))
 		goto CleanupExit;
-
-	hr = ITaskDefinition_get_Actions (task_definition, &action_collection);
-
-	if (FAILED (hr))
-		goto CleanupExit;
-
-	hr = IActionCollection_get_Item (action_collection, 1, &action);
-
-	if (FAILED (hr))
-		goto CleanupExit;
-
-	hr = IAction_QueryInterface (action, &IID_IExecAction, &exec_action);
-
-	if (FAILED (hr))
-		goto CleanupExit;
-
-	hr = IExecAction_get_Path (exec_action, &task_path);
-
-	if (FAILED (hr))
-		goto CleanupExit;
-
-	// check path is to current module
-	PathUnquoteSpaces (task_path);
-
-	if (_r_str_compare (task_path, _r_sys_getimagepath ()) == 0)
-		is_enabled = TRUE;
 
 CleanupExit:
 
@@ -3769,21 +3835,6 @@ CleanupExit:
 
 	if (task_name)
 		SysFreeString (task_name);
-
-	if (task_path)
-		SysFreeString (task_path);
-
-	if (exec_action)
-		IExecAction_Release (exec_action);
-
-	if (action)
-		IAction_Release (action);
-
-	if (action_collection)
-		IActionCollection_Release (action_collection);
-
-	if (task_definition)
-		ITaskDefinition_Release (task_definition);
 
 	if (registered_task)
 		IRegisteredTask_Release (registered_task);
@@ -3794,7 +3845,7 @@ CleanupExit:
 	if (task_service)
 		ITaskService_Release (task_service);
 
-	return is_enabled;
+	return SUCCEEDED (hr);
 }
 
 HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
@@ -4030,11 +4081,7 @@ BOOLEAN _r_skipuac_run ()
 
 	ITaskService *task_service = NULL;
 	ITaskFolder *task_folder = NULL;
-	ITaskDefinition *task_definition = NULL;
 	IRegisteredTask *registered_task = NULL;
-	IActionCollection *action_collection = NULL;
-	IAction *action = NULL;
-	IExecAction *exec_action = NULL;
 	IRunningTask *running_task = NULL;
 
 	BSTR task_root = NULL;
@@ -4046,7 +4093,7 @@ BOOLEAN _r_skipuac_run ()
 	VARIANT params = {0};
 	LPWSTR *arga;
 	ULONG attempts;
-	LONG action_count;
+	TASK_STATE state;
 	INT numargs;
 
 	HRESULT hr;
@@ -4075,49 +4122,12 @@ BOOLEAN _r_skipuac_run ()
 	if (FAILED (hr))
 		goto CleanupExit;
 
-	hr = IRegisteredTask_get_Definition (registered_task, &task_definition);
+	hr = _r_skipuac_checkmodulepath (registered_task);
 
 	if (FAILED (hr))
 		goto CleanupExit;
 
-	hr = ITaskDefinition_get_Actions (task_definition, &action_collection);
-
-	if (FAILED (hr))
-		goto CleanupExit;
-
-	// check actions count is equal to 1
-	hr = IActionCollection_get_Count (action_collection, &action_count);
-
-	if (FAILED (hr))
-		goto CleanupExit;
-
-	if (action_count != 1)
-	{
-		hr = E_ABORT;
-
-		goto CleanupExit;
-	}
-
-	// check path is to current image path
-	if (SUCCEEDED (IActionCollection_get_Item (action_collection, 1, &action)))
-	{
-		if (SUCCEEDED (IAction_QueryInterface (action, &IID_IExecAction, &exec_action)))
-		{
-			if (SUCCEEDED (IExecAction_get_Path (exec_action, &task_path)))
-			{
-				PathUnquoteSpaces (task_path);
-
-				if (_r_str_compare (task_path, _r_sys_getimagepath ()) != 0)
-				{
-					hr = E_ABORT;
-
-					goto CleanupExit;
-				}
-			}
-		}
-	}
-
-	// set correct arguments for running task
+	// set arguments for task
 	arga = CommandLineToArgvW (_r_sys_getimagecommandline (), &numargs);
 
 	if (arga)
@@ -4153,8 +4163,6 @@ BOOLEAN _r_skipuac_run ()
 	hr = E_ABORT;
 
 	// check if run succesfull
-	TASK_STATE state;
-
 	attempts = 6;
 
 	do
@@ -4194,18 +4202,6 @@ CleanupExit:
 
 	if (running_task)
 		IRunningTask_Release (running_task);
-
-	if (exec_action)
-		IExecAction_Release (exec_action);
-
-	if (action)
-		IAction_Release (action);
-
-	if (action_collection)
-		IActionCollection_Release (action_collection);
-
-	if (task_definition)
-		ITaskDefinition_Release (task_definition);
 
 	if (registered_task)
 		IRegisteredTask_Release (registered_task);
