@@ -178,6 +178,7 @@ BOOLEAN _r_autorun_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable);
 //
 
 #if defined(APP_HAVE_SKIPUAC)
+HRESULT _r_skipuac_checkmodulepath (_In_ IRegisteredTask *registered_task);
 BOOLEAN _r_skipuac_isenabled ();
 HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable);
 BOOLEAN _r_skipuac_run ();
