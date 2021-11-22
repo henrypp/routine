@@ -1789,10 +1789,10 @@ PR_STRING _r_sys_getusernamefromsid (_In_ PSID sid);
 ULONG _r_sys_getwindowsversion ();
 
 _Success_ (return == STATUS_SUCCESS)
-NTSTATUS _r_sys_compressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer);
+NTSTATUS _r_sys_compressbuffer (_In_ USHORT format, _In_ PR_BYTEREF buffer, _Out_ PR_BYTE_PTR out_buffer);
 
 _Success_ (return == STATUS_SUCCESS)
-NTSTATUS _r_sys_decompressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer);
+NTSTATUS _r_sys_decompressbuffer (_In_ USHORT format, _In_ PR_BYTEREF buffer, _Out_ PR_BYTE_PTR out_buffer);
 
 _Ret_maybenull_
 HMODULE _r_sys_loadlibrary (_In_ LPCWSTR lib_name);
@@ -2386,7 +2386,7 @@ FORCEINLINE ULONG _r_math_hashinteger_ptr (_In_ ULONG_PTR value)
 // Resources
 //
 
-PVOID _r_res_loadresource (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ LPCWSTR type, _Out_opt_ PULONG buffer_size);
+BOOLEAN _r_res_loadresource (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ LPCWSTR type, _Out_ PR_BYTEREF out_buffer);
 
 _Ret_maybenull_
 PR_STRING _r_res_loadstring (_In_opt_ HINSTANCE hinst, _In_ UINT string_id);

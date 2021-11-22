@@ -6182,7 +6182,7 @@ ULONG _r_sys_getwindowsversion ()
 }
 
 _Success_ (return == STATUS_SUCCESS)
-NTSTATUS _r_sys_compressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer)
+NTSTATUS _r_sys_compressbuffer (_In_ USHORT format, _In_ PR_BYTEREF buffer, _Out_ PR_BYTE_PTR out_buffer)
 {
 	PR_BYTE tmp_buffer;
 	PVOID workspace_buffer;
@@ -6207,13 +6207,13 @@ NTSTATUS _r_sys_compressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULON
 
 	workspace_buffer = _r_mem_allocatezero (workspace_buffer_length);
 
-	allocation_length = buffer_length;
+	allocation_length = (ULONG)(buffer->length);
 	tmp_buffer = _r_obj_createbyte_ex (NULL, allocation_length);
 
 	status = RtlCompressBuffer (
 		format,
-		buffer,
-		buffer_length,
+		buffer->buffer,
+		(ULONG)buffer->length,
 		tmp_buffer->buffer,
 		allocation_length,
 		4096,
@@ -6240,7 +6240,7 @@ NTSTATUS _r_sys_compressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULON
 }
 
 _Success_ (return == STATUS_SUCCESS)
-NTSTATUS _r_sys_decompressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer)
+NTSTATUS _r_sys_decompressbuffer (_In_ USHORT format, _In_ PR_BYTEREF buffer, _Out_ PR_BYTE_PTR out_buffer)
 {
 	PR_BYTE tmp_buffer;
 	ULONG allocation_length;
@@ -6248,15 +6248,15 @@ NTSTATUS _r_sys_decompressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ UL
 	NTSTATUS status;
 	ULONG attempts;
 
-	allocation_length = buffer_length * 4;
+	allocation_length = (ULONG)(buffer->length) * 4;
 	tmp_buffer = _r_obj_createbyte_ex (NULL, allocation_length);
 
 	status = RtlDecompressBuffer (
 		format,
 		tmp_buffer->buffer,
 		allocation_length,
-		buffer,
-		buffer_length,
+		buffer->buffer,
+		(ULONG)buffer->length,
 		&out_length
 	);
 
@@ -6280,8 +6280,8 @@ NTSTATUS _r_sys_decompressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ UL
 				format,
 				tmp_buffer->buffer,
 				allocation_length,
-				buffer,
-				buffer_length,
+				buffer->buffer,
+				(ULONG)buffer->length,
 				&out_length
 			);
 
@@ -8415,30 +8415,26 @@ VOID _r_wnd_changesettings (_In_ HWND hwnd, _In_opt_ WPARAM wparam, _In_opt_ LPA
 _Ret_maybenull_
 HWND _r_wnd_createwindow (_In_opt_ HINSTANCE hinstance, _In_ LPCWSTR name, _In_opt_ HWND hparent, _In_ DLGPROC dlg_proc, _In_opt_ PVOID lparam)
 {
-	LPDLGTEMPLATEEX dlg_template;
+	R_BYTEREF buffer;
 	HWND hwnd;
 
-	dlg_template = _r_res_loadresource (hinstance, name, RT_DIALOG, NULL);
-
-	if (!dlg_template)
+	if (!_r_res_loadresource (hinstance, name, RT_DIALOG, &buffer))
 		return NULL;
 
-	hwnd = CreateDialogIndirectParam (hinstance, (LPDLGTEMPLATE)dlg_template, hparent, dlg_proc, (LPARAM)lparam);
+	hwnd = CreateDialogIndirectParam (hinstance, (LPDLGTEMPLATE)buffer.buffer, hparent, dlg_proc, (LPARAM)lparam);
 
 	return hwnd;
 }
 
 INT_PTR _r_wnd_createmodalwindow (_In_opt_ HINSTANCE hinstance, _In_ LPCWSTR name, _In_opt_ HWND hparent, _In_ DLGPROC dlg_proc, _In_opt_ PVOID lparam)
 {
-	LPDLGTEMPLATEEX dlg_template;
+	R_BYTEREF buffer;
 	INT_PTR result;
 
-	dlg_template = _r_res_loadresource (hinstance, name, RT_DIALOG, NULL);
-
-	if (!dlg_template)
+	if (!_r_res_loadresource (hinstance, name, RT_DIALOG, &buffer))
 		return 0;
 
-	result = DialogBoxIndirectParam (hinstance, (LPDLGTEMPLATE)dlg_template, hparent, dlg_proc, (LPARAM)lparam);
+	result = DialogBoxIndirectParam (hinstance, (LPDLGTEMPLATE)buffer.buffer, hparent, dlg_proc, (LPARAM)lparam);
 
 	return result;
 }
@@ -9775,7 +9771,7 @@ SIZE_T _r_math_rounduptopoweroftwo (_In_ SIZE_T number)
 // Resources
 //
 
-PVOID _r_res_loadresource (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ LPCWSTR type, _Out_opt_ PULONG buffer_size)
+BOOLEAN _r_res_loadresource (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ LPCWSTR type, _Out_ PR_BYTEREF out_buffer)
 {
 	HRSRC hres;
 	HGLOBAL hloaded;
@@ -9793,18 +9789,18 @@ PVOID _r_res_loadresource (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR name, _In_ LPC
 
 			if (hlock)
 			{
-				if (buffer_size)
-					*buffer_size = SizeofResource (hinst, hres);
+				out_buffer->buffer = hlock;
+				out_buffer->length = SizeofResource (hinst, hres);
 
-				return hlock;
+				return TRUE;
 			}
 		}
 	}
 
-	if (buffer_size)
-		*buffer_size = 0;
+	out_buffer->buffer = NULL;
+	out_buffer->length = 0;
 
-	return NULL;
+	return FALSE;
 }
 
 _Ret_maybenull_
