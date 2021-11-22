@@ -536,6 +536,8 @@ typedef struct R_BYTE
 	CHAR data[1];
 } R_BYTE, *PR_BYTE;
 
+typedef PR_BYTE *PR_BYTE_PTR;
+
 #define PR_BYTEREF_INIT(string) { sizeof(string) - sizeof(ANSI_NULL), (string) }
 
 //
