@@ -9656,7 +9656,7 @@ CleanupExit:
 }
 
 _Success_ (return == STATUS_SUCCESS)
-NTSTATUS _r_crypt_hashdata (_In_ PR_CRYPT_CONTEXT context, _In_ PVOID buffer, _In_ ULONG buffer_length)
+NTSTATUS _r_crypt_hashbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length)
 {
 	NTSTATUS status;
 

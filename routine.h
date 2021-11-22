@@ -2304,7 +2304,8 @@ NTSTATUS _r_crypt_decryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffe
 _Ret_maybenull_
 PR_CRYPT_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id);
 
-NTSTATUS _r_crypt_hashdata (_In_ PR_CRYPT_CONTEXT context, _In_ PVOID buffer, _In_ ULONG buffer_length);
+_Success_ (return == STATUS_SUCCESS)
+NTSTATUS _r_crypt_hashbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length);
 
 _Ret_maybenull_
 PR_STRING _r_crypt_finalhashcontext (_In_ PR_CRYPT_CONTEXT context, _In_ BOOLEAN is_uppercase);
