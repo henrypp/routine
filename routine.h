@@ -1768,8 +1768,11 @@ PR_STRING _r_sys_getusernamefromsid (_In_ PSID sid);
 
 ULONG _r_sys_getwindowsversion ();
 
-NTSTATUS _r_sys_compressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PVOID_PTR out_buffer, _Out_ PULONG out_length);
-NTSTATUS _r_sys_decompressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PVOID_PTR out_buffer, _Out_ PULONG out_length);
+_Success_ (return == STATUS_SUCCESS)
+NTSTATUS _r_sys_compressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer);
+
+_Success_ (return == STATUS_SUCCESS)
+NTSTATUS _r_sys_decompressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer);
 
 _Ret_maybenull_
 HMODULE _r_sys_loadlibrary (_In_ LPCWSTR lib_name);
@@ -2286,13 +2289,13 @@ LSTATUS _r_reg_queryvalue (_In_ HKEY hkey, _In_opt_ LPCWSTR subkey, _In_opt_ LPC
 // Cryptography
 //
 
-//_Ret_maybenull_
-//PR_CRYPT_CONTEXT _r_crypt_createcryptcontext (_In_ LPCWSTR algorithm_id);
-//
-//_Ret_maybenull_
-//PR_BYTE _r_crypt_encryptdata (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_size);
-//
-//NTSTATUS _r_crypt_setkey (_Inout_ PR_CRYPT_CONTEXT context, _In_ PR_BYTE key, _In_ PR_BYTE nonce);
+_Ret_maybenull_
+PR_CRYPT_CONTEXT _r_crypt_createcryptcontext (_In_ LPCWSTR algorithm_id);
+
+NTSTATUS _r_crypt_generatekey (_Inout_ PR_CRYPT_CONTEXT context, _In_ PR_BYTEREF key, _In_ PR_BYTEREF nonce);
+
+_Success_ (return == STATUS_SUCCESS)
+NTSTATUS _r_crypt_encryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer);
 
 _Ret_maybenull_
 PR_CRYPT_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id);
