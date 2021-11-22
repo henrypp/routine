@@ -9525,6 +9525,65 @@ NTSTATUS _r_crypt_encryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffe
 	return status;
 }
 
+_Success_ (return == STATUS_SUCCESS)
+NTSTATUS _r_crypt_decryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer)
+{
+	PR_BYTE tmp_buffer;
+	ULONG out_length;
+	ULONG written;
+	NTSTATUS status;
+
+	status = BCryptDecrypt (
+		context->u.key_handle,
+		buffer,
+		buffer_length,
+		NULL,
+		context->block_data,
+		context->block_length,
+		NULL,
+		0,
+		&out_length,
+		BCRYPT_BLOCK_PADDING
+	);
+
+	if (status != STATUS_SUCCESS)
+	{
+		*out_buffer = NULL;
+
+		return status;
+	}
+
+	tmp_buffer = _r_obj_createbyte_ex (NULL, out_length);
+
+	status = BCryptDecrypt (
+		context->u.key_handle,
+		buffer,
+		buffer_length,
+		NULL,
+		context->block_data,
+		context->block_length,
+		tmp_buffer->buffer,
+		out_length,
+		&written,
+		BCRYPT_BLOCK_PADDING
+	);
+
+	if (status == STATUS_SUCCESS)
+	{
+		tmp_buffer->length = written;
+
+		*out_buffer = tmp_buffer;
+	}
+	else
+	{
+		*out_buffer = NULL;
+
+		_r_obj_dereference (tmp_buffer);
+	}
+
+	return status;
+}
+
 _Ret_maybenull_
 PR_CRYPT_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id)
 {
@@ -9596,6 +9655,7 @@ CleanupExit:
 	return NULL;
 }
 
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_crypt_hashdata (_In_ PR_CRYPT_CONTEXT context, _In_ PVOID buffer, _In_ ULONG buffer_length)
 {
 	NTSTATUS status;

@@ -2298,6 +2298,9 @@ NTSTATUS _r_crypt_generatekey (_Inout_ PR_CRYPT_CONTEXT context, _In_ PR_BYTEREF
 _Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_crypt_encryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer);
 
+_Success_ (return == STATUS_SUCCESS)
+NTSTATUS _r_crypt_decryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer);
+
 _Ret_maybenull_
 PR_CRYPT_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id);
 
