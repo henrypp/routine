@@ -2930,17 +2930,18 @@ BOOLEAN _r_fs_deletedirectory (_In_ LPCWSTR path, _In_ BOOLEAN is_recurse)
 
 LONG64 _r_fs_getfilesize (_In_ LPCWSTR path)
 {
-	HANDLE hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
+	HANDLE hfile;
+	LONG64 result;
 
-	if (_r_fs_isvalidhandle (hfile))
-	{
-		LONG64 result = _r_fs_getsize (hfile);
-		CloseHandle (hfile);
+	hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
 
-		return result;
-	}
+	if (!_r_fs_isvalidhandle (hfile))
+		return 0;
 
-	return 0;
+	result = _r_fs_getsize (hfile);
+	CloseHandle (hfile);
+
+	return result;
 }
 
 BOOLEAN _r_fs_makebackup (_In_ LPCWSTR path, _In_ BOOLEAN is_removesourcefile)
@@ -6180,22 +6181,26 @@ ULONG _r_sys_getwindowsversion ()
 	return windows_version;
 }
 
-NTSTATUS _r_sys_compressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PVOID_PTR out_buffer, _Out_ PULONG out_length)
+_Success_ (return == STATUS_SUCCESS)
+NTSTATUS _r_sys_compressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer)
 {
-	PVOID memory_buffer;
+	PR_BYTE tmp_buffer;
 	PVOID workspace_buffer;
 	ULONG workspace_buffer_length;
 	ULONG workspace_fragment_length;
 	ULONG allocation_length;
-	ULONG compressed_length;
+	ULONG out_length;
 	NTSTATUS status;
 
-	status = RtlGetCompressionWorkSpaceSize (format, &workspace_buffer_length, &workspace_fragment_length);
+	status = RtlGetCompressionWorkSpaceSize (
+		format,
+		&workspace_buffer_length,
+		&workspace_fragment_length
+	);
 
 	if (status != STATUS_SUCCESS)
 	{
 		*out_buffer = NULL;
-		*out_length = 0;
 
 		return status;
 	}
@@ -6203,21 +6208,30 @@ NTSTATUS _r_sys_compressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULON
 	workspace_buffer = _r_mem_allocatezero (workspace_buffer_length);
 
 	allocation_length = buffer_length;
-	memory_buffer = _r_mem_allocatezero (allocation_length);
+	tmp_buffer = _r_obj_createbyte_ex (NULL, allocation_length);
 
-	status = RtlCompressBuffer (format, buffer, buffer_length, memory_buffer, allocation_length, 4096, &compressed_length, workspace_buffer);
+	status = RtlCompressBuffer (
+		format,
+		buffer,
+		buffer_length,
+		tmp_buffer->buffer,
+		allocation_length,
+		4096,
+		&out_length,
+		workspace_buffer
+	);
 
 	if (status == STATUS_SUCCESS)
 	{
-		*out_buffer = memory_buffer;
-		*out_length = compressed_length;
+		tmp_buffer->length = out_length;
+
+		*out_buffer = tmp_buffer;
 	}
 	else
 	{
 		*out_buffer = NULL;
-		*out_length = 0;
 
-		_r_mem_free (memory_buffer);
+		_r_obj_dereference (tmp_buffer);
 	}
 
 	_r_mem_free (workspace_buffer);
@@ -6225,18 +6239,26 @@ NTSTATUS _r_sys_compressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULON
 	return status;
 }
 
-NTSTATUS _r_sys_decompressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PVOID_PTR out_buffer, _Out_ PULONG out_length)
+_Success_ (return == STATUS_SUCCESS)
+NTSTATUS _r_sys_decompressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer)
 {
-	PVOID memory_buffer;
+	PR_BYTE tmp_buffer;
 	ULONG allocation_length;
-	ULONG uncompressed_length;
+	ULONG out_length;
 	NTSTATUS status;
 	ULONG attempts;
 
 	allocation_length = buffer_length * 4;
-	memory_buffer = _r_mem_allocatezero (allocation_length);
+	tmp_buffer = _r_obj_createbyte_ex (NULL, allocation_length);
 
-	status = RtlDecompressBuffer (format, memory_buffer, allocation_length, buffer, buffer_length, &uncompressed_length);
+	status = RtlDecompressBuffer (
+		format,
+		tmp_buffer->buffer,
+		allocation_length,
+		buffer,
+		buffer_length,
+		&out_length
+	);
 
 	if (status == STATUS_BAD_COMPRESSION_BUFFER)
 	{
@@ -6252,9 +6274,16 @@ NTSTATUS _r_sys_decompressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ UL
 				break;
 			}
 
-			memory_buffer = _r_mem_reallocatezero (memory_buffer, allocation_length);
+			_r_obj_movereference (&tmp_buffer, _r_obj_createbyte_ex (NULL, allocation_length));
 
-			status = RtlDecompressBuffer (format, memory_buffer, allocation_length, buffer, buffer_length, &uncompressed_length);
+			status = RtlDecompressBuffer (
+				format,
+				tmp_buffer->buffer,
+				allocation_length,
+				buffer,
+				buffer_length,
+				&out_length
+			);
 
 			if (status != STATUS_BAD_COMPRESSION_BUFFER)
 				break;
@@ -6264,15 +6293,15 @@ NTSTATUS _r_sys_decompressbuffer (_In_ USHORT format, _In_ PVOID buffer, _In_ UL
 
 	if (status == STATUS_SUCCESS)
 	{
-		*out_buffer = memory_buffer;
-		*out_length = uncompressed_length;
+		tmp_buffer->length = out_length;
+
+		*out_buffer = tmp_buffer;
 	}
 	else
 	{
 		*out_buffer = NULL;
-		*out_length = 0;
 
-		_r_mem_free (memory_buffer);
+		_r_obj_dereference (tmp_buffer);
 	}
 
 	return status;
@@ -9326,178 +9355,175 @@ LSTATUS _r_reg_queryvalue (_In_ HKEY hkey, _In_opt_ LPCWSTR subkey, _In_opt_ LPC
 // Cryptography
 //
 
-// NOTE: do not use encryption, this shit is not working by now!
+_Ret_maybenull_
+PR_CRYPT_CONTEXT _r_crypt_createcryptcontext (_In_ LPCWSTR algorithm_id)
+{
+	PR_CRYPT_CONTEXT context;
+	ULONG query_size;
+	NTSTATUS status;
 
-//_Ret_maybenull_
-//PR_CRYPT_CONTEXT _r_crypt_createcryptcontext (_In_ LPCWSTR algorithm_id)
-//{
-//	PR_CRYPT_CONTEXT context;
-//	ULONG query_size;
-//	NTSTATUS status;
-//
-//	context = _r_mem_allocatezero (sizeof (R_CRYPT_CONTEXT));
-//
-//	status = BCryptOpenAlgorithmProvider (
-//		&context->hash_alg_handle,
-//		algorithm_id,
-//		NULL,
-//		0
-//	);
-//
-//	if (!NT_SUCCESS (status))
-//		goto CleanupExit;
-//
-//	// Calculate the size of the buffer to hold the key object
-//	status = BCryptGetProperty (
-//		context->hash_alg_handle,
-//		BCRYPT_OBJECT_LENGTH,
-//		(PBYTE)&context->object_length,
-//		sizeof (ULONG),
-//		&query_size,
-//		0
-//	);
-//
-//	if (!NT_SUCCESS (status))
-//		goto CleanupExit;
-//
-//	// Calculate the block length for the IV
-//	status = BCryptGetProperty (
-//		context->hash_alg_handle,
-//		BCRYPT_BLOCK_LENGTH,
-//		(PBYTE)&context->block_length,
-//		sizeof (ULONG),
-//		&query_size,
-//		0
-//	);
-//
-//	if (!NT_SUCCESS (status))
-//		goto CleanupExit;
-//
-//	// Sets the algorithm's chaining mode to Galois/counter mode (GCM)
-//	status = BCryptSetProperty (
-//		context->hash_alg_handle,
-//		BCRYPT_CHAINING_MODE,
-//		(PBYTE)BCRYPT_CHAIN_MODE_GCM,
-//		sizeof (BCRYPT_CHAIN_MODE_GCM),
-//		0
-//	);
-//
-//	if (!NT_SUCCESS (status))
-//		goto CleanupExit;
-//
-//	// Allocate IV memory
-//	context->block_data = _r_mem_allocatezero (context->block_length);
-//
-//	return context;
-//
-//CleanupExit:
-//
-//	if (context)
-//		_r_crypt_destroycryptcontext (context);
-//
-//	return NULL;
-//}
-//
-//_Ret_maybenull_
-//PR_BYTE _r_crypt_encryptdata (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_size)
-//{
-//	BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO auth_mode_info;
-//	PR_BYTE out_buffer;
-//	ULONG out_length;
-//	ULONG written;
-//	NTSTATUS status;
-//
-//	BYTE tag[16] = {0};
-//
-//	BCRYPT_INIT_AUTH_MODE_INFO (auth_mode_info);
-//
-//	//auth_mode_info.pbNonce = nonce;
-//	//auth_mode_info.cbNonce = nonce_size;
-//
-//	auth_mode_info.pbAuthData = buffer;
-//	auth_mode_info.cbAuthData = buffer_size;
-//	auth_mode_info.cbAAD = buffer_size;
-//
-//	auth_mode_info.pbTag = tag;
-//	auth_mode_info.cbTag = sizeof (tag);
-//
-//	status = BCryptEncrypt (
-//		context->key_handle,
-//		buffer,
-//		buffer_size,
-//		NULL,
-//		context->block_data,
-//		context->block_length,
-//		NULL,
-//		0,
-//		&out_length,
-//		0
-//	);
-//
-//	if (!NT_SUCCESS (status))
-//		return NULL;
-//
-//	out_buffer = _r_obj_createbyte_ex (NULL, out_length);
-//
-//	status = BCryptEncrypt (
-//		context->key_handle,
-//		buffer,
-//		buffer_size,
-//		NULL,
-//		context->block_data,
-//		context->block_length,
-//		out_buffer->buffer,
-//		(ULONG)out_buffer->length,
-//		&written,
-//		0
-//	);
-//
-//	if (!NT_SUCCESS (status))
-//	{
-//		_r_obj_dereference (out_buffer);
-//		return NULL;
-//	}
-//
-//	return out_buffer;
-//}
-//
-//NTSTATUS _r_crypt_setkey (_Inout_ PR_CRYPT_CONTEXT context, _In_ PR_BYTE key, _In_ PR_BYTE nonce)
-//{
-//	NTSTATUS status;
-//
-//	if (context->key_handle)
-//	{
-//		BCryptDestroyKey (context->key_handle);
-//		context->key_handle = NULL;
-//	}
-//
-//	if (context->object_data)
-//		_r_mem_free (context->object_data);
-//
-//	if (context->block_data)
-//		_r_mem_free (context->block_data);
-//
-//
-//	// Set key
-//	context->object_data = _r_mem_allocatezero (context->object_length);
-//	RtlCopyMemory (context->object_data, key->buffer, min (key->length, context->object_length));
-//
-//	// Set IV
-//	context->block_data = _r_mem_allocatezero (context->block_length);
-//	RtlCopyMemory (context->block_data, nonce->buffer, min (nonce->length, context->block_length));
-//
-//	status = BCryptGenerateSymmetricKey (
-//		context->hash_alg_handle,
-//		&context->key_handle,
-//		context->object_data,
-//		context->object_length,
-//		key->buffer,
-//		(ULONG)key->length,
-//		0
-//	);
-//
-//	return status;
-//}
+	context = _r_mem_allocatezero (sizeof (R_CRYPT_CONTEXT));
+
+	context->is_hash = FALSE; // encryption
+
+	status = BCryptOpenAlgorithmProvider (
+		&context->alg_handle,
+		algorithm_id,
+		NULL,
+		0
+	);
+
+	if (!NT_SUCCESS (status))
+		goto CleanupExit;
+
+	// Calculate the size of the buffer to hold the key object
+	status = BCryptGetProperty (
+		context->alg_handle,
+		BCRYPT_OBJECT_LENGTH,
+		(PBYTE)&context->object_length,
+		sizeof (ULONG),
+		&query_size,
+		0
+	);
+
+	if (!NT_SUCCESS (status))
+		goto CleanupExit;
+
+	// Calculate the block length for the IV
+	status = BCryptGetProperty (
+		context->alg_handle,
+		BCRYPT_BLOCK_LENGTH,
+		(PBYTE)&context->block_length,
+		sizeof (ULONG),
+		&query_size,
+		0
+	);
+
+	if (!NT_SUCCESS (status))
+		goto CleanupExit;
+
+	status = BCryptSetProperty (
+		context->alg_handle,
+		BCRYPT_CHAINING_MODE,
+		(PBYTE)BCRYPT_CHAIN_MODE_CBC,
+		sizeof (BCRYPT_CHAIN_MODE_CBC),
+		0);
+
+	if (!NT_SUCCESS (status))
+		goto CleanupExit;
+
+	return context;
+
+CleanupExit:
+
+	_r_crypt_destroycryptcontext (context);
+
+	return NULL;
+}
+
+_Success_ (return == STATUS_SUCCESS)
+NTSTATUS _r_crypt_generatekey (_Inout_ PR_CRYPT_CONTEXT context, _In_ PR_BYTEREF key, _In_ PR_BYTEREF nonce)
+{
+	NTSTATUS status;
+
+	if (context->u.key_handle)
+	{
+		BCryptDestroyKey (context->u.key_handle);
+		context->u.key_handle = NULL;
+	}
+
+	if (key->length > context->object_length)
+		return STATUS_INVALID_PARAMETER_2;
+
+	if (nonce->length > context->block_length)
+		return STATUS_INVALID_PARAMETER_3;
+
+	if (!context->object_data)
+	{
+		context->object_data = _r_mem_allocatezero (context->object_length);
+	}
+	else
+	{
+		RtlSecureZeroMemory (context->object_data, context->object_length);
+	}
+
+	if (!context->block_data)
+		context->block_data = _r_mem_allocate (context->block_length);
+
+	RtlSecureZeroMemory (context->block_data, context->block_length);
+	RtlCopyMemory (context->block_data, nonce->buffer, nonce->length);
+
+	status = BCryptGenerateSymmetricKey (
+		context->alg_handle,
+		&context->u.key_handle,
+		context->object_data,
+		context->object_length,
+		key->buffer,
+		(ULONG)key->length,
+		0
+	);
+
+	return status;
+}
+
+_Success_ (return == STATUS_SUCCESS)
+NTSTATUS _r_crypt_encryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer)
+{
+	PR_BYTE tmp_buffer;
+	ULONG out_length;
+	ULONG written;
+	NTSTATUS status;
+
+	status = BCryptEncrypt (
+		context->u.key_handle,
+		buffer,
+		buffer_length,
+		NULL,
+		context->block_data,
+		context->block_length,
+		NULL,
+		0,
+		&out_length,
+		BCRYPT_BLOCK_PADDING
+	);
+
+	if (status != STATUS_SUCCESS)
+	{
+		*out_buffer = NULL;
+
+		return status;
+	}
+
+	tmp_buffer = _r_obj_createbyte_ex (NULL, out_length);
+
+	status = BCryptEncrypt (
+		context->u.key_handle,
+		buffer,
+		buffer_length,
+		NULL,
+		context->block_data,
+		context->block_length,
+		tmp_buffer->buffer,
+		out_length,
+		&written,
+		BCRYPT_BLOCK_PADDING
+	);
+
+	if (status == STATUS_SUCCESS)
+	{
+		tmp_buffer->length = written;
+
+		*out_buffer = tmp_buffer;
+	}
+	else
+	{
+		*out_buffer = NULL;
+
+		_r_obj_dereference (tmp_buffer);
+	}
+
+	return status;
+}
 
 _Ret_maybenull_
 PR_CRYPT_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id)
@@ -9508,8 +9534,10 @@ PR_CRYPT_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id)
 
 	context = _r_mem_allocatezero (sizeof (R_CRYPT_CONTEXT));
 
+	context->is_hash = TRUE; // hashing
+
 	status = BCryptOpenAlgorithmProvider (
-		&context->hash_alg_handle,
+		&context->alg_handle,
 		algorithm_id,
 		NULL,
 		0
@@ -9519,7 +9547,7 @@ PR_CRYPT_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id)
 		goto CleanupExit;
 
 	status = BCryptGetProperty (
-		context->hash_alg_handle,
+		context->alg_handle,
 		BCRYPT_OBJECT_LENGTH,
 		(PBYTE)&context->object_length,
 		sizeof (ULONG),
@@ -9531,7 +9559,7 @@ PR_CRYPT_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id)
 		goto CleanupExit;
 
 	status = BCryptGetProperty (
-		context->hash_alg_handle,
+		context->alg_handle,
 		BCRYPT_HASH_LENGTH,
 		(PBYTE)&context->hash_length,
 		sizeof (ULONG),
@@ -9545,8 +9573,8 @@ PR_CRYPT_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id)
 	context->object_data = _r_mem_allocatezero (context->object_length);
 
 	status = BCryptCreateHash (
-		context->hash_alg_handle,
-		&context->hash_handle,
+		context->alg_handle,
+		&context->u.hash_handle,
 		context->object_data,
 		context->object_length,
 		NULL,
@@ -9563,8 +9591,7 @@ PR_CRYPT_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id)
 
 CleanupExit:
 
-	if (context)
-		_r_crypt_destroycryptcontext (context);
+	_r_crypt_destroycryptcontext (context);
 
 	return NULL;
 }
@@ -9573,7 +9600,7 @@ NTSTATUS _r_crypt_hashdata (_In_ PR_CRYPT_CONTEXT context, _In_ PVOID buffer, _I
 {
 	NTSTATUS status;
 
-	status = BCryptHashData (context->hash_handle, buffer, buffer_length, 0);
+	status = BCryptHashData (context->u.hash_handle, buffer, buffer_length, 0);
 
 	return status;
 }
@@ -9584,7 +9611,7 @@ PR_STRING _r_crypt_finalhashcontext (_In_ PR_CRYPT_CONTEXT context, _In_ BOOLEAN
 	NTSTATUS status;
 
 	status = BCryptFinishHash (
-		context->hash_handle,
+		context->u.hash_handle,
 		context->hash_data,
 		context->hash_length,
 		0
@@ -9598,14 +9625,19 @@ PR_STRING _r_crypt_finalhashcontext (_In_ PR_CRYPT_CONTEXT context, _In_ BOOLEAN
 
 VOID _r_crypt_destroycryptcontext (_In_ PR_CRYPT_CONTEXT context)
 {
-	if (context->hash_handle)
-		BCryptDestroyHash (context->hash_handle);
+	if (context->is_hash)
+	{
+		if (context->u.hash_handle)
+			BCryptDestroyHash (context->u.hash_handle);
+	}
+	else
+	{
+		if (context->u.key_handle)
+			BCryptDestroyKey (context->u.key_handle);
+	}
 
-	if (context->key_handle)
-		BCryptDestroyKey (context->key_handle);
-
-	if (context->hash_alg_handle)
-		BCryptCloseAlgorithmProvider (context->hash_alg_handle, 0);
+	if (context->alg_handle)
+		BCryptCloseAlgorithmProvider (context->alg_handle, 0);
 
 	if (context->block_data)
 		_r_mem_free (context->block_data);
