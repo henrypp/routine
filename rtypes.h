@@ -536,6 +536,8 @@ typedef struct R_BYTE
 	CHAR data[1];
 } R_BYTE, *PR_BYTE;
 
+#define PR_BYTEREF_INIT(string) { sizeof(string) - sizeof(ANSI_NULL), (string) }
+
 //
 // 16-bit string object
 //
@@ -564,7 +566,6 @@ typedef struct R_STRING
 typedef PR_STRING *PR_STRING_PTR;
 
 #define PR_STRINGREF_INIT(string) { sizeof(string) - sizeof(UNICODE_NULL), (string) }
-#define PR_BYTESREF_INIT(string) { sizeof(string) - sizeof(ANSI_NULL), (string) }
 
 //
 // String builder
