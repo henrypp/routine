@@ -658,15 +658,23 @@ typedef struct R_OBJECT_POINTER
 
 typedef struct _R_CRYPT_CONTEXT
 {
-	BCRYPT_ALG_HANDLE hash_alg_handle;
-	BCRYPT_HASH_HANDLE hash_handle;
-	BCRYPT_KEY_HANDLE key_handle;
+	BCRYPT_ALG_HANDLE alg_handle;
+
+	union
+	{
+		BCRYPT_HASH_HANDLE hash_handle;
+		BCRYPT_KEY_HANDLE key_handle;
+	} u;
+
 	PVOID object_data;
 	PVOID hash_data;
 	PVOID block_data;
+
 	ULONG object_length;
 	ULONG block_length;
 	ULONG hash_length;
+
+	BOOLEAN is_hash;
 } R_CRYPT_CONTEXT, *PR_CRYPT_CONTEXT;
 
 //
