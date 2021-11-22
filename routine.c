@@ -3301,12 +3301,12 @@ BOOLEAN _r_path_parsecommandlinefuzzy (_In_ PR_STRINGREF args, _Out_ PR_STRINGRE
 	{
 		R_STRINGREF arguments;
 
-		_r_str_skiplength (&args_sr, sizeof (WCHAR));
+		_r_obj_skipstringlength (&args_sr, sizeof (WCHAR));
 
 		// Find the matching quote character and we have our file name.
 		if (!_r_str_splitatchar (&args_sr, L'"', &args_sr, &arguments))
 		{
-			_r_str_skiplength (&args_sr, -(LONG_PTR)sizeof (WCHAR)); // Unskip the initial quote character
+			_r_obj_skipstringlength (&args_sr, -(LONG_PTR)sizeof (WCHAR)); // Unskip the initial quote character
 			*path = args_sr;
 
 			_r_obj_initializestringrefempty (command_line);
@@ -4859,7 +4859,7 @@ BOOLEAN _r_str_tointeger64 (_In_ PR_STRINGREF string, _In_opt_ ULONG base, _Out_
 		if (input.buffer[0] == L'-')
 			is_negative = TRUE;
 
-		_r_str_skiplength (&input, sizeof (WCHAR));
+		_r_obj_skipstringlength (&input, sizeof (WCHAR));
 	}
 
 	if (base)
@@ -4918,7 +4918,7 @@ BOOLEAN _r_str_tointeger64 (_In_ PR_STRINGREF string, _In_opt_ ULONG base, _Out_
 			}
 
 			if (base_used != 10)
-				_r_str_skiplength (&input, 2 * sizeof (WCHAR));
+				_r_obj_skipstringlength (&input, 2 * sizeof (WCHAR));
 		}
 	}
 
@@ -5339,7 +5339,7 @@ VOID _r_str_trimstringref (_Inout_ PR_STRINGREF string, _In_ PR_STRINGREF charse
 				trim_count += 1;
 			}
 			if (trim_count)
-				_r_str_skiplength (string, trim_count * sizeof (WCHAR));
+				_r_obj_skipstringlength (string, trim_count * sizeof (WCHAR));
 		}
 
 		if (!(flags & PR_TRIM_START_ONLY))
@@ -5407,7 +5407,7 @@ CharFound:
 			trim_count += 1;
 		}
 
-		_r_str_skiplength (string, trim_count * sizeof (WCHAR));
+		_r_obj_skipstringlength (string, trim_count * sizeof (WCHAR));
 	}
 
 	if (!(flags & PR_TRIM_START_ONLY))
@@ -5871,11 +5871,11 @@ BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR name, _Out_opt_ PR_STRING
 			continue;
 
 		// -option
-		_r_str_skiplength (&key_name, sizeof (WCHAR));
+		_r_obj_skipstringlength (&key_name, sizeof (WCHAR));
 
 		// --long-option
 		if (*key_name.buffer == L'-')
-			_r_str_skiplength (&key_name, sizeof (WCHAR));
+			_r_obj_skipstringlength (&key_name, sizeof (WCHAR));
 
 		// parse key name
 		if (_r_str_isstartswith (&key_name, &name_sr, TRUE))
@@ -5897,7 +5897,7 @@ BOOLEAN _r_sys_getopt (_In_ LPCWSTR args, _In_ LPCWSTR name, _Out_opt_ PR_STRING
 				if (out_value)
 				{
 					_r_obj_initializestringref3 (&key_value, &key_name);
-					_r_str_skiplength (&key_value, (option_length + 1) * sizeof (WCHAR));
+					_r_obj_skipstringlength (&key_value, (option_length + 1) * sizeof (WCHAR));
 				}
 			}
 			else
