@@ -283,7 +283,12 @@ BOOLEAN _r_app_initialize ()
 
 					_r_error_initialize (&error_info, NULL, APP_FAILED_KB2533623_TEXT);
 
+#if defined(APP_CONSOLE)
+					_r_console_writestringformat (APP_FAILED_KB2533623 L" 0x%08X\r\n", ERROR_DLL_INIT_FAILED);
+#else
 					_r_show_errormessage (NULL, APP_FAILED_KB2533623, ERROR_DLL_INIT_FAILED, &error_info);
+#endif // APP_CONSOLE
+
 
 					FreeLibrary (hkernel32);
 
