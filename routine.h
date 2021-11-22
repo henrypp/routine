@@ -693,9 +693,27 @@ FORCEINLINE PR_BYTE _r_obj_createbyte2 (_In_ PR_BYTE string)
 	return _r_obj_createbyte_ex (string->buffer, string->length);
 }
 
+FORCEINLINE BOOLEAN _r_obj_isbytenullterminated (_In_ PR_BYTEREF string)
+{
+	return (string->buffer[string->length] == ANSI_NULL);
+}
+
+FORCEINLINE VOID _r_obj_skipbytelength (_Inout_ PR_BYTEREF string, _In_ SIZE_T length)
+{
+	string->buffer = (LPSTR)PTR_ADD_OFFSET (string->buffer, length);
+	string->length -= length;
+}
+
 FORCEINLINE VOID _r_obj_writebytenullterminator (_In_ PR_BYTE string)
 {
 	*(LPSTR)PTR_ADD_OFFSET (string->buffer, string->length) = ANSI_NULL;
+}
+
+FORCEINLINE VOID _r_obj_trimbytetonullterminator (_In_ PR_BYTE string)
+{
+	string->length = _r_str_getbytelength (string->buffer);
+
+	_r_obj_writebytenullterminator (string); // terminate
 }
 
 //
@@ -745,7 +763,7 @@ FORCEINLINE PR_STRING _r_obj_createstring4 (_In_ PUNICODE_STRING string)
 _Ret_maybenull_
 FORCEINLINE LPCWSTR _r_obj_getstring (_In_opt_ PR_STRING string)
 {
-	if (!_r_obj_isstringempty (string))
+	if (string)
 		return string->buffer;
 
 	return NULL;
@@ -753,7 +771,7 @@ FORCEINLINE LPCWSTR _r_obj_getstring (_In_opt_ PR_STRING string)
 
 FORCEINLINE LPCWSTR _r_obj_getstringorempty (_In_opt_ PR_STRING string)
 {
-	if (!_r_obj_isstringempty (string))
+	if (string)
 		return string->buffer;
 
 	return L"";
@@ -761,7 +779,7 @@ FORCEINLINE LPCWSTR _r_obj_getstringorempty (_In_opt_ PR_STRING string)
 
 FORCEINLINE LPCWSTR _r_obj_getstringordefault (_In_opt_ PR_STRING string, _In_opt_ LPCWSTR def)
 {
-	if (!_r_obj_isstringempty (string))
+	if (string)
 		return string->buffer;
 
 	return def;
@@ -770,6 +788,14 @@ FORCEINLINE LPCWSTR _r_obj_getstringordefault (_In_opt_ PR_STRING string, _In_op
 FORCEINLINE BOOLEAN _r_obj_isstringnullterminated (_In_ PR_STRINGREF string)
 {
 	return (string->buffer[_r_str_getlength3 (string)] == UNICODE_NULL);
+}
+
+FORCEINLINE VOID _r_obj_skipstringlength (_Inout_ PR_STRINGREF string, _In_ SIZE_T length)
+{
+	assert (!(length & 0x01));
+
+	string->buffer = (LPWSTR)PTR_ADD_OFFSET (string->buffer, length);
+	string->length -= length;
 }
 
 FORCEINLINE VOID _r_obj_writestringnullterminator (_In_ PR_STRING string)
@@ -1702,12 +1728,6 @@ FORCEINLINE SIZE_T _r_str_getlength4 (_In_ PUNICODE_STRING string)
 FORCEINLINE SIZE_T _r_str_getbytelength (_In_ LPCSTR string)
 {
 	return strnlen_s (string, PR_SIZE_MAX_STRING_LENGTH);
-}
-
-FORCEINLINE VOID _r_str_skiplength (_Inout_ PR_STRINGREF string, _In_ SIZE_T length)
-{
-	string->buffer = (LPWSTR)PTR_ADD_OFFSET (string->buffer, length);
-	string->length -= length;
 }
 
 FORCEINLINE VOID _r_str_trim (_Inout_ LPWSTR string, _In_ LPCWSTR charset)
