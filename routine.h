@@ -124,10 +124,12 @@ static SID SeNetworkServiceSid = {SID_REVISION, 1, SECURITY_NT_AUTHORITY, {SECUR
 
 // extern
 extern FORCEINLINE SIZE_T _r_str_getlength (_In_ LPCWSTR string);
+extern FORCEINLINE SIZE_T _r_str_getlength_ex (_In_ LPCWSTR string, _In_ SIZE_T max_count);
 extern FORCEINLINE SIZE_T _r_str_getlength2 (_In_ PR_STRING string);
 extern FORCEINLINE SIZE_T _r_str_getlength3 (_In_ PR_STRINGREF string);
 
 extern FORCEINLINE SIZE_T _r_str_getbytelength (_In_ LPCSTR string);
+extern FORCEINLINE SIZE_T _r_str_getbytelength_ex (_In_ LPCSTR string, _In_ SIZE_T max_count);
 
 // safe clenup memory
 #ifndef SAFE_DELETE_MEMORY
@@ -711,7 +713,7 @@ FORCEINLINE VOID _r_obj_writebytenullterminator (_In_ PR_BYTE string)
 
 FORCEINLINE VOID _r_obj_trimbytetonullterminator (_In_ PR_BYTE string)
 {
-	string->length = _r_str_getbytelength (string->buffer);
+	string->length = _r_str_getbytelength_ex (string->buffer, string->length);
 
 	_r_obj_writebytenullterminator (string); // terminate
 }
@@ -807,7 +809,7 @@ FORCEINLINE VOID _r_obj_writestringnullterminator (_In_ PR_STRING string)
 
 FORCEINLINE VOID _r_obj_trimstringtonullterminator (_In_ PR_STRING string)
 {
-	string->length = _r_str_getlength (string->buffer) * sizeof (WCHAR);
+	string->length = _r_str_getlength_ex (string->buffer, string->length) * sizeof (WCHAR);
 
 	_r_obj_writestringnullterminator (string); // terminate
 }
@@ -1699,9 +1701,14 @@ FORCEINLINE BOOLEAN _r_str_fromulong64 (_Out_writes_ (buffer_size) LPWSTR buffer
 	return _r_str_printf (buffer, buffer_size, L"%" TEXT (PR_ULONG64), value);
 }
 
+FORCEINLINE SIZE_T _r_str_getlength_ex (_In_ LPCWSTR string, _In_ SIZE_T max_count)
+{
+	return wcsnlen_s (string, max_count);
+}
+
 FORCEINLINE SIZE_T _r_str_getlength (_In_ LPCWSTR string)
 {
-	return wcsnlen_s (string, PR_SIZE_MAX_STRING_LENGTH);
+	return _r_str_getlength_ex (string, PR_SIZE_MAX_STRING_LENGTH);
 }
 
 FORCEINLINE SIZE_T _r_str_getlength2 (_In_ PR_STRING string)
@@ -1725,9 +1732,14 @@ FORCEINLINE SIZE_T _r_str_getlength4 (_In_ PUNICODE_STRING string)
 	return string->Length / sizeof (WCHAR);
 }
 
+FORCEINLINE SIZE_T _r_str_getbytelength_ex (_In_ LPCSTR string, _In_ SIZE_T max_count)
+{
+	return strnlen_s (string, max_count);
+}
+
 FORCEINLINE SIZE_T _r_str_getbytelength (_In_ LPCSTR string)
 {
-	return strnlen_s (string, PR_SIZE_MAX_STRING_LENGTH);
+	return _r_str_getbytelength_ex (string, PR_SIZE_MAX_STRING_LENGTH);
 }
 
 FORCEINLINE VOID _r_str_trim (_Inout_ LPWSTR string, _In_ LPCWSTR charset)
