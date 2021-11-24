@@ -8464,7 +8464,16 @@ INT _r_wnd_messageloop (_In_ HWND main_wnd, _In_ LPCWSTR accelerator_table)
 		hactive_wnd = GetActiveWindow ();
 
 		if (!hactive_wnd)
-			hactive_wnd = msg.hwnd;
+		{
+			if (msg.hwnd && _r_wnd_isdialog (msg.hwnd))
+			{
+				hactive_wnd = msg.hwnd;
+			}
+			else
+			{
+				hactive_wnd = main_wnd;
+			}
+		}
 
 		if (TranslateAccelerator (hactive_wnd, haccelerator, &msg))
 			is_processed = TRUE;
@@ -8482,6 +8491,87 @@ INT _r_wnd_messageloop (_In_ HWND main_wnd, _In_ LPCWSTR accelerator_table)
 	DestroyAcceleratorTable (haccelerator);
 
 	return ERROR_SUCCESS;
+}
+
+static R_QUEUED_LOCK _r_context_lock = PR_QUEUED_LOCK_INIT;
+
+PR_HASHTABLE _r_wnd_getcontext_table ()
+{
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static PR_HASHTABLE hashtable = NULL;
+
+	if (_r_initonce_begin (&init_once))
+	{
+		hashtable = _r_obj_createhashtable_ex (sizeof (R_OBJECT_POINTER), 8, NULL);
+
+		_r_initonce_end (&init_once);
+	}
+
+	return hashtable;
+}
+
+FORCEINLINE ULONG _r_wnd_getcontext_hash (_In_ HWND hwnd, _In_ ULONG property_id)
+{
+	ULONG hash_code;
+
+	hash_code = _r_math_hashinteger_ptr ((ULONG_PTR)hwnd) ^ _r_math_hashinteger32 (property_id);
+
+	return hash_code;
+}
+
+_Ret_maybenull_
+PVOID _r_wnd_getcontext (_In_ HWND hwnd, _In_ ULONG property_id)
+{
+	PR_HASHTABLE hashtable;
+	PR_OBJECT_POINTER object_pointer;
+	ULONG hash_code;
+
+	hashtable = _r_wnd_getcontext_table ();
+	hash_code = _r_wnd_getcontext_hash (hwnd, property_id);
+
+	_r_queuedlock_acquireshared (&_r_context_lock);
+
+	object_pointer = _r_obj_findhashtable (hashtable, hash_code);
+
+	_r_queuedlock_releaseshared (&_r_context_lock);
+
+	if (object_pointer)
+		return object_pointer->object_body;
+
+	return NULL;
+}
+
+VOID _r_wnd_setcontext (_In_ HWND hwnd, _In_ ULONG property_id, _In_ PVOID context)
+{
+	PR_HASHTABLE hashtable;
+	R_OBJECT_POINTER object_pointer;
+	ULONG hash_code;
+
+	hashtable = _r_wnd_getcontext_table ();
+	hash_code = _r_wnd_getcontext_hash (hwnd, property_id);
+
+	object_pointer.object_body = context;
+
+	_r_queuedlock_acquireshared (&_r_context_lock);
+
+	_r_obj_addhashtableitem (hashtable, hash_code, &object_pointer);
+
+	_r_queuedlock_releaseshared (&_r_context_lock);
+}
+
+VOID _r_wnd_removecontext (_In_ HWND hwnd, _In_ ULONG property_id)
+{
+	PR_HASHTABLE hashtable;
+	ULONG hash_code;
+
+	hashtable = _r_wnd_getcontext_table ();
+	hash_code = _r_wnd_getcontext_hash (hwnd, property_id);
+
+	_r_queuedlock_acquireexclusive (&_r_context_lock);
+
+	_r_obj_removehashtableitem (hashtable, hash_code);
+
+	_r_queuedlock_releaseexclusive (&_r_context_lock);
 }
 
 BOOLEAN _r_wnd_isplatformfullscreenmode ()

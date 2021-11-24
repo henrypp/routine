@@ -2141,6 +2141,12 @@ HWND _r_wnd_createwindow (_In_opt_ HINSTANCE hinstance, _In_ LPCWSTR name, _In_o
 INT_PTR _r_wnd_createmodalwindow (_In_opt_ HINSTANCE hinstance, _In_ LPCWSTR name, _In_opt_ HWND hparent, _In_ DLGPROC dlg_proc, _In_opt_ PVOID lparam);
 INT _r_wnd_messageloop (_In_ HWND main_wnd, _In_ LPCWSTR accelerator_table);
 
+_Ret_maybenull_
+PVOID _r_wnd_getcontext (_In_ HWND hwnd, _In_ ULONG property_id);
+
+VOID _r_wnd_setcontext (_In_ HWND hwnd, _In_ ULONG property_id, _In_ PVOID context);
+VOID _r_wnd_removecontext (_In_ HWND hwnd, _In_ ULONG property_id);
+
 BOOLEAN _r_wnd_isfullscreenmode ();
 BOOLEAN _r_wnd_isoverlapped (_In_ HWND hwnd);
 BOOLEAN _r_wnd_isundercursor (_In_ HWND hwnd);
