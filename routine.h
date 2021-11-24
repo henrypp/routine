@@ -172,10 +172,10 @@ extern FORCEINLINE SIZE_T _r_str_getbytelength_ex (_In_ LPCSTR string, _In_ SIZE
 // Dereference procedures
 //
 
-VOID NTAPI _r_util_dereferencearrayprocedure (_In_ PVOID entry);
-VOID NTAPI _r_util_dereferencelistprocedure (_In_ PVOID entry);
-VOID NTAPI _r_util_dereferencehashtableprocedure (_In_ PVOID entry);
-VOID NTAPI _r_util_dereferencehashtableptrprocedure (_In_ PVOID entry);
+VOID NTAPI _r_util_dereferencearray_proc (_In_ PVOID entry);
+VOID NTAPI _r_util_dereferencelist_proc (_In_ PVOID entry);
+VOID NTAPI _r_util_dereferencehashtable_proc (_In_ PVOID entry);
+VOID NTAPI _r_util_dereferencehashtable_ptr_proc (_In_ PVOID entry);
 
 //
 // Synchronization
@@ -1148,7 +1148,7 @@ FORCEINLINE SIZE_T _r_obj_gethashtablesize (_In_opt_ PR_HASHTABLE hashtable)
 
 FORCEINLINE PR_HASHTABLE _r_obj_createhashtablepointer (_In_ SIZE_T initial_capacity)
 {
-	return _r_obj_createhashtable_ex (sizeof (R_OBJECT_POINTER), initial_capacity, &_r_util_dereferencehashtableptrprocedure);
+	return _r_obj_createhashtable_ex (sizeof (R_OBJECT_POINTER), initial_capacity, &_r_util_dereferencehashtable_ptr_proc);
 }
 
 _Ret_maybenull_

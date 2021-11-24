@@ -90,32 +90,32 @@ PR_STRING _r_format_string_v (_In_ _Printf_format_string_ LPCWSTR format, _In_ v
 _Success_ (return)
 BOOLEAN _r_format_bytesize64 (_Out_writes_ (buffer_size) LPWSTR buffer, _In_ UINT buffer_size, _In_ ULONG64 bytes)
 {
-	if (!buffer || !buffer_size)
-		return FALSE;
-
 #if defined(APP_NO_DEPRECATIONS)
-	if (SUCCEEDED (StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, buffer_size))) // vista (sp1)+
+	if (StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, buffer_size) == S_OK) // vista (sp1)+
 		return TRUE;
 #else
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
 	{
-		HMODULE hshlwapi = GetModuleHandle (L"shlwapi.dll");
+		HMODULE hshlwapi;
+
+		hshlwapi = _r_sys_loadlibrary (L"shlwapi.dll");
 
 		if (hshlwapi)
 		{
 			const SFBSE _StrFormatByteSizeEx = (SFBSE)GetProcAddress (hshlwapi, "StrFormatByteSizeEx");
+			FreeLibrary (hshlwapi);
 
 			if (_StrFormatByteSizeEx)
 			{
-				if (SUCCEEDED (_StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, buffer_size))) // vista (sp1)+
+				if (_StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, buffer_size) == S_OK) // vista (sp1)+
 					return TRUE;
 			}
 		}
 	}
-
-	if (StrFormatByteSizeW ((LONG64)bytes, buffer, buffer_size)) // fallback
-		return TRUE;
 #endif // APP_NO_DEPRECATIONS
+
+	if (StrFormatByteSize64 (bytes, buffer, buffer_size)) // fallback
+		return TRUE;
 
 	*buffer = UNICODE_NULL;
 
@@ -2121,7 +2121,7 @@ PR_ARRAY _r_obj_createarray_ex (_In_ SIZE_T item_size, _In_ SIZE_T initial_capac
 	if (!initial_capacity)
 		initial_capacity = 1;
 
-	array_node = _r_obj_allocate (sizeof (R_ARRAY), &_r_util_dereferencearrayprocedure);
+	array_node = _r_obj_allocate (sizeof (R_ARRAY), &_r_util_dereferencearray_proc);
 
 	array_node->count = 0;
 	array_node->allocated_count = initial_capacity;
@@ -2143,16 +2143,16 @@ VOID _r_obj_cleararray (_Inout_ PR_ARRAY array_node)
 	count = array_node->count;
 	array_node->count = 0;
 
-	if (array_node->cleanup_callback)
+	if (!array_node->cleanup_callback)
+		return;
+
+	for (SIZE_T i = 0; i < count; i++)
 	{
-		for (SIZE_T i = 0; i < count; i++)
-		{
-			array_item = PTR_ADD_OFFSET (array_node->items, i * array_node->item_size);
+		array_item = PTR_ADD_OFFSET (array_node->items, i * array_node->item_size);
 
-			array_node->cleanup_callback (array_item);
+		array_node->cleanup_callback (array_item);
 
-			RtlSecureZeroMemory (array_item, array_node->item_size);
-		}
+		RtlSecureZeroMemory (array_item, array_node->item_size);
 	}
 }
 
@@ -2226,11 +2226,16 @@ VOID _r_obj_addarrayitems (_Inout_ PR_ARRAY array_node, _In_ LPCVOID items, _In_
 
 VOID _r_obj_removearrayitems (_Inout_ PR_ARRAY array_node, _In_ SIZE_T start_pos, _In_ SIZE_T count)
 {
-	PVOID dst = _r_obj_getarrayitem (array_node, start_pos);
-	PVOID src = _r_obj_getarrayitem (array_node, start_pos + count);
+	PVOID dst;
+	PVOID src;
 
-	if (dst && src)
-		RtlMoveMemory (dst, src, (array_node->count - start_pos - count) * array_node->item_size);
+	dst = _r_obj_getarrayitem (array_node, start_pos);
+	src = _r_obj_getarrayitem (array_node, start_pos + count);
+
+	if (!dst || !src)
+		return;
+
+	RtlMoveMemory (dst, src, (array_node->count - start_pos - count) * array_node->item_size);
 
 	array_node->count -= count;
 }
@@ -2246,7 +2251,7 @@ PR_LIST _r_obj_createlist_ex (_In_ SIZE_T initial_capacity, _In_opt_ PR_OBJECT_C
 	if (!initial_capacity)
 		initial_capacity = 1;
 
-	list_node = _r_obj_allocate (sizeof (R_LIST), &_r_util_dereferencelistprocedure);
+	list_node = _r_obj_allocate (sizeof (R_LIST), &_r_util_dereferencelist_proc);
 
 	list_node->allocated_count = initial_capacity;
 	list_node->cleanup_callback = cleanup_callback;
@@ -2283,18 +2288,18 @@ VOID _r_obj_clearlist (_Inout_ PR_LIST list_node)
 	count = list_node->count;
 	list_node->count = 0;
 
-	if (list_node->cleanup_callback)
+	if (!list_node->cleanup_callback)
+		return;
+
+	for (SIZE_T i = 0; i < count; i++)
 	{
-		for (SIZE_T i = 0; i < count; i++)
+		list_item = list_node->items[i];
+
+		if (list_item)
 		{
-			list_item = list_node->items[i];
+			list_node->items[i] = NULL;
 
-			if (list_item)
-			{
-				list_node->items[i] = NULL;
-
-				list_node->cleanup_callback (list_item);
-			}
+			list_node->cleanup_callback (list_item);
 		}
 	}
 }
@@ -2390,7 +2395,7 @@ PR_HASHTABLE _r_obj_createhashtable_ex (_In_ SIZE_T entry_size, _In_ SIZE_T init
 {
 	PR_HASHTABLE hashtable;
 
-	hashtable = _r_obj_allocate (sizeof (R_HASHTABLE), &_r_util_dereferencehashtableprocedure);
+	hashtable = _r_obj_allocate (sizeof (R_HASHTABLE), &_r_util_dereferencehashtable_proc);
 
 	if (!initial_capacity)
 		initial_capacity = 1;
@@ -2539,23 +2544,23 @@ VOID _r_obj_clearhashtable (_Inout_ PR_HASHTABLE hashtable)
 	hashtable->free_entry = SIZE_MAX;
 	hashtable->next_entry = 0;
 
-	if (hashtable->cleanup_callback)
+	if (!hashtable->cleanup_callback)
+		return;
+
+	index = 0;
+
+	while (index < next_entry)
 	{
-		index = 0;
+		hashtable_entry = PR_HASHTABLE_GET_ENTRY (hashtable, index);
 
-		while (index < next_entry)
+		if (hashtable_entry->hash_code != SIZE_MAX)
 		{
-			hashtable_entry = PR_HASHTABLE_GET_ENTRY (hashtable, index);
+			hashtable->cleanup_callback (&hashtable_entry->body);
 
-			if (hashtable_entry->hash_code != SIZE_MAX)
-			{
-				hashtable->cleanup_callback (&hashtable_entry->body);
-
-				RtlSecureZeroMemory (&hashtable_entry->body, hashtable->entry_size);
-			}
-
-			index += 1;
+			RtlSecureZeroMemory (&hashtable_entry->body, hashtable->entry_size);
 		}
+
+		index += 1;
 	}
 }
 
@@ -4188,12 +4193,9 @@ BOOLEAN _r_str_append (_Inout_updates_ (buffer_size) _Always_ (_Post_z_) LPWSTR 
 {
 	SIZE_T dest_length;
 
-	if (!buffer || !buffer_size)
-		return FALSE;
-
 	if (buffer_size <= PR_SIZE_MAX_STRING_LENGTH)
 	{
-		dest_length = _r_str_getlength (buffer);
+		dest_length = _r_str_getlength_ex (buffer, buffer_size + 1);
 
 		_r_str_copy (buffer + dest_length, buffer_size - dest_length, string);
 
@@ -4209,10 +4211,10 @@ BOOLEAN _r_str_appendformat (_Inout_updates_ (buffer_size) _Always_ (_Post_z_) L
 	va_list arg_ptr;
 	SIZE_T dest_length;
 
-	if (!buffer || !buffer_size || buffer_size > PR_SIZE_MAX_STRING_LENGTH || !format)
+	if (buffer_size > PR_SIZE_MAX_STRING_LENGTH)
 		return FALSE;
 
-	dest_length = _r_str_getlength (buffer);
+	dest_length = _r_str_getlength_ex (buffer, buffer_size + 1);
 
 	va_start (arg_ptr, format);
 	_r_str_printf_v (buffer + dest_length, buffer_size - dest_length, format, arg_ptr);
@@ -4224,9 +4226,6 @@ BOOLEAN _r_str_appendformat (_Inout_updates_ (buffer_size) _Always_ (_Post_z_) L
 _Success_ (return)
 BOOLEAN _r_str_copy (_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer, _In_ SIZE_T buffer_size, _In_ LPCWSTR string)
 {
-	if (!buffer || !buffer_size)
-		return FALSE;
-
 	if (buffer_size <= PR_SIZE_MAX_STRING_LENGTH)
 	{
 		if (!_r_str_isempty (string))
@@ -4265,10 +4264,7 @@ BOOLEAN _r_str_printf (_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buf
 {
 	va_list arg_ptr;
 
-	if (!buffer || !buffer_size)
-		return FALSE;
-
-	if (_r_str_isempty (format) || (buffer_size > PR_SIZE_MAX_STRING_LENGTH))
+	if (buffer_size > PR_SIZE_MAX_STRING_LENGTH)
 	{
 		*buffer = UNICODE_NULL;
 		return FALSE;
@@ -4287,10 +4283,7 @@ BOOLEAN _r_str_printf_v (_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR b
 	SIZE_T max_length;
 	INT format_size;
 
-	if (!buffer || !buffer_size)
-		return FALSE;
-
-	if (_r_str_isempty (format) || (buffer_size > PR_SIZE_MAX_STRING_LENGTH))
+	if (buffer_size > PR_SIZE_MAX_STRING_LENGTH)
 	{
 		*buffer = UNICODE_NULL;
 		return FALSE;
@@ -6384,7 +6377,9 @@ BOOLEAN _r_sys_createprocess_ex (_In_opt_ LPCWSTR file_name, _In_opt_ LPCWSTR co
 
 	if (!_r_obj_isstringempty (file_name_string) && !_r_fs_exists (file_name_string->buffer))
 	{
-		PR_STRING new_path = _r_path_search (file_name_string->buffer);
+		PR_STRING new_path;
+
+		new_path = _r_path_search (file_name_string->buffer);
 
 		if (new_path)
 		{
@@ -8580,21 +8575,24 @@ BOOLEAN _r_wnd_isplatformfullscreenmode ()
 
 	// SHQueryUserNotificationState is only available for Vista+
 #if defined(APP_NO_DEPRECATIONS)
-	if (FAILED (SHQueryUserNotificationState (&state)))
+	if (SHQueryUserNotificationState (&state) != S_OK)
 		return FALSE;
 #else
 	if (_r_sys_isosversionlower (WINDOWS_VISTA))
 		return FALSE;
 
-	HINSTANCE hshell32 = GetModuleHandle (L"shell32.dll");
+	HINSTANCE hshell32;
+
+	hshell32 = _r_sys_loadlibrary (L"shell32.dll");
 
 	if (hshell32)
 	{
 		const SHQUNS _SHQueryUserNotificationState = (SHQUNS)GetProcAddress (hshell32, "SHQueryUserNotificationState");
+		FreeLibrary (hshell32);
 
 		if (_SHQueryUserNotificationState)
 		{
-			if (FAILED (_SHQueryUserNotificationState (&state)))
+			if (_SHQueryUserNotificationState (&state) != S_OK)
 				return FALSE;
 		}
 	}
@@ -8603,20 +8601,13 @@ BOOLEAN _r_wnd_isplatformfullscreenmode ()
 	return (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
 }
 
-BOOLEAN _r_wnd_isfullscreenwindowmode ()
+BOOLEAN _r_wnd_isfullscreenwindowmode (_In_ HWND hwnd)
 {
 	MONITORINFO monitor_info = {0};
 	RECT wnd_rect;
 	HMONITOR hmonitor;
-	HWND hwnd;
 	LONG_PTR style;
 	LONG_PTR ex_style;
-
-	// Get the foreground window which the user is currently working on.
-	hwnd = GetForegroundWindow ();
-
-	if (!hwnd)
-		return FALSE;
 
 	// Get the monitor where the window is located.
 	if (!GetWindowRect (hwnd, &wnd_rect))
@@ -8651,18 +8642,10 @@ BOOLEAN _r_wnd_isfullscreenwindowmode ()
 	return !((style & (WS_DLGFRAME | WS_THICKFRAME)) || (ex_style & (WS_EX_WINDOWEDGE | WS_EX_TOOLWINDOW)));
 }
 
-BOOLEAN _r_wnd_isfullscreenconsolemode ()
+BOOLEAN _r_wnd_isfullscreenconsolemode (_In_ HWND hwnd)
 {
-	HWND hwnd;
 	ULONG pid = 0;
 	ULONG modes = 0;
-
-	// We detect this by attaching the current process to the console of the
-	// foreground window and then checking if it is in full screen mode.
-	hwnd = GetForegroundWindow ();
-
-	if (!hwnd)
-		return FALSE;
 
 	GetWindowThreadProcessId (hwnd, &pid);
 
@@ -8680,7 +8663,18 @@ BOOLEAN _r_wnd_isfullscreenconsolemode ()
 
 BOOLEAN _r_wnd_isfullscreenmode ()
 {
-	return _r_wnd_isplatformfullscreenmode () || _r_wnd_isfullscreenwindowmode () || _r_wnd_isfullscreenconsolemode ();
+	HWND hwnd;
+
+	if (_r_wnd_isplatformfullscreenmode ())
+		return TRUE;
+
+	// Get the foreground window which the user is currently working on.
+	hwnd = GetForegroundWindow ();
+
+	if (hwnd)
+		return (_r_wnd_isfullscreenwindowmode (hwnd) || _r_wnd_isfullscreenconsolemode (hwnd));
+
+	return FALSE;
 }
 
 BOOLEAN _r_wnd_isoverlapped (_In_ HWND hwnd)
@@ -12030,7 +12024,7 @@ BOOL CALLBACK _r_util_activate_window_callback (_In_ HWND hwnd, _In_ LPARAM lpar
 	return TRUE;
 }
 
-VOID NTAPI _r_util_dereferencearrayprocedure (_In_ PVOID entry)
+VOID NTAPI _r_util_dereferencearray_proc (_In_ PVOID entry)
 {
 	PR_ARRAY array_node;
 	PVOID array_items;
@@ -12050,7 +12044,7 @@ VOID NTAPI _r_util_dereferencearrayprocedure (_In_ PVOID entry)
 	}
 }
 
-VOID NTAPI _r_util_dereferencelistprocedure (_In_ PVOID entry)
+VOID NTAPI _r_util_dereferencelist_proc (_In_ PVOID entry)
 {
 	PR_LIST list_node;
 	PVOID_PTR list_items;
@@ -12070,7 +12064,7 @@ VOID NTAPI _r_util_dereferencelistprocedure (_In_ PVOID entry)
 	}
 }
 
-VOID NTAPI _r_util_dereferencehashtableprocedure (_In_ PVOID entry)
+VOID NTAPI _r_util_dereferencehashtable_proc (_In_ PVOID entry)
 {
 	PR_HASHTABLE hashtable;
 
@@ -12085,7 +12079,7 @@ VOID NTAPI _r_util_dereferencehashtableprocedure (_In_ PVOID entry)
 	SAFE_DELETE_MEMORY (hashtable->entries);
 }
 
-VOID NTAPI _r_util_dereferencehashtableptrprocedure (_In_ PVOID entry)
+VOID NTAPI _r_util_dereferencehashtable_ptr_proc (_In_ PVOID entry)
 {
 	PR_OBJECT_POINTER object_ptr;
 
