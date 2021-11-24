@@ -5359,7 +5359,7 @@ VOID _r_str_trimstringref (_Inout_ PR_STRINGREF string, _In_ PR_STRINGREF charse
 	charset_buff = charset->buffer;
 	charset_count = _r_str_getlength3 (charset);
 
-	memset (charset_table, 0, sizeof (charset_table));
+	RtlZeroMemory (charset_table, sizeof (charset_table));
 
 	charset_table_complete = TRUE;
 
