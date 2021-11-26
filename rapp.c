@@ -3477,7 +3477,7 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 
 		case WM_DPICHANGED:
 		{
-			PostMessage (hwnd, RM_LOCALIZE, 0, 0);
+			SendMessage (hwnd, RM_LOCALIZE, 0, 0);
 			break;
 		}
 
@@ -3683,14 +3683,15 @@ INT_PTR CALLBACK _r_settings_wndproc (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM
 					}
 
 					// reinitialize settings
-					SendMessage (hwnd, RM_LOCALIZE, 0, 0);
-
 					for (SIZE_T i = 0; i < _r_obj_getarraysize (app_global.settings.page_list); i++)
 					{
 						ptr_page = _r_obj_getarrayitem (app_global.settings.page_list, i);
 
 						if (!ptr_page || !ptr_page->hwnd)
 							continue;
+
+						if (_r_wnd_isvisible (ptr_page->hwnd))
+							SendMessage (ptr_page->hwnd, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
 
 						SendMessage (ptr_page->hwnd, RM_INITIALIZE, (WPARAM)ptr_page->dlg_id, 0);
 					}
