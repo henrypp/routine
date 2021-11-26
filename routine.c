@@ -7103,16 +7103,13 @@ HBITMAP _r_dc_imagetobitmap (_In_ LPCGUID format, _In_ WICInProcPointer buffer, 
 	UINT frame_count;
 
 	HRESULT hr;
-	BOOLEAN is_success;
-
-	is_success = FALSE;
 
 	// Create the ImagingFactory
-	hr = CoCreateInstance (&CLSID_WICImagingFactory2, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory2, &wicFactory);
+	hr = CoCreateInstance (&CLSID_WICImagingFactory2, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory2, &wicFactory); // win8+
 
 	if (FAILED (hr))
 	{
-		hr = CoCreateInstance (&CLSID_WICImagingFactory1, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory, &wicFactory);
+		hr = CoCreateInstance (&CLSID_WICImagingFactory1, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory, &wicFactory); // winxp+
 
 		if (FAILED (hr))
 			goto CleanupExit;
@@ -7195,17 +7192,26 @@ HBITMAP _r_dc_imagetobitmap (_In_ LPCGUID format, _In_ WICInProcPointer buffer, 
 	hdc = GetDC (NULL);
 
 	if (!hdc)
+	{
+		hr = E_FAIL;
 		goto CleanupExit;
+	}
 
 	hdc_buffer = CreateCompatibleDC (hdc);
 
 	if (!hdc_buffer)
+	{
+		hr = E_FAIL;
 		goto CleanupExit;
+	}
 
 	hbitmap = CreateDIBSection (hdc, &bmi, DIB_RGB_COLORS, &bitmap_buffer, NULL, 0);
 
 	if (!hbitmap)
+	{
+		hr = E_FAIL;
 		goto CleanupExit;
+	}
 
 	hr = IWICImagingFactory_CreateBitmapScaler (wicFactory, &wicScaler);
 
@@ -7224,8 +7230,6 @@ HBITMAP _r_dc_imagetobitmap (_In_ LPCGUID format, _In_ WICInProcPointer buffer, 
 
 	if (FAILED (hr))
 		goto CleanupExit;
-
-	is_success = TRUE;
 
 CleanupExit:
 
@@ -7250,7 +7254,7 @@ CleanupExit:
 	if (wicFactory)
 		IWICImagingFactory_Release (wicFactory);
 
-	if (!is_success)
+	if (FAILED (hr))
 	{
 		if (hbitmap)
 			DeleteObject (hbitmap);
@@ -7261,7 +7265,7 @@ CleanupExit:
 	return hbitmap;
 }
 
-BOOLEAN _r_dc_drawwindowdefault (_In_ HDC hdc, _In_ HWND hwnd, _In_ BOOLEAN is_drawfooter)
+BOOLEAN _r_dc_drawwindow (_In_ HDC hdc, _In_ HWND hwnd, _In_ BOOLEAN is_drawfooter)
 {
 	RECT rect;
 	LONG dpi_value;

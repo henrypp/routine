@@ -2035,7 +2035,7 @@ HICON _r_dc_bitmaptoicon (_In_ HBITMAP hbitmap, _In_ INT x, _In_ INT y);
 _Ret_maybenull_
 HBITMAP _r_dc_imagetobitmap (_In_ LPCGUID format, _In_ WICInProcPointer buffer, _In_ ULONG buffer_length, _In_ INT x, _In_ INT y);
 
-BOOLEAN _r_dc_drawwindowdefault (_In_ HDC hdc, _In_ HWND hwnd, _In_ BOOLEAN is_drawfooter);
+BOOLEAN _r_dc_drawwindow (_In_ HDC hdc, _In_ HWND hwnd, _In_ BOOLEAN is_drawfooter);
 BOOLEAN _r_dc_drawimagelisticon (_In_ HDC hdc, _In_ HIMAGELIST himglist, _In_ INT index, _In_ INT x, _In_ INT y, _In_opt_ ULONG state, _In_opt_ UINT style);
 
 _Success_ (return)
