@@ -1639,11 +1639,11 @@ VOID _r_str_toupper (_Inout_ PR_STRINGREF string);
 
 INT _r_str_versioncompare (_In_ PR_STRINGREF v1, _In_ PR_STRINGREF v2);
 
-_Ret_maybenull_
-PR_STRING _r_str_multibyte2unicode (_In_ PR_BYTEREF string);
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_str_multibyte2unicode (_In_ PR_BYTEREF string, _Out_ PR_STRING_PTR out_buffer);
 
-_Ret_maybenull_
-PR_BYTE _r_str_unicode2multibyte (_In_ PR_STRINGREF string);
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_str_unicode2multibyte (_In_ PR_STRINGREF string, _Out_ PR_BYTE_PTR out_buffer);
 
 FORCEINLINE BOOLEAN _r_str_isdigit (_In_ WCHAR chr)
 {

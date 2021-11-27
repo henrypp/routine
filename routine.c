@@ -5534,54 +5534,62 @@ INT _r_str_versioncompare (_In_ PR_STRINGREF v1, _In_ PR_STRINGREF v2)
 	return 0;
 }
 
-_Ret_maybenull_
-PR_STRING _r_str_multibyte2unicode (_In_ PR_BYTEREF string)
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_str_multibyte2unicode (_In_ PR_BYTEREF string, _Out_ PR_STRING_PTR out_buffer)
 {
 	NTSTATUS status;
-	PR_STRING output_string;
+	PR_STRING out_string;
 	ULONG output_size;
 
 	status = RtlMultiByteToUnicodeSize (&output_size, string->buffer, (ULONG)string->length);
 
 	if (!NT_SUCCESS (status))
-		return NULL;
+		return status;
 
-	output_string = _r_obj_createstring_ex (NULL, output_size);
-	status = RtlMultiByteToUnicodeN (output_string->buffer, (ULONG)output_string->length, NULL, string->buffer, (ULONG)string->length);
+	out_string = _r_obj_createstring_ex (NULL, output_size);
+	status = RtlMultiByteToUnicodeN (out_string->buffer, (ULONG)out_string->length, NULL, string->buffer, (ULONG)string->length);
 
 	if (NT_SUCCESS (status))
 	{
-		return output_string;
+		*out_buffer = out_string;
+	}
+	else
+	{
+		*out_buffer = NULL;
+
+		_r_obj_dereference (out_string);
 	}
 
-	_r_obj_dereference (output_string);
-
-	return NULL;
+	return status;
 }
 
-_Ret_maybenull_
-PR_BYTE _r_str_unicode2multibyte (_In_ PR_STRINGREF string)
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_str_unicode2multibyte (_In_ PR_STRINGREF string, _Out_ PR_BYTE_PTR out_buffer)
 {
 	NTSTATUS status;
-	PR_BYTE output_string;
+	PR_BYTE out_string;
 	ULONG output_size;
 
 	status = RtlUnicodeToMultiByteSize (&output_size, string->buffer, (ULONG)string->length);
 
 	if (!NT_SUCCESS (status))
-		return NULL;
+		return status;
 
-	output_string = _r_obj_createbyte_ex (NULL, output_size);
-	status = RtlUnicodeToMultiByteN (output_string->buffer, (ULONG)output_string->length, NULL, string->buffer, (ULONG)string->length);
+	out_string = _r_obj_createbyte_ex (NULL, output_size);
+	status = RtlUnicodeToMultiByteN (out_string->buffer, (ULONG)out_string->length, NULL, string->buffer, (ULONG)string->length);
 
-	if (!NT_SUCCESS (status))
+	if (NT_SUCCESS (status))
 	{
-		_r_obj_dereference (output_string);
+		*out_buffer = out_string;
+	}
+	else
+	{
+		*out_buffer = NULL;
 
-		return NULL;
+		_r_obj_dereference (out_string);
 	}
 
-	return output_string;
+	return status;
 }
 
 //
@@ -9116,9 +9124,7 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ PR_STRING url, _Inout
 		}
 		else
 		{
-			string = _r_str_multibyte2unicode (&content_bytes->sr);
-
-			if (string)
+			if (NT_SUCCESS (_r_str_multibyte2unicode (&content_bytes->sr, &string)))
 			{
 				_r_obj_appendstringbuilder2 (&sb, string);
 				_r_obj_dereference (string);
