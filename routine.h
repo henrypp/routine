@@ -713,7 +713,7 @@ FORCEINLINE VOID _r_obj_writebytenullterminator (_In_ PR_BYTE string)
 
 FORCEINLINE VOID _r_obj_trimbytetonullterminator (_In_ PR_BYTE string)
 {
-	string->length = _r_str_getbytelength_ex (string->buffer, string->length);
+	string->length = _r_str_getbytelength_ex (string->buffer, string->length + 1);
 
 	_r_obj_writebytenullterminator (string); // terminate
 }
