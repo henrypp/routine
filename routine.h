@@ -130,6 +130,8 @@ extern FORCEINLINE SIZE_T _r_str_getlength3 (_In_ PR_STRINGREF string);
 
 extern FORCEINLINE SIZE_T _r_str_getbytelength (_In_ LPCSTR string);
 extern FORCEINLINE SIZE_T _r_str_getbytelength_ex (_In_ LPCSTR string, _In_ SIZE_T max_count);
+extern FORCEINLINE SIZE_T _r_str_getbytelength2 (_In_ PR_BYTE string);
+extern FORCEINLINE SIZE_T _r_str_getbytelength3 (_In_ PR_BYTEREF string);
 
 // safe clenup memory
 #ifndef SAFE_DELETE_MEMORY
@@ -1740,6 +1742,16 @@ FORCEINLINE SIZE_T _r_str_getbytelength_ex (_In_ LPCSTR string, _In_ SIZE_T max_
 FORCEINLINE SIZE_T _r_str_getbytelength (_In_ LPCSTR string)
 {
 	return _r_str_getbytelength_ex (string, PR_SIZE_MAX_STRING_LENGTH);
+}
+
+FORCEINLINE SIZE_T _r_str_getbytelength2 (_In_ PR_BYTE string)
+{
+	return string->length;
+}
+
+FORCEINLINE SIZE_T _r_str_getbytelength3 (_In_ PR_BYTEREF string)
+{
+	return string->length;
 }
 
 FORCEINLINE VOID _r_str_trim (_Inout_ LPWSTR string, _In_ LPCWSTR charset)
