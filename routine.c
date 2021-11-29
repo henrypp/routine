@@ -25,16 +25,52 @@ VOID _r_debug_v (_In_ _Printf_format_string_ LPCWSTR format, ...)
 // Console
 //
 
-VOID _r_console_writestring_ex (_In_ LPCWSTR string, _In_ ULONG length)
+HANDLE _r_console_gethandle ()
 {
-	HANDLE hstdhandle;
+	HANDLE hconsole;
 
-	hstdhandle = GetStdHandle (STD_OUTPUT_HANDLE);
+	hconsole = GetStdHandle (STD_OUTPUT_HANDLE);
 
-	if (!_r_fs_isvalidhandle (hstdhandle))
+	return hconsole;
+}
+
+WORD _r_console_getcolor ()
+{
+	CONSOLE_SCREEN_BUFFER_INFO csbi = {0};
+	HANDLE hconsole;
+
+	hconsole = _r_console_gethandle ();
+
+	if (!hconsole)
+		return 0;
+
+	GetConsoleScreenBufferInfo (hconsole, &csbi);
+
+	return csbi.wAttributes;
+}
+
+VOID _r_console_setcolor (_In_ WORD clr)
+{
+	HANDLE hconsole;
+
+	hconsole = _r_console_gethandle ();
+
+	if (!_r_fs_isvalidhandle (hconsole))
 		return;
 
-	WriteConsole (hstdhandle, string, length, NULL, NULL);
+	SetConsoleTextAttribute (hconsole, clr);
+}
+
+VOID _r_console_writestring_ex (_In_ LPCWSTR string, _In_ ULONG length)
+{
+	HANDLE hconsole;
+
+	hconsole = _r_console_gethandle ();
+
+	if (!_r_fs_isvalidhandle (hconsole))
+		return;
+
+	WriteConsole (hconsole, string, length, NULL, NULL);
 }
 
 VOID _r_console_writestringformat (_In_ _Printf_format_string_ LPCWSTR format, ...)

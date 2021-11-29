@@ -1197,8 +1197,16 @@ FORCEINLINE VOID _r_error_initialize (_Out_ PR_ERROR_INFO error_info, _In_opt_ H
 // Console
 //
 
+HANDLE _r_console_gethandle ();
+WORD _r_console_getcolor ();
+VOID _r_console_setcolor (_In_ WORD clr);
 VOID _r_console_writestring_ex (_In_ LPCWSTR string, _In_ ULONG length);
 VOID _r_console_writestringformat (_In_ _Printf_format_string_ LPCWSTR format, ...);
+
+FORCEINLINE VOID _r_console_writestring (_In_ LPCWSTR string)
+{
+	_r_console_writestring_ex (string, (ULONG)_r_str_getlength (string));
+}
 
 FORCEINLINE VOID _r_console_writestring2 (_In_ PR_STRING string)
 {
