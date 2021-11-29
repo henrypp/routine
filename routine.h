@@ -809,7 +809,7 @@ FORCEINLINE VOID _r_obj_writestringnullterminator (_In_ PR_STRING string)
 
 FORCEINLINE VOID _r_obj_trimstringtonullterminator (_In_ PR_STRING string)
 {
-	string->length = _r_str_getlength_ex (string->buffer, string->length) * sizeof (WCHAR);
+	string->length = _r_str_getlength_ex (string->buffer, _r_str_getlength2 (string) + 1) * sizeof (WCHAR);
 
 	_r_obj_writestringnullterminator (string); // terminate
 }
