@@ -2823,41 +2823,40 @@ HRESULT CALLBACK _r_msg_callback (_In_ HWND hwnd, _In_ UINT msg, _In_ WPARAM wpa
 _Ret_maybenull_
 PR_STRING _r_clipboard_get (_In_opt_ HWND hwnd)
 {
-	PR_STRING string = NULL;
+	PR_STRING string;
 	HANDLE hdata;
-	PVOID memory;
+	PVOID base_address;
 	SIZE_T length;
 
-	if (OpenClipboard (hwnd))
+	if (!OpenClipboard (hwnd))
+		return NULL;
+
+	hdata = GetClipboardData (CF_UNICODETEXT);
+	string = NULL;
+
+	if (hdata)
 	{
-		hdata = GetClipboardData (CF_UNICODETEXT);
+		base_address = GlobalLock (hdata);
 
-		if (hdata)
+		if (base_address)
 		{
-			memory = GlobalLock (hdata);
+			length = GlobalSize (base_address);
 
-			if (memory)
-			{
-				length = GlobalSize (memory);
-
-				string = _r_obj_createstring_ex (memory, length);
-			}
-
-			GlobalUnlock (hdata);
+			string = _r_obj_createstring_ex (base_address, length);
 		}
 
-		CloseClipboard ();
-
-		return string;
+		GlobalUnlock (hdata);
 	}
 
-	return NULL;
+	CloseClipboard ();
+
+	return string;
 }
 
 BOOLEAN _r_clipboard_set (_In_opt_ HWND hwnd, _In_ PR_STRINGREF string)
 {
 	HANDLE hdata;
-	PVOID memory;
+	PVOID base_address;
 	BOOLEAN is_success;
 
 	if (!OpenClipboard (hwnd))
@@ -2868,19 +2867,17 @@ BOOLEAN _r_clipboard_set (_In_opt_ HWND hwnd, _In_ PR_STRINGREF string)
 
 	if (hdata)
 	{
-		memory = GlobalLock (hdata);
+		base_address = GlobalLock (hdata);
 
-		if (memory)
+		if (base_address)
 		{
-			RtlCopyMemory (memory, string->buffer, string->length);
-			*(LPWSTR)PTR_ADD_OFFSET (memory, string->length) = UNICODE_NULL; // terminate
+			RtlCopyMemory (base_address, string->buffer, string->length);
+			*(LPWSTR)PTR_ADD_OFFSET (base_address, string->length) = UNICODE_NULL; // terminate
 
-			GlobalUnlock (memory);
+			GlobalUnlock (base_address);
 
 			if (EmptyClipboard ())
-			{
 				is_success = (SetClipboardData (CF_UNICODETEXT, hdata) != NULL);
-			}
 		}
 	}
 
