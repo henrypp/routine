@@ -25,7 +25,7 @@ VOID _r_debug_v (_In_ _Printf_format_string_ LPCWSTR format, ...)
 // Console
 //
 
-VOID _r_console_writestring (_In_ PR_STRING string)
+VOID _r_console_writestring_ex (_In_ LPCWSTR string, _In_ ULONG length)
 {
 	HANDLE hstdhandle;
 
@@ -34,7 +34,7 @@ VOID _r_console_writestring (_In_ PR_STRING string)
 	if (!_r_fs_isvalidhandle (hstdhandle))
 		return;
 
-	WriteConsole (hstdhandle, string->buffer, (ULONG)_r_str_getlength2 (string), NULL, NULL);
+	WriteConsole (hstdhandle, string, length, NULL, NULL);
 }
 
 VOID _r_console_writestringformat (_In_ _Printf_format_string_ LPCWSTR format, ...)
@@ -46,7 +46,7 @@ VOID _r_console_writestringformat (_In_ _Printf_format_string_ LPCWSTR format, .
 	string = _r_format_string_v (format, arg_ptr);
 	va_end (arg_ptr);
 
-	_r_console_writestring (string);
+	_r_console_writestring2 (string);
 
 	_r_obj_dereference (string);
 }
@@ -3034,6 +3034,15 @@ PR_BYTE _r_fs_readfile (_In_ HANDLE hfile)
 	}
 
 	return NULL;
+}
+
+BOOLEAN _r_fs_setpos (_In_ HANDLE hfile, _In_ LONG64 pos, _In_ ULONG method)
+{
+	LARGE_INTEGER li = {0};
+
+	li.QuadPart = pos;
+
+	return !!SetFilePointerEx (hfile, li, NULL, method);
 }
 
 //

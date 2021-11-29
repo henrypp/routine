@@ -1197,8 +1197,18 @@ FORCEINLINE VOID _r_error_initialize (_Out_ PR_ERROR_INFO error_info, _In_opt_ H
 // Console
 //
 
-VOID _r_console_writestring (_In_ PR_STRING string);
+VOID _r_console_writestring_ex (_In_ LPCWSTR string, _In_ ULONG length);
 VOID _r_console_writestringformat (_In_ _Printf_format_string_ LPCWSTR format, ...);
+
+FORCEINLINE VOID _r_console_writestring2 (_In_ PR_STRING string)
+{
+	_r_console_writestring_ex (string->buffer, (ULONG)_r_str_getlength2 (string));
+}
+
+FORCEINLINE VOID _r_console_writestring3 (_In_ PR_STRINGREF string)
+{
+	_r_console_writestring_ex (string->buffer, (ULONG)_r_str_getlength3 (string));
+}
 
 //
 // Format strings, dates, numbers
@@ -1223,7 +1233,7 @@ _Success_ (return)
 BOOLEAN _r_format_number (_Out_writes_ (buffer_size) LPWSTR buffer, _In_ ULONG buffer_size, _In_ LONG64 number);
 
 _Ret_maybenull_
-FORCEINLINE PR_STRING _r_fmt_unixtime (_In_ LONG64 unixtime)
+FORCEINLINE PR_STRING _r_format_unixtime (_In_ LONG64 unixtime)
 {
 	return _r_format_unixtime_ex (unixtime, FDTF_DEFAULT);
 }
@@ -1403,6 +1413,8 @@ BOOLEAN _r_fs_mkdir (_In_ LPCWSTR path);
 _Ret_maybenull_
 PR_BYTE _r_fs_readfile (_In_ HANDLE hfile);
 
+BOOLEAN _r_fs_setpos (_In_ HANDLE hfile, _In_ LONG64 pos, _In_ ULONG method);
+
 #define _r_fs_isvalidhandle(handle) \
     ((handle) != NULL && (handle) != INVALID_HANDLE_VALUE)
 
@@ -1419,15 +1431,6 @@ FORCEINLINE BOOLEAN _r_fs_copyfile (_In_ LPCWSTR path_from, _In_ LPCWSTR path_to
 FORCEINLINE BOOLEAN _r_fs_movefile (_In_ LPCWSTR path_from, _In_opt_ LPCWSTR path_to, _In_ ULONG flags)
 {
 	return !!MoveFileEx (path_from, path_to, flags);
-}
-
-FORCEINLINE BOOLEAN _r_fs_setpos (_In_ HANDLE hfile, _In_ LONG64 pos, _In_ ULONG method)
-{
-	LARGE_INTEGER lpos = {0};
-
-	lpos.QuadPart = pos;
-
-	return !!SetFilePointerEx (hfile, lpos, NULL, method);
 }
 
 FORCEINLINE LONG64 _r_fs_getsize (_In_ HANDLE hfile)
@@ -1998,7 +2001,7 @@ FORCEINLINE BOOLEAN _r_sys_isosversionlowerorequal (_In_ ULONG version)
 	return _r_sys_getwindowsversion () <= version;
 }
 
-FORCEINLINE LONG64 _r_sys_getexecutiontime ()
+FORCEINLINE LONG64 _r_sys_startexecutiontime ()
 {
 	LARGE_INTEGER li;
 
@@ -2015,7 +2018,7 @@ FORCEINLINE DOUBLE _r_sys_finalexecutiontime (_In_ LONG64 start_time)
 	if (!QueryPerformanceFrequency (&li))
 		return 0.0;
 
-	return ((_r_sys_getexecutiontime () - start_time) * 1000.0) / li.QuadPart / 1000.0;
+	return ((_r_sys_startexecutiontime () - start_time) * 1000.0) / li.QuadPart / 1000.0;
 }
 
 //
