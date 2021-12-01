@@ -1143,7 +1143,7 @@ VOID FASTCALL _r_condition_pulse (_Inout_ PR_CONDITION condition)
 		_r_queuedlock_wake_ex (condition, condition->value, TRUE, FALSE);
 }
 
-VOID FASTCALL _r_condition_waitfor (_Inout_ PR_CONDITION condition, _Inout_ PR_QUEUED_LOCK queued_lock, _In_opt_ PLARGE_INTEGER timeout)
+VOID FASTCALL _r_condition_waitfor (_Inout_ PR_CONDITION condition, _Inout_ PR_QUEUED_LOCK queued_lock)
 {
 	R_QUEUED_WAIT_BLOCK wait_block;
 	ULONG_PTR value;
@@ -1505,7 +1505,7 @@ VOID _r_workqueue_waitforfinish (_Inout_ PR_WORKQUEUE work_queue)
 
 	while (!IsListEmpty (&work_queue->queue_list_head))
 	{
-		_r_condition_waitfor (&work_queue->queue_empty_condition, &work_queue->queue_lock, NULL);
+		_r_condition_waitfor (&work_queue->queue_empty_condition, &work_queue->queue_lock);
 	}
 
 	_r_queuedlock_releaseexclusive (&work_queue->queue_lock);
@@ -2053,6 +2053,15 @@ VOID _r_obj_appendstringbuilder_ex (_Inout_ PR_STRINGBUILDER builder, _In_ LPCWS
 	builder->string->length += length;
 
 	_r_obj_writestringnullterminator (builder->string);
+}
+
+VOID _r_obj_appendstringbuilderformat (_Inout_ PR_STRINGBUILDER builder, _In_ _Printf_format_string_ LPCWSTR format, ...)
+{
+	va_list arg_ptr;
+
+	va_start (arg_ptr, format);
+	_r_obj_appendstringbuilderformat_v (builder, format, arg_ptr);
+	va_end (arg_ptr);
 }
 
 VOID _r_obj_appendstringbuilderformat_v (_Inout_ PR_STRINGBUILDER builder, _In_ _Printf_format_string_ LPCWSTR format, _In_ va_list arg_ptr)
@@ -7968,7 +7977,7 @@ PR_LAYOUT_ITEM _r_layout_additem (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_
 	_r_wnd_copyrectangle (&layout_item->prev_rect, &layout_item->rect);
 
 	// set control anchor points
-	_r_layout_getitemanchor (layout_manager, layout_item);
+	_r_layout_getitemanchor (layout_item);
 
 	layout_item->parent_item->number_of_children += 1;
 
@@ -8042,7 +8051,7 @@ ULONG _r_layout_getcontrolflags (_In_ HWND hwnd)
 	return 0;
 }
 
-VOID _r_layout_getitemanchor (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAYOUT_ITEM layout_item)
+VOID _r_layout_getitemanchor (_Inout_ PR_LAYOUT_ITEM layout_item)
 {
 	LONG width;
 	LONG height;
@@ -8449,6 +8458,8 @@ VOID _r_wnd_changemessagefilter (_In_ HWND hwnd, _In_reads_ (count) PUINT messag
 VOID _r_wnd_changesettings (_In_ HWND hwnd, _In_opt_ WPARAM wparam, _In_opt_ LPARAM lparam)
 {
 	LPCWSTR type;
+
+	UNREFERENCED_PARAMETER (wparam);
 
 	type = (LPCWSTR)lparam;
 

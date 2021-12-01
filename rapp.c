@@ -3191,7 +3191,7 @@ VOID _r_settings_createwindow (_In_ HWND hwnd, _In_opt_ DLGPROC dlg_proc, _In_op
 	// calculate maximum dialog size
 	if (_r_initonce_begin (&init_once))
 	{
-		R_BYTEREF buffer;
+		R_BYTEREF dlg_buffer;
 		LPDLGTEMPLATEEX dlg_template;
 		PR_SETTINGS_PAGE ptr_page;
 
@@ -3202,10 +3202,10 @@ VOID _r_settings_createwindow (_In_ HWND hwnd, _In_opt_ DLGPROC dlg_proc, _In_op
 			if (!ptr_page || !ptr_page->dlg_id)
 				continue;
 
-			if (!_r_res_loadresource (_r_sys_getimagebase (), MAKEINTRESOURCE (ptr_page->dlg_id), RT_DIALOG, &buffer))
+			if (!_r_res_loadresource (_r_sys_getimagebase (), MAKEINTRESOURCE (ptr_page->dlg_id), RT_DIALOG, &dlg_buffer))
 				continue;
 
-			dlg_template = (LPDLGTEMPLATEEX)buffer.buffer;
+			dlg_template = (LPDLGTEMPLATEEX)dlg_buffer.buffer;
 
 			if (dlg_template->style & WS_CHILD)
 			{

@@ -495,7 +495,7 @@ FORCEINLINE VOID _r_condition_initialize (_Out_ PR_CONDITION condition)
 }
 
 VOID FASTCALL _r_condition_pulse (_Inout_ PR_CONDITION condition);
-VOID FASTCALL _r_condition_waitfor (_Inout_ PR_CONDITION condition, _Inout_ PR_QUEUED_LOCK queued_lock, _In_opt_ PLARGE_INTEGER timeout);
+VOID FASTCALL _r_condition_waitfor (_Inout_ PR_CONDITION condition, _Inout_ PR_QUEUED_LOCK queued_lock);
 
 //
 // Synchronization: Rundown protection
@@ -922,6 +922,7 @@ FORCEINLINE BOOLEAN _r_obj_initializeunicodestring3 (_Out_ PUNICODE_STRING strin
 
 VOID _r_obj_initializestringbuilder_ex (_Out_ PR_STRINGBUILDER builder, _In_ SIZE_T initial_capacity);
 VOID _r_obj_appendstringbuilder_ex (_Inout_ PR_STRINGBUILDER builder, _In_ LPCWSTR string, _In_ SIZE_T length);
+VOID _r_obj_appendstringbuilderformat (_Inout_ PR_STRINGBUILDER builder, _In_ _Printf_format_string_ LPCWSTR format, ...);
 VOID _r_obj_appendstringbuilderformat_v (_Inout_ PR_STRINGBUILDER builder, _In_ _Printf_format_string_ LPCWSTR format, _In_ va_list arg_ptr);
 VOID _r_obj_insertstringbuilder_ex (_Inout_ PR_STRINGBUILDER builder, _In_ SIZE_T index, _In_ LPCWSTR string, _In_ SIZE_T length);
 VOID _r_obj_insertstringbuilderformat_v (_Inout_ PR_STRINGBUILDER builder, _In_ SIZE_T index, _In_ _Printf_format_string_ LPCWSTR format, _In_ va_list arg_ptr);
@@ -945,15 +946,6 @@ FORCEINLINE VOID _r_obj_appendstringbuilder2 (_Inout_ PR_STRINGBUILDER builder, 
 FORCEINLINE VOID _r_obj_appendstringbuilder3 (_Inout_ PR_STRINGBUILDER builder, _In_ PR_STRINGREF string)
 {
 	_r_obj_appendstringbuilder_ex (builder, string->buffer, string->length);
-}
-
-FORCEINLINE VOID _r_obj_appendstringbuilderformat (_Inout_ PR_STRINGBUILDER builder, _In_ _Printf_format_string_ LPCWSTR format, ...)
-{
-	va_list arg_ptr;
-
-	va_start (arg_ptr, format);
-	_r_obj_appendstringbuilderformat_v (builder, format, arg_ptr);
-	va_end (arg_ptr);
 }
 
 FORCEINLINE VOID _r_obj_insertstringbuilder (_Inout_ PR_STRINGBUILDER builder, _In_ SIZE_T index, _In_ LPCWSTR string)
@@ -2138,7 +2130,7 @@ PR_LAYOUT_ITEM _r_layout_additem (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_
 VOID _r_layout_enumcontrols (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_ PR_LAYOUT_ITEM layout_item, _In_ HWND hwnd);
 
 ULONG _r_layout_getcontrolflags (_In_ HWND hwnd);
-VOID _r_layout_getitemanchor (_In_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAYOUT_ITEM layout_item);
+VOID _r_layout_getitemanchor (_Inout_ PR_LAYOUT_ITEM layout_item);
 
 BOOLEAN _r_layout_resize (_Inout_ PR_LAYOUT_MANAGER layout_manager, _In_ WPARAM wparam);
 VOID _r_layout_resizeitem (_Inout_ PR_LAYOUT_MANAGER layout_manager, _Inout_ PR_LAYOUT_ITEM layout_item);
