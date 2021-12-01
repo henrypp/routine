@@ -1576,20 +1576,14 @@ BOOLEAN _r_mutex_destroy (_Inout_ PHANDLE hmutex)
 
 HANDLE NTAPI _r_mem_getheap ()
 {
+	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static HANDLE heap_handle = NULL;
 
-	HANDLE current_handle;
-	HANDLE new_handle;
-
-	current_handle = InterlockedCompareExchangePointer (&heap_handle, NULL, NULL);
-
-	if (!current_handle)
+	if (_r_initonce_begin (&init_once))
 	{
-		new_handle = NULL;
-
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_8)) // win8+
 		{
-			new_handle = RtlCreateHeap (
+			heap_handle = RtlCreateHeap (
 				HEAP_GROWABLE | HEAP_CLASS_1 | HEAP_CREATE_SEGMENT_HEAP,
 				NULL,
 				0,
@@ -1599,9 +1593,9 @@ HANDLE NTAPI _r_mem_getheap ()
 			);
 		}
 
-		if (!new_handle)
+		if (!heap_handle)
 		{
-			new_handle = RtlCreateHeap (
+			heap_handle = RtlCreateHeap (
 				HEAP_GROWABLE | HEAP_CLASS_1,
 				NULL,
 				_r_calc_megabytes2bytes (2),
@@ -1611,12 +1605,12 @@ HANDLE NTAPI _r_mem_getheap ()
 			);
 		}
 
-		if (new_handle)
+		if (heap_handle)
 		{
 			if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
 			{
 				RtlSetHeapInformation (
-					new_handle,
+					heap_handle,
 					HeapCompatibilityInformation,
 					&(ULONG){HEAP_COMPATIBILITY_LFH},
 					sizeof (ULONG)
@@ -1624,19 +1618,10 @@ HANDLE NTAPI _r_mem_getheap ()
 			}
 		}
 
-		current_handle = InterlockedCompareExchangePointer (&heap_handle, new_handle, NULL);
-
-		if (!current_handle)
-		{
-			current_handle = new_handle;
-		}
-		else
-		{
-			RtlDestroyHeap (new_handle);
-		}
+		_r_initonce_end (&init_once);
 	}
 
-	return current_handle;
+	return heap_handle;
 }
 
 _Post_writable_byte_size_ (bytes_count)
