@@ -2453,6 +2453,7 @@ VOID _r_update_addcomponent (_In_opt_ LPCWSTR full_name, _In_opt_ LPCWSTR short_
 
 VOID _r_update_install (_In_ PR_STRING install_path)
 {
+	R_ERROR_INFO error_info;
 	PR_STRING cmd_string;
 
 	cmd_string = _r_format_string (L"\"%s\" /S /D=%s",
@@ -2462,7 +2463,6 @@ VOID _r_update_install (_In_ PR_STRING install_path)
 
 	if (!_r_sys_runasadmin (install_path->buffer, cmd_string->buffer, NULL))
 	{
-		R_ERROR_INFO error_info;
 
 		_r_error_initialize (&error_info, NULL, install_path->buffer);
 
@@ -2473,36 +2473,59 @@ VOID _r_update_install (_In_ PR_STRING install_path)
 }
 #endif // APP_HAVE_UPDATES
 
-FORCEINLINE LPCWSTR _r_logleveltostring (_In_ R_LOG_LEVEL log_level)
+FORCEINLINE LPCWSTR _r_log_leveltostring (_In_ R_LOG_LEVEL log_level)
 {
-	if (log_level == LOG_LEVEL_DEBUG)
-		return L"Debug";
+	switch (log_level)
+	{
+		case LOG_LEVEL_DEBUG:
+		{
+			return L"Debug";
+		}
 
-	if (log_level == LOG_LEVEL_INFO)
-		return L"Info";
+		case LOG_LEVEL_INFO:
+		{
+			return L"Info";
+		}
 
-	if (log_level == LOG_LEVEL_WARNING)
-		return L"Warning";
+		case LOG_LEVEL_WARNING:
+		{
+			return L"Warning";
+		}
 
-	if (log_level == LOG_LEVEL_ERROR)
-		return L"Error";
+		case LOG_LEVEL_ERROR:
+		{
+			return L"Error";
+		}
 
-	if (log_level == LOG_LEVEL_CRITICAL)
-		return L"Critical";
+		case LOG_LEVEL_CRITICAL:
+		{
+			return L"Critical";
+		}
+	}
 
 	return NULL;
 }
 
-FORCEINLINE ULONG _r_logleveltrayicon (_In_ R_LOG_LEVEL log_level)
+FORCEINLINE ULONG _r_log_leveltrayicon (_In_ R_LOG_LEVEL log_level)
 {
-	if (log_level == LOG_LEVEL_INFO)
-		return NIIF_INFO;
+	switch (log_level)
+	{
+		case LOG_LEVEL_INFO:
+		{
+			return NIIF_INFO;
+		}
 
-	if (log_level == LOG_LEVEL_WARNING)
-		return NIIF_WARNING;
+		case LOG_LEVEL_WARNING:
+		{
+			return NIIF_WARNING;
+		}
 
-	if (log_level == LOG_LEVEL_ERROR || log_level == LOG_LEVEL_CRITICAL)
-		return NIIF_ERROR;
+		case LOG_LEVEL_ERROR:
+		case LOG_LEVEL_CRITICAL:
+		{
+			return NIIF_ERROR;
+		}
+	}
 
 	return NIIF_NONE;
 }
@@ -2529,9 +2552,7 @@ _Ret_maybenull_
 HANDLE _r_log_getfilehandle ()
 {
 	static HANDLE cached_hfile = NULL;
-
-	HANDLE current_hfile;
-	HANDLE new_hfile;
+	static R_INITONCE init_once = PR_INITONCE_INIT;
 
 	PR_STRING string;
 	ULONG unused;
@@ -2540,45 +2561,38 @@ HANDLE _r_log_getfilehandle ()
 	if (_r_app_isreadonly ())
 		return NULL;
 
-	current_hfile = InterlockedCompareExchangePointer (&cached_hfile, NULL, NULL);
-
-	if (!current_hfile)
+	if (_r_initonce_begin (&init_once))
 	{
 		string = _r_app_getlogpath ();
 
 		if (string)
 		{
-			new_hfile = CreateFile (string->buffer, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+			cached_hfile = CreateFile (string->buffer, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
-			if (_r_fs_isvalidhandle (new_hfile))
+			if (!_r_fs_isvalidhandle (cached_hfile))
+			{
+				cached_hfile = NULL;
+			}
+			else
 			{
 				if (GetLastError () != ERROR_ALREADY_EXISTS)
 				{
 					BYTE bom[] = {0xFF, 0xFE};
 
-					WriteFile (new_hfile, bom, sizeof (bom), &unused, NULL); // write utf-16 le byte order mask
-					WriteFile (new_hfile, PR_DEBUG_HEADER, (ULONG)(_r_str_getlength (PR_DEBUG_HEADER) * sizeof (WCHAR)), &unused, NULL); // adds csv header
+					WriteFile (cached_hfile, bom, sizeof (bom), &unused, NULL); // write utf-16 le byte order mask
+					WriteFile (cached_hfile, PR_DEBUG_HEADER, (ULONG)(_r_str_getlength (PR_DEBUG_HEADER) * sizeof (WCHAR)), &unused, NULL); // adds csv header
 				}
 				else
 				{
-					_r_fs_setpos (new_hfile, 0, FILE_END);
-				}
-
-				current_hfile = InterlockedCompareExchangePointer (&cached_hfile, new_hfile, NULL);
-
-				if (!current_hfile)
-				{
-					current_hfile = new_hfile;
-				}
-				else
-				{
-					CloseHandle (new_hfile);
+					_r_fs_setpos (cached_hfile, 0, FILE_END);
 				}
 			}
 		}
+
+		_r_initonce_end (&init_once);
 	}
 
-	return current_hfile;
+	return cached_hfile;
 }
 
 VOID _r_log (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCWSTR title, _In_ ULONG code, _In_opt_ LPCWSTR description)
@@ -2596,7 +2610,7 @@ VOID _r_log (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCWST
 	current_timestamp = _r_unixtime_now ();
 	date_string = _r_format_unixtime_ex (current_timestamp, FDTF_SHORTDATE | FDTF_LONGTIME);
 
-	level_string = _r_logleveltostring (log_level);
+	level_string = _r_log_leveltostring (log_level);
 
 	// print log for debuggers
 	_r_debug_v (L"[%s],%s,0x%08" TEXT (PRIX32) L",%s\r\n",
@@ -2639,7 +2653,7 @@ VOID _r_log (_In_ R_LOG_LEVEL log_level, _In_opt_ LPCGUID tray_guid, _In_ LPCWST
 
 		if (_r_config_getboolean (L"IsErrorNotificationsEnabled", TRUE))
 		{
-			icon_id = _r_logleveltrayicon (log_level);
+			icon_id = _r_log_leveltrayicon (log_level);
 
 			if (!_r_config_getboolean (L"IsNotificationsSound", TRUE))
 				icon_id |= NIIF_NOSOUND;
