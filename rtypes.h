@@ -904,7 +904,6 @@ typedef struct _R_VERSION_TRANSLATION
 //
 
 typedef IStream *PR_XML_STREAM;
-typedef VOID (NTAPI *PR_XML_STREAM_CALLBACK) (_Inout_ PR_XML_STREAM xml_library);
 
 typedef struct R_XML_LIBRARY
 {
@@ -914,15 +913,19 @@ typedef struct R_XML_LIBRARY
 		IXmlWriter *writer;
 	};
 
-	PR_XML_STREAM stream;
-	PR_XML_STREAM_CALLBACK stream_callback;
+	PR_XML_STREAM hstream;
 
-	struct
+	union
 	{
-		ULONG is_reader : 1;
-		ULONG is_initialized : 1;
-		ULONG spare_bits : 30;
-	};
+		struct
+		{
+			ULONG is_reader : 1;
+			ULONG is_initialized : 1;
+			ULONG spare_bits : 30;
+		} DUMMYSTRUCTNAME;
+
+		ULONG reserved1;
+	} DUMMYUNIONNAME;
 } R_XML_LIBRARY, *PR_XML_LIBRARY;
 
 //
