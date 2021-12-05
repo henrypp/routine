@@ -142,6 +142,10 @@ extern FORCEINLINE SIZE_T _r_str_getbytelength3 (_In_ PR_BYTEREF string);
 #define SAFE_DELETE_REFERENCE(p) {if(p) {_r_obj_clearreference (&(p));}}
 #endif
 
+#ifndef SAFE_DELETE_STREAM
+#define SAFE_DELETE_STREAM(p) {if(p) {IStream_Release ((p)); (p)=NULL;}}
+#endif
+
 #ifndef SAFE_DELETE_DC
 #define SAFE_DELETE_DC(p) {if(p) {DeleteDC (p); (p)=NULL;}}
 #endif
@@ -693,6 +697,11 @@ FORCEINLINE PR_BYTE _r_obj_createbyte (_In_ LPSTR string)
 }
 
 FORCEINLINE PR_BYTE _r_obj_createbyte2 (_In_ PR_BYTE string)
+{
+	return _r_obj_createbyte_ex (string->buffer, string->length);
+}
+
+FORCEINLINE PR_BYTE _r_obj_createbyte3 (_In_ PR_BYTEREF string)
 {
 	return _r_obj_createbyte_ex (string->buffer, string->length);
 }
@@ -2345,23 +2354,26 @@ LSTATUS _r_reg_queryvalue (_In_ HKEY hkey, _In_opt_ LPCWSTR subkey, _In_opt_ LPC
 _Ret_maybenull_
 PR_CRYPT_CONTEXT _r_crypt_createcryptcontext (_In_ LPCWSTR algorithm_id);
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_generatekey (_Inout_ PR_CRYPT_CONTEXT context, _In_ PR_BYTEREF key, _In_ PR_BYTEREF nonce);
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_encryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer);
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_decryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer);
 
 _Ret_maybenull_
 PR_CRYPT_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id);
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_hashbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length);
 
 _Ret_maybenull_
 PR_STRING _r_crypt_finalhashcontext (_In_ PR_CRYPT_CONTEXT context, _In_ BOOLEAN is_uppercase);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_crypt_finalhashcontext_ex (_In_ PR_CRYPT_CONTEXT context, _Out_ PR_BYTEREF out_buffer);
 
 VOID _r_crypt_destroycryptcontext (_In_ PR_CRYPT_CONTEXT context);
 
@@ -2454,15 +2466,18 @@ PR_HASHTABLE _r_parseini (_In_ PR_STRING path, _Inout_opt_ PR_LIST section_list)
 //
 
 _Success_ (return == S_OK)
-HRESULT _r_xml_initializelibrary (_Out_ PR_XML_LIBRARY xml_library, _In_ BOOLEAN is_reader, _In_opt_ PR_XML_STREAM_CALLBACK stream_callback);
+HRESULT _r_xml_initializelibrary (_Out_ PR_XML_LIBRARY xml_library, _In_ BOOLEAN is_reader);
 
 VOID _r_xml_destroylibrary (_Inout_ PR_XML_LIBRARY xml_library);
 
 _Success_ (return == S_OK)
-HRESULT _r_xml_parsefile (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR file_path);
+HRESULT _r_xml_createfilestream (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR file_path, _In_ ULONG mode, _In_ BOOL is_create);
 
 _Success_ (return == S_OK)
-HRESULT _r_xml_parsestring (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCVOID buffer, _In_ ULONG buffer_size);
+HRESULT _r_xml_createstream (_Inout_ PR_XML_LIBRARY xml_library, _In_opt_ LPCVOID buffer, _In_ ULONG buffer_length);
+
+_Success_ (return == S_OK)
+HRESULT _r_xml_readstream (_Inout_ PR_XML_LIBRARY xml_library, _Out_ PR_BYTE_PTR out_buffer);
 
 _Success_ (return)
 BOOLEAN _r_xml_getattribute (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name, _Out_ PR_STRINGREF value);
@@ -2473,6 +2488,26 @@ PR_STRING _r_xml_getattribute_string (_Inout_ PR_XML_LIBRARY xml_library, _In_ L
 BOOLEAN _r_xml_getattribute_boolean (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name);
 LONG _r_xml_getattribute_long (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name);
 LONG64 _r_xml_getattribute_long64 (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR attrib_name);
+
+_Success_ (return == S_OK)
+FORCEINLINE HRESULT _r_xml_parsefile (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR file_path)
+{
+	HRESULT hr;
+
+	hr = _r_xml_createfilestream (xml_library, file_path, STGM_READ, FALSE);
+
+	return hr;
+}
+
+_Success_ (return == S_OK)
+FORCEINLINE HRESULT _r_xml_parsestring (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCVOID buffer, _In_ ULONG buffer_length)
+{
+	HRESULT hr;
+
+	hr = _r_xml_createstream (xml_library, buffer, buffer_length);
+
+	return hr;
+}
 
 FORCEINLINE VOID _r_xml_setattribute (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR name, _In_opt_ LPCWSTR value)
 {
@@ -2498,12 +2533,6 @@ HRESULT _r_xml_resetlibrarystream (_Inout_ PR_XML_LIBRARY xml_library);
 
 _Success_ (return == S_OK)
 HRESULT _r_xml_setlibrarystream (_Inout_ PR_XML_LIBRARY xml_library, _In_ PR_XML_STREAM stream);
-
-_Success_ (return == S_OK)
-FORCEINLINE HRESULT _r_xml_createfile (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR file_path)
-{
-	return _r_xml_parsefile (xml_library, file_path);
-}
 
 FORCEINLINE VOID _r_xml_writewhitespace (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR whitespace)
 {

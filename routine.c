@@ -9549,7 +9549,7 @@ CleanupExit:
 	return NULL;
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_generatekey (_Inout_ PR_CRYPT_CONTEXT context, _In_ PR_BYTEREF key, _In_ PR_BYTEREF nonce)
 {
 	NTSTATUS status;
@@ -9594,7 +9594,7 @@ NTSTATUS _r_crypt_generatekey (_Inout_ PR_CRYPT_CONTEXT context, _In_ PR_BYTEREF
 	return status;
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_encryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer)
 {
 	PR_BYTE tmp_buffer;
@@ -9653,7 +9653,7 @@ NTSTATUS _r_crypt_encryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffe
 	return status;
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_decryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer)
 {
 	PR_BYTE tmp_buffer;
@@ -9783,7 +9783,7 @@ CleanupExit:
 	return NULL;
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_hashbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length)
 {
 	NTSTATUS status;
@@ -9797,6 +9797,20 @@ _Ret_maybenull_
 PR_STRING _r_crypt_finalhashcontext (_In_ PR_CRYPT_CONTEXT context, _In_ BOOLEAN is_uppercase)
 {
 	NTSTATUS status;
+	R_BYTEREF bytes;
+
+	status = _r_crypt_finalhashcontext_ex (context, &bytes);
+
+	if (!NT_SUCCESS (status))
+		return NULL;
+
+	return _r_str_fromhex (bytes.buffer, (ULONG)bytes.length, is_uppercase);
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_crypt_finalhashcontext_ex (_In_ PR_CRYPT_CONTEXT context, _Out_ PR_BYTEREF out_buffer)
+{
+	NTSTATUS status;
 
 	status = BCryptFinishHash (
 		context->u.hash_handle,
@@ -9805,10 +9819,16 @@ PR_STRING _r_crypt_finalhashcontext (_In_ PR_CRYPT_CONTEXT context, _In_ BOOLEAN
 		0
 	);
 
-	if (!NT_SUCCESS (status))
-		return NULL;
+	if (NT_SUCCESS (status))
+	{
+		_r_obj_initializebyteref_ex (out_buffer, context->hash_data, context->hash_length);
+	}
+	else
+	{
+		_r_obj_initializebyterefempty (out_buffer);
+	}
 
-	return _r_str_fromhex (context->hash_data, context->hash_length, is_uppercase);
+	return status;
 }
 
 VOID _r_crypt_destroycryptcontext (_In_ PR_CRYPT_CONTEXT context)
@@ -10154,11 +10174,11 @@ PR_HASHTABLE _r_parseini (_In_ PR_STRING path, _Inout_opt_ PR_LIST section_list)
 //
 
 _Success_ (return == S_OK)
-HRESULT _r_xml_initializelibrary (_Out_ PR_XML_LIBRARY xml_library, _In_ BOOLEAN is_reader, _In_opt_ PR_XML_STREAM_CALLBACK stream_callback)
+HRESULT _r_xml_initializelibrary (_Out_ PR_XML_LIBRARY xml_library, _In_ BOOLEAN is_reader)
 {
 	HRESULT hr;
 
-	RtlZeroMemory (xml_library, sizeof (R_XML_LIBRARY));
+	xml_library->reserved1 = 0;
 
 	if (is_reader)
 	{
@@ -10183,8 +10203,7 @@ HRESULT _r_xml_initializelibrary (_Out_ PR_XML_LIBRARY xml_library, _In_ BOOLEAN
 	xml_library->is_initialized = TRUE;
 	xml_library->is_reader = is_reader;
 
-	xml_library->stream = NULL;
-	xml_library->stream_callback = stream_callback;
+	xml_library->hstream = NULL;
 
 	return S_OK;
 }
@@ -10194,13 +10213,8 @@ VOID _r_xml_destroylibrary (_Inout_ PR_XML_LIBRARY xml_library)
 	if (!xml_library->is_initialized)
 		return;
 
-	xml_library->is_initialized = FALSE;
-
-	if (xml_library->stream)
-	{
-		IStream_Release (xml_library->stream);
-		xml_library->stream = NULL;
-	}
+	xml_library->reserved1 = 0;
+	//xml_library->is_initialized = FALSE;
 
 	if (xml_library->is_reader)
 	{
@@ -10218,51 +10232,100 @@ VOID _r_xml_destroylibrary (_Inout_ PR_XML_LIBRARY xml_library)
 			xml_library->writer = NULL;
 		}
 	}
+
+	SAFE_DELETE_STREAM (xml_library->hstream);
 }
 
 _Success_ (return == S_OK)
-HRESULT _r_xml_parsefile (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR file_path)
+HRESULT _r_xml_createfilestream (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR file_path, _In_ ULONG mode, _In_ BOOL is_create)
 {
-	PR_XML_STREAM stream;
+	PR_XML_STREAM hstream;
 	HRESULT hr;
 
 	if (!xml_library->is_initialized)
 		return S_FALSE;
 
-	if (xml_library->stream)
-	{
-		IStream_Release (xml_library->stream);
-		xml_library->stream = NULL;
-	}
+	SAFE_DELETE_STREAM (xml_library->hstream);
 
-	hr = SHCreateStreamOnFileEx (file_path, xml_library->is_reader ? STGM_READ : STGM_WRITE | STGM_CREATE, FILE_ATTRIBUTE_NORMAL, xml_library->is_reader ? FALSE : TRUE, NULL, &stream);
+	hr = SHCreateStreamOnFileEx (
+		file_path,
+		mode,
+		FILE_ATTRIBUTE_NORMAL,
+		is_create,
+		NULL,
+		&hstream
+	);
 
 	if (hr != S_OK)
 		return hr;
 
-	return _r_xml_setlibrarystream (xml_library, stream);
+	return _r_xml_setlibrarystream (xml_library, hstream);
 }
 
 _Success_ (return == S_OK)
-HRESULT _r_xml_parsestring (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCVOID buffer, _In_ ULONG buffer_size)
+HRESULT _r_xml_createstream (_Inout_ PR_XML_LIBRARY xml_library, _In_opt_ LPCVOID buffer, _In_ ULONG buffer_size)
 {
-	PR_XML_STREAM stream;
+	PR_XML_STREAM hstream;
 
 	if (!xml_library->is_initialized)
 		return S_FALSE;
 
-	if (xml_library->stream)
-	{
-		IStream_Release (xml_library->stream);
-		xml_library->stream = NULL;
-	}
+	SAFE_DELETE_STREAM (xml_library->hstream);
 
-	stream = SHCreateMemStream (buffer, buffer_size);
+	hstream = SHCreateMemStream (buffer, buffer_size);
 
-	if (!stream)
+	if (!hstream)
 		return S_FALSE;
 
-	return _r_xml_setlibrarystream (xml_library, stream);
+	return _r_xml_setlibrarystream (xml_library, hstream);
+}
+
+_Success_ (return == S_OK)
+HRESULT _r_xml_readstream (_Inout_ PR_XML_LIBRARY xml_library, _Out_ PR_BYTE_PTR out_buffer)
+{
+	ULARGE_INTEGER size;
+	LARGE_INTEGER pos = {0};
+	PR_BYTE bytes;
+	ULONG readed;
+	HRESULT hr;
+
+	if (!xml_library->is_initialized)
+	{
+		*out_buffer = NULL;
+		return S_FALSE;
+	}
+
+	hr = IStream_Size (xml_library->hstream, &size);
+
+	if (hr != S_OK)
+	{
+		*out_buffer = NULL;
+		return hr;
+	}
+
+	hr = IStream_Seek (xml_library->hstream, pos, STREAM_SEEK_SET, NULL); // set position begin
+
+	bytes = _r_obj_createbyte_ex (NULL, size.LowPart);
+
+	hr = ISequentialStream_Read (xml_library->hstream, bytes->buffer, (ULONG)bytes->length, &readed);
+
+	IStream_Seek (xml_library->hstream, pos, STREAM_SEEK_END, NULL); // restore position
+
+	if (hr != S_OK)
+	{
+		_r_obj_dereference (bytes);
+
+		*out_buffer = NULL;
+	}
+	else
+	{
+		_r_obj_setbytelength (bytes, readed);
+
+		*out_buffer = bytes;
+	}
+
+
+	return hr;
 }
 
 _Success_ (return)
@@ -10272,10 +10335,12 @@ BOOLEAN _r_xml_getattribute (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWSTR at
 	UINT value_length;
 	HRESULT hr;
 
-	if (!xml_library->is_initialized || !xml_library->is_reader)
+	if (!xml_library->is_initialized)
 		return FALSE;
 
-	if (IXmlReader_MoveToAttributeByName (xml_library->reader, attrib_name, NULL) != S_OK)
+	hr = IXmlReader_MoveToAttributeByName (xml_library->reader, attrib_name, NULL);
+
+	if (hr != S_OK)
 		return FALSE;
 
 	hr = IXmlReader_GetValue (xml_library->reader, &value_string, &value_length);
@@ -10355,8 +10420,9 @@ BOOLEAN _r_xml_enumchilditemsbytagname (_Inout_ PR_XML_LIBRARY xml_library, _In_
 	LPWSTR buffer;
 	UINT length;
 	XmlNodeType node_type;
+	HRESULT hr;
 
-	if (!xml_library->is_initialized || !xml_library->is_reader)
+	if (!xml_library->is_initialized)
 		return FALSE;
 
 	_r_obj_initializestringrefconst (&sr2, tag_name);
@@ -10366,14 +10432,18 @@ BOOLEAN _r_xml_enumchilditemsbytagname (_Inout_ PR_XML_LIBRARY xml_library, _In_
 		if (IXmlReader_IsEOF (xml_library->reader))
 			return FALSE;
 
-		if (IXmlReader_Read (xml_library->reader, &node_type) != S_OK)
+		hr = IXmlReader_Read (xml_library->reader, &node_type);
+
+		if (hr != S_OK)
 			return FALSE;
 
 		if (node_type == XmlNodeType_Element)
 		{
 			buffer = NULL;
 
-			if (IXmlReader_GetLocalName (xml_library->reader, &buffer, &length) != S_OK)
+			hr = IXmlReader_GetLocalName (xml_library->reader, &buffer, &length);
+
+			if (hr != S_OK)
 				return FALSE;
 
 			if (_r_str_isempty (buffer))
@@ -10401,18 +10471,24 @@ BOOLEAN _r_xml_findchildbytagname (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCW
 	LPWSTR buffer;
 	UINT length;
 	XmlNodeType node_type;
+	HRESULT hr;
 
-	if (!xml_library->is_initialized || !xml_library->is_reader)
+	if (!xml_library->is_initialized)
 		return FALSE;
 
 	_r_obj_initializestringrefconst (&sr2, tag_name);
 
 	_r_xml_resetlibrarystream (xml_library);
 
-	while (!IXmlReader_IsEOF (xml_library->reader))
+	while (TRUE)
 	{
-		if (IXmlReader_Read (xml_library->reader, &node_type) != S_OK)
-			break;
+		if (IXmlReader_IsEOF (xml_library->reader))
+			return FALSE;
+
+		hr = IXmlReader_Read (xml_library->reader, &node_type);
+
+		if (hr != S_OK)
+			return FALSE;
 
 		if (node_type == XmlNodeType_Element)
 		{
@@ -10422,7 +10498,9 @@ BOOLEAN _r_xml_findchildbytagname (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCW
 
 			buffer = NULL;
 
-			if (IXmlReader_GetLocalName (xml_library->reader, &buffer, &length) != S_OK)
+			hr = IXmlReader_GetLocalName (xml_library->reader, &buffer, &length);
+
+			if (hr != S_OK)
 				break;
 
 			if (_r_str_isempty (buffer))
@@ -10444,34 +10522,31 @@ HRESULT _r_xml_resetlibrarystream (_Inout_ PR_XML_LIBRARY xml_library)
 	if (!xml_library->is_initialized)
 		return S_FALSE;
 
-	if (!xml_library->stream)
+	if (!xml_library->hstream)
 		return S_FALSE;
 
-	IStream_Reset (xml_library->stream);
+	IStream_Reset (xml_library->hstream);
 
-	return _r_xml_setlibrarystream (xml_library, xml_library->stream);
+	return _r_xml_setlibrarystream (xml_library, xml_library->hstream);
 }
 
 _Success_ (return == S_OK)
-HRESULT _r_xml_setlibrarystream (_Inout_ PR_XML_LIBRARY xml_library, _In_ PR_XML_STREAM stream)
+HRESULT _r_xml_setlibrarystream (_Inout_ PR_XML_LIBRARY xml_library, _In_ PR_XML_STREAM hstream)
 {
 	HRESULT hr;
 
 	if (!xml_library->is_initialized)
 		return S_FALSE;
 
-	xml_library->stream = stream;
-
-	if (xml_library->stream_callback)
-		xml_library->stream_callback (stream);
+	xml_library->hstream = hstream;
 
 	if (xml_library->is_reader)
 	{
-		hr = IXmlReader_SetInput (xml_library->reader, (IUnknown *)stream);
+		hr = IXmlReader_SetInput (xml_library->reader, (IUnknown *)hstream);
 	}
 	else
 	{
-		hr = IXmlWriter_SetOutput (xml_library->writer, (IUnknown *)stream);
+		hr = IXmlWriter_SetOutput (xml_library->writer, (IUnknown *)hstream);
 	}
 
 	return hr;
