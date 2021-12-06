@@ -669,15 +669,19 @@ typedef struct _R_CRYPT_CONTEXT
 		BCRYPT_KEY_HANDLE key_handle;
 	} u;
 
-	PVOID object_data;
-	PVOID hash_data;
-	PVOID block_data;
+	PR_BYTE object_data;
+	PR_BYTE block_data;
 
-	ULONG object_length;
-	ULONG block_length;
-	ULONG hash_length;
+	union
+	{
+		ULONG reserved1;
 
-	BOOLEAN is_hash;
+		struct
+		{
+			ULONG is_hashing : 1;
+			ULONG spare_bits : 31;
+		};
+	};
 } R_CRYPT_CONTEXT, *PR_CRYPT_CONTEXT;
 
 //
