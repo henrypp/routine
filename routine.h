@@ -1413,7 +1413,7 @@ BOOLEAN _r_clipboard_set (_In_opt_ HWND hwnd, _In_ PR_STRINGREF string);
 // Filesystem
 //
 
-BOOLEAN _r_fs_deletefile (_In_ LPCWSTR path, _In_ BOOLEAN is_force);
+BOOLEAN _r_fs_deletefile (_In_ LPCWSTR path, _In_ BOOLEAN is_forced);
 BOOLEAN _r_fs_deletedirectory (_In_ LPCWSTR path, _In_ BOOLEAN is_recurse);
 LONG64 _r_fs_getfilesize (_In_ LPCWSTR path);
 BOOLEAN _r_fs_makebackup (_In_ LPCWSTR path, _In_ BOOLEAN is_removesourcefile);
@@ -2351,8 +2351,8 @@ LSTATUS _r_reg_queryvalue (_In_ HKEY hkey, _In_opt_ LPCWSTR subkey, _In_opt_ LPC
 // Cryptography
 //
 
-_Ret_maybenull_
-PR_CRYPT_CONTEXT _r_crypt_createcryptcontext (_In_ LPCWSTR algorithm_id);
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_crypt_createcryptcontext (_Out_ PR_CRYPT_CONTEXT crypt_context, _In_ LPCWSTR algorithm_id);
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_generatekey (_Inout_ PR_CRYPT_CONTEXT context, _In_ PR_BYTEREF key, _In_ PR_BYTEREF nonce);
@@ -2363,8 +2363,8 @@ NTSTATUS _r_crypt_encryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffe
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_decryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer);
 
-_Ret_maybenull_
-PR_CRYPT_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id);
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_crypt_createhashcontext (_Out_ PR_CRYPT_CONTEXT hash_context, _In_ LPCWSTR algorithm_id);
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_hashbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length);
@@ -2373,7 +2373,7 @@ _Ret_maybenull_
 PR_STRING _r_crypt_finalhashcontext (_In_ PR_CRYPT_CONTEXT context, _In_ BOOLEAN is_uppercase);
 
 _Success_ (NT_SUCCESS (return))
-NTSTATUS _r_crypt_finalhashcontext_ex (_In_ PR_CRYPT_CONTEXT context, _Out_ PR_BYTEREF out_buffer);
+NTSTATUS _r_crypt_finalhashcontext_ex (_In_ PR_CRYPT_CONTEXT context, _Out_ PR_BYTE_PTR out_buffer);
 
 VOID _r_crypt_destroycryptcontext (_In_ PR_CRYPT_CONTEXT context);
 

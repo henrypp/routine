@@ -2923,9 +2923,9 @@ BOOLEAN _r_clipboard_set (_In_opt_ HWND hwnd, _In_ PR_STRINGREF string)
 // Filesystem
 //
 
-BOOLEAN _r_fs_deletefile (_In_ LPCWSTR path, _In_ BOOLEAN is_force)
+BOOLEAN _r_fs_deletefile (_In_ LPCWSTR path, _In_ BOOLEAN is_forced)
 {
-	if (is_force)
+	if (is_forced)
 		SetFileAttributes (path, FILE_ATTRIBUTE_NORMAL);
 
 	return !!DeleteFile (path);
@@ -9483,19 +9483,29 @@ LSTATUS _r_reg_queryvalue (_In_ HKEY hkey, _In_opt_ LPCWSTR subkey, _In_opt_ LPC
 // Cryptography
 //
 
-_Ret_maybenull_
-PR_CRYPT_CONTEXT _r_crypt_createcryptcontext (_In_ LPCWSTR algorithm_id)
+VOID _r_crypt_initialize (_Out_ PR_CRYPT_CONTEXT crypt_context, _In_ BOOLEAN is_hashing)
 {
-	PR_CRYPT_CONTEXT context;
+	crypt_context->reserved1 = 0;
+	crypt_context->is_hashing = is_hashing;
+
+	crypt_context->alg_handle = NULL;
+	crypt_context->u.hash_handle = NULL;
+
+	crypt_context->object_data = NULL;
+	crypt_context->block_data = NULL;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_crypt_createcryptcontext (_Out_ PR_CRYPT_CONTEXT crypt_context, _In_ LPCWSTR algorithm_id)
+{
 	ULONG query_size;
+	ULONG data_length;
 	NTSTATUS status;
 
-	context = _r_mem_allocatezero (sizeof (R_CRYPT_CONTEXT));
-
-	context->is_hash = FALSE; // encryption
+	_r_crypt_initialize (crypt_context, FALSE);
 
 	status = BCryptOpenAlgorithmProvider (
-		&context->alg_handle,
+		&crypt_context->alg_handle,
 		algorithm_id,
 		NULL,
 		0
@@ -9506,9 +9516,9 @@ PR_CRYPT_CONTEXT _r_crypt_createcryptcontext (_In_ LPCWSTR algorithm_id)
 
 	// Calculate the size of the buffer to hold the key object
 	status = BCryptGetProperty (
-		context->alg_handle,
+		crypt_context->alg_handle,
 		BCRYPT_OBJECT_LENGTH,
-		(PBYTE)&context->object_length,
+		(PBYTE)&data_length,
 		sizeof (ULONG),
 		&query_size,
 		0
@@ -9516,12 +9526,14 @@ PR_CRYPT_CONTEXT _r_crypt_createcryptcontext (_In_ LPCWSTR algorithm_id)
 
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
+
+	crypt_context->object_data = _r_obj_createbyte_ex (NULL, data_length);
 
 	// Calculate the block length for the IV
 	status = BCryptGetProperty (
-		context->alg_handle,
+		crypt_context->alg_handle,
 		BCRYPT_BLOCK_LENGTH,
-		(PBYTE)&context->block_length,
+		(PBYTE)&data_length,
 		sizeof (ULONG),
 		&query_size,
 		0
@@ -9530,23 +9542,21 @@ PR_CRYPT_CONTEXT _r_crypt_createcryptcontext (_In_ LPCWSTR algorithm_id)
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
+	crypt_context->block_data = _r_obj_createbyte_ex (NULL, data_length);
+
 	status = BCryptSetProperty (
-		context->alg_handle,
+		crypt_context->alg_handle,
 		BCRYPT_CHAINING_MODE,
 		(PBYTE)BCRYPT_CHAIN_MODE_CBC,
 		sizeof (BCRYPT_CHAIN_MODE_CBC),
 		0);
 
-	if (!NT_SUCCESS (status))
-		goto CleanupExit;
-
-	return context;
-
 CleanupExit:
 
-	_r_crypt_destroycryptcontext (context);
+	if (!NT_SUCCESS (status))
+		_r_crypt_destroycryptcontext (crypt_context);
 
-	return NULL;
+	return status;
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -9560,32 +9570,22 @@ NTSTATUS _r_crypt_generatekey (_Inout_ PR_CRYPT_CONTEXT context, _In_ PR_BYTEREF
 		context->u.key_handle = NULL;
 	}
 
-	if (key->length > context->object_length)
-		return STATUS_INVALID_PARAMETER_2;
+	//if (key->length > context->object_length)
+	//	return STATUS_INVALID_PARAMETER_2;
+	//
+	//if (nonce->length > context->block_length)
+	//	return STATUS_INVALID_PARAMETER_3;
 
-	if (nonce->length > context->block_length)
-		return STATUS_INVALID_PARAMETER_3;
+	RtlSecureZeroMemory (context->object_data->buffer, context->object_data->length);
+	RtlSecureZeroMemory (context->block_data->buffer, context->block_data->length);
 
-	if (!context->object_data)
-	{
-		context->object_data = _r_mem_allocatezero (context->object_length);
-	}
-	else
-	{
-		RtlSecureZeroMemory (context->object_data, context->object_length);
-	}
-
-	if (!context->block_data)
-		context->block_data = _r_mem_allocate (context->block_length);
-
-	RtlSecureZeroMemory (context->block_data, context->block_length);
 	RtlCopyMemory (context->block_data, nonce->buffer, nonce->length);
 
 	status = BCryptGenerateSymmetricKey (
 		context->alg_handle,
 		&context->u.key_handle,
-		context->object_data,
-		context->object_length,
+		context->object_data->buffer,
+		(ULONG)context->object_data->length,
 		key->buffer,
 		(ULONG)key->length,
 		0
@@ -9607,8 +9607,8 @@ NTSTATUS _r_crypt_encryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffe
 		buffer,
 		buffer_length,
 		NULL,
-		context->block_data,
-		context->block_length,
+		context->block_data->buffer,
+		(ULONG)context->block_data->length,
 		NULL,
 		0,
 		&out_length,
@@ -9629,8 +9629,8 @@ NTSTATUS _r_crypt_encryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffe
 		buffer,
 		buffer_length,
 		NULL,
-		context->block_data,
-		context->block_length,
+		context->block_data->buffer,
+		(ULONG)context->block_data->length,
 		tmp_buffer->buffer,
 		out_length,
 		&written,
@@ -9666,8 +9666,8 @@ NTSTATUS _r_crypt_decryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffe
 		buffer,
 		buffer_length,
 		NULL,
-		context->block_data,
-		context->block_length,
+		context->block_data->buffer,
+		(ULONG)context->block_data->length,
 		NULL,
 		0,
 		&out_length,
@@ -9688,8 +9688,8 @@ NTSTATUS _r_crypt_decryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffe
 		buffer,
 		buffer_length,
 		NULL,
-		context->block_data,
-		context->block_length,
+		context->block_data->buffer,
+		(ULONG)context->block_data->length,
 		tmp_buffer->buffer,
 		out_length,
 		&written,
@@ -9712,19 +9712,17 @@ NTSTATUS _r_crypt_decryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffe
 	return status;
 }
 
-_Ret_maybenull_
-PR_CRYPT_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id)
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_crypt_createhashcontext (_Out_ PR_CRYPT_CONTEXT hash_context, _In_ LPCWSTR algorithm_id)
 {
-	PR_CRYPT_CONTEXT context;
+	ULONG data_length;
 	ULONG query_size;
 	NTSTATUS status;
 
-	context = _r_mem_allocatezero (sizeof (R_CRYPT_CONTEXT));
-
-	context->is_hash = TRUE; // hashing
+	_r_crypt_initialize (hash_context, TRUE);
 
 	status = BCryptOpenAlgorithmProvider (
-		&context->alg_handle,
+		&hash_context->alg_handle,
 		algorithm_id,
 		NULL,
 		0
@@ -9734,9 +9732,9 @@ PR_CRYPT_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id)
 		goto CleanupExit;
 
 	status = BCryptGetProperty (
-		context->alg_handle,
+		hash_context->alg_handle,
 		BCRYPT_OBJECT_LENGTH,
-		(PBYTE)&context->object_length,
+		(PBYTE)&data_length,
 		sizeof (ULONG),
 		&query_size,
 		0
@@ -9744,11 +9742,13 @@ PR_CRYPT_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id)
 
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
+
+	hash_context->object_data = _r_obj_createbyte_ex (NULL, data_length);
 
 	status = BCryptGetProperty (
-		context->alg_handle,
+		hash_context->alg_handle,
 		BCRYPT_HASH_LENGTH,
-		(PBYTE)&context->hash_length,
+		(PBYTE)&data_length,
 		sizeof (ULONG),
 		&query_size,
 		0
@@ -9757,30 +9757,24 @@ PR_CRYPT_CONTEXT _r_crypt_createhashcontext (_In_ LPCWSTR algorithm_id)
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
-	context->object_data = _r_mem_allocatezero (context->object_length);
+	hash_context->block_data = _r_obj_createbyte_ex (NULL, data_length);
 
 	status = BCryptCreateHash (
-		context->alg_handle,
-		&context->u.hash_handle,
-		context->object_data,
-		context->object_length,
+		hash_context->alg_handle,
+		&hash_context->u.hash_handle,
+		hash_context->object_data->buffer,
+		(ULONG)hash_context->object_data->length,
 		NULL,
 		0,
 		0
 	);
 
-	if (!NT_SUCCESS (status))
-		goto CleanupExit;
-
-	context->hash_data = _r_mem_allocatezero (context->hash_length);
-
-	return context;
-
 CleanupExit:
 
-	_r_crypt_destroycryptcontext (context);
+	if (!NT_SUCCESS (status))
+		_r_crypt_destroycryptcontext (hash_context);
 
-	return NULL;
+	return status;
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -9797,66 +9791,74 @@ _Ret_maybenull_
 PR_STRING _r_crypt_finalhashcontext (_In_ PR_CRYPT_CONTEXT context, _In_ BOOLEAN is_uppercase)
 {
 	NTSTATUS status;
-	R_BYTEREF bytes;
+	PR_BYTE bytes;
+	PR_STRING string;
 
 	status = _r_crypt_finalhashcontext_ex (context, &bytes);
 
 	if (!NT_SUCCESS (status))
 		return NULL;
 
-	return _r_str_fromhex (bytes.buffer, (ULONG)bytes.length, is_uppercase);
+	string = _r_str_fromhex (bytes->buffer, (ULONG)bytes->length, is_uppercase);
+
+	_r_obj_dereference (bytes);
+
+	return string;
 }
 
 _Success_ (NT_SUCCESS (return))
-NTSTATUS _r_crypt_finalhashcontext_ex (_In_ PR_CRYPT_CONTEXT context, _Out_ PR_BYTEREF out_buffer)
+NTSTATUS _r_crypt_finalhashcontext_ex (_In_ PR_CRYPT_CONTEXT context, _Out_ PR_BYTE_PTR out_buffer)
 {
 	NTSTATUS status;
 
 	status = BCryptFinishHash (
 		context->u.hash_handle,
-		context->hash_data,
-		context->hash_length,
+		context->block_data->buffer,
+		(ULONG)context->block_data->length,
 		0
 	);
 
 	if (NT_SUCCESS (status))
 	{
-		_r_obj_initializebyteref_ex (out_buffer, context->hash_data, context->hash_length);
+		*out_buffer = _r_obj_reference (context->block_data);
 	}
 	else
 	{
-		_r_obj_initializebyterefempty (out_buffer);
+		*out_buffer = NULL;
 	}
 
 	return status;
 }
 
-VOID _r_crypt_destroycryptcontext (_In_ PR_CRYPT_CONTEXT context)
+VOID _r_crypt_destroycryptcontext (_In_ PR_CRYPT_CONTEXT crypt_context)
 {
-	if (context->is_hash)
+	crypt_context->reserved1 = 0;
+
+	if (crypt_context->is_hashing)
 	{
-		if (context->u.hash_handle)
-			BCryptDestroyHash (context->u.hash_handle);
+		if (crypt_context->u.hash_handle)
+		{
+			BCryptDestroyHash (crypt_context->u.hash_handle);
+			crypt_context->u.hash_handle = NULL;
+		}
 	}
 	else
 	{
-		if (context->u.key_handle)
-			BCryptDestroyKey (context->u.key_handle);
+		if (crypt_context->u.key_handle)
+		{
+			BCryptDestroyKey (crypt_context->u.key_handle);
+			crypt_context->u.key_handle = NULL;
+		}
 	}
 
-	if (context->alg_handle)
-		BCryptCloseAlgorithmProvider (context->alg_handle, 0);
+	if (crypt_context->alg_handle)
+	{
+		BCryptCloseAlgorithmProvider (crypt_context->alg_handle, 0);
+		crypt_context->alg_handle = NULL;
+	}
 
-	if (context->block_data)
-		_r_mem_free (context->block_data);
-
-	if (context->object_data)
-		_r_mem_free (context->object_data);
-
-	if (context->hash_data)
-		_r_mem_free (context->hash_data);
-
-	_r_mem_free (context);
+	SAFE_DELETE_REFERENCE (crypt_context->object_data);
+	SAFE_DELETE_REFERENCE (crypt_context->block_data);
 }
 
 //
