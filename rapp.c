@@ -164,7 +164,7 @@ LONG NTAPI _r_app_exceptionfilter_callback (_In_ PEXCEPTION_POINTERS exception_p
 	_r_app_exceptionfilter_savedump (exception_ptr);
 
 #if defined(APP_CONSOLE)
-	_r_console_writestringformat (APP_EXCEPTION_TITLE L" 0x%08X\r\n", error_code);
+	_r_console_writestringformat (APP_EXCEPTION_TITLE L" 0x%08X\r\n", exception_ptr->ExceptionRecord->ExceptionCode);
 #else
 	_r_error_initialize_ex (&error_info, NULL, NULL, exception_ptr);
 
@@ -176,7 +176,144 @@ LONG NTAPI _r_app_exceptionfilter_callback (_In_ PEXCEPTION_POINTERS exception_p
 	return EXCEPTION_EXECUTE_HANDLER;
 }
 
-FORCEINLINE VOID _r_app_exceptionfilter_subscribe ()
+BOOLEAN _r_app_initialize_com ()
+{
+	HRESULT hr;
+
+	// initialize COM library
+	hr = CoInitializeEx (NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+
+	if (!SUCCEEDED (hr))
+	{
+#if defined(APP_CONSOLE)
+		_r_console_writestringformat (APP_FAILED_COM_INITIALIZE L" 0x%08" TEXT (PRIX32) L"!\r\n", hr);
+#else
+		_r_show_errormessage (NULL, APP_FAILED_COM_INITIALIZE, hr, NULL);
+#endif // APP_CONSOLE
+
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+#if !defined(APP_CONSOLE)
+BOOLEAN _r_app_initialize_components ()
+{
+	ULONG length;
+
+	// set locale information
+	app_global.locale.resource_name = _r_obj_createstring (APP_LANGUAGE_DEFAULT);
+	app_global.locale.default_name = _r_obj_createstring_ex (NULL, LOCALE_NAME_MAX_LENGTH * sizeof (WCHAR));
+
+	length = GetLocaleInfo (
+		LOCALE_USER_DEFAULT,
+		LOCALE_SENGLISHLANGUAGENAME,
+		app_global.locale.default_name->buffer,
+		LOCALE_NAME_MAX_LENGTH
+	);
+
+	if (length > 1)
+	{
+		_r_obj_trimstringtonullterminator (app_global.locale.default_name); // terminate
+	}
+	else
+	{
+		_r_obj_clearreference (&app_global.locale.default_name);
+	}
+
+	// register TaskbarCreated message
+#if defined(APP_HAVE_TRAY)
+	if (!app_global.main.taskbar_msg)
+		app_global.main.taskbar_msg = RegisterWindowMessage (L"TaskbarCreated");
+#endif // APP_HAVE_TRAY
+
+	// set updates path
+#if defined(APP_HAVE_UPDATES)
+	// initialize objects
+	app_global.update.info.components = _r_obj_createarray (sizeof (R_UPDATE_COMPONENT), NULL);
+#endif // APP_HAVE_UPDATES
+
+#if defined(APP_HAVE_SETTINGS)
+	app_global.settings.page_list = _r_obj_createarray (sizeof (R_SETTINGS_PAGE), NULL);
+#endif // APP_HAVE_SETTINGS
+
+	return TRUE;
+}
+#endif // !APP_CONSOLE
+
+#if !defined(APP_CONSOLE)
+BOOLEAN _r_app_initialize_controls ()
+{
+	INITCOMMONCONTROLSEX icex = {0};
+
+	icex.dwSize = sizeof (icex);
+	icex.dwICC = ICC_LISTVIEW_CLASSES | ICC_TREEVIEW_CLASSES;
+
+	InitCommonControlsEx (&icex);
+
+	return TRUE;
+}
+#endif // !APP_CONSOLE
+
+BOOLEAN _r_app_initialize_dll ()
+{
+	// Safe DLL loading
+	// This prevents DLL planting in the application directory.
+
+	SetDllDirectory (L"");
+
+#if defined(APP_NO_DEPRECATIONS)
+	// win7+
+	SetSearchPathMode (BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
+
+	SetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+#else
+	HMODULE hkernel32;
+	R_ERROR_INFO error_info;
+
+	hkernel32 = _r_sys_loadlibrary (L"kernel32.dll");
+
+	if (hkernel32)
+	{
+		const SSPM _SetSearchPathMode = (SSPM)GetProcAddress (hkernel32, "SetSearchPathMode");
+
+		if (_SetSearchPathMode)
+			_SetSearchPathMode (BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
+
+		// Check for SetDefaultDllDirectories since it requires KB2533623.
+		const SDDD _SetDefaultDllDirectories = (SDDD)GetProcAddress (hkernel32, "SetDefaultDllDirectories");
+
+		if (_SetDefaultDllDirectories)
+		{
+			_SetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+		}
+		else
+		{
+			if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
+			{
+				_r_error_initialize (&error_info, NULL, APP_FAILED_KB2533623_TEXT);
+
+#if defined(APP_CONSOLE)
+				_r_console_writestringformat (APP_FAILED_KB2533623 L" 0x%08X\r\n", ERROR_DLL_INIT_FAILED);
+#else
+				_r_show_errormessage (NULL, APP_FAILED_KB2533623, ERROR_DLL_INIT_FAILED, &error_info);
+#endif // APP_CONSOLE
+
+				FreeLibrary (hkernel32);
+
+				return FALSE;
+			}
+		}
+
+		FreeLibrary (hkernel32);
+	}
+#endif // APP_NO_DEPRECATIONS
+
+	return TRUE;
+}
+
+VOID _r_app_initialize_seh ()
 {
 	ULONG error_mode;
 	NTSTATUS status;
@@ -193,7 +330,12 @@ FORCEINLINE VOID _r_app_exceptionfilter_subscribe ()
 	{
 		error_mode &= ~(SEM_NOOPENFILEERRORBOX | SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
 
-		NtSetInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (ULONG));
+		NtSetInformationProcess (
+			NtCurrentProcess (),
+			ProcessDefaultHardErrorMode,
+			&error_mode,
+			sizeof (ULONG)
+		);
 	}
 
 #if defined(APP_NO_DEPRECATIONS)
@@ -231,95 +373,23 @@ FORCEINLINE VOID _r_app_exceptionfilter_subscribe ()
 
 BOOLEAN _r_app_initialize ()
 {
-	HRESULT hr;
-	ULONG length;
-
-#if !defined(APP_CONSOLE)
 	// initialize controls
-	{
-		INITCOMMONCONTROLSEX icex = {0};
-
-		icex.dwSize = sizeof (icex);
-		icex.dwICC = ICC_LISTVIEW_CLASSES | ICC_TREEVIEW_CLASSES;
-
-		InitCommonControlsEx (&icex);
-	}
+#if !defined(APP_CONSOLE)
+	if (!_r_app_initialize_controls ())
+		return FALSE;
 #endif // !APP_CONSOLE
 
-	// Safe DLL loading
-	// This prevents DLL planting in the application directory.
-	// Check for SetDefaultDllDirectories since it requires KB2533623.
-
-	SetDllDirectory (L"");
-
-#if defined(APP_NO_DEPRECATIONS)
-	// win7+
-	SetSearchPathMode (BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
-
-	SetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
-#else
-	{
-		HMODULE hkernel32;
-
-		hkernel32 = _r_sys_loadlibrary (L"kernel32.dll");
-
-		if (hkernel32)
-		{
-			const SSPM _SetSearchPathMode = (SSPM)GetProcAddress (hkernel32, "SetSearchPathMode");
-
-			if (_SetSearchPathMode)
-				_SetSearchPathMode (BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
-
-			// Check for SetDefaultDllDirectories since it requires KB2533623.
-			const SDDD _SetDefaultDllDirectories = (SDDD)GetProcAddress (hkernel32, "SetDefaultDllDirectories");
-
-			if (_SetDefaultDllDirectories)
-			{
-				_SetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
-			}
-			else
-			{
-				if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
-				{
-					R_ERROR_INFO error_info;
-
-					_r_error_initialize (&error_info, NULL, APP_FAILED_KB2533623_TEXT);
-
-#if defined(APP_CONSOLE)
-					_r_console_writestringformat (APP_FAILED_KB2533623 L" 0x%08X\r\n", ERROR_DLL_INIT_FAILED);
-#else
-					_r_show_errormessage (NULL, APP_FAILED_KB2533623, ERROR_DLL_INIT_FAILED, &error_info);
-#endif // APP_CONSOLE
-
-					FreeLibrary (hkernel32);
-
-					return FALSE;
-				}
-			}
-
-			FreeLibrary (hkernel32);
-		}
-	}
-#endif // APP_NO_DEPRECATIONS
+	// initialize dll security
+	if (!_r_app_initialize_dll ())
+		return FALSE;
 
 	// set unhandled exception filter
 #if !defined(_DEBUG)
-	_r_app_exceptionfilter_subscribe ();
+	_r_app_initialize_seh ();
 #endif // !_DEBUG
 
-	// initialize COM library
-	hr = CoInitializeEx (NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
-
-	if (!SUCCEEDED (hr))
-	{
-#if defined(APP_CONSOLE)
-		_r_console_writestringformat (APP_FAILED_COM_INITIALIZE L" 0x%08" TEXT (PRIX32) L"!\r\n", hr);
-#else
-		_r_show_errormessage (NULL, APP_FAILED_COM_INITIALIZE, hr, NULL);
-#endif // APP_CONSOLE
-
+	if (!_r_app_initialize_com ())
 		return FALSE;
-	}
 
 #if !defined(APP_CONSOLE)
 	// prevent app duplicates
@@ -329,25 +399,7 @@ BOOLEAN _r_app_initialize ()
 		return FALSE;
 	}
 
-	// set locale information
-	app_global.locale.resource_name = _r_obj_createstring (APP_LANGUAGE_DEFAULT);
-	app_global.locale.default_name = _r_obj_createstring_ex (NULL, LOCALE_NAME_MAX_LENGTH * sizeof (WCHAR));
-
-	length = GetLocaleInfo (LOCALE_USER_DEFAULT, LOCALE_SENGLISHLANGUAGENAME, app_global.locale.default_name->buffer, LOCALE_NAME_MAX_LENGTH);
-
-	if (length > 1)
-	{
-		_r_obj_trimstringtonullterminator (app_global.locale.default_name); // terminate
-	}
-	else
-	{
-		_r_obj_clearreference (&app_global.locale.default_name);
-	}
-
-#if defined(APP_HAVE_TRAY)
-	if (!app_global.main.taskbar_msg)
-		app_global.main.taskbar_msg = RegisterWindowMessage (L"TaskbarCreated");
-#endif // APP_HAVE_TRAY
+	_r_app_initialize_components ();
 
 #if defined(APP_NO_GUEST)
 	// use "only admin"-mode
@@ -367,16 +419,6 @@ BOOLEAN _r_app_initialize ()
 
 	// set running flag
 	_r_mutex_create (_r_app_getmutexname (), &app_global.main.hmutex);
-
-	// set updates path
-#if defined(APP_HAVE_UPDATES)
-	// initialize objects
-	app_global.update.info.components = _r_obj_createarray (sizeof (R_UPDATE_COMPONENT), NULL);
-#endif // APP_HAVE_UPDATES
-
-#if defined(APP_HAVE_SETTINGS)
-	app_global.settings.page_list = _r_obj_createarray (sizeof (R_SETTINGS_PAGE), NULL);
-#endif // APP_HAVE_SETTINGS
 
 	// check for wow64 working and show warning if it is TRUE!
 #if !defined(_DEBUG) && !defined(_WIN64)
