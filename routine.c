@@ -3076,14 +3076,16 @@ BOOLEAN _r_fs_setpos (_In_ HANDLE hfile, _In_ LONG64 pos, _In_ ULONG method)
 // Paths
 //
 
-_Ret_maybenull_
-PR_STRING _r_path_compact (_In_ LPCWSTR path, _In_ UINT length)
+PR_STRING _r_path_compact (_In_ PR_STRING path, _In_ ULONG length)
 {
 	PR_STRING string;
 
+	if (_r_str_getlength2 (path) <= length)
+		return _r_obj_reference (path);
+
 	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
-	if (PathCompactPathEx (string->buffer, path, length, 0))
+	if (PathCompactPathEx (string->buffer, path->buffer, length, 0))
 	{
 		_r_obj_trimstringtonullterminator (string);
 
@@ -3092,7 +3094,7 @@ PR_STRING _r_path_compact (_In_ LPCWSTR path, _In_ UINT length)
 
 	_r_obj_dereference (string);
 
-	return NULL;
+	return _r_obj_reference (path);
 }
 
 BOOLEAN _r_path_getpathinfo (_In_ PR_STRINGREF path, _Out_opt_ PR_STRINGREF directory, _Out_opt_ PR_STRINGREF basename)

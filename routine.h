@@ -1456,8 +1456,7 @@ FORCEINLINE LONG64 _r_fs_getsize (_In_ HANDLE hfile)
 // Paths
 //
 
-_Ret_maybenull_
-PR_STRING _r_path_compact (_In_ LPCWSTR path, _In_ UINT length);
+PR_STRING _r_path_compact (_In_ PR_STRING path, _In_ ULONG length);
 
 BOOLEAN _r_path_getpathinfo (_In_ PR_STRINGREF path, _Out_opt_ PR_STRINGREF directory, _Out_opt_ PR_STRINGREF basename);
 
