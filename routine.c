@@ -21,6 +21,14 @@ VOID _r_debug_v (_In_ _Printf_format_string_ LPCWSTR format, ...)
 	_r_debug (string);
 }
 
+VOID _r_error_initialize_ex (_Out_ PR_ERROR_INFO error_info, _In_opt_ HINSTANCE hmodule, _In_opt_ LPCWSTR description, _In_opt_ PEXCEPTION_POINTERS exception_ptr)
+{
+	error_info->hmodule = hmodule;
+	error_info->description = description;
+	error_info->exception_ptr = exception_ptr;
+	error_info->reserved1 = 0;
+}
+
 //
 // Console
 //

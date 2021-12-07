@@ -1193,12 +1193,7 @@ FORCEINLINE VOID _r_debug (_In_ LPCWSTR string)
 	OutputDebugString (string);
 }
 
-FORCEINLINE VOID _r_error_initialize_ex (_Out_ PR_ERROR_INFO error_info, _In_opt_ HINSTANCE hmodule, _In_opt_ LPCWSTR description, _In_opt_ PEXCEPTION_POINTERS exception_ptr)
-{
-	error_info->hmodule = hmodule;
-	error_info->description = description;
-	error_info->exception_ptr = exception_ptr;
-}
+VOID _r_error_initialize_ex (_Out_ PR_ERROR_INFO error_info, _In_opt_ HINSTANCE hmodule, _In_opt_ LPCWSTR description, _In_opt_ PEXCEPTION_POINTERS exception_ptr);
 
 FORCEINLINE VOID _r_error_initialize (_Out_ PR_ERROR_INFO error_info, _In_opt_ HINSTANCE hmodule, _In_opt_ LPCWSTR description)
 {
