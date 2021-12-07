@@ -1624,15 +1624,10 @@ BOOLEAN _r_mutex_create (_In_ LPCWSTR name, _Out_ PHANDLE hmutex)
 	HANDLE original_mutex;
 
 	original_mutex = CreateMutex (NULL, FALSE, name);
+	*hmutex = original_mutex;
 
 	if (original_mutex)
-	{
-		*hmutex = original_mutex;
-
 		return TRUE;
-	}
-
-	*hmutex = NULL;
 
 	return FALSE;
 }
@@ -1643,11 +1638,10 @@ BOOLEAN _r_mutex_destroy (_Inout_ PHANDLE hmutex)
 	HANDLE original_mutex;
 
 	original_mutex = *hmutex;
+	*hmutex = NULL;
 
 	if (original_mutex)
 	{
-		*hmutex = NULL;
-
 		ReleaseMutex (original_mutex);
 		CloseHandle (original_mutex);
 
