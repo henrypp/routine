@@ -246,6 +246,7 @@ typedef struct R_ERROR_INFO
 	HINSTANCE hmodule;
 	LPCWSTR description;
 	PEXCEPTION_POINTERS exception_ptr;
+	ULONG reserved1;
 } R_ERROR_INFO, *PR_ERROR_INFO;
 
 //
