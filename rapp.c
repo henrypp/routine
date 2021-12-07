@@ -3035,6 +3035,8 @@ INT _r_show_message (_In_opt_ HWND hwnd, _In_ ULONG flags, _In_opt_ LPCWSTR titl
 		{
 #ifdef IDI_MAIN
 			tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
+#else
+			tdc.pszMainIcon = TD_INFORMATION_ICON;
 #pragma PR_PRINT_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
 		}
