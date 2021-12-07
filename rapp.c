@@ -142,7 +142,15 @@ VOID _r_app_exceptionfilter_savedump (_In_ PEXCEPTION_POINTERS exception_ptr)
 	minidump_info.ExceptionPointers = exception_ptr;
 	minidump_info.ClientPointers = FALSE;
 
-	MiniDumpWriteDump (NtCurrentProcess (), HandleToUlong (NtCurrentProcessId ()), hfile, MiniDumpNormal, &minidump_info, NULL, NULL);
+	MiniDumpWriteDump (
+		NtCurrentProcess (),
+		HandleToUlong (NtCurrentProcessId ()),
+		hfile,
+		MiniDumpNormal,
+		&minidump_info,
+		NULL,
+		NULL
+	);
 
 	CloseHandle (hfile);
 }
@@ -153,31 +161,14 @@ LONG NTAPI _r_app_exceptionfilter_callback (_In_ PEXCEPTION_POINTERS exception_p
 	R_ERROR_INFO error_info;
 #endif // !APP_CONSOLE
 
-	ULONG error_code;
-
-	if (NT_NTWIN32 (exception_ptr->ExceptionRecord->ExceptionCode))
-	{
-		error_code = WIN32_FROM_NTSTATUS (exception_ptr->ExceptionRecord->ExceptionCode);
-
-#if !defined(APP_CONSOLE)
-		_r_error_initialize_ex (&error_info, NULL, NULL, exception_ptr);
-#endif // !APP_CONSOLE
-	}
-	else
-	{
-		error_code = exception_ptr->ExceptionRecord->ExceptionCode;
-
-#if !defined(APP_CONSOLE)
-		_r_error_initialize_ex (&error_info, GetModuleHandle (L"ntdll.dll"), NULL, exception_ptr);
-#endif // !APP_CONSOLE
-	}
-
 	_r_app_exceptionfilter_savedump (exception_ptr);
 
 #if defined(APP_CONSOLE)
 	_r_console_writestringformat (APP_EXCEPTION_TITLE L" 0x%08X\r\n", error_code);
 #else
-	_r_show_errormessage (NULL, APP_EXCEPTION_TITLE, error_code, &error_info);
+	_r_error_initialize_ex (&error_info, NULL, NULL, exception_ptr);
+
+	_r_show_errormessage (NULL, APP_EXCEPTION_TITLE, exception_ptr->ExceptionRecord->ExceptionCode, &error_info);
 #endif // APP_CONSOLE
 
 	_r_sys_exitprocess (exception_ptr->ExceptionRecord->ExceptionCode);
@@ -2802,11 +2793,16 @@ VOID _r_show_aboutmessage (_In_opt_ HWND hwnd)
 
 VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG error_code, _In_opt_ PR_ERROR_INFO error_info_ptr)
 {
+	TASKDIALOGCONFIG tdc;
+	TASKDIALOG_BUTTON td_buttons[2];
 	WCHAR str_content[1024];
 	LPCWSTR str_main;
 	LPCWSTR str_footer;
+	LPCWSTR path;
+	R_STRINGREF sr;
 	HLOCAL buffer;
 	HINSTANCE hmodule;
+	INT command_id;
 
 	if (error_info_ptr && error_info_ptr->hmodule)
 	{
@@ -2814,11 +2810,27 @@ VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG
 	}
 	else
 	{
-		hmodule = GetModuleHandle (L"kernel32.dll"); // FORMAT_MESSAGE_FROM_SYSTEM
+		if (NT_NTWIN32 (error_code))
+		{
+			hmodule = GetModuleHandle (L"kernel32.dll"); // FORMAT_MESSAGE_FROM_SYSTEM
+		}
+		else
+		{
+			hmodule = GetModuleHandle (L"ntdll.dll"); // NTSTATUS
+		}
 	}
 
 	buffer = NULL;
-	FormatMessage (FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_HMODULE | FORMAT_MESSAGE_IGNORE_INSERTS, hmodule, error_code, 0, (LPWSTR)&buffer, 0, NULL);
+
+	FormatMessage (
+		FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_HMODULE | FORMAT_MESSAGE_IGNORE_INSERTS,
+		hmodule,
+		error_code,
+		0,
+		(LPWSTR)&buffer,
+		0,
+		NULL
+	);
 
 	str_main = main ? main : L"It happens ;(";
 	str_footer = L"This information may provide clues as to what went wrong and how to fix it.";
@@ -2830,7 +2842,7 @@ VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG
 
 	if (error_info_ptr)
 	{
-		if (!_r_str_isempty (error_info_ptr->description))
+		if (error_info_ptr->description)
 		{
 			_r_str_append (str_content, RTL_NUMBER_OF (str_content), L"\r\n\r\n");
 			_r_str_append (str_content, RTL_NUMBER_OF (str_content), error_info_ptr->description);
@@ -2841,9 +2853,7 @@ VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
 #endif // !APP_NO_DEPRECATIONS
 	{
-		TASKDIALOGCONFIG tdc = {0};
-		TASKDIALOG_BUTTON td_buttons[2] = {0};
-		INT command_id;
+		RtlZeroMemory (&tdc, sizeof (tdc));
 
 		tdc.cbSize = sizeof (tdc);
 		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_NO_SET_FOREGROUND | TDF_SIZE_TO_CONTENT;
@@ -2883,16 +2893,13 @@ VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG
 		{
 			if (command_id == IDYES)
 			{
-				LPCWSTR path;
-
 				path = _r_app_getcrashdirectory ();
 
-				_r_shell_opendefault (path);
+				if (path)
+					_r_shell_opendefault (path);
 			}
 			else if (command_id == IDNO)
 			{
-				R_STRINGREF sr;
-
 				_r_obj_initializestringref (&sr, str_content);
 				_r_clipboard_set (NULL, &sr);
 			}
@@ -2915,19 +2922,22 @@ VOID _r_show_errormessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ ULONG
 
 BOOLEAN _r_show_confirmmessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ LPCWSTR text, _In_opt_ LPCWSTR config_key)
 {
-	INT command_id = 0;
-	BOOL is_flagchecked = FALSE;
+	TASKDIALOGCONFIG tdc;
+	WCHAR str_flag[128];
+	INT command_id;
+	BOOL is_flagchecked;
 
 	if (config_key && !_r_config_getboolean (config_key, TRUE))
 		return TRUE;
+
+	command_id = 0;
+	is_flagchecked = FALSE;
 
 #if !defined(APP_NO_DEPRECATIONS)
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
 #endif // !APP_NO_DEPRECATIONS
 	{
-		TASKDIALOGCONFIG tdc = {0};
-
-		WCHAR str_flag[128];
+		RtlZeroMemory (&tdc, sizeof (tdc));
 
 		tdc.cbSize = sizeof (tdc);
 		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
@@ -3002,11 +3012,14 @@ BOOLEAN _r_show_confirmmessage (_In_opt_ HWND hwnd, _In_opt_ LPCWSTR main, _In_ 
 
 INT _r_show_message (_In_opt_ HWND hwnd, _In_ ULONG flags, _In_opt_ LPCWSTR title, _In_opt_ LPCWSTR main, _In_ LPCWSTR content)
 {
+	TASKDIALOGCONFIG tdc;
+	INT command_id;
+
 #if !defined(APP_NO_DEPRECATIONS)
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
 #endif // !APP_NO_DEPRECATIONS
 	{
-		TASKDIALOGCONFIG tdc = {0};
+		RtlZeroMemory (&tdc, sizeof (tdc));
 
 		tdc.cbSize = sizeof (tdc);
 		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
@@ -3067,8 +3080,6 @@ INT _r_show_message (_In_opt_ HWND hwnd, _In_ ULONG flags, _In_opt_ LPCWSTR titl
 		// set options
 		if ((flags & MB_TOPMOST) != 0)
 			tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
-
-		INT command_id;
 
 		if (_r_msg_taskdialog (&tdc, &command_id, NULL, NULL))
 			return command_id;
