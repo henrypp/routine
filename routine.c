@@ -402,7 +402,11 @@ BOOLEAN FASTCALL _r_event_wait_ex (_Inout_ PR_EVENT event_object, _In_opt_ PLARG
 
 		assert (event_handle);
 
-		if (InterlockedCompareExchangePointer (&event_object->event_handle, event_handle, NULL) != NULL)
+		if (InterlockedCompareExchangePointer (
+			&event_object->event_handle,
+			event_handle,
+			NULL
+			) != NULL)
 		{
 			NtClose (event_handle);
 
@@ -625,7 +629,11 @@ FORCEINLINE BOOLEAN _r_queuedlock_pushwaitblock (_Inout_ PR_QUEUED_LOCK queued_l
 	*current_value_ptr = new_value;
 	*is_optimize_ptr = is_optimize;
 
-	new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+	new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+		(PVOID_PTR)&queued_lock->value,
+		(PVOID)new_value,
+		(PVOID)value
+	);
 
 	*new_value_ptr = new_value;
 
@@ -681,7 +689,11 @@ FORCEINLINE VOID _r_queuedlock_optimizelist_ex (_Inout_ PR_QUEUED_LOCK queued_lo
 
 		// Try to clear the traversing bit.
 		new_value = value - PR_QUEUED_LOCK_TRAVERSING;
-		new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+		new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+			(PVOID_PTR)&queued_lock->value,
+			(PVOID)new_value,
+			(PVOID)value
+		);
 
 		if (new_value == value)
 			break;
@@ -699,7 +711,11 @@ HANDLE _r_queuedlock_getevent ()
 	HANDLE current_hevent;
 	HANDLE new_hevent;
 
-	current_hevent = InterlockedCompareExchangePointer (&cached_event, NULL, NULL);
+	current_hevent = InterlockedCompareExchangePointer (
+		&cached_event,
+		NULL,
+		NULL
+	);
 
 	if (!current_hevent)
 	{
@@ -710,7 +726,11 @@ HANDLE _r_queuedlock_getevent ()
 		if (!NT_SUCCESS (status))
 			RtlRaiseStatus (status);
 
-		current_hevent = InterlockedCompareExchangePointer (&cached_event, new_hevent, NULL);
+		current_hevent = InterlockedCompareExchangePointer (
+			&cached_event,
+			new_hevent,
+			NULL
+		);
 
 		if (!current_hevent)
 		{
@@ -755,7 +775,11 @@ FORCEINLINE PR_QUEUED_WAIT_BLOCK _r_queuedlock_preparetowake (_Inout_ PR_QUEUED_
 		{
 			new_value = value - PR_QUEUED_LOCK_TRAVERSING;
 
-			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+				(PVOID_PTR)&queued_lock->value,
+				(PVOID)new_value,
+				(PVOID)value
+			);
 
 			if (new_value == value)
 				return NULL;
@@ -801,7 +825,10 @@ FORCEINLINE PR_QUEUED_WAIT_BLOCK _r_queuedlock_preparetowake (_Inout_ PR_QUEUED_
 			if (!is_ignoreowned)
 			{
 				// Clear the traversing bit.
-				InterlockedExchangeAddPointer ((PLONG_PTR)&queued_lock->value, -(LONG_PTR)PR_QUEUED_LOCK_TRAVERSING);
+				InterlockedExchangeAddPointer (
+					(PLONG_PTR)&queued_lock->value,
+					-(LONG_PTR)PR_QUEUED_LOCK_TRAVERSING
+				);
 			}
 
 			break;
@@ -810,7 +837,11 @@ FORCEINLINE PR_QUEUED_WAIT_BLOCK _r_queuedlock_preparetowake (_Inout_ PR_QUEUED_
 		{
 			// We're waking an exclusive waiter and there is only one waiter, or we are waking a
 			// shared waiter and possibly others.
-			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, IntToPtr (0), (PVOID)value);
+			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+				(PVOID_PTR)&queued_lock->value,
+				IntToPtr (0),
+				(PVOID)value
+			);
 
 			if (new_value == value)
 				break;
@@ -917,7 +948,11 @@ VOID FASTCALL _r_queuedlock_acquireexclusive_ex (_Inout_ PR_QUEUED_LOCK queued_l
 	{
 		if (!(value & PR_QUEUED_LOCK_OWNED))
 		{
-			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)(value + PR_QUEUED_LOCK_OWNED), (PVOID)value);
+			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+				(PVOID_PTR)&queued_lock->value,
+				(PVOID)(value + PR_QUEUED_LOCK_OWNED),
+				(PVOID)value
+			);
 
 			if (new_value == value)
 				break;
@@ -957,7 +992,11 @@ VOID FASTCALL _r_queuedlock_acquireshared_ex (_Inout_ PR_QUEUED_LOCK queued_lock
 		{
 			new_value = (value + PR_QUEUED_LOCK_SHARED_INC) | PR_QUEUED_LOCK_OWNED;
 
-			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+				(PVOID_PTR)&queued_lock->value,
+				(PVOID)new_value,
+				(PVOID)value
+			);
 
 			if (new_value == value)
 				break;
@@ -997,7 +1036,11 @@ VOID FASTCALL _r_queuedlock_releaseexclusive_ex (_Inout_ PR_QUEUED_LOCK queued_l
 			// If there are no waiters, we're simply releasing ownership. If someone is traversing
 			// the list, clearing the owned bit is a signal for them to wake waiters.
 			new_value = value - PR_QUEUED_LOCK_OWNED;
-			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+				(PVOID_PTR)&queued_lock->value,
+				(PVOID)new_value,
+				(PVOID)value
+			);
 
 			if (new_value == value)
 				break;
@@ -1009,7 +1052,11 @@ VOID FASTCALL _r_queuedlock_releaseexclusive_ex (_Inout_ PR_QUEUED_LOCK queued_l
 			new_value = (value - PR_QUEUED_LOCK_OWNED + PR_QUEUED_LOCK_TRAVERSING);
 			current_value = new_value;
 
-			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+				(PVOID_PTR)&queued_lock->value,
+				(PVOID)new_value,
+				(PVOID)value
+			);
 
 			if (new_value == value)
 			{
@@ -1045,7 +1092,11 @@ VOID FASTCALL _r_queuedlock_releaseshared_ex (_Inout_ PR_QUEUED_LOCK queued_lock
 			new_value = 0;
 		}
 
-		new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+		new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+			(PVOID_PTR)&queued_lock->value,
+			(PVOID)new_value,
+			(PVOID)value
+		);
 
 		if (new_value == value)
 			return;
@@ -1068,7 +1119,11 @@ VOID FASTCALL _r_queuedlock_releaseshared_ex (_Inout_ PR_QUEUED_LOCK queued_lock
 		{
 			new_value = value & ~(PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_MULTIPLE_SHARED);
 
-			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+				(PVOID_PTR)&queued_lock->value,
+				(PVOID)new_value,
+				(PVOID)value
+			);
 
 			if (new_value == value)
 				break;
@@ -1078,7 +1133,11 @@ VOID FASTCALL _r_queuedlock_releaseshared_ex (_Inout_ PR_QUEUED_LOCK queued_lock
 			new_value = (value & ~(PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_MULTIPLE_SHARED)) | PR_QUEUED_LOCK_TRAVERSING;
 			current_value = new_value;
 
-			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+				(PVOID_PTR)&queued_lock->value,
+				(PVOID)new_value,
+				(PVOID)value
+			);
 
 			if (new_value == value)
 			{
@@ -1135,7 +1194,11 @@ VOID FASTCALL _r_queuedlock_wakeforrelease (_Inout_ PR_QUEUED_LOCK queued_lock, 
 
 	new_value = value + PR_QUEUED_LOCK_TRAVERSING;
 
-	current_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+	current_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+		(PVOID_PTR)&queued_lock->value,
+		(PVOID)new_value,
+		(PVOID)value
+	);
 
 	if (current_value == value)
 		_r_queuedlock_wake (queued_lock, new_value);
@@ -1196,7 +1259,11 @@ BOOLEAN FASTCALL _r_protection_acquire_ex (_Inout_ PR_RUNDOWN_PROTECT protection
 		if (value & PR_RUNDOWN_ACTIVE)
 			return FALSE;
 
-		new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value + PR_RUNDOWN_REF_INC), (PVOID)value);
+		new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+			(PVOID_PTR)&protection->value,
+			(PVOID)(value + PR_RUNDOWN_REF_INC),
+			(PVOID)value
+		);
 
 		if (new_value == value)
 			return TRUE;
@@ -1227,7 +1294,11 @@ VOID FASTCALL _r_protection_release_ex (_Inout_ PR_RUNDOWN_PROTECT protection)
 		else
 		{
 			// Decrement the reference count normally.
-			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value - PR_RUNDOWN_REF_INC), (PVOID)value);
+			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+				(PVOID_PTR)&protection->value,
+				(PVOID)(value - PR_RUNDOWN_REF_INC),
+				(PVOID)value
+			);
 
 			if (new_value == value)
 				break;
@@ -1243,7 +1314,11 @@ VOID FASTCALL _r_protection_waitfor_ex (_Inout_ PR_RUNDOWN_PROTECT protection)
 	ULONG_PTR count;
 
 	// Fast path. If the reference count is 0 or rundown has already been completed, return.
-	value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, IntToPtr (PR_RUNDOWN_ACTIVE), IntToPtr (0));
+	value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+		(PVOID_PTR)&protection->value,
+		IntToPtr (PR_RUNDOWN_ACTIVE),
+		IntToPtr (0)
+	);
 
 	if (value == 0 || value == PR_RUNDOWN_ACTIVE)
 		return;
@@ -1259,7 +1334,11 @@ VOID FASTCALL _r_protection_waitfor_ex (_Inout_ PR_RUNDOWN_PROTECT protection)
 		// Save the existing reference count.
 		wait_block.count = count;
 
-		new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)((ULONG_PTR)&wait_block | PR_RUNDOWN_ACTIVE), (PVOID)value);
+		new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+			(PVOID_PTR)&protection->value,
+			(PVOID)((ULONG_PTR)&wait_block | PR_RUNDOWN_ACTIVE),
+			(PVOID)value
+		);
 
 		if (new_value == value)
 		{
