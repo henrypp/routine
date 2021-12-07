@@ -287,10 +287,24 @@ FORCEINLINE BOOLEAN _r_event_wait (_Inout_ PR_EVENT event_object, _In_opt_ PLARG
 
 FORCEINLINE BOOLEAN _r_initonce_begin (_Inout_ PR_INITONCE init_once)
 {
-	if (NT_SUCCESS (RtlRunOnceBeginInitialize (init_once, RTL_RUN_ONCE_CHECK_ONLY, NULL)))
+	NTSTATUS status;
+
+	status = RtlRunOnceBeginInitialize (
+		init_once,
+		RTL_RUN_ONCE_CHECK_ONLY,
+		NULL
+	);
+
+	if (NT_SUCCESS (status))
 		return FALSE;
 
-	return (RtlRunOnceBeginInitialize (init_once, 0, NULL) == STATUS_PENDING);
+	status = RtlRunOnceBeginInitialize (
+		init_once,
+		0,
+		NULL
+	);
+
+	return (status == STATUS_PENDING);
 }
 
 FORCEINLINE VOID _r_initonce_end (_Inout_ PR_INITONCE init_once)
@@ -1588,7 +1602,7 @@ PR_STRING _r_str_fromsecuritydescriptor (_In_ PSECURITY_DESCRIPTOR lpsd, _In_ SE
 _Ret_maybenull_
 PR_STRING _r_str_fromsid (_In_ PSID lpsid);
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_str_toguid (_In_ PR_STRINGREF string, _Out_ LPGUID guid);
 
 BOOLEAN _r_str_touinteger64 (_In_ PR_STRINGREF string, _In_ ULONG base, _Out_ PULONG64 integer);
@@ -1651,11 +1665,10 @@ VOID _r_str_tolower (_Inout_ PR_STRINGREF string);
 VOID _r_str_toupper (_Inout_ PR_STRINGREF string);
 
 INT _r_str_versioncompare (_In_ PR_STRINGREF v1, _In_ PR_STRINGREF v2);
-
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_str_multibyte2unicode (_In_ PR_BYTEREF string, _Out_ PR_STRING_PTR out_buffer);
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_str_unicode2multibyte (_In_ PR_STRINGREF string, _Out_ PR_BYTE_PTR out_buffer);
 
 FORCEINLINE BOOLEAN _r_str_isdigit (_In_ WCHAR chr)
@@ -1854,8 +1867,10 @@ HICON _r_sys_loadsharedicon (_In_opt_ HINSTANCE hinst, _In_ LPCWSTR icon_name, _
 _Ret_maybenull_
 PR_STRING _r_sys_querytaginformation (_In_ HANDLE hprocess, _In_ LPCVOID tag);
 
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_querytokeninformation (_In_ HANDLE token_handle, _In_ TOKEN_INFORMATION_CLASS token_class, _Out_ PVOID_PTR token_info);
 
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_setprocessprivilege (_In_ HANDLE process_handle, _In_reads_ (count) PULONG privileges, _In_ ULONG count, _In_ BOOLEAN is_enable);
 
 VOID _r_sys_setenvironment (_Out_ PR_ENVIRONMENT environment, _In_ LONG base_priority, _In_ ULONG io_priority, _In_ ULONG page_priority);
@@ -2350,28 +2365,28 @@ LSTATUS _r_reg_queryvalue (_In_ HKEY hkey, _In_opt_ LPCWSTR subkey, _In_opt_ LPC
 // Cryptography
 //
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_crypt_createcryptcontext (_Out_ PR_CRYPT_CONTEXT crypt_context, _In_ LPCWSTR algorithm_id);
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_crypt_generatekey (_Inout_ PR_CRYPT_CONTEXT context, _In_ PR_BYTEREF key, _In_ PR_BYTEREF nonce);
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_crypt_encryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer);
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_crypt_decryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer);
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_crypt_createhashcontext (_Out_ PR_CRYPT_CONTEXT hash_context, _In_ LPCWSTR algorithm_id);
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_crypt_hashbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length);
 
 _Ret_maybenull_
 PR_STRING _r_crypt_finalhashcontext (_In_ PR_CRYPT_CONTEXT context, _In_ BOOLEAN is_uppercase);
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_crypt_finalhashcontext_ex (_In_ PR_CRYPT_CONTEXT context, _Out_ PR_BYTE_PTR out_buffer);
 
 VOID _r_crypt_destroycryptcontext (_In_ PR_CRYPT_CONTEXT context);

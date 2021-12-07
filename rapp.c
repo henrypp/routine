@@ -178,9 +178,18 @@ LONG NTAPI _r_app_exceptionfilter_callback (_In_ PEXCEPTION_POINTERS exception_p
 
 FORCEINLINE VOID _r_app_exceptionfilter_subscribe ()
 {
-	ULONG error_mode = 0;
+	ULONG error_mode;
+	NTSTATUS status;
 
-	if (NT_SUCCESS (NtQueryInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (ULONG), NULL)))
+	status = NtQueryInformationProcess (
+		NtCurrentProcess (),
+		ProcessDefaultHardErrorMode,
+		&error_mode,
+		sizeof (ULONG),
+		NULL
+	);
+
+	if (NT_SUCCESS (status))
 	{
 		error_mode &= ~(SEM_NOOPENFILEERRORBOX | SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
 

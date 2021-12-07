@@ -3478,6 +3478,7 @@ PR_STRING _r_path_resolvedeviceprefix (_In_ PR_STRING path)
 	HANDLE directory_handle;
 	SIZE_T prefix_length;
 	ULONG query_context = 0;
+	NTSTATUS status;
 
 #ifndef _WIN64
 	PROCESS_DEVICEMAP_INFORMATION device_map = {0};
@@ -3485,7 +3486,15 @@ PR_STRING _r_path_resolvedeviceprefix (_In_ PR_STRING path)
 	PROCESS_DEVICEMAP_INFORMATION_EX device_map = {0};
 #endif
 
-	if (NT_SUCCESS (NtQueryInformationProcess (NtCurrentProcess (), ProcessDeviceMap, &device_map, sizeof (device_map), NULL)))
+	status = NtQueryInformationProcess (
+		NtCurrentProcess (),
+		ProcessDeviceMap,
+		&device_map,
+		sizeof (device_map),
+		NULL
+	);
+
+	if (NT_SUCCESS (status))
 	{
 		for (ULONG i = 0; i < PR_DEVICE_COUNT; i++)
 		{
@@ -3512,11 +3521,23 @@ PR_STRING _r_path_resolvedeviceprefix (_In_ PR_STRING path)
 				NULL
 			);
 
-			if (NT_SUCCESS (NtOpenSymbolicLinkObject (&link_handle, SYMBOLIC_LINK_QUERY, &object_attributes)))
+			status = NtOpenSymbolicLinkObject (
+				&link_handle,
+				SYMBOLIC_LINK_QUERY,
+				&object_attributes
+			);
+
+			if (NT_SUCCESS (status))
 			{
 				_r_obj_initializeunicodestring_ex (&device_prefix, device_prefix_buffer, 0, RTL_NUMBER_OF (device_prefix_buffer) * sizeof (WCHAR));
 
-				if (NT_SUCCESS (NtQuerySymbolicLinkObject (link_handle, &device_prefix, NULL)))
+				status = NtQuerySymbolicLinkObject (
+					link_handle,
+					&device_prefix,
+					NULL
+				);
+
+				if (NT_SUCCESS (status))
 				{
 					_r_obj_initializestringref4 (&device_prefix_sr, &device_prefix);
 
@@ -3556,12 +3577,27 @@ PR_STRING _r_path_resolvedeviceprefix (_In_ PR_STRING path)
 	// https://github.com/henrypp/simplewall/issues/817
 	// https://github.com/maharmstone/btrfs/issues/324
 
-	RtlInitUnicodeString (&device_prefix, L"\\GLOBAL??");
-	InitializeObjectAttributes (&object_attributes, &device_prefix, OBJ_CASE_INSENSITIVE, NULL, NULL);
+	RtlInitUnicodeString (
+		&device_prefix,
+		L"\\GLOBAL??"
+	);
 
-	if (NT_SUCCESS (NtOpenDirectoryObject (&directory_handle, DIRECTORY_QUERY, &object_attributes)))
+	InitializeObjectAttributes (
+		&object_attributes,
+		&device_prefix,
+		OBJ_CASE_INSENSITIVE,
+		NULL,
+		NULL
+	);
+
+	status = NtOpenDirectoryObject (
+		&directory_handle,
+		DIRECTORY_QUERY,
+		&object_attributes
+	);
+
+	if (NT_SUCCESS (status))
 	{
-		NTSTATUS status;
 		POBJECT_DIRECTORY_INFORMATION directory_entry;
 		POBJECT_DIRECTORY_INFORMATION directory_info;
 		ULONG i;
@@ -3619,11 +3655,22 @@ PR_STRING _r_path_resolvedeviceprefix (_In_ PR_STRING path)
 						NULL
 					);
 
-					if (NT_SUCCESS (NtOpenSymbolicLinkObject (&link_handle, SYMBOLIC_LINK_QUERY, &object_attributes)))
+					status = NtOpenSymbolicLinkObject (
+						&link_handle,
+						SYMBOLIC_LINK_QUERY,
+						&object_attributes
+					);
+
+					if (NT_SUCCESS (status))
 					{
 						_r_obj_initializeunicodestring_ex (&device_prefix, device_prefix_buffer, 0, RTL_NUMBER_OF (device_prefix_buffer) * sizeof (WCHAR));
 
-						if (NT_SUCCESS (NtQuerySymbolicLinkObject (link_handle, &device_prefix, NULL)))
+						status = NtQuerySymbolicLinkObject (
+							link_handle,
+							&device_prefix,
+							NULL);
+
+						if (NT_SUCCESS (status))
 						{
 							_r_obj_initializestringref4 (&device_prefix_sr, &device_prefix);
 
@@ -4691,8 +4738,11 @@ PR_STRING _r_str_fromguid (_In_ LPCGUID lpguid, _In_ BOOLEAN is_uppercase)
 {
 	UNICODE_STRING us;
 	PR_STRING string;
+	NTSTATUS status;
 
-	if (NT_SUCCESS (RtlStringFromGUID ((LPGUID)lpguid, &us)))
+	status = RtlStringFromGUID ((LPGUID)lpguid, &us);
+
+	if (NT_SUCCESS (status))
 	{
 		string = _r_obj_createstring4 (&us);
 
@@ -4774,12 +4824,15 @@ PR_STRING _r_str_fromsid (_In_ PSID lpsid)
 {
 	UNICODE_STRING us;
 	PR_STRING string;
+	NTSTATUS status;
 
 	string = _r_obj_createstring_ex (NULL, SECURITY_MAX_SID_STRING_CHARACTERS * sizeof (WCHAR));
 
 	_r_obj_initializeunicodestring3 (&us, &string->sr);
 
-	if (NT_SUCCESS (RtlConvertSidToUnicodeString (&us, lpsid, FALSE)))
+	status = RtlConvertSidToUnicodeString (&us, lpsid, FALSE);
+
+	if (NT_SUCCESS (status))
 	{
 		_r_obj_setstringlength (string, us.Length); // terminate
 
@@ -4791,7 +4844,7 @@ PR_STRING _r_str_fromsid (_In_ PSID lpsid)
 	return NULL;
 }
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_str_toguid (_In_ PR_STRINGREF string, _Out_ LPGUID guid)
 {
 	UNICODE_STRING us;
@@ -5572,7 +5625,7 @@ INT _r_str_versioncompare (_In_ PR_STRINGREF v1, _In_ PR_STRINGREF v2)
 	return 0;
 }
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_str_multibyte2unicode (_In_ PR_BYTEREF string, _Out_ PR_STRING_PTR out_buffer)
 {
 	NTSTATUS status;
@@ -5581,13 +5634,13 @@ NTSTATUS _r_str_multibyte2unicode (_In_ PR_BYTEREF string, _Out_ PR_STRING_PTR o
 
 	status = RtlMultiByteToUnicodeSize (&output_size, string->buffer, (ULONG)string->length);
 
-	if (!NT_SUCCESS (status))
+	if (status != STATUS_SUCCESS)
 		return status;
 
 	out_string = _r_obj_createstring_ex (NULL, output_size);
 	status = RtlMultiByteToUnicodeN (out_string->buffer, (ULONG)out_string->length, NULL, string->buffer, (ULONG)string->length);
 
-	if (NT_SUCCESS (status))
+	if (status == STATUS_SUCCESS)
 	{
 		*out_buffer = out_string;
 	}
@@ -5601,7 +5654,7 @@ NTSTATUS _r_str_multibyte2unicode (_In_ PR_BYTEREF string, _Out_ PR_STRING_PTR o
 	return status;
 }
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_str_unicode2multibyte (_In_ PR_STRINGREF string, _Out_ PR_BYTE_PTR out_buffer)
 {
 	NTSTATUS status;
@@ -5610,13 +5663,13 @@ NTSTATUS _r_str_unicode2multibyte (_In_ PR_STRINGREF string, _Out_ PR_BYTE_PTR o
 
 	status = RtlUnicodeToMultiByteSize (&output_size, string->buffer, (ULONG)string->length);
 
-	if (!NT_SUCCESS (status))
+	if (status != STATUS_SUCCESS)
 		return status;
 
 	out_string = _r_obj_createbyte_ex (NULL, output_size);
 	status = RtlUnicodeToMultiByteN (out_string->buffer, (ULONG)out_string->length, NULL, string->buffer, (ULONG)string->length);
 
-	if (NT_SUCCESS (status))
+	if (status == STATUS_SUCCESS)
 	{
 		*out_buffer = out_string;
 	}
@@ -5736,6 +5789,8 @@ R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
 
 	if (_r_initonce_begin (&init_once))
 	{
+		NTSTATUS status;
+
 		attributes.elevation_type = TokenElevationTypeDefault;
 
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_8_1))
@@ -5746,10 +5801,10 @@ R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
 		{
 			HANDLE token_handle;
 
-			if (NT_SUCCESS (NtOpenProcessToken (NtCurrentProcess (), TOKEN_QUERY, &token_handle)))
-			{
+			status = NtOpenProcessToken (NtCurrentProcess (), TOKEN_QUERY, &token_handle);
+
+			if (NT_SUCCESS (status))
 				attributes.token_handle = token_handle;
-			}
 		}
 
 		if (attributes.token_handle)
@@ -5760,17 +5815,35 @@ R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
 			PTOKEN_USER token_user;
 			ULONG return_length;
 
-			if (NT_SUCCESS (NtQueryInformationToken (attributes.token_handle, TokenElevation, &elevation, sizeof (elevation), &return_length)))
-			{
+			status = NtQueryInformationToken (
+				attributes.token_handle,
+				TokenElevation,
+				&elevation,
+				sizeof (elevation),
+				&return_length
+			);
+
+			if (NT_SUCCESS (status))
 				attributes.is_elevated = !!elevation.TokenIsElevated;
-			}
 
-			if (NT_SUCCESS (NtQueryInformationToken (attributes.token_handle, TokenElevationType, &elevation_type, sizeof (elevation_type), &return_length)))
-			{
+			status = NtQueryInformationToken (
+				attributes.token_handle,
+				TokenElevationType,
+				&elevation_type,
+				sizeof (elevation_type),
+				&return_length
+			);
+
+			if (NT_SUCCESS (status))
 				attributes.elevation_type = elevation_type;
-			}
 
-			if (NT_SUCCESS (_r_sys_querytokeninformation (attributes.token_handle, TokenUser, &token_user)))
+			status = _r_sys_querytokeninformation (
+				attributes.token_handle,
+				TokenUser,
+				&token_user
+			);
+
+			if (NT_SUCCESS (status))
 			{
 				attributes.token_sid = _r_mem_allocateandcopy (token_user->User.Sid, RtlLengthSid (token_user->User.Sid));
 
@@ -5990,19 +6063,25 @@ _Ret_maybenull_
 PSID _r_sys_getservicesid (_In_ PR_STRINGREF name)
 {
 	UNICODE_STRING service_name;
-	ULONG sid_length = 0;
-	PSID sid = NULL;
+	ULONG sid_length;
+	PSID sid;
+	NTSTATUS status;
 
 	_r_obj_initializeunicodestring3 (&service_name, name);
 
-	if (RtlCreateServiceSid (&service_name, sid, &sid_length) == STATUS_BUFFER_TOO_SMALL)
+	sid = NULL;
+	sid_length = 0;
+
+	status = RtlCreateServiceSid (&service_name, sid, &sid_length);
+
+	if (status == STATUS_BUFFER_TOO_SMALL)
 	{
 		sid = _r_mem_allocatezero (sid_length);
 
-		if (NT_SUCCESS (RtlCreateServiceSid (&service_name, sid, &sid_length)))
-		{
+		status = RtlCreateServiceSid (&service_name, sid, &sid_length);
+
+		if (status == STATUS_SUCCESS)
 			return sid;
-		}
 
 		_r_mem_free (sid);
 	}
@@ -6040,6 +6119,7 @@ PR_STRING _r_sys_getusernamefromsid (_In_ PSID sid)
 	PLSA_TRUST_INFORMATION trust_info;
 	BOOLEAN is_hasdomain;
 	BOOLEAN is_hasname;
+	NTSTATUS status;
 
 	InitializeObjectAttributes (
 		&object_attributes,
@@ -6049,9 +6129,13 @@ PR_STRING _r_sys_getusernamefromsid (_In_ PSID sid)
 		NULL
 	);
 
-	if (NT_SUCCESS (LsaOpenPolicy (NULL, &object_attributes, POLICY_LOOKUP_NAMES, &policy_handle)))
+	status = LsaOpenPolicy (NULL, &object_attributes, POLICY_LOOKUP_NAMES, &policy_handle);
+
+	if (NT_SUCCESS (status))
 	{
-		if (NT_SUCCESS (LsaLookupSids (policy_handle, 1, &sid, &referenced_domains, &names)))
+		status = LsaLookupSids (policy_handle, 1, &sid, &referenced_domains, &names);
+
+		if (NT_SUCCESS (status))
 		{
 			if (names && names[0].Use != SidTypeInvalid && names[0].Use != SidTypeUnknown)
 			{
@@ -6104,10 +6188,13 @@ ULONG _r_sys_getwindowsversion ()
 	if (_r_initonce_begin (&init_once))
 	{
 		RTL_OSVERSIONINFOEXW version_info = {0};
+		NTSTATUS status;
 
 		version_info.dwOSVersionInfoSize = sizeof (version_info);
 
-		if (NT_SUCCESS (RtlGetVersion (&version_info)))
+		status = RtlGetVersion (&version_info);
+
+		if (NT_SUCCESS (status))
 		{
 			if (version_info.dwMajorVersion == 5 && version_info.dwMinorVersion == 0)
 			{
@@ -6603,7 +6690,18 @@ NTSTATUS _r_sys_createthread (_In_ PUSER_THREAD_START_ROUTINE function_address, 
 	context->function_address = function_address;
 	context->arglist = arglist;
 
-	status = RtlCreateUserThread (NtCurrentProcess (), NULL, TRUE, 0, 0, 0, &_r_sys_basethreadstart, context, &hthread, NULL);
+	status = RtlCreateUserThread (
+		NtCurrentProcess (),
+		NULL,
+		TRUE,
+		0,
+		0,
+		0,
+		&_r_sys_basethreadstart,
+		context,
+		&hthread,
+		NULL
+	);
 
 	if (NT_SUCCESS (status))
 	{
@@ -6771,6 +6869,7 @@ PR_STRING _r_sys_querytaginformation (_In_ HANDLE hprocess, _In_ LPCVOID tag)
 	return NULL;
 }
 
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_querytokeninformation (_In_ HANDLE token_handle, _In_ TOKEN_INFORMATION_CLASS token_class, _Out_ PVOID_PTR token_info)
 {
 	NTSTATUS status;
@@ -6782,14 +6881,26 @@ NTSTATUS _r_sys_querytokeninformation (_In_ HANDLE token_handle, _In_ TOKEN_INFO
 	buffer_length = 128;
 	buffer = _r_mem_allocate (buffer_length);
 
-	status = NtQueryInformationToken (token_handle, token_class, buffer, buffer_length, &return_length);
+	status = NtQueryInformationToken (
+		token_handle,
+		token_class,
+		buffer,
+		buffer_length,
+		&return_length
+	);
 
 	if (status == STATUS_BUFFER_OVERFLOW || status == STATUS_BUFFER_TOO_SMALL)
 	{
 		buffer_length = return_length;
 		buffer = _r_mem_reallocate (buffer, buffer_length);
 
-		status = NtQueryInformationToken (token_handle, token_class, buffer, buffer_length, &return_length);
+		status = NtQueryInformationToken (
+			token_handle,
+			token_class,
+			buffer,
+			buffer_length,
+			&return_length
+		);
 	}
 
 	if (NT_SUCCESS (status))
@@ -6806,6 +6917,7 @@ NTSTATUS _r_sys_querytokeninformation (_In_ HANDLE token_handle, _In_ TOKEN_INFO
 	return status;
 }
 
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_setprocessprivilege (_In_ HANDLE process_handle, _In_reads_ (count) PULONG privileges, _In_ ULONG count, _In_ BOOLEAN is_enable)
 {
 	NTSTATUS status;
@@ -9164,7 +9276,7 @@ ULONG _r_inet_begindownload (_In_ HINTERNET hsession, _In_ PR_STRING url, _Inout
 		}
 		else
 		{
-			if (NT_SUCCESS (_r_str_multibyte2unicode (&content_bytes->sr, &string)))
+			if (_r_str_multibyte2unicode (&content_bytes->sr, &string) == STATUS_SUCCESS)
 			{
 				_r_obj_appendstringbuilder2 (&sb, string);
 				_r_obj_dereference (string);
@@ -9497,7 +9609,7 @@ VOID _r_crypt_initialize (_Out_ PR_CRYPT_CONTEXT crypt_context, _In_ BOOLEAN is_
 	crypt_context->block_data = NULL;
 }
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_crypt_createcryptcontext (_Out_ PR_CRYPT_CONTEXT crypt_context, _In_ LPCWSTR algorithm_id)
 {
 	ULONG query_size;
@@ -9513,7 +9625,7 @@ NTSTATUS _r_crypt_createcryptcontext (_Out_ PR_CRYPT_CONTEXT crypt_context, _In_
 		0
 	);
 
-	if (!NT_SUCCESS (status))
+	if (status != STATUS_SUCCESS)
 		goto CleanupExit;
 
 	// Calculate the size of the buffer to hold the key object
@@ -9526,7 +9638,7 @@ NTSTATUS _r_crypt_createcryptcontext (_Out_ PR_CRYPT_CONTEXT crypt_context, _In_
 		0
 	);
 
-	if (!NT_SUCCESS (status))
+	if (status != STATUS_SUCCESS)
 		goto CleanupExit;
 
 	crypt_context->object_data = _r_obj_createbyte_ex (NULL, data_length);
@@ -9541,7 +9653,7 @@ NTSTATUS _r_crypt_createcryptcontext (_Out_ PR_CRYPT_CONTEXT crypt_context, _In_
 		0
 	);
 
-	if (!NT_SUCCESS (status))
+	if (status != STATUS_SUCCESS)
 		goto CleanupExit;
 
 	crypt_context->block_data = _r_obj_createbyte_ex (NULL, data_length);
@@ -9555,13 +9667,13 @@ NTSTATUS _r_crypt_createcryptcontext (_Out_ PR_CRYPT_CONTEXT crypt_context, _In_
 
 CleanupExit:
 
-	if (!NT_SUCCESS (status))
+	if (status != STATUS_SUCCESS)
 		_r_crypt_destroycryptcontext (crypt_context);
 
 	return status;
 }
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_crypt_generatekey (_Inout_ PR_CRYPT_CONTEXT context, _In_ PR_BYTEREF key, _In_ PR_BYTEREF nonce)
 {
 	NTSTATUS status;
@@ -9596,7 +9708,7 @@ NTSTATUS _r_crypt_generatekey (_Inout_ PR_CRYPT_CONTEXT context, _In_ PR_BYTEREF
 	return status;
 }
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_crypt_encryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer)
 {
 	PR_BYTE tmp_buffer;
@@ -9655,7 +9767,7 @@ NTSTATUS _r_crypt_encryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffe
 	return status;
 }
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_crypt_decryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length, _Out_ PR_BYTE_PTR out_buffer)
 {
 	PR_BYTE tmp_buffer;
@@ -9714,7 +9826,7 @@ NTSTATUS _r_crypt_decryptbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffe
 	return status;
 }
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_crypt_createhashcontext (_Out_ PR_CRYPT_CONTEXT hash_context, _In_ LPCWSTR algorithm_id)
 {
 	ULONG data_length;
@@ -9730,7 +9842,7 @@ NTSTATUS _r_crypt_createhashcontext (_Out_ PR_CRYPT_CONTEXT hash_context, _In_ L
 		0
 	);
 
-	if (!NT_SUCCESS (status))
+	if (status != STATUS_SUCCESS)
 		goto CleanupExit;
 
 	status = BCryptGetProperty (
@@ -9742,7 +9854,7 @@ NTSTATUS _r_crypt_createhashcontext (_Out_ PR_CRYPT_CONTEXT hash_context, _In_ L
 		0
 	);
 
-	if (!NT_SUCCESS (status))
+	if (status != STATUS_SUCCESS)
 		goto CleanupExit;
 
 	hash_context->object_data = _r_obj_createbyte_ex (NULL, data_length);
@@ -9756,7 +9868,7 @@ NTSTATUS _r_crypt_createhashcontext (_Out_ PR_CRYPT_CONTEXT hash_context, _In_ L
 		0
 	);
 
-	if (!NT_SUCCESS (status))
+	if (status != STATUS_SUCCESS)
 		goto CleanupExit;
 
 	hash_context->block_data = _r_obj_createbyte_ex (NULL, data_length);
@@ -9773,13 +9885,13 @@ NTSTATUS _r_crypt_createhashcontext (_Out_ PR_CRYPT_CONTEXT hash_context, _In_ L
 
 CleanupExit:
 
-	if (!NT_SUCCESS (status))
+	if (status != STATUS_SUCCESS)
 		_r_crypt_destroycryptcontext (hash_context);
 
 	return status;
 }
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_crypt_hashbuffer (_In_ PR_CRYPT_CONTEXT context, _In_ PBYTE buffer, _In_ ULONG buffer_length)
 {
 	NTSTATUS status;
@@ -9798,7 +9910,7 @@ PR_STRING _r_crypt_finalhashcontext (_In_ PR_CRYPT_CONTEXT context, _In_ BOOLEAN
 
 	status = _r_crypt_finalhashcontext_ex (context, &bytes);
 
-	if (!NT_SUCCESS (status))
+	if (status != STATUS_SUCCESS)
 		return NULL;
 
 	string = _r_str_fromhex (bytes->buffer, (ULONG)bytes->length, is_uppercase);
@@ -9808,7 +9920,7 @@ PR_STRING _r_crypt_finalhashcontext (_In_ PR_CRYPT_CONTEXT context, _In_ BOOLEAN
 	return string;
 }
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_crypt_finalhashcontext_ex (_In_ PR_CRYPT_CONTEXT context, _Out_ PR_BYTE_PTR out_buffer)
 {
 	NTSTATUS status;
@@ -9820,7 +9932,7 @@ NTSTATUS _r_crypt_finalhashcontext_ex (_In_ PR_CRYPT_CONTEXT context, _Out_ PR_B
 		0
 	);
 
-	if (NT_SUCCESS (status))
+	if (status == STATUS_SUCCESS)
 	{
 		*out_buffer = _r_obj_reference (context->block_data);
 	}
