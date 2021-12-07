@@ -200,18 +200,18 @@ FORCEINLINE VOID _r_app_exceptionfilter_subscribe ()
 	RtlSetUnhandledExceptionFilter (&_r_app_exceptionfilter_callback);
 #else
 
-	HMODULE hlib;
+	HMODULE hntdll;
 	BOOLEAN is_set;
 
 	is_set = FALSE;
 
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
 	{
-		hlib = _r_sys_loadlibrary (L"ntdll.dll");
+		hntdll = _r_sys_loadlibrary (L"ntdll.dll");
 
-		if (hlib)
+		if (hntdll)
 		{
-			const RSUEF _RtlSetUnhandledExceptionFilter = (RSUEF)GetProcAddress (hlib, "RtlSetUnhandledExceptionFilter");
+			const RSUEF _RtlSetUnhandledExceptionFilter = (RSUEF)GetProcAddress (hntdll, "RtlSetUnhandledExceptionFilter");
 
 			if (_RtlSetUnhandledExceptionFilter)
 			{
@@ -219,7 +219,7 @@ FORCEINLINE VOID _r_app_exceptionfilter_subscribe ()
 				is_set = TRUE;
 			}
 
-			FreeLibrary (hlib);
+			FreeLibrary (hntdll);
 		}
 	}
 
@@ -227,11 +227,13 @@ FORCEINLINE VOID _r_app_exceptionfilter_subscribe ()
 		SetUnhandledExceptionFilter (&_r_app_exceptionfilter_callback);
 #endif // APP_NO_DEPRECATIONS
 }
-
 #endif // !_DEBUG
 
 BOOLEAN _r_app_initialize ()
 {
+	HRESULT hr;
+	ULONG length;
+
 #if !defined(APP_CONSOLE)
 	// initialize controls
 	{
@@ -289,7 +291,6 @@ BOOLEAN _r_app_initialize ()
 					_r_show_errormessage (NULL, APP_FAILED_KB2533623, ERROR_DLL_INIT_FAILED, &error_info);
 #endif // APP_CONSOLE
 
-
 					FreeLibrary (hkernel32);
 
 					return FALSE;
@@ -307,19 +308,17 @@ BOOLEAN _r_app_initialize ()
 #endif // !_DEBUG
 
 	// initialize COM library
-	{
-		HRESULT hr = CoInitializeEx (NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+	hr = CoInitializeEx (NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 
-		if (!SUCCEEDED (hr))
-		{
+	if (!SUCCEEDED (hr))
+	{
 #if defined(APP_CONSOLE)
-			_r_console_writestringformat (APP_FAILED_COM_INITIALIZE L" 0x%08" TEXT (PRIX32) L"!\r\n", hr);
+		_r_console_writestringformat (APP_FAILED_COM_INITIALIZE L" 0x%08" TEXT (PRIX32) L"!\r\n", hr);
 #else
-			_r_show_errormessage (NULL, APP_FAILED_COM_INITIALIZE, hr, NULL);
+		_r_show_errormessage (NULL, APP_FAILED_COM_INITIALIZE, hr, NULL);
 #endif // APP_CONSOLE
 
-			return FALSE;
-		}
+		return FALSE;
 	}
 
 #if !defined(APP_CONSOLE)
@@ -331,22 +330,18 @@ BOOLEAN _r_app_initialize ()
 	}
 
 	// set locale information
+	app_global.locale.resource_name = _r_obj_createstring (APP_LANGUAGE_DEFAULT);
+	app_global.locale.default_name = _r_obj_createstring_ex (NULL, LOCALE_NAME_MAX_LENGTH * sizeof (WCHAR));
+
+	length = GetLocaleInfo (LOCALE_USER_DEFAULT, LOCALE_SENGLISHLANGUAGENAME, app_global.locale.default_name->buffer, LOCALE_NAME_MAX_LENGTH);
+
+	if (length > 1)
 	{
-		ULONG length;
-
-		app_global.locale.resource_name = _r_obj_createstring (APP_LANGUAGE_DEFAULT);
-		app_global.locale.default_name = _r_obj_createstring_ex (NULL, LOCALE_NAME_MAX_LENGTH * sizeof (WCHAR));
-
-		length = GetLocaleInfo (LOCALE_USER_DEFAULT, LOCALE_SENGLISHLANGUAGENAME, app_global.locale.default_name->buffer, LOCALE_NAME_MAX_LENGTH);
-
-		if (length > 1)
-		{
-			_r_obj_trimstringtonullterminator (app_global.locale.default_name); // terminate
-		}
-		else
-		{
-			_r_obj_clearreference (&app_global.locale.default_name);
-		}
+		_r_obj_trimstringtonullterminator (app_global.locale.default_name); // terminate
+	}
+	else
+	{
+		_r_obj_clearreference (&app_global.locale.default_name);
 	}
 
 #if defined(APP_HAVE_TRAY)

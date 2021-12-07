@@ -10265,7 +10265,7 @@ HRESULT _r_xml_createfilestream (_Inout_ PR_XML_LIBRARY xml_library, _In_ LPCWST
 }
 
 _Success_ (return == S_OK)
-HRESULT _r_xml_createstream (_Inout_ PR_XML_LIBRARY xml_library, _In_opt_ LPCVOID buffer, _In_ ULONG buffer_size)
+HRESULT _r_xml_createstream (_Inout_ PR_XML_LIBRARY xml_library, _In_opt_ LPCVOID buffer, _In_ ULONG buffer_length)
 {
 	PR_XML_STREAM hstream;
 
@@ -10274,7 +10274,7 @@ HRESULT _r_xml_createstream (_Inout_ PR_XML_LIBRARY xml_library, _In_opt_ LPCVOI
 
 	SAFE_DELETE_STREAM (xml_library->hstream);
 
-	hstream = SHCreateMemStream (buffer, buffer_size);
+	hstream = SHCreateMemStream (buffer, buffer_length);
 
 	if (!hstream)
 		return S_FALSE;
