@@ -1662,7 +1662,7 @@ HANDLE NTAPI _r_mem_getheap ()
 
 	if (_r_initonce_begin (&init_once))
 	{
-		if (_r_sys_isosversiongreaterorequal (WINDOWS_8)) // win8+
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1607)) // win10rs1 preview (14295)+
 		{
 			heap_handle = RtlCreateHeap (
 				HEAP_GROWABLE | HEAP_CLASS_1 | HEAP_CREATE_SEGMENT_HEAP,
