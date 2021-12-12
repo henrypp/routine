@@ -77,11 +77,12 @@
 #include <smmintrin.h>
 #endif
 
-#include "app.h"
 #include "ntapi.h"
+#include "ntrtl.h"
+
+#include "app.h"
 #include "rconfig.h"
 #include "rtypes.h"
-#include "rlist.h"
 
 // libs
 #pragma comment(lib, "bcrypt.lib")
