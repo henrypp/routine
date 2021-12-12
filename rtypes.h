@@ -528,7 +528,6 @@ typedef struct R_BYTE
 		R_BYTEREF sr;
 		struct
 		{
-
 			SIZE_T length;
 			LPSTR buffer;
 		};
@@ -850,9 +849,14 @@ typedef struct R_LAYOUT_ENUM
 
 #define PR_LAYOUT_ANCHOR_ALL 0x00FF
 
-#define PR_LAYOUT_FORCE_INVALIDATE 0x1000 // invalidate the control when it is resized
-#define PR_LAYOUT_SEND_NOTIFY 0x2000 // send WM_SIZE message on resize
-#define PR_LAYOUT_NO_ANCHOR 0x4000 // do not calculate anchors for control
+// invalidate the control when it is resized
+#define PR_LAYOUT_FORCE_INVALIDATE 0x1000
+
+// send WM_SIZE message on resize
+#define PR_LAYOUT_SEND_NOTIFY 0x2000
+
+// do not calculate anchors for control
+#define PR_LAYOUT_NO_ANCHOR 0x4000
 
 //
 // Inernet access (WinHTTP)
