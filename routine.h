@@ -48,6 +48,7 @@
 // winapi
 #include <initguid.h>
 #include <windows.h>
+#include <windowsx.h>
 #include <ntstatus.h>
 #include <aclapi.h>
 #include <commctrl.h>
@@ -2304,9 +2305,10 @@ BOOLEAN _r_fs_mkdir (
 	_In_ LPCWSTR path
 );
 
-_Ret_maybenull_
-PR_BYTE _r_fs_readfile (
-	_In_ HANDLE hfile
+_Success_ (return == STATUS_SUCCESS)
+NTSTATUS _r_fs_readfile (
+	_In_ HANDLE hfile,
+	_Out_ PR_BYTE_PTR out_buffer
 );
 
 BOOLEAN _r_fs_setpos (
@@ -3177,6 +3179,7 @@ NTSTATUS NTAPI _r_sys_basethreadstart (
 
 PR_FREE_LIST _r_sys_getthreadfreelist ();
 
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_sys_createthread (
 	_In_ PUSER_THREAD_START_ROUTINE function_address,
 	_In_opt_ PVOID arglist,
@@ -3729,10 +3732,6 @@ ULONG _r_layout_getcontrolflags (
 	_In_ HWND hwnd
 );
 
-VOID _r_layout_getitemanchor (
-	_Inout_ PR_LAYOUT_ITEM layout_item
-);
-
 BOOLEAN _r_layout_resize (
 	_Inout_ PR_LAYOUT_MANAGER layout_manager,
 	_In_ WPARAM wparam
@@ -3754,7 +3753,11 @@ VOID _r_layout_setoriginalsize (
 	_In_ LONG height
 );
 
-BOOLEAN _r_layout_setwindowsanchor (
+VOID _r_layout_setitemanchor (
+	_Inout_ PR_LAYOUT_ITEM layout_item
+);
+
+BOOLEAN _r_layout_setwindowanchor (
 	_Inout_ PR_LAYOUT_MANAGER layout_manager,
 	_In_ HWND hwnd,
 	_In_ ULONG anchor
