@@ -958,27 +958,8 @@ LRESULT CALLBACK _r_app_maindlgproc (
 
 		case WM_SIZE:
 		{
-			if (wparam == SIZE_MAXIMIZED)
-			{
-				// prevent windows without maximize button to be maximized (dirty hack!!!)
-				if (!(_r_wnd_getstyle (hwnd) & WS_MAXIMIZEBOX))
-				{
-					WINDOWPLACEMENT wpl = {0};
-
-					wpl.length = sizeof (wpl);
-
-					if (GetWindowPlacement (hwnd, &wpl))
-					{
-						wpl.showCmd = SW_RESTORE;
-
-						SetWindowPlacement (hwnd, &wpl);
-
-						return FALSE;
-					}
-				}
-			}
 #if defined(APP_HAVE_TRAY)
-			else if (wparam == SIZE_MINIMIZED)
+			if (wparam == SIZE_MINIMIZED)
 			{
 				if (_r_config_getboolean (L"IsMinimizeToTray", TRUE))
 					ShowWindow (hwnd, SW_HIDE);
