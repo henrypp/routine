@@ -2493,14 +2493,13 @@ VOID _r_update_install (_In_ PR_STRING install_path)
 	R_ERROR_INFO error_info;
 	PR_STRING cmd_string;
 
-	cmd_string = _r_format_string (L"\"%s\" /S /D=%s",
+	cmd_string = _r_format_string (L"\"%s\" /u /S /D=%s",
 								   install_path->buffer,
 								   _r_app_getdirectory ()->buffer
 	);
 
 	if (!_r_sys_runasadmin (install_path->buffer, cmd_string->buffer, NULL))
 	{
-
 		_r_error_initialize (&error_info, NULL, install_path->buffer);
 
 		_r_show_errormessage (NULL, NULL, GetLastError (), &error_info);
