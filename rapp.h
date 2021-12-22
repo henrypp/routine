@@ -488,8 +488,28 @@ VOID _r_window_saveposition (
 #endif // APP_CONSOLE
 
 //
-// Application
+// Application: seh
 //
+
+#if !defined(_DEBUG)
+VOID _r_app_exceptionfilter_savedump (
+	_In_ PEXCEPTION_POINTERS exception_ptr
+);
+#endif // !_DEBUG
+
+LONG NTAPI _r_app_exceptionfilter_callback (
+	_In_ PEXCEPTION_POINTERS exception_ptr
+);
+
+//
+// Application: common
+//
+
+LPCWSTR _r_app_getmutexname ();
+
+BOOLEAN _r_app_isportable ();
+
+BOOLEAN _r_app_isreadonly ();
 
 BOOLEAN _r_app_initialize_com ();
 
