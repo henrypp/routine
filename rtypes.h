@@ -5,38 +5,6 @@
 
 #pragma once
 
-// fix windot11.h errors
-#if !defined(__WINDOT11_H__)
-#define __WINDOT11_H__
-#endif // !__WINDOT11_H__
-
-// fix winbase.h errors
-#if !defined(MICROSOFT_WINDOWS_WINBASE_H_DEFINE_INTERLOCKED_CPLUSPLUS_OVERLOADS)
-#define MICROSOFT_WINDOWS_WINBASE_H_DEFINE_INTERLOCKED_CPLUSPLUS_OVERLOADS 0
-#endif // !MICROSOFT_WINDOWS_WINBASE_H_DEFINE_INTERLOCKED_CPLUSPLUS_OVERLOADS
-
-#if !defined(WIN32_LEAN_AND_MEAN)
-#define WIN32_LEAN_AND_MEAN
-#endif // !WIN32_LEAN_AND_MEAN
-
-#if !defined(CINTERFACE)
-#define CINTERFACE
-#endif // !CINTERFACE
-
-#if !defined(COBJMACROS)
-#define COBJMACROS
-#endif // !COBJMACROS
-
-#if !defined(INITGUID)
-#define INITGUID
-#endif // !INITGUID
-
-#if !defined(UMDF_USING_NTSTATUS)
-#define UMDF_USING_NTSTATUS
-#endif // !UMDF_USING_NTSTATUS
-
-#include <windows.h>
-
 //
 // Types definition
 //
@@ -58,12 +26,6 @@ typedef HICON *HICON_PTR;
 //
 // Exported function definitions
 //
-
-// IsWow64Process
-typedef BOOL (WINAPI *IW64P)(
-	_In_ HANDLE hProcess,
-	_Out_ PBOOL Wow64Process
-	);
 
 // I_QueryTagInformation
 typedef ULONG (NTAPI *IQTI) (
@@ -671,19 +633,10 @@ typedef struct _R_CRYPT_CONTEXT
 		BCRYPT_KEY_HANDLE key_handle;
 	} u;
 
-	PR_BYTE object_data;
-	PR_BYTE block_data;
+	PR_BYTE object_data; // cipher - key object, hashing - hash object
+	PR_BYTE block_data; // cipher - block iv, hashing - hash value
 
-	union
-	{
-		ULONG reserved1;
-
-		struct
-		{
-			ULONG is_hashing : 1;
-			ULONG spare_bits : 31;
-		};
-	};
+	BOOLEAN is_hashing;
 } R_CRYPT_CONTEXT, *PR_CRYPT_CONTEXT;
 
 //
