@@ -3787,7 +3787,7 @@ VOID _r_show_errormessage (
 	LPCWSTR str_footer;
 	LPCWSTR path;
 	R_STRINGREF sr;
-	HLOCAL buffer;
+	PR_STRING string;
 	HINSTANCE hmodule;
 	INT command_id;
 
@@ -3807,29 +3807,16 @@ VOID _r_show_errormessage (
 		}
 	}
 
-	buffer = NULL;
-
-	FormatMessage (
-		FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_HMODULE | FORMAT_MESSAGE_IGNORE_INSERTS,
-		hmodule,
-		error_code,
-		0,
-		(LPWSTR)&buffer,
-		0,
-		NULL
-	);
+	_r_sys_formatmessage (error_code, hmodule, 0, &string);
 
 	str_main = main ? main : APP_FAILED_MESSAGE_TITLE;
 	str_footer = APP_FAILED_MESSAGE_FOOTER;
-
-	if (buffer)
-		_r_str_trim (buffer, L"\r\n ");
 
 	_r_str_printf (
 		str_content,
 		RTL_NUMBER_OF (str_content),
 		L"%s (0x%08" TEXT (PRIX32) L")",
-		buffer ? (LPWSTR)buffer : L"n/a",
+		_r_obj_getstringordefault (string, L"n/a"),
 		error_code
 	);
 
@@ -3921,8 +3908,8 @@ VOID _r_show_errormessage (
 	}
 #endif // !APP_NO_DEPRECATIONS
 
-	if (buffer)
-		LocalFree (buffer);
+	if (string)
+		_r_obj_dereference (string);
 }
 
 BOOLEAN _r_show_confirmmessage (
