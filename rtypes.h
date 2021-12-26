@@ -195,7 +195,7 @@ typedef BOOL (WINAPI *SPIFP)(
 // Logging
 //
 
-typedef enum R_LOG_LEVEL
+typedef enum _R_LOG_LEVEL
 {
 	LOG_LEVEL_DISABLED = 0,
 	LOG_LEVEL_DEBUG = 1,
@@ -205,7 +205,7 @@ typedef enum R_LOG_LEVEL
 	LOG_LEVEL_CRITICAL = 5,
 } R_LOG_LEVEL, *PR_LOG_LEVEL;
 
-typedef struct R_ERROR_INFO
+typedef struct _R_ERROR_INFO
 {
 	HINSTANCE hmodule;
 	LPCWSTR description;
@@ -217,7 +217,7 @@ typedef struct R_ERROR_INFO
 // Synchronization: Event
 //
 
-typedef struct R_EVENT
+typedef struct _R_EVENT
 {
 	union
 	{
@@ -259,7 +259,7 @@ C_ASSERT (sizeof (R_EVENT) == sizeof (ULONG_PTR) + sizeof (HANDLE));
 
 #else
 
-typedef struct R_INITONCE
+typedef struct _R_INITONCE
 {
 	R_EVENT event_object;
 } R_INITONCE, *PR_INITONCE;
@@ -284,7 +284,7 @@ C_ASSERT (PR_INITONCE_SHIFT >= FIELD_OFFSET (R_EVENT, available_for_use) * 8);
 // The maximum size of the dynamic array for it to be kept after the auto-release pool is drained.
 #define PR_AUTO_POOL_DYNAMIC_BIG_SIZE 256
 
-typedef struct R_AUTO_POOL
+typedef struct _R_AUTO_POOL
 {
 	ULONG static_count;
 	PVOID static_objects[PR_AUTO_POOL_STATIC_SIZE];
@@ -293,14 +293,14 @@ typedef struct R_AUTO_POOL
 	ULONG dynamic_allocated;
 	PVOID_PTR dynamic_objects;
 
-	struct R_AUTO_POOL *next_pool;
+	struct _R_AUTO_POOL *next_pool;
 } R_AUTO_POOL, *PR_AUTO_POOL;
 
 //
 // Synchronization: Free list
 //
 
-typedef struct R_FREE_LIST
+typedef struct _R_FREE_LIST
 {
 	SLIST_HEADER list_head;
 
@@ -310,7 +310,7 @@ typedef struct R_FREE_LIST
 	volatile ULONG maximum_count;
 } R_FREE_LIST, *PR_FREE_LIST;
 
-typedef struct R_FREE_LIST_ENTRY
+typedef struct _R_FREE_LIST_ENTRY
 {
 	SLIST_ENTRY list_entry;
 	QUAD_PTR body;
@@ -328,22 +328,22 @@ C_ASSERT (FIELD_OFFSET (R_FREE_LIST_ENTRY, body) == 0x08);
 // Synchronization: Queued lock
 //
 
-typedef struct R_QUEUED_LOCK
+typedef struct _R_QUEUED_LOCK
 {
 	ULONG_PTR value;
 } R_QUEUED_LOCK, *PR_QUEUED_LOCK;
 
-typedef struct DECLSPEC_ALIGN (16) R_QUEUED_WAIT_BLOCK
+typedef struct DECLSPEC_ALIGN (16) _R_QUEUED_WAIT_BLOCK
 {
 	// A pointer to the next wait block, i.e. the wait block pushed onto the list before this one.
-	struct R_QUEUED_WAIT_BLOCK *next_block;
+	struct _R_QUEUED_WAIT_BLOCK *next_block;
 
 	// A pointer to the previous wait block, i.e. the wait block pushed onto the list after this
 	// one.
-	struct R_QUEUED_WAIT_BLOCK *previous_block;
+	struct _R_QUEUED_WAIT_BLOCK *previous_block;
 
 	// A pointer to the last wait block, i.e. the first waiter pushed onto the list.
-	struct R_QUEUED_WAIT_BLOCK *last_block;
+	struct _R_QUEUED_WAIT_BLOCK *last_block;
 
 	ULONG shared_owners;
 	ULONG flags;
@@ -379,7 +379,7 @@ typedef struct DECLSPEC_ALIGN (16) R_QUEUED_WAIT_BLOCK
 // Synchronization: Condition
 //
 
-typedef struct R_QUEUED_LOCK R_CONDITION, *PR_CONDITION;
+typedef struct _R_QUEUED_LOCK R_CONDITION, *PR_CONDITION;
 
 #define PR_CONDITION_WAIT_QUEUED_LOCK 0x001
 #define PR_CONDITION_WAIT_CRITICAL_SECTION 0x002
@@ -395,13 +395,13 @@ typedef struct R_QUEUED_LOCK R_CONDITION, *PR_CONDITION;
 // Synchronization: Rundown protection
 //
 
-typedef struct R_RUNDOWN_WAIT_BLOCK
+typedef struct _R_RUNDOWN_WAIT_BLOCK
 {
 	R_EVENT wake_event;
 	ULONG_PTR count;
 } R_RUNDOWN_WAIT_BLOCK, *PR_RUNDOWN_WAIT_BLOCK;
 
-typedef struct R_QUEUED_LOCK R_RUNDOWN_PROTECT, *PR_RUNDOWN_PROTECT;
+typedef struct _R_QUEUED_LOCK R_RUNDOWN_PROTECT, *PR_RUNDOWN_PROTECT;
 
 #define PR_RUNDOWN_ACTIVE 0x1
 #define PR_RUNDOWN_REF_SHIFT 1
@@ -413,9 +413,12 @@ typedef struct R_QUEUED_LOCK R_RUNDOWN_PROTECT, *PR_RUNDOWN_PROTECT;
 // Synchronization: Workqueue
 //
 
-typedef VOID (NTAPI *PR_WORKQUEUE_FUNCTION) (_In_ PVOID arglist, _In_ ULONG busy_count);
+typedef VOID (NTAPI *PR_WORKQUEUE_FUNCTION) (
+	_In_ PVOID arglist,
+	_In_ ULONG busy_count
+	);
 
-typedef struct R_ENVIRONMENT
+typedef struct _R_ENVIRONMENT
 {
 	LONG base_priority : 6; // Base priority increment
 	ULONG io_priority : 3; // I/O priority hint
@@ -424,14 +427,14 @@ typedef struct R_ENVIRONMENT
 	ULONG spare_bits : 19;
 } R_ENVIRONMENT, *PR_ENVIRONMENT;
 
-typedef struct R_WORKQUEUE_ITEM
+typedef struct _R_WORKQUEUE_ITEM
 {
 	LIST_ENTRY list_entry;
 	PR_WORKQUEUE_FUNCTION function_address;
 	PVOID context;
 } R_WORKQUEUE_ITEM, *PR_WORKQUEUE_ITEM;
 
-typedef struct R_WORKQUEUE
+typedef struct _R_WORKQUEUE
 {
 	LIST_ENTRY queue_list_head;
 
@@ -461,11 +464,12 @@ typedef struct R_WORKQUEUE
 
 typedef VOID (NTAPI *PR_OBJECT_CLEANUP_FUNCTION) (_In_ PVOID object_body);
 
-typedef struct R_OBJECT_HEADER
+typedef struct _R_OBJECT_HEADER
 {
 	struct
 	{
 		PR_OBJECT_CLEANUP_FUNCTION cleanup_callback;
+
 		volatile LONG ref_count;
 	};
 
@@ -479,13 +483,13 @@ typedef struct R_OBJECT_HEADER
 // 8-bit string object
 //
 
-typedef struct R_BYTEREF
+typedef struct _R_BYTEREF
 {
 	SIZE_T length;
 	LPSTR buffer;
 } R_BYTEREF, *PR_BYTEREF;
 
-typedef struct R_BYTE
+typedef struct _R_BYTE
 {
 	union
 	{
@@ -508,13 +512,13 @@ typedef PR_BYTE *PR_BYTE_PTR;
 // 16-bit string object
 //
 
-typedef struct R_STRINGREF
+typedef struct _R_STRINGREF
 {
 	SIZE_T length;
 	LPWSTR buffer;
 } R_STRINGREF, *PR_STRINGREF;
 
-typedef struct R_STRING
+typedef struct _R_STRING
 {
 	union
 	{
@@ -537,7 +541,7 @@ typedef PR_STRING *PR_STRING_PTR;
 // String builder
 //
 
-typedef struct R_STRINGBUILDER
+typedef struct _R_STRINGBUILDER
 {
 	PR_STRING string;
 	SIZE_T allocated_length;
@@ -547,7 +551,7 @@ typedef struct R_STRINGBUILDER
 // Array object
 //
 
-typedef struct R_ARRAY
+typedef struct _R_ARRAY
 {
 	PR_OBJECT_CLEANUP_FUNCTION cleanup_callback;
 	SIZE_T allocated_count;
@@ -560,7 +564,7 @@ typedef struct R_ARRAY
 // List object
 //
 
-typedef struct R_LIST
+typedef struct _R_LIST
 {
 	PR_OBJECT_CLEANUP_FUNCTION cleanup_callback;
 	SIZE_T allocated_count;
@@ -572,14 +576,14 @@ typedef struct R_LIST
 // Hashtable object
 //
 
-typedef struct R_HASHTABLE_ENTRY
+typedef struct _R_HASHTABLE_ENTRY
 {
 	SIZE_T next;
 	ULONG_PTR hash_code;
 	QUAD_PTR body;
 } R_HASHTABLE_ENTRY, *PR_HASHTABLE_ENTRY;
 
-typedef struct R_HASHTABLE
+typedef struct _R_HASHTABLE
 {
 	PR_OBJECT_CLEANUP_FUNCTION cleanup_callback;
 	PSIZE_T buckets;
@@ -592,16 +596,22 @@ typedef struct R_HASHTABLE
 	SIZE_T count;
 } R_HASHTABLE, *PR_HASHTABLE;
 
-#define PR_HASHTABLE_ENTRY_SIZE(inner_size) (UFIELD_OFFSET(R_HASHTABLE_ENTRY, body) + (inner_size))
-#define PR_HASHTABLE_GET_ENTRY(hashtable, index) ((PR_HASHTABLE_ENTRY)PTR_ADD_OFFSET((hashtable)->entries, PR_HASHTABLE_ENTRY_SIZE((hashtable)->entry_size) * (index)))
-#define PR_HASHTABLE_GET_ENTRY_INDEX(hashtable, entry) ((SIZE_T)(PTR_ADD_OFFSET(entry, -(hashtable)->entries) / PR_HASHTABLE_ENTRY_SIZE((hashtable)->entry_size)))
+#define PR_HASHTABLE_ENTRY_SIZE(inner_size) \
+	(UFIELD_OFFSET(R_HASHTABLE_ENTRY, body) + (inner_size))
+
+#define PR_HASHTABLE_GET_ENTRY(hashtable, index) \
+	((PR_HASHTABLE_ENTRY)PTR_ADD_OFFSET((hashtable)->entries, PR_HASHTABLE_ENTRY_SIZE((hashtable)->entry_size) * (index)))
+
+#define PR_HASHTABLE_GET_ENTRY_INDEX(hashtable, entry) \
+	((SIZE_T)(PTR_ADD_OFFSET(entry, -(hashtable)->entries) / PR_HASHTABLE_ENTRY_SIZE((hashtable)->entry_size)))
+
 #define PR_HASHTABLE_INIT_VALUE 0xFF
 
 //
 // Hashtable object pointer object
 //
 
-typedef struct R_OBJECT_POINTER
+typedef struct _R_OBJECT_POINTER
 {
 	PVOID object_body;
 } R_OBJECT_POINTER, *PR_OBJECT_POINTER;
@@ -668,13 +678,13 @@ typedef struct _R_CRYPT_CONTEXT
 #define WINDOWS_11 0x0B00
 #define WINDOWS_11_21H2 WINDOWS_11
 
-typedef struct R_THREAD_CONTEXT
+typedef struct _R_THREAD_CONTEXT
 {
 	PUSER_THREAD_START_ROUTINE function_address;
 	PVOID arglist;
 } R_THREAD_CONTEXT, *PR_THREAD_CONTEXT;
 
-typedef struct R_TOKEN_ATTRIBUTES
+typedef struct _R_TOKEN_ATTRIBUTES
 {
 	HANDLE token_handle;
 	PSID token_sid;
@@ -690,10 +700,23 @@ typedef struct R_TOKEN_ATTRIBUTES
 } R_TOKEN_ATTRIBUTES, *PR_TOKEN_ATTRIBUTES;
 
 //
+// Filesystem
+//
+
+typedef struct _R_FILE_MAPPING
+{
+	HANDLE hfile;
+	HANDLE hmap;
+
+	PVOID file_bytes;
+	LONG64 file_size;
+} R_FILE_MAPPING, *PR_FILE_MAPPING;
+
+//
 // File dialog
 //
 
-typedef struct R_FILE_DIALOG
+typedef struct _R_FILE_DIALOG
 {
 #if defined(APP_NO_DEPRECATIONS)
 	struct
@@ -720,7 +743,7 @@ typedef struct R_FILE_DIALOG
 // Window management
 //
 
-typedef struct R_SIZE
+typedef struct _R_SIZE
 {
 	LONG cx;
 	LONG cy;
@@ -731,7 +754,7 @@ C_ASSERT (sizeof (R_SIZE) == sizeof (POINT));
 C_ASSERT (FIELD_OFFSET (R_SIZE, cx) == FIELD_OFFSET (POINT, x));
 C_ASSERT (FIELD_OFFSET (R_SIZE, cy) == FIELD_OFFSET (POINT, y));
 
-typedef struct R_RECTANGLE
+typedef struct _R_RECTANGLE
 {
 	union
 	{
@@ -765,38 +788,27 @@ C_ASSERT (FIELD_OFFSET (R_RECTANGLE, height) == FIELD_OFFSET (RECT, bottom));
 // Window layout
 //
 
-typedef struct R_LAYOUT_ITEM
+typedef struct _R_LAYOUT_ITEM
 {
 	HWND hwnd;
 	HDWP defer_handle;
-	struct R_LAYOUT_ITEM *parent_item;
+	struct _R_LAYOUT_ITEM *parent_item;
 	R_RECTANGLE rect;
 	R_RECTANGLE prev_rect;
 	ULONG number_of_children;
 	ULONG flags;
 } R_LAYOUT_ITEM, *PR_LAYOUT_ITEM;
 
-typedef struct R_LAYOUT_MANAGER
+typedef struct _R_LAYOUT_MANAGER
 {
 	R_LAYOUT_ITEM root_item;
 	R_SIZE original_size;
 	PR_LIST list;
 	LONG dpi_value;
-
-	union
-	{
-		struct
-		{
-
-			LONG is_initialized : 1;
-			LONG spare_bits : 32;
-		};
-
-		LONG reserved1;
-	};
+	BOOLEAN is_initialized;
 } R_LAYOUT_MANAGER, *PR_LAYOUT_MANAGER;
 
-typedef struct R_LAYOUT_ENUM
+typedef struct _R_LAYOUT_ENUM
 {
 	PR_LAYOUT_MANAGER layout_manager;
 	PR_LAYOUT_ITEM layout_item;
@@ -828,9 +840,13 @@ typedef struct R_LAYOUT_ENUM
 // Inernet access (WinHTTP)
 //
 
-typedef BOOLEAN (NTAPI *PR_INET_DOWNLOAD_FUNCTION) (_In_ ULONG total_written, _In_ ULONG total_length, _In_opt_ PVOID lparam);
+typedef BOOLEAN (NTAPI *PR_INET_DOWNLOAD_FUNCTION) (
+	_In_ ULONG total_written,
+	_In_ ULONG total_length,
+	_In_opt_ PVOID lparam
+	);
 
-typedef struct R_DOWNLOAD_INFO
+typedef struct _R_DOWNLOAD_INFO
 {
 	union
 	{
@@ -844,7 +860,7 @@ typedef struct R_DOWNLOAD_INFO
 	BOOLEAN is_savetofile;
 } R_DOWNLOAD_INFO, *PR_DOWNLOAD_INFO;
 
-typedef struct R_URLPARTS
+typedef struct _R_URLPARTS
 {
 	PR_STRING host;
 	PR_STRING path;
@@ -880,7 +896,7 @@ typedef struct _R_VERSION_TRANSLATION
 
 typedef IStream *PR_XML_STREAM;
 
-typedef struct R_XML_LIBRARY
+typedef struct _R_XML_LIBRARY
 {
 	union
 	{
@@ -890,31 +906,22 @@ typedef struct R_XML_LIBRARY
 
 	PR_XML_STREAM hstream;
 
-	union
-	{
-		struct
-		{
-			ULONG is_reader : 1;
-			ULONG is_initialized : 1;
-			ULONG spare_bits : 30;
-		} DUMMYSTRUCTNAME;
-
-		ULONG reserved1;
-	} DUMMYUNIONNAME;
+	BOOLEAN is_reader;
+	BOOLEAN is_initialized;
 } R_XML_LIBRARY, *PR_XML_LIBRARY;
 
 //
 // Application structures
 //
 
-typedef struct R_SETTINGS_PAGE
+typedef struct _R_SETTINGS_PAGE
 {
 	HWND hwnd;
 	UINT locale_id;
 	INT dlg_id;
 } R_SETTINGS_PAGE, *PR_SETTINGS_PAGE;
 
-typedef struct R_UPDATE_COMPONENT
+typedef struct _R_UPDATE_COMPONENT
 {
 	PR_STRING full_name;
 	PR_STRING short_name;
@@ -927,7 +934,7 @@ typedef struct R_UPDATE_COMPONENT
 	BOOLEAN is_haveupdate;
 } R_UPDATE_COMPONENT, *PR_UPDATE_COMPONENT;
 
-typedef struct R_UPDATE_INFO
+typedef struct _R_UPDATE_INFO
 {
 	PR_ARRAY components;
 	HWND htaskdlg;
@@ -937,7 +944,7 @@ typedef struct R_UPDATE_INFO
 	BOOLEAN is_downloaded;
 } R_UPDATE_INFO, *PR_UPDATE_INFO;
 
-typedef struct R_SHARED_IMAGE
+typedef struct _R_SHARED_IMAGE
 {
 	HINSTANCE hinst;
 	HICON hicon;
@@ -945,7 +952,7 @@ typedef struct R_SHARED_IMAGE
 	INT icon_size;
 } R_SHARED_IMAGE, *PR_SHARED_IMAGE;
 
-typedef struct APP_GLOBAL_CONFIG
+typedef struct _APP_GLOBAL_CONFIG
 {
 	struct
 	{
