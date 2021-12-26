@@ -386,7 +386,7 @@ VOID _r_update_check (
 BOOLEAN NTAPI _r_update_downloadcallback (
 	_In_ ULONG total_written,
 	_In_ ULONG total_length,
-	_In_ PVOID param
+	_In_ PVOID lparam
 );
 
 NTSTATUS NTAPI _r_update_downloadthread (

@@ -216,11 +216,7 @@ BOOLEAN _r_app_isreadonly ()
 
 	if (_r_initonce_begin (&init_once))
 	{
-		is_readonly = _r_sys_getopt (
-			_r_sys_getimagecommandline (),
-			L"readonly",
-			NULL
-		);
+		is_readonly = _r_sys_getopt (_r_sys_getimagecommandline (), L"readonly", NULL);
 
 		_r_initonce_end (&init_once);
 	}
@@ -265,11 +261,7 @@ BOOLEAN _r_app_initialize_components ()
 
 	// set locale information
 	app_global.locale.resource_name = _r_obj_createstring (APP_LANGUAGE_DEFAULT);
-
-	app_global.locale.default_name = _r_obj_createstring_ex (
-		NULL,
-		LOCALE_NAME_MAX_LENGTH * sizeof (WCHAR)
-	);
+	app_global.locale.default_name = _r_obj_createstring_ex (NULL, LOCALE_NAME_MAX_LENGTH * sizeof (WCHAR));
 
 	length = GetLocaleInfo (
 		LOCALE_USER_DEFAULT,
@@ -330,15 +322,9 @@ BOOLEAN _r_app_initialize_dll ()
 
 #if defined(APP_NO_DEPRECATIONS)
 	// win7+
-	SetSearchPathMode (
-		BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE |
-		BASE_SEARCH_PATH_PERMANENT
-	);
+	SetSearchPathMode (BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
 
-	SetDefaultDllDirectories (
-		LOAD_LIBRARY_SEARCH_USER_DIRS |
-		LOAD_LIBRARY_SEARCH_SYSTEM32
-	);
+	SetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 #else
 	HMODULE hkernel32;
 	R_ERROR_INFO error_info;
@@ -353,12 +339,7 @@ BOOLEAN _r_app_initialize_dll ()
 		);
 
 		if (_SetSearchPathMode)
-		{
-			_SetSearchPathMode (
-				BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE |
-				BASE_SEARCH_PATH_PERMANENT
-			);
-		}
+			_SetSearchPathMode (BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
 
 		// Check for SetDefaultDllDirectories since it requires KB2533623.
 		const SDDD _SetDefaultDllDirectories = (SDDD)GetProcAddress (
@@ -368,33 +349,18 @@ BOOLEAN _r_app_initialize_dll ()
 
 		if (_SetDefaultDllDirectories)
 		{
-			_SetDefaultDllDirectories (
-				LOAD_LIBRARY_SEARCH_USER_DIRS |
-				LOAD_LIBRARY_SEARCH_SYSTEM32
-			);
+			_SetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 		}
 		else
 		{
 			if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
 			{
-				_r_error_initialize (
-					&error_info,
-					NULL,
-					APP_FAILED_KB2533623_TEXT
-				);
-
 #if defined(APP_CONSOLE)
-				_r_console_writestringformat (
-					APP_FAILED_KB2533623 L" 0x%08X\r\n",
-					ERROR_DLL_INIT_FAILED
-				);
+				_r_console_writestringformat (APP_FAILED_KB2533623 L" 0x%08X\r\n", ERROR_DLL_INIT_FAILED);
 #else
-				_r_show_errormessage (
-					NULL,
-					APP_FAILED_KB2533623,
-					ERROR_DLL_INIT_FAILED,
-					&error_info
-				);
+				_r_error_initialize (&error_info, NULL, APP_FAILED_KB2533623_TEXT);
+
+				_r_show_errormessage (NULL, APP_FAILED_KB2533623, ERROR_DLL_INIT_FAILED, &error_info);
 #endif // APP_CONSOLE
 
 				FreeLibrary (hkernel32);
@@ -495,10 +461,7 @@ BOOLEAN _r_app_initialize ()
 	// prevent app duplicates
 	if (_r_mutex_isexists (_r_app_getmutexname ()))
 	{
-		EnumWindows (
-			&_r_util_activate_window_callback,
-			(LPARAM)_r_app_getname ()
-		);
+		EnumWindows (&_r_util_activate_window_callback, (LPARAM)_r_app_getname ());
 
 		return FALSE;
 	}
@@ -510,14 +473,7 @@ BOOLEAN _r_app_initialize ()
 	if (!_r_sys_iselevated ())
 	{
 		if (!_r_app_runasadmin ())
-		{
-			_r_show_errormessage (
-				NULL,
-				APP_FAILED_ADMIN_RIGHTS,
-				ERROR_DS_INSUFF_ACCESS_RIGHTS,
-				NULL
-			);
-		}
+			_r_show_errormessage (NULL, APP_FAILED_ADMIN_RIGHTS, ERROR_DS_INSUFF_ACCESS_RIGHTS, NULL);
 
 		return FALSE;
 	}
@@ -921,15 +877,7 @@ LRESULT CALLBACK _r_app_maindlgproc (
 		if (msg == app_global.main.taskbar_msg)
 		{
 			if (app_global.main.wnd_proc)
-			{
-				return CallWindowProc (
-					app_global.main.wnd_proc,
-					hwnd,
-					RM_TASKBARCREATED,
-					0,
-					0
-				);
-			}
+				return CallWindowProc (app_global.main.wnd_proc, hwnd, RM_TASKBARCREATED, 0, 0);
 
 			return FALSE;
 		}
@@ -942,20 +890,9 @@ LRESULT CALLBACK _r_app_maindlgproc (
 		{
 			if (app_global.main.wnd_proc)
 			{
-				CallWindowProc (
-					app_global.main.wnd_proc,
-					hwnd,
-					msg,
-					wparam,
-					lparam
-				);
+				CallWindowProc (app_global.main.wnd_proc, hwnd, msg, wparam, lparam);
 
-				RedrawWindow (
-					hwnd,
-					NULL,
-					NULL,
-					RDW_ERASENOW | RDW_INVALIDATE
-				);
+				RedrawWindow (hwnd, NULL, NULL, RDW_ERASENOW | RDW_INVALIDATE);
 
 				DrawMenuBar (hwnd); // HACK!!!
 
@@ -968,13 +905,7 @@ LRESULT CALLBACK _r_app_maindlgproc (
 		case WM_DESTROY:
 		{
 			if (_r_wnd_getstyle (hwnd) & WS_MAXIMIZEBOX)
-			{
-				_r_config_setboolean_ex (
-					L"IsMaximized",
-					_r_wnd_ismaximized (hwnd),
-					L"window"
-				);
-			}
+				_r_config_setboolean_ex (L"IsMaximized", _r_wnd_ismaximized (hwnd), L"window");
 
 			break;
 		}
@@ -1065,13 +996,7 @@ LRESULT CALLBACK _r_app_maindlgproc (
 	if (!app_global.main.wnd_proc)
 		return FALSE;
 
-	return CallWindowProc (
-		app_global.main.wnd_proc,
-		hwnd,
-		msg,
-		wparam,
-		lparam
-	);
+	return CallWindowProc (app_global.main.wnd_proc, hwnd, msg, wparam, lparam);
 }
 
 INT _r_app_getshowcode (
@@ -1317,13 +1242,13 @@ VOID _r_app_restart (_In_opt_ HWND hwnd)
 
 	is_mutexdestroyed = _r_mutex_destroy (&app_global.main.hmutex);
 
-	if (!_r_sys_createprocess_ex (
+	if (_r_sys_createprocess_ex (
 		_r_sys_getimagepath (),
 		_r_sys_getimagecommandline (),
 		_r_sys_getcurrentdirectory (),
 		NULL,
 		SW_SHOW,
-		0)
+		0) != STATUS_SUCCESS
 		)
 	{
 		if (is_mutexdestroyed)
@@ -1372,11 +1297,7 @@ BOOLEAN _r_config_getboolean_ex (
 	PR_STRING string;
 	BOOLEAN result;
 
-	string = _r_config_getstring_ex (
-		key_name,
-		def_value ? L"true" : L"false",
-		section_name
-	);
+	string = _r_config_getstring_ex (key_name, def_value ? L"true" : L"false", section_name);
 
 	if (string)
 	{
@@ -1400,17 +1321,9 @@ LONG _r_config_getlong_ex (
 	PR_STRING string;
 	LONG result;
 
-	_r_str_fromlong (
-		number_string,
-		RTL_NUMBER_OF (number_string),
-		def_value
-	);
+	_r_str_fromlong (number_string, RTL_NUMBER_OF (number_string), def_value);
 
-	string = _r_config_getstring_ex (
-		key_name,
-		number_string,
-		section_name
-	);
+	string = _r_config_getstring_ex (key_name, number_string, section_name);
 
 	if (string)
 	{
@@ -1434,17 +1347,9 @@ LONG64 _r_config_getlong64_ex (
 	PR_STRING string;
 	LONG64 result;
 
-	_r_str_fromlong64 (
-		number_string,
-		RTL_NUMBER_OF (number_string),
-		def_value
-	);
+	_r_str_fromlong64 (number_string, RTL_NUMBER_OF (number_string), def_value);
 
-	string = _r_config_getstring_ex (
-		key_name,
-		number_string,
-		section_name
-	);
+	string = _r_config_getstring_ex (key_name, number_string, section_name);
 
 	if (string)
 	{
@@ -1468,17 +1373,9 @@ ULONG _r_config_getulong_ex (
 	PR_STRING string;
 	ULONG result;
 
-	_r_str_fromulong (
-		number_string,
-		RTL_NUMBER_OF (number_string),
-		def_value
-	);
+	_r_str_fromulong (number_string, RTL_NUMBER_OF (number_string), def_value);
 
-	string = _r_config_getstring_ex (
-		key_name,
-		number_string,
-		section_name
-	);
+	string = _r_config_getstring_ex (key_name, number_string, section_name);
 
 	if (string)
 	{
@@ -1502,17 +1399,9 @@ ULONG64 _r_config_getulong64_ex (
 	PR_STRING string;
 	ULONG64 result;
 
-	_r_str_fromulong64 (
-		number_string,
-		RTL_NUMBER_OF (number_string),
-		def_value
-	);
+	_r_str_fromulong64 (number_string, RTL_NUMBER_OF (number_string), def_value);
 
-	string = _r_config_getstring_ex (
-		key_name,
-		number_string,
-		section_name
-	);
+	string = _r_config_getstring_ex (key_name, number_string, section_name);
 
 	if (string)
 	{
@@ -1535,11 +1424,7 @@ VOID _r_config_getfont_ex (
 {
 	PR_STRING font_config;
 
-	font_config = _r_config_getstring_ex (
-		key_name,
-		NULL,
-		section_name
-	);
+	font_config = _r_config_getstring_ex (key_name, NULL, section_name);
 
 	if (font_config)
 	{
@@ -1637,18 +1522,11 @@ VOID _r_config_getsize (
 
 	size->cx = size->cy = 0; // initialize size values
 
-	pair_config = _r_config_getstring_ex (
-		key_name,
-		NULL,
-		section_name
-	);
+	pair_config = _r_config_getstring_ex (key_name, NULL, section_name);
 
 	if (pair_config)
 	{
-		_r_obj_initializestringref2 (
-			&remaining_part,
-			pair_config
-		);
+		_r_obj_initializestringref2 (&remaining_part, pair_config);
 
 		// get x value
 		_r_str_splitatchar (
@@ -1693,11 +1571,7 @@ PR_STRING _r_config_getstringexpand_ex (
 	PR_STRING string;
 	PR_STRING config_value;
 
-	config_value = _r_config_getstring_ex (
-		key_name,
-		def_value,
-		section_name
-	);
+	config_value = _r_config_getstring_ex (key_name, def_value, section_name);
 
 	if (config_value)
 	{
@@ -1803,11 +1677,7 @@ VOID _r_config_setboolean_ex (
 	_In_opt_ LPCWSTR section_name
 )
 {
-	_r_config_setstring_ex (
-		key_name,
-		value ? L"true" : L"false",
-		section_name
-	);
+	_r_config_setstring_ex (key_name, value ? L"true" : L"false", section_name);
 }
 
 VOID _r_config_setlong_ex (
@@ -1818,17 +1688,9 @@ VOID _r_config_setlong_ex (
 {
 	WCHAR value_text[64];
 
-	_r_str_fromlong (
-		value_text,
-		RTL_NUMBER_OF (value_text),
-		value
-	);
+	_r_str_fromlong (value_text, RTL_NUMBER_OF (value_text), value);
 
-	_r_config_setstring_ex (
-		key_name,
-		value_text,
-		section_name
-	);
+	_r_config_setstring_ex (key_name, value_text, section_name);
 }
 
 VOID _r_config_setlong64_ex (
@@ -1839,17 +1701,9 @@ VOID _r_config_setlong64_ex (
 {
 	WCHAR value_text[64];
 
-	_r_str_fromlong64 (
-		value_text,
-		RTL_NUMBER_OF (value_text),
-		value
-	);
+	_r_str_fromlong64 (value_text, RTL_NUMBER_OF (value_text), value);
 
-	_r_config_setstring_ex (
-		key_name,
-		value_text,
-		section_name
-	);
+	_r_config_setstring_ex (key_name, value_text, section_name);
 }
 
 VOID _r_config_setulong_ex (
@@ -1860,17 +1714,9 @@ VOID _r_config_setulong_ex (
 {
 	WCHAR value_text[64];
 
-	_r_str_fromulong (
-		value_text,
-		RTL_NUMBER_OF (value_text),
-		value
-	);
+	_r_str_fromulong (value_text, RTL_NUMBER_OF (value_text), value);
 
-	_r_config_setstring_ex (
-		key_name,
-		value_text,
-		section_name
-	);
+	_r_config_setstring_ex (key_name, value_text, section_name);
 }
 
 VOID _r_config_setulong64_ex (
@@ -1881,17 +1727,9 @@ VOID _r_config_setulong64_ex (
 {
 	WCHAR value_text[64];
 
-	_r_str_fromulong64 (
-		value_text,
-		RTL_NUMBER_OF (value_text),
-		value
-	);
+	_r_str_fromulong64 (value_text, RTL_NUMBER_OF (value_text), value);
 
-	_r_config_setstring_ex (
-		key_name,
-		value_text,
-		section_name
-	);
+	_r_config_setstring_ex (key_name, value_text, section_name);
 }
 
 VOID _r_config_setfont_ex (
@@ -1912,11 +1750,7 @@ VOID _r_config_setfont_ex (
 		logfont->lfWeight
 	);
 
-	_r_config_setstring_ex (
-		key_name,
-		value_text,
-		section_name
-	);
+	_r_config_setstring_ex (key_name, value_text, section_name);
 }
 
 VOID _r_config_setsize (
@@ -1935,11 +1769,7 @@ VOID _r_config_setsize (
 		size->cy
 	);
 
-	_r_config_setstring_ex (
-		key_name,
-		value_text,
-		section_name
-	);
+	_r_config_setstring_ex (key_name, value_text, section_name);
 }
 
 VOID _r_config_setstringexpand_ex (
@@ -1959,11 +1789,7 @@ VOID _r_config_setstringexpand_ex (
 		string = NULL;
 	}
 
-	_r_config_setstring_ex (
-		key_name,
-		_r_obj_getstring (string),
-		section_name
-	);
+	_r_config_setstring_ex (key_name, _r_obj_getstring (string), section_name);
 
 	if (string)
 		_r_obj_dereference (string);
@@ -2014,11 +1840,7 @@ VOID _r_config_setstring_ex (
 	}
 	else
 	{
-		_r_str_copy (
-			section_string,
-			RTL_NUMBER_OF (section_string),
-			_r_app_getnameshort ()
-		);
+		_r_str_copy (section_string, RTL_NUMBER_OF (section_string), _r_app_getnameshort ());
 
 		section_string_full = _r_obj_concatstrings (
 			3,
@@ -2087,10 +1909,7 @@ VOID _r_locale_initialize ()
 	{
 		if (app_global.locale.default_name)
 		{
-			_r_obj_movereference (
-				&app_global.locale.current_name,
-				_r_obj_createstring2 (app_global.locale.default_name)
-			);
+			_r_obj_movereference (&app_global.locale.current_name, _r_obj_createstring2 (app_global.locale.default_name));
 		}
 		else
 		{
@@ -2105,17 +1924,11 @@ VOID _r_locale_initialize ()
 			TRUE
 			))
 		{
-			_r_obj_movereference (
-				&app_global.locale.current_name,
-				_r_obj_createstring2 (app_global.locale.resource_name)
-			);
+			_r_obj_movereference (&app_global.locale.current_name, _r_obj_createstring2 (app_global.locale.resource_name));
 		}
 		else
 		{
-			_r_obj_movereference (
-				&app_global.locale.current_name,
-				_r_obj_createstring2 (language_config)
-			);
+			_r_obj_movereference (&app_global.locale.current_name, _r_obj_createstring2 (language_config));
 		}
 
 		_r_obj_dereference (language_config);
@@ -2176,10 +1989,7 @@ VOID _r_locale_apply (
 
 	if (locale_index == SIZE_MAX)
 	{
-		_r_obj_movereference (
-			&app_global.locale.current_name,
-			_r_obj_createstring2 (app_global.locale.resource_name)
-		);
+		_r_obj_movereference (&app_global.locale.current_name, _r_obj_createstring2 (app_global.locale.resource_name));
 	}
 	else
 	{
@@ -2187,10 +1997,7 @@ VOID _r_locale_apply (
 
 		if (locale_name)
 		{
-			_r_obj_movereference (
-				&app_global.locale.current_name,
-				_r_obj_createstring2 (locale_name)
-			);
+			_r_obj_movereference (&app_global.locale.current_name, _r_obj_createstring2 (locale_name));
 		}
 		else
 		{
@@ -2198,10 +2005,7 @@ VOID _r_locale_apply (
 		}
 	}
 
-	_r_config_setstring (
-		L"Language",
-		_r_obj_getstring (app_global.locale.current_name)
-	);
+	_r_config_setstring (L"Language", _r_obj_getstring (app_global.locale.current_name));
 
 	// refresh main window
 	hwindow = _r_app_gethwnd ();
@@ -2302,8 +2106,10 @@ VOID _r_locale_enum (
 		if (!locale_name)
 			continue;
 
-		is_current = !_r_obj_isstringempty (app_global.locale.current_name) &&
-			(_r_str_isequal (&app_global.locale.current_name->sr, &locale_name->sr, TRUE));
+		is_current = (
+			!_r_obj_isstringempty (app_global.locale.current_name) &&
+			(_r_str_isequal (&app_global.locale.current_name->sr, &locale_name->sr, TRUE))
+			);
 
 		if (is_menu)
 		{
@@ -2454,7 +2260,7 @@ LPCWSTR _r_locale_getstring (
 
 LONG64 _r_locale_getversion ()
 {
-	WCHAR timestamp_string[32];
+	WCHAR timestamp_string[64];
 	R_STRINGREF string;
 	ULONG length;
 
@@ -2470,11 +2276,7 @@ LONG64 _r_locale_getversion ()
 
 	if (length)
 	{
-		_r_obj_initializestringref_ex (
-			&string,
-			timestamp_string,
-			length * sizeof (WCHAR)
-		);
+		_r_obj_initializestringref_ex (&string, timestamp_string, length * sizeof (WCHAR));
 
 		return _r_str_tolong64 (&string);
 	}
@@ -2621,11 +2423,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 
 		_r_inet_initializedownload (&download_info);
 
-		status = _r_inet_begindownload (
-			hsession,
-			update_url,
-			&download_info
-		);
+		status = _r_inet_begindownload (hsession, update_url, &download_info);
 
 		if (status != ERROR_SUCCESS)
 		{
@@ -2681,10 +2479,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 							continue;
 						}
 
-						if (_r_str_versioncompare (
-							&update_component->version->sr,
-							&new_version_string
-							) != -1)
+						if (_r_str_versioncompare (&update_component->version->sr, &new_version_string) != -1)
 						{
 							continue;
 						}
@@ -2876,15 +2671,7 @@ VOID _r_update_check (
 	if (_r_sys_isosversionlowerorequal (WINDOWS_VISTA))
 	{
 		if (hparent)
-		{
-			_r_show_message (
-				hparent,
-				MB_OK | MB_ICONWARNING,
-				_r_app_getname (),
-				APP_SECURITY_TITLE,
-				APP_WARNING_UPDATE_TEXT
-			);
-		}
+			_r_show_message (hparent, MB_OK | MB_ICONWARNING, _r_app_getname (), APP_SECURITY_TITLE, APP_WARNING_UPDATE_TEXT);
 
 		return;
 	}
@@ -2951,13 +2738,13 @@ VOID _r_update_check (
 BOOLEAN NTAPI _r_update_downloadcallback (
 	_In_ ULONG total_written,
 	_In_ ULONG total_length,
-	_In_ PVOID param
+	_In_ PVOID lparam
 )
 {
 	PR_UPDATE_INFO update_info;
 	LONG percent;
 
-	update_info = param;
+	update_info = lparam;
 
 	if (update_info->htaskdlg)
 	{
@@ -3017,17 +2804,9 @@ NTSTATUS NTAPI _r_update_downloadthread (
 			if (!_r_fs_isvalidhandle (hfile))
 				continue;
 
-			_r_inet_initializedownload_ex (
-				&download_info,
-				hfile,
-				&_r_update_downloadcallback, update_info
-			);
+			_r_inet_initializedownload_ex (&download_info, hfile, &_r_update_downloadcallback, update_info);
 
-			status = _r_inet_begindownload (
-				hsession,
-				update_component->url,
-				&download_info
-			);
+			status = _r_inet_begindownload (hsession, update_component->url, &download_info);
 
 			if (status == ERROR_SUCCESS)
 			{
@@ -3415,6 +3194,7 @@ FORCEINLINE ULONG _r_log_leveltrayicon (
 {
 	switch (log_level)
 	{
+		case LOG_LEVEL_DEBUG:
 		case LOG_LEVEL_INFO:
 		{
 			return NIIF_INFO;
@@ -4125,12 +3905,7 @@ INT _r_show_message (
 #if !defined(APP_NO_DEPRECATIONS)
 	else
 	{
-		return MessageBox (
-			hwnd,
-			content,
-			title ? title : _r_app_getname (),
-			flags
-		);
+		return MessageBox (hwnd, content, title ? title : _r_app_getname (), flags);
 	}
 #endif // !APP_NO_DEPRECATIONS
 
@@ -4150,12 +3925,7 @@ VOID _r_window_restoreposition (
 	if (!_r_wnd_getposition (hwnd, &rectangle_current))
 		return;
 
-	_r_config_getsize (
-		L"Position",
-		&rectangle_new.position,
-		&rectangle_current.position,
-		window_name
-	);
+	_r_config_getsize (L"Position", &rectangle_new.position, &rectangle_current.position, window_name);
 
 	is_resizeavailable = !!(_r_wnd_getstyle (hwnd) & WS_SIZEBOX);
 
@@ -4163,40 +3933,20 @@ VOID _r_window_restoreposition (
 	{
 		dpi_value = _r_dc_getwindowdpi (hwnd);
 
-		_r_dc_getsizedpivalue (
-			&rectangle_current.size,
-			dpi_value,
-			FALSE
-		);
+		_r_dc_getsizedpivalue (&rectangle_current.size, dpi_value, FALSE);
 
-		_r_config_getsize (
-			L"Size",
-			&rectangle_new.size,
-			&rectangle_current.size,
-			window_name
-		);
+		_r_config_getsize (L"Size", &rectangle_new.size, &rectangle_current.size, window_name);
 
-		_r_dc_getsizedpivalue (
-			&rectangle_new.size,
-			dpi_value,
-			TRUE
-		);
+		_r_dc_getsizedpivalue (&rectangle_new.size, dpi_value, TRUE);
 	}
 	else
 	{
 		rectangle_new.size = rectangle_current.size;
 	}
 
-	_r_wnd_adjustworkingarea (
-		NULL,
-		&rectangle_new
-	);
+	_r_wnd_adjustworkingarea (NULL, &rectangle_new);
 
-	_r_wnd_setposition (
-		hwnd,
-		&rectangle_new.position,
-		is_resizeavailable ? &rectangle_new.size : NULL
-	);
+	_r_wnd_setposition (hwnd, &rectangle_new.position, is_resizeavailable ? &rectangle_new.size : NULL);
 }
 
 VOID _r_window_saveposition (
@@ -4221,25 +3971,13 @@ VOID _r_window_saveposition (
 		rectangle.top += monitor_info.rcWork.top - monitor_info.rcMonitor.top;
 	}
 
-	_r_config_setsize (
-		L"Position",
-		&rectangle.position,
-		window_name
-	);
+	_r_config_setsize (L"Position", &rectangle.position, window_name);
 
 	if (_r_wnd_getstyle (hwnd) & WS_SIZEBOX)
 	{
-		_r_dc_getsizedpivalue (
-			&rectangle.size,
-			_r_dc_getwindowdpi (hwnd),
-			FALSE
-		);
+		_r_dc_getsizedpivalue (&rectangle.size, _r_dc_getwindowdpi (hwnd), FALSE);
 
-		_r_config_setsize (
-			L"Size",
-			&rectangle.size,
-			window_name
-		);
+		_r_config_setsize (L"Size", &rectangle.size, window_name);
 	}
 }
 #endif // !APP_CONSOLE
@@ -4275,12 +4013,7 @@ VOID _r_settings_adjustchild (
 	if (!GetWindowRect (GetDlgItem (hwnd, ctrl_id), &rc_tree) || !GetClientRect (hchild, &rc_child))
 		return;
 
-	MapWindowPoints (
-		HWND_DESKTOP,
-		hwnd,
-		(PPOINT)&rc_tree,
-		2
-	);
+	MapWindowPoints (HWND_DESKTOP, hwnd, (PPOINT)&rc_tree, 2);
 
 	SetWindowPos (
 		hchild,
@@ -4393,22 +4126,13 @@ VOID _r_settings_createwindow (
 	//
 
 	// dlgVer
-	_r_util_templatewriteshort (
-		&buffer_ptr,
-		1
-	);
+	_r_util_templatewriteshort (&buffer_ptr, 1);
 
 	// signature
-	_r_util_templatewriteshort (
-		&buffer_ptr,
-		USHRT_MAX)
-		;
+	_r_util_templatewriteshort (&buffer_ptr, USHRT_MAX);
 
 	// helpID
-	_r_util_templatewriteulong (
-		&buffer_ptr,
-		0
-	);
+	_r_util_templatewriteulong (&buffer_ptr, 0);
 
 	// exStyle
 	_r_util_templatewriteulong (
@@ -4423,84 +4147,48 @@ VOID _r_settings_createwindow (
 	);
 
 	// cdit
-	_r_util_templatewriteshort (
-		&buffer_ptr,
-		controls
-	);
+	_r_util_templatewriteshort (&buffer_ptr, controls);
 
 	// x
-	_r_util_templatewriteshort (
-		&buffer_ptr,
-		0
-	);
+	_r_util_templatewriteshort (&buffer_ptr, 0);
 
 	// y
-	_r_util_templatewriteshort (
-		&buffer_ptr,
-		0
-	);
+	_r_util_templatewriteshort (&buffer_ptr, 0);
 
 	// cx
-	_r_util_templatewriteshort (
-		&buffer_ptr,
-		width
-	);
+	_r_util_templatewriteshort (&buffer_ptr, width);
 
 	// cy
-	_r_util_templatewriteshort (
-		&buffer_ptr,
-		height
-	);
+	_r_util_templatewriteshort (&buffer_ptr, height);
 
 	//
 	// set dialog additional data
 	//
 
 	 // menu
-	_r_util_templatewritestring (
-		&buffer_ptr,
-		L""
-	);
+	_r_util_templatewritestring (&buffer_ptr, L"");
 
 	// windowClass
-	_r_util_templatewritestring (
-		&buffer_ptr,
-		L""
-	);
+	_r_util_templatewritestring (&buffer_ptr, L"");
 
 	// title
-	_r_util_templatewritestring (
-		&buffer_ptr,
-		L""
-	);
+	_r_util_templatewritestring (&buffer_ptr, L"");
 
 	//
 	// set dialog font
 	//
 
 	 // pointsize
-	_r_util_templatewriteshort (
-		&buffer_ptr,
-		8
-	);
+	_r_util_templatewriteshort (&buffer_ptr, 8);
 
 	// weight
-	_r_util_templatewriteshort (
-		&buffer_ptr,
-		FW_NORMAL
-	);
+	_r_util_templatewriteshort (&buffer_ptr, FW_NORMAL);
 
 	// bItalic
-	_r_util_templatewriteshort (
-		&buffer_ptr,
-		FALSE
-	);
+	_r_util_templatewriteshort (&buffer_ptr, FALSE);
 
 	// font
-	_r_util_templatewritestring (
-		&buffer_ptr,
-		L"MS Shell Dlg"
-	);
+	_r_util_templatewritestring (&buffer_ptr, L"MS Shell Dlg");
 
 	// insert dialog controls
 #if defined(APP_HAVE_SETTINGS_TABS)
@@ -4573,12 +4261,7 @@ VOID _r_settings_createwindow (
 		WC_BUTTON
 	);
 
-	DialogBoxIndirect (
-		NULL,
-		buffer,
-		hwnd,
-		&_r_settings_wndproc
-	);
+	DialogBoxIndirect (NULL, buffer, hwnd, &_r_settings_wndproc);
 
 	_r_mem_free (buffer);
 }
@@ -4689,11 +4372,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 				index += 1;
 #endif // APP_HAVE_SETTINGS_TABS
 
-				_r_settings_adjustchild (
-					hwnd,
-					IDC_NAV,
-					ptr_page->hwnd
-				);
+				_r_settings_adjustchild (hwnd, IDC_NAV, ptr_page->hwnd);
 			}
 
 #if defined(APP_HAVE_SETTINGS_TABS)
@@ -5105,27 +4784,18 @@ HRESULT _r_skipuac_checkmodulepath (
 
 	HRESULT hr;
 
-	hr = IRegisteredTask_get_Definition (
-		registered_task,
-		&task_definition
-	);
+	hr = IRegisteredTask_get_Definition (registered_task, &task_definition);
 
 	if (FAILED (hr))
 		goto CleanupExit;
 
-	hr = ITaskDefinition_get_Actions (
-		task_definition,
-		&action_collection
-	);
+	hr = ITaskDefinition_get_Actions (task_definition, &action_collection);
 
 	if (FAILED (hr))
 		goto CleanupExit;
 
 	// check actions count is equal to 1
-	hr = IActionCollection_get_Count (
-		action_collection,
-		&count
-	);
+	hr = IActionCollection_get_Count (action_collection, &count);
 
 	if (FAILED (hr))
 		goto CleanupExit;
@@ -5137,28 +4807,17 @@ HRESULT _r_skipuac_checkmodulepath (
 		goto CleanupExit;
 	}
 
-	hr = IActionCollection_get_Item (
-		action_collection,
-		1,
-		&action
-	);
+	hr = IActionCollection_get_Item (action_collection, 1, &action);
 
 	if (FAILED (hr))
 		goto CleanupExit;
 
-	hr = IAction_QueryInterface (
-		action,
-		&IID_IExecAction,
-		&exec_action
-	);
+	hr = IAction_QueryInterface (action, &IID_IExecAction, &exec_action);
 
 	if (FAILED (hr))
 		goto CleanupExit;
 
-	hr = IExecAction_get_Path (
-		exec_action,
-		&task_path
-	);
+	hr = IExecAction_get_Path (exec_action, &task_path);
 
 	if (FAILED (hr))
 		goto CleanupExit;
@@ -5222,35 +4881,21 @@ BOOLEAN _r_skipuac_isenabled ()
 	if (FAILED (hr))
 		goto CleanupExit;
 
-	hr = ITaskService_Connect (
-		task_service,
-		empty,
-		empty,
-		empty,
-		empty
-	);
+	hr = ITaskService_Connect (task_service, empty, empty, empty, empty);
 
 	if (FAILED (hr))
 		goto CleanupExit;
 
 	task_root = SysAllocString (L"\\");
 
-	hr = ITaskService_GetFolder (
-		task_service,
-		task_root,
-		&task_folder
-	);
+	hr = ITaskService_GetFolder (task_service, task_root, &task_folder);
 
 	if (FAILED (hr))
 		goto CleanupExit;
 
 	task_name = SysAllocString (APP_SKIPUAC_NAME);
 
-	hr = ITaskFolder_GetTask (
-		task_folder,
-		task_name,
-		&registered_task
-	);
+	hr = ITaskFolder_GetTask (task_folder, task_name, &registered_task);
 
 	if (FAILED (hr))
 		goto CleanupExit;
@@ -5353,11 +4998,7 @@ HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 
 	task_root = SysAllocString (L"\\");
 
-	hr = ITaskService_GetFolder (
-		task_service,
-		task_root,
-		&task_folder
-	);
+	hr = ITaskService_GetFolder (task_service, task_root, &task_folder);
 
 	if (FAILED (hr))
 		goto CleanupExit;
@@ -5366,19 +5007,12 @@ HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 
 	if (is_enable)
 	{
-		hr = ITaskService_NewTask (
-			task_service,
-			0,
-			&task_definition
-		);
+		hr = ITaskService_NewTask (task_service, 0, &task_definition);
 
 		if (FAILED (hr))
 			goto CleanupExit;
 
-		hr = ITaskDefinition_get_RegistrationInfo (
-			task_definition,
-			&registration_info
-		);
+		hr = ITaskDefinition_get_RegistrationInfo (task_definition, &registration_info);
 
 		if (FAILED (hr))
 			goto CleanupExit;
@@ -5386,20 +5020,10 @@ HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 		task_author = SysAllocString (_r_app_getauthor ());
 		task_url = SysAllocString (_r_app_getwebsite_url ());
 
-		IRegistrationInfo_put_Author (
-			registration_info,
-			task_author
-		);
+		IRegistrationInfo_put_Author (registration_info, task_author);
+		IRegistrationInfo_put_URI (registration_info, task_url);
 
-		IRegistrationInfo_put_URI (
-			registration_info,
-			task_url
-		);
-
-		hr = ITaskDefinition_get_Settings (
-			task_definition,
-			&task_settings
-		);
+		hr = ITaskDefinition_get_Settings (task_definition, &task_settings);
 
 		if (FAILED (hr))
 			goto CleanupExit;
@@ -5414,10 +5038,7 @@ HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 
 		for (INT i = TASK_COMPATIBILITY_V2_4; i != TASK_COMPATIBILITY_V2; --i)
 		{
-			hr = ITaskSettings_put_Compatibility (
-				task_settings,
-				i
-			);
+			hr = ITaskSettings_put_Compatibility (task_settings, i);
 
 			if (SUCCEEDED (hr))
 				break;
@@ -5432,92 +5053,37 @@ HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 
 		if (SUCCEEDED (hr))
 		{
-			ITaskSettings2_put_UseUnifiedSchedulingEngine (
-				task_settings2,
-				VARIANT_TRUE
-			);
-
-			ITaskSettings2_put_DisallowStartOnRemoteAppSession (
-				task_settings2,
-				VARIANT_TRUE
-			);
+			ITaskSettings2_put_UseUnifiedSchedulingEngine (task_settings2, VARIANT_TRUE);
+			ITaskSettings2_put_DisallowStartOnRemoteAppSession (task_settings2, VARIANT_TRUE);
 
 			ITaskSettings2_Release (task_settings2);
 		}
 
 		task_time_limit = SysAllocString (L"PT0S");
 
-		ITaskSettings_put_AllowDemandStart (
-			task_settings,
-			VARIANT_TRUE
-		);
+		ITaskSettings_put_AllowDemandStart (task_settings, VARIANT_TRUE);
+		ITaskSettings_put_AllowHardTerminate (task_settings, VARIANT_FALSE);
+		ITaskSettings_put_ExecutionTimeLimit (task_settings, task_time_limit);
+		ITaskSettings_put_DisallowStartIfOnBatteries (task_settings, VARIANT_FALSE);
+		ITaskSettings_put_MultipleInstances (task_settings, TASK_INSTANCES_PARALLEL);
+		ITaskSettings_put_StartWhenAvailable (task_settings, VARIANT_TRUE);
+		ITaskSettings_put_StopIfGoingOnBatteries (task_settings, VARIANT_FALSE);
+		//ITaskSettings_put_Priority (task_settings, 4); // NORMAL_PRIORITY_CLASS
 
-		ITaskSettings_put_AllowHardTerminate (
-			task_settings,
-			VARIANT_FALSE
-		);
-
-		ITaskSettings_put_ExecutionTimeLimit (
-			task_settings,
-			task_time_limit
-		);
-
-		ITaskSettings_put_DisallowStartIfOnBatteries (
-			task_settings,
-			VARIANT_FALSE
-		);
-
-		ITaskSettings_put_MultipleInstances (
-			task_settings,
-			TASK_INSTANCES_PARALLEL
-		);
-
-		ITaskSettings_put_StartWhenAvailable (
-			task_settings,
-			VARIANT_TRUE
-		);
-
-		ITaskSettings_put_StopIfGoingOnBatteries (
-			task_settings,
-			VARIANT_FALSE
-		);
-
-		// ITaskSettings_put_Priority (
-		// 	task_settings,
-		// 	4 // NORMAL_PRIORITY_CLASS
-		// );
-
-		hr = ITaskDefinition_get_Principal (
-			task_definition,
-			&principal
-		);
+		hr = ITaskDefinition_get_Principal (task_definition, &principal);
 
 		if (FAILED (hr))
 			goto CleanupExit;
 
-		IPrincipal_put_RunLevel (
-			principal,
-			TASK_RUNLEVEL_HIGHEST
-		);
+		IPrincipal_put_RunLevel (principal, TASK_RUNLEVEL_HIGHEST);
+		IPrincipal_put_LogonType (principal, TASK_LOGON_INTERACTIVE_TOKEN);
 
-		IPrincipal_put_LogonType (
-			principal,
-			TASK_LOGON_INTERACTIVE_TOKEN
-		);
-
-		hr = ITaskDefinition_get_Actions (
-			task_definition,
-			&action_collection
-		);
+		hr = ITaskDefinition_get_Actions (task_definition, &action_collection);
 
 		if (FAILED (hr))
 			goto CleanupExit;
 
-		hr = IActionCollection_Create (
-			action_collection,
-			TASK_ACTION_EXEC,
-			&action
-		);
+		hr = IActionCollection_Create (action_collection, TASK_ACTION_EXEC, &action);
 
 		if (FAILED (hr))
 			goto CleanupExit;
@@ -5535,26 +5101,11 @@ HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 		task_directory = SysAllocString (_r_app_getdirectory ()->buffer);
 		task_args = SysAllocString (L"$(Arg0)");
 
-		IExecAction_put_Path (
-			exec_action,
-			task_path
-		);
+		IExecAction_put_Path (exec_action, task_path);
+		IExecAction_put_WorkingDirectory (exec_action, task_directory);
+		IExecAction_put_Arguments (exec_action, task_args);
 
-		IExecAction_put_WorkingDirectory (
-			exec_action,
-			task_directory
-		);
-
-		IExecAction_put_Arguments (
-			exec_action,
-			task_args
-		);
-
-		ITaskFolder_DeleteTask (
-			task_folder,
-			task_name,
-			0
-		);
+		ITaskFolder_DeleteTask (task_folder, task_name, 0);
 
 		hr = ITaskFolder_RegisterTaskDefinition (
 			task_folder,
@@ -5570,11 +5121,7 @@ HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 	}
 	else
 	{
-		hr = ITaskFolder_DeleteTask (
-			task_folder,
-			task_name,
-			0
-		);
+		hr = ITaskFolder_DeleteTask (task_folder, task_name, 0);
 
 		if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND))
 			hr = S_OK;
@@ -5658,7 +5205,6 @@ BOOLEAN _r_skipuac_run ()
 
 	BSTR task_root = NULL;
 	BSTR task_name = NULL;
-	BSTR task_path = NULL;
 	BSTR task_args = NULL;
 
 	WCHAR arguments[512] = {0};
@@ -5681,35 +5227,21 @@ BOOLEAN _r_skipuac_run ()
 	if (FAILED (hr))
 		goto CleanupExit;
 
-	hr = ITaskService_Connect (
-		task_service,
-		empty,
-		empty,
-		empty,
-		empty
-	);
+	hr = ITaskService_Connect (task_service, empty, empty, empty, empty);
 
 	if (FAILED (hr))
 		goto CleanupExit;
 
 	task_root = SysAllocString (L"\\");
 
-	hr = ITaskService_GetFolder (
-		task_service,
-		task_root,
-		&task_folder
-	);
+	hr = ITaskService_GetFolder (task_service, task_root, &task_folder);
 
 	if (FAILED (hr))
 		goto CleanupExit;
 
 	task_name = SysAllocString (APP_SKIPUAC_NAME);
 
-	hr = ITaskFolder_GetTask (
-		task_folder,
-		task_name,
-		&registered_task
-	);
+	hr = ITaskFolder_GetTask (task_folder, task_name, &registered_task);
 
 	if (FAILED (hr))
 		goto CleanupExit;
@@ -5720,10 +5252,7 @@ BOOLEAN _r_skipuac_run ()
 		goto CleanupExit;
 
 	// set arguments for task
-	arga = CommandLineToArgvW (
-		_r_sys_getimagecommandline (),
-		&numargs
-	);
+	arga = CommandLineToArgvW (_r_sys_getimagecommandline (), &numargs);
 
 	if (arga)
 	{
@@ -5778,10 +5307,7 @@ BOOLEAN _r_skipuac_run ()
 	{
 		IRunningTask_Refresh (running_task);
 
-		if (SUCCEEDED (IRunningTask_get_State (
-			running_task,
-			&state
-			)))
+		if (SUCCEEDED (IRunningTask_get_State (running_task, &state)))
 		{
 			if (state == TASK_STATE_DISABLED)
 			{
@@ -5805,9 +5331,6 @@ CleanupExit:
 
 	if (task_name)
 		SysFreeString (task_name);
-
-	if (task_path)
-		SysFreeString (task_path);
 
 	if (task_args)
 		SysFreeString (task_args);
