@@ -2461,9 +2461,6 @@ NTSTATUS NTAPI _r_update_checkthread (
 				{
 					update_component = _r_obj_getarrayitem (update_info->components, i);
 
-					if (!update_component)
-						continue;
-
 					hash_code = _r_str_gethash2 (update_component->short_name, TRUE);
 					string_value = _r_obj_findhashtablepointer (string_table, hash_code);
 
@@ -2788,7 +2785,7 @@ NTSTATUS NTAPI _r_update_downloadthread (
 		{
 			update_component = _r_obj_getarrayitem (update_info->components, i);
 
-			if (!update_component || !update_component->is_haveupdate || !update_component->temp_path)
+			if (!update_component->is_haveupdate || !update_component->temp_path)
 				continue;
 
 			hfile = CreateFile (
@@ -3009,7 +3006,7 @@ HRESULT CALLBACK _r_update_pagecallback (
 				{
 					update_component = _r_obj_getarrayitem (update_info->components, i);
 
-					if (update_component && update_component->is_installer)
+					if (update_component->is_installer)
 					{
 						if (update_component->is_haveupdate && update_component->temp_path)
 							_r_update_install (update_component->temp_path);
@@ -4066,7 +4063,7 @@ VOID _r_settings_createwindow (
 		{
 			ptr_page = _r_obj_getarrayitem (app_global.settings.page_list, i);
 
-			if (!ptr_page || !ptr_page->dlg_id)
+			if (!ptr_page->dlg_id)
 				continue;
 
 			if (!_r_res_loadresource (
@@ -4322,7 +4319,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 			{
 				ptr_page = _r_obj_getarrayitem (app_global.settings.page_list, i);
 
-				if (!ptr_page || !ptr_page->dlg_id)
+				if (!ptr_page->dlg_id)
 					continue;
 
 				ptr_page->hwnd = _r_wnd_createwindow (
@@ -4541,7 +4538,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 			{
 				ptr_page = _r_obj_getarrayitem (app_global.settings.page_list, i);
 
-				if (ptr_page && ptr_page->hwnd)
+				if (ptr_page->hwnd)
 				{
 					DestroyWindow (ptr_page->hwnd);
 					ptr_page->hwnd = NULL;
@@ -4746,7 +4743,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 					{
 						ptr_page = _r_obj_getarrayitem (app_global.settings.page_list, i);
 
-						if (!ptr_page || !ptr_page->hwnd)
+						if (!ptr_page->hwnd)
 							continue;
 
 						if (_r_wnd_isvisible (ptr_page->hwnd))
