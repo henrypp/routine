@@ -1,7 +1,7 @@
 // rtypes.h
 // project sdk library
 //
-// Copyright (c) 2021 Henry++
+// Copyright (c) 2019-2022 Henry++
 
 #pragma once
 
@@ -370,10 +370,10 @@ typedef struct DECLSPEC_ALIGN (16) _R_QUEUED_WAIT_BLOCK
 #define PR_QUEUED_LOCK_FLAGS ((ULONG_PTR)0xf)
 
 #define _r_queuedlock_getsharedowners(value) \
-    ((ULONG_PTR)(value) >> PR_QUEUED_LOCK_SHARED_SHIFT)
+	((ULONG_PTR)(value) >> PR_QUEUED_LOCK_SHARED_SHIFT)
 
 #define _r_queuedlock_getwaitblock(value) \
-    ((PR_QUEUED_WAIT_BLOCK)((ULONG_PTR)(value) & ~PR_QUEUED_LOCK_FLAGS))
+	((PR_QUEUED_WAIT_BLOCK)((ULONG_PTR)(value) & ~PR_QUEUED_LOCK_FLAGS))
 
 //
 // Synchronization: Condition
@@ -462,13 +462,15 @@ typedef struct _R_WORKQUEUE
 // Objects reference
 //
 
-typedef VOID (NTAPI *PR_OBJECT_CLEANUP_FUNCTION) (_In_ PVOID object_body);
+typedef VOID (NTAPI *PR_OBJECT_CLEANUP_CALLBACK) (
+	_In_ PVOID object_body
+	);
 
 typedef struct _R_OBJECT_HEADER
 {
 	struct
 	{
-		PR_OBJECT_CLEANUP_FUNCTION cleanup_callback;
+		PR_OBJECT_CLEANUP_CALLBACK cleanup_callback;
 
 		volatile LONG ref_count;
 	};
@@ -476,8 +478,11 @@ typedef struct _R_OBJECT_HEADER
 	QUAD_PTR body;
 } R_OBJECT_HEADER, *PR_OBJECT_HEADER;
 
-#define PR_OBJECT_HEADER_TO_OBJECT(object_header) (&((PR_OBJECT_HEADER)(object_header))->body)
-#define PR_OBJECT_TO_OBJECT_HEADER(object) (CONTAINING_RECORD((object), R_OBJECT_HEADER, body))
+#define PR_OBJECT_HEADER_TO_OBJECT(object_header) \
+	(&((PR_OBJECT_HEADER)(object_header))->body)
+
+#define PR_OBJECT_TO_OBJECT_HEADER(object) \
+	(CONTAINING_RECORD((object), R_OBJECT_HEADER, body))
 
 //
 // 8-bit string object
@@ -553,7 +558,7 @@ typedef struct _R_STRINGBUILDER
 
 typedef struct _R_ARRAY
 {
-	PR_OBJECT_CLEANUP_FUNCTION cleanup_callback;
+	PR_OBJECT_CLEANUP_CALLBACK cleanup_callback;
 	SIZE_T allocated_count;
 	SIZE_T count;
 	SIZE_T item_size;
@@ -566,7 +571,7 @@ typedef struct _R_ARRAY
 
 typedef struct _R_LIST
 {
-	PR_OBJECT_CLEANUP_FUNCTION cleanup_callback;
+	PR_OBJECT_CLEANUP_CALLBACK cleanup_callback;
 	SIZE_T allocated_count;
 	SIZE_T count;
 	PVOID_PTR items;
@@ -585,7 +590,7 @@ typedef struct _R_HASHTABLE_ENTRY
 
 typedef struct _R_HASHTABLE
 {
-	PR_OBJECT_CLEANUP_FUNCTION cleanup_callback;
+	PR_OBJECT_CLEANUP_CALLBACK cleanup_callback;
 	PSIZE_T buckets;
 	PVOID entries;
 	SIZE_T free_entry;
@@ -815,32 +820,32 @@ typedef struct _R_LAYOUT_ENUM
 	HWND root_hwnd;
 } R_LAYOUT_ENUM, *PR_LAYOUT_ENUM;
 
-#define PR_LAYOUT_ANCHOR_LEFT 0x0001
-#define PR_LAYOUT_ANCHOR_TOP 0x0002
-#define PR_LAYOUT_ANCHOR_RIGHT 0x0004
-#define PR_LAYOUT_ANCHOR_BOTTOM 0x0008
+#define PR_LAYOUT_ANCHOR_LEFT 0x000001
+#define PR_LAYOUT_ANCHOR_TOP 0x000002
+#define PR_LAYOUT_ANCHOR_RIGHT 0x000004
+#define PR_LAYOUT_ANCHOR_BOTTOM 0x000008
 
-#define PR_LAYOUT_DOCK_LEFT 0x0010
-#define PR_LAYOUT_DOCK_TOP 0x0020
-#define PR_LAYOUT_DOCK_RIGHT 0x0040
-#define PR_LAYOUT_DOCK_BOTTOM 0x0080
+#define PR_LAYOUT_DOCK_LEFT 0x000010
+#define PR_LAYOUT_DOCK_TOP 0x000020
+#define PR_LAYOUT_DOCK_RIGHT 0x000040
+#define PR_LAYOUT_DOCK_BOTTOM 0x000080
 
-#define PR_LAYOUT_ANCHOR_ALL 0x00FF
+#define PR_LAYOUT_ANCHOR_ALL 0x0000FF
 
 // invalidate the control when it is resized
-#define PR_LAYOUT_FORCE_INVALIDATE 0x1000
+#define PR_LAYOUT_FORCE_INVALIDATE 0x001000
 
 // send WM_SIZE message on resize
-#define PR_LAYOUT_SEND_NOTIFY 0x2000
+#define PR_LAYOUT_SEND_NOTIFY 0x002000
 
 // do not calculate anchors for control
-#define PR_LAYOUT_NO_ANCHOR 0x4000
+#define PR_LAYOUT_NO_ANCHOR 0x004000
 
 //
 // Inernet access (WinHTTP)
 //
 
-typedef BOOLEAN (NTAPI *PR_INET_DOWNLOAD_FUNCTION) (
+typedef BOOLEAN (NTAPI *PR_INET_DOWNLOAD_CALLBACK) (
 	_In_ ULONG total_written,
 	_In_ ULONG total_length,
 	_In_opt_ PVOID lparam
@@ -854,7 +859,7 @@ typedef struct _R_DOWNLOAD_INFO
 		PR_STRING string;
 	} u;
 
-	PR_INET_DOWNLOAD_FUNCTION download_callback;
+	PR_INET_DOWNLOAD_CALLBACK download_callback;
 	PVOID lparam;
 
 	BOOLEAN is_savetofile;
