@@ -703,10 +703,7 @@ PVOID _r_freelist_allocateitem (
 		_InterlockedDecrement (&free_list->count);
 		entry = CONTAINING_RECORD (list_entry, R_FREE_LIST_ENTRY, list_entry);
 
-		RtlZeroMemory (
-			&entry->body,
-			free_list->size
-		);
+		RtlZeroMemory (&entry->body, free_list->size);
 	}
 	else
 	{
@@ -2300,7 +2297,7 @@ BOOLEAN _r_mem_frobnicate (
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_obj_allocate (
 	_In_ SIZE_T bytes_count,
-	_In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback
+	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 )
 {
 	PR_OBJECT_HEADER object_header;
@@ -2370,27 +2367,27 @@ PR_BYTE _r_obj_createbyte_ex (
 	_In_ SIZE_T length
 )
 {
-	PR_BYTE byte;
+	PR_BYTE bytes;
 
 	if (!length)
 		length = sizeof (ANSI_NULL);
 
-	byte = _r_obj_allocate (UFIELD_OFFSET (R_BYTE, data) + length + sizeof (ANSI_NULL), NULL);
+	bytes = _r_obj_allocate (UFIELD_OFFSET (R_BYTE, data) + length + sizeof (ANSI_NULL), NULL);
 
-	byte->length = length;
-	byte->buffer = byte->data;
+	bytes->length = length;
+	bytes->buffer = bytes->data;
 
 	if (buffer)
 	{
-		RtlCopyMemory (byte->buffer, buffer, length);
-		_r_obj_writebytenullterminator (byte);
+		RtlCopyMemory (bytes->buffer, buffer, length);
+		_r_obj_writebytenullterminator (bytes);
 	}
 	else
 	{
-		byte->buffer[0] = ANSI_NULL;
+		bytes->buffer[0] = ANSI_NULL;
 	}
 
-	return byte;
+	return bytes;
 }
 
 VOID _r_obj_setbytelength (
@@ -2877,7 +2874,7 @@ VOID _r_obj_resizestringbuilder (
 PR_ARRAY _r_obj_createarray_ex (
 	_In_ SIZE_T item_size,
 	_In_ SIZE_T initial_capacity,
-	_In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback
+	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 )
 {
 	PR_ARRAY array_node;
@@ -2887,13 +2884,88 @@ PR_ARRAY _r_obj_createarray_ex (
 
 	array_node = _r_obj_allocate (sizeof (R_ARRAY), &_r_util_dereferencearray_proc);
 
-	array_node->count = 0;
 	array_node->allocated_count = initial_capacity;
-	array_node->item_size = item_size;
 	array_node->cleanup_callback = cleanup_callback;
-	array_node->items = _r_mem_allocatezero (array_node->allocated_count * item_size);
+	array_node->count = 0;
+
+	array_node->item_size = item_size;
+	array_node->items = _r_mem_allocatezero (initial_capacity * item_size);
 
 	return array_node;
+}
+
+PR_ARRAY _r_obj_createarray (
+	_In_ SIZE_T item_size,
+	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
+)
+{
+	return _r_obj_createarray_ex (item_size, 2, cleanup_callback);
+}
+
+PVOID _r_obj_addarrayitem_ex (
+	_Inout_ PR_ARRAY array_node,
+	_In_opt_ LPCVOID array_item,
+	_Out_opt_ PSIZE_T new_index_ptr
+)
+{
+	PVOID dst;
+	SIZE_T new_index;
+
+	if (array_node->count == array_node->allocated_count)
+		_r_obj_resizearray (array_node, array_node->allocated_count * 2);
+
+	new_index = array_node->count;
+
+	dst = _r_obj_getarrayitem (array_node, new_index);
+
+	if (array_item)
+	{
+		RtlCopyMemory (dst, array_item, array_node->item_size);
+	}
+	else
+	{
+		RtlZeroMemory (dst, array_node->item_size);
+	}
+
+	array_node->count += 1;
+
+	if (new_index_ptr)
+		*new_index_ptr = new_index;
+
+	return dst;
+}
+
+PVOID _r_obj_addarrayitem (
+	_Inout_ PR_ARRAY array_node,
+	_In_opt_ LPCVOID array_item
+)
+{
+	return _r_obj_addarrayitem_ex (array_node, array_item, NULL);
+}
+
+VOID _r_obj_addarrayitems (
+	_Inout_ PR_ARRAY array_node,
+	_In_ LPCVOID array_items,
+	_In_ SIZE_T count
+)
+{
+	PVOID dst;
+
+	if (array_node->allocated_count < array_node->count + count)
+	{
+		array_node->allocated_count *= 2;
+
+		if (array_node->allocated_count < array_node->count + count)
+			array_node->allocated_count = array_node->count + count;
+
+		_r_obj_resizearray (array_node, array_node->allocated_count);
+	}
+
+	dst = _r_obj_getarrayitem (array_node, array_node->count);
+
+	RtlCopyMemory (dst, array_items, count * array_node->item_size);
+
+	array_node->count += count;
 }
 
 VOID _r_obj_cleararray (
@@ -2922,6 +2994,54 @@ VOID _r_obj_cleararray (
 	RtlSecureZeroMemory (array_node->items, count * array_node->item_size);
 }
 
+PVOID _r_obj_getarrayitem (
+	_In_ PR_ARRAY array_node,
+	_In_ SIZE_T index
+)
+{
+	return PTR_ADD_OFFSET (array_node->items, index * array_node->item_size);
+}
+
+VOID _r_obj_removearrayitem (
+	_In_ PR_ARRAY array_node,
+	_In_ SIZE_T index
+)
+{
+	_r_obj_removearrayitems (array_node, index, 1);
+}
+
+VOID _r_obj_removearrayitems (
+	_Inout_ PR_ARRAY array_node,
+	_In_ SIZE_T start_pos,
+	_In_ SIZE_T count
+)
+{
+	PVOID dst;
+	PVOID src;
+	PVOID array_item;
+
+	dst = _r_obj_getarrayitem (array_node, start_pos);
+	src = _r_obj_getarrayitem (array_node, start_pos + count);
+
+	if (array_node->cleanup_callback)
+	{
+		for (SIZE_T i = start_pos; i < (start_pos + count); i++)
+		{
+			array_item = PTR_ADD_OFFSET (array_node->items, i * array_node->item_size);
+
+			array_node->cleanup_callback (array_item);
+		}
+	}
+
+	RtlMoveMemory (
+		dst,
+		src,
+		(array_node->count - start_pos - count) * array_node->item_size
+	);
+
+	array_node->count -= count;
+}
+
 VOID _r_obj_resizearray (
 	_Inout_ PR_ARRAY array_node,
 	_In_ SIZE_T new_capacity
@@ -2938,113 +3058,13 @@ VOID _r_obj_resizearray (
 	);
 }
 
-_Ret_maybenull_
-PVOID _r_obj_addarrayitem_ex (
-	_Inout_ PR_ARRAY array_node,
-	_In_opt_ LPCVOID array_item,
-	_Out_opt_ PSIZE_T new_index_ptr
-)
-{
-	PVOID dst;
-	SIZE_T new_index;
-
-	if (array_node->count == array_node->allocated_count)
-		_r_obj_resizearray (array_node, array_node->allocated_count * 2);
-
-	new_index = array_node->count;
-
-	dst = _r_obj_getarrayitem (array_node, new_index);
-
-	if (dst)
-	{
-		if (array_item)
-		{
-			RtlCopyMemory (
-				dst,
-				array_item,
-				array_node->item_size
-			);
-		}
-		else
-		{
-			RtlZeroMemory (
-				dst,
-				array_node->item_size
-			);
-		}
-
-		array_node->count += 1;
-	}
-
-	if (new_index_ptr)
-		*new_index_ptr = dst ? new_index : SIZE_MAX;
-
-	return dst;
-}
-
-VOID _r_obj_addarrayitems (
-	_Inout_ PR_ARRAY array_node,
-	_In_ LPCVOID array_items,
-	_In_ SIZE_T count
-)
-{
-	PVOID dst;
-
-	if (array_node->allocated_count < array_node->count + count)
-	{
-		array_node->allocated_count *= 2;
-
-		if (array_node->allocated_count < array_node->count + count)
-			array_node->allocated_count = array_node->count + count;
-
-		_r_obj_resizearray (array_node, array_node->allocated_count);
-	}
-
-	dst = _r_obj_getarrayitem (array_node, array_node->count);
-
-	if (dst)
-	{
-		RtlCopyMemory (
-			dst,
-			array_items,
-			count * array_node->item_size
-		);
-
-		array_node->count += count;
-	}
-}
-
-VOID _r_obj_removearrayitems (
-	_Inout_ PR_ARRAY array_node,
-	_In_ SIZE_T start_pos,
-	_In_ SIZE_T count
-)
-{
-	PVOID dst;
-	PVOID src;
-
-	dst = _r_obj_getarrayitem (array_node, start_pos);
-	src = _r_obj_getarrayitem (array_node, start_pos + count);
-
-	if (!dst || !src)
-		return;
-
-	RtlMoveMemory (
-		dst,
-		src,
-		(array_node->count - start_pos - count) * array_node->item_size
-	);
-
-	array_node->count -= count;
-}
-
 //
 // List object
 //
 
 PR_LIST _r_obj_createlist_ex (
 	_In_ SIZE_T initial_capacity,
-	_In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback
+	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 )
 {
 	PR_LIST list_node;
@@ -3063,8 +3083,14 @@ PR_LIST _r_obj_createlist_ex (
 	return list_node;
 }
 
-_Ret_maybenull_
-PVOID _r_obj_addlistitem_ex (
+PR_LIST _r_obj_createlist (
+	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
+)
+{
+	return _r_obj_createlist_ex (2, cleanup_callback);
+}
+
+VOID _r_obj_addlistitem_ex (
 	_Inout_ PR_LIST list_node,
 	_In_opt_ PVOID list_item,
 	_Out_opt_ PSIZE_T new_index_ptr
@@ -3083,8 +3109,14 @@ PVOID _r_obj_addlistitem_ex (
 		*new_index_ptr = new_index;
 
 	list_node->count += 1;
+}
 
-	return list_item;
+VOID _r_obj_addlistitem (
+	_Inout_ PR_LIST list_node,
+	_In_opt_ PVOID list_item
+)
+{
+	_r_obj_addlistitem_ex (list_node, list_item, NULL);
 }
 
 VOID _r_obj_clearlist (
@@ -3157,13 +3189,17 @@ VOID _r_obj_insertlistitems (
 		);
 	}
 
-	RtlCopyMemory (
-		&list_node->items[start_pos],
-		list_items,
-		count * sizeof (PVOID)
-	);
+	RtlCopyMemory (&list_node->items[start_pos], list_items, count * sizeof (PVOID));
 
 	list_node->count += count;
+}
+
+VOID _r_obj_removelistitem (
+	_Inout_ PR_LIST list_node,
+	_In_ SIZE_T index
+)
+{
+	_r_obj_removelistitems (list_node, index, 1);
 }
 
 VOID _r_obj_removelistitems (
@@ -3174,12 +3210,13 @@ VOID _r_obj_removelistitems (
 {
 	PVOID list_item;
 
-	if (list_node->cleanup_callback)
+	for (SIZE_T i = start_pos; i < (start_pos + count); i++)
 	{
-		for (SIZE_T i = start_pos; i < count; i++)
-		{
-			list_item = list_node->items[i];
+		list_item = list_node->items[i];
+		list_node->items[i] = NULL;
 
+		if (list_node->cleanup_callback)
+		{
 			if (list_item)
 				list_node->cleanup_callback (list_item);
 		}
@@ -3236,31 +3273,33 @@ VOID _r_obj_setlistitem (
 PR_HASHTABLE _r_obj_createhashtable_ex (
 	_In_ SIZE_T entry_size,
 	_In_ SIZE_T initial_capacity,
-	_In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback
+	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 )
 {
 	PR_HASHTABLE hashtable;
 
 	hashtable = _r_obj_allocate (sizeof (R_HASHTABLE), &_r_util_dereferencehashtable_proc);
 
+	// Initial capacity of 0 is not allowed.
 	if (!initial_capacity)
 		initial_capacity = 1;
 
 	hashtable->entry_size = entry_size;
 	hashtable->cleanup_callback = cleanup_callback;
 
+	// Allocate the buckets.
 	hashtable->allocated_buckets = _r_math_rounduptopoweroftwo (initial_capacity);
-
 	hashtable->buckets = _r_mem_allocatezero (hashtable->allocated_buckets * sizeof (SIZE_T));
 
+	// Set all bucket values to -1.
 	memset (
 		hashtable->buckets,
 		PR_HASHTABLE_INIT_VALUE,
 		hashtable->allocated_buckets * sizeof (SIZE_T)
 	);
 
+	// Allocate the entries.
 	hashtable->allocated_entries = hashtable->allocated_buckets;
-
 	hashtable->entries = _r_mem_allocatezero (hashtable->allocated_entries * PR_HASHTABLE_ENTRY_SIZE (entry_size));
 
 	hashtable->count = 0;
@@ -3270,19 +3309,12 @@ PR_HASHTABLE _r_obj_createhashtable_ex (
 	return hashtable;
 }
 
-FORCEINLINE ULONG _r_obj_validatehash (
-	_In_ ULONG_PTR hash_code
+PR_HASHTABLE _r_obj_createhashtable (
+	_In_ SIZE_T entry_size,
+	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 )
 {
-	return hash_code & MAXLONG;
-}
-
-FORCEINLINE SIZE_T _r_obj_indexfromhash (
-	_In_ PR_HASHTABLE hashtable,
-	_In_ ULONG hash_code
-)
-{
-	return hash_code & (hashtable->allocated_buckets - 1);
+	return _r_obj_createhashtable_ex (entry_size, 2, cleanup_callback);
 }
 
 FORCEINLINE PVOID _r_obj_addhashtableitem_ex (
@@ -3317,19 +3349,19 @@ FORCEINLINE PVOID _r_obj_addhashtableitem_ex (
 		}
 	}
 
+	// Use a free entry if possible.
 	if (hashtable->free_entry != SIZE_MAX)
 	{
 		free_entry = hashtable->free_entry;
 		hashtable_entry = PR_HASHTABLE_GET_ENTRY (hashtable, free_entry);
 		hashtable->free_entry = hashtable_entry->next;
-
-		if (hashtable->cleanup_callback)
-			hashtable->cleanup_callback (&hashtable_entry->body);
 	}
 	else
 	{
+		// Use the next entry in the entry array.
 		if (hashtable->next_entry == hashtable->allocated_entries)
 		{
+			// Resize the hashtable.
 			_r_obj_resizehashtable (hashtable, hashtable->allocated_buckets * 2);
 
 			index = _r_obj_indexfromhash (hashtable, valid_hash);
@@ -3339,24 +3371,26 @@ FORCEINLINE PVOID _r_obj_addhashtableitem_ex (
 		hashtable_entry = PR_HASHTABLE_GET_ENTRY (hashtable, free_entry);
 	}
 
+	if (hashtable_entry->hash_code && hashtable_entry->hash_code != SIZE_MAX)
+	{
+		if (hashtable->cleanup_callback)
+			hashtable->cleanup_callback (&hashtable_entry->body);
+	}
+
+	// Initialize the entry.
 	hashtable_entry->hash_code = hash_code;
 	hashtable_entry->next = hashtable->buckets[index];
+
 	hashtable->buckets[index] = free_entry;
 
+	// Copy the user-supplied data to the entry.
 	if (entry)
 	{
-		RtlCopyMemory (
-			&hashtable_entry->body,
-			entry,
-			hashtable->entry_size
-		);
+		RtlCopyMemory (&hashtable_entry->body, entry, hashtable->entry_size);
 	}
 	else
 	{
-		RtlZeroMemory (
-			&hashtable_entry->body,
-			hashtable->entry_size
-		);
+		RtlSecureZeroMemory (&hashtable_entry->body, hashtable->entry_size);
 	}
 
 	hashtable->count += 1;
@@ -3441,6 +3475,8 @@ VOID _r_obj_clearhashtable (
 
 		if (hashtable_entry->hash_code != SIZE_MAX)
 		{
+			hashtable_entry->hash_code = SIZE_MAX;
+
 			if (hashtable->cleanup_callback)
 				hashtable->cleanup_callback (&hashtable_entry->body);
 
@@ -3526,6 +3562,7 @@ BOOLEAN _r_obj_removehashtableitem (
 
 		if (_r_obj_validatehash (hashtable_entry->hash_code) == valid_hash)
 		{
+			// Unlink the entry from the bucket.
 			if (previous_index == SIZE_MAX)
 			{
 				hashtable->buckets[index] = hashtable_entry->next;
@@ -3535,7 +3572,7 @@ BOOLEAN _r_obj_removehashtableitem (
 				PR_HASHTABLE_GET_ENTRY (hashtable, previous_index)->next = hashtable_entry->next;
 			}
 
-			hashtable_entry->hash_code = SIZE_MAX;
+			hashtable_entry->hash_code = SIZE_MAX; // indicates the entry is not being used
 			hashtable_entry->next = hashtable->free_entry;
 
 			hashtable->free_entry = i;
@@ -3544,10 +3581,7 @@ BOOLEAN _r_obj_removehashtableitem (
 			if (hashtable->cleanup_callback)
 				hashtable->cleanup_callback (&hashtable_entry->body);
 
-			RtlSecureZeroMemory (
-				&hashtable_entry->body,
-				hashtable->entry_size
-			);
+			RtlSecureZeroMemory (&hashtable_entry->body, hashtable->entry_size);
 
 			return TRUE;
 		}
@@ -3566,6 +3600,7 @@ VOID _r_obj_resizehashtable (
 	PR_HASHTABLE_ENTRY hashtable_entry;
 	SIZE_T index;
 
+	// Re-allocate the buckets. Note that we don't need to keep the contents.
 	hashtable->allocated_buckets = _r_math_rounduptopoweroftwo (new_capacity);
 
 	hashtable->buckets = _r_mem_reallocatezero (
@@ -3573,12 +3608,14 @@ VOID _r_obj_resizehashtable (
 		hashtable->allocated_buckets * sizeof (SIZE_T)
 	);
 
+	// Set all bucket values to -1.
 	memset (
 		hashtable->buckets,
 		PR_HASHTABLE_INIT_VALUE,
 		hashtable->allocated_buckets * sizeof (SIZE_T)
 	);
 
+	// Re-allocate the entries.
 	hashtable->allocated_entries = hashtable->allocated_buckets;
 
 	hashtable->entries = _r_mem_reallocatezero (
@@ -3586,6 +3623,9 @@ VOID _r_obj_resizehashtable (
 		PR_HASHTABLE_ENTRY_SIZE (hashtable->entry_size) * hashtable->allocated_entries
 	);
 
+	// Re-distribute the entries among the buckets.
+
+	// PR_HASHTABLE_GET_ENTRY is quite slow (it involves a multiply), so we use a pointer here.
 	hashtable_entry = hashtable->entries;
 
 	for (SIZE_T i = 0; i < hashtable->next_entry; i++)
@@ -3827,11 +3867,7 @@ BOOLEAN _r_clipboard_set (
 
 		if (base_address)
 		{
-			RtlCopyMemory (
-				base_address,
-				string->buffer,
-				string->length
-			);
+			RtlCopyMemory (base_address, string->buffer, string->length);
 
 			*(LPWSTR)PTR_ADD_OFFSET (base_address, string->length) = UNICODE_NULL; // terminate
 
@@ -7076,10 +7112,7 @@ VOID _r_str_trimstringref (
 	charset_buff = charset->buffer;
 	charset_count = _r_str_getlength3 (charset);
 
-	RtlZeroMemory (
-		charset_table,
-		sizeof (charset_table)
-	);
+	RtlZeroMemory (charset_table, sizeof (charset_table));
 
 	charset_table_complete = TRUE;
 
@@ -10400,11 +10433,7 @@ VOID _r_filedialog_setpath (
 		ofn->nMaxFile = (ULONG)max (_r_str_getlength3 (&sr) + 1, 1024);
 		ofn->lpstrFile = _r_mem_reallocatezero (ofn->lpstrFile, ofn->nMaxFile * sizeof (WCHAR));
 
-		RtlCopyMemory (
-			ofn->lpstrFile,
-			sr.buffer,
-			sr.length + sizeof (UNICODE_NULL)
-		);
+		RtlCopyMemory (ofn->lpstrFile, sr.buffer, sr.length + sizeof (UNICODE_NULL));
 	}
 #endif // !APP_NO_DEPRECATIONS
 }
@@ -11539,6 +11568,44 @@ BOOLEAN _r_wnd_isundercursor (
 	return !!PtInRect (&rect, point);
 }
 
+_Success_ (return)
+BOOLEAN _r_wnd_getclientsize (
+	_In_ HWND hwnd,
+	_Out_ PR_RECTANGLE rectangle
+)
+{
+	RECT rect;
+
+	if (!GetClientRect (hwnd, &rect))
+		return FALSE;
+
+	_r_wnd_setrectangle (
+		rectangle,
+		0,
+		0,
+		rect.right,
+		rect.bottom
+	);
+
+	return TRUE;
+}
+
+_Success_ (return)
+BOOLEAN _r_wnd_getposition (
+	_In_ HWND hwnd,
+	_Out_ PR_RECTANGLE rectangle
+)
+{
+	RECT rect;
+
+	if (!GetWindowRect (hwnd, &rect))
+		return FALSE;
+
+	_r_wnd_recttorectangle (rectangle, &rect);
+
+	return TRUE;
+}
+
 VOID _r_wnd_setposition (
 	_In_ HWND hwnd,
 	_In_opt_ PR_SIZE position,
@@ -11606,44 +11673,6 @@ VOID _r_wnd_toggle (
 	{
 		ShowWindow (hwnd, SW_HIDE);
 	}
-}
-
-_Success_ (return)
-BOOLEAN _r_wnd_getclientsize (
-	_In_ HWND hwnd,
-	_Out_ PR_RECTANGLE rectangle
-)
-{
-	RECT rect;
-
-	if (!GetClientRect (hwnd, &rect))
-		return FALSE;
-
-	_r_wnd_setrectangle (
-		rectangle,
-		0,
-		0,
-		rect.right,
-		rect.bottom
-	);
-
-	return TRUE;
-}
-
-_Success_ (return)
-BOOLEAN _r_wnd_getposition (
-	_In_ HWND hwnd,
-	_Out_ PR_RECTANGLE rectangle
-)
-{
-	RECT rect;
-
-	if (!GetWindowRect (hwnd, &rect))
-		return FALSE;
-
-	_r_wnd_recttorectangle (rectangle, &rect);
-
-	return TRUE;
 }
 
 //
@@ -12014,7 +12043,7 @@ ULONG _r_inet_querystatuscode (
 VOID _r_inet_initializedownload_ex (
 	_Out_ PR_DOWNLOAD_INFO download_info,
 	_In_opt_ HANDLE hfile,
-	_In_opt_ PR_INET_DOWNLOAD_FUNCTION download_callback,
+	_In_opt_ PR_INET_DOWNLOAD_CALLBACK download_callback,
 	_In_opt_ PVOID lparam
 )
 {
@@ -12183,7 +12212,7 @@ ULONG _r_inet_queryurlparts (
 
 	length = 256;
 
-	if ((flags & PR_URLPARTS_HOST))
+	if (flags & PR_URLPARTS_HOST)
 	{
 		url_parts->host = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
@@ -12191,7 +12220,7 @@ ULONG _r_inet_queryurlparts (
 		url_comp.dwHostNameLength = length;
 	}
 
-	if ((flags & PR_URLPARTS_PATH))
+	if (flags & PR_URLPARTS_PATH)
 	{
 		url_parts->path = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
@@ -12199,7 +12228,7 @@ ULONG _r_inet_queryurlparts (
 		url_comp.dwUrlPathLength = length;
 	}
 
-	if ((flags & PR_URLPARTS_USER))
+	if (flags & PR_URLPARTS_USER)
 	{
 		url_parts->user = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
@@ -12207,7 +12236,7 @@ ULONG _r_inet_queryurlparts (
 		url_comp.dwUserNameLength = length;
 	}
 
-	if ((flags & PR_URLPARTS_PASS))
+	if (flags & PR_URLPARTS_PASS)
 	{
 		url_parts->pass = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
@@ -12231,22 +12260,22 @@ ULONG _r_inet_queryurlparts (
 		return status;
 	}
 
-	if ((flags & PR_URLPARTS_SCHEME))
+	if (flags & PR_URLPARTS_SCHEME)
 		url_parts->scheme = url_comp.nScheme;
 
-	if ((flags & PR_URLPARTS_PORT))
+	if (flags & PR_URLPARTS_PORT)
 		url_parts->port = url_comp.nPort;
 
-	if ((flags & PR_URLPARTS_HOST))
+	if (flags & PR_URLPARTS_HOST)
 		_r_obj_trimstringtonullterminator (url_parts->host);
 
-	if ((flags & PR_URLPARTS_PATH))
+	if (flags & PR_URLPARTS_PATH)
 		_r_obj_trimstringtonullterminator (url_parts->path);
 
-	if ((flags & PR_URLPARTS_USER))
+	if (flags & PR_URLPARTS_USER)
 		_r_obj_trimstringtonullterminator (url_parts->user);
 
-	if ((flags & PR_URLPARTS_PASS))
+	if (flags & PR_URLPARTS_PASS)
 		_r_obj_trimstringtonullterminator (url_parts->pass);
 
 	return ERROR_SUCCESS;
@@ -12715,10 +12744,7 @@ NTSTATUS _r_crypt_generatekey (
 	//if (nonce->length > context->block_length)
 	//	return STATUS_INVALID_PARAMETER_3;
 
-	RtlSecureZeroMemory (
-		crypt_context->object_data->buffer,
-		crypt_context->object_data->length
-	);
+	RtlSecureZeroMemory (crypt_context->object_data->buffer, crypt_context->object_data->length);
 
 	status = BCryptGenerateSymmetricKey (
 		crypt_context->alg_handle,
@@ -13932,11 +13958,7 @@ VOID _r_tray_initialize (
 	nid->hWnd = hwnd;
 	nid->uID = guid->Data2;
 
-	RtlCopyMemory (
-		&nid->guidItem,
-		guid,
-		sizeof (GUID)
-	);
+	RtlCopyMemory (&nid->guidItem, guid, sizeof (GUID));
 
 	// The path of the binary file is included in the registration of the icon's GUID and cannot be changed.
 	// Settings associated with the icon are preserved through an upgrade only if the file path and GUID are
@@ -13960,11 +13982,7 @@ VOID _r_tray_initialize (
 	{
 		nid->uFlags |= NIF_GUID;
 
-		RtlCopyMemory (
-			&nid->guidItem,
-			guid,
-			sizeof (GUID)
-		);
+		RtlCopyMemory (&nid->guidItem, guid, sizeof (GUID));
 
 		nid->guidItem.Data1 = current_code; // HACK!!!
 	}
@@ -15865,13 +15883,9 @@ VOID _r_util_templatewrite_ex (
 	_In_ SIZE_T size
 )
 {
-	RtlCopyMemory (
-		*ptr,
-		data,
-		size
-	);
+	RtlCopyMemory (*ptr, data, size);
 
-	*ptr += size;
+	*ptr = PTR_ADD_OFFSET (*ptr, size);
 }
 
 VOID _r_util_templatewritecontrol (
@@ -15943,7 +15957,8 @@ VOID NTAPI _r_util_dereferencearray_proc (
 
 	array_node->allocated_count = 0;
 
-	SAFE_DELETE_MEMORY (array_node->items);
+	if (array_node->items)
+		_r_mem_free (array_node->items);
 }
 
 VOID NTAPI _r_util_dereferencelist_proc (
@@ -15958,7 +15973,8 @@ VOID NTAPI _r_util_dereferencelist_proc (
 
 	list_node->allocated_count = 0;
 
-	SAFE_DELETE_MEMORY (list_node->items);
+	if (list_node->items)
+		_r_mem_free (list_node->items);
 }
 
 VOID NTAPI _r_util_dereferencehashtable_proc (
@@ -15974,8 +15990,11 @@ VOID NTAPI _r_util_dereferencehashtable_proc (
 	hashtable->allocated_buckets = 0;
 	hashtable->allocated_entries = 0;
 
-	SAFE_DELETE_MEMORY (hashtable->buckets);
-	SAFE_DELETE_MEMORY (hashtable->entries);
+	if (hashtable->buckets)
+		_r_mem_free (hashtable->buckets);
+
+	if (hashtable->entries)
+		_r_mem_free (hashtable->entries);
 }
 
 VOID NTAPI _r_util_dereferencehashtable_ptr_proc (
@@ -15986,5 +16005,6 @@ VOID NTAPI _r_util_dereferencehashtable_ptr_proc (
 
 	object_ptr = entry;
 
-	SAFE_DELETE_REFERENCE (object_ptr->object_body);
+	if (object_ptr->object_body)
+		_r_obj_dereference (object_ptr->object_body);
 }

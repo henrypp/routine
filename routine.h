@@ -859,7 +859,7 @@ BOOLEAN _r_mem_frobnicate (
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_obj_allocate (
 	_In_ SIZE_T bytes_count,
-	_In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback
+	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 );
 
 PVOID NTAPI _r_obj_reference (
@@ -1522,29 +1522,23 @@ FORCEINLINE PR_STRING _r_obj_finalstringbuilder (
 PR_ARRAY _r_obj_createarray_ex (
 	_In_ SIZE_T item_size,
 	_In_ SIZE_T initial_capacity,
-	_In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback
+	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 );
 
-_Ret_maybenull_
-PVOID _r_obj_getarrayitem (
-	_In_opt_ PR_ARRAY array_node,
-	_In_ SIZE_T index
+PR_ARRAY _r_obj_createarray (
+	_In_ SIZE_T item_size,
+	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 );
 
-VOID _r_obj_cleararray (
-	_Inout_ PR_ARRAY array_node
-);
-
-VOID _r_obj_resizearray (
-	_Inout_ PR_ARRAY array_node,
-	_In_ SIZE_T new_capacity
-);
-
-_Ret_maybenull_
 PVOID _r_obj_addarrayitem_ex (
 	_Inout_ PR_ARRAY array_node,
 	_In_opt_ LPCVOID array_item,
 	_Out_opt_ PSIZE_T new_index_ptr
+);
+
+PVOID _r_obj_addarrayitem (
+	_Inout_ PR_ARRAY array_node,
+	_In_opt_ LPCVOID array_item
 );
 
 VOID _r_obj_addarrayitems (
@@ -1553,57 +1547,36 @@ VOID _r_obj_addarrayitems (
 	_In_ SIZE_T count
 );
 
+VOID _r_obj_cleararray (
+	_Inout_ PR_ARRAY array_node
+);
+
+PVOID _r_obj_getarrayitem (
+	_In_ PR_ARRAY array_node,
+	_In_ SIZE_T index
+);
+
+VOID _r_obj_removearrayitem (
+	_In_ PR_ARRAY array_node,
+	_In_ SIZE_T index
+);
+
 VOID _r_obj_removearrayitems (
 	_Inout_ PR_ARRAY array_node,
 	_In_ SIZE_T start_pos,
 	_In_ SIZE_T count
 );
 
-_Ret_maybenull_
-FORCEINLINE PVOID _r_obj_addarrayitem (
+VOID _r_obj_resizearray (
 	_Inout_ PR_ARRAY array_node,
-	_In_opt_ LPCVOID array_item
-)
-{
-	return _r_obj_addarrayitem_ex (array_node, array_item, NULL);
-}
-
-FORCEINLINE PR_ARRAY _r_obj_createarray (
-	_In_ SIZE_T item_size,
-	_In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback
-)
-{
-	return _r_obj_createarray_ex (item_size, 2, cleanup_callback);
-}
-
-_Ret_maybenull_
-FORCEINLINE PVOID _r_obj_getarrayitem (
-	_In_opt_ PR_ARRAY array_node,
-	_In_ SIZE_T index
-)
-{
-	if (array_node)
-		return PTR_ADD_OFFSET (array_node->items, index * array_node->item_size);
-
-	return NULL;
-}
+	_In_ SIZE_T new_capacity
+);
 
 FORCEINLINE SIZE_T _r_obj_getarraysize (
-	_In_opt_ PR_ARRAY array_node
+	_In_ PR_ARRAY array_node
 )
 {
-	if (array_node)
-		return array_node->count;
-
-	return 0;
-}
-
-FORCEINLINE VOID _r_obj_removearrayitem (
-	_In_ PR_ARRAY array_node,
-	_In_ SIZE_T index
-)
-{
-	_r_obj_removearrayitems (array_node, index, 1);
+	return array_node->count;
 }
 
 //
@@ -1618,14 +1591,22 @@ FORCEINLINE VOID _r_obj_removearrayitem (
 
 PR_LIST _r_obj_createlist_ex (
 	_In_ SIZE_T initial_capacity,
-	_In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback
+	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 );
 
-_Ret_maybenull_
-PVOID _r_obj_addlistitem_ex (
+PR_LIST _r_obj_createlist (
+	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
+);
+
+VOID _r_obj_addlistitem_ex (
 	_Inout_ PR_LIST list_node,
 	_In_opt_ PVOID list_item,
 	_Out_opt_ PSIZE_T new_index_ptr
+);
+
+VOID _r_obj_addlistitem (
+	_Inout_ PR_LIST list_node,
+	_In_opt_ PVOID list_item
 );
 
 VOID _r_obj_clearlist (
@@ -1643,6 +1624,11 @@ VOID _r_obj_insertlistitems (
 	_In_ SIZE_T start_pos,
 	_In_ PVOID_PTR list_items,
 	_In_ SIZE_T count
+);
+
+VOID _r_obj_removelistitem (
+	_Inout_ PR_LIST list_node,
+	_In_ SIZE_T index
 );
 
 VOID _r_obj_removelistitems (
@@ -1663,49 +1649,19 @@ VOID _r_obj_setlistitem (
 );
 
 _Ret_maybenull_
-FORCEINLINE PVOID _r_obj_addlistitem (
-	_Inout_ PR_LIST list_node,
-	_In_opt_ PVOID list_item
-)
-{
-	return _r_obj_addlistitem_ex (list_node, list_item, NULL);
-}
-
-FORCEINLINE PR_LIST _r_obj_createlist (
-	_In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback
-)
-{
-	return _r_obj_createlist_ex (2, cleanup_callback);
-}
-
-_Ret_maybenull_
 FORCEINLINE PVOID _r_obj_getlistitem (
-	_In_opt_ PR_LIST list_node,
+	_In_ PR_LIST list_node,
 	_In_ SIZE_T index
 )
 {
-	if (list_node)
-		return list_node->items[index];
-
-	return NULL;
+	return list_node->items[index];
 }
 
 FORCEINLINE SIZE_T _r_obj_getlistsize (
-	_In_opt_ PR_LIST list_node
+	_In_ PR_LIST list_node
 )
 {
-	if (list_node)
-		return list_node->count;
-
-	return 0;
-}
-
-FORCEINLINE VOID _r_obj_removelistitem (
-	_Inout_ PR_LIST list_node,
-	_In_ SIZE_T index
-)
-{
-	_r_obj_removelistitems (list_node, index, 1);
+	return list_node->count;
 }
 
 //
@@ -1719,10 +1675,30 @@ FORCEINLINE VOID _r_obj_removelistitem (
 #define _r_obj_ishashtableempty(hashtable) \
     ((hashtable) == NULL || (hashtable)->count == 0)
 
+FORCEINLINE ULONG _r_obj_validatehash (
+	_In_ ULONG_PTR hash_code
+)
+{
+	return hash_code & MAXLONG;
+}
+
+FORCEINLINE SIZE_T _r_obj_indexfromhash (
+	_In_ PR_HASHTABLE hashtable,
+	_In_ ULONG hash_code
+)
+{
+	return hash_code & (hashtable->allocated_buckets - 1);
+}
+
 PR_HASHTABLE _r_obj_createhashtable_ex (
 	_In_ SIZE_T entry_size,
 	_In_ SIZE_T initial_capacity,
-	_In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback
+	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
+);
+
+PR_HASHTABLE _r_obj_createhashtable (
+	_In_ SIZE_T entry_size,
+	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 );
 
 _Ret_maybenull_
@@ -1766,22 +1742,11 @@ VOID _r_obj_resizehashtable (
 	_In_ SIZE_T new_capacity
 );
 
-FORCEINLINE PR_HASHTABLE _r_obj_createhashtable (
-	_In_ SIZE_T entry_size,
-	_In_opt_ PR_OBJECT_CLEANUP_FUNCTION cleanup_callback
-)
-{
-	return _r_obj_createhashtable_ex (entry_size, 2, cleanup_callback);
-}
-
 FORCEINLINE SIZE_T _r_obj_gethashtablesize (
-	_In_opt_ PR_HASHTABLE hashtable
+	_In_ PR_HASHTABLE hashtable
 )
 {
-	if (hashtable)
-		return hashtable->count;
-
-	return 0;
+	return hashtable->count;
 }
 
 //
@@ -3683,17 +3648,6 @@ BOOLEAN _r_wnd_isundercursor (
 	_In_ HWND hwnd
 );
 
-VOID _r_wnd_setposition (
-	_In_ HWND hwnd,
-	_In_opt_ PR_SIZE position,
-	_In_opt_ PR_SIZE size
-);
-
-VOID _r_wnd_toggle (
-	_In_ HWND hwnd,
-	_In_ BOOLEAN is_show
-);
-
 _Success_ (return)
 BOOLEAN _r_wnd_getclientsize (
 	_In_ HWND hwnd,
@@ -3704,6 +3658,17 @@ _Success_ (return)
 BOOLEAN _r_wnd_getposition (
 	_In_ HWND hwnd,
 	_Out_ PR_RECTANGLE rectangle
+);
+
+VOID _r_wnd_setposition (
+	_In_ HWND hwnd,
+	_In_opt_ PR_SIZE position,
+	_In_opt_ PR_SIZE size
+);
+
+VOID _r_wnd_toggle (
+	_In_ HWND hwnd,
+	_In_ BOOLEAN is_show
 );
 
 FORCEINLINE LONG_PTR _r_wnd_getstyle (
@@ -3932,7 +3897,7 @@ ULONG _r_inet_querystatuscode (
 VOID _r_inet_initializedownload_ex (
 	_Out_ PR_DOWNLOAD_INFO download_info,
 	_In_opt_ HANDLE hfile,
-	_In_opt_ PR_INET_DOWNLOAD_FUNCTION download_callback,
+	_In_opt_ PR_INET_DOWNLOAD_CALLBACK download_callback,
 	_In_opt_ PVOID lparam
 );
 
