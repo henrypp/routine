@@ -3879,7 +3879,7 @@ BOOLEAN _r_inet_readrequest (
 	_In_ HINTERNET hrequest,
 	_Out_writes_bytes_ (buffer_size) PVOID buffer,
 	_In_ ULONG buffer_size,
-	_Out_opt_ PULONG readed_ptr,
+	_Out_ PULONG readed_ptr,
 	_Inout_opt_ PULONG total_readed_ptr
 );
 

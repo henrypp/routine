@@ -153,7 +153,7 @@ PR_STRING _r_format_string_v (
 
 #pragma warning(push)
 #pragma warning(disable: 4996)
-	_vsnwprintf (string->buffer,length,format,arg_ptr);
+	_vsnwprintf (string->buffer, length, format, arg_ptr);
 #pragma warning(pop)
 
 	return string;
@@ -5913,7 +5913,7 @@ BOOLEAN _r_str_printf_v (
 
 #pragma warning(push)
 #pragma warning(disable: 4996)
-	format_size = _vsnwprintf (buffer,max_length,format,arg_ptr);
+	format_size = _vsnwprintf (buffer, max_length, format, arg_ptr);
 #pragma warning(pop)
 
 	if (format_size == -1 || (SIZE_T)format_size >= max_length)
@@ -11682,13 +11682,7 @@ HINTERNET _r_inet_createsession (
 		access_type = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
 	}
 
-	hsession = WinHttpOpen (
-		_r_obj_getstring (useragent),
-		access_type,
-		WINHTTP_NO_PROXY_NAME,
-		WINHTTP_NO_PROXY_BYPASS,
-		0
-	);
+	hsession = WinHttpOpen (_r_obj_getstring (useragent), access_type, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
 
 	if (!hsession)
 		return NULL;
@@ -11760,7 +11754,7 @@ ULONG _r_inet_openurl (
 	HINTERNET hrequest;
 	ULONG attempts;
 	ULONG flags;
-	ULONG code;
+	ULONG status;
 	BOOL result;
 
 	*hconnect_ptr = NULL;
@@ -11769,25 +11763,16 @@ ULONG _r_inet_openurl (
 	if (total_length_ptr)
 		*total_length_ptr = 0;
 
-	code = _r_inet_queryurlparts (
-		url,
-		PR_URLPARTS_SCHEME | PR_URLPARTS_HOST | PR_URLPARTS_PORT | PR_URLPARTS_PATH,
-		&url_parts
-	);
+	status = _r_inet_queryurlparts (url, PR_URLPARTS_SCHEME | PR_URLPARTS_HOST | PR_URLPARTS_PORT | PR_URLPARTS_PATH, &url_parts);
 
-	if (code != ERROR_SUCCESS)
+	if (status != ERROR_SUCCESS)
 		goto CleanupExit;
 
-	hconnect = WinHttpConnect (
-		hsession,
-		url_parts.host->buffer,
-		url_parts.port,
-		0
-	);
+	hconnect = WinHttpConnect (hsession, url_parts.host->buffer, url_parts.port, 0);
 
 	if (!hconnect)
 	{
-		code = GetLastError ();
+		status = GetLastError ();
 
 		goto CleanupExit;
 	}
@@ -11809,7 +11794,7 @@ ULONG _r_inet_openurl (
 
 	if (!hrequest)
 	{
-		code = GetLastError ();
+		status = GetLastError ();
 
 		_r_inet_close (hconnect);
 
@@ -11845,17 +11830,14 @@ ULONG _r_inet_openurl (
 
 		if (!result)
 		{
-			code = GetLastError ();
+			status = GetLastError ();
 
-			if (code == ERROR_WINHTTP_RESEND_REQUEST)
+			if (status == ERROR_WINHTTP_RESEND_REQUEST)
 			{
 				continue;
 			}
-			else if (code == ERROR_WINHTTP_NAME_NOT_RESOLVED || code == ERROR_NOT_ENOUGH_MEMORY)
-			{
-				break;
-			}
-			else if (code == ERROR_WINHTTP_CONNECTION_ERROR)
+
+			else if (status == ERROR_WINHTTP_CONNECTION_ERROR)
 			{
 				result = WinHttpSetOption (
 					hsession,
@@ -11868,7 +11850,7 @@ ULONG _r_inet_openurl (
 				if (!result)
 					break;
 			}
-			else if (code == ERROR_WINHTTP_SECURE_FAILURE)
+			else if (status == ERROR_WINHTTP_SECURE_FAILURE)
 			{
 				result = WinHttpSetOption (
 					hrequest,
@@ -11882,27 +11864,31 @@ ULONG _r_inet_openurl (
 			}
 			else
 			{
-				break; // ERROR_WINHTTP_CANNOT_CONNECT etc.
+				// ERROR_WINHTTP_NAME_NOT_RESOLVED, ERROR_NOT_ENOUGH_MEMORY, ERROR_WINHTTP_CANNOT_CONNECT etc.
+				break;
 			}
 		}
 		else
 		{
 			if (!WinHttpReceiveResponse (hrequest, NULL))
 			{
-				code = GetLastError ();
+				status = GetLastError ();
 			}
 			else
 			{
-				if (_r_inet_querystatuscode (hrequest) == HTTP_STATUS_OK)
+				if (_r_inet_querystatuscode (hrequest) != HTTP_STATUS_OK)
 				{
-					if (total_length_ptr)
-						*total_length_ptr = _r_inet_querycontentlength (hrequest);
-
-					*hconnect_ptr = hconnect;
-					*hrequest_ptr = hrequest;
-
-					code = ERROR_SUCCESS;
+					status = ERROR_WINHTTP_CANNOT_CONNECT;
+					break;
 				}
+
+				if (total_length_ptr)
+					*total_length_ptr = _r_inet_querycontentlength (hrequest);
+
+				*hconnect_ptr = hconnect;
+				*hrequest_ptr = hrequest;
+
+				status = ERROR_SUCCESS;
 
 				goto CleanupExit;
 			}
@@ -11917,7 +11903,7 @@ CleanupExit:
 
 	_r_inet_destroyurlparts (&url_parts);
 
-	return code;
+	return status;
 }
 
 _Success_ (return)
@@ -11925,31 +11911,30 @@ BOOLEAN _r_inet_readrequest (
 	_In_ HINTERNET hrequest,
 	_Out_writes_bytes_ (buffer_size) PVOID buffer,
 	_In_ ULONG buffer_size,
-	_Out_opt_ PULONG readed_ptr,
+	_Out_ PULONG readed_ptr,
 	_Inout_opt_ PULONG total_readed_ptr
 )
 {
-	ULONG bytes_count;
-	BOOL result;
+	ULONG readed;
 
-	result = WinHttpReadData (
-		hrequest,
-		buffer,
-		buffer_size,
-		&bytes_count
-	);
+	if (!WinHttpReadData (hrequest, buffer, buffer_size, &readed))
+	{
+		*readed_ptr = 0;
 
-	if (!result)
 		return FALSE;
+	}
 
-	if (!bytes_count)
+	if (!readed)
+	{
+		*readed_ptr = 0;
+
 		return FALSE;
+	}
 
-	if (readed_ptr)
-		*readed_ptr = bytes_count;
+	*readed_ptr = readed;
 
 	if (total_readed_ptr)
-		*total_readed_ptr += bytes_count;
+		*total_readed_ptr += readed;
 
 	return TRUE;
 }
@@ -12055,7 +12040,7 @@ ULONG _r_inet_begindownload (
 	_Inout_ PR_DOWNLOAD_INFO download_info
 )
 {
-	R_STRINGBUILDER builder;
+	R_STRINGBUILDER sb;
 	HINTERNET hconnect;
 	HINTERNET hrequest;
 	PR_STRING string;
@@ -12065,21 +12050,15 @@ ULONG _r_inet_begindownload (
 	ULONG total_length;
 	ULONG readed_length;
 	ULONG unused;
-	ULONG code;
+	LONG status;
 
-	code = _r_inet_openurl (
-		hsession,
-		url,
-		&hconnect,
-		&hrequest,
-		&total_length
-	);
+	status = _r_inet_openurl (hsession, url, &hconnect, &hrequest, &total_length);
 
-	if (code != ERROR_SUCCESS)
-		return code;
+	if (status != ERROR_SUCCESS)
+		return status;
 
 	if (!download_info->is_savetofile)
-		_r_obj_initializestringbuilder (&builder);
+		_r_obj_initializestringbuilder (&sb);
 
 	allocated_length = PR_SIZE_INET_READ_BUFFER;
 	content_bytes = _r_obj_createbyte_ex (NULL, allocated_length);
@@ -12100,41 +12079,33 @@ ULONG _r_inet_begindownload (
 
 		if (download_info->is_savetofile)
 		{
-			if (!WriteFile (
-				download_info->u.hfile,
-				content_bytes->buffer,
-				readed_length,
-				&unused,
-				NULL
-				))
+			if (!WriteFile (download_info->u.hfile, content_bytes->buffer, readed_length, &unused, NULL))
 			{
-				code = GetLastError ();
+				status = GetLastError ();
 				break;
 			}
 		}
 		else
 		{
-			if (_r_str_multibyte2unicode (&content_bytes->sr, &string) == STATUS_SUCCESS)
+			status = _r_str_multibyte2unicode (&content_bytes->sr, &string);
+
+			if (status == STATUS_SUCCESS)
 			{
-				_r_obj_appendstringbuilder2 (&builder, string);
+				_r_obj_appendstringbuilder2 (&sb, string);
 				_r_obj_dereference (string);
 			}
 			else
 			{
-				code = ERROR_CANCELLED;
+				status = RtlNtStatusToDosError (status);
 				break;
 			}
 		}
 
 		if (download_info->download_callback)
 		{
-			if (!download_info->download_callback (
-				total_readed,
-				max (total_readed, total_length),
-				download_info->lparam
-				))
+			if (!download_info->download_callback (total_readed, max (total_readed, total_length), download_info->lparam))
 			{
-				code = ERROR_CANCELLED;
+				status = ERROR_CANCELLED;
 				break;
 			}
 		}
@@ -12142,15 +12113,15 @@ ULONG _r_inet_begindownload (
 
 	if (!download_info->is_savetofile)
 	{
-		if (code == ERROR_SUCCESS)
+		if (status == ERROR_SUCCESS)
 		{
-			string = _r_obj_finalstringbuilder (&builder);
+			string = _r_obj_finalstringbuilder (&sb);
 
 			download_info->u.string = string;
 		}
 		else
 		{
-			_r_obj_deletestringbuilder (&builder);
+			_r_obj_deletestringbuilder (&sb);
 
 			download_info->u.string = NULL;
 		}
@@ -12163,7 +12134,7 @@ ULONG _r_inet_begindownload (
 	_r_inet_close (hrequest);
 	_r_inet_close (hconnect);
 
-	return code;
+	return status;
 }
 
 VOID _r_inet_destroydownload (
@@ -12190,7 +12161,6 @@ ULONG _r_inet_queryurlparts (
 	URL_COMPONENTS url_comp = {0};
 	ULONG length;
 	ULONG status;
-	BOOL result;
 
 	url_comp.dwStructSize = sizeof (url_comp);
 
@@ -12230,14 +12200,7 @@ ULONG _r_inet_queryurlparts (
 		url_comp.dwPasswordLength = length;
 	}
 
-	result = WinHttpCrackUrl (
-		url->buffer,
-		(ULONG)_r_str_getlength2 (url),
-		ICU_DECODE,
-		&url_comp
-	);
-
-	if (!result)
+	if (!WinHttpCrackUrl (url->buffer, (ULONG)_r_str_getlength2 (url), ICU_DECODE, &url_comp))
 	{
 		status = GetLastError ();
 
