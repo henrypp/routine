@@ -3652,8 +3652,7 @@ VOID _r_show_errormessage (
 			{
 				path = _r_app_getcrashdirectory ();
 
-				if (path)
-					_r_shell_opendefault (path);
+				_r_shell_opendefault (path);
 			}
 			else if (command_id == IDNO)
 			{

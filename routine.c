@@ -153,14 +153,7 @@ PR_STRING _r_format_string_v (
 
 #pragma warning(push)
 #pragma warning(disable: 4996)
-
-	_vsnwprintf (
-		string->buffer,
-		length,
-		format,
-		arg_ptr
-	);
-
+	_vsnwprintf (string->buffer,length,format,arg_ptr);
 #pragma warning(pop)
 
 	return string;
@@ -5920,14 +5913,7 @@ BOOLEAN _r_str_printf_v (
 
 #pragma warning(push)
 #pragma warning(disable: 4996)
-
-	format_size = _vsnwprintf (
-		buffer,
-		max_length,
-		format,
-		arg_ptr
-	);
-
+	format_size = _vsnwprintf (buffer,max_length,format,arg_ptr);
 #pragma warning(pop)
 
 	if (format_size == -1 || (SIZE_T)format_size >= max_length)
