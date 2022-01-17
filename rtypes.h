@@ -214,7 +214,7 @@ typedef struct _R_ERROR_INFO
 } R_ERROR_INFO, *PR_ERROR_INFO;
 
 //
-// Synchronization: Event
+// Synchronization: A fast event object.
 //
 
 typedef struct _R_EVENT

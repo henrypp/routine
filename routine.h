@@ -285,7 +285,7 @@ VOID _r_autopool_drain (
 );
 
 //
-// Synchronization: Event
+// Synchronization: A fast event object.
 //
 
 VOID FASTCALL _r_event_set (
@@ -294,6 +294,11 @@ VOID FASTCALL _r_event_set (
 
 VOID FASTCALL _r_event_reset (
 	_Inout_ PR_EVENT event_object
+);
+
+BOOLEAN FASTCALL _r_event_wait (
+	_Inout_ PR_EVENT event_object,
+	_In_opt_ PLARGE_INTEGER timeout
 );
 
 BOOLEAN FASTCALL _r_event_wait_ex (
@@ -320,10 +325,7 @@ FORCEINLINE VOID _r_event_reference (
 	_Inout_ PR_EVENT event_object
 )
 {
-	InterlockedExchangeAddPointer (
-		(PLONG_PTR)(&event_object->value),
-		PR_EVENT_REFCOUNT_INC
-	);
+	InterlockedExchangeAddPointer ((PLONG_PTR)(&event_object->value), PR_EVENT_REFCOUNT_INC);
 }
 
 FORCEINLINE VOID _r_event_dereference (
@@ -333,31 +335,17 @@ FORCEINLINE VOID _r_event_dereference (
 {
 	ULONG_PTR value;
 
-	value = InterlockedExchangeAddPointer (
-		(PLONG_PTR)(&event_object->value),
-		-PR_EVENT_REFCOUNT_INC
-	);
+	value = InterlockedExchangeAddPointer ((PLONG_PTR)(&event_object->value), -PR_EVENT_REFCOUNT_INC);
 
+	// See if the reference count has become 0.
 	if (((value >> PR_EVENT_REFCOUNT_SHIFT) & PR_EVENT_REFCOUNT_MASK) - 1 == 0)
 	{
 		if (event_handle)
 		{
 			NtClose (event_handle);
-
 			event_object->event_handle = NULL;
 		}
 	}
-}
-
-FORCEINLINE BOOLEAN _r_event_wait (
-	_Inout_ PR_EVENT event_object,
-	_In_opt_ PLARGE_INTEGER timeout
-)
-{
-	if (_r_event_test (event_object))
-		return TRUE;
-
-	return _r_event_wait_ex (event_object, timeout);
 }
 
 //
@@ -2044,6 +2032,13 @@ FORCEINLINE LONG _r_calc_seconds2milliseconds (
 	return seconds * 1000L;
 }
 
+FORCEINLINE LONG64 _r_calc_seconds2milliseconds64 (
+	_In_ LONG64 seconds
+)
+{
+	return seconds * 1000LL;
+}
+
 FORCEINLINE LONG _r_calc_minutes2seconds (
 	_In_ LONG minutes
 )
@@ -2102,8 +2097,7 @@ HRESULT CALLBACK _r_msg_callback (
 	_In_opt_ LONG_PTR lpdata
 );
 
-#if !defined(APP_NO_DEPRECATIONS)
-// vista+ TaskDialogIndirect
+// TaskDialogIndirect (vista+)
 _Success_ (return)
 BOOLEAN _r_msg_taskdialog (
 	_In_ const TASKDIALOGCONFIG * task_dialog,
@@ -2111,18 +2105,6 @@ BOOLEAN _r_msg_taskdialog (
 	_Out_opt_ PINT radio_button,
 	_Out_opt_ LPBOOL is_flagchecked
 );
-#else
-_Success_ (return)
-FORCEINLINE BOOLEAN _r_msg_taskdialog (
-	_In_ const TASKDIALOGCONFIG * task_dialog,
-	_Out_opt_ PINT button,
-	_Out_opt_ PINT radio_button,
-	_Out_opt_ LPBOOL is_flagchecked
-)
-{
-	return (TaskDialogIndirect (task_dialog, button, radio_button, is_flagchecked) == S_OK);
-}
-#endif // APP_NO_DEPRECATIONS
 
 //
 // Clipboard operations
@@ -4448,7 +4430,7 @@ VOID _r_ctrl_enable (
 LONG64 _r_ctrl_getinteger (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
-	_Out_opt_ PULONG base
+	_Out_opt_ PULONG base_ptr
 );
 
 _Ret_maybenull_
