@@ -1,7 +1,7 @@
 // routine.c
 // project sdk library
 //
-// Copyright (c) 2012-2021 Henry++
+// Copyright (c) 2012-2022 Henry++
 
 #include "routine.h"
 
