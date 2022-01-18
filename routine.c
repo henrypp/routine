@@ -632,7 +632,23 @@ BOOLEAN FASTCALL _r_event_wait_ex (
 // Synchronization: One-time initialization
 //
 
-#if !defined(APP_NO_DEPRECATIONS)
+#if defined(APP_NO_DEPRECATIONS)
+BOOLEAN _r_initonce_begin (
+	_Inout_ PR_INITONCE init_once
+)
+{
+	NTSTATUS status;
+
+	status = RtlRunOnceBeginInitialize (init_once, RTL_RUN_ONCE_CHECK_ONLY, NULL);
+
+	if (NT_SUCCESS (status))
+		return FALSE;
+
+	status = RtlRunOnceBeginInitialize (init_once, 0, NULL);
+
+	return (status == STATUS_PENDING);
+}
+#else
 BOOLEAN FASTCALL _r_initonce_begin_ex (
 	_Inout_ PR_INITONCE init_once
 )
@@ -2221,7 +2237,7 @@ BOOLEAN _r_mem_frobnicate (
 //
 
 _Post_writable_byte_size_ (bytes_count)
-PVOID NTAPI _r_obj_allocate (
+PVOID _r_obj_allocate (
 	_In_ SIZE_T bytes_count,
 	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 )
@@ -2237,20 +2253,25 @@ PVOID NTAPI _r_obj_allocate (
 	return PR_OBJECT_HEADER_TO_OBJECT (object_header);
 }
 
-PVOID NTAPI _r_obj_reference (
+VOID _r_obj_dereference (
 	_In_ PVOID object_body
 )
 {
-	PR_OBJECT_HEADER object_header;
-
-	object_header = PR_OBJECT_TO_OBJECT_HEADER (object_body);
-
-	InterlockedIncrement (&object_header->ref_count);
-
-	return object_body;
+	_r_obj_dereference_ex (object_body, 1);
 }
 
-VOID NTAPI _r_obj_dereference_ex (
+VOID _r_obj_dereferencelist (
+	_In_reads_ (count) PVOID_PTR objects,
+	_In_ SIZE_T count
+)
+{
+	for (SIZE_T i = 0; i < count; i++)
+	{
+		_r_obj_dereference (objects[i]);
+	}
+}
+
+VOID _r_obj_dereference_ex (
 	_In_ PVOID object_body,
 	_In_ LONG ref_count
 )
@@ -2281,9 +2302,54 @@ VOID NTAPI _r_obj_dereference_ex (
 	}
 }
 
+PVOID _r_obj_reference (
+	_In_ PVOID object_body
+)
+{
+	PR_OBJECT_HEADER object_header;
+
+	object_header = PR_OBJECT_TO_OBJECT_HEADER (object_body);
+
+	InterlockedIncrement (&object_header->ref_count);
+
+	return object_body;
+}
+
+_Ret_maybenull_
+PVOID _r_obj_referencesafe (
+	_In_opt_ PVOID object_body
+)
+{
+	if (!object_body)
+		return NULL;
+
+	return _r_obj_reference (object_body);
+}
+
 //
 // 8-bit string object
 //
+
+PR_BYTE _r_obj_createbyte (
+	_In_ LPSTR string
+)
+{
+	return _r_obj_createbyte_ex (string, _r_str_getbytelength (string));
+}
+
+PR_BYTE _r_obj_createbyte2 (
+	_In_ PR_BYTE string
+)
+{
+	return _r_obj_createbyte_ex (string->buffer, string->length);
+}
+
+PR_BYTE _r_obj_createbyte3 (
+	_In_ PR_BYTEREF string
+)
+{
+	return _r_obj_createbyte_ex (string->buffer, string->length);
+}
 
 PR_BYTE _r_obj_createbyte_ex (
 	_In_opt_ LPCSTR buffer,
@@ -2329,6 +2395,34 @@ VOID _r_obj_setbytelength (
 //
 // 16-bit string object
 //
+
+PR_STRING _r_obj_createstring (
+	_In_ LPCWSTR string
+)
+{
+	return _r_obj_createstring_ex (string, _r_str_getlength (string) * sizeof (WCHAR));
+}
+
+PR_STRING _r_obj_createstring2 (
+	_In_ PR_STRING string
+)
+{
+	return _r_obj_createstring_ex (string->buffer, string->length);
+}
+
+PR_STRING _r_obj_createstring3 (
+	_In_ PR_STRINGREF string
+)
+{
+	return _r_obj_createstring_ex (string->buffer, string->length);
+}
+
+PR_STRING _r_obj_createstring4 (
+	_In_ PUNICODE_STRING string
+)
+{
+	return _r_obj_createstring_ex (string->Buffer, string->Length);
+}
 
 PR_STRING _r_obj_createstring_ex (
 	_In_opt_ LPCWSTR buffer,
@@ -2568,6 +2662,13 @@ VOID _r_obj_setstringlength (
 // String builder
 //
 
+VOID _r_obj_initializestringbuilder (
+	_Out_ PR_STRINGBUILDER builder
+)
+{
+	_r_obj_initializestringbuilder_ex (builder, 256 * sizeof (WCHAR));
+}
+
 VOID _r_obj_initializestringbuilder_ex (
 	_Out_ PR_STRINGBUILDER builder,
 	_In_ SIZE_T initial_capacity
@@ -2595,6 +2696,30 @@ VOID _r_obj_deletestringbuilder (
 	builder->allocated_length = 0;
 
 	SAFE_DELETE_REFERENCE (builder->string);
+}
+
+VOID _r_obj_appendstringbuilder (
+	_Inout_ PR_STRINGBUILDER builder,
+	_In_ LPCWSTR string
+)
+{
+	_r_obj_appendstringbuilder_ex (builder, string, _r_str_getlength (string) * sizeof (WCHAR));
+}
+
+VOID _r_obj_appendstringbuilder2 (
+	_Inout_ PR_STRINGBUILDER builder,
+	_In_ PR_STRING string
+)
+{
+	_r_obj_appendstringbuilder_ex (builder, string->buffer, string->length);
+}
+
+VOID _r_obj_appendstringbuilder3 (
+	_Inout_ PR_STRINGBUILDER builder,
+	_In_ PR_STRINGREF string
+)
+{
+	_r_obj_appendstringbuilder_ex (builder, string->buffer, string->length);
 }
 
 VOID _r_obj_appendstringbuilder_ex (
@@ -2666,6 +2791,33 @@ VOID _r_obj_appendstringbuilderformat_v (
 	_r_obj_writestringnullterminator (builder->string); // terminate
 }
 
+VOID _r_obj_insertstringbuilder (
+	_Inout_ PR_STRINGBUILDER builder,
+	_In_ SIZE_T index,
+	_In_ LPCWSTR string
+)
+{
+	_r_obj_insertstringbuilder_ex (builder, index, string, _r_str_getlength (string) * sizeof (WCHAR));
+}
+
+VOID _r_obj_insertstringbuilder2 (
+	_Inout_ PR_STRINGBUILDER builder,
+	_In_ SIZE_T index,
+	_In_ PR_STRING string
+)
+{
+	_r_obj_insertstringbuilder_ex (builder, index, string->buffer, string->length);
+}
+
+VOID _r_obj_insertstringbuilder3 (
+	_Inout_ PR_STRINGBUILDER builder,
+	_In_ SIZE_T index,
+	_In_ PR_STRINGREF string
+)
+{
+	_r_obj_insertstringbuilder_ex (builder, index, string->buffer, string->length);
+}
+
 VOID _r_obj_insertstringbuilder_ex (
 	_Inout_ PR_STRINGBUILDER builder,
 	_In_ SIZE_T index,
@@ -2697,6 +2849,20 @@ VOID _r_obj_insertstringbuilder_ex (
 	builder->string->length += length;
 
 	_r_obj_writestringnullterminator (builder->string); // terminate
+}
+
+VOID _r_obj_insertstringbuilderformat (
+	_Inout_ PR_STRINGBUILDER builder,
+	_In_ SIZE_T index,
+	_In_ _Printf_format_string_ LPCWSTR format,
+	...
+)
+{
+	va_list arg_ptr;
+
+	va_start (arg_ptr, format);
+	_r_obj_insertstringbuilderformat_v (builder, index, format, arg_ptr);
+	va_end (arg_ptr);
 }
 
 VOID _r_obj_insertstringbuilderformat_v (
@@ -11383,6 +11549,22 @@ VOID _r_wnd_toggle (
 	}
 }
 
+VOID _r_wnd_top (
+	_In_ HWND hwnd,
+	_In_ BOOLEAN is_enable
+)
+{
+	SetWindowPos (
+		hwnd,
+		is_enable ? HWND_TOPMOST : HWND_NOTOPMOST,
+		0,
+		0,
+		0,
+		0,
+		SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER
+	);
+}
+
 //
 // Inernet access (WinHTTP)
 //
@@ -14638,6 +14820,16 @@ INT _r_listview_addgroup (
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTGROUP, (WPARAM)group_id, (LPARAM)&lvg);
 }
 
+INT _r_listview_additem (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ INT item_id,
+	_In_ LPCWSTR text
+)
+{
+	return _r_listview_additem_ex (hwnd, ctrl_id, item_id, text, I_IMAGENONE, I_GROUPIDNONE, 0);
+}
+
 INT _r_listview_additem_ex (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
@@ -14958,6 +15150,17 @@ VOID _r_listview_setcolumnsortindex (
 	}
 
 	Header_SetItem (header, column_id, &hitem);
+}
+
+VOID _r_listview_setitem (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ INT item_id,
+	_In_ INT subitem_id,
+	_In_opt_ LPCWSTR text
+)
+{
+	_r_listview_setitem_ex (hwnd, ctrl_id, item_id, subitem_id, text, I_IMAGENONE, I_GROUPIDNONE, 0);
 }
 
 VOID _r_listview_setitem_ex (
