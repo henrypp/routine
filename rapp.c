@@ -2938,7 +2938,7 @@ VOID _r_update_check (
 	// on the www.github.com and www.henrypp.org webpages.
 
 #if !defined(APP_NO_DEPRECATIONS)
-	if (_r_sys_isosversionlowerorequal (WINDOWS_VISTA))
+	if (_r_sys_isosversionlowerorequal (WINDOWS_7))
 	{
 		if (hparent)
 			_r_show_message (hparent, MB_OK | MB_ICONWARNING, APP_SECURITY_TITLE, APP_WARNING_UPDATE_TEXT);
