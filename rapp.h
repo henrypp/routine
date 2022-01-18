@@ -22,10 +22,20 @@ DECLSPEC_SELECTANY APP_GLOBAL_CONFIG app_global = {0};
 
 VOID _r_config_initialize ();
 
+BOOLEAN _r_config_getboolean (
+	_In_ LPCWSTR key_name,
+	_In_ BOOLEAN def_value
+);
+
 BOOLEAN _r_config_getboolean_ex (
 	_In_ LPCWSTR key_name,
 	_In_opt_ BOOLEAN def_value,
 	_In_opt_ LPCWSTR section_name
+);
+
+LONG _r_config_getlong (
+	_In_ LPCWSTR key_name,
+	_In_ LONG def_value
 );
 
 LONG _r_config_getlong_ex (
@@ -34,10 +44,20 @@ LONG _r_config_getlong_ex (
 	_In_opt_ LPCWSTR section_name
 );
 
+LONG64 _r_config_getlong64 (
+	_In_ LPCWSTR key_name,
+	_In_ LONG64 def_value
+);
+
 LONG64 _r_config_getlong64_ex (
 	_In_ LPCWSTR key_name,
 	_In_opt_ LONG64 def_value,
 	_In_opt_ LPCWSTR section_name
+);
+
+ULONG _r_config_getulong (
+	_In_ LPCWSTR key_name,
+	_In_ ULONG def_value
 );
 
 ULONG _r_config_getulong_ex (
@@ -46,10 +66,21 @@ ULONG _r_config_getulong_ex (
 	_In_opt_ LPCWSTR section_name
 );
 
+ULONG64 _r_config_getulong64 (
+	_In_ LPCWSTR key_name,
+	_In_ ULONG64 def_value
+);
+
 ULONG64 _r_config_getulong64_ex (
 	_In_ LPCWSTR key_name,
 	_In_opt_ ULONG64 def_value,
 	_In_opt_ LPCWSTR section_name
+);
+
+VOID _r_config_getfont (
+	_In_ LPCWSTR key_name,
+	_Inout_ PLOGFONT logfont,
+	_In_ LONG dpi_value
 );
 
 VOID _r_config_getfont_ex (
@@ -67,10 +98,22 @@ VOID _r_config_getsize (
 );
 
 _Ret_maybenull_
+PR_STRING _r_config_getstringexpand (
+	_In_ LPCWSTR key_name,
+	_In_opt_ LPCWSTR def_value
+);
+
+_Ret_maybenull_
 PR_STRING _r_config_getstringexpand_ex (
 	_In_ LPCWSTR key_name,
 	_In_opt_ LPCWSTR def_value,
 	_In_opt_ LPCWSTR section_name
+);
+
+_Ret_maybenull_
+PR_STRING _r_config_getstring (
+	_In_ LPCWSTR key_name,
+	_In_opt_ LPCWSTR def_value
 );
 
 _Ret_maybenull_
@@ -80,77 +123,20 @@ PR_STRING _r_config_getstring_ex (
 	_In_opt_ LPCWSTR section_name
 );
 
-FORCEINLINE BOOLEAN _r_config_getboolean (
+VOID _r_config_setboolean (
 	_In_ LPCWSTR key_name,
-	_In_ BOOLEAN def_value
-)
-{
-	return _r_config_getboolean_ex (key_name, def_value, NULL);
-}
-
-FORCEINLINE LONG _r_config_getlong (
-	_In_ LPCWSTR key_name,
-	_In_ LONG def_value
-)
-{
-	return _r_config_getlong_ex (key_name, def_value, NULL);
-}
-
-FORCEINLINE LONG64 _r_config_getlong64 (
-	_In_ LPCWSTR key_name,
-	_In_ LONG64 def_value
-)
-{
-	return _r_config_getlong64_ex (key_name, def_value, NULL);
-}
-
-FORCEINLINE ULONG _r_config_getulong (
-	_In_ LPCWSTR key_name,
-	_In_ ULONG def_value
-)
-{
-	return _r_config_getulong_ex (key_name, def_value, NULL);
-}
-
-FORCEINLINE ULONG64 _r_config_getulong64 (
-	_In_ LPCWSTR key_name,
-	_In_ ULONG64 def_value
-)
-{
-	return _r_config_getulong64_ex (key_name, def_value, NULL);
-}
-
-FORCEINLINE VOID _r_config_getfont (
-	_In_ LPCWSTR key_name,
-	_Inout_ PLOGFONT logfont,
-	_In_ LONG dpi_value
-)
-{
-	_r_config_getfont_ex (key_name, logfont, dpi_value, NULL);
-}
-
-_Ret_maybenull_
-FORCEINLINE PR_STRING _r_config_getstringexpand (
-	_In_ LPCWSTR key_name,
-	_In_opt_ LPCWSTR def_value
-)
-{
-	return _r_config_getstringexpand_ex (key_name, def_value, NULL);
-}
-
-_Ret_maybenull_
-FORCEINLINE PR_STRING _r_config_getstring (
-	_In_ LPCWSTR key_name,
-	_In_opt_ LPCWSTR def_value
-)
-{
-	return _r_config_getstring_ex (key_name, def_value, NULL);
-}
+	_In_ BOOLEAN value
+);
 
 VOID _r_config_setboolean_ex (
 	_In_ LPCWSTR key_name,
 	_In_ BOOLEAN value,
 	_In_opt_ LPCWSTR section_name
+);
+
+VOID _r_config_setlong (
+	_In_ LPCWSTR key_name,
+	_In_ LONG value
 );
 
 VOID _r_config_setlong_ex (
@@ -159,21 +145,43 @@ VOID _r_config_setlong_ex (
 	_In_opt_ LPCWSTR section_name
 );
 
+VOID _r_config_setlong64 (
+	_In_ LPCWSTR key_name,
+	_In_ LONG64 value
+);
+
 VOID _r_config_setlong64_ex (
 	_In_ LPCWSTR key_name,
 	_In_ LONG64 value,
 	_In_opt_ LPCWSTR section_name
 );
+
+VOID _r_config_setulong (
+	_In_ LPCWSTR key_name,
+	_In_ ULONG value
+);
+
 VOID _r_config_setulong_ex (
 	_In_ LPCWSTR key_name,
 	_In_ ULONG value,
 	_In_opt_ LPCWSTR section_name
 );
 
+VOID _r_config_setulong64 (
+	_In_ LPCWSTR key_name,
+	_In_ ULONG64 value
+);
+
 VOID _r_config_setulong64_ex (
 	_In_ LPCWSTR key_name,
 	_In_ ULONG64 value,
 	_In_opt_ LPCWSTR section_name
+);
+
+VOID _r_config_setfont (
+	_In_ LPCWSTR key_name,
+	_In_ PLOGFONT logfont,
+	_In_ LONG dpi_value
 );
 
 VOID _r_config_setfont_ex (
@@ -189,10 +197,20 @@ VOID _r_config_setsize (
 	_In_opt_ LPCWSTR section_name
 );
 
+VOID _r_config_setstringexpand (
+	_In_ LPCWSTR key_name,
+	_In_opt_ LPCWSTR value
+);
+
 VOID _r_config_setstringexpand_ex (
 	_In_ LPCWSTR key_name,
 	_In_opt_ LPCWSTR value,
 	_In_opt_ LPCWSTR section_name
+);
+
+VOID _r_config_setstring (
+	_In_ LPCWSTR key_name,
+	_In_opt_ LPCWSTR value
 );
 
 VOID _r_config_setstring_ex (
@@ -200,71 +218,6 @@ VOID _r_config_setstring_ex (
 	_In_opt_ LPCWSTR value,
 	_In_opt_ LPCWSTR section_name
 );
-
-FORCEINLINE VOID _r_config_setboolean (
-	_In_ LPCWSTR key_name,
-	_In_ BOOLEAN value
-)
-{
-	_r_config_setboolean_ex (key_name, value, NULL);
-}
-
-FORCEINLINE VOID _r_config_setlong (
-	_In_ LPCWSTR key_name,
-	_In_ LONG value
-)
-{
-	_r_config_setlong_ex (key_name, value, NULL);
-}
-
-FORCEINLINE VOID _r_config_setlong64 (
-	_In_ LPCWSTR key_name,
-	_In_ LONG64 value
-)
-{
-	_r_config_setlong64_ex (key_name, value, NULL);
-}
-
-FORCEINLINE VOID _r_config_setulong (
-	_In_ LPCWSTR key_name,
-	_In_ ULONG value
-)
-{
-	_r_config_setulong_ex (key_name, value, NULL);
-}
-
-FORCEINLINE VOID _r_config_setulong64 (
-	_In_ LPCWSTR key_name,
-	_In_ ULONG64 value
-)
-{
-	_r_config_setulong64_ex (key_name, value, NULL);
-}
-
-FORCEINLINE VOID _r_config_setfont (
-	_In_ LPCWSTR key_name,
-	_In_ PLOGFONT logfont,
-	_In_ LONG dpi_value
-)
-{
-	_r_config_setfont_ex (key_name, logfont, dpi_value, NULL);
-}
-
-FORCEINLINE VOID _r_config_setstringexpand (
-	_In_ LPCWSTR key_name,
-	_In_opt_ LPCWSTR value
-)
-{
-	_r_config_setstringexpand_ex (key_name, value, NULL);
-}
-
-FORCEINLINE VOID _r_config_setstring (
-	_In_ LPCWSTR key_name,
-	_In_opt_ LPCWSTR value
-)
-{
-	_r_config_setstring_ex (key_name, value, NULL);
-}
 
 //
 // Localization
