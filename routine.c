@@ -6277,11 +6277,7 @@ PR_STRING _r_str_unexpandenvironmentstring (
 
 	buffer = _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR));
 
-	if (PathUnExpandEnvStrings (
-		string,
-		buffer->buffer,
-		(UINT)buffer_length)
-		)
+	if (PathUnExpandEnvStrings (string, buffer->buffer, (UINT)buffer_length))
 	{
 		_r_obj_trimstringtonullterminator (buffer);
 
