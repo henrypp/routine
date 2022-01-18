@@ -111,11 +111,7 @@ LPCWSTR _r_app_getmutexname ()
 	PR_STRING current_name;
 	PR_STRING new_name;
 
-	current_name = InterlockedCompareExchangePointer (
-		&cached_name,
-		NULL,
-		NULL
-	);
+	current_name = InterlockedCompareExchangePointer (&cached_name, NULL, NULL);
 
 	if (!current_name)
 	{
@@ -162,6 +158,9 @@ BOOLEAN _r_app_isportable ()
 		LPCWSTR file_names[] = {L"portable", _r_app_getnameshort ()};
 		LPCWSTR file_exts[] = {L"dat", L"ini"};
 
+		PR_STRING string;
+		PR_STRING directory;
+
 		C_ASSERT (sizeof (file_names) == sizeof (file_exts));
 
 		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"portable", NULL))
@@ -170,9 +169,6 @@ BOOLEAN _r_app_isportable ()
 		}
 		else
 		{
-			PR_STRING string;
-			PR_STRING directory;
-
 			directory = _r_app_getdirectory ();
 
 			for (SIZE_T i = 0; i < RTL_NUMBER_OF (file_names); i++)
@@ -326,26 +322,22 @@ BOOLEAN _r_app_initialize_dll ()
 
 	SetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 #else
-	HMODULE hkernel32;
 	R_ERROR_INFO error_info;
+	HMODULE hkernel32;
+	SSPM _SetSearchPathMode;
+	SDDD _SetDefaultDllDirectories;
 
 	hkernel32 = _r_sys_loadlibrary (L"kernel32.dll");
 
 	if (hkernel32)
 	{
-		const SSPM _SetSearchPathMode = (SSPM)GetProcAddress (
-			hkernel32,
-			"SetSearchPathMode"
-		);
+		_SetSearchPathMode = (SSPM)GetProcAddress (hkernel32, "SetSearchPathMode");
 
 		if (_SetSearchPathMode)
 			_SetSearchPathMode (BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
 
 		// Check for SetDefaultDllDirectories since it requires KB2533623.
-		const SDDD _SetDefaultDllDirectories = (SDDD)GetProcAddress (
-			hkernel32,
-			"SetDefaultDllDirectories"
-		);
+		_SetDefaultDllDirectories = (SDDD)GetProcAddress (hkernel32, "SetDefaultDllDirectories");
 
 		if (_SetDefaultDllDirectories)
 		{
@@ -406,6 +398,7 @@ VOID _r_app_initialize_seh ()
 #else
 
 	HMODULE hntdll;
+	RSUEF _RtlSetUnhandledExceptionFilter;
 	BOOLEAN is_set;
 
 	is_set = FALSE;
@@ -416,10 +409,7 @@ VOID _r_app_initialize_seh ()
 
 		if (hntdll)
 		{
-			const RSUEF _RtlSetUnhandledExceptionFilter = (RSUEF)GetProcAddress (
-				hntdll,
-				"RtlSetUnhandledExceptionFilter"
-			);
+			_RtlSetUnhandledExceptionFilter = (RSUEF)GetProcAddress (hntdll, "RtlSetUnhandledExceptionFilter");
 
 			if (_RtlSetUnhandledExceptionFilter)
 			{
@@ -521,11 +511,7 @@ PR_STRING _r_app_getdirectory ()
 	PR_STRING current_path;
 	PR_STRING new_path;
 
-	current_path = InterlockedCompareExchangePointer (
-		&cached_path,
-		NULL,
-		NULL
-	);
+	current_path = InterlockedCompareExchangePointer (&cached_path, NULL, NULL);
 
 	if (!current_path)
 	{
@@ -535,11 +521,7 @@ PR_STRING _r_app_getdirectory ()
 
 		new_path = _r_path_getbasedirectory (&sr);
 
-		current_path = InterlockedCompareExchangePointer (
-			&cached_path,
-			new_path,
-			NULL
-		);
+		current_path = InterlockedCompareExchangePointer (&cached_path, new_path, NULL);
 
 		if (!current_path)
 		{
@@ -683,11 +665,7 @@ PR_STRING _r_app_getlocalepath ()
 	PR_STRING current_path;
 	PR_STRING new_path;
 
-	current_path = InterlockedCompareExchangePointer (
-		&cached_path,
-		NULL,
-		NULL
-	);
+	current_path = InterlockedCompareExchangePointer (&cached_path, NULL, NULL);
 
 	if (!current_path)
 	{
@@ -699,11 +677,7 @@ PR_STRING _r_app_getlocalepath ()
 			L".lng"
 		);
 
-		current_path = InterlockedCompareExchangePointer (
-			&cached_path,
-			new_path,
-			NULL
-		);
+		current_path = InterlockedCompareExchangePointer (&cached_path, new_path, NULL);
 
 		if (!current_path)
 		{
@@ -726,11 +700,7 @@ PR_STRING _r_app_getlogpath ()
 	PR_STRING current_path;
 	PR_STRING new_path;
 
-	current_path = InterlockedCompareExchangePointer (
-		&cached_path,
-		NULL,
-		NULL
-	);
+	current_path = InterlockedCompareExchangePointer (&cached_path, NULL, NULL);
 
 	if (!current_path)
 	{
@@ -742,11 +712,7 @@ PR_STRING _r_app_getlogpath ()
 			L"_debug.log"
 		);
 
-		current_path = InterlockedCompareExchangePointer (
-			&cached_path,
-			new_path,
-			NULL
-		);
+		current_path = InterlockedCompareExchangePointer (&cached_path, new_path, NULL);
 
 		if (!current_path)
 		{
@@ -768,31 +734,20 @@ PR_STRING _r_app_getprofiledirectory ()
 	PR_STRING current_path;
 	PR_STRING new_path;
 
-	current_path = InterlockedCompareExchangePointer (
-		&cached_path,
-		NULL,
-		NULL
-	);
+	current_path = InterlockedCompareExchangePointer (&cached_path, NULL, NULL);
 
 	if (!current_path)
 	{
 		if (_r_app_isportable ())
 		{
-			new_path = _r_obj_createstring2 (_r_app_getdirectory ());
+			new_path = _r_obj_reference (_r_app_getdirectory ());
 		}
 		else
 		{
-			new_path = _r_path_getknownfolder (
-				CSIDL_APPDATA,
-				L"\\" APP_AUTHOR L"\\" APP_NAME
-			);
+			new_path = _r_path_getknownfolder (CSIDL_APPDATA, L"\\" APP_AUTHOR L"\\" APP_NAME);
 		}
 
-		current_path = InterlockedCompareExchangePointer (
-			&cached_path,
-			new_path,
-			NULL
-		);
+		current_path = InterlockedCompareExchangePointer (&cached_path, new_path, NULL);
 
 		if (!current_path)
 		{
@@ -817,11 +772,7 @@ PR_STRING _r_app_getuseragent ()
 	PR_STRING current_agent;
 	PR_STRING new_agent;
 
-	current_agent = InterlockedCompareExchangePointer (
-		&cached_agent,
-		NULL,
-		NULL
-	);
+	current_agent = InterlockedCompareExchangePointer (&cached_agent, NULL, NULL);
 
 	if (!current_agent)
 	{
@@ -844,11 +795,7 @@ PR_STRING _r_app_getuseragent ()
 			_r_obj_movereference (&new_agent, string);
 		}
 
-		current_agent = InterlockedCompareExchangePointer (
-			&cached_agent,
-			new_agent,
-			NULL
-		);
+		current_agent = InterlockedCompareExchangePointer (&cached_agent, new_agent, NULL);
 
 		if (!current_agent)
 		{
@@ -1019,31 +966,25 @@ INT _r_app_getshowcode (
 
 	// if window have tray - check arguments
 #if defined(APP_HAVE_TRAY)
-	if (
-		_r_config_getboolean (L"IsStartMinimized", FALSE) ||
-		_r_sys_getopt (_r_sys_getimagecommandline (), L"minimized", NULL)
-		)
+	if (_r_config_getboolean (L"IsStartMinimized", FALSE) ||
+		_r_sys_getopt (_r_sys_getimagecommandline (), L"minimized", NULL))
 	{
 		is_windowhidden = TRUE;
 	}
 #endif // APP_HAVE_TRAY
 
-	if (
-		show_code == SW_HIDE ||
+	if (show_code == SW_HIDE ||
 		show_code == SW_MINIMIZE ||
 		show_code == SW_SHOWMINNOACTIVE ||
-		show_code == SW_FORCEMINIMIZE
-		)
+		show_code == SW_FORCEMINIMIZE)
 	{
 		is_windowhidden = TRUE;
 	}
 
 	if (_r_wnd_getstyle (hwnd) & WS_MAXIMIZEBOX)
 	{
-		if (
-			show_code == SW_SHOWMAXIMIZED ||
-			_r_config_getboolean_ex (L"IsMaximized", FALSE, L"window")
-			)
+		if (show_code == SW_SHOWMAXIMIZED ||
+			_r_config_getboolean_ex (L"IsMaximized", FALSE, L"window"))
 		{
 			if (is_windowhidden)
 			{
@@ -1066,6 +1007,7 @@ INT _r_app_getshowcode (
 
 _Ret_maybenull_
 HWND _r_app_createwindow (
+	_In_opt_ HINSTANCE hinstance,
 	_In_ LPCWSTR dlg_name,
 	_In_opt_ LPCWSTR icon_name,
 	_In_ DLGPROC dlg_proc
@@ -1074,6 +1016,7 @@ HWND _r_app_createwindow (
 #ifdef APP_HAVE_UPDATES
 	// configure components
 	WCHAR locale_version[64];
+
 	_r_str_fromlong64 (locale_version, RTL_NUMBER_OF (locale_version), _r_locale_getversion ());
 
 	_r_update_addcomponent (
@@ -1101,13 +1044,7 @@ HWND _r_app_createwindow (
 	LONG icon_large_y;
 
 	// create main window
-	hwnd = _r_wnd_createwindow (
-		NULL,
-		dlg_name,
-		NULL,
-		dlg_proc,
-		NULL
-	);
+	hwnd = _r_wnd_createwindow (hinstance, dlg_name, NULL, dlg_proc, NULL);
 
 	_r_app_sethwnd (hwnd);
 
@@ -1130,8 +1067,8 @@ HWND _r_app_createwindow (
 
 		_r_wnd_seticon (
 			hwnd,
-			_r_sys_loadsharedicon (_r_sys_getimagebase (), icon_name, icon_small_x, icon_small_y),
-			_r_sys_loadsharedicon (_r_sys_getimagebase (), icon_name, icon_large_x, icon_large_y)
+			_r_sys_loadsharedicon (hinstance, icon_name, icon_small_x, icon_small_y),
+			_r_sys_loadsharedicon (hinstance, icon_name, icon_large_x, icon_large_y)
 		);
 	}
 
@@ -1158,12 +1095,7 @@ HWND _r_app_createwindow (
 #endif // APP_HAVE_TRAY
 		};
 
-		_r_wnd_changemessagefilter (
-			hwnd,
-			messages,
-			RTL_NUMBER_OF (messages),
-			MSGFLT_ALLOW
-		);
+		_r_wnd_changemessagefilter (hwnd, messages, RTL_NUMBER_OF (messages), MSGFLT_ALLOW);
 	}
 
 	// subclass window
@@ -1203,12 +1135,10 @@ BOOLEAN _r_app_runasadmin ()
 		return TRUE;
 #endif // APP_HAVE_SKIPUAC
 
-	if (
-		_r_sys_runasadmin (
+	if (_r_sys_runasadmin (
 		_r_sys_getimagepath (),
 		_r_sys_getimagecommandline (),
-		_r_sys_getcurrentdirectory ()
-		))
+		_r_sys_getcurrentdirectory ()))
 	{
 		return TRUE;
 	}
@@ -1248,8 +1178,7 @@ VOID _r_app_restart (_In_opt_ HWND hwnd)
 		_r_sys_getcurrentdirectory (),
 		NULL,
 		SW_SHOW,
-		0) != STATUS_SUCCESS
-		)
+		0) != STATUS_SUCCESS)
 	{
 		if (is_mutexdestroyed)
 		{
@@ -1280,8 +1209,11 @@ VOID _r_app_restart (_In_opt_ HWND hwnd)
 VOID _r_config_initialize ()
 {
 	PR_HASHTABLE config_table;
+	PR_STRING path;
 
-	config_table = _r_parseini (_r_app_getconfigpath (), NULL);
+	path = _r_app_getconfigpath ();
+
+	config_table = _r_parseini (path, NULL);
 
 	_r_queuedlock_acquireexclusive (&app_global.config.lock);
 	_r_obj_movereference (&app_global.config.table, config_table);
@@ -1423,15 +1355,15 @@ VOID _r_config_getfont_ex (
 )
 {
 	PR_STRING font_config;
+	R_STRINGREF remaining_part;
+	R_STRINGREF first_part;
+	PLOGFONT system_font;
+	LONG font_size;
 
 	font_config = _r_config_getstring_ex (key_name, NULL, section_name);
 
 	if (font_config)
 	{
-		R_STRINGREF remaining_part;
-		R_STRINGREF first_part;
-		LONG font_size;
-
 		_r_obj_initializestringref2 (&remaining_part, font_config);
 
 		// get font face name
@@ -1439,8 +1371,7 @@ VOID _r_config_getfont_ex (
 			&remaining_part,
 			L';',
 			&first_part,
-			&remaining_part
-			))
+			&remaining_part))
 		{
 			_r_str_copystring (
 				logfont->lfFaceName,
@@ -1484,15 +1415,12 @@ VOID _r_config_getfont_ex (
 		ncm.cbSize -= sizeof (INT); // xp support
 #endif // !APP_NO_DEPRECATIONS
 
-	if (SystemParametersInfo (
+	if (_r_dc_getsystemparametersinfo (
 		SPI_GETNONCLIENTMETRICS,
 		ncm.cbSize,
 		&ncm,
-		0
-		))
+		dpi_value))
 	{
-		PLOGFONT system_font;
-
 		system_font = &ncm.lfMessageFont;
 
 		if (_r_str_isempty (logfont->lfFaceName))
@@ -1921,8 +1849,7 @@ VOID _r_locale_initialize ()
 		if (_r_str_isstartswith (
 			&language_config->sr,
 			&app_global.locale.resource_name->sr,
-			TRUE
-			))
+			TRUE))
 		{
 			_r_obj_movereference (&app_global.locale.current_name, _r_obj_createstring2 (app_global.locale.resource_name));
 		}
@@ -2106,10 +2033,8 @@ VOID _r_locale_enum (
 		if (!locale_name)
 			continue;
 
-		is_current = (
-			!_r_obj_isstringempty (app_global.locale.current_name) &&
-			(_r_str_isequal (&app_global.locale.current_name->sr, &locale_name->sr, TRUE))
-			);
+		is_current = (!_r_obj_isstringempty (app_global.locale.current_name) &&
+					  (_r_str_isequal (&app_global.locale.current_name->sr, &locale_name->sr, TRUE)));
 
 		if (is_menu)
 		{
@@ -2365,10 +2290,7 @@ BOOLEAN _r_autorun_enable (
 		}
 		else
 		{
-			status = RegDeleteValue (
-				hkey,
-				_r_app_getname ()
-			);
+			status = RegDeleteValue (hkey, _r_app_getname ());
 
 			if (status == ERROR_FILE_NOT_FOUND)
 				status = ERROR_SUCCESS;
@@ -2385,353 +2307,6 @@ BOOLEAN _r_autorun_enable (
 #endif // APP_HAVE_AUTORUN
 
 #if defined(APP_HAVE_UPDATES)
-NTSTATUS NTAPI _r_update_checkthread (
-	_In_ PVOID arglist
-)
-{
-	PR_UPDATE_INFO update_info;
-
-	WCHAR str_updates[512];
-	WCHAR str_content[256];
-	R_DOWNLOAD_INFO download_info;
-	PR_STRING update_url;
-	HINTERNET hsession;
-	PR_UPDATE_COMPONENT update_component;
-	PR_HASHTABLE string_table;
-	PR_STRING string_value;
-	PR_STRING version_string;
-	R_STRINGREF new_version_string;
-	R_STRINGREF new_url_string;
-	PR_STRING string;
-	ULONG hash_code;
-
-	BOOLEAN is_updateavailable;
-	ULONG status;
-
-	update_info = arglist;
-
-	hsession = _r_inet_createsession (_r_app_getuseragent ());
-
-	if (hsession)
-	{
-		update_url = _r_obj_concatstrings (
-			3,
-			_r_app_getwebsite_url (),
-			L"/update.php?api=3&product=",
-			_r_app_getnameshort ()
-		);
-
-		_r_inet_initializedownload (&download_info);
-
-		status = _r_inet_begindownload (hsession, update_url, &download_info);
-
-		if (status != ERROR_SUCCESS)
-		{
-			if (update_info->hparent)
-			{
-#ifdef IDS_UPDATE_ERROR
-				_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_ERROR));
-#else
-				_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Update server connection error.");
-#pragma PR_PRINT_WARNING(IDS_UPDATE_ERROR)
-#endif // IDS_UPDATE_ERROR
-
-				_r_update_pagenavigate (
-					update_info->htaskdlg,
-					TD_WARNING_ICON,
-					0,
-					TDCBF_CLOSE_BUTTON,
-					NULL,
-					str_content,
-					&app_global.update.info
-				);
-			}
-		}
-		else
-		{
-			*str_updates = UNICODE_NULL;
-			version_string = NULL;
-			is_updateavailable = FALSE;
-
-			string_table = _r_str_unserialize (&download_info.u.string->sr, L';', L'=');
-
-			if (string_table)
-			{
-				for (SIZE_T i = 0; i < _r_obj_getarraysize (update_info->components); i++)
-				{
-					update_component = _r_obj_getarrayitem (update_info->components, i);
-
-					hash_code = _r_str_gethash2 (update_component->short_name, TRUE);
-					string_value = _r_obj_findhashtablepointer (string_table, hash_code);
-
-					if (string_value)
-					{
-						if (!_r_str_splitatchar (
-							&string_value->sr,
-							L'|',
-							&new_version_string,
-							&new_url_string)
-							)
-						{
-							continue;
-						}
-
-						if (_r_str_versioncompare (&update_component->version->sr, &new_version_string) != -1)
-						{
-							continue;
-						}
-
-						is_updateavailable = TRUE;
-						update_component->is_haveupdate = TRUE;
-
-						_r_obj_movereference (&version_string, _r_util_versionformat (&new_version_string));
-
-						_r_obj_movereference (&update_component->new_version, _r_obj_createstring3 (&new_version_string));
-						_r_obj_movereference (&update_component->url, _r_obj_createstring3 (&new_url_string));
-
-						_r_str_appendformat (
-							str_updates,
-							RTL_NUMBER_OF (str_updates),
-							L"%s %s\r\n",
-							_r_obj_getstring (update_component->full_name),
-							version_string->buffer
-						);
-
-						if (update_component->is_installer)
-						{
-							string = _r_obj_concatstrings (
-								6,
-								_r_sys_gettempdirectory ()->buffer,
-								L"\\",
-								_r_app_getnameshort (),
-								L"-",
-								_r_obj_getstring (update_component->new_version),
-								L".exe"
-							);
-
-							_r_obj_movereference (&update_component->temp_path, string);
-
-							_r_obj_dereference (string_value);
-
-							// do not check components when new version of application available
-							break;
-						}
-						else
-						{
-							string = _r_obj_concatstrings (
-								8,
-								_r_sys_gettempdirectory ()->buffer,
-								L"\\",
-								_r_app_getnameshort (),
-								L"-",
-								_r_obj_getstring (update_component->short_name),
-								L"-",
-								_r_obj_getstring (update_component->new_version),
-								L".tmp"
-							);
-
-							_r_obj_movereference (&update_component->temp_path, string);
-						}
-
-						_r_obj_dereference (string_value);
-					}
-				}
-
-				if (version_string)
-					_r_obj_dereference (version_string);
-
-				_r_obj_dereference (string_table);
-			}
-
-			if (is_updateavailable)
-			{
-				_r_str_trim (str_updates, L"\r\n ");
-
-#ifdef IDS_UPDATE_YES
-				_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_YES));
-#else
-				_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Update available. Download and install now?");
-#pragma PR_PRINT_WARNING(IDS_UPDATE_YES)
-#endif // IDS_UPDATE_YES
-
-				_r_update_pagenavigate (
-					update_info->htaskdlg,
-					NULL,
-					0,
-					TDCBF_YES_BUTTON | TDCBF_NO_BUTTON,
-					str_content,
-					str_updates,
-					&app_global.update.info
-				);
-			}
-			else
-			{
-				if (update_info->htaskdlg)
-				{
-#ifdef IDS_UPDATE_NO
-					_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_NO));
-#else
-					_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"No updates available.");
-#pragma PR_PRINT_WARNING(IDS_UPDATE_NO)
-#endif // IDS_UPDATE_NO
-
-					_r_update_pagenavigate (
-						update_info->htaskdlg,
-						NULL,
-						0,
-						TDCBF_CLOSE_BUTTON,
-						NULL,
-						str_content,
-						&app_global.update.info
-					);
-				}
-			}
-
-			_r_config_setlong64 (L"CheckUpdatesLast", _r_unixtime_now ());
-
-			_r_inet_destroydownload (&download_info);
-		}
-
-		_r_obj_dereference (update_url);
-
-		_r_inet_close (hsession);
-	}
-
-	InterlockedDecrement (&update_info->lock);
-
-	return STATUS_SUCCESS;
-}
-
-VOID _r_update_enable (
-	_In_ BOOLEAN is_enable
-)
-{
-	LONG value;
-
-	if (is_enable)
-	{
-		value = APP_UPDATE_PERIOD;
-	}
-	else
-	{
-		value = 0;
-	}
-
-	_r_config_setlong (L"CheckUpdatesPeriod", value);
-}
-
-BOOLEAN _r_update_isenabled (
-	_In_ BOOLEAN is_checktimestamp
-)
-{
-	LONG64 current_timestamp;
-	LONG64 update_last_timestamp;
-	LONG update_period;
-	LONG update_current_timestamp;
-
-	update_period = _r_config_getlong (
-		L"CheckUpdatesPeriod",
-		APP_UPDATE_PERIOD
-	);
-
-	if (update_period <= 0)
-		return FALSE;
-
-	if (is_checktimestamp)
-	{
-		current_timestamp = _r_unixtime_now ();
-
-		update_last_timestamp = _r_config_getlong64 (L"CheckUpdatesLast", 0);
-		update_current_timestamp = _r_calc_days2seconds (update_period);
-
-		if ((current_timestamp - update_last_timestamp) <= update_current_timestamp)
-			return FALSE;
-	}
-
-	return TRUE;
-}
-
-VOID _r_update_check (
-	_In_opt_ HWND hparent
-)
-{
-	PR_UPDATE_INFO update_info;
-	NTSTATUS status;
-
-	// Security note:
-	//
-	// Windows Vista and lower are unsafe for establish internet connections,
-	// because it does not support required TLS 1.3 standart which is used
-	// on the www.github.com and www.henrypp.org webpages.
-
-#if !defined(APP_NO_DEPRECATIONS)
-	if (_r_sys_isosversionlowerorequal (WINDOWS_VISTA))
-	{
-		if (hparent)
-			_r_show_message (hparent, MB_OK | MB_ICONWARNING, _r_app_getname (), APP_SECURITY_TITLE, APP_WARNING_UPDATE_TEXT);
-
-		return;
-	}
-#endif // !APP_NO_DEPRECATIONS
-
-	update_info = &app_global.update.info;
-
-	if (InterlockedCompareExchange (
-		&update_info->lock,
-		0,
-		0
-		) != 0)
-	{
-		return;
-	}
-
-	if (!hparent && !_r_update_isenabled (TRUE))
-		return;
-
-	status = _r_sys_createthread (
-		&_r_update_checkthread,
-		update_info,
-		&update_info->hthread,
-		NULL);
-
-	if (status != STATUS_SUCCESS)
-		return;
-
-	update_info->htaskdlg = NULL;
-	update_info->hparent = hparent;
-
-	InterlockedIncrement (&update_info->lock);
-
-	if (hparent)
-	{
-		WCHAR str_content[256];
-
-#ifdef IDS_UPDATE_INIT
-		_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_INIT));
-#else
-		_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Checking for new releases...");
-#pragma PR_PRINT_WARNING(IDS_UPDATE_INIT)
-#endif // IDS_UPDATE_INIT
-
-		_r_update_pagenavigate (
-			NULL,
-			NULL,
-			TDF_SHOW_PROGRESS_BAR,
-			TDCBF_CANCEL_BUTTON,
-			NULL,
-			str_content,
-			update_info
-		);
-
-		return;
-	}
-
-	NtResumeThread (update_info->hthread, NULL);
-	NtClose (update_info->hthread);
-
-	update_info->hthread = NULL;
-}
-
 BOOLEAN NTAPI _r_update_downloadcallback (
 	_In_ ULONG total_written,
 	_In_ ULONG total_length,
@@ -2779,7 +2354,11 @@ NTSTATUS NTAPI _r_update_downloadthread (
 
 	hsession = _r_inet_createsession (_r_app_getuseragent ());
 
-	if (hsession)
+	if (!hsession)
+	{
+		status = GetLastError ();
+	}
+	else
 	{
 		for (SIZE_T i = 0; i < _r_obj_getarraysize (update_info->components); i++)
 		{
@@ -2799,7 +2378,10 @@ NTSTATUS NTAPI _r_update_downloadthread (
 			);
 
 			if (!_r_fs_isvalidhandle (hfile))
+			{
+				status = GetLastError ();
 				continue;
+			}
 
 			_r_inet_initializedownload_ex (&download_info, hfile, &_r_update_downloadcallback, update_info);
 
@@ -2809,7 +2391,7 @@ NTSTATUS NTAPI _r_update_downloadthread (
 			{
 				is_downloaded = TRUE;
 
-				_r_inet_destroydownload (&download_info); // required!
+				NtClose (hfile); // required!
 
 				if (update_component->is_installer)
 				{
@@ -2823,10 +2405,7 @@ NTSTATUS NTAPI _r_update_downloadthread (
 					if (update_component->target_path)
 					{
 						// copy required files
-						SetFileAttributes (
-							update_component->target_path->buffer,
-							FILE_ATTRIBUTE_NORMAL
-						);
+						SetFileAttributes (update_component->target_path->buffer, FILE_ATTRIBUTE_NORMAL);
 
 						_r_fs_movefile (
 							update_component->temp_path->buffer,
@@ -2846,7 +2425,7 @@ NTSTATUS NTAPI _r_update_downloadthread (
 			}
 			else
 			{
-				_r_inet_destroydownload (&download_info); // required!
+				NtClose (hfile); // required!
 			}
 		}
 
@@ -2895,13 +2474,12 @@ NTSTATUS NTAPI _r_update_downloadthread (
 	}
 
 	_r_update_pagenavigate (
-		update_info->htaskdlg,
+		update_info,
 		main_icon,
 		0,
 		buttons,
 		NULL,
-		str_content,
-		&app_global.update.info
+		str_content
 	);
 
 	// install update
@@ -2922,6 +2500,346 @@ NTSTATUS NTAPI _r_update_downloadthread (
 	}
 
 	return STATUS_SUCCESS;
+}
+
+NTSTATUS NTAPI _r_update_checkthread (
+	_In_ PVOID arglist
+)
+{
+	PR_UPDATE_INFO update_info;
+
+	WCHAR str_updates[512];
+	WCHAR str_content[256];
+	R_DOWNLOAD_INFO download_info;
+	PR_STRING update_url;
+	HINTERNET hsession;
+	PR_UPDATE_COMPONENT update_component;
+	PR_HASHTABLE string_table;
+	PR_STRING string_value;
+	PR_STRING version_string;
+	R_STRINGREF new_version_string;
+	R_STRINGREF new_url_string;
+	PR_STRING string;
+	ULONG hash_code;
+
+	BOOLEAN is_updateavailable;
+	ULONG status;
+
+	update_info = arglist;
+
+	hsession = _r_inet_createsession (_r_app_getuseragent ());
+
+	if (!hsession)
+		goto CleanupExit;
+
+	update_url = _r_obj_concatstrings (
+		3,
+		_r_app_getwebsite_url (),
+		L"/update.php?product=",
+		_r_app_getnameshort ()
+	);
+
+	_r_inet_initializedownload (&download_info);
+
+	status = _r_inet_begindownload (hsession, update_url, &download_info);
+
+	if (status != ERROR_SUCCESS)
+	{
+		if (update_info->hparent)
+		{
+#ifdef IDS_UPDATE_ERROR
+			_r_str_printf (
+				str_content,
+				RTL_NUMBER_OF (str_content),
+				L"%s (%" TEXT (PR_ULONG) L").",
+				_r_locale_getstring (IDS_UPDATE_ERROR),
+				status
+			);
+#else
+			_r_str_printf (
+				str_content,
+				RTL_NUMBER_OF (str_content),
+				L"Update server connection error (%" TEXT (PR_ULONG) L").",
+				status
+			);
+#pragma PR_PRINT_WARNING(IDS_UPDATE_ERROR)
+#endif // IDS_UPDATE_ERROR
+
+			_r_update_pagenavigate (
+				update_info,
+				TD_WARNING_ICON,
+				0,
+				TDCBF_CLOSE_BUTTON,
+				NULL,
+				str_content
+			);
+		}
+	}
+	else
+	{
+		str_updates[0] = UNICODE_NULL;
+
+		version_string = NULL;
+		is_updateavailable = FALSE;
+
+		string_table = _r_str_unserialize (&download_info.u.string->sr, L';', L'=');
+
+		if (string_table)
+		{
+			for (SIZE_T i = 0; i < _r_obj_getarraysize (update_info->components); i++)
+			{
+				update_component = _r_obj_getarrayitem (update_info->components, i);
+
+				hash_code = _r_str_gethash2 (update_component->short_name, TRUE);
+				string_value = _r_obj_findhashtablepointer (string_table, hash_code);
+
+				if (!string_value)
+					continue;
+
+				if (!_r_str_splitatchar (
+					&string_value->sr,
+					L'|',
+					&new_version_string,
+					&new_url_string))
+				{
+					continue;
+				}
+
+				if (_r_str_versioncompare (&update_component->version->sr, &new_version_string) != -1)
+					continue;
+
+				is_updateavailable = TRUE;
+				update_component->is_haveupdate = TRUE;
+
+				_r_obj_movereference (&version_string, _r_util_versionformat (&new_version_string));
+
+				_r_obj_movereference (&update_component->new_version, _r_obj_createstring3 (&new_version_string));
+				_r_obj_movereference (&update_component->url, _r_obj_createstring3 (&new_url_string));
+
+				_r_str_appendformat (
+					str_updates,
+					RTL_NUMBER_OF (str_updates),
+					L"%s %s\r\n",
+					_r_obj_getstring (update_component->full_name),
+					version_string->buffer
+				);
+
+				if (update_component->is_installer)
+				{
+					string = _r_obj_concatstrings (
+						6,
+						_r_sys_gettempdirectory ()->buffer,
+						L"\\",
+						_r_app_getnameshort (),
+						L"-",
+						_r_obj_getstring (update_component->new_version),
+						L".exe"
+					);
+
+					_r_obj_movereference (&update_component->temp_path, string);
+
+					_r_obj_dereference (string_value);
+
+					// do not check components when new version of application is available
+					break;
+				}
+				else
+				{
+					string = _r_obj_concatstrings (
+						8,
+						_r_sys_gettempdirectory ()->buffer,
+						L"\\",
+						_r_app_getnameshort (),
+						L"-",
+						_r_obj_getstring (update_component->short_name),
+						L"-",
+						_r_obj_getstring (update_component->new_version),
+						L".tmp"
+					);
+
+					_r_obj_movereference (&update_component->temp_path, string);
+				}
+
+				_r_obj_dereference (string_value);
+			}
+
+			_r_obj_dereference (string_table);
+
+			if (version_string)
+				_r_obj_dereference (version_string);
+		}
+
+		if (is_updateavailable)
+		{
+			_r_str_trim (str_updates, L"\r\n ");
+
+#ifdef IDS_UPDATE_YES
+			_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_YES));
+#else
+			_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Update available. Download and install now?");
+#pragma PR_PRINT_WARNING(IDS_UPDATE_YES)
+#endif // IDS_UPDATE_YES
+
+			_r_update_pagenavigate (
+				update_info,
+				NULL,
+				0,
+				TDCBF_YES_BUTTON | TDCBF_NO_BUTTON,
+				str_content,
+				str_updates
+			);
+		}
+		else
+		{
+			if (update_info->hparent)
+			{
+#ifdef IDS_UPDATE_NO
+				_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_NO));
+#else
+				_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"No updates available.");
+#pragma PR_PRINT_WARNING(IDS_UPDATE_NO)
+#endif // IDS_UPDATE_NO
+
+				_r_update_pagenavigate (
+					update_info,
+					NULL,
+					0,
+					TDCBF_CLOSE_BUTTON,
+					NULL,
+					str_content
+				);
+			}
+		}
+
+		_r_config_setlong64 (L"CheckUpdatesLast", _r_unixtime_now ());
+
+		_r_inet_destroydownload (&download_info);
+	}
+
+	_r_obj_dereference (update_url);
+
+	_r_inet_close (hsession);
+
+CleanupExit:
+
+	InterlockedDecrement (&update_info->lock);
+
+	return STATUS_SUCCESS;
+}
+
+VOID _r_update_enable (
+	_In_ BOOLEAN is_enable
+)
+{
+	LONG value;
+
+	if (is_enable)
+	{
+		value = APP_UPDATE_PERIOD;
+	}
+	else
+	{
+		value = 0;
+	}
+
+	_r_config_setlong (L"CheckUpdatesPeriod", value);
+}
+
+BOOLEAN _r_update_isenabled (
+	_In_ BOOLEAN is_checktimestamp
+)
+{
+	LONG64 current_timestamp;
+	LONG64 update_last_timestamp;
+	LONG update_period;
+	LONG update_current_timestamp;
+
+	update_period = _r_config_getlong (L"CheckUpdatesPeriod", APP_UPDATE_PERIOD);
+
+	if (update_period <= 0)
+		return FALSE;
+
+	if (is_checktimestamp)
+	{
+		current_timestamp = _r_unixtime_now ();
+
+		update_last_timestamp = _r_config_getlong64 (L"CheckUpdatesLast", 0);
+		update_current_timestamp = _r_calc_days2seconds (update_period);
+
+		if ((current_timestamp - update_last_timestamp) <= update_current_timestamp)
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+VOID _r_update_check (
+	_In_opt_ HWND hparent
+)
+{
+	WCHAR str_content[256];
+	PR_UPDATE_INFO update_info;
+	NTSTATUS status;
+
+	// Security note:
+	//
+	// Windows Vista and lower are unsafe for establish internet connections,
+	// because it does not support required TLS 1.3 standart which is used
+	// on the www.github.com and www.henrypp.org webpages.
+
+#if !defined(APP_NO_DEPRECATIONS)
+	if (_r_sys_isosversionlowerorequal (WINDOWS_VISTA))
+	{
+		if (hparent)
+			_r_show_message (hparent, MB_OK | MB_ICONWARNING, _r_app_getname (), APP_SECURITY_TITLE, APP_WARNING_UPDATE_TEXT);
+
+		return;
+	}
+#endif // !APP_NO_DEPRECATIONS
+
+	update_info = &app_global.update.info;
+
+	if (InterlockedCompareExchange (&update_info->lock, 0, 0) != 0)
+		return;
+
+	if (!hparent && !_r_update_isenabled (TRUE))
+		return;
+
+	status = _r_sys_createthread (&_r_update_checkthread, update_info, &update_info->hthread, NULL);
+
+	if (status != STATUS_SUCCESS)
+		return;
+
+	update_info->htaskdlg = NULL;
+	update_info->hparent = hparent;
+
+	InterlockedIncrement (&update_info->lock);
+
+	if (hparent)
+	{
+#ifdef IDS_UPDATE_INIT
+		_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_INIT));
+#else
+		_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Checking for new releases...");
+#pragma PR_PRINT_WARNING(IDS_UPDATE_INIT)
+#endif // IDS_UPDATE_INIT
+
+		_r_update_pagenavigate (
+			update_info,
+			NULL,
+			TDF_SHOW_PROGRESS_BAR,
+			TDCBF_CANCEL_BUTTON,
+			NULL,
+			str_content
+		);
+	}
+	else
+	{
+		NtResumeThread (update_info->hthread, NULL);
+		NtClose (update_info->hthread);
+
+		update_info->hthread = NULL;
+	}
 }
 
 HRESULT CALLBACK _r_update_pagecallback (
@@ -2954,6 +2872,10 @@ HRESULT CALLBACK _r_update_pagecallback (
 
 		case TDN_BUTTON_CLICKED:
 		{
+			PR_UPDATE_COMPONENT update_component;
+			LPCWSTR str_content;
+			NTSTATUS status;
+
 			if (wparam == IDCANCEL)
 			{
 				if (update_info->hthread)
@@ -2966,33 +2888,24 @@ HRESULT CALLBACK _r_update_pagecallback (
 			}
 			else if (wparam == IDYES)
 			{
-				WCHAR str_content[256];
-				NTSTATUS status;
-
-#ifdef IDS_UPDATE_DOWNLOAD
-				_r_str_copy (str_content, RTL_NUMBER_OF (str_content), _r_locale_getstring (IDS_UPDATE_DOWNLOAD));
-#else
-				_r_str_copy (str_content, RTL_NUMBER_OF (str_content), L"Downloading update...");
-#pragma PR_PRINT_WARNING(IDS_UPDATE_DOWNLOAD)
-#endif
-
-				status = _r_sys_createthread (
-					&_r_update_downloadthread,
-					update_info,
-					&update_info->hthread,
-					NULL
-				);
+				status = _r_sys_createthread (&_r_update_downloadthread, update_info, &update_info->hthread, NULL);
 
 				if (status == STATUS_SUCCESS)
 				{
+#ifdef IDS_UPDATE_DOWNLOAD
+					str_content = _r_locale_getstring (IDS_UPDATE_DOWNLOAD);
+#else
+					str_content = L"Downloading update...";
+#pragma PR_PRINT_WARNING(IDS_UPDATE_DOWNLOAD)
+#endif // IDS_UPDATE_DOWNLOAD
+
 					_r_update_pagenavigate (
-						hwnd,
+						update_info,
 						NULL,
 						TDF_SHOW_PROGRESS_BAR,
 						TDCBF_CANCEL_BUTTON,
 						NULL,
-						str_content,
-						update_info
+						str_content
 					);
 
 					return S_FALSE;
@@ -3000,8 +2913,6 @@ HRESULT CALLBACK _r_update_pagecallback (
 			}
 			else if (wparam == IDOK)
 			{
-				PR_UPDATE_COMPONENT update_component;
-
 				for (SIZE_T i = 0; i < _r_obj_getarraysize (update_info->components); i++)
 				{
 					update_component = _r_obj_getarrayitem (update_info->components, i);
@@ -3018,7 +2929,6 @@ HRESULT CALLBACK _r_update_pagecallback (
 		}
 
 		case TDN_DIALOG_CONSTRUCTED:
-		case TDN_NAVIGATED:
 		{
 			if (update_info->hthread)
 			{
@@ -3048,24 +2958,23 @@ HRESULT CALLBACK _r_update_pagecallback (
 }
 
 VOID _r_update_pagenavigate (
-	_In_opt_ HWND htaskdlg,
+	_In_ PR_UPDATE_INFO update_info,
 	_In_opt_ LPCWSTR main_icon,
 	_In_ TASKDIALOG_FLAGS flags,
 	_In_ TASKDIALOG_COMMON_BUTTON_FLAGS buttons,
 	_In_opt_ LPCWSTR main,
-	_In_opt_ LPCWSTR content,
-	_In_ PVOID lparam
+	_In_opt_ LPCWSTR content
 )
 {
 	TASKDIALOGCONFIG tdc = {0};
 
 	tdc.cbSize = sizeof (tdc);
 	tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | flags;
-	tdc.hwndParent = _r_app_gethwnd ();
+	tdc.hwndParent = update_info->hparent;
 	tdc.hInstance = _r_sys_getimagebase ();
 	tdc.dwCommonButtons = buttons;
 	tdc.pfCallback = &_r_update_pagecallback;
-	tdc.lpCallbackData = (LONG_PTR)lparam;
+	tdc.lpCallbackData = (LONG_PTR)update_info;
 
 	if (main_icon)
 	{
@@ -3089,9 +2998,9 @@ VOID _r_update_pagenavigate (
 	if (content)
 		tdc.pszContent = content;
 
-	if (htaskdlg)
+	if (update_info->htaskdlg)
 	{
-		SendMessage (htaskdlg, TDM_NAVIGATE_PAGE, 0, (LPARAM)&tdc);
+		SendMessage (update_info->htaskdlg, TDM_NAVIGATE_PAGE, 0, (LPARAM)&tdc);
 	}
 	else
 	{
@@ -3156,30 +3065,23 @@ FORCEINLINE LPCWSTR _r_log_leveltostring (
 {
 	switch (log_level)
 	{
+		case LOG_LEVEL_DISABLED:
+			return L"Disabled";
+
 		case LOG_LEVEL_DEBUG:
-		{
 			return L"Debug";
-		}
 
 		case LOG_LEVEL_INFO:
-		{
 			return L"Info";
-		}
 
 		case LOG_LEVEL_WARNING:
-		{
 			return L"Warning";
-		}
 
 		case LOG_LEVEL_ERROR:
-		{
 			return L"Error";
-		}
 
 		case LOG_LEVEL_CRITICAL:
-		{
 			return L"Critical";
-		}
 	}
 
 	return NULL;
@@ -3198,9 +3100,7 @@ FORCEINLINE ULONG _r_log_leveltrayicon (
 		}
 
 		case LOG_LEVEL_WARNING:
-		{
 			return NIIF_WARNING;
-		}
 
 		case LOG_LEVEL_ERROR:
 		case LOG_LEVEL_CRITICAL:
@@ -3409,14 +3309,7 @@ VOID _r_log_v (
 	va_list arg_ptr;
 
 	va_start (arg_ptr, format);
-
-	_r_str_printf_v (
-		string,
-		RTL_NUMBER_OF (string),
-		format,
-		arg_ptr
-	);
-
+	_r_str_printf_v (string, RTL_NUMBER_OF (string), format, arg_ptr);
 	va_end (arg_ptr);
 
 	_r_log (log_level, tray_guid, title, code, string);
@@ -3451,6 +3344,19 @@ VOID _r_show_aboutmessage (
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
 #endif // !APP_NO_DEPRECATIONS
 	{
+		_r_str_printf (
+			str_content, RTL_NUMBER_OF (str_content),
+			L"Version %s %s, %" TEXT (PRIi32) L"-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>",
+			_r_app_getversion (),
+			_r_app_getversiontype (),
+			_r_app_getarch (),
+			_r_app_getcopyright (),
+			_r_app_getwebsite_url (),
+			_r_app_getwebsite_url () + 8,
+			_r_app_getsources_url (),
+			_r_app_getsources_url () + 8
+		);
+
 		tdc.cbSize = sizeof (tdc);
 		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
 		tdc.hwndParent = hwnd;
@@ -3490,19 +3396,6 @@ VOID _r_show_aboutmessage (
 #pragma PR_PRINT_WARNING(IDS_CLOSE)
 #endif // IDS_CLOSE
 
-		_r_str_printf (
-			str_content, RTL_NUMBER_OF (str_content),
-			L"Version %s %s, %" TEXT (PRIi32) L"-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>",
-			_r_app_getversion (),
-			_r_app_getversiontype (),
-			_r_app_getarch (),
-			_r_app_getcopyright (),
-			_r_app_getwebsite_url (),
-			_r_app_getwebsite_url () + 8,
-			_r_app_getsources_url (),
-			_r_app_getsources_url () + 8
-		);
-
 		tdc.pszFooter = APP_ABOUT_FOOTER;
 
 		if (_r_msg_taskdialog (&tdc, &command_id, NULL, NULL))
@@ -3514,6 +3407,8 @@ VOID _r_show_aboutmessage (
 #if !defined(APP_NO_DEPRECATIONS)
 	else
 	{
+		MSGBOXPARAMS mbp = {0};
+
 		_r_str_printf (
 			str_content, RTL_NUMBER_OF (str_content),
 			L"%s\r\n\r\nVersion %s %s, %" TEXT (PRIi32) L"-bit (Unicode)\r\n%s\r\n\r\n" \
@@ -3527,8 +3422,6 @@ VOID _r_show_aboutmessage (
 			_r_app_getsources_url () + 8,
 			APP_ABOUT_FOOTER_CLEAN
 		);
-
-		MSGBOXPARAMS mbp = {0};
 
 		mbp.cbSize = sizeof (mbp);
 		mbp.dwStyle = MB_OK | MB_TOPMOST | MB_USERICON;
@@ -3675,12 +3568,7 @@ VOID _r_show_errormessage (
 			str_footer
 		);
 
-		MessageBox (
-			hwnd,
-			buffer,
-			_r_app_getname (),
-			MB_OK | MB_ICONWARNING | MB_TOPMOST
-		);
+		MessageBox (hwnd, buffer, _r_app_getname (), MB_OK | MB_ICONWARNING | MB_TOPMOST);
 	}
 #endif // !APP_NO_DEPRECATIONS
 
@@ -3795,12 +3683,8 @@ BOOLEAN _r_show_confirmmessage (
 		}
 		else
 		{
-			return (MessageBox (
-				hwnd,
-				text,
-				_r_app_getname (),
-				MB_YESNO | MB_ICONWARNING | MB_TOPMOST
-				) == IDYES); // fallback!
+			// fallback!
+			return (MessageBox (hwnd, text, _r_app_getname (), MB_YESNO | MB_ICONWARNING | MB_TOPMOST) == IDYES);
 		}
 	}
 #endif // !APP_NO_DEPRECATIONS
@@ -3888,8 +3772,8 @@ INT _r_show_message (
 		}
 
 		// set default buttons
-		if ((flags & MB_DEFMASK) == MB_DEFBUTTON2)
-			tdc.nDefaultButton = IDNO;
+		//if ((flags & MB_DEFMASK) == MB_DEFBUTTON2)
+		//	tdc.nDefaultButton = IDNO;
 
 		// set options
 		if (flags & MB_TOPMOST)
@@ -4104,9 +3988,8 @@ VOID _r_settings_createwindow (
 	controls = 3;
 #endif
 
-	size = (
-		(sizeof (DLGTEMPLATEEX) + (sizeof (WORD) * 8)) +
-		((sizeof (DLGITEMTEMPLATEEX) + (sizeof (WORD) * 3)) * controls)) + 128;
+	size = ((sizeof (DLGTEMPLATEEX) + (sizeof (WORD) * 8)) +
+			((sizeof (DLGITEMTEMPLATEEX) + (sizeof (WORD) * 3)) * controls)) + 128;
 
 	buffer = _r_mem_allocatezero (size);
 	buffer_ptr = buffer;
@@ -4257,7 +4140,7 @@ VOID _r_settings_createwindow (
 		WC_BUTTON
 	);
 
-	DialogBoxIndirect (NULL, buffer, hwnd, &_r_settings_wndproc);
+	DialogBoxIndirect (_r_sys_getimagebase (), buffer, hwnd, &_r_settings_wndproc);
 
 	_r_mem_free (buffer);
 }
@@ -4322,7 +4205,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 					continue;
 
 				ptr_page->hwnd = _r_wnd_createwindow (
-					NULL,
+					_r_sys_getimagebase (),
 					MAKEINTRESOURCE (ptr_page->dlg_id),
 					hwnd,
 					app_global.settings.wnd_proc,
@@ -4408,13 +4291,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 				_r_dc_getdpi (PR_SIZE_TREEINDENT, dpi_value)
 			);
 
-			hitem = (HTREEITEM)SendDlgItemMessage (
-				hwnd,
-				IDC_NAV,
-				TVM_GETNEXTITEM,
-				TVGN_ROOT,
-				0
-			);
+			hitem = (HTREEITEM)SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_ROOT, 0);
 
 			while (hitem)
 			{
@@ -4422,14 +4299,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 				if (ptr_page)
 				{
-					_r_treeview_setitem (
-						hwnd,
-						IDC_NAV,
-						hitem,
-						_r_locale_getstring (ptr_page->locale_id),
-						I_IMAGENONE,
-						0
-					);
+					_r_treeview_setitem (hwnd, IDC_NAV, hitem, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, 0);
 
 					if (ptr_page->hwnd)
 					{
@@ -4438,13 +4308,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 					}
 				}
 
-				hitem = (HTREEITEM)SendDlgItemMessage (
-					hwnd,
-					IDC_NAV,
-					TVM_GETNEXTITEM,
-					TVGN_NEXT,
-					(LPARAM)hitem
-				);
+				hitem = (HTREEITEM)SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_NEXT, (LPARAM)hitem);
 			}
 #else
 			for (INT i = 0; i < _r_tab_getitemcount (hwnd, IDC_NAV); i++)
@@ -4453,14 +4317,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 				if (ptr_page)
 				{
-					_r_tab_setitem (
-						hwnd,
-						IDC_NAV,
-						i,
-						_r_locale_getstring (ptr_page->locale_id),
-						I_IMAGENONE,
-						0
-					);
+					_r_tab_setitem (hwnd, IDC_NAV, i, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, 0);
 
 					if (ptr_page->hwnd)
 					{
@@ -4662,12 +4519,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 						{
 							if (ptr_page->hwnd)
 							{
-								retn = (LONG_PTR)SendMessage (
-									ptr_page->hwnd,
-									RM_CONFIG_SAVE,
-									(WPARAM)ptr_page->dlg_id,
-									0
-								);
+								retn = (LONG_PTR)SendMessage (ptr_page->hwnd, RM_CONFIG_SAVE, (WPARAM)ptr_page->dlg_id, 0);
 
 								if (retn == -1)
 								{
@@ -4866,13 +4718,7 @@ BOOLEAN _r_skipuac_isenabled ()
 
 	HRESULT hr;
 
-	hr = CoCreateInstance (
-		&CLSID_TaskScheduler,
-		NULL,
-		CLSCTX_INPROC_SERVER,
-		&IID_ITaskService,
-		&task_service
-	);
+	hr = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
 
 	if (FAILED (hr))
 		goto CleanupExit;
@@ -4970,24 +4816,12 @@ HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 
 	HRESULT hr;
 
-	hr = CoCreateInstance (
-		&CLSID_TaskScheduler,
-		NULL,
-		CLSCTX_INPROC_SERVER,
-		&IID_ITaskService,
-		&task_service
-	);
+	hr = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
 
 	if (FAILED (hr))
 		goto CleanupExit;
 
-	hr = ITaskService_Connect (
-		task_service,
-		empty,
-		empty,
-		empty,
-		empty
-	);
+	hr = ITaskService_Connect (task_service, empty, empty, empty, empty);
 
 	if (FAILED (hr))
 		goto CleanupExit;
@@ -5084,11 +4918,7 @@ HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 		if (FAILED (hr))
 			goto CleanupExit;
 
-		hr = IAction_QueryInterface (
-			action,
-			&IID_IExecAction,
-			&exec_action
-		);
+		hr = IAction_QueryInterface (action, &IID_IExecAction, &exec_action);
 
 		if (FAILED (hr))
 			goto CleanupExit;
@@ -5212,13 +5042,7 @@ BOOLEAN _r_skipuac_run ()
 
 	HRESULT hr;
 
-	hr = CoCreateInstance (
-		&CLSID_TaskScheduler,
-		NULL,
-		CLSCTX_INPROC_SERVER,
-		&IID_ITaskService,
-		&task_service
-	);
+	hr = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
 
 	if (FAILED (hr))
 		goto CleanupExit;
@@ -5256,12 +5080,7 @@ BOOLEAN _r_skipuac_run ()
 		{
 			for (INT i = 1; i < numargs; i++)
 			{
-				_r_str_appendformat (
-					arguments,
-					RTL_NUMBER_OF (arguments),
-					L"%s ",
-					arga[i]
-				);
+				_r_str_appendformat (arguments, RTL_NUMBER_OF (arguments), L"%s ", arga[i]);
 			}
 
 			_r_str_trim (arguments, L" ");

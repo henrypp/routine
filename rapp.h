@@ -371,6 +371,20 @@ BOOLEAN _r_skipuac_run ();
 //
 
 #if defined(APP_HAVE_UPDATES)
+BOOLEAN NTAPI _r_update_downloadcallback (
+	_In_ ULONG total_written,
+	_In_ ULONG total_length,
+	_In_ PVOID lparam
+);
+
+NTSTATUS NTAPI _r_update_downloadthread (
+	_In_ PVOID arglist
+);
+
+NTSTATUS NTAPI _r_update_checkthread (
+	_In_ PVOID arglist
+);
+
 VOID _r_update_enable (
 	_In_ BOOLEAN is_enable
 );
@@ -383,16 +397,6 @@ VOID _r_update_check (
 	_In_opt_ HWND hparent
 );
 
-BOOLEAN NTAPI _r_update_downloadcallback (
-	_In_ ULONG total_written,
-	_In_ ULONG total_length,
-	_In_ PVOID lparam
-);
-
-NTSTATUS NTAPI _r_update_downloadthread (
-	_In_ PVOID arglist
-);
-
 HRESULT CALLBACK _r_update_pagecallback (
 	_In_ HWND hwnd,
 	_In_ UINT msg,
@@ -402,13 +406,12 @@ HRESULT CALLBACK _r_update_pagecallback (
 );
 
 VOID _r_update_pagenavigate (
-	_In_opt_ HWND htaskdlg,
+	_In_ PR_UPDATE_INFO update_info,
 	_In_opt_ LPCWSTR main_icon,
 	_In_ TASKDIALOG_FLAGS flags,
 	_In_ TASKDIALOG_COMMON_BUTTON_FLAGS buttons,
 	_In_opt_ LPCWSTR main,
-	_In_opt_ LPCWSTR content,
-	_In_ PVOID lparam
+	_In_opt_ LPCWSTR content
 );
 
 VOID _r_update_addcomponent (
@@ -553,6 +556,7 @@ LRESULT CALLBACK _r_app_maindlgproc (
 
 _Ret_maybenull_
 HWND _r_app_createwindow (
+	_In_opt_ HINSTANCE hinstance,
 	_In_ LPCWSTR dlg_name,
 	_In_opt_ LPCWSTR icon_name,
 	_In_ DLGPROC dlg_proc
