@@ -3584,7 +3584,6 @@ BOOLEAN _r_show_confirmmessage (
 )
 {
 	TASKDIALOGCONFIG tdc;
-	WCHAR str_flag[128];
 	INT command_id;
 	BOOL is_flagchecked;
 
@@ -3613,13 +3612,11 @@ BOOLEAN _r_show_confirmmessage (
 		if (config_key)
 		{
 #ifdef IDS_QUESTION_FLAG_CHK
-			_r_str_copy (str_flag, RTL_NUMBER_OF (str_flag), _r_locale_getstring (IDS_QUESTION_FLAG_CHK));
+			tdc.pszVerificationText = _r_locale_getstring (IDS_QUESTION_FLAG_CHK);
 #else
-			_r_str_copy (str_flag, RTL_NUMBER_OF (str_flag), L"Do not ask again");
+			tdc.pszVerificationText = L"Do not ask again";
 #pragma PR_PRINT_WARNING(IDS_QUESTION_FLAG_CHK)
 #endif // IDS_QUESTION_FLAG_CHK
-
-			tdc.pszVerificationText = str_flag;
 		}
 
 		if (main)
@@ -3633,63 +3630,11 @@ BOOLEAN _r_show_confirmmessage (
 #if !defined(APP_NO_DEPRECATIONS)
 	else
 	{
-		if (config_key)
-		{
-			WCHAR config_string[128];
-			HKEY hkey;
-
-			_r_str_printf (
-				config_string,
-				RTL_NUMBER_OF (config_string),
-				L"%s\\%s",
-				_r_app_getnameshort (),
-				config_key
-			);
-
-			command_id = SHMessageBoxCheck (
-				hwnd,
-				text,
-				_r_app_getname (),
-				MB_OKCANCEL | MB_ICONWARNING | MB_TOPMOST,
-				IDOK,
-				config_string
-			);
-
-			// get checkbox value from registry
-			if (RegOpenKeyEx (
-				HKEY_CURRENT_USER,
-				L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\DontShowMeThisDialogAgain",
-				0,
-				KEY_WRITE | KEY_READ,
-				&hkey
-				) == ERROR_SUCCESS)
-			{
-				if (command_id == IDOK || command_id == IDYES)
-				{
-					is_flagchecked = (RegQueryValueEx (
-						hkey,
-						config_string,
-						0,
-						NULL,
-						NULL,
-						NULL
-						) == ERROR_SUCCESS);
-				}
-
-				RegDeleteValue (hkey, config_string);
-
-				RegCloseKey (hkey);
-			}
-		}
-		else
-		{
-			// fallback!
-			return (MessageBox (hwnd, text, _r_app_getname (), MB_YESNO | MB_ICONWARNING | MB_TOPMOST) == IDYES);
-		}
+		command_id = MessageBox (hwnd, text, _r_app_getname (), MB_YESNO | MB_ICONWARNING | MB_TOPMOST);
 	}
 #endif // !APP_NO_DEPRECATIONS
 
-	if (command_id == IDOK || command_id == IDYES)
+	if (command_id == IDYES)
 	{
 		if (config_key && is_flagchecked)
 			_r_config_setboolean (config_key, FALSE);
