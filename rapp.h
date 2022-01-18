@@ -467,14 +467,13 @@ VOID _r_show_errormessage (
 BOOLEAN _r_show_confirmmessage (
 	_In_opt_ HWND hwnd,
 	_In_opt_ LPCWSTR main,
-	_In_ LPCWSTR text,
+	_In_ LPCWSTR content,
 	_In_opt_ LPCWSTR config_key
 );
 
 INT _r_show_message (
 	_In_opt_ HWND hwnd,
 	_In_ ULONG flags,
-	_In_opt_ LPCWSTR title,
 	_In_opt_ LPCWSTR main,
 	_In_ LPCWSTR content
 );

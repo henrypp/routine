@@ -484,7 +484,6 @@ BOOLEAN _r_app_initialize ()
 		_r_show_message (
 			NULL,
 			MB_OK | MB_ICONWARNING | MB_TOPMOST,
-			_r_app_getname (),
 			APP_WARNING_WOW64_TITLE,
 			APP_WARNING_WOW64_TEXT
 		);
@@ -1162,7 +1161,6 @@ VOID _r_app_restart (_In_opt_ HWND hwnd)
 	if (_r_show_message (
 		hwnd,
 		MB_YESNO | MB_ICONQUESTION,
-		_r_app_getname (),
 		NULL,
 		APP_QUESTION_RESTART
 		) != IDYES)
@@ -1354,6 +1352,7 @@ VOID _r_config_getfont_ex (
 	_In_opt_ LPCWSTR section_name
 )
 {
+	NONCLIENTMETRICS ncm;
 	PR_STRING font_config;
 	R_STRINGREF remaining_part;
 	R_STRINGREF first_part;
@@ -1406,8 +1405,18 @@ VOID _r_config_getfont_ex (
 		_r_obj_dereference (font_config);
 	}
 
+	logfont->lfCharSet = DEFAULT_CHARSET;
+	logfont->lfQuality = DEFAULT_QUALITY;
+
+	if (!_r_str_isempty (logfont->lfFaceName) &&
+		logfont->lfHeight &&
+		logfont->lfWeight)
+	{
+		return;
+	}
+
 	// fill missed font values
-	NONCLIENTMETRICS ncm = {0};
+	RtlZeroMemory (&ncm, sizeof (ncm));
 	ncm.cbSize = sizeof (ncm);
 
 #if !defined(APP_NO_DEPRECATIONS)
@@ -1431,9 +1440,6 @@ VOID _r_config_getfont_ex (
 
 		if (!logfont->lfWeight)
 			logfont->lfWeight = system_font->lfWeight;
-
-		logfont->lfCharSet = system_font->lfCharSet;
-		logfont->lfQuality = system_font->lfQuality;
 	}
 }
 
@@ -2791,7 +2797,7 @@ VOID _r_update_check (
 	if (_r_sys_isosversionlowerorequal (WINDOWS_VISTA))
 	{
 		if (hparent)
-			_r_show_message (hparent, MB_OK | MB_ICONWARNING, _r_app_getname (), APP_SECURITY_TITLE, APP_WARNING_UPDATE_TEXT);
+			_r_show_message (hparent, MB_OK | MB_ICONWARNING, APP_SECURITY_TITLE, APP_WARNING_UPDATE_TEXT);
 
 		return;
 	}
@@ -3378,7 +3384,6 @@ VOID _r_show_aboutmessage (
 #if defined(IDI_MAIN)
 		tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
 #else
-		tdc.pszMainIcon = MAKEINTRESOURCE (100);
 #pragma PR_PRINT_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
 
@@ -3579,7 +3584,7 @@ VOID _r_show_errormessage (
 BOOLEAN _r_show_confirmmessage (
 	_In_opt_ HWND hwnd,
 	_In_opt_ LPCWSTR main,
-	_In_ LPCWSTR text,
+	_In_ LPCWSTR content,
 	_In_opt_ LPCWSTR config_key
 )
 {
@@ -3622,15 +3627,15 @@ BOOLEAN _r_show_confirmmessage (
 		if (main)
 			tdc.pszMainInstruction = main;
 
-		if (text)
-			tdc.pszContent = text;
+		if (content)
+			tdc.pszContent = content;
 
 		_r_msg_taskdialog (&tdc, &command_id, NULL, &is_flagchecked);
 	}
 #if !defined(APP_NO_DEPRECATIONS)
 	else
 	{
-		command_id = MessageBox (hwnd, text, _r_app_getname (), MB_YESNO | MB_ICONWARNING | MB_TOPMOST);
+		command_id = MessageBox (hwnd, content, _r_app_getname (), MB_YESNO | MB_ICONWARNING | MB_TOPMOST);
 	}
 #endif // !APP_NO_DEPRECATIONS
 
@@ -3648,7 +3653,6 @@ BOOLEAN _r_show_confirmmessage (
 INT _r_show_message (
 	_In_opt_ HWND hwnd,
 	_In_ ULONG flags,
-	_In_opt_ LPCWSTR title,
 	_In_opt_ LPCWSTR main,
 	_In_ LPCWSTR content
 )
@@ -3667,7 +3671,7 @@ INT _r_show_message (
 		tdc.hwndParent = hwnd;
 		tdc.hInstance = _r_sys_getimagebase ();
 		tdc.pfCallback = &_r_msg_callback;
-		tdc.pszWindowTitle = title ? title : _r_app_getname ();
+		tdc.pszWindowTitle = _r_app_getname ();
 		tdc.pszMainInstruction = main;
 		tdc.pszContent = content;
 
@@ -3724,17 +3728,16 @@ INT _r_show_message (
 		if (flags & MB_TOPMOST)
 			tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
 
-		if (_r_msg_taskdialog (&tdc, &command_id, NULL, NULL))
-			return command_id;
+		_r_msg_taskdialog (&tdc, &command_id, NULL, NULL);
 	}
 #if !defined(APP_NO_DEPRECATIONS)
 	else
 	{
-		return MessageBox (hwnd, content, title ? title : _r_app_getname (), flags);
+		command_id = MessageBox (hwnd, content, _r_app_getname (), flags);
 	}
 #endif // !APP_NO_DEPRECATIONS
 
-	return 0;
+	return command_id;
 }
 
 VOID _r_window_restoreposition (
@@ -3898,8 +3901,7 @@ VOID _r_settings_createwindow (
 				_r_sys_getimagebase (),
 				MAKEINTRESOURCE (ptr_page->dlg_id),
 				RT_DIALOG,
-				&dlg_buffer
-				))
+				&dlg_buffer))
 			{
 				continue;
 			}
@@ -3916,11 +3918,12 @@ VOID _r_settings_createwindow (
 			}
 		}
 
-#if defined(APP_HAVE_SETTINGS_TABS)
 		height += 38;
+
+#if defined(APP_HAVE_SETTINGS_TABS)
+
 		width += 18;
 #else
-		height += 38;
 		width += 112;
 #endif
 
@@ -4498,7 +4501,6 @@ INT_PTR CALLBACK _r_settings_wndproc (
 					if (_r_show_message (
 						hwnd,
 						MB_YESNO | MB_ICONWARNING,
-						_r_app_getname (),
 						NULL,
 						APP_QUESTION_RESET
 						) != IDYES)
@@ -4726,7 +4728,6 @@ HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 			if (_r_show_message (
 				hwnd,
 				MB_YESNO | MB_ICONWARNING,
-				_r_app_getname (),
 				APP_SECURITY_TITLE,
 				APP_WARNING_UAC_TEXT
 				) != IDYES)
