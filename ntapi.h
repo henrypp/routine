@@ -1388,7 +1388,6 @@ typedef struct _PEB
 		};
 	};
 
-
 	union
 	{
 		PVOID KernelCallbackTable; // Vista+
