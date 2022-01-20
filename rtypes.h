@@ -935,6 +935,7 @@ typedef struct _R_UPDATE_COMPONENT
 	PR_STRING temp_path;
 	PR_STRING target_path;
 	PR_STRING url;
+	PR_STRING hash_string;
 	BOOLEAN is_installer;
 	BOOLEAN is_haveupdate;
 } R_UPDATE_COMPONENT, *PR_UPDATE_COMPONENT;
