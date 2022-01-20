@@ -2310,6 +2310,30 @@ PR_STRING _r_str_unexpandenvironmentstring (
 	_In_ LPCWSTR string
 );
 
+VOID _r_str_fromlong (
+	_Out_writes_ (buffer_size) LPWSTR buffer,
+	_In_ SIZE_T buffer_size,
+	_In_ LONG value
+);
+
+VOID _r_str_fromlong64 (
+	_Out_writes_ (buffer_size) LPWSTR buffer,
+	_In_ SIZE_T buffer_size,
+	_In_ LONG64 value
+);
+
+VOID _r_str_fromulong (
+	_Out_writes_ (buffer_size) LPWSTR buffer,
+	_In_ SIZE_T buffer_size,
+	_In_ ULONG value
+);
+
+VOID _r_str_fromulong64 (
+	_Out_writes_ (buffer_size) LPWSTR buffer,
+	_In_ SIZE_T buffer_size,
+	_In_ ULONG64 value
+);
+
 _Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_str_fromguid (
 	_In_ LPCGUID guid,
@@ -2453,6 +2477,18 @@ VOID _r_str_replacechar (
 	_In_ WCHAR char_to
 );
 
+VOID _r_str_trimstring (
+	_Inout_ PR_STRING string,
+	_In_ PR_STRINGREF charset,
+	_In_ ULONG flags
+);
+
+VOID _r_str_trimstring2 (
+	_Inout_ PR_STRING string,
+	_In_ LPCWSTR charset,
+	_In_ ULONG flags
+);
+
 VOID _r_str_trimstringref (
 	_Inout_ PR_STRINGREF string,
 	_In_ PR_STRINGREF charset,
@@ -2527,46 +2563,6 @@ FORCEINLINE INT _r_str_compare_logical (
 )
 {
 	return StrCmpLogicalW (string1->buffer, string2->buffer);
-}
-
-_Success_ (return)
-FORCEINLINE BOOLEAN _r_str_fromlong (
-	_Out_writes_ (buffer_size) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
-	_In_ LONG value
-)
-{
-	return _r_str_printf (buffer, buffer_size, L"%" TEXT (PR_LONG), value);
-}
-
-_Success_ (return)
-FORCEINLINE BOOLEAN _r_str_fromlong64 (
-	_Out_writes_ (buffer_size) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
-	_In_ LONG64 value
-)
-{
-	return _r_str_printf (buffer, buffer_size, L"%" TEXT (PR_LONG64), value);
-}
-
-_Success_ (return)
-FORCEINLINE BOOLEAN _r_str_fromulong (
-	_Out_writes_ (buffer_size) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
-	_In_ ULONG value
-)
-{
-	return _r_str_printf (buffer, buffer_size, L"%" TEXT (PR_ULONG), value);
-}
-
-_Success_ (return)
-FORCEINLINE BOOLEAN _r_str_fromulong64 (
-	_Out_writes_ (buffer_size) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
-	_In_ ULONG64 value
-)
-{
-	return _r_str_printf (buffer, buffer_size, L"%" TEXT (PR_ULONG64), value);
 }
 
 FORCEINLINE SIZE_T _r_str_getlength_ex (
@@ -2646,28 +2642,6 @@ FORCEINLINE VOID _r_str_trim (
 )
 {
 	StrTrim (string, charset);
-}
-
-FORCEINLINE VOID _r_str_trimstring (
-	_Inout_ PR_STRING string,
-	_In_ PR_STRINGREF charset,
-	_In_ ULONG flags
-)
-{
-	_r_str_trimstringref (&string->sr, charset, flags);
-
-	_r_obj_writestringnullterminator (string);
-}
-
-FORCEINLINE VOID _r_str_trimstring2 (
-	_Inout_ PR_STRING string,
-	_In_ LPCWSTR charset,
-	_In_ ULONG flags
-)
-{
-	_r_str_trimstringref2 (&string->sr, charset, flags);
-
-	_r_obj_writestringnullterminator (string);
 }
 
 FORCEINLINE WCHAR _r_str_lower (

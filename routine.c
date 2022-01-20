@@ -148,7 +148,7 @@ PR_STRING _r_format_string_v (
 	length = _vscwprintf (format, arg_ptr);
 
 	if (length == 0 || length == -1)
-		return NULL;
+		return _r_obj_referenceemptystring ();
 
 	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
@@ -297,8 +297,7 @@ BOOLEAN _r_format_number (
 			LOCALE_USER_DEFAULT,
 			LOCALE_SDECIMAL,
 			decimal_separator,
-			RTL_NUMBER_OF (decimal_separator)
-			))
+			RTL_NUMBER_OF (decimal_separator)))
 		{
 			decimal_separator[0] = L'.';
 			decimal_separator[1] = UNICODE_NULL;
@@ -308,8 +307,7 @@ BOOLEAN _r_format_number (
 			LOCALE_USER_DEFAULT,
 			LOCALE_STHOUSAND,
 			thousand_separator,
-			RTL_NUMBER_OF (thousand_separator)
-			))
+			RTL_NUMBER_OF (thousand_separator)))
 		{
 			thousand_separator[0] = L',';
 			thousand_separator[1] = UNICODE_NULL;
@@ -604,8 +602,7 @@ BOOLEAN FASTCALL _r_event_wait_ex (
 		if (InterlockedCompareExchangePointer (
 			&event_object->event_handle,
 			event_handle,
-			NULL
-			) != NULL)
+			NULL) != NULL)
 		{
 			// Someone else set the event before we did.
 			NtClose (event_handle);
@@ -1116,8 +1113,8 @@ FORCEINLINE NTSTATUS _r_queuedlock_blockwaitblock (
 	_In_opt_ PLARGE_INTEGER timeout
 )
 {
-	NTSTATUS status;
 	HANDLE hevent;
+	NTSTATUS status;
 
 	if (is_spin)
 	{
@@ -1153,8 +1150,8 @@ FORCEINLINE VOID _r_queuedlock_unblockwaitblock (
 	_Inout_ PR_QUEUED_WAIT_BLOCK wait_block
 )
 {
-	NTSTATUS status;
 	HANDLE hevent;
+	NTSTATUS status;
 
 	if (!_interlockedbittestandreset ((PLONG)&wait_block->flags, PR_QUEUED_WAITER_SPINNING_SHIFT))
 	{
@@ -1201,8 +1198,7 @@ VOID FASTCALL _r_queuedlock_acquireexclusive_ex (
 				&wait_block,
 				&is_optimize,
 				&new_value,
-				&current_value
-				))
+				&current_value))
 			{
 				if (is_optimize)
 					_r_queuedlock_optimizelist (queued_lock, current_value);
@@ -1256,8 +1252,7 @@ VOID FASTCALL _r_queuedlock_acquireshared_ex (
 				&wait_block,
 				&is_optimize,
 				&new_value,
-				&current_value
-				))
+				&current_value))
 			{
 				if (is_optimize)
 					_r_queuedlock_optimizelist (queued_lock, current_value);
@@ -1519,8 +1514,7 @@ VOID FASTCALL _r_condition_waitfor (
 			&wait_block,
 			&is_optimize,
 			&value,
-			&current_value
-			))
+			&current_value))
 		{
 			if (is_optimize)
 				_r_queuedlock_optimizelist_ex (condition, current_value, TRUE);
@@ -1904,8 +1898,7 @@ VOID _r_workqueue_queueitem (
 				&_r_workqueue_threadproc,
 				work_queue,
 				NULL,
-				&work_queue->environment
-				) == STATUS_SUCCESS)
+				&work_queue->environment) == STATUS_SUCCESS)
 			{
 				work_queue->current_threads += 1;
 			}
@@ -1947,7 +1940,7 @@ BOOLEAN _r_mutex_isexists (
 
 	if (hmutex)
 	{
-		CloseHandle (hmutex);
+		NtClose (hmutex);
 
 		return TRUE;
 	}
@@ -1986,7 +1979,7 @@ BOOLEAN _r_mutex_destroy (
 	if (original_mutex)
 	{
 		ReleaseMutex (original_mutex);
-		CloseHandle (original_mutex);
+		NtClose (original_mutex);
 
 		return TRUE;
 	}
@@ -4029,7 +4022,7 @@ LONG64 _r_fs_getfilesize (
 
 	file_size = _r_fs_getsize (hfile);
 
-	CloseHandle (hfile);
+	NtClose (hfile);
 
 	return file_size;
 }
@@ -5448,7 +5441,7 @@ NTSTATUS _r_path_ntpathfromdos (
 
 	_r_mem_free (obj_name_info);
 
-	CloseHandle (hfile);
+	NtClose (hfile);
 
 	return status;
 }
@@ -6289,6 +6282,42 @@ PR_STRING _r_str_unexpandenvironmentstring (
 	return buffer;
 }
 
+VOID _r_str_fromlong (
+	_Out_writes_ (buffer_size) LPWSTR buffer,
+	_In_ SIZE_T buffer_size,
+	_In_ LONG value
+)
+{
+	_r_str_printf (buffer, buffer_size, L"%" TEXT (PR_LONG), value);
+}
+
+VOID _r_str_fromlong64 (
+	_Out_writes_ (buffer_size) LPWSTR buffer,
+	_In_ SIZE_T buffer_size,
+	_In_ LONG64 value
+)
+{
+	_r_str_printf (buffer, buffer_size, L"%" TEXT (PR_LONG64), value);
+}
+
+VOID _r_str_fromulong (
+	_Out_writes_ (buffer_size) LPWSTR buffer,
+	_In_ SIZE_T buffer_size,
+	_In_ ULONG value
+)
+{
+	_r_str_printf (buffer, buffer_size, L"%" TEXT (PR_ULONG), value);
+}
+
+VOID _r_str_fromulong64 (
+	_Out_writes_ (buffer_size) LPWSTR buffer,
+	_In_ SIZE_T buffer_size,
+	_In_ ULONG64 value
+)
+{
+	_r_str_printf (buffer, buffer_size, L"%" TEXT (PR_ULONG64), value);
+}
+
 _Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_str_fromguid (
 	_In_ LPCGUID guid,
@@ -7003,6 +7032,28 @@ VOID _r_str_replacechar (
 	}
 }
 
+VOID _r_str_trimstring (
+	_Inout_ PR_STRING string,
+	_In_ PR_STRINGREF charset,
+	_In_ ULONG flags
+)
+{
+	_r_str_trimstringref (&string->sr, charset, flags);
+
+	_r_obj_writestringnullterminator (string);
+}
+
+VOID _r_str_trimstring2 (
+	_Inout_ PR_STRING string,
+	_In_ LPCWSTR charset,
+	_In_ ULONG flags
+)
+{
+	_r_str_trimstringref2 (&string->sr, charset, flags);
+
+	_r_obj_writestringnullterminator (string);
+}
+
 VOID _r_str_trimstringref (
 	_Inout_ PR_STRINGREF string,
 	_In_ PR_STRINGREF charset,
@@ -7200,6 +7251,8 @@ PR_HASHTABLE _r_str_unserialize (
 	_In_ WCHAR value_delimeter
 )
 {
+	static R_STRINGREF whitespace = PR_STRINGREF_INIT (L"\r\n ");
+
 	R_STRINGREF remaining_part;
 	R_STRINGREF values_part;
 	R_STRINGREF key_part;
@@ -7213,26 +7266,24 @@ PR_HASHTABLE _r_str_unserialize (
 
 	while (remaining_part.length != 0)
 	{
-		_r_str_splitatchar (
-			&remaining_part,
-			key_delimeter,
-			&values_part,
-			&remaining_part
-		);
+		_r_str_splitatchar (&remaining_part, key_delimeter, &values_part, &remaining_part);
 
-		if (_r_str_splitatchar (
-			&values_part,
-			value_delimeter,
-			&key_part,
-			&value_part
-			))
+		_r_str_trimstringref (&values_part, &whitespace, 0);
+
+		if (_r_str_splitatchar (&values_part, value_delimeter, &key_part, &value_part))
 		{
+			// trim key string whitespaces
+			_r_str_trimstringref (&key_part, &whitespace, 0);
+
 			hash_code = _r_str_gethash3 (&key_part, TRUE);
 
 			if (hash_code)
 			{
 				if (!_r_obj_findhashtable (hashtable, hash_code))
 				{
+					// trim value string whitespaces
+					_r_str_trimstringref (&value_part, &whitespace, 0);
+
 					_r_obj_addhashtablepointer (
 						hashtable,
 						hash_code,
@@ -7270,40 +7321,16 @@ static ULONG64 _r_str_versiontoulong64 (
 
 	_r_obj_initializestringref3 (&remaining_part, version);
 
-	_r_str_splitatchar (
-		&remaining_part,
-		L'.',
-		&first_part,
-		&remaining_part
-	);
-
+	_r_str_splitatchar (&remaining_part, L'.', &first_part, &remaining_part);
 	major_number = _r_str_toulong (&first_part);
 
-	_r_str_splitatchar (
-		&remaining_part,
-		L'.',
-		&first_part,
-		&remaining_part
-	);
-
+	_r_str_splitatchar (&remaining_part, L'.', &first_part, &remaining_part);
 	minor_number = _r_str_toulong (&first_part);
 
-	_r_str_splitatchar (
-		&remaining_part,
-		L'.',
-		&first_part,
-		&remaining_part
-	);
-
+	_r_str_splitatchar (&remaining_part, L'.', &first_part, &remaining_part);
 	build_number = _r_str_toulong (&first_part);
 
-	_r_str_splitatchar (
-		&remaining_part,
-		L'.',
-		&first_part,
-		&remaining_part
-	);
-
+	_r_str_splitatchar (&remaining_part, L'.', &first_part, &remaining_part);
 	revision_number = _r_str_toulong (&first_part);
 
 	return PR_MAKE_VERSION_ULONG64 (major_number, minor_number, build_number, revision_number);
@@ -7766,11 +7793,7 @@ PR_STRING _r_sys_gettempdirectory ()
 	PR_STRING current_path;
 	PR_STRING new_path;
 
-	current_path = InterlockedCompareExchangePointer (
-		&cached_path,
-		NULL,
-		NULL
-	);
+	current_path = InterlockedCompareExchangePointer (&cached_path, NULL, NULL);
 
 	if (!current_path)
 	{
@@ -7784,11 +7807,14 @@ PR_STRING _r_sys_gettempdirectory ()
 
 		_r_obj_trimstringtonullterminator (new_path); // terminate
 
-		current_path = InterlockedCompareExchangePointer (
-			&cached_path,
-			new_path,
-			NULL
-		);
+		if (new_path->buffer[_r_str_getlength2 (new_path) - 1] == OBJ_NAME_PATH_SEPARATOR)
+		{
+			new_path->length -= sizeof (WCHAR);
+
+			_r_obj_writestringnullterminator (new_path); // terminate
+		}
+
+		current_path = InterlockedCompareExchangePointer (&cached_path, new_path, NULL);
 
 		if (!current_path)
 		{
