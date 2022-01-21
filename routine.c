@@ -4162,7 +4162,11 @@ NTSTATUS _r_fs_mapfile (
 		}
 		else
 		{
+#ifdef _WIN64
 			*out_buffer = _r_obj_createbyte_ex (file_bytes, file_size.QuadPart);
+#else
+			*out_buffer = _r_obj_createbyte_ex (file_bytes, file_size.LowPart);
+#endif
 
 			UnmapViewOfFile (file_bytes);
 
