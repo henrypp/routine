@@ -283,7 +283,7 @@ VOID _r_autopool_destroy (
 );
 
 VOID _r_autopool_drain (
-	_In_ PR_AUTO_POOL auto_pool
+	_Inout_ PR_AUTO_POOL auto_pool
 );
 
 //
@@ -832,31 +832,31 @@ BOOLEAN _r_mem_frobnicate (
 //
 
 _Post_writable_byte_size_ (bytes_count)
-PVOID _r_obj_allocate (
+PVOID NTAPI _r_obj_allocate (
 	_In_ SIZE_T bytes_count,
 	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 );
 
-VOID _r_obj_dereference (
+VOID NTAPI _r_obj_dereference (
 	_In_ PVOID object_body
 );
 
-VOID _r_obj_dereferencelist (
+VOID NTAPI _r_obj_dereferencelist (
 	_In_reads_ (count) PVOID_PTR objects,
 	_In_ SIZE_T count
 );
 
-VOID _r_obj_dereference_ex (
+VOID NTAPI _r_obj_dereference_ex (
 	_In_ PVOID object_body,
 	_In_ LONG ref_count
 );
 
-PVOID _r_obj_reference (
+PVOID NTAPI _r_obj_reference (
 	_In_ PVOID object_body
 );
 
 _Ret_maybenull_
-PVOID _r_obj_referencesafe (
+PVOID NTAPI _r_obj_referencesafe (
 	_In_opt_ PVOID object_body
 );
 
@@ -1287,6 +1287,11 @@ VOID _r_obj_appendstringbuilder3 (
 	_In_ PR_STRINGREF string
 );
 
+VOID _r_obj_appendstringbuilder4 (
+	_Inout_ PR_STRINGBUILDER builder,
+	_In_ PUNICODE_STRING string
+);
+
 VOID _r_obj_appendstringbuilder_ex (
 	_Inout_ PR_STRINGBUILDER builder,
 	_In_ LPCWSTR string,
@@ -1321,6 +1326,12 @@ VOID _r_obj_insertstringbuilder3 (
 	_Inout_ PR_STRINGBUILDER builder,
 	_In_ SIZE_T index,
 	_In_ PR_STRINGREF string
+);
+
+VOID _r_obj_insertstringbuilder4 (
+	_Inout_ PR_STRINGBUILDER builder,
+	_In_ SIZE_T index,
+	_In_ PUNICODE_STRING string
 );
 
 VOID _r_obj_insertstringbuilder_ex (

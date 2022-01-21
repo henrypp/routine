@@ -493,15 +493,11 @@ VOID _r_autopool_destroy (
 	_r_autopool_setcurrentdata (auto_pool->next_pool);
 
 	// Free the dynamic array if it hasn't been freed yet
-	if (auto_pool->dynamic_objects)
-	{
-		_r_mem_free (auto_pool->dynamic_objects);
-		auto_pool->dynamic_objects = NULL;
-	}
+	SAFE_DELETE_MEMORY (auto_pool->dynamic_objects);
 }
 
 VOID _r_autopool_drain (
-	_In_ PR_AUTO_POOL auto_pool
+	_Inout_ PR_AUTO_POOL auto_pool
 )
 {
 	if (auto_pool->static_count)
@@ -2203,7 +2199,7 @@ BOOLEAN _r_mem_frobnicate (
 {
 	LPSTR buffer;
 	SIZE_T length;
-	WCHAR chr;
+	BYTE chr;
 
 	if (!bytes->length)
 		return FALSE;
@@ -2230,7 +2226,7 @@ BOOLEAN _r_mem_frobnicate (
 //
 
 _Post_writable_byte_size_ (bytes_count)
-PVOID _r_obj_allocate (
+PVOID NTAPI _r_obj_allocate (
 	_In_ SIZE_T bytes_count,
 	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 )
@@ -2246,14 +2242,14 @@ PVOID _r_obj_allocate (
 	return PR_OBJECT_HEADER_TO_OBJECT (object_header);
 }
 
-VOID _r_obj_dereference (
+VOID NTAPI _r_obj_dereference (
 	_In_ PVOID object_body
 )
 {
 	_r_obj_dereference_ex (object_body, 1);
 }
 
-VOID _r_obj_dereferencelist (
+VOID NTAPI _r_obj_dereferencelist (
 	_In_reads_ (count) PVOID_PTR objects,
 	_In_ SIZE_T count
 )
@@ -2264,7 +2260,7 @@ VOID _r_obj_dereferencelist (
 	}
 }
 
-VOID _r_obj_dereference_ex (
+VOID NTAPI _r_obj_dereference_ex (
 	_In_ PVOID object_body,
 	_In_ LONG ref_count
 )
@@ -2295,7 +2291,7 @@ VOID _r_obj_dereference_ex (
 	}
 }
 
-PVOID _r_obj_reference (
+PVOID NTAPI _r_obj_reference (
 	_In_ PVOID object_body
 )
 {
@@ -2309,7 +2305,7 @@ PVOID _r_obj_reference (
 }
 
 _Ret_maybenull_
-PVOID _r_obj_referencesafe (
+PVOID NTAPI _r_obj_referencesafe (
 	_In_opt_ PVOID object_body
 )
 {
@@ -2715,6 +2711,14 @@ VOID _r_obj_appendstringbuilder3 (
 	_r_obj_appendstringbuilder_ex (builder, string->buffer, string->length);
 }
 
+VOID _r_obj_appendstringbuilder4 (
+	_Inout_ PR_STRINGBUILDER builder,
+	_In_ PUNICODE_STRING string
+)
+{
+	_r_obj_appendstringbuilder_ex (builder, string->Buffer, string->Length);
+}
+
 VOID _r_obj_appendstringbuilder_ex (
 	_Inout_ PR_STRINGBUILDER builder,
 	_In_ LPCWSTR string,
@@ -2809,6 +2813,15 @@ VOID _r_obj_insertstringbuilder3 (
 )
 {
 	_r_obj_insertstringbuilder_ex (builder, index, string->buffer, string->length);
+}
+
+VOID _r_obj_insertstringbuilder4 (
+	_Inout_ PR_STRINGBUILDER builder,
+	_In_ SIZE_T index,
+	_In_ PUNICODE_STRING string
+)
+{
+	_r_obj_insertstringbuilder_ex (builder, index, string->Buffer, string->Length);
 }
 
 VOID _r_obj_insertstringbuilder_ex (
@@ -3820,6 +3833,8 @@ HRESULT CALLBACK _r_msg_callback (
 	_In_opt_ LONG_PTR lpdata
 )
 {
+	UNREFERENCED_PARAMETER (wparam);
+
 	switch (msg)
 	{
 		case TDN_CREATED:
@@ -4306,8 +4321,7 @@ LPCWSTR _r_path_getextension (
 		&fullpath_part,
 		L'.',
 		&directory_part,
-		&extension_part
-		))
+		&extension_part))
 	{
 		return NULL;
 	}
@@ -4327,8 +4341,7 @@ PR_STRING _r_path_getextensionstring (
 		path,
 		L'.',
 		&directory_part,
-		&extension_part
-		))
+		&extension_part))
 	{
 		return NULL;
 	}
@@ -4544,8 +4557,7 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 			&args_sr,
 			L'"',
 			&args_sr,
-			&arguments
-			))
+			&arguments))
 		{
 			// Unskip the initial quote character
 			_r_obj_skipstringlength (&args_sr, -(LONG_PTR)sizeof (WCHAR));
@@ -7697,11 +7709,7 @@ PR_STRING _r_sys_getsystemdirectory ()
 	PR_STRING current_path;
 	PR_STRING new_path;
 
-	current_path = InterlockedCompareExchangePointer (
-		&cached_path,
-		NULL,
-		NULL
-	);
+	current_path = InterlockedCompareExchangePointer (&cached_path, NULL, NULL);
 
 	if (!current_path)
 	{
@@ -7718,11 +7726,7 @@ PR_STRING _r_sys_getsystemdirectory ()
 			&system_path
 		);
 
-		current_path = InterlockedCompareExchangePointer (
-			&cached_path,
-			new_path,
-			NULL
-		);
+		current_path = InterlockedCompareExchangePointer (&cached_path, new_path, NULL);
 
 		if (!current_path)
 		{
@@ -7911,21 +7915,13 @@ NTSTATUS _r_sys_getservicesid (
 	sid = NULL;
 	sid_length = 0;
 
-	status = RtlCreateServiceSid (
-		&service_name,
-		sid,
-		&sid_length
-	);
+	status = RtlCreateServiceSid (&service_name, sid, &sid_length);
 
 	if (status == STATUS_BUFFER_TOO_SMALL)
 	{
 		sid = _r_obj_createbyte_ex (NULL, sid_length);
 
-		status = RtlCreateServiceSid (
-			&service_name,
-			sid->buffer,
-			&sid_length
-		);
+		status = RtlCreateServiceSid (&service_name, sid->buffer, &sid_length);
 
 		if (status == STATUS_SUCCESS)
 		{
@@ -8008,23 +8004,12 @@ NTSTATUS _r_sys_getusernamefromsid (
 	referenced_domains = NULL;
 	names = NULL;
 
-	status = LsaOpenPolicy (
-		NULL,
-		&object_attributes,
-		POLICY_LOOKUP_NAMES,
-		&policy_handle
-	);
+	status = LsaOpenPolicy (NULL, &object_attributes, POLICY_LOOKUP_NAMES, &policy_handle);
 
 	if (status != STATUS_SUCCESS)
 		goto CleanupExit;
 
-	status = LsaLookupSids (
-		policy_handle,
-		1,
-		&sid,
-		&referenced_domains,
-		&names
-	);
+	status = LsaLookupSids (policy_handle, 1, &sid, &referenced_domains, &names);
 
 	if (status != STATUS_SUCCESS)
 		goto CleanupExit;
@@ -8046,37 +8031,21 @@ NTSTATUS _r_sys_getusernamefromsid (
 
 		if (trust_info->Name.Buffer)
 		{
-			_r_obj_appendstringbuilder_ex (
-				&sb,
-				trust_info->Name.Buffer,
-				trust_info->Name.Length
-			);
+			_r_obj_appendstringbuilder4 (&sb, &trust_info->Name);
 
 			if (is_hasname)
-			{
-				_r_obj_appendstringbuilder (
-					&sb,
-					L"\\"
-				);
-			}
+				_r_obj_appendstringbuilder (&sb, L"\\");
 		}
 	}
 
 	if (is_hasname)
-	{
-		_r_obj_appendstringbuilder_ex (
-			&sb,
-			names[0].Name.Buffer,
-			names[0].Name.Length
-		);
-	}
+		_r_obj_appendstringbuilder4 (&sb, &names[0].Name);
 
 CleanupExit:
 
 	if (status == STATUS_SUCCESS)
 	{
 		*out_buffer = _r_obj_finalstringbuilder (&sb);
-
 	}
 	else
 	{
@@ -10327,16 +10296,16 @@ VOID _r_filedialog_setfilter (
 	{
 		LPOPENFILENAME ofn;
 		PR_STRING filter_string;
-		R_STRINGBUILDER filter_builder;
+		R_STRINGBUILDER sb;
 
 		ofn = file_dialog->u.ofn;
 
-		_r_obj_initializestringbuilder (&filter_builder);
+		_r_obj_initializestringbuilder (&sb);
 
 		for (ULONG i = 0; i < count; i++)
 		{
 			_r_obj_appendstringbuilderformat (
-				&filter_builder,
+				&sb,
 				L"%s%c%s%c",
 				filters[i].pszName,
 				UNICODE_NULL,
@@ -10345,7 +10314,7 @@ VOID _r_filedialog_setfilter (
 			);
 		}
 
-		filter_string = _r_obj_finalstringbuilder (&filter_builder);
+		filter_string = _r_obj_finalstringbuilder (&sb);
 
 		if (ofn->lpstrFilter)
 			_r_mem_free ((PVOID)ofn->lpstrFilter);
@@ -12808,7 +12777,7 @@ PR_STRING _r_crypt_finalhashcontext (
 	if (status != STATUS_SUCCESS)
 		return NULL;
 
-	string = _r_str_fromhex (bytes->buffer, (ULONG)bytes->length, is_uppercase);
+	string = _r_str_fromhex (bytes->buffer, bytes->length, is_uppercase);
 
 	_r_obj_dereference (bytes);
 
