@@ -9198,12 +9198,9 @@ VOID _r_unixtime_to_filetime (
 	_Out_ PFILETIME file_time
 )
 {
-	static LONG64 UNIX_TIME_START = 116444736000000000; // January 1, 1970 (start of Unix epoch) in "ticks"
-	static LONG64 TICKS_PER_SECOND = 10000000; // 100ns tick
-
 	LARGE_INTEGER time_value;
 
-	time_value.QuadPart = (unixtime * TICKS_PER_SECOND) + UNIX_TIME_START;
+	time_value.QuadPart = (unixtime * 10000000LL) + 116444736000000000LL;
 
 	file_time->dwHighDateTime = time_value.HighPart;
 	file_time->dwLowDateTime = time_value.LowPart;
@@ -9226,15 +9223,12 @@ LONG64 _r_unixtime_from_filetime (
 	_In_ const FILETIME * file_time
 )
 {
-	const LONG64 UNIX_TIME_START = 116444736000000000; // January 1, 1970 (start of Unix epoch) in "ticks"
-	const LONG64 TICKS_PER_SECOND = 10000000; // 100ns tick
-
 	LARGE_INTEGER time_value;
 
 	time_value.LowPart = file_time->dwLowDateTime;
 	time_value.HighPart = file_time->dwHighDateTime;
 
-	return (time_value.QuadPart - UNIX_TIME_START) / TICKS_PER_SECOND;
+	return (time_value.QuadPart - 116444736000000000LL) / 10000000LL;
 }
 
 LONG64 _r_unixtime_from_systemtime (
@@ -15802,8 +15796,22 @@ PR_STRING _r_util_versionformat (
 	_In_ PR_STRINGREF string
 )
 {
+	SYSTEMTIME st;
+
 	if (_r_str_isnumeric (string))
-		return _r_format_unixtime_ex (_r_str_tolong64 (string), FDTF_SHORTDATE | FDTF_SHORTTIME);
+	{
+		_r_unixtime_to_systemtime (_r_str_tolong64 (string), &st);
+
+		return _r_format_string (
+			L"%02d-%02d-%04d %02d:%02d:%02d",
+			st.wDay,
+			st.wMonth,
+			st.wYear,
+			st.wHour,
+			st.wMinute,
+			st.wSecond
+		);
+	}
 
 	return _r_obj_createstring3 (string);
 }
