@@ -4098,20 +4098,20 @@ BOOLEAN _r_fs_mkdir (
 _Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_fs_mapfile (
 	_In_ LPCWSTR path,
-	_Out_ PR_FILE_MAPPING file_map
+	_Out_ PR_BYTE_PTR out_buffer
 )
 {
 	LARGE_INTEGER file_size;
 	PVOID file_bytes;
+	HANDLE hfile;
+	HANDLE hmap;
 	NTSTATUS status;
 
-	file_map->file_bytes = NULL;
-	file_map->file_size = 0;
-	file_map->hmap = NULL;
+	*out_buffer = NULL;
 
-	file_map->hfile = CreateFile (
+	hfile = CreateFile (
 		path,
-		FILE_READ_DATA,
+		FILE_GENERIC_READ,
 		FILE_SHARE_READ,
 		NULL,
 		OPEN_EXISTING,
@@ -4119,74 +4119,47 @@ NTSTATUS _r_fs_mapfile (
 		NULL
 	);
 
-	if (!_r_fs_isvalidhandle (file_map->hfile))
+	if (!_r_fs_isvalidhandle (hfile))
+		return RtlGetLastNtStatus ();
+
+	if (!GetFileSizeEx (hfile, &file_size))
 	{
-		status = RtlGetLastNtStatus ();
-		goto CleanupExit;
+		status = GetLastError ();
+
+		NtClose (hfile);
+
+		return status;
 	}
 
-	if (!GetFileSizeEx (file_map->hfile, &file_size))
+	hmap = CreateFileMapping (hfile, NULL, PAGE_READONLY, file_size.HighPart, file_size.LowPart, NULL);
+
+	if (!hmap)
 	{
-		status = RtlGetLastNtStatus ();
-		goto CleanupExit;
+		status = GetLastError ();
+	}
+	else
+	{
+		file_bytes = MapViewOfFile (hmap, FILE_MAP_READ, 0, 0, 0);
+
+		if (!file_bytes)
+		{
+			status = GetLastError ();
+		}
+		else
+		{
+			*out_buffer = _r_obj_createbyte_ex (file_bytes, file_size.QuadPart);
+
+			UnmapViewOfFile (file_bytes);
+
+			status = STATUS_SUCCESS;
+		}
+
+		NtClose (hmap);
 	}
 
-	file_map->hmap = CreateFileMapping (
-		file_map->hfile,
-		NULL,
-		PAGE_WRITECOPY,
-		file_size.HighPart,
-		file_size.LowPart,
-		NULL
-	);
-
-	if (!file_map->hmap)
-	{
-		status = RtlGetLastNtStatus ();
-		goto CleanupExit;
-	}
-
-	file_bytes = MapViewOfFile (
-		file_map->hmap,
-		FILE_MAP_COPY,
-		0,
-		0,
-		0
-	);
-
-	if (!file_bytes)
-	{
-		status = RtlGetLastNtStatus ();
-		goto CleanupExit;
-	}
-
-	file_map->file_bytes = file_bytes;
-	file_map->file_size = file_size.QuadPart;
-
-	SAFE_DELETE_HANDLE (file_map->hmap);
-	SAFE_DELETE_HANDLE (file_map->hfile);
-
-	return STATUS_SUCCESS;
-
-CleanupExit:
-
-	_r_fs_unmapfile (file_map);
+	NtClose (hfile);
 
 	return status;
-}
-
-VOID _r_fs_unmapfile (
-	_Inout_ PR_FILE_MAPPING file_map
-)
-{
-	if (file_map->file_bytes)
-	{
-		UnmapViewOfFile (file_map->file_bytes);
-		file_map->file_bytes = NULL;
-	}
-
-	SAFE_DELETE_HANDLE (file_map->hmap);
-	SAFE_DELETE_HANDLE (file_map->hfile);
 }
 
 LONG64 _r_fs_getpos (
@@ -4196,15 +4169,8 @@ LONG64 _r_fs_getpos (
 	LARGE_INTEGER li = {0};
 	LARGE_INTEGER pos;
 
-	if (!SetFilePointerEx (
-		hfile,
-		li,
-		&pos,
-		FILE_CURRENT
-		))
-	{
+	if (!SetFilePointerEx (hfile, li, &pos, FILE_CURRENT))
 		return 0;
-	}
 
 	return pos.QuadPart;
 }
@@ -4219,12 +4185,7 @@ BOOLEAN _r_fs_setpos (
 
 	li.QuadPart = pos;
 
-	return !!SetFilePointerEx (
-		hfile,
-		li,
-		NULL,
-		method
-	);
+	return !!SetFilePointerEx (hfile, li, NULL, method);
 }
 
 //
@@ -7304,11 +7265,7 @@ PR_HASHTABLE _r_str_unserialize (
 	return hashtable;
 }
 
-// return 1 if v1 > v2
-// return 0 if v1 = v2
-// return -1 if v1 < v2
-
-static ULONG64 _r_str_versiontoulong64 (
+ULONG64 _r_str_versiontoulong64 (
 	_In_ PR_STRINGREF version
 )
 {
@@ -7319,9 +7276,7 @@ static ULONG64 _r_str_versiontoulong64 (
 	ULONG build_number;
 	ULONG revision_number;
 
-	_r_obj_initializestringref3 (&remaining_part, version);
-
-	_r_str_splitatchar (&remaining_part, L'.', &first_part, &remaining_part);
+	_r_str_splitatchar (version, L'.', &first_part, &remaining_part);
 	major_number = _r_str_toulong (&first_part);
 
 	_r_str_splitatchar (&remaining_part, L'.', &first_part, &remaining_part);
@@ -7335,6 +7290,10 @@ static ULONG64 _r_str_versiontoulong64 (
 
 	return PR_MAKE_VERSION_ULONG64 (major_number, minor_number, build_number, revision_number);
 }
+
+// return 1 if v1 > v2
+// return 0 if v1 = v2
+// return -1 if v1 < v2
 
 INT _r_str_versioncompare (
 	_In_ PR_STRINGREF v1,
@@ -7377,11 +7336,7 @@ NTSTATUS _r_str_multibyte2unicode (
 	PR_STRING out_string;
 	ULONG output_size;
 
-	status = RtlMultiByteToUnicodeSize (
-		&output_size,
-		string->buffer,
-		(ULONG)string->length
-	);
+	status = RtlMultiByteToUnicodeSize (&output_size, string->buffer, (ULONG)string->length);
 
 	if (status != STATUS_SUCCESS)
 		return status;
@@ -7420,11 +7375,7 @@ NTSTATUS _r_str_unicode2multibyte (
 	PR_BYTE out_string;
 	ULONG output_size;
 
-	status = RtlUnicodeToMultiByteSize (
-		&output_size,
-		string->buffer,
-		(ULONG)string->length
-	);
+	status = RtlUnicodeToMultiByteSize (&output_size, string->buffer, (ULONG)string->length);
 
 	if (status != STATUS_SUCCESS)
 		return status;
@@ -7629,9 +7580,9 @@ ULONG _r_sys_formatmessage (
 	}
 	else
 	{
-		_r_obj_dereference (string);
-
 		*out_buffer = NULL;
+
+		_r_obj_dereference (string);
 	}
 
 	return status;

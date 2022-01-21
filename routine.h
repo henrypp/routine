@@ -2004,11 +2004,7 @@ BOOLEAN _r_fs_mkdir (
 _Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_fs_mapfile (
 	_In_ LPCWSTR path,
-	_Out_ PR_FILE_MAPPING file_map
-);
-
-VOID _r_fs_unmapfile (
-	_Inout_ PR_FILE_MAPPING file_map
+	_Out_ PR_BYTE_PTR out_buffer
 );
 
 LONG64 _r_fs_getpos (
