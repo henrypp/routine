@@ -1820,12 +1820,12 @@ FORCEINLINE LONG _r_calc_percentof (
 	return (LONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
 }
 
-FORCEINLINE LONG64 _r_calc_percentof64 (
+FORCEINLINE LONG _r_calc_percentof64 (
 	_In_ LONG64 length,
 	_In_ LONG64 total_length
 )
 {
-	return (LONG64)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
+	return (LONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
 }
 
 FORCEINLINE LONG _r_calc_percentval (
