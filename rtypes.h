@@ -708,15 +708,6 @@ typedef struct _R_TOKEN_ATTRIBUTES
 // Filesystem
 //
 
-typedef struct _R_FILE_MAPPING
-{
-	HANDLE hfile;
-	HANDLE hmap;
-
-	PVOID file_bytes;
-	LONG64 file_size;
-} R_FILE_MAPPING, *PR_FILE_MAPPING;
-
 //
 // File dialog
 //
@@ -931,11 +922,10 @@ typedef struct _R_UPDATE_COMPONENT
 	PR_STRING full_name;
 	PR_STRING short_name;
 	PR_STRING version;
-	PR_STRING new_version;
-	PR_STRING temp_path;
+	PR_STRING cache_path;
 	PR_STRING target_path;
 	PR_STRING url;
-	PR_STRING hash_string;
+	//PR_STRING hash_string;
 	BOOLEAN is_installer;
 	BOOLEAN is_haveupdate;
 } R_UPDATE_COMPONENT, *PR_UPDATE_COMPONENT;
@@ -946,6 +936,7 @@ typedef struct _R_UPDATE_INFO
 	HWND htaskdlg;
 	HWND hparent;
 	HWND hthread;
+	HINTERNET hsession;
 	volatile LONG lock;
 	BOOLEAN is_downloaded;
 } R_UPDATE_INFO, *PR_UPDATE_INFO;
