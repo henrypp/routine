@@ -221,7 +221,7 @@ typedef struct _R_EVENT
 {
 	union
 	{
-		ULONG_PTR value;
+		volatile ULONG_PTR value;
 		struct
 		{
 			USHORT is_set : 1;
@@ -286,11 +286,11 @@ C_ASSERT (PR_INITONCE_SHIFT >= FIELD_OFFSET (R_EVENT, available_for_use) * 8);
 
 typedef struct _R_AUTO_POOL
 {
-	ULONG static_count;
 	PVOID static_objects[PR_AUTO_POOL_STATIC_SIZE];
+	SIZE_T static_count;
 
-	ULONG dynamic_count;
-	ULONG dynamic_allocated;
+	SIZE_T dynamic_count;
+	SIZE_T dynamic_allocated;
 	PVOID_PTR dynamic_objects;
 
 	struct _R_AUTO_POOL *next_pool;
@@ -398,7 +398,7 @@ typedef struct _R_QUEUED_LOCK R_CONDITION, *PR_CONDITION;
 typedef struct _R_RUNDOWN_WAIT_BLOCK
 {
 	R_EVENT wake_event;
-	ULONG_PTR count;
+	volatile ULONG_PTR count;
 } R_RUNDOWN_WAIT_BLOCK, *PR_RUNDOWN_WAIT_BLOCK;
 
 typedef struct _R_QUEUED_LOCK R_RUNDOWN_PROTECT, *PR_RUNDOWN_PROTECT;
