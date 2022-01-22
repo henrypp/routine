@@ -201,26 +201,6 @@ extern FORCEINLINE SIZE_T _r_str_getbytelength3 (
 #endif
 
 //
-// Dereference procedures
-//
-
-VOID NTAPI _r_util_dereferencearray_proc (
-	_In_ PVOID entry
-);
-
-VOID NTAPI _r_util_dereferencelist_proc (
-	_In_ PVOID entry
-);
-
-VOID NTAPI _r_util_dereferencehashtable_proc (
-	_In_ PVOID entry
-);
-
-VOID NTAPI _r_util_dereferencehashtable_ptr_proc (
-	_In_ PVOID entry
-);
-
-//
 // Synchronization
 //
 
@@ -1470,7 +1450,7 @@ VOID _r_obj_clearlist (
 _Success_ (return != SIZE_MAX)
 SIZE_T _r_obj_findlistitem (
 	_In_ PR_LIST list_node,
-	_In_ LPCVOID list_item
+	_In_opt_ LPCVOID list_item
 );
 
 VOID _r_obj_insertlistitems (
@@ -1607,16 +1587,9 @@ FORCEINLINE SIZE_T _r_obj_gethashtablesize (
 // Hashtable pointer object
 //
 
-FORCEINLINE PR_HASHTABLE _r_obj_createhashtablepointer (
+PR_HASHTABLE _r_obj_createhashtablepointer (
 	_In_ SIZE_T initial_capacity
-)
-{
-	return _r_obj_createhashtable_ex (
-		sizeof (R_OBJECT_POINTER),
-		initial_capacity,
-		&_r_util_dereferencehashtable_ptr_proc
-	);
-}
+);
 
 _Ret_maybenull_
 PR_OBJECT_POINTER _r_obj_addhashtablepointer (
@@ -1639,13 +1612,10 @@ PVOID _r_obj_findhashtablepointer (
 	_In_ ULONG_PTR hash_code
 );
 
-FORCEINLINE BOOLEAN _r_obj_removehashtablepointer (
+BOOLEAN _r_obj_removehashtablepointer (
 	_Inout_ PR_HASHTABLE hashtable,
 	_In_ ULONG_PTR hash_code
-)
-{
-	return _r_obj_removehashtableitem (hashtable, hash_code);
-}
+);
 
 //
 // Debugging
@@ -1694,6 +1664,18 @@ VOID _r_console_setcolor (
 	_In_ WORD clr
 );
 
+VOID _r_console_writestring (
+	_In_ LPCWSTR string
+);
+
+VOID _r_console_writestring2 (
+	_In_ PR_STRING string
+);
+
+VOID _r_console_writestring3 (
+	_In_ PR_STRINGREF string
+);
+
 VOID _r_console_writestring_ex (
 	_In_ LPCWSTR string,
 	_In_ ULONG length
@@ -1703,27 +1685,6 @@ VOID _r_console_writestringformat (
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 );
-
-FORCEINLINE VOID _r_console_writestring (
-	_In_ LPCWSTR string
-)
-{
-	_r_console_writestring_ex (string, (ULONG)_r_str_getlength (string));
-}
-
-FORCEINLINE VOID _r_console_writestring2 (
-	_In_ PR_STRING string
-)
-{
-	_r_console_writestring_ex (string->buffer, (ULONG)_r_str_getlength2 (string));
-}
-
-FORCEINLINE VOID _r_console_writestring3 (
-	_In_ PR_STRINGREF string
-)
-{
-	_r_console_writestring_ex (string->buffer, (ULONG)_r_str_getlength3 (string));
-}
 
 //
 // Format strings, dates, numbers
@@ -1766,18 +1727,15 @@ BOOLEAN _r_format_number (
 );
 
 _Ret_maybenull_
+PR_STRING _r_format_unixtime (
+	_In_ LONG64 unixtime
+);
+
+_Ret_maybenull_
 PR_STRING _r_format_unixtime_ex (
 	_In_ LONG64 unixtime,
 	_In_ ULONG flags
 );
-
-_Ret_maybenull_
-FORCEINLINE PR_STRING _r_format_unixtime (
-	_In_ LONG64 unixtime
-)
-{
-	return _r_format_unixtime_ex (unixtime, FDTF_DEFAULT);
-}
 
 //
 // Calculation
@@ -2317,6 +2275,10 @@ PR_STRING _r_str_unexpandenvironmentstring (
 	_In_ LPCWSTR string
 );
 
+PR_STRING _r_str_formatversion (
+	_In_ PR_STRINGREF string
+);
+
 VOID _r_str_fromlong (
 	_Out_writes_ (buffer_size) LPWSTR buffer,
 	_In_ SIZE_T buffer_size,
@@ -2390,12 +2352,20 @@ BOOLEAN _r_str_toboolean (
 	_In_ PR_STRINGREF string
 );
 
+LONG _r_str_tolong (
+	_In_ PR_STRINGREF string
+);
+
 LONG _r_str_tolong_ex (
 	_In_ PR_STRINGREF string,
 	_In_opt_ ULONG base
 );
 
 LONG64 _r_str_tolong64 (
+	_In_ PR_STRINGREF string
+);
+
+ULONG _r_str_toulong (
 	_In_ PR_STRINGREF string
 );
 
@@ -2407,20 +2377,6 @@ ULONG _r_str_toulong_ex (
 ULONG64 _r_str_toulong64 (
 	_In_ PR_STRINGREF string
 );
-
-FORCEINLINE LONG _r_str_tolong (
-	_In_ PR_STRINGREF string
-)
-{
-	return _r_str_tolong_ex (string, 10);
-}
-
-FORCEINLINE ULONG _r_str_toulong (
-	_In_ PR_STRINGREF string
-)
-{
-	return _r_str_toulong_ex (string, 10);
-}
 
 #if defined(_WIN64)
 #define _r_str_fromlong_ptr _r_str_fromlong64
@@ -2743,6 +2699,13 @@ HMODULE _r_sys_loadlibrary (
 );
 
 _Success_ (return == STATUS_SUCCESS)
+NTSTATUS _r_sys_createprocess (
+	_In_opt_ LPCWSTR file_name,
+	_In_opt_ LPCWSTR command_line,
+	_In_opt_ LPCWSTR current_directory
+);
+
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_sys_createprocess_ex (
 	_In_opt_ LPCWSTR file_name,
 	_In_opt_ LPCWSTR command_line,
@@ -2841,16 +2804,6 @@ VOID _r_sys_setthreadenvironment (
 	_In_ HANDLE thread_handle,
 	_In_ PR_ENVIRONMENT environment
 );
-
-_Success_ (return == STATUS_SUCCESS)
-FORCEINLINE NTSTATUS _r_sys_createprocess (
-	_In_opt_ LPCWSTR file_name,
-	_In_opt_ LPCWSTR command_line,
-	_In_opt_ LPCWSTR current_directory
-)
-{
-	return _r_sys_createprocess_ex (file_name, command_line, current_directory, NULL, SW_SHOWDEFAULT, 0);
-}
 
 FORCEINLINE VOID _r_sys_exitprocess (
 	_In_ NTSTATUS code
@@ -3000,24 +2953,24 @@ FORCEINLINE BOOLEAN _r_sys_isosversionlowerorequal (
 
 FORCEINLINE LONG64 _r_sys_startexecutiontime ()
 {
-	LARGE_INTEGER li;
+	LARGE_INTEGER frequency;
 
-	if (!QueryPerformanceCounter (&li))
+	if (!QueryPerformanceCounter (&frequency))
 		return 0;
 
-	return li.QuadPart;
+	return frequency.QuadPart;
 }
 
 FORCEINLINE DOUBLE _r_sys_finalexecutiontime (
 	_In_ LONG64 start_time
 )
 {
-	LARGE_INTEGER li;
+	LARGE_INTEGER frequency;
 
-	if (!QueryPerformanceFrequency (&li))
+	if (!QueryPerformanceFrequency (&frequency))
 		return 0.0;
 
-	return ((_r_sys_startexecutiontime () - start_time) * 1000.0) / li.QuadPart / 1000.0;
+	return ((_r_sys_startexecutiontime () - start_time) * 1000.0) / frequency.QuadPart / 1000.0;
 }
 
 //
@@ -3120,6 +3073,19 @@ COLORREF _r_dc_getcolorshade (
 	_In_ ULONG percent
 );
 
+LONG _r_dc_getdpi (
+	_In_ INT number,
+	_In_ LONG dpi_value
+);
+
+LONG _r_dc_getwindowdpi (
+	_In_ HWND hwnd
+);
+
+LONG _r_dc_getmonitordpi (
+	_In_ LPCRECT rect
+);
+
 LONG _r_dc_getdpivalue (
 	_In_opt_ HWND hwnd,
 	_In_opt_ LPCRECT rect
@@ -3140,6 +3106,16 @@ VOID _r_dc_getsizedpivalue (
 
 INT _r_dc_getsystemmetrics (
 	_In_ INT index,
+	_In_ LONG dpi_value
+);
+
+LONG _r_dc_fontheighttosize (
+	_In_ LONG height,
+	_In_ LONG dpi_value
+);
+
+LONG _r_dc_fontsizetoheight (
+	_In_ LONG size,
 	_In_ LONG dpi_value
 );
 
@@ -3166,44 +3142,6 @@ FORCEINLINE VOID _r_dc_fixwindowfont (
 	hfont = (HFONT)SendMessage (hwnd, WM_GETFONT, 0, 0);
 
 	SelectObject (hdc, hfont);
-}
-
-FORCEINLINE LONG _r_dc_getdpi (
-	_In_ INT number,
-	_In_ LONG dpi_value
-)
-{
-	return _r_calc_multipledividesigned (number, dpi_value, USER_DEFAULT_SCREEN_DPI);
-}
-
-FORCEINLINE LONG _r_dc_getwindowdpi (
-	_In_ HWND hwnd
-)
-{
-	return _r_dc_getdpivalue (hwnd, NULL);
-}
-
-FORCEINLINE LONG _r_dc_getmonitordpi (
-	_In_ LPCRECT rect
-)
-{
-	return _r_dc_getdpivalue (NULL, rect);
-}
-
-FORCEINLINE LONG _r_dc_fontheighttosize (
-	_In_ LONG height,
-	_In_ LONG dpi_value
-)
-{
-	return _r_calc_multipledividesigned (-height, 72, dpi_value);
-}
-
-FORCEINLINE LONG _r_dc_fontsizetoheight (
-	_In_ LONG size,
-	_In_ LONG dpi_value
-)
-{
-	return -_r_calc_multipledividesigned (size, dpi_value, 72);
 }
 
 //
@@ -3609,6 +3547,10 @@ ULONG _r_inet_querystatuscode (
 	_In_ HINTERNET hrequest
 );
 
+VOID _r_inet_initializedownload (
+	_Out_ PR_DOWNLOAD_INFO download_info
+);
+
 VOID _r_inet_initializedownload_ex (
 	_Out_ PR_DOWNLOAD_INFO download_info,
 	_In_opt_ HANDLE hfile,
@@ -3626,13 +3568,6 @@ ULONG _r_inet_begindownload (
 VOID _r_inet_destroydownload (
 	_Inout_ PR_DOWNLOAD_INFO download_info
 );
-
-FORCEINLINE VOID _r_inet_initializedownload (
-	_Out_ PR_DOWNLOAD_INFO download_info
-)
-{
-	_r_inet_initializedownload_ex (download_info, NULL, NULL, NULL);
-}
 
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_inet_queryurlparts (
@@ -4598,6 +4533,13 @@ VOID _r_listview_setitem_ex (
 	_In_opt_ LPARAM lparam
 );
 
+VOID _r_listview_setitemcheck (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ INT item_id,
+	_In_ BOOLEAN is_check
+);
+
 VOID _r_listview_setitemstate (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
@@ -4744,16 +4686,6 @@ FORCEINLINE BOOLEAN _r_listview_isitemvisible (
 )
 {
 	return !!((INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_ISITEMVISIBLE, (WPARAM)item_id, 0));
-}
-
-FORCEINLINE VOID _r_listview_setitemcheck (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ INT item_id,
-	_In_ BOOLEAN is_check
-)
-{
-	_r_listview_setitemstate (hwnd, ctrl_id, item_id, INDEXTOSTATEIMAGEMASK (is_check ? 2 : 1), LVIS_STATEIMAGEMASK);
 }
 
 FORCEINLINE VOID _r_listview_setimagelist (
@@ -4904,6 +4836,11 @@ VOID _r_toolbar_addbutton (
 	_In_ INT image_id
 );
 
+VOID _r_toolbar_addseparator (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id
+);
+
 INT _r_toolbar_getwidth (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id
@@ -4923,14 +4860,6 @@ VOID _r_toolbar_setstyle (
 	_In_ INT ctrl_id,
 	_In_opt_ ULONG ex_style
 );
-
-FORCEINLINE VOID _r_toolbar_addseparator (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id
-)
-{
-	_r_toolbar_addbutton (hwnd, ctrl_id, 0, BTNS_SEP, 0, 0, I_IMAGENONE);
-}
 
 FORCEINLINE VOID _r_toolbar_enablebutton (
 	_In_ HWND hwnd,
@@ -4994,12 +4923,6 @@ BOOL CALLBACK _r_util_activate_window_callback (
 	_In_ LPARAM lparam
 );
 
-VOID _r_util_templatewrite_ex (
-	_Inout_ PBYTE_PTR ptr,
-	_In_bytecount_ (size) LPCVOID data,
-	_In_ SIZE_T size
-);
-
 VOID _r_util_templatewritecontrol (
 	_Inout_ PBYTE_PTR ptr,
 	_In_ ULONG ctrl_id,
@@ -5011,27 +4934,43 @@ VOID _r_util_templatewritecontrol (
 	_In_ LPCWSTR class_name
 );
 
+VOID _r_util_templatewriteshort (
+	_Inout_ PBYTE_PTR ptr,
+	_In_ WORD data
+);
+
 VOID _r_util_templatewritestring (
 	_Inout_ PBYTE_PTR ptr,
 	_In_ LPCWSTR string
 );
 
-FORCEINLINE VOID _r_util_templatewriteulong (
+VOID _r_util_templatewriteulong (
 	_Inout_ PBYTE_PTR ptr,
 	_In_ ULONG data
-)
-{
-	_r_util_templatewrite_ex (ptr, &data, sizeof (data));
-}
+);
 
-FORCEINLINE VOID _r_util_templatewriteshort (
+VOID _r_util_templatewrite_ex (
 	_Inout_ PBYTE_PTR ptr,
-	_In_ WORD data
-)
-{
-	_r_util_templatewrite_ex (ptr, &data, sizeof (data));
-}
+	_In_bytecount_ (size) LPCVOID data,
+	_In_ SIZE_T size
+);
 
-PR_STRING _r_util_versionformat (
-	_In_ PR_STRINGREF string
+//
+// Dereference procedures
+//
+
+VOID NTAPI _r_util_cleanarray_callback (
+	_In_ PVOID entry
+);
+
+VOID NTAPI _r_util_cleanlist_callback (
+	_In_ PVOID entry
+);
+
+VOID NTAPI _r_util_cleanhashtable_callback (
+	_In_ PVOID entry
+);
+
+VOID NTAPI _r_util_cleanhashtablepointer_callback (
+	_In_ PVOID entry
 );
