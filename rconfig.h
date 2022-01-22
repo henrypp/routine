@@ -132,7 +132,7 @@
 	L"when running from outside a secure location (e.g. Program Files).\r\n\r\nAre you sure you want to continue?"
 
 #define APP_WARNING_UPDATE_TEXT \
-	L"This operating system are obsolete and does not meet security requirements for secure internet connection."
+	L"This operating system are obsolete and does not meet security\r\nrequirements to establish secure network connection."
 
 #define APP_WARNING_LOG_TEXT L"Something went wrong. Open debug log file in profile directory."
 
