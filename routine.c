@@ -11712,7 +11712,7 @@ ULONG _r_inet_openurl (
 			{
 				if (_r_inet_querystatuscode (hrequest) != HTTP_STATUS_OK)
 				{
-					status = ERROR_WINHTTP_CANNOT_CONNECT;
+					status = ERROR_WINHTTP_INVALID_SERVER_RESPONSE;
 					break;
 				}
 
