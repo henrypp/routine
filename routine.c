@@ -4320,10 +4320,22 @@ BOOLEAN _r_fs_mkdir (
 	_In_ LPCWSTR path
 )
 {
-	if (SHCreateDirectoryEx (NULL, path, NULL) == ERROR_SUCCESS)
-		return TRUE;
+	ULONG attr;
+	ULONG status;
 
-	return !!CreateDirectory (path, NULL); // fallback
+	attr = GetFileAttributes (path);
+
+	if (attr != INVALID_FILE_ATTRIBUTES)
+	{
+		if (attr & FILE_ATTRIBUTE_DIRECTORY) // already exists
+			return TRUE;
+
+		_r_fs_deletefile (path, TRUE);
+	}
+
+	status = SHCreateDirectoryEx (NULL, path, NULL);
+
+	return (status == ERROR_SUCCESS);
 }
 
 _Success_ (return == STATUS_SUCCESS)
@@ -14009,7 +14021,7 @@ BOOLEAN _r_tray_create (
 #endif // APP_NO_DEPRECATIONS
 
 		_r_str_copy (nid.szTip, RTL_NUMBER_OF (nid.szTip), tooltip);
-	}
+}
 
 	if (is_hidden)
 	{
@@ -14027,7 +14039,7 @@ BOOLEAN _r_tray_create (
 	}
 
 	return FALSE;
-}
+	}
 
 BOOLEAN _r_tray_destroy (
 	_In_ HWND hwnd,
@@ -14128,10 +14140,10 @@ BOOLEAN _r_tray_setinfo (
 #endif // APP_NO_DEPRECATIONS
 
 		_r_str_copy (nid.szTip, RTL_NUMBER_OF (nid.szTip), tooltip);
-	}
+}
 
 	return !!Shell_NotifyIcon (NIM_MODIFY, &nid);
-}
+	}
 
 BOOLEAN _r_tray_setinfoformat (
 	_In_ HWND hwnd,
