@@ -349,26 +349,18 @@ FORCEINLINE VOID _r_initonce_end (
 
 #else
 
+BOOLEAN FASTCALL _r_initonce_begin (
+	_Inout_ PR_INITONCE init_once
+);
+
 BOOLEAN FASTCALL _r_initonce_begin_ex (
 	_Inout_ PR_INITONCE init_once
 );
 
-FORCEINLINE BOOLEAN _r_initonce_begin (
+VOID FASTCALL _r_initonce_end (
 	_Inout_ PR_INITONCE init_once
-)
-{
-	if (_r_event_test (&init_once->event_object))
-		return FALSE;
+);
 
-	return _r_initonce_begin_ex (init_once);
-}
-
-FORCEINLINE VOID FASTCALL _r_initonce_end (
-	_Inout_ PR_INITONCE init_once
-)
-{
-	_r_event_set (&init_once->event_object);
-}
 #endif // APP_NO_DEPRECATIONS
 
 //
@@ -1003,6 +995,10 @@ VOID _r_obj_setstringlength (
 	_In_ SIZE_T length
 );
 
+VOID _r_obj_trimstringtonullterminator (
+	_In_ PR_STRING string
+);
+
 _Ret_maybenull_
 FORCEINLINE LPCWSTR _r_obj_getstring (
 	_In_opt_ PR_STRING string
@@ -1066,174 +1062,99 @@ FORCEINLINE VOID _r_obj_writestringnullterminator (
 	*(LPWSTR)PTR_ADD_OFFSET (string->buffer, string->length) = UNICODE_NULL;
 }
 
-FORCEINLINE VOID _r_obj_trimstringtonullterminator (
-	_In_ PR_STRING string
-)
-{
-	string->length = _r_str_getlength_ex (string->buffer, _r_str_getlength2 (string) + 1) * sizeof (WCHAR);
-
-	_r_obj_writestringnullterminator (string); // terminate
-}
-
 //
 // 8-bit string reference object
 //
 
-FORCEINLINE VOID _r_obj_initializebyteref_ex (
+VOID _r_obj_initializebyterefempty (
+	_Out_ PR_BYTEREF string
+);
+
+VOID _r_obj_initializebyterefconst (
+	_Out_ PR_BYTEREF string,
+	_In_ LPCSTR buffer
+);
+
+VOID _r_obj_initializebyteref (
+	_Out_ PR_BYTEREF string,
+	_In_ LPSTR buffer
+);
+
+VOID _r_obj_initializebyteref2 (
+	_Out_ PR_BYTEREF string,
+	_In_ PR_BYTE buffer
+);
+
+VOID _r_obj_initializebyteref3 (
+	_Out_ PR_BYTEREF string,
+	_In_ PR_BYTEREF buffer
+);
+
+VOID _r_obj_initializebyteref_ex (
 	_Out_ PR_BYTEREF string,
 	_In_opt_ LPSTR buffer,
 	_In_opt_ SIZE_T length
-)
-{
-	string->buffer = buffer;
-	string->length = length;
-}
-
-FORCEINLINE VOID _r_obj_initializebyterefempty (
-	_Out_ PR_BYTEREF string
-)
-{
-	_r_obj_initializebyteref_ex (string, NULL, 0);
-}
-
-FORCEINLINE VOID _r_obj_initializebyterefconst (
-	_Out_ PR_BYTEREF string,
-	_In_ LPCSTR buffer
-)
-{
-	_r_obj_initializebyteref_ex (string, (LPSTR)buffer, _r_str_getbytelength (buffer));
-}
-
-FORCEINLINE VOID _r_obj_initializebyteref (
-	_Out_ PR_BYTEREF string,
-	_In_ LPSTR buffer
-)
-{
-	_r_obj_initializebyteref_ex (string, buffer, _r_str_getbytelength (buffer));
-}
-
-FORCEINLINE VOID _r_obj_initializebyteref2 (
-	_Out_ PR_BYTEREF string,
-	_In_ PR_BYTE buffer
-)
-{
-	_r_obj_initializebyteref_ex (string, buffer->buffer, buffer->length);
-}
-
-FORCEINLINE VOID _r_obj_initializebyteref3 (
-	_Out_ PR_BYTEREF string,
-	_In_ PR_BYTEREF buffer
-)
-{
-	_r_obj_initializebyteref_ex (string, buffer->buffer, buffer->length);
-}
+);
 
 //
 // 16-bit string reference object
 //
 
-FORCEINLINE VOID _r_obj_initializestringref_ex (
+VOID _r_obj_initializestringrefempty (
+	_Out_ PR_STRINGREF string
+);
+
+VOID _r_obj_initializestringrefconst (
+	_Out_ PR_STRINGREF string,
+	_In_ LPCWSTR buffer
+);
+
+VOID _r_obj_initializestringref (
+	_Out_ PR_STRINGREF string,
+	_In_ LPWSTR buffer
+);
+
+VOID _r_obj_initializestringref2 (
+	_Out_ PR_STRINGREF string,
+	_In_ PR_STRING buffer
+);
+
+VOID _r_obj_initializestringref3 (
+	_Out_ PR_STRINGREF string,
+	_In_ PR_STRINGREF buffer
+);
+
+VOID _r_obj_initializestringref4 (
+	_Out_ PR_STRINGREF string,
+	_In_ PUNICODE_STRING buffer
+);
+
+VOID _r_obj_initializestringref_ex (
 	_Out_ PR_STRINGREF string,
 	_In_opt_ LPWSTR buffer,
 	_In_opt_ SIZE_T length
-)
-{
-	assert (!(length & 0x01));
-
-	string->buffer = buffer;
-	string->length = length;
-}
-
-FORCEINLINE VOID _r_obj_initializestringrefempty (
-	_Out_ PR_STRINGREF string
-)
-{
-	_r_obj_initializestringref_ex (string, NULL, 0);
-}
-
-FORCEINLINE VOID _r_obj_initializestringrefconst (
-	_Out_ PR_STRINGREF string,
-	_In_ LPCWSTR buffer
-)
-{
-	_r_obj_initializestringref_ex (string, (LPWSTR)buffer, _r_str_getlength (buffer) * sizeof (WCHAR));
-}
-
-FORCEINLINE VOID _r_obj_initializestringref (
-	_Out_ PR_STRINGREF string,
-	_In_ LPWSTR buffer
-)
-{
-	_r_obj_initializestringref_ex (string, buffer, _r_str_getlength (buffer) * sizeof (WCHAR));
-}
-
-FORCEINLINE VOID _r_obj_initializestringref2 (
-	_Out_ PR_STRINGREF string,
-	_In_ PR_STRING buffer
-)
-{
-	_r_obj_initializestringref_ex (string, buffer->buffer, buffer->length);
-}
-
-FORCEINLINE VOID _r_obj_initializestringref3 (
-	_Out_ PR_STRINGREF string,
-	_In_ PR_STRINGREF buffer
-)
-{
-	_r_obj_initializestringref_ex (string, buffer->buffer, buffer->length);
-}
-
-FORCEINLINE VOID _r_obj_initializestringref4 (
-	_Out_ PR_STRINGREF string,
-	_In_ PUNICODE_STRING buffer
-)
-{
-	_r_obj_initializestringref_ex (string, buffer->Buffer, buffer->Length);
-}
+);
 
 //
 // Unicode string object
 //
 
-FORCEINLINE BOOLEAN _r_obj_initializeunicodestring_ex (
+BOOLEAN _r_obj_initializeunicodestring2 (
+	_Out_ PUNICODE_STRING string,
+	_In_ PR_STRING buffer
+);
+
+BOOLEAN _r_obj_initializeunicodestring3 (
+	_Out_ PUNICODE_STRING string,
+	_In_ PR_STRINGREF buffer
+);
+
+BOOLEAN _r_obj_initializeunicodestring_ex (
 	_Out_ PUNICODE_STRING string,
 	_In_opt_ LPWSTR buffer,
 	_In_opt_ USHORT length,
 	_In_opt_ USHORT max_length
-)
-{
-	string->Length = length;
-	string->MaximumLength = max_length;
-	string->Buffer = buffer;
-
-	return string->Length <= UNICODE_STRING_MAX_BYTES;
-}
-
-FORCEINLINE BOOLEAN _r_obj_initializeunicodestring2 (
-	_Out_ PUNICODE_STRING string,
-	_In_ PR_STRING buffer
-)
-{
-	return _r_obj_initializeunicodestring_ex (
-		string,
-		buffer->buffer,
-		(USHORT)buffer->length,
-		(USHORT)buffer->length + sizeof (UNICODE_NULL)
-	);
-}
-
-FORCEINLINE BOOLEAN _r_obj_initializeunicodestring3 (
-	_Out_ PUNICODE_STRING string,
-	_In_ PR_STRINGREF buffer
-)
-{
-	return _r_obj_initializeunicodestring_ex (
-		string,
-		buffer->buffer,
-		(USHORT)buffer->length,
-		(USHORT)buffer->length + sizeof (UNICODE_NULL)
-	);
-}
+);
 
 //
 // String builder
@@ -1633,21 +1554,18 @@ FORCEINLINE VOID _r_debug (
 	OutputDebugString (string);
 }
 
+VOID _r_error_initialize (
+	_Out_ PR_ERROR_INFO error_info,
+	_In_opt_ HINSTANCE hinst,
+	_In_opt_ LPCWSTR description
+);
+
 VOID _r_error_initialize_ex (
 	_Out_ PR_ERROR_INFO error_info,
-	_In_opt_ HINSTANCE hmodule,
+	_In_opt_ HINSTANCE hinst,
 	_In_opt_ LPCWSTR description,
 	_In_opt_ PEXCEPTION_POINTERS exception_ptr
 );
-
-FORCEINLINE VOID _r_error_initialize (
-	_Out_ PR_ERROR_INFO error_info,
-	_In_opt_ HINSTANCE hmodule,
-	_In_opt_ LPCWSTR description
-)
-{
-	_r_error_initialize_ex (error_info, hmodule, description, NULL);
-}
 
 #define RDBG(a) _r_debug ((a))
 #define RDBG2(a, ...) _r_debug_v ((a), __VA_ARGS__)
@@ -1920,9 +1838,9 @@ HRESULT CALLBACK _r_msg_callback (
 _Success_ (return)
 BOOLEAN _r_msg_taskdialog (
 	_In_ const TASKDIALOGCONFIG * task_dialog,
-	_Out_opt_ PINT button,
-	_Out_opt_ PINT radio_button,
-	_Out_opt_ LPBOOL is_flagchecked
+	_Out_opt_ PINT button_ptr,
+	_Out_opt_ PINT radio_button_ptr,
+	_Out_opt_ LPBOOL is_flagchecked_ptr
 );
 
 //
@@ -2065,7 +1983,7 @@ PR_STRING _r_path_getknownfolder (
 
 _Ret_maybenull_
 PR_STRING _r_path_getmodulepath (
-	_In_opt_ HMODULE hmodule
+	_In_opt_ HMODULE hinst
 );
 
 BOOLEAN _r_path_issecurelocation (
@@ -2276,7 +2194,7 @@ PR_STRING _r_str_unexpandenvironmentstring (
 );
 
 PR_STRING _r_str_formatversion (
-	_In_ PR_STRINGREF string
+	_In_ PR_STRING string
 );
 
 VOID _r_str_fromlong (
@@ -2627,6 +2545,22 @@ FORCEINLINE WCHAR _r_str_upper (
 
 BOOLEAN _r_sys_iselevated ();
 
+BOOLEAN _r_sys_isosversionequal (
+	_In_ ULONG version
+);
+
+BOOLEAN _r_sys_isosversiongreaterorequal (
+	_In_ ULONG version
+);
+
+BOOLEAN _r_sys_isosversionlower (
+	_In_ ULONG version
+);
+
+BOOLEAN _r_sys_isosversionlowerorequal (
+	_In_ ULONG version
+);
+
 BOOLEAN _r_sys_isprocessimmersive (
 	_In_ HANDLE hprocess
 );
@@ -2795,6 +2729,14 @@ VOID _r_sys_setenvironment (
 	_In_ ULONG page_priority
 );
 
+VOID _r_sys_setdefaultprocessenvironment (
+	_Out_ PR_ENVIRONMENT environment
+);
+
+VOID _r_sys_setdefaultthreadenvironment (
+	_Out_ PR_ENVIRONMENT environment
+);
+
 VOID _r_sys_setprocessenvironment (
 	_In_ HANDLE process_handle,
 	_In_ PR_ENVIRONMENT environment
@@ -2814,20 +2756,6 @@ FORCEINLINE VOID _r_sys_exitprocess (
 #else
 	ExitProcess (code);
 #endif // APP_NO_DEPRECATIONS
-}
-
-FORCEINLINE VOID _r_sys_setdefaultprocessenvironment (
-	_Out_ PR_ENVIRONMENT environment
-)
-{
-	_r_sys_setenvironment (environment, PROCESS_PRIORITY_CLASS_NORMAL, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
-}
-
-FORCEINLINE VOID _r_sys_setdefaultthreadenvironment (
-	_Out_ PR_ENVIRONMENT environment
-)
-{
-	_r_sys_setenvironment (environment, THREAD_PRIORITY_NORMAL, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
 }
 
 FORCEINLINE VOID _r_sys_setthreadexecutionstate (
@@ -2921,34 +2849,6 @@ FORCEINLINE ULONG64 _r_sys_gettickcount64 ()
 
 	return (UInt32x32To64 (tick_count.LowPart, USER_SHARED_DATA->TickCountMultiplier) >> 24) +
 		(UInt32x32To64 (tick_count.HighPart, USER_SHARED_DATA->TickCountMultiplier) << 8);
-}
-
-FORCEINLINE BOOLEAN _r_sys_isosversionequal (
-	_In_ ULONG version
-)
-{
-	return _r_sys_getwindowsversion () == version;
-}
-
-FORCEINLINE BOOLEAN _r_sys_isosversiongreaterorequal (
-	_In_ ULONG version
-)
-{
-	return _r_sys_getwindowsversion () >= version;
-}
-
-FORCEINLINE BOOLEAN _r_sys_isosversionlower (
-	_In_ ULONG version
-)
-{
-	return _r_sys_getwindowsversion () < version;
-}
-
-FORCEINLINE BOOLEAN _r_sys_isosversionlowerorequal (
-	_In_ ULONG version
-)
-{
-	return _r_sys_getwindowsversion () <= version;
 }
 
 FORCEINLINE LONG64 _r_sys_startexecutiontime ()
