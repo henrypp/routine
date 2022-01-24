@@ -2197,6 +2197,12 @@ PR_STRING _r_str_formatversion (
 	_In_ PR_STRING string
 );
 
+VOID _r_str_generaterandom (
+	_Out_writes_z_ (buffer_size) LPWSTR buffer,
+	_In_ SIZE_T buffer_size,
+	_In_ BOOLEAN is_uppercase
+);
+
 VOID _r_str_fromlong (
 	_Out_writes_ (buffer_size) LPWSTR buffer,
 	_In_ SIZE_T buffer_size,

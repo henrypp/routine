@@ -6471,6 +6471,24 @@ PR_STRING _r_str_formatversion (
 	return _r_obj_reference (string);
 }
 
+VOID _r_str_generaterandom (
+	_Out_writes_z_ (buffer_size) LPWSTR buffer,
+	_In_ SIZE_T buffer_size,
+	_In_ BOOLEAN is_uppercase
+)
+{
+	WCHAR chr;
+
+	chr = is_uppercase ? L'A' : L'a';
+
+	for (SIZE_T i = 0; i < buffer_size - 1; i++)
+	{
+		buffer[i] = chr + (_r_math_getrandom () % 26);
+	}
+
+	buffer[buffer_size - 1] = UNICODE_NULL;
+}
+
 VOID _r_str_fromlong (
 	_Out_writes_ (buffer_size) LPWSTR buffer,
 	_In_ SIZE_T buffer_size,
@@ -14021,7 +14039,7 @@ BOOLEAN _r_tray_create (
 #endif // APP_NO_DEPRECATIONS
 
 		_r_str_copy (nid.szTip, RTL_NUMBER_OF (nid.szTip), tooltip);
-}
+	}
 
 	if (is_hidden)
 	{
@@ -14039,7 +14057,7 @@ BOOLEAN _r_tray_create (
 	}
 
 	return FALSE;
-	}
+}
 
 BOOLEAN _r_tray_destroy (
 	_In_ HWND hwnd,
@@ -14140,10 +14158,10 @@ BOOLEAN _r_tray_setinfo (
 #endif // APP_NO_DEPRECATIONS
 
 		_r_str_copy (nid.szTip, RTL_NUMBER_OF (nid.szTip), tooltip);
-}
+	}
 
 	return !!Shell_NotifyIcon (NIM_MODIFY, &nid);
-	}
+}
 
 BOOLEAN _r_tray_setinfoformat (
 	_In_ HWND hwnd,
