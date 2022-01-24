@@ -8037,7 +8037,7 @@ PR_STRING _r_sys_gettempdirectory ()
 BOOLEAN _r_sys_getopt (
 	_In_ LPCWSTR args,
 	_In_ LPCWSTR name,
-	_Out_opt_ PR_STRING_PTR out_value
+	_Outptr_opt_result_maybenull_ PR_STRING_PTR out_value
 )
 {
 	R_STRINGREF key_name;
@@ -8046,9 +8046,8 @@ BOOLEAN _r_sys_getopt (
 	LPWSTR *arga;
 	SIZE_T option_length;
 	INT numargs;
-	BOOLEAN is_success;
+	BOOLEAN is_namefound;
 
-	is_success = FALSE;
 	arga = CommandLineToArgvW (args, &numargs);
 
 	if (out_value)
@@ -8056,6 +8055,8 @@ BOOLEAN _r_sys_getopt (
 
 	if (!arga)
 		return FALSE;
+
+	is_namefound = FALSE;
 
 	_r_obj_initializestringrefconst (&name_sr, name);
 
@@ -8080,6 +8081,7 @@ BOOLEAN _r_sys_getopt (
 		if (_r_str_isstartswith (&key_name, &name_sr, TRUE))
 		{
 			option_length = _r_str_getlength3 (&name_sr);
+			is_namefound = TRUE;
 		}
 		else
 		{
@@ -8093,8 +8095,7 @@ BOOLEAN _r_sys_getopt (
 		{
 			if (key_name.buffer[option_length] == L':' ||
 				key_name.buffer[option_length] == L'=' ||
-				key_name.buffer[option_length] == L' '
-				)
+				key_name.buffer[option_length] == L' ')
 			{
 				if (out_value)
 				{
@@ -8134,19 +8135,18 @@ BOOLEAN _r_sys_getopt (
 				continue;
 			}
 
-			is_success = TRUE;
 			break;
 		}
 		else
 		{
-			is_success = TRUE;
+			//is_namefound = TRUE;
 			break;
 		}
 	}
 
 	LocalFree (arga);
 
-	return is_success;
+	return is_namefound;
 }
 
 _Success_ (return == STATUS_SUCCESS)

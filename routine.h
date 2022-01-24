@@ -2590,7 +2590,7 @@ PR_STRING _r_sys_gettempdirectory ();
 BOOLEAN _r_sys_getopt (
 	_In_ LPCWSTR args,
 	_In_ LPCWSTR name,
-	_Out_opt_ PR_STRING_PTR out_value
+	_Outptr_opt_result_maybenull_ PR_STRING_PTR out_value
 );
 
 _Success_ (return == STATUS_SUCCESS)
