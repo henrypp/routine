@@ -4181,6 +4181,16 @@ BOOLEAN _r_fs_deletefile (
 	_In_ BOOLEAN is_forced
 )
 {
+	ULONG attributes;
+
+	attributes = GetFileAttributes (path);
+
+	if (attributes == INVALID_FILE_ATTRIBUTES)
+		return FALSE;
+
+	if (attributes & FILE_ATTRIBUTE_DIRECTORY)
+		return FALSE;
+
 	if (is_forced)
 		SetFileAttributes (path, FILE_ATTRIBUTE_NORMAL);
 
@@ -4195,9 +4205,15 @@ BOOLEAN _r_fs_deletedirectory (
 	SHFILEOPSTRUCT shfop = {0};
 	PR_STRING string;
 	SIZE_T length;
+	ULONG attributes;
 	LONG status;
 
-	if (!(GetFileAttributes (path) & FILE_ATTRIBUTE_DIRECTORY))
+	attributes = GetFileAttributes (path);
+
+	if (attributes == INVALID_FILE_ATTRIBUTES)
+		return FALSE;
+
+	if (!(attributes & FILE_ATTRIBUTE_DIRECTORY))
 		return FALSE;
 
 	length = _r_str_getlength (path) + 1;
@@ -4320,14 +4336,14 @@ BOOLEAN _r_fs_mkdir (
 	_In_ LPCWSTR path
 )
 {
-	ULONG attr;
+	ULONG attributes;
 	ULONG status;
 
-	attr = GetFileAttributes (path);
+	attributes = GetFileAttributes (path);
 
-	if (attr != INVALID_FILE_ATTRIBUTES)
+	if (attributes != INVALID_FILE_ATTRIBUTES)
 	{
-		if (attr & FILE_ATTRIBUTE_DIRECTORY) // already exists
+		if (attributes & FILE_ATTRIBUTE_DIRECTORY) // already exists
 			return TRUE;
 
 		_r_fs_deletefile (path, TRUE);
