@@ -207,10 +207,9 @@ typedef enum _R_LOG_LEVEL
 
 typedef struct _R_ERROR_INFO
 {
-	HINSTANCE hmodule;
 	LPCWSTR description;
 	PEXCEPTION_POINTERS exception_ptr;
-	ULONG reserved1;
+	HINSTANCE hinst;
 } R_ERROR_INFO, *PR_ERROR_INFO;
 
 //
@@ -917,17 +916,21 @@ typedef struct _R_SETTINGS_PAGE
 	INT dlg_id;
 } R_SETTINGS_PAGE, *PR_SETTINGS_PAGE;
 
+#define PR_UPDATE_FLAG_AVAILABLE 0x000001
+#define PR_UPDATE_FLAG_INSTALLER 0x000002
+#define PR_UPDATE_FLAG_FILE 0x000004
+
 typedef struct _R_UPDATE_COMPONENT
 {
 	PR_STRING full_name;
 	PR_STRING short_name;
-	PR_STRING version;
+	PR_STRING current_version;
+	PR_STRING new_version;
 	PR_STRING cache_path;
 	PR_STRING target_path;
 	PR_STRING url;
 	//PR_STRING hash_string;
-	BOOLEAN is_installer;
-	BOOLEAN is_haveupdate;
+	ULONG flags;
 } R_UPDATE_COMPONENT, *PR_UPDATE_COMPONENT;
 
 typedef struct _R_UPDATE_INFO
@@ -937,8 +940,9 @@ typedef struct _R_UPDATE_INFO
 	HWND hparent;
 	HWND hthread;
 	HINTERNET hsession;
+	ULONG flags;
 	volatile LONG lock;
-	BOOLEAN is_downloaded;
+	BOOLEAN is_clicked;
 } R_UPDATE_INFO, *PR_UPDATE_INFO;
 
 typedef struct _R_SHARED_IMAGE

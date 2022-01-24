@@ -358,27 +358,29 @@ HRESULT CALLBACK _r_update_pagecallback (
 	_In_ LONG_PTR pdata
 );
 
-VOID _r_update_pagenavigate (
+VOID _r_update_navigate (
 	_In_ PR_UPDATE_INFO update_info,
 	_In_opt_ LPCWSTR main_icon,
 	_In_ TASKDIALOG_FLAGS flags,
 	_In_ TASKDIALOG_COMMON_BUTTON_FLAGS buttons,
 	_In_opt_ LPCWSTR main,
-	_In_opt_ LPCWSTR content
+	_In_opt_ LPCWSTR content,
+	_In_ ULONG error_code
 );
 
 VOID _r_update_addcomponent (
-	_In_opt_ LPCWSTR full_name,
-	_In_opt_ LPCWSTR short_name,
-	_In_opt_ LPCWSTR version,
-	_In_opt_ PR_STRING target_path,
+	_In_ LPCWSTR full_name,
+	_In_ LPCWSTR short_name,
+	_In_ LPCWSTR version,
+	_In_ PR_STRING target_path,
 	_In_ BOOLEAN is_installer
 );
 
-VOID _r_update_install (
-	_In_ PR_STRING install_path
-);
+VOID _r_update_applyconfig ();
 
+VOID _r_update_install (
+	_In_ PR_UPDATE_COMPONENT update_component
+);
 #endif // APP_HAVE_UPDATES
 
 BOOLEAN _r_log_isenabled (
@@ -392,7 +394,7 @@ VOID _r_log (
 	_In_ R_LOG_LEVEL log_level,
 	_In_opt_ LPCGUID tray_guid,
 	_In_ LPCWSTR title,
-	_In_ ULONG code,
+	_In_ ULONG error_code,
 	_In_opt_ LPCWSTR description
 );
 
@@ -400,7 +402,7 @@ VOID _r_log_v (
 	_In_ R_LOG_LEVEL log_level,
 	_In_opt_ LPCGUID tray_guid,
 	_In_ LPCWSTR title,
-	_In_ ULONG code,
+	_In_ ULONG error_code,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 );
@@ -485,6 +487,8 @@ BOOLEAN _r_app_initialize ();
 PR_STRING _r_app_getdirectory ();
 
 PR_STRING _r_app_getconfigpath ();
+
+LPCWSTR _r_app_getcachedirectory ();
 
 LPCWSTR _r_app_getcrashdirectory ();
 
@@ -574,6 +578,12 @@ FORCEINLINE LPCWSTR _r_app_getwebsite_url ()
 	return L"https://www.henrypp.org";
 }
 
+FORCEINLINE LPCWSTR _r_app_getupdate_url ()
+{
+	//return L"https://www.henrypp.org/update.php?product=" APP_NAME_SHORT;
+	return L"https://raw.githubusercontent.com/henrypp/" APP_NAME_SHORT L"/master/VERSION";
+}
+
 FORCEINLINE LPCWSTR _r_app_getversiontype ()
 {
 #if defined(_DEBUG) || defined(APP_BETA)
@@ -583,12 +593,12 @@ FORCEINLINE LPCWSTR _r_app_getversiontype ()
 #endif // _DEBUG || APP_BETA
 }
 
-FORCEINLINE INT _r_app_getarch ()
+FORCEINLINE LONG _r_app_getarch ()
 {
 #ifdef _WIN64
-	return 64;
+	return 64L;
 #else
-	return 32;
+	return 32L;
 #endif // _WIN64
 }
 
