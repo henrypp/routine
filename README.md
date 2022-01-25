@@ -6,10 +6,10 @@ List of arguments for compiled binary with `routine` library:
 
 ~~~
 -ini:"path" - set custom configuration path.
--portable - set force portable mode.
--readonly - set force readonly mode (no settings will be saved).
 -minimized - start application with minimized/hidden window.
--nowow64 - allow to run 32-bit exevutable under 64-bit environment (32-bit only)
+-portable - set force portable mode.
+-readonly - set force readonly mode (no settings will be written).
+-nowow64 - allow to run 32-bit executable under 64-bit environment (32-bit only)
 ~~~
 
 ### Settings:
