@@ -2536,7 +2536,14 @@ ULONG _r_update_downloadupdate (
 			_r_fs_deletefile (update_component->target_path->buffer, TRUE);
 
 		// move target files
-		_r_fs_movefile (update_component->cache_path->buffer, update_component->target_path->buffer, 0);
+		if (!_r_fs_movefile (update_component->cache_path->buffer, update_component->target_path->buffer, 0))
+		{
+			_r_fs_movefile (
+				update_component->cache_path->buffer,
+				update_component->target_path->buffer,
+				MOVEFILE_COPY_ALLOWED
+			);
+		}
 
 		// remove if it exists
 		if (_r_fs_exists (update_component->cache_path->buffer))
