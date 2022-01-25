@@ -1,9 +1,20 @@
 ## routine.c
-project sdk library
+routine library for my projects.
 
-Internal use only.
+### Command line:
+List of arguments for compiled binary with `routine` library:
 
-Configuration:
+~~~
+-ini:"path" - set custom configuration path.
+-portable - set force portable mode.
+-readonly - set force readonly mode (no settings will be saved).
+-minimized - start application with minimized/hidden window.
+-nowow64 - allow to run 32-bit exevutable under 64-bit environment (32-bit only)
+~~~
+
+### Settings:
+List of `ini` options for compiled binary with `routine` library:
+
 ~~~ini
 #
 #2.0+
