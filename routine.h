@@ -814,8 +814,8 @@ VOID NTAPI _r_obj_dereference (
 );
 
 VOID NTAPI _r_obj_dereferencelist (
-	_In_reads_ (count) PVOID_PTR objects,
-	_In_ SIZE_T count
+	_In_reads_ (objects_count) PVOID_PTR objects_list,
+	_In_ SIZE_T objects_count
 );
 
 VOID NTAPI _r_obj_dereference_ex (

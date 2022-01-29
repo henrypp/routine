@@ -59,7 +59,10 @@ HANDLE _r_console_gethandle ()
 {
 	HANDLE hconsole;
 
-	hconsole = GetStdHandle (STD_OUTPUT_HANDLE);
+	hconsole = NtCurrentPeb ()->ProcessParameters->StandardOutput;
+
+	if (hconsole == INVALID_HANDLE_VALUE)
+		return NULL;
 
 	return hconsole;
 }
@@ -88,7 +91,7 @@ VOID _r_console_setcolor (
 
 	hconsole = _r_console_gethandle ();
 
-	if (!_r_fs_isvalidhandle (hconsole))
+	if (!hconsole)
 		return;
 
 	SetConsoleTextAttribute (hconsole, clr);
@@ -124,7 +127,7 @@ VOID _r_console_writestring_ex (
 
 	hconsole = _r_console_gethandle ();
 
-	if (!_r_fs_isvalidhandle (hconsole))
+	if (!hconsole)
 		return;
 
 	WriteConsole (hconsole, string, length, NULL, NULL);
@@ -199,12 +202,7 @@ BOOLEAN _r_format_bytesize64 (
 	HRESULT hr;
 
 #if defined(APP_NO_DEPRECATIONS)
-	hr = StrFormatByteSizeEx (
-		bytes,
-		SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT,
-		buffer,
-		buffer_size
-	);
+	hr = StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, buffer_size);
 
 	if (hr == S_OK) // vista (sp1)+
 		return TRUE;
@@ -225,12 +223,7 @@ BOOLEAN _r_format_bytesize64 (
 
 			if (_StrFormatByteSizeEx)
 			{
-				hr = _StrFormatByteSizeEx (
-					bytes,
-					SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT,
-					buffer,
-					buffer_size
-				);
+				hr = _StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, buffer_size);
 
 				if (hr == S_OK) // vista (sp1)+
 					return TRUE;
@@ -352,14 +345,7 @@ BOOLEAN _r_format_number (
 
 	_r_str_fromlong64 (number_string, RTL_NUMBER_OF (number_string), number);
 
-	buffer_size = GetNumberFormat (
-		LOCALE_USER_DEFAULT,
-		0,
-		number_string,
-		&number_format,
-		buffer,
-		buffer_size
-	);
+	buffer_size = GetNumberFormat (LOCALE_USER_DEFAULT, 0, number_string, &number_format, buffer, buffer_size);
 
 	if (!buffer_size)
 		_r_str_copy (buffer, buffer_size, number_string);
@@ -613,7 +599,7 @@ BOOLEAN FASTCALL _r_event_wait_ex (
 	value = event_object->value;
 
 	// Shortcut: if the event is set, return immediately.
-	if ((value & PR_EVENT_SET) != 0)
+	if (value & PR_EVENT_SET)
 		return TRUE;
 
 	// Shortcut: if the timeout is 0, return immediately if the event isn't set.
@@ -632,10 +618,7 @@ BOOLEAN FASTCALL _r_event_wait_ex (
 		assert (event_handle);
 
 		// Try to set the event handle to our event.
-		if (InterlockedCompareExchangePointer (
-			&event_object->event_handle,
-			event_handle,
-			NULL) != NULL)
+		if (InterlockedCompareExchangePointer (&event_object->event_handle, event_handle, NULL) != NULL)
 		{
 			// Someone else set the event before we did.
 			NtClose (event_handle);
@@ -927,7 +910,7 @@ FORCEINLINE BOOLEAN _r_queuedlock_pushwaitblock (
 
 FORCEINLINE VOID _r_queuedlock_optimizelist_ex (
 	_Inout_ PR_QUEUED_LOCK queued_lock,
-	_In_ ULONG_PTR Value,
+	_In_ ULONG_PTR value,
 	_In_ BOOLEAN is_ignoreowned
 )
 {
@@ -935,24 +918,24 @@ FORCEINLINE VOID _r_queuedlock_optimizelist_ex (
 	PR_QUEUED_WAIT_BLOCK first_wait_block;
 	PR_QUEUED_WAIT_BLOCK last_wait_block;
 	PR_QUEUED_WAIT_BLOCK previous_wait_block;
-	ULONG_PTR value;
+	ULONG_PTR current_value;
 	ULONG_PTR new_value;
 
-	value = Value;
+	current_value = value;
 
 	while (TRUE)
 	{
 		assert (value & PR_QUEUED_LOCK_TRAVERSING);
 
-		if (!is_ignoreowned && !(value & PR_QUEUED_LOCK_OWNED))
+		if (!is_ignoreowned && !(current_value & PR_QUEUED_LOCK_OWNED))
 		{
 			// Someone has requested that we wake waiters.
-			_r_queuedlock_wake (queued_lock, value);
+			_r_queuedlock_wake (queued_lock, current_value);
 			break;
 		}
 
 		// Perform the optimization.
-		wait_block = _r_queuedlock_getwaitblock (value);
+		wait_block = _r_queuedlock_getwaitblock (current_value);
 		first_wait_block = wait_block;
 
 		while (TRUE)
@@ -977,19 +960,19 @@ FORCEINLINE VOID _r_queuedlock_optimizelist_ex (
 		}
 
 		// Try to clear the traversing bit.
-		new_value = value - PR_QUEUED_LOCK_TRAVERSING;
+		new_value = current_value - PR_QUEUED_LOCK_TRAVERSING;
 		new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
 			(PVOID_PTR)&queued_lock->value,
 			(PVOID)new_value,
-			(PVOID)value
+			(PVOID)current_value
 		);
 
-		if (new_value == value)
+		if (new_value == current_value)
 			break;
 
 		// Either someone pushed a wait block onto the list or someone released ownership. In either
 		// case we need to go back.
-		value = new_value;
+		current_value = new_value;
 	}
 }
 
@@ -2290,13 +2273,13 @@ VOID NTAPI _r_obj_dereference (
 }
 
 VOID NTAPI _r_obj_dereferencelist (
-	_In_reads_ (count) PVOID_PTR objects,
-	_In_ SIZE_T count
+	_In_reads_ (objects_count) PVOID_PTR objects_list,
+	_In_ SIZE_T objects_count
 )
 {
-	for (SIZE_T i = 0; i < count; i++)
+	for (SIZE_T i = 0; i < objects_count; i++)
 	{
-		_r_obj_dereference (objects[i]);
+		_r_obj_dereference (objects_list[i]);
 	}
 }
 
@@ -11965,7 +11948,6 @@ ULONG _r_inet_openurl (
 			{
 				continue;
 			}
-
 			else if (status == ERROR_WINHTTP_CONNECTION_ERROR)
 			{
 				result = WinHttpSetOption (
