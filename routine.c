@@ -55,6 +55,7 @@ VOID _r_error_initialize_ex (
 // Console
 //
 
+_Ret_maybenull_
 HANDLE _r_console_gethandle ()
 {
 	HANDLE hconsole;
