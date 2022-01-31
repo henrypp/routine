@@ -901,7 +901,6 @@ typedef struct _R_XML_LIBRARY
 	PR_XML_STREAM hstream;
 
 	BOOLEAN is_reader;
-	BOOLEAN is_initialized;
 } R_XML_LIBRARY, *PR_XML_LIBRARY;
 
 //
