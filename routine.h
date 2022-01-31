@@ -3089,8 +3089,9 @@ VOID _r_filedialog_destroy (
 // Window layout
 //
 
+_Success_ (return)
 BOOLEAN _r_layout_initializemanager (
-	_Inout_ PR_LAYOUT_MANAGER layout_manager,
+	_Out_ PR_LAYOUT_MANAGER layout_manager,
 	_In_ HWND hwnd
 );
 

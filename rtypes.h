@@ -800,7 +800,6 @@ typedef struct _R_LAYOUT_MANAGER
 	R_SIZE original_size;
 	PR_LIST list;
 	LONG dpi_value;
-	BOOLEAN is_initialized;
 } R_LAYOUT_MANAGER, *PR_LAYOUT_MANAGER;
 
 typedef struct _R_LAYOUT_ENUM

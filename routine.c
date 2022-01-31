@@ -10633,17 +10633,15 @@ VOID _r_filedialog_destroy (
 // Window layout
 //
 
+_Success_ (return)
 BOOLEAN _r_layout_initializemanager (
-	_Inout_ PR_LAYOUT_MANAGER layout_manager,
+	_Out_ PR_LAYOUT_MANAGER layout_manager,
 	_In_ HWND hwnd
 )
 {
 	R_RECTANGLE client_rect;
 	R_RECTANGLE rect;
 	LONG dpi_value;
-
-	if (layout_manager->is_initialized)
-		return TRUE;
 
 	if (!_r_wnd_getposition (hwnd, &rect))
 		return FALSE;
@@ -10682,8 +10680,6 @@ BOOLEAN _r_layout_initializemanager (
 	// Enumerate child control and windows
 	_r_layout_enumcontrols (layout_manager, &layout_manager->root_item, hwnd);
 
-	layout_manager->is_initialized = TRUE;
-
 	return TRUE;
 }
 
@@ -10691,11 +10687,6 @@ VOID _r_layout_destroymanager (
 	_Inout_ PR_LAYOUT_MANAGER layout_manager
 )
 {
-	if (!layout_manager->is_initialized)
-		return;
-
-	layout_manager->is_initialized = FALSE;
-
 	SAFE_DELETE_REFERENCE (layout_manager->list);
 }
 
@@ -10822,9 +10813,6 @@ BOOLEAN _r_layout_resize (
 	PR_LAYOUT_ITEM layout_item;
 	R_RECTANGLE rect;
 	LONG dpi_value;
-
-	if (!layout_manager->is_initialized)
-		return FALSE;
 
 	if (wparam != SIZE_RESTORED && wparam != SIZE_MAXIMIZED)
 		return FALSE;
@@ -11000,9 +10988,6 @@ VOID _r_layout_resizeminimumsize (
 	PMINMAXINFO minmax;
 	R_SIZE point;
 
-	if (!layout_manager->is_initialized)
-		return;
-
 	minmax = (PMINMAXINFO)lparam;
 
 	point = layout_manager->original_size;
@@ -11066,12 +11051,8 @@ BOOLEAN _r_layout_setwindowanchor (
 )
 {
 	PR_LAYOUT_ITEM layout_item;
-	SIZE_T i;
 
-	if (!layout_manager->is_initialized)
-		return FALSE;
-
-	for (i = 0; i < _r_obj_getlistsize (layout_manager->list); i++)
+	for (SIZE_T i = 0; i < _r_obj_getlistsize (layout_manager->list); i++)
 	{
 		layout_item = _r_obj_getlistitem (layout_manager->list, i);
 
