@@ -14,16 +14,6 @@ typedef PBYTE *PBYTE_PTR;
 typedef HICON *HICON_PTR;
 
 //
-// Calling convention
-//
-
-#ifndef _WIN64
-#define FASTCALL __fastcall
-#else
-#define FASTCALL
-#endif
-
-//
 // Exported function definitions
 //
 
@@ -936,7 +926,7 @@ typedef struct _R_UPDATE_INFO
 	PR_ARRAY components;
 	HWND htaskdlg;
 	HWND hparent;
-	HWND hthread;
+	HANDLE hthread;
 	HINTERNET hsession;
 	ULONG flags;
 	volatile LONG lock;
