@@ -1,7 +1,7 @@
 // routine.c
 // project sdk library
 //
-// Copyright (c) 2020,2021 Henry++
+// Copyright (c) 2020-2022 Henry++
 
 #pragma once
 
@@ -10,6 +10,16 @@
 //
 
 #pragma comment(lib, "ntdll.lib")
+
+//
+// Calling convention
+//
+
+#ifndef _WIN64
+#define FASTCALL __fastcall
+#else
+#define FASTCALL
+#endif
 
 //
 // Errors
