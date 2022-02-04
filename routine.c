@@ -15,6 +15,13 @@ static R_QUEUED_LOCK _r_context_lock = PR_QUEUED_LOCK_INIT;
 // Debugging
 //
 
+VOID _r_debug (
+	_In_ LPCWSTR string
+)
+{
+	OutputDebugString (string);
+}
+
 VOID _r_debug_v (
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
@@ -449,6 +456,38 @@ LONG _r_calc_multipledividesigned (
 	}
 }
 
+LONG _r_calc_percentof (
+	_In_ LONG length,
+	_In_ LONG total_length
+)
+{
+	return (LONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
+}
+
+LONG _r_calc_percentof64 (
+	_In_ LONG64 length,
+	_In_ LONG64 total_length
+)
+{
+	return (LONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
+}
+
+LONG _r_calc_percentval (
+	_In_ LONG percent,
+	_In_ LONG total_length
+)
+{
+	return (total_length * percent) / 100;
+}
+
+LONG64 _r_calc_percentval64 (
+	_In_ LONG64 percent,
+	_In_ LONG64 total_length
+)
+{
+	return (total_length * percent) / 100;
+}
+
 //
 // Synchronization: Auto-dereference pool
 //
@@ -548,6 +587,14 @@ VOID _r_autopool_drain (
 //
 // Synchronization: A fast event object.
 //
+
+VOID FASTCALL _r_event_intialize (
+	_Out_ PR_EVENT event_object
+)
+{
+	event_object->value = PR_EVENT_REFCOUNT_INC;
+	event_object->event_handle = NULL;
+}
 
 VOID FASTCALL _r_event_set (
 	_Inout_ PR_EVENT event_object
@@ -999,7 +1046,10 @@ HANDLE _r_queuedlock_getevent ()
 
 FORCEINLINE ULONG _r_queuedlock_getspincount ()
 {
-	return (NtCurrentPeb ()->NumberOfProcessors > 1) ? 4000 : 0;
+	if (NtCurrentPeb ()->NumberOfProcessors > 1)
+		return 4000;
+
+	return 0;
 }
 
 FORCEINLINE PR_QUEUED_WAIT_BLOCK _r_queuedlock_preparetowake (
@@ -2392,6 +2442,13 @@ PR_BYTE _r_obj_createbyte_ex (
 	return bytes;
 }
 
+BOOLEAN _r_obj_isbytenullterminated (
+	_In_ PR_BYTEREF string
+)
+{
+	return (string->buffer[string->length] == ANSI_NULL);
+}
+
 VOID _r_obj_setbytelength (
 	_Inout_ PR_BYTE string,
 	_In_ SIZE_T length
@@ -2403,6 +2460,31 @@ VOID _r_obj_setbytelength (
 	string->length = length;
 
 	_r_obj_writebytenullterminator (string); // terminate
+}
+
+VOID _r_obj_skipbytelength (
+	_Inout_ PR_BYTEREF string,
+	_In_ SIZE_T length
+)
+{
+	string->buffer = (LPSTR)PTR_ADD_OFFSET (string->buffer, length);
+	string->length -= length;
+}
+
+VOID _r_obj_trimbytetonullterminator (
+	_In_ PR_BYTE string
+)
+{
+	string->length = _r_str_getbytelength_ex (string->buffer, string->length + 1);
+
+	_r_obj_writebytenullterminator (string); // terminate
+}
+
+VOID _r_obj_writebytenullterminator (
+	_In_ PR_BYTE string
+)
+{
+	*(LPSTR)PTR_ADD_OFFSET (string->buffer, string->length) = ANSI_NULL;
 }
 
 //
@@ -2610,6 +2692,17 @@ PR_STRING _r_obj_concatstringrefs_v (
 	return string;
 }
 
+BOOLEAN _r_obj_isstringnullterminated (
+	_In_ PR_STRINGREF string
+)
+{
+	SIZE_T length;
+
+	length = _r_str_getlength3 (string);
+
+	return (string->buffer[length] == UNICODE_NULL);
+}
+
 PR_STRING _r_obj_referenceemptystring ()
 {
 	static PR_STRING cached_string = NULL;
@@ -2671,6 +2764,17 @@ VOID _r_obj_setstringlength (
 	_r_obj_writestringnullterminator (string); // terminate
 }
 
+VOID _r_obj_skipstringlength (
+	_Inout_ PR_STRINGREF string,
+	_In_ SIZE_T length
+)
+{
+	assert (!(length & 0x01));
+
+	string->buffer = (LPWSTR)PTR_ADD_OFFSET (string->buffer, length);
+	string->length -= length;
+}
+
 VOID _r_obj_trimstringtonullterminator (
 	_In_ PR_STRING string
 )
@@ -2678,6 +2782,15 @@ VOID _r_obj_trimstringtonullterminator (
 	string->length = _r_str_getlength_ex (string->buffer, _r_str_getlength2 (string) + 1) * sizeof (WCHAR);
 
 	_r_obj_writestringnullterminator (string); // terminate
+}
+
+VOID _r_obj_writestringnullterminator (
+	_In_ PR_STRING string
+)
+{
+	assert (!(string->length & 0x01));
+
+	*(LPWSTR)PTR_ADD_OFFSET (string->buffer, string->length) = UNICODE_NULL;
 }
 
 //
@@ -2878,6 +2991,13 @@ VOID _r_obj_deletestringbuilder (
 	builder->allocated_length = 0;
 
 	SAFE_DELETE_REFERENCE (builder->string);
+}
+
+PR_STRING _r_obj_finalstringbuilder (
+	_In_ PR_STRINGBUILDER builder
+)
+{
+	return builder->string;
 }
 
 VOID _r_obj_appendstringbuilder (
@@ -3264,6 +3384,13 @@ PVOID _r_obj_getarrayitem (
 	return PTR_ADD_OFFSET (array_node->items, index * array_node->item_size);
 }
 
+SIZE_T _r_obj_getarraysize (
+	_In_ PR_ARRAY array_node
+)
+{
+	return array_node->count;
+}
+
 VOID _r_obj_removearrayitem (
 	_In_ PR_ARRAY array_node,
 	_In_ SIZE_T index
@@ -3421,6 +3548,22 @@ SIZE_T _r_obj_findlistitem (
 	}
 
 	return SIZE_MAX;
+}
+
+_Ret_maybenull_
+PVOID _r_obj_getlistitem (
+	_In_ PR_LIST list_node,
+	_In_ SIZE_T index
+)
+{
+	return list_node->items[index];
+}
+
+SIZE_T _r_obj_getlistsize (
+	_In_ PR_LIST list_node
+)
+{
+	return list_node->count;
 }
 
 VOID _r_obj_insertlistitems (
@@ -3804,6 +3947,13 @@ PVOID _r_obj_findhashtable (
 	return NULL;
 }
 
+SIZE_T _r_obj_gethashtablesize (
+	_In_ PR_HASHTABLE hashtable
+)
+{
+	return hashtable->count;
+}
+
 BOOLEAN _r_obj_removehashtableitem (
 	_Inout_ PR_HASHTABLE hashtable,
 	_In_ ULONG_PTR hash_code
@@ -3994,6 +4144,8 @@ BOOLEAN _r_msg_taskdialog (
 	_Out_opt_ LPBOOL is_flagchecked_ptr
 )
 {
+	HRESULT hr;
+
 #if !defined(APP_NO_DEPRECATIONS)
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static TDI _TaskDialogIndirect = NULL;
@@ -4016,15 +4168,21 @@ BOOLEAN _r_msg_taskdialog (
 	}
 
 	if (_TaskDialogIndirect)
-		return (_TaskDialogIndirect (task_dialog, button_ptr, radio_button_ptr, is_flagchecked_ptr) == S_OK);
-
-	return FALSE;
+	{
+		hr = _TaskDialogIndirect (task_dialog, button_ptr, radio_button_ptr, is_flagchecked_ptr);
+	}
+	else
+	{
+		return FALSE;
+	}
 
 #else
 
-	return (TaskDialogIndirect (task_dialog, button_ptr, radio_button_ptr, is_flagchecked_ptr) == S_OK);
+	hr = TaskDialogIndirect (task_dialog, button_ptr, radio_button_ptr, is_flagchecked_ptr);
 
 #endif // APP_NO_DEPRECATIONS
+
+	return (hr == S_OK);
 }
 
 HRESULT CALLBACK _r_msg_callback (
@@ -5682,6 +5840,13 @@ VOID _r_shell_showfile (
 // Strings
 //
 
+BOOLEAN _r_str_isdigit (
+	_In_ WCHAR chr
+)
+{
+	return (USHORT)(chr - L'0') < 10;
+}
+
 BOOLEAN _r_str_isequal (
 	_In_ PR_STRINGREF string1,
 	_In_ PR_STRINGREF string2,
@@ -5905,6 +6070,23 @@ BOOLEAN _r_str_isendsswith2 (
 	_r_obj_initializestringrefconst (&sr, suffix);
 
 	return _r_str_isendsswith (string, &sr, is_ignorecase);
+}
+
+INT _r_str_compare (
+	_In_ LPCWSTR string1,
+	_In_ LPCWSTR string2
+)
+{
+	return _wcsicmp (string1, string2);
+}
+
+INT _r_str_compare_length (
+	_In_ LPCWSTR string1,
+	_In_ LPCWSTR string2,
+	_In_ SIZE_T length
+)
+{
+	return _wcsnicmp (string1, string2, length);
 }
 
 _Success_ (return)
@@ -6368,6 +6550,77 @@ ULONG _r_str_gethash3 (
 )
 {
 	return _r_str_x65599 (string, is_ignorecase);
+}
+
+SIZE_T _r_str_getlength (
+	_In_ LPCWSTR string
+)
+{
+	return _r_str_getlength_ex (string, PR_SIZE_MAX_STRING_LENGTH);
+}
+
+SIZE_T _r_str_getlength2 (
+	_In_ PR_STRING string
+)
+{
+	assert (!(string->length & 0x01));
+
+	return string->length / sizeof (WCHAR);
+}
+
+SIZE_T _r_str_getlength3 (
+	_In_ PR_STRINGREF string
+)
+{
+	assert (!(string->length & 0x01));
+
+	return string->length / sizeof (WCHAR);
+}
+
+SIZE_T _r_str_getlength4 (
+	_In_ PUNICODE_STRING string
+)
+{
+	assert (!(string->Length & 0x01));
+
+	return string->Length / sizeof (WCHAR);
+}
+
+SIZE_T _r_str_getlength_ex (
+	_In_ LPCWSTR string,
+	_In_ SIZE_T max_count
+)
+{
+	return wcsnlen_s (string, max_count);
+}
+
+SIZE_T _r_str_getbytelength (
+	_In_ LPCSTR string
+)
+{
+	return _r_str_getbytelength_ex (string, PR_SIZE_MAX_STRING_LENGTH);
+}
+
+SIZE_T _r_str_getbytelength2 (
+	_In_ PR_BYTE string
+)
+{
+	return string->length;
+}
+
+SIZE_T _r_str_getbytelength3 (
+	_In_ PR_BYTEREF string
+)
+{
+	return string->length;
+}
+
+SIZE_T _r_str_getbytelength_ex (
+	_In_ LPCSTR string,
+	_In_ SIZE_T max_count
+)
+{
+	return strnlen_s (string, max_count);
 }
 
 _Ret_maybenull_
@@ -10276,7 +10529,7 @@ VOID _r_dc_getsizedpivalue (
 	}
 }
 
-INT _r_dc_getsystemmetrics (
+LONG _r_dc_getsystemmetrics (
 	_In_ INT index,
 	_In_ LONG dpi_value
 )
@@ -10310,6 +10563,31 @@ INT _r_dc_getsystemmetrics (
 		return _GetSystemMetricsForDpi (index, dpi_value);
 
 	return GetSystemMetrics (index);
+}
+
+VOID _r_dc_fixcontrolfont (
+	_In_ HDC hdc,
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id
+)
+{
+	HFONT hfont;
+
+	hfont = (HFONT)SendDlgItemMessage (hwnd, ctrl_id, WM_GETFONT, 0, 0);
+
+	SelectObject (hdc, hfont);
+}
+
+VOID _r_dc_fixwindowfont (
+	_In_ HDC hdc,
+	_In_ HWND hwnd
+)
+{
+	HFONT hfont;
+
+	hfont = (HFONT)SendMessage (hwnd, WM_GETFONT, 0, 0);
+
+	SelectObject (hdc, hfont);
 }
 
 LONG _r_dc_fontheighttosize (
@@ -11111,9 +11389,27 @@ VOID _r_wnd_addstyle (
 	);
 }
 
-VOID _r_wnd_adjustworkingarea (
-	_In_opt_ HWND hwnd,
-	_Inout_ PR_RECTANGLE rectangle
+VOID _r_wnd_adjustrectangletobounds (
+	_Inout_ PR_RECTANGLE rectangle,
+	_In_ PR_RECTANGLE bounds
+)
+{
+	if (rectangle->left + rectangle->width > bounds->left + bounds->width)
+		rectangle->left = bounds->left + bounds->width - rectangle->width;
+
+	if (rectangle->top + rectangle->height > bounds->top + bounds->height)
+		rectangle->top = bounds->top + bounds->height - rectangle->height;
+
+	if (rectangle->left < bounds->left)
+		rectangle->left = bounds->left;
+
+	if (rectangle->top < bounds->top)
+		rectangle->top = bounds->top;
+}
+
+VOID _r_wnd_adjustrectangletoworkingarea (
+	_Inout_ PR_RECTANGLE rectangle,
+	_In_opt_ HWND hwnd
 )
 {
 	MONITORINFO monitor_info = {0};
@@ -11183,41 +11479,49 @@ VOID _r_wnd_center (
 	_In_opt_ HWND hparent
 )
 {
-	MONITORINFO monitor_info = {0};
-	R_RECTANGLE rect;
+	MONITORINFO monitor_info;
+	R_RECTANGLE rectangle;
 	R_RECTANGLE parent_rect;
 	HMONITOR hmonitor;
 
 	if (hparent)
 	{
-		if (_r_wnd_isvisiblefull (hparent))
+		if (_r_wnd_isvisiblefull (hparent) &&
+			_r_wnd_getposition (hwnd, &rectangle) &&
+			_r_wnd_getposition (hparent, &parent_rect))
 		{
-			if (_r_wnd_getposition (hwnd, &rect) && _r_wnd_getposition (hparent, &parent_rect))
-			{
-				_r_wnd_centerwindowrect (&rect, &parent_rect);
-				_r_wnd_adjustworkingarea (hwnd, &rect);
+			_r_wnd_centerwindowrect (&rectangle, &parent_rect);
+			_r_wnd_adjustrectangletoworkingarea (&rectangle, hwnd);
 
-				_r_wnd_setposition (hwnd, &rect.position, NULL);
+			_r_wnd_setposition (hwnd, &rectangle.position, NULL);
 
-				return;
-			}
+			return;
 		}
 	}
-
-	hmonitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
 
 	monitor_info.cbSize = sizeof (monitor_info);
 
-	if (GetMonitorInfo (hmonitor, &monitor_info))
-	{
-		if (_r_wnd_getposition (hwnd, &rect))
-		{
-			_r_wnd_recttorectangle (&parent_rect, &monitor_info.rcWork);
-			_r_wnd_centerwindowrect (&rect, &parent_rect);
+	hmonitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
 
-			_r_wnd_setposition (hwnd, &rect.position, NULL);
-		}
-	}
+	if (!GetMonitorInfo (hmonitor, &monitor_info))
+		return;
+
+	if (!_r_wnd_getposition (hwnd, &rectangle))
+		return;
+
+	_r_wnd_recttorectangle (&parent_rect, &monitor_info.rcWork);
+	_r_wnd_centerwindowrect (&rectangle, &parent_rect);
+
+	_r_wnd_setposition (hwnd, &rectangle.position, NULL);
+}
+
+VOID _r_wnd_centerwindowrect (
+	_In_ PR_RECTANGLE rectangle,
+	_In_ PR_RECTANGLE bounds
+)
+{
+	rectangle->left = bounds->left + (bounds->width - rectangle->width) / 2;
+	rectangle->top = bounds->top + (bounds->height - rectangle->height) / 2;
 }
 
 VOID _r_wnd_changemessagefilter (
@@ -11401,7 +11705,7 @@ PR_HASHTABLE _r_wnd_getcontext_table ()
 	return hashtable;
 }
 
-FORCEINLINE ULONG _r_wnd_getcontext_hash (
+ULONG _r_wnd_getcontext_hash (
 	_In_ HWND hwnd,
 	_In_ ULONG property_id
 )
@@ -11470,6 +11774,53 @@ VOID _r_wnd_removecontext (
 	_r_queuedlock_acquireexclusive (&_r_context_lock);
 	_r_obj_removehashtableitem (hashtable, hash_code);
 	_r_queuedlock_releaseexclusive (&_r_context_lock);
+}
+
+VOID _r_wnd_copyrectangle (
+	_Out_ PR_RECTANGLE rectangle_dst,
+	_In_ PR_RECTANGLE rectangle_src
+)
+{
+	CopyRect ((LPRECT)rectangle_dst, (LPCRECT)rectangle_src);
+}
+
+VOID _r_wnd_setrectangle (
+	_Out_ PR_RECTANGLE rectangle,
+	_In_ LONG left,
+	_In_ LONG top,
+	_In_ LONG width,
+	_In_ LONG height
+)
+{
+	rectangle->left = left;
+	rectangle->top = top;
+	rectangle->width = width;
+	rectangle->height = height;
+}
+
+VOID _r_wnd_recttorectangle (
+	_Out_ PR_RECTANGLE rectangle,
+	_In_ LPCRECT rect
+)
+{
+	rectangle->left = rect->left;
+	rectangle->top = rect->top;
+	rectangle->width = rect->right - rect->left;
+	rectangle->height = rect->bottom - rect->top;
+}
+
+VOID _r_wnd_rectangletorect (
+	_Out_ PRECT rect,
+	_In_ PR_RECTANGLE rectangle
+)
+{
+	SetRect (
+		rect,
+		rectangle->left,
+		rectangle->top,
+		rectangle->left + rectangle->width,
+		rectangle->top + rectangle->height
+	);
 }
 
 BOOLEAN _r_wnd_isplatformfullscreenmode ()
@@ -13095,6 +13446,39 @@ ULONG _r_math_getrandom ()
 	return RtlRandomEx (&seed);
 }
 
+ULONG _r_math_getrandomrange (
+	_In_ ULONG min_number,
+	_In_ ULONG max_number
+)
+{
+	return min_number + (_r_math_getrandom () % (max_number - min_number + 1));
+}
+
+ULONG _r_math_hashinteger32 (
+	_In_ ULONG value
+)
+{
+	// Java style.
+	value ^= (value >> 20) ^ (value >> 12);
+
+	return value ^ (value >> 7) ^ (value >> 4);
+}
+
+ULONG _r_math_hashinteger64 (
+	_In_ ULONG64 value
+)
+{
+	// http://www.concentric.net/~Ttwang/tech/inthash.htm
+	value = ~value + (value << 18);
+	value ^= value >> 31;
+	value *= 21;
+	value ^= value >> 11;
+	value += value << 6;
+	value ^= value >> 22;
+
+	return (ULONG)value;
+}
+
 SIZE_T _r_math_rounduptopoweroftwo (
 	_In_ SIZE_T number
 )
@@ -13249,6 +13633,17 @@ ULONG _r_res_querytranslation (
 		return PR_LANG_TO_LCID (buffer->lang_id, buffer->code_page);
 
 	return PR_LANG_TO_LCID (MAKELANGID (LANG_ENGLISH, SUBLANG_ENGLISH_US), 1252);
+}
+
+_Success_ (return)
+BOOLEAN _r_res_queryversion (
+	_In_ LPCVOID ver_block,
+	_Out_ PVOID_PTR file_info
+)
+{
+	UINT length;
+
+	return !!VerQueryValue (ver_block, L"\\", file_info, &length);
 }
 
 _Ret_maybenull_
