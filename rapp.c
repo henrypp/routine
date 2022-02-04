@@ -2898,13 +2898,14 @@ VOID _r_update_check (
 	PR_UPDATE_INFO update_info;
 	R_ENVIRONMENT environment;
 	LPCWSTR str_content;
+	HANDLE hthread;
 	NTSTATUS status;
 
 	// Security note:
 	//
 	// Windows Vista and lower are unsafe for establish internet connections,
 	// because it does not support required TLS 1.3 standart which is used
-	// on the www.github.com and www.henrypp.org webpages.
+	// on the www.github.com webpage.
 
 #if !defined(APP_NO_DEPRECATIONS)
 	if (_r_sys_isosversionlowerorequal (WINDOWS_VISTA))
@@ -2918,23 +2919,24 @@ VOID _r_update_check (
 
 	update_info = &app_global.update.info;
 
-	if (InterlockedCompareExchange (&update_info->lock, 0, 0) != 0)
-		return;
-
 	if (!hparent && !_r_update_isenabled (TRUE))
 		return;
 
-	_r_sys_setenvironment (&environment, THREAD_PRIORITY_LOWEST, IoPriorityLow, MEMORY_PRIORITY_BELOW_NORMAL);
+	if (InterlockedCompareExchange (&update_info->lock, 0, 0) != 0)
+		return;
 
-	status = _r_sys_createthread (&_r_update_checkthread, update_info, &update_info->hthread, NULL);
+	_r_sys_setenvironment (&environment, THREAD_PRIORITY_LOWEST, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
+
+	status = _r_sys_createthread (&_r_update_checkthread, update_info, &hthread, &environment);
 
 	if (status != STATUS_SUCCESS)
 		return;
 
 	InterlockedIncrement (&update_info->lock);
 
-	update_info->htaskdlg = NULL;
 	update_info->hparent = hparent;
+	update_info->htaskdlg = NULL;
+	update_info->hthread = NULL;
 
 	update_info->flags = 0;
 
@@ -2949,14 +2951,14 @@ VOID _r_update_check (
 #pragma PR_PRINT_WARNING(IDS_UPDATE_INIT)
 #endif // IDS_UPDATE_INIT
 
+		update_info->hthread = hthread;
+
 		_r_update_navigate (update_info, NULL, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, NULL, str_content, 0);
 	}
 	else
 	{
-		NtResumeThread (update_info->hthread, NULL);
-		NtClose (update_info->hthread);
-
-		update_info->hthread = NULL;
+		NtResumeThread (hthread, NULL);
+		NtClose (hthread);
 	}
 }
 
@@ -3013,9 +3015,9 @@ HRESULT CALLBACK _r_update_pagecallback (
 			}
 			else if (wparam == IDYES)
 			{
-				_r_sys_setenvironment (&environment, THREAD_PRIORITY_LOWEST, IoPriorityLow, MEMORY_PRIORITY_BELOW_NORMAL);
+				_r_sys_setenvironment (&environment, THREAD_PRIORITY_LOWEST, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
 
-				status = _r_sys_createthread (&_r_update_downloadthread, update_info, &update_info->hthread, NULL);
+				status = _r_sys_createthread (&_r_update_downloadthread, update_info, &update_info->hthread, &environment);
 
 				if (status == STATUS_SUCCESS)
 				{
@@ -3066,6 +3068,8 @@ HRESULT CALLBACK _r_update_pagecallback (
 
 		case TDN_DESTROYED:
 		{
+			update_info->htaskdlg = NULL;
+
 			if (update_info->hthread)
 			{
 				NtClose (update_info->hthread);
@@ -3960,7 +3964,7 @@ VOID _r_window_restoreposition (
 		rectangle_new.size = rectangle_current.size;
 	}
 
-	_r_wnd_adjustworkingarea (NULL, &rectangle_new);
+	_r_wnd_adjustrectangletoworkingarea (&rectangle_new, NULL);
 
 	_r_wnd_setposition (hwnd, &rectangle_new.position, is_resizeavailable ? &rectangle_new.size : NULL);
 }
