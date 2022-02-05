@@ -2803,7 +2803,7 @@ COLORREF _r_dc_getcolorshade (
 );
 
 LONG _r_dc_getdpi (
-	_In_ INT number,
+	_In_ LONG number,
 	_In_ LONG dpi_value
 );
 

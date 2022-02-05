@@ -10364,7 +10364,7 @@ COLORREF _r_dc_getcolorshade (
 }
 
 LONG _r_dc_getdpi (
-	_In_ INT number,
+	_In_ LONG number,
 	_In_ LONG dpi_value
 )
 {
@@ -10440,12 +10440,14 @@ LONG _r_dc_getdpivalue (
 	{
 		if (rect || hwnd)
 		{
+			// win10rs1+
 			if (_GetDpiForWindow)
 			{
 				if (hwnd)
-					return _GetDpiForWindow (hwnd); // win10rs1+
+					return _GetDpiForWindow (hwnd);
 			}
 
+			// win81+
 			if (_GetDpiForMonitor)
 			{
 				if (rect)
@@ -10459,13 +10461,14 @@ LONG _r_dc_getdpivalue (
 
 				hr = _GetDpiForMonitor (hmonitor, MDT_EFFECTIVE_DPI, &dpi_x, &dpi_y);
 
-				if (hr == S_OK) // win81+
+				if (hr == S_OK)
 					return dpi_x;
 			}
 		}
 
+		// win10rs1+
 		if (_GetDpiForSystem)
-			return _GetDpiForSystem (); // win10rs1+
+			return _GetDpiForSystem ();
 	}
 
 	// win8 and lower fallback
