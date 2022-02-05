@@ -5902,255 +5902,6 @@ VOID _r_shell_showfile (
 // Strings
 //
 
-BOOLEAN _r_str_isdigit (
-	_In_ WCHAR chr
-)
-{
-	return (USHORT)(chr - L'0') < 10;
-}
-
-BOOLEAN _r_str_isequal (
-	_In_ PR_STRINGREF string1,
-	_In_ PR_STRINGREF string2,
-	_In_ BOOLEAN is_ignorecase
-)
-{
-	LPCWSTR buffer1;
-	LPCWSTR buffer2;
-	SIZE_T length1;
-	SIZE_T length2;
-	SIZE_T length;
-	WCHAR chr1;
-	WCHAR chr2;
-
-	length1 = string1->length;
-	length2 = string2->length;
-
-	assert (!(length1 & 0x01));
-	assert (!(length2 & 0x01));
-
-	if (length1 != length2)
-		return FALSE;
-
-	buffer1 = string1->buffer;
-	buffer2 = string2->buffer;
-
-#if !defined(_ARM64_)
-	if (USER_SHARED_DATA->ProcessorFeatures[PF_XMMI64_INSTRUCTIONS_AVAILABLE])
-	{
-		length = length1 / 16;
-
-		if (length != 0)
-		{
-			__m128i b1;
-			__m128i b2;
-
-			do
-			{
-				b1 = _mm_loadu_si128 ((__m128i *)buffer1);
-				b2 = _mm_loadu_si128 ((__m128i *)buffer2);
-				b1 = _mm_cmpeq_epi32 (b1, b2);
-
-				if (_mm_movemask_epi8 (b1) != 0xffff)
-				{
-					if (!is_ignorecase)
-					{
-						return FALSE;
-					}
-					else
-					{
-						// Compare character-by-character to ignore case.
-						length1 = length * 16 + (length1 & 15);
-						length1 /= sizeof (WCHAR);
-
-						goto CompareCharacters;
-					}
-				}
-
-				buffer1 += 16 / sizeof (WCHAR);
-				buffer2 += 16 / sizeof (WCHAR);
-			}
-			while (--length != 0);
-		}
-
-		// Compare character-by-character because we have no more 16-byte blocks to compare.
-		length1 = (length1 & 15) / sizeof (WCHAR);
-	}
-	else
-#endif // !_ARM64_
-	{
-		length = length1 / sizeof (ULONG_PTR);
-
-		if (length != 0)
-		{
-			do
-			{
-				if (*(PULONG_PTR)buffer1 != *(PULONG_PTR)buffer2)
-				{
-					if (!is_ignorecase)
-					{
-						return FALSE;
-					}
-					else
-					{
-						// Compare character-by-character to ignore case.
-						length1 = length * sizeof (ULONG_PTR) + (length1 & (sizeof (ULONG_PTR) - 1));
-						length1 /= sizeof (WCHAR);
-
-						goto CompareCharacters;
-					}
-				}
-
-				buffer1 += sizeof (ULONG_PTR) / sizeof (WCHAR);
-				buffer2 += sizeof (ULONG_PTR) / sizeof (WCHAR);
-			}
-			while (--length != 0);
-		}
-
-		// Compare character-by-character because we have no more ULONG_PTR blocks to compare.
-		length1 = (length1 & (sizeof (ULONG_PTR) - 1)) / sizeof (WCHAR);
-	}
-
-CompareCharacters:
-	if (length1 != 0)
-	{
-		do
-		{
-			if (!is_ignorecase)
-			{
-				chr1 = *buffer1;
-				chr2 = *buffer2;
-			}
-			else
-			{
-				chr1 = _r_str_lower (*buffer1);
-				chr2 = _r_str_lower (*buffer2);
-			}
-
-			if (chr1 != chr2)
-				return FALSE;
-
-			buffer1 += 1;
-			buffer2 += 1;
-		}
-		while (--length1 != 0);
-	}
-
-	return TRUE;
-}
-
-BOOLEAN _r_str_isequal2 (
-	_In_ PR_STRINGREF string1,
-	_In_ LPCWSTR string2,
-	_In_ BOOLEAN is_ignorecase
-)
-{
-	R_STRINGREF sr;
-
-	_r_obj_initializestringrefconst (&sr, string2);
-
-	return _r_str_isequal (string1, &sr, is_ignorecase);
-}
-
-BOOLEAN _r_str_isnumeric (
-	_In_ PR_STRINGREF string
-)
-{
-	SIZE_T length;
-
-	if (!string->length)
-		return FALSE;
-
-	length = _r_str_getlength3 (string);
-
-	for (SIZE_T i = 0; i < length; i++)
-	{
-		if (!_r_str_isdigit (string->buffer[i]))
-			return FALSE;
-	}
-
-	return TRUE;
-}
-
-BOOLEAN _r_str_isstartswith (
-	_In_ PR_STRINGREF string,
-	_In_ PR_STRINGREF prefix,
-	_In_ BOOLEAN is_ignorecase
-)
-{
-	R_STRINGREF sr;
-
-	if (string->length < prefix->length)
-		return FALSE;
-
-	_r_obj_initializestringref_ex (&sr, string->buffer, prefix->length);
-
-	return _r_str_isequal (&sr, prefix, is_ignorecase);
-}
-
-BOOLEAN _r_str_isstartswith2 (
-	_In_ PR_STRINGREF string,
-	_In_ LPCWSTR prefix,
-	_In_ BOOLEAN is_ignorecase
-)
-{
-	R_STRINGREF sr;
-
-	_r_obj_initializestringrefconst (&sr, prefix);
-
-	return _r_str_isstartswith (string, &sr, is_ignorecase);
-}
-
-BOOLEAN _r_str_isendsswith (
-	_In_ PR_STRINGREF string,
-	_In_ PR_STRINGREF suffix,
-	_In_ BOOLEAN is_ignorecase
-)
-{
-	R_STRINGREF sr;
-
-	if (suffix->length > string->length)
-		return FALSE;
-
-	_r_obj_initializestringref_ex (
-		&sr,
-		(LPWSTR)PTR_ADD_OFFSET (string->buffer, string->length - suffix->length),
-		suffix->length
-	);
-
-	return _r_str_isequal (&sr, suffix, is_ignorecase);
-}
-
-BOOLEAN _r_str_isendsswith2 (
-	_In_ PR_STRINGREF string,
-	_In_ LPCWSTR suffix,
-	_In_ BOOLEAN is_ignorecase
-)
-{
-	R_STRINGREF sr;
-
-	_r_obj_initializestringrefconst (&sr, suffix);
-
-	return _r_str_isendsswith (string, &sr, is_ignorecase);
-}
-
-INT _r_str_compare (
-	_In_ LPCWSTR string1,
-	_In_ LPCWSTR string2
-)
-{
-	return _wcsicmp (string1, string2);
-}
-
-INT _r_str_compare_length (
-	_In_ LPCWSTR string1,
-	_In_ LPCWSTR string2,
-	_In_ SIZE_T length
-)
-{
-	return _wcsnicmp (string1, string2, length);
-}
-
 _Success_ (return)
 BOOLEAN _r_str_append (
 	_Inout_updates_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
@@ -6202,6 +5953,34 @@ BOOLEAN _r_str_appendformat (
 	return TRUE;
 }
 
+_Check_return_
+INT _r_str_compare (
+	_In_ LPCWSTR string1,
+	_In_ LPCWSTR string2
+)
+{
+	return _wcsicmp (string1, string2);
+}
+
+_Check_return_
+INT _r_str_compare_length (
+	_In_ LPCWSTR string1,
+	_In_ LPCWSTR string2,
+	_In_ SIZE_T length
+)
+{
+	return _wcsnicmp (string1, string2, length);
+}
+
+_Check_return_
+INT _r_str_compare_logical (
+	_In_ PR_STRING string1,
+	_In_ PR_STRING string2
+)
+{
+	return StrCmpLogicalW (string1->buffer, string2->buffer);
+}
+
 _Success_ (return)
 BOOLEAN _r_str_copy (
 	_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
@@ -6246,455 +6025,16 @@ BOOLEAN _r_str_copystring (
 	return _r_str_copy (buffer, length, string->buffer);
 }
 
-_Success_ (return)
-BOOLEAN _r_str_printf (
-	_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
-	_In_ _Printf_format_string_ LPCWSTR format,
-	...
-)
-{
-	va_list arg_ptr;
-
-	if (buffer_size > PR_SIZE_MAX_STRING_LENGTH)
-	{
-		*buffer = UNICODE_NULL;
-		return FALSE;
-	}
-
-	va_start (arg_ptr, format);
-	_r_str_printf_v (buffer, buffer_size, format, arg_ptr);
-	va_end (arg_ptr);
-
-	return TRUE;
-}
-
-_Success_ (return)
-BOOLEAN _r_str_printf_v (
-	_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
-	_In_ _Printf_format_string_ LPCWSTR format,
-	_In_ va_list arg_ptr
-)
-{
-	SIZE_T max_length;
-	LONG format_size;
-
-	if (buffer_size > PR_SIZE_MAX_STRING_LENGTH)
-	{
-		*buffer = UNICODE_NULL;
-		return FALSE;
-	}
-
-	max_length = buffer_size - 1; // leave the last space for the null terminator
-
-#pragma warning(push)
-#pragma warning(disable: _UCRT_DISABLED_WARNINGS)
-	format_size = _vsnwprintf (buffer, max_length, format, arg_ptr);
-#pragma warning(pop)
-
-	if (format_size == -1 || (SIZE_T)format_size >= max_length)
-		buffer[max_length] = UNICODE_NULL; // need to null terminate the string
-
-	return TRUE;
-}
-
-ULONG _r_str_crc32 (
-	_In_ PR_STRINGREF string,
-	_In_ BOOLEAN is_ignorecase
-)
-{
-	static const ULONG crc32_table[256] = {
-		0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3, 0x0edb8832,
-		0x79dcb8a4, 0xe0d5e91e, 0x97d2d988, 0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91, 0x1db71064, 0x6ab020f2,
-		0xf3b97148, 0x84be41de, 0x1adad47d, 0x6ddde4eb, 0xf4d4b551, 0x83d385c7, 0x136c9856, 0x646ba8c0, 0xfd62f97a,
-		0x8a65c9ec, 0x14015c4f, 0x63066cd9, 0xfa0f3d63, 0x8d080df5, 0x3b6e20c8, 0x4c69105e, 0xd56041e4, 0xa2677172,
-		0x3c03e4d1, 0x4b04d447, 0xd20d85fd, 0xa50ab56b, 0x35b5a8fa, 0x42b2986c, 0xdbbbc9d6, 0xacbcf940, 0x32d86ce3,
-		0x45df5c75, 0xdcd60dcf, 0xabd13d59, 0x26d930ac, 0x51de003a, 0xc8d75180, 0xbfd06116, 0x21b4f4b5, 0x56b3c423,
-		0xcfba9599, 0xb8bda50f, 0x2802b89e, 0x5f058808, 0xc60cd9b2, 0xb10be924, 0x2f6f7c87, 0x58684c11, 0xc1611dab,
-		0xb6662d3d, 0x76dc4190, 0x01db7106, 0x98d220bc, 0xefd5102a, 0x71b18589, 0x06b6b51f, 0x9fbfe4a5, 0xe8b8d433,
-		0x7807c9a2, 0x0f00f934, 0x9609a88e, 0xe10e9818, 0x7f6a0dbb, 0x086d3d2d, 0x91646c97, 0xe6635c01, 0x6b6b51f4,
-		0x1c6c6162, 0x856530d8, 0xf262004e, 0x6c0695ed, 0x1b01a57b, 0x8208f4c1, 0xf50fc457, 0x65b0d9c6, 0x12b7e950,
-		0x8bbeb8ea, 0xfcb9887c, 0x62dd1ddf, 0x15da2d49, 0x8cd37cf3, 0xfbd44c65, 0x4db26158, 0x3ab551ce, 0xa3bc0074,
-		0xd4bb30e2, 0x4adfa541, 0x3dd895d7, 0xa4d1c46d, 0xd3d6f4fb, 0x4369e96a, 0x346ed9fc, 0xad678846, 0xda60b8d0,
-		0x44042d73, 0x33031de5, 0xaa0a4c5f, 0xdd0d7cc9, 0x5005713c, 0x270241aa, 0xbe0b1010, 0xc90c2086, 0x5768b525,
-		0x206f85b3, 0xb966d409, 0xce61e49f, 0x5edef90e, 0x29d9c998, 0xb0d09822, 0xc7d7a8b4, 0x59b33d17, 0x2eb40d81,
-		0xb7bd5c3b, 0xc0ba6cad, 0xedb88320, 0x9abfb3b6, 0x03b6e20c, 0x74b1d29a, 0xead54739, 0x9dd277af, 0x04db2615,
-		0x73dc1683, 0xe3630b12, 0x94643b84, 0x0d6d6a3e, 0x7a6a5aa8, 0xe40ecf0b, 0x9309ff9d, 0x0a00ae27, 0x7d079eb1,
-		0xf00f9344, 0x8708a3d2, 0x1e01f268, 0x6906c2fe, 0xf762575d, 0x806567cb, 0x196c3671, 0x6e6b06e7, 0xfed41b76,
-		0x89d32be0, 0x10da7a5a, 0x67dd4acc, 0xf9b9df6f, 0x8ebeeff9, 0x17b7be43, 0x60b08ed5, 0xd6d6a3e8, 0xa1d1937e,
-		0x38d8c2c4, 0x4fdff252, 0xd1bb67f1, 0xa6bc5767, 0x3fb506dd, 0x48b2364b, 0xd80d2bda, 0xaf0a1b4c, 0x36034af6,
-		0x41047a60, 0xdf60efc3, 0xa867df55, 0x316e8eef, 0x4669be79, 0xcb61b38c, 0xbc66831a, 0x256fd2a0, 0x5268e236,
-		0xcc0c7795, 0xbb0b4703, 0x220216b9, 0x5505262f, 0xc5ba3bbe, 0xb2bd0b28, 0x2bb45a92, 0x5cb36a04, 0xc2d7ffa7,
-		0xb5d0cf31, 0x2cd99e8b, 0x5bdeae1d, 0x9b64c2b0, 0xec63f226, 0x756aa39c, 0x026d930a, 0x9c0906a9, 0xeb0e363f,
-		0x72076785, 0x05005713, 0x95bf4a82, 0xe2b87a14, 0x7bb12bae, 0x0cb61b38, 0x92d28e9b, 0xe5d5be0d, 0x7cdcefb7,
-		0x0bdbdf21, 0x86d3d2d4, 0xf1d4e242, 0x68ddb3f8, 0x1fda836e, 0x81be16cd, 0xf6b9265b, 0x6fb077e1, 0x18b74777,
-		0x88085ae6, 0xff0f6a70, 0x66063bca, 0x11010b5c, 0x8f659eff, 0xf862ae69, 0x616bffd3, 0x166ccf45, 0xa00ae278,
-		0xd70dd2ee, 0x4e048354, 0x3903b3c2, 0xa7672661, 0xd06016f7, 0x4969474d, 0x3e6e77db, 0xaed16a4a, 0xd9d65adc,
-		0x40df0b66, 0x37d83bf0, 0xa9bcae53, 0xdebb9ec5, 0x47b2cf7f, 0x30b5ffe9, 0xbdbdf21c, 0xcabac28a, 0x53b39330,
-		0x24b4a3a6, 0xbad03605, 0xcdd70693, 0x54de5729, 0x23d967bf, 0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94,
-		0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d,
-	};
-
-	LPWSTR buffer;
-	SIZE_T length;
-	ULONG hash_code;
-	WCHAR chr;
-
-	if (!string->length)
-		return 0;
-
-	buffer = string->buffer;
-	length = _r_str_getlength3 (string);
-
-	hash_code = ULONG_MAX;
-
-	do
-	{
-		if (is_ignorecase)
-		{
-			chr = _r_str_lower (*buffer);
-		}
-		else
-		{
-			chr = *buffer;
-		}
-
-		hash_code = (hash_code >> 8) ^ (crc32_table[(hash_code ^ (UCHAR)chr) & 0xff]);
-
-		buffer += 1;
-	}
-	while (--length);
-
-	return hash_code ^ ULONG_MAX;
-}
-
-ULONG64 _r_str_crc64 (
-	_In_ PR_STRINGREF string,
-	_In_ BOOLEAN is_ignorecase
-)
-{
-	static const ULONG64 crc64_table[256] = {
-		0x0000000000000000ULL, 0x7ad870c830358979ULL, 0xf5b0e190606b12f2ULL, 0x8f689158505e9b8bULL,
-		0xc038e5739841b68fULL, 0xbae095bba8743ff6ULL, 0x358804e3f82aa47dULL, 0x4f50742bc81f2d04ULL,
-		0xab28ecb46814fe75ULL, 0xd1f09c7c5821770cULL, 0x5e980d24087fec87ULL, 0x24407dec384a65feULL,
-		0x6b1009c7f05548faULL, 0x11c8790fc060c183ULL, 0x9ea0e857903e5a08ULL, 0xe478989fa00bd371ULL,
-		0x7d08ff3b88be6f81ULL, 0x07d08ff3b88be6f8ULL, 0x88b81eabe8d57d73ULL, 0xf2606e63d8e0f40aULL,
-		0xbd301a4810ffd90eULL, 0xc7e86a8020ca5077ULL, 0x4880fbd87094cbfcULL, 0x32588b1040a14285ULL,
-		0xd620138fe0aa91f4ULL, 0xacf86347d09f188dULL, 0x2390f21f80c18306ULL, 0x594882d7b0f40a7fULL,
-		0x1618f6fc78eb277bULL, 0x6cc0863448deae02ULL, 0xe3a8176c18803589ULL, 0x997067a428b5bcf0ULL,
-		0xfa11fe77117cdf02ULL, 0x80c98ebf2149567bULL, 0x0fa11fe77117cdf0ULL, 0x75796f2f41224489ULL,
-		0x3a291b04893d698dULL, 0x40f16bccb908e0f4ULL, 0xcf99fa94e9567b7fULL, 0xb5418a5cd963f206ULL,
-		0x513912c379682177ULL, 0x2be1620b495da80eULL, 0xa489f35319033385ULL, 0xde51839b2936bafcULL,
-		0x9101f7b0e12997f8ULL, 0xebd98778d11c1e81ULL, 0x64b116208142850aULL, 0x1e6966e8b1770c73ULL,
-		0x8719014c99c2b083ULL, 0xfdc17184a9f739faULL, 0x72a9e0dcf9a9a271ULL, 0x08719014c99c2b08ULL,
-		0x4721e43f0183060cULL, 0x3df994f731b68f75ULL, 0xb29105af61e814feULL, 0xc849756751dd9d87ULL,
-		0x2c31edf8f1d64ef6ULL, 0x56e99d30c1e3c78fULL, 0xd9810c6891bd5c04ULL, 0xa3597ca0a188d57dULL,
-		0xec09088b6997f879ULL, 0x96d1784359a27100ULL, 0x19b9e91b09fcea8bULL, 0x636199d339c963f2ULL,
-		0xdf7adabd7a6e2d6fULL, 0xa5a2aa754a5ba416ULL, 0x2aca3b2d1a053f9dULL, 0x50124be52a30b6e4ULL,
-		0x1f423fcee22f9be0ULL, 0x659a4f06d21a1299ULL, 0xeaf2de5e82448912ULL, 0x902aae96b271006bULL,
-		0x74523609127ad31aULL, 0x0e8a46c1224f5a63ULL, 0x81e2d7997211c1e8ULL, 0xfb3aa75142244891ULL,
-		0xb46ad37a8a3b6595ULL, 0xceb2a3b2ba0eececULL, 0x41da32eaea507767ULL, 0x3b024222da65fe1eULL,
-		0xa2722586f2d042eeULL, 0xd8aa554ec2e5cb97ULL, 0x57c2c41692bb501cULL, 0x2d1ab4dea28ed965ULL,
-		0x624ac0f56a91f461ULL, 0x1892b03d5aa47d18ULL, 0x97fa21650afae693ULL, 0xed2251ad3acf6feaULL,
-		0x095ac9329ac4bc9bULL, 0x7382b9faaaf135e2ULL, 0xfcea28a2faafae69ULL, 0x8632586aca9a2710ULL,
-		0xc9622c4102850a14ULL, 0xb3ba5c8932b0836dULL, 0x3cd2cdd162ee18e6ULL, 0x460abd1952db919fULL,
-		0x256b24ca6b12f26dULL, 0x5fb354025b277b14ULL, 0xd0dbc55a0b79e09fULL, 0xaa03b5923b4c69e6ULL,
-		0xe553c1b9f35344e2ULL, 0x9f8bb171c366cd9bULL, 0x10e3202993385610ULL, 0x6a3b50e1a30ddf69ULL,
-		0x8e43c87e03060c18ULL, 0xf49bb8b633338561ULL, 0x7bf329ee636d1eeaULL, 0x012b592653589793ULL,
-		0x4e7b2d0d9b47ba97ULL, 0x34a35dc5ab7233eeULL, 0xbbcbcc9dfb2ca865ULL, 0xc113bc55cb19211cULL,
-		0x5863dbf1e3ac9decULL, 0x22bbab39d3991495ULL, 0xadd33a6183c78f1eULL, 0xd70b4aa9b3f20667ULL,
-		0x985b3e827bed2b63ULL, 0xe2834e4a4bd8a21aULL, 0x6debdf121b863991ULL, 0x1733afda2bb3b0e8ULL,
-		0xf34b37458bb86399ULL, 0x8993478dbb8deae0ULL, 0x06fbd6d5ebd3716bULL, 0x7c23a61ddbe6f812ULL,
-		0x3373d23613f9d516ULL, 0x49aba2fe23cc5c6fULL, 0xc6c333a67392c7e4ULL, 0xbc1b436e43a74e9dULL,
-		0x95ac9329ac4bc9b5ULL, 0xef74e3e19c7e40ccULL, 0x601c72b9cc20db47ULL, 0x1ac40271fc15523eULL,
-		0x5594765a340a7f3aULL, 0x2f4c0692043ff643ULL, 0xa02497ca54616dc8ULL, 0xdafce7026454e4b1ULL,
-		0x3e847f9dc45f37c0ULL, 0x445c0f55f46abeb9ULL, 0xcb349e0da4342532ULL, 0xb1eceec59401ac4bULL,
-		0xfebc9aee5c1e814fULL, 0x8464ea266c2b0836ULL, 0x0b0c7b7e3c7593bdULL, 0x71d40bb60c401ac4ULL,
-		0xe8a46c1224f5a634ULL, 0x927c1cda14c02f4dULL, 0x1d148d82449eb4c6ULL, 0x67ccfd4a74ab3dbfULL,
-		0x289c8961bcb410bbULL, 0x5244f9a98c8199c2ULL, 0xdd2c68f1dcdf0249ULL, 0xa7f41839ecea8b30ULL,
-		0x438c80a64ce15841ULL, 0x3954f06e7cd4d138ULL, 0xb63c61362c8a4ab3ULL, 0xcce411fe1cbfc3caULL,
-		0x83b465d5d4a0eeceULL, 0xf96c151de49567b7ULL, 0x76048445b4cbfc3cULL, 0x0cdcf48d84fe7545ULL,
-		0x6fbd6d5ebd3716b7ULL, 0x15651d968d029fceULL, 0x9a0d8ccedd5c0445ULL, 0xe0d5fc06ed698d3cULL,
-		0xaf85882d2576a038ULL, 0xd55df8e515432941ULL, 0x5a3569bd451db2caULL, 0x20ed197575283bb3ULL,
-		0xc49581ead523e8c2ULL, 0xbe4df122e51661bbULL, 0x3125607ab548fa30ULL, 0x4bfd10b2857d7349ULL,
-		0x04ad64994d625e4dULL, 0x7e7514517d57d734ULL, 0xf11d85092d094cbfULL, 0x8bc5f5c11d3cc5c6ULL,
-		0x12b5926535897936ULL, 0x686de2ad05bcf04fULL, 0xe70573f555e26bc4ULL, 0x9ddd033d65d7e2bdULL,
-		0xd28d7716adc8cfb9ULL, 0xa85507de9dfd46c0ULL, 0x273d9686cda3dd4bULL, 0x5de5e64efd965432ULL,
-		0xb99d7ed15d9d8743ULL, 0xc3450e196da80e3aULL, 0x4c2d9f413df695b1ULL, 0x36f5ef890dc31cc8ULL,
-		0x79a59ba2c5dc31ccULL, 0x037deb6af5e9b8b5ULL, 0x8c157a32a5b7233eULL, 0xf6cd0afa9582aa47ULL,
-		0x4ad64994d625e4daULL, 0x300e395ce6106da3ULL, 0xbf66a804b64ef628ULL, 0xc5bed8cc867b7f51ULL,
-		0x8aeeace74e645255ULL, 0xf036dc2f7e51db2cULL, 0x7f5e4d772e0f40a7ULL, 0x05863dbf1e3ac9deULL,
-		0xe1fea520be311aafULL, 0x9b26d5e88e0493d6ULL, 0x144e44b0de5a085dULL, 0x6e963478ee6f8124ULL,
-		0x21c640532670ac20ULL, 0x5b1e309b16452559ULL, 0xd476a1c3461bbed2ULL, 0xaeaed10b762e37abULL,
-		0x37deb6af5e9b8b5bULL, 0x4d06c6676eae0222ULL, 0xc26e573f3ef099a9ULL, 0xb8b627f70ec510d0ULL,
-		0xf7e653dcc6da3dd4ULL, 0x8d3e2314f6efb4adULL, 0x0256b24ca6b12f26ULL, 0x788ec2849684a65fULL,
-		0x9cf65a1b368f752eULL, 0xe62e2ad306bafc57ULL, 0x6946bb8b56e467dcULL, 0x139ecb4366d1eea5ULL,
-		0x5ccebf68aecec3a1ULL, 0x2616cfa09efb4ad8ULL, 0xa97e5ef8cea5d153ULL, 0xd3a62e30fe90582aULL,
-		0xb0c7b7e3c7593bd8ULL, 0xca1fc72bf76cb2a1ULL, 0x45775673a732292aULL, 0x3faf26bb9707a053ULL,
-		0x70ff52905f188d57ULL, 0x0a2722586f2d042eULL, 0x854fb3003f739fa5ULL, 0xff97c3c80f4616dcULL,
-		0x1bef5b57af4dc5adULL, 0x61372b9f9f784cd4ULL, 0xee5fbac7cf26d75fULL, 0x9487ca0fff135e26ULL,
-		0xdbd7be24370c7322ULL, 0xa10fceec0739fa5bULL, 0x2e675fb4576761d0ULL, 0x54bf2f7c6752e8a9ULL,
-		0xcdcf48d84fe75459ULL, 0xb71738107fd2dd20ULL, 0x387fa9482f8c46abULL, 0x42a7d9801fb9cfd2ULL,
-		0x0df7adabd7a6e2d6ULL, 0x772fdd63e7936bafULL, 0xf8474c3bb7cdf024ULL, 0x829f3cf387f8795dULL,
-		0x66e7a46c27f3aa2cULL, 0x1c3fd4a417c62355ULL, 0x935745fc4798b8deULL, 0xe98f353477ad31a7ULL,
-		0xa6df411fbfb21ca3ULL, 0xdc0731d78f8795daULL, 0x536fa08fdfd90e51ULL, 0x29b7d047efec8728ULL,
-	};
-
-	LPWSTR buffer;
-	SIZE_T length;
-	ULONG64 hash_code;
-	WCHAR chr;
-
-	if (!string->length)
-		return 0;
-
-	buffer = string->buffer;
-	length = _r_str_getlength3 (string);
-
-	hash_code = 0;
-
-	do
-	{
-		if (is_ignorecase)
-		{
-			chr = _r_str_lower (*buffer);
-		}
-		else
-		{
-			chr = *buffer;
-		}
-
-		hash_code = (hash_code >> 8) ^ (crc64_table[(hash_code ^ (UCHAR)chr) & 0xff]);
-
-		buffer += 1;
-	}
-	while (--length);
-
-	return ~hash_code;
-}
-
-ULONG _r_str_fnv32a (
-	_In_ PR_STRINGREF string,
-	_In_ BOOLEAN is_ignorecase
-)
-{
-	LPWSTR buffer;
-	SIZE_T length;
-	ULONG hash_code;
-	WCHAR chr;
-
-	if (!string->length)
-		return 0;
-
-	buffer = string->buffer;
-	length = _r_str_getlength3 (string);
-
-	hash_code = 2166136261UL;
-
-	do
-	{
-		if (is_ignorecase)
-		{
-			chr = _r_str_lower (*buffer);
-		}
-		else
-		{
-			chr = *buffer;
-		}
-
-		hash_code = (hash_code ^ (UCHAR)chr) * 16777619U;
-
-		buffer += 1;
-	}
-	while (--length);
-
-	return hash_code;
-}
-
-ULONG64 _r_str_fnv64a (
-	_In_ PR_STRINGREF string,
-	_In_ BOOLEAN is_ignorecase
-)
-{
-	LPWSTR buffer;
-	SIZE_T length;
-	ULONG64 hash_code;
-	WCHAR chr;
-
-	if (!string->length)
-		return 0;
-
-	buffer = string->buffer;
-	length = _r_str_getlength3 (string);
-
-	hash_code = 14695981039346656037ULL;
-
-	do
-	{
-		if (is_ignorecase)
-		{
-			chr = _r_str_lower (*buffer);
-		}
-		else
-		{
-			chr = *buffer;
-		}
-
-		hash_code = (hash_code ^ (UCHAR)chr) * 1099511628211LL;
-
-		buffer += 1;
-	}
-	while (--length);
-
-	return hash_code;
-}
-
-ULONG _r_str_x65599 (
-	_In_ PR_STRINGREF string,
-	_In_ BOOLEAN is_ignorecase
-)
-{
-	LPWSTR buffer;
-	LPWSTR end_buffer;
-	ULONG hash_code;
-
-	if (!string->length)
-		return 0;
-
-	end_buffer = string->buffer + _r_str_getlength3 (string);
-
-	hash_code = 0;
-
-	if (is_ignorecase)
-	{
-		for (buffer = string->buffer; buffer != end_buffer; buffer++)
-		{
-			hash_code = (
-				(65599 * (hash_code)) + (ULONG)(((*buffer) >= L'a' &&
-				(*buffer) <= L'z') ? (*buffer) - L'a' + L'A' : (*buffer)));
-		}
-	}
-	else
-	{
-		for (buffer = string->buffer; buffer != end_buffer; buffer++)
-		{
-			hash_code = ((65599 * (hash_code)) + (ULONG)(*buffer));
-		}
-	}
-
-	return hash_code;
-}
-
-ULONG _r_str_gethash (
-	_In_ LPCWSTR string,
-	_In_ BOOLEAN is_ignorecase
-)
-{
-	R_STRINGREF sr;
-
-	_r_obj_initializestringrefconst (&sr, string);
-
-	return _r_str_gethash3 (&sr, is_ignorecase);
-}
-
-ULONG _r_str_gethash2 (
-	_In_ PR_STRING string,
-	_In_ BOOLEAN is_ignorecase
-)
-{
-	return _r_str_gethash3 (&string->sr, is_ignorecase);
-}
-
-ULONG _r_str_gethash3 (
-	_In_ PR_STRINGREF string,
-	_In_ BOOLEAN is_ignorecase
-)
-{
-	return _r_str_x65599 (string, is_ignorecase);
-}
-
-SIZE_T _r_str_getlength (
-	_In_ LPCWSTR string
-)
-{
-	return _r_str_getlength_ex (string, PR_SIZE_MAX_STRING_LENGTH);
-}
-
-SIZE_T _r_str_getlength2 (
-	_In_ PR_STRING string
-)
-{
-	assert (!(string->length & 0x01));
-
-	return string->length / sizeof (WCHAR);
-}
-
-SIZE_T _r_str_getlength3 (
-	_In_ PR_STRINGREF string
-)
-{
-	assert (!(string->length & 0x01));
-
-	return string->length / sizeof (WCHAR);
-}
-
-SIZE_T _r_str_getlength4 (
-	_In_ PUNICODE_STRING string
-)
-{
-	assert (!(string->Length & 0x01));
-
-	return string->Length / sizeof (WCHAR);
-}
-
-SIZE_T _r_str_getlength_ex (
-	_In_ LPCWSTR string,
-	_In_ SIZE_T max_count
-)
-{
-	return wcsnlen_s (string, max_count);
-}
-
-SIZE_T _r_str_getbytelength (
-	_In_ LPCSTR string
-)
-{
-	return _r_str_getbytelength_ex (string, PR_SIZE_MAX_STRING_LENGTH);
-}
-
-SIZE_T _r_str_getbytelength2 (
-	_In_ PR_BYTE string
-)
-{
-	return string->length;
-}
-
-SIZE_T _r_str_getbytelength3 (
-	_In_ PR_BYTEREF string
-)
-{
-	return string->length;
-}
-
-SIZE_T _r_str_getbytelength_ex (
-	_In_ LPCSTR string,
-	_In_ SIZE_T max_count
-)
-{
-	return strnlen_s (string, max_count);
-}
-
 _Ret_maybenull_
-PR_STRING _r_str_expandenvironmentstring (
+PR_STRING _r_str_environmentexpandstring (
 	_In_ PR_STRINGREF string
 )
 {
-	NTSTATUS status;
 	UNICODE_STRING input_string;
 	UNICODE_STRING output_string;
 	PR_STRING buffer_string;
 	ULONG buffer_size;
+	NTSTATUS status;
 
 	if (!_r_obj_initializeunicodestring3 (&input_string, string))
 		return NULL;
@@ -6739,7 +6079,7 @@ PR_STRING _r_str_expandenvironmentstring (
 }
 
 _Ret_maybenull_
-PR_STRING _r_str_unexpandenvironmentstring (
+PR_STRING _r_str_environmentunexpandstring (
 	_In_ LPCWSTR string
 )
 {
@@ -6760,6 +6100,158 @@ PR_STRING _r_str_unexpandenvironmentstring (
 	_r_obj_movereference (&buffer, _r_obj_createstring (string));
 
 	return buffer;
+}
+
+_Success_ (return != SIZE_MAX)
+SIZE_T _r_str_findchar (
+	_In_ PR_STRINGREF string,
+	_In_ WCHAR character,
+	_In_ BOOLEAN is_ignorecase
+)
+{
+	LPWSTR buffer;
+	SIZE_T length;
+	WCHAR chr;
+
+	if (!string->length)
+		return SIZE_MAX;
+
+	buffer = string->buffer;
+	length = _r_str_getlength3 (string);
+
+	if (is_ignorecase)
+		character = _r_str_upper (character);
+
+	do
+	{
+		if (is_ignorecase)
+		{
+			chr = _r_str_upper (*buffer);
+		}
+		else
+		{
+			chr = *buffer;
+		}
+
+		if (chr == character)
+			return _r_str_getlength3 (string) - length;
+
+		buffer += 1;
+	}
+	while (--length);
+
+	return SIZE_MAX;
+}
+
+_Success_ (return != SIZE_MAX)
+SIZE_T _r_str_findlastchar (
+	_In_ PR_STRINGREF string,
+	_In_ WCHAR character,
+	_In_ BOOLEAN is_ignorecase
+)
+{
+	LPWSTR buffer;
+	SIZE_T length;
+	WCHAR chr;
+
+	if (!string->length)
+		return SIZE_MAX;
+
+	buffer = PTR_ADD_OFFSET (string->buffer, string->length);
+	length = _r_str_getlength3 (string);
+
+	if (is_ignorecase)
+		character = _r_str_upper (character);
+
+	buffer -= 1;
+
+	do
+	{
+		if (is_ignorecase)
+		{
+			chr = _r_str_upper (*buffer);
+		}
+		else
+		{
+			chr = *buffer;
+		}
+
+		if (chr == character)
+			return length - 1;
+
+		buffer -= 1;
+	}
+	while (--length);
+
+	return SIZE_MAX;
+}
+
+_Success_ (return != SIZE_MAX)
+SIZE_T _r_str_findstring (
+	_In_ PR_STRINGREF string,
+	_In_ PR_STRINGREF sub_string,
+	_In_ BOOLEAN is_ignorecase
+)
+{
+	R_STRINGREF sr1;
+	R_STRINGREF sr2;
+	SIZE_T length1;
+	SIZE_T length2;
+
+	WCHAR chr1;
+	WCHAR chr2;
+
+	length1 = _r_str_getlength3 (string);
+	length2 = _r_str_getlength3 (sub_string);
+
+	// Can't be a substring if it's bigger than the first string.
+	if (length2 > length1)
+		return SIZE_MAX;
+
+	// We always get a match if the substring is zero-length.
+	if (length2 == 0)
+		return 0;
+
+	_r_obj_initializestringref_ex (
+		&sr1,
+		string->buffer,
+		sub_string->length - sizeof (WCHAR)
+	);
+
+	_r_obj_initializestringref_ex (
+		&sr2,
+		sub_string->buffer,
+		sub_string->length - sizeof (WCHAR)
+	);
+
+	if (is_ignorecase)
+	{
+		chr2 = _r_str_upper (*sr2.buffer++);
+	}
+	else
+	{
+		chr2 = *sr2.buffer++;
+	}
+
+	for (SIZE_T i = length1 - length2 + 1; i != 0; i--)
+	{
+		if (is_ignorecase)
+		{
+			chr1 = _r_str_upper (*sr1.buffer++);
+		}
+		else
+		{
+			chr1 = *sr1.buffer++;
+		}
+
+		if (chr2 == chr1)
+		{
+			if (_r_str_isequal (&sr1, &sr2, is_ignorecase))
+				return (SIZE_T)(sr1.buffer - string->buffer - 1);
+		}
+	}
+
+	return SIZE_MAX;
 }
 
 PR_STRING _r_str_formatversion (
@@ -6784,24 +6276,6 @@ PR_STRING _r_str_formatversion (
 	}
 
 	return _r_obj_reference (string);
-}
-
-VOID _r_str_generaterandom (
-	_Out_writes_z_ (buffer_size) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
-	_In_ BOOLEAN is_uppercase
-)
-{
-	WCHAR chr;
-
-	chr = is_uppercase ? L'A' : L'a';
-
-	for (SIZE_T i = 0; i < buffer_size - 1; i++)
-	{
-		buffer[i] = chr + (_r_math_getrandom () % 26);
-	}
-
-	buffer[buffer_size - 1] = UNICODE_NULL;
 }
 
 VOID _r_str_fromlong (
@@ -6926,8 +6400,8 @@ ULONG _r_str_fromsecuritydescriptor (
 	_Out_ PR_STRING_PTR out_buffer
 )
 {
-	PR_STRING string;
 	LPWSTR security_string;
+	PR_STRING string;
 	ULONG length;
 	BOOL result;
 
@@ -6987,6 +6461,574 @@ NTSTATUS _r_str_fromsid (
 	return status;
 }
 
+VOID _r_str_generaterandom (
+	_Out_writes_z_ (buffer_size) LPWSTR buffer,
+	_In_ SIZE_T buffer_size,
+	_In_ BOOLEAN is_uppercase
+)
+{
+	WCHAR chr;
+
+	chr = is_uppercase ? L'A' : L'a';
+
+	for (SIZE_T i = 0; i < buffer_size - 1; i++)
+	{
+		buffer[i] = chr + (_r_math_getrandom () % 26);
+	}
+
+	buffer[buffer_size - 1] = UNICODE_NULL;
+}
+
+ULONG _r_str_gethash (
+	_In_ LPCWSTR string,
+	_In_ BOOLEAN is_ignorecase
+)
+{
+	R_STRINGREF sr;
+
+	_r_obj_initializestringrefconst (&sr, string);
+
+	return _r_str_gethash3 (&sr, is_ignorecase);
+}
+
+ULONG _r_str_gethash2 (
+	_In_ PR_STRING string,
+	_In_ BOOLEAN is_ignorecase
+)
+{
+	return _r_str_gethash3 (&string->sr, is_ignorecase);
+}
+
+ULONG _r_str_gethash3 (
+	_In_ PR_STRINGREF string,
+	_In_ BOOLEAN is_ignorecase
+)
+{
+	return _r_str_x65599 (string, is_ignorecase);
+}
+
+SIZE_T _r_str_getlength (
+	_In_ LPCWSTR string
+)
+{
+	return _r_str_getlength_ex (string, PR_SIZE_MAX_STRING_LENGTH);
+}
+
+SIZE_T _r_str_getlength2 (
+	_In_ PR_STRING string
+)
+{
+	assert (!(string->length & 0x01));
+
+	return string->length / sizeof (WCHAR);
+}
+
+SIZE_T _r_str_getlength3 (
+	_In_ PR_STRINGREF string
+)
+{
+	assert (!(string->length & 0x01));
+
+	return string->length / sizeof (WCHAR);
+}
+
+SIZE_T _r_str_getlength4 (
+	_In_ PUNICODE_STRING string
+)
+{
+	assert (!(string->Length & 0x01));
+
+	return string->Length / sizeof (WCHAR);
+}
+
+SIZE_T _r_str_getlength_ex (
+	_In_ LPCWSTR string,
+	_In_ SIZE_T max_count
+)
+{
+	return wcsnlen_s (string, max_count);
+}
+
+SIZE_T _r_str_getbytelength (
+	_In_ LPCSTR string
+)
+{
+	return _r_str_getbytelength_ex (string, PR_SIZE_MAX_STRING_LENGTH);
+}
+
+SIZE_T _r_str_getbytelength2 (
+	_In_ PR_BYTE string
+)
+{
+	return string->length;
+}
+
+SIZE_T _r_str_getbytelength3 (
+	_In_ PR_BYTEREF string
+)
+{
+	return string->length;
+}
+
+SIZE_T _r_str_getbytelength_ex (
+	_In_ LPCSTR string,
+	_In_ SIZE_T max_count
+)
+{
+	return strnlen_s (string, max_count);
+}
+
+BOOLEAN _r_str_isdigit (
+	_In_ WCHAR chr
+)
+{
+	return (USHORT)(chr - L'0') < 10;
+}
+
+BOOLEAN _r_str_isequal (
+	_In_ PR_STRINGREF string1,
+	_In_ PR_STRINGREF string2,
+	_In_ BOOLEAN is_ignorecase
+)
+{
+	LPCWSTR buffer1;
+	LPCWSTR buffer2;
+	SIZE_T length1;
+	SIZE_T length2;
+	SIZE_T length;
+	WCHAR chr1;
+	WCHAR chr2;
+
+	length1 = string1->length;
+	length2 = string2->length;
+
+	assert (!(length1 & 0x01));
+	assert (!(length2 & 0x01));
+
+	if (length1 != length2)
+		return FALSE;
+
+	buffer1 = string1->buffer;
+	buffer2 = string2->buffer;
+
+#if !defined(_ARM64_)
+	if (USER_SHARED_DATA->ProcessorFeatures[PF_XMMI64_INSTRUCTIONS_AVAILABLE])
+	{
+		length = length1 / 16;
+
+		if (length != 0)
+		{
+			__m128i b1;
+			__m128i b2;
+
+			do
+			{
+				b1 = _mm_loadu_si128 ((__m128i *)buffer1);
+				b2 = _mm_loadu_si128 ((__m128i *)buffer2);
+				b1 = _mm_cmpeq_epi32 (b1, b2);
+
+				if (_mm_movemask_epi8 (b1) != 0xffff)
+				{
+					if (!is_ignorecase)
+					{
+						return FALSE;
+					}
+					else
+					{
+						// Compare character-by-character to ignore case.
+						length1 = length * 16 + (length1 & 15);
+						length1 /= sizeof (WCHAR);
+
+						goto CompareCharacters;
+					}
+				}
+
+				buffer1 += 16 / sizeof (WCHAR);
+				buffer2 += 16 / sizeof (WCHAR);
+			}
+			while (--length != 0);
+		}
+
+		// Compare character-by-character because we have no more 16-byte blocks to compare.
+		length1 = (length1 & 15) / sizeof (WCHAR);
+	}
+	else
+#endif // !_ARM64_
+	{
+		length = length1 / sizeof (ULONG_PTR);
+
+		if (length != 0)
+		{
+			do
+			{
+				if (*(PULONG_PTR)buffer1 != *(PULONG_PTR)buffer2)
+				{
+					if (!is_ignorecase)
+					{
+						return FALSE;
+					}
+					else
+					{
+						// Compare character-by-character to ignore case.
+						length1 = length * sizeof (ULONG_PTR) + (length1 & (sizeof (ULONG_PTR) - 1));
+						length1 /= sizeof (WCHAR);
+
+						goto CompareCharacters;
+					}
+				}
+
+				buffer1 += sizeof (ULONG_PTR) / sizeof (WCHAR);
+				buffer2 += sizeof (ULONG_PTR) / sizeof (WCHAR);
+			}
+			while (--length != 0);
+		}
+
+		// Compare character-by-character because we have no more ULONG_PTR blocks to compare.
+		length1 = (length1 & (sizeof (ULONG_PTR) - 1)) / sizeof (WCHAR);
+	}
+
+CompareCharacters:
+	if (length1 != 0)
+	{
+		do
+		{
+			if (!is_ignorecase)
+			{
+				chr1 = *buffer1;
+				chr2 = *buffer2;
+			}
+			else
+			{
+				chr1 = _r_str_upper (*buffer1);
+				chr2 = _r_str_upper (*buffer2);
+			}
+
+			if (chr1 != chr2)
+				return FALSE;
+
+			buffer1 += 1;
+			buffer2 += 1;
+		}
+		while (--length1 != 0);
+	}
+
+	return TRUE;
+}
+
+BOOLEAN _r_str_isequal2 (
+	_In_ PR_STRINGREF string1,
+	_In_ LPCWSTR string2,
+	_In_ BOOLEAN is_ignorecase
+)
+{
+	R_STRINGREF sr;
+
+	_r_obj_initializestringrefconst (&sr, string2);
+
+	return _r_str_isequal (string1, &sr, is_ignorecase);
+}
+
+BOOLEAN _r_str_isnumeric (
+	_In_ PR_STRINGREF string
+)
+{
+	SIZE_T length;
+
+	if (!string->length)
+		return FALSE;
+
+	length = _r_str_getlength3 (string);
+
+	for (SIZE_T i = 0; i < length; i++)
+	{
+		if (!_r_str_isdigit (string->buffer[i]))
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+BOOLEAN _r_str_isstartswith (
+	_In_ PR_STRINGREF string,
+	_In_ PR_STRINGREF prefix,
+	_In_ BOOLEAN is_ignorecase
+)
+{
+	R_STRINGREF sr;
+
+	if (string->length < prefix->length)
+		return FALSE;
+
+	_r_obj_initializestringref_ex (&sr, string->buffer, prefix->length);
+
+	return _r_str_isequal (&sr, prefix, is_ignorecase);
+}
+
+BOOLEAN _r_str_isstartswith2 (
+	_In_ PR_STRINGREF string,
+	_In_ LPCWSTR prefix,
+	_In_ BOOLEAN is_ignorecase
+)
+{
+	R_STRINGREF sr;
+
+	_r_obj_initializestringrefconst (&sr, prefix);
+
+	return _r_str_isstartswith (string, &sr, is_ignorecase);
+}
+
+BOOLEAN _r_str_isendsswith (
+	_In_ PR_STRINGREF string,
+	_In_ PR_STRINGREF suffix,
+	_In_ BOOLEAN is_ignorecase
+)
+{
+	R_STRINGREF sr;
+
+	if (suffix->length > string->length)
+		return FALSE;
+
+	_r_obj_initializestringref_ex (
+		&sr,
+		(LPWSTR)PTR_ADD_OFFSET (string->buffer, string->length - suffix->length),
+		suffix->length
+	);
+
+	return _r_str_isequal (&sr, suffix, is_ignorecase);
+}
+
+BOOLEAN _r_str_isendsswith2 (
+	_In_ PR_STRINGREF string,
+	_In_ LPCWSTR suffix,
+	_In_ BOOLEAN is_ignorecase
+)
+{
+	R_STRINGREF sr;
+
+	_r_obj_initializestringrefconst (&sr, suffix);
+
+	return _r_str_isendsswith (string, &sr, is_ignorecase);
+}
+
+_Success_ (return)
+BOOLEAN _r_str_match (
+	_In_ LPCWSTR string,
+	_In_ LPCWSTR pattern,
+	_In_ BOOLEAN is_ignorecase
+)
+{
+	LPCWSTR s, p;
+	BOOLEAN is_star = FALSE;
+
+	// Code is from http://xoomer.virgilio.it/acantato/dev/wildcard/wildmatch.html
+
+LoopStart:
+	for (s = string, p = pattern; *s; s++, p++)
+	{
+		switch (*p)
+		{
+			case L'?':
+			{
+				break;
+			}
+
+			case L'*':
+			{
+				is_star = TRUE;
+
+				string = s;
+				pattern = p;
+
+				do
+				{
+					pattern += 1;
+				}
+				while (*pattern == L'*');
+
+				if (*pattern == UNICODE_NULL)
+					return TRUE;
+
+				goto LoopStart;
+			}
+
+			default:
+			{
+				if (!is_ignorecase)
+				{
+					if (*s != *p)
+						goto StarCheck;
+				}
+				else
+				{
+					if (_r_str_upper (*s) != _r_str_upper (*p))
+						goto StarCheck;
+				}
+
+				break;
+			}
+		}
+	}
+
+	while (*p == L'*')
+	{
+		p += 1;
+	}
+
+	return (!*p);
+
+StarCheck:
+	if (!is_star)
+		return FALSE;
+
+	string += 1;
+	goto LoopStart;
+}
+
+_Success_ (return)
+BOOLEAN _r_str_printf (
+	_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
+	_In_ SIZE_T buffer_size,
+	_In_ _Printf_format_string_ LPCWSTR format,
+	...
+)
+{
+	va_list arg_ptr;
+
+	if (buffer_size > PR_SIZE_MAX_STRING_LENGTH)
+	{
+		*buffer = UNICODE_NULL;
+		return FALSE;
+	}
+
+	va_start (arg_ptr, format);
+	_r_str_printf_v (buffer, buffer_size, format, arg_ptr);
+	va_end (arg_ptr);
+
+	return TRUE;
+}
+
+_Success_ (return)
+BOOLEAN _r_str_printf_v (
+	_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
+	_In_ SIZE_T buffer_size,
+	_In_ _Printf_format_string_ LPCWSTR format,
+	_In_ va_list arg_ptr
+)
+{
+	SIZE_T max_length;
+	LONG format_size;
+
+	if (buffer_size > PR_SIZE_MAX_STRING_LENGTH)
+	{
+		*buffer = UNICODE_NULL;
+		return FALSE;
+	}
+
+	max_length = buffer_size - 1; // leave the last space for the null terminator
+
+#pragma warning(push)
+#pragma warning(disable: _UCRT_DISABLED_WARNINGS)
+	format_size = _vsnwprintf (buffer, max_length, format, arg_ptr);
+#pragma warning(pop)
+
+	if (format_size == -1 || (SIZE_T)format_size >= max_length)
+		buffer[max_length] = UNICODE_NULL; // need to null terminate the string
+
+	return TRUE;
+}
+
+VOID _r_str_replacechar (
+	_Inout_ PR_STRINGREF string,
+	_In_ WCHAR char_from,
+	_In_ WCHAR char_to
+)
+{
+	SIZE_T length;
+
+	if (!string->length)
+		return;
+
+	length = _r_str_getlength3 (string);
+
+	for (SIZE_T i = 0; i < length; i++)
+	{
+		if (string->buffer[i] == char_from)
+			string->buffer[i] = char_to;
+	}
+}
+
+BOOLEAN _r_str_splitatchar (
+	_In_ PR_STRINGREF string,
+	_In_ WCHAR separator,
+	_Out_ PR_STRINGREF first_part,
+	_Out_ PR_STRINGREF second_part
+)
+{
+	R_STRINGREF input;
+	SIZE_T index;
+
+	input = *string;
+	index = _r_str_findchar (string, separator, FALSE);
+
+	if (index == SIZE_MAX)
+	{
+		_r_obj_initializestringref3 (first_part, string);
+		_r_obj_initializestringrefempty (second_part);
+
+		return FALSE;
+	}
+
+	_r_obj_initializestringref_ex (
+		first_part,
+		input.buffer,
+		index * sizeof (WCHAR)
+	);
+
+	_r_obj_initializestringref_ex (
+		second_part,
+		PTR_ADD_OFFSET (input.buffer, index * sizeof (WCHAR) + sizeof (UNICODE_NULL)),
+		input.length - index * sizeof (WCHAR) - sizeof (UNICODE_NULL)
+	);
+
+	return TRUE;
+}
+
+BOOLEAN _r_str_splitatlastchar (
+	_In_ PR_STRINGREF string,
+	_In_ WCHAR separator,
+	_Out_ PR_STRINGREF first_part,
+	_Out_ PR_STRINGREF second_part
+)
+{
+	R_STRINGREF input;
+	SIZE_T index;
+
+	input = *string;
+	index = _r_str_findlastchar (string, separator, FALSE);
+
+	if (index == SIZE_MAX)
+	{
+		_r_obj_initializestringref3 (first_part, string);
+		_r_obj_initializestringrefempty (second_part);
+
+		return FALSE;
+	}
+
+	_r_obj_initializestringref_ex (
+		first_part,
+		input.buffer,
+		index * sizeof (WCHAR)
+	);
+
+	_r_obj_initializestringref_ex (
+		second_part,
+		PTR_ADD_OFFSET (input.buffer, index * sizeof (WCHAR) + sizeof (UNICODE_NULL)),
+		input.length - index * sizeof (WCHAR) - sizeof (UNICODE_NULL)
+	);
+
+	return TRUE;
+}
+
 _Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_str_toguid (
 	_In_ PR_STRINGREF string,
@@ -7004,75 +7046,83 @@ NTSTATUS _r_str_toguid (
 	return status;
 }
 
-BOOLEAN _r_str_touinteger64 (
-	_In_ PR_STRINGREF string,
-	_In_ ULONG base,
-	_Out_ PULONG64 integer
+BOOLEAN _r_str_toboolean (
+	_In_ PR_STRINGREF string
 )
 {
-	static const ULONG char_to_integer[256] =
+	static R_STRINGREF value = PR_STRINGREF_INIT (L"true");
+
+	if (_r_str_tolong (string) != 0)
+		return TRUE;
+
+	return _r_str_isequal (string, &value, TRUE);
+}
+
+LONG _r_str_tolong (
+	_In_ PR_STRINGREF string
+)
+{
+	LONG64 value;
+	LONG number;
+
+	if (_r_str_tointeger64 (string, 10, NULL, &value))
 	{
-		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 0 - 15
-		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 16 - 31
-		36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, // ' ' - '/'
-		0, 1, 2, 3, 4, 5, 6, 7, 8, 9, // '0' - '9'
-		52, 53, 54, 55, 56, 57, 58, // ':' - '@'
-		10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, // 'A' - 'Z
-		59, 60, 61, 62, 63, 64, // '[' - '`'
-		10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, // 'a' - 'z
-		65, 66, 67, 68, -1, // '{' - 127
-		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 128 - 143
-		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 144 - 159
-		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 160 - 175
-		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 176 - 191
-		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 192 - 207
-		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 208 - 223
-		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 224 - 239
-		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 // 240 - 255
-	};
-
-	LPWSTR buffer;
-	ULONG64 result;
-	SIZE_T length;
-	ULONG value;
-	BOOLEAN is_valid;
-
-	buffer = string->buffer;
-	length = _r_str_getlength3 (string);
-
-	result = 0;
-	is_valid = TRUE;
-
-	if (length)
-	{
-		do
-		{
-			value = char_to_integer[(UCHAR)*buffer];
-
-			if (value < base)
-			{
-				result = result * base + value;
-			}
-			else
-			{
-				is_valid = FALSE;
-			}
-
-			buffer += 1;
-		}
-		while (--length);
+		if (LongLongToLong (value, &number) == S_OK)
+			return number;
 	}
 
-	*integer = result;
+	return 0;
+}
 
-	return is_valid;
+LONG64 _r_str_tolong64 (
+	_In_ PR_STRINGREF string
+)
+{
+	LONG64 value;
+
+	if (_r_str_tointeger64 (string, 10, NULL, &value))
+		return value;
+
+	return 0;
+}
+
+ULONG _r_str_toulong (
+	_In_ PR_STRINGREF string
+)
+{
+	LONG64 value;
+	ULONG number;
+
+	if (_r_str_tointeger64 (string, 10, NULL, &value))
+	{
+		if (LongLongToULong (value, &number) == S_OK)
+			return number;
+	}
+
+	return 0;
+}
+
+ULONG64 _r_str_toulong64 (
+	_In_ PR_STRINGREF string
+)
+{
+	LONG64 value;
+	ULONG64 number;
+
+	if (_r_str_tointeger64 (string, 10, NULL, &value))
+	{
+		if (LongLongToULongLong (value, &number) == S_OK)
+			return number;
+	}
+
+	return 0;
 }
 
 BOOLEAN _r_str_tointeger64 (
 	_In_ PR_STRINGREF string,
 	_In_opt_ ULONG base,
 	_Out_opt_ PULONG new_base_ptr,
-	_Out_ PLONG64 integer
+	_Out_ PLONG64 integer_ptr
 )
 {
 	R_STRINGREF input;
@@ -7084,7 +7134,7 @@ BOOLEAN _r_str_tointeger64 (
 	if (new_base_ptr)
 		*new_base_ptr = 0;
 
-	*integer = 0;
+	*integer_ptr = 0;
 
 	if (!string->length)
 		return FALSE;
@@ -7168,389 +7218,77 @@ BOOLEAN _r_str_tointeger64 (
 
 	is_valid = _r_str_touinteger64 (&input, base_used, &result);
 
-	*integer = is_negative ? -(LONG64)result : result;
+	*integer_ptr = is_negative ? -(LONG64)result : result;
 
 	return is_valid;
 }
 
-BOOLEAN _r_str_toboolean (
-	_In_ PR_STRINGREF string
-)
-{
-	static R_STRINGREF value = PR_STRINGREF_INIT (L"true");
-
-	if (_r_str_tolong (string) > 0)
-		return TRUE;
-
-	return _r_str_isequal (string, &value, TRUE);
-}
-
-LONG _r_str_tolong (
-	_In_ PR_STRINGREF string
-)
-{
-	return _r_str_tolong_ex (string, 10);
-}
-
-LONG _r_str_tolong_ex (
+BOOLEAN _r_str_touinteger64 (
 	_In_ PR_STRINGREF string,
-	_In_opt_ ULONG base
+	_In_ ULONG base,
+	_Out_ PULONG64 integer_ptr
 )
 {
-	LONG64 value;
+	static const ULONG char_to_integer[256] =
+	{
+		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 0 - 15
+		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 16 - 31
+		36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, // ' ' - '/'
+		0, 1, 2, 3, 4, 5, 6, 7, 8, 9, // '0' - '9'
+		52, 53, 54, 55, 56, 57, 58, // ':' - '@'
+		10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, // 'A' - 'Z
+		59, 60, 61, 62, 63, 64, // '[' - '`'
+		10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, // 'a' - 'z
+		65, 66, 67, 68, -1, // '{' - 127
+		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 128 - 143
+		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 144 - 159
+		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 160 - 175
+		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 176 - 191
+		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 192 - 207
+		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 208 - 223
+		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 224 - 239
+		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 // 240 - 255
+	};
 
-	if (_r_str_tointeger64 (string, base, NULL, &value))
-		return (LONG)value;
-
-	return 0;
-}
-
-LONG64 _r_str_tolong64 (
-	_In_ PR_STRINGREF string
-)
-{
-	LONG64 value;
-
-	if (_r_str_tointeger64 (string, 10, NULL, &value))
-		return value;
-
-	return 0;
-}
-
-ULONG _r_str_toulong (
-	_In_ PR_STRINGREF string
-)
-{
-	return _r_str_toulong_ex (string, 10);
-}
-
-ULONG _r_str_toulong_ex (
-	_In_ PR_STRINGREF string,
-	_In_opt_ ULONG base
-)
-{
-	LONG64 value;
-
-	if (_r_str_tointeger64 (string, base, NULL, &value))
-		return (ULONG)value;
-
-	return 0;
-}
-
-ULONG64 _r_str_toulong64 (
-	_In_ PR_STRINGREF string
-)
-{
-	LONG64 value;
-
-	if (_r_str_tointeger64 (string, 10, NULL, &value))
-		return (ULONG64)value;
-
-	return 0;
-}
-
-_Success_ (return != SIZE_MAX)
-SIZE_T _r_str_findchar (
-	_In_ PR_STRINGREF string,
-	_In_ WCHAR character,
-	_In_ BOOLEAN is_ignorecase
-)
-{
 	LPWSTR buffer;
+	ULONG64 result;
 	SIZE_T length;
-	WCHAR chr;
-
-	if (!string->length)
-		return SIZE_MAX;
+	ULONG value;
+	BOOLEAN is_valid;
 
 	buffer = string->buffer;
 	length = _r_str_getlength3 (string);
 
-	if (is_ignorecase)
-		character = _r_str_lower (character);
+	result = 0;
+	is_valid = TRUE;
 
-	do
+	if (length)
 	{
-		if (is_ignorecase)
+		do
 		{
-			chr = _r_str_lower (*buffer);
-		}
-		else
-		{
-			chr = *buffer;
-		}
+			value = char_to_integer[(UCHAR)*buffer];
 
-		if (chr == character)
-			return _r_str_getlength3 (string) - length;
-
-		buffer += 1;
-	}
-	while (--length);
-
-	return SIZE_MAX;
-}
-
-_Success_ (return != SIZE_MAX)
-SIZE_T _r_str_findlastchar (
-	_In_ PR_STRINGREF string,
-	_In_ WCHAR character,
-	_In_ BOOLEAN is_ignorecase
-)
-{
-	LPWSTR buffer;
-	SIZE_T length;
-	WCHAR chr;
-
-	if (!string->length)
-		return SIZE_MAX;
-
-	buffer = PTR_ADD_OFFSET (string->buffer, string->length);
-	length = _r_str_getlength3 (string);
-
-	if (is_ignorecase)
-		character = _r_str_lower (character);
-
-	buffer -= 1;
-
-	do
-	{
-		if (is_ignorecase)
-		{
-			chr = _r_str_lower (*buffer);
-		}
-		else
-		{
-			chr = *buffer;
-		}
-
-		if (chr == character)
-			return length - 1;
-
-		buffer -= 1;
-	}
-	while (--length);
-
-	return SIZE_MAX;
-}
-
-_Success_ (return != SIZE_MAX)
-SIZE_T _r_str_findstring (
-	_In_ PR_STRINGREF string,
-	_In_ PR_STRINGREF sub_string,
-	_In_ BOOLEAN is_ignorecase
-)
-{
-	R_STRINGREF sr1;
-	R_STRINGREF sr2;
-	SIZE_T length1;
-	SIZE_T length2;
-
-	WCHAR chr1;
-	WCHAR chr2;
-
-	length1 = _r_str_getlength3 (string);
-	length2 = _r_str_getlength3 (sub_string);
-
-	// Can't be a substring if it's bigger than the first string.
-	if (length2 > length1)
-		return SIZE_MAX;
-
-	// We always get a match if the substring is zero-length.
-	if (length2 == 0)
-		return 0;
-
-	_r_obj_initializestringref_ex (
-		&sr1,
-		string->buffer,
-		sub_string->length - sizeof (WCHAR)
-	);
-
-	_r_obj_initializestringref_ex (
-		&sr2,
-		sub_string->buffer,
-		sub_string->length - sizeof (WCHAR)
-	);
-
-	if (is_ignorecase)
-	{
-		chr2 = _r_str_lower (*sr2.buffer++);
-	}
-	else
-	{
-		chr2 = *sr2.buffer++;
-	}
-
-	for (SIZE_T i = length1 - length2 + 1; i != 0; i--)
-	{
-		if (is_ignorecase)
-		{
-			chr1 = _r_str_lower (*sr1.buffer++);
-		}
-		else
-		{
-			chr1 = *sr1.buffer++;
-		}
-
-		if (chr2 == chr1)
-		{
-			if (_r_str_isequal (&sr1, &sr2, is_ignorecase))
-				return (SIZE_T)(sr1.buffer - string->buffer - 1);
-		}
-	}
-
-	return SIZE_MAX;
-}
-
-_Success_ (return)
-BOOLEAN _r_str_match (
-	_In_ LPCWSTR string,
-	_In_ LPCWSTR pattern,
-	_In_ BOOLEAN is_ignorecase
-)
-{
-	LPCWSTR s, p;
-	BOOLEAN is_star = FALSE;
-
-	// Code is from http://xoomer.virgilio.it/acantato/dev/wildcard/wildmatch.html
-
-LoopStart:
-	for (s = string, p = pattern; *s; s++, p++)
-	{
-		switch (*p)
-		{
-			case L'?':
+			if (value < base)
 			{
-				break;
+				result = result * base + value;
+			}
+			else
+			{
+				is_valid = FALSE;
 			}
 
-			case L'*':
-			{
-				is_star = TRUE;
-
-				string = s;
-				pattern = p;
-
-				do
-				{
-					pattern += 1;
-				}
-				while (*pattern == L'*');
-
-				if (*pattern == UNICODE_NULL)
-					return TRUE;
-
-				goto LoopStart;
-			}
-
-			default:
-			{
-				if (!is_ignorecase)
-				{
-					if (*s != *p)
-						goto StarCheck;
-				}
-				else
-				{
-					if (_r_str_lower (*s) != _r_str_lower (*p))
-						goto StarCheck;
-				}
-
-				break;
-			}
+			buffer += 1;
 		}
+		while (--length);
 	}
 
-	while (*p == L'*')
-	{
-		p += 1;
-	}
+	*integer_ptr = result;
 
-	return (!*p);
-
-StarCheck:
-	if (!is_star)
-		return FALSE;
-
-	string += 1;
-	goto LoopStart;
+	return is_valid;
 }
 
-BOOLEAN _r_str_splitatchar (
-	_In_ PR_STRINGREF string,
-	_In_ WCHAR separator,
-	_Out_ PR_STRINGREF first_part,
-	_Out_ PR_STRINGREF second_part
-)
-{
-	R_STRINGREF input;
-	SIZE_T index;
-
-	input = *string;
-	index = _r_str_findchar (string, separator, FALSE);
-
-	if (index == SIZE_MAX)
-	{
-		_r_obj_initializestringref3 (first_part, string);
-		_r_obj_initializestringrefempty (second_part);
-
-		return FALSE;
-	}
-
-	_r_obj_initializestringref_ex (
-		first_part,
-		input.buffer,
-		index * sizeof (WCHAR)
-	);
-
-	_r_obj_initializestringref_ex (
-		second_part,
-		PTR_ADD_OFFSET (input.buffer, index * sizeof (WCHAR) + sizeof (UNICODE_NULL)),
-		input.length - index * sizeof (WCHAR) - sizeof (UNICODE_NULL)
-	);
-
-	return TRUE;
-}
-
-BOOLEAN _r_str_splitatlastchar (
-	_In_ PR_STRINGREF string,
-	_In_ WCHAR separator,
-	_Out_ PR_STRINGREF first_part,
-	_Out_ PR_STRINGREF second_part
-)
-{
-	R_STRINGREF input;
-	SIZE_T index;
-
-	input = *string;
-	index = _r_str_findlastchar (string, separator, FALSE);
-
-	if (index == SIZE_MAX)
-	{
-		_r_obj_initializestringref3 (first_part, string);
-		_r_obj_initializestringrefempty (second_part);
-
-		return FALSE;
-	}
-
-	_r_obj_initializestringref_ex (
-		first_part,
-		input.buffer,
-		index * sizeof (WCHAR)
-	);
-
-	_r_obj_initializestringref_ex (
-		second_part,
-		PTR_ADD_OFFSET (input.buffer, index * sizeof (WCHAR) + sizeof (UNICODE_NULL)),
-		input.length - index * sizeof (WCHAR) - sizeof (UNICODE_NULL)
-	);
-
-	return TRUE;
-}
-
-VOID _r_str_replacechar (
-	_Inout_ PR_STRINGREF string,
-	_In_ WCHAR char_from,
-	_In_ WCHAR char_to
+VOID _r_str_tolower (
+	_Inout_ PR_STRINGREF string
 )
 {
 	SIZE_T length;
@@ -7562,8 +7300,24 @@ VOID _r_str_replacechar (
 
 	for (SIZE_T i = 0; i < length; i++)
 	{
-		if (string->buffer[i] == char_from)
-			string->buffer[i] = char_to;
+		string->buffer[i] = _r_str_lower (string->buffer[i]);
+	}
+}
+
+VOID _r_str_toupper (
+	_Inout_ PR_STRINGREF string
+)
+{
+	SIZE_T length;
+
+	if (!string->length)
+		return;
+
+	length = _r_str_getlength3 (string);
+
+	for (SIZE_T i = 0; i < length; i++)
+	{
+		string->buffer[i] = _r_str_upper (string->buffer[i]);
 	}
 }
 
@@ -7745,38 +7499,82 @@ VOID _r_str_trimstringref2 (
 	_r_str_trimstringref (string, &sr, flags);
 }
 
-VOID _r_str_tolower (
-	_Inout_ PR_STRINGREF string
+_Success_ (return == STATUS_SUCCESS)
+NTSTATUS _r_str_multibyte2unicode (
+	_In_ PR_BYTEREF string,
+	_Out_ PR_STRING_PTR out_buffer
 )
 {
-	SIZE_T length;
+	PR_STRING out_string;
+	ULONG output_size;
+	NTSTATUS status;
 
-	if (!string->length)
-		return;
+	status = RtlMultiByteToUnicodeSize (&output_size, string->buffer, (ULONG)string->length);
 
-	length = _r_str_getlength3 (string);
+	if (status != STATUS_SUCCESS)
+		return status;
 
-	for (SIZE_T i = 0; i < length; i++)
+	out_string = _r_obj_createstring_ex (NULL, output_size);
+
+	status = RtlMultiByteToUnicodeN (
+		out_string->buffer,
+		(ULONG)out_string->length,
+		NULL,
+		string->buffer,
+		(ULONG)string->length
+	);
+
+	if (status == STATUS_SUCCESS)
 	{
-		string->buffer[i] = _r_str_lower (string->buffer[i]);
+		*out_buffer = out_string;
 	}
+	else
+	{
+		*out_buffer = NULL;
+
+		_r_obj_dereference (out_string);
+	}
+
+	return status;
 }
 
-VOID _r_str_toupper (
-	_Inout_ PR_STRINGREF string
+_Success_ (return == STATUS_SUCCESS)
+NTSTATUS _r_str_unicode2multibyte (
+	_In_ PR_STRINGREF string,
+	_Out_ PR_BYTE_PTR out_buffer
 )
 {
-	SIZE_T length;
+	PR_BYTE out_string;
+	ULONG output_size;
+	NTSTATUS status;
 
-	if (!string->length)
-		return;
+	status = RtlUnicodeToMultiByteSize (&output_size, string->buffer, (ULONG)string->length);
 
-	length = _r_str_getlength3 (string);
+	if (status != STATUS_SUCCESS)
+		return status;
 
-	for (SIZE_T i = 0; i < length; i++)
+	out_string = _r_obj_createbyte_ex (NULL, output_size);
+
+	status = RtlUnicodeToMultiByteN (
+		out_string->buffer,
+		(ULONG)out_string->length,
+		NULL,
+		string->buffer,
+		(ULONG)string->length
+	);
+
+	if (status == STATUS_SUCCESS)
 	{
-		string->buffer[i] = _r_str_upper (string->buffer[i]);
+		*out_buffer = out_string;
 	}
+	else
+	{
+		*out_buffer = NULL;
+
+		_r_obj_dereference (out_string);
+	}
+
+	return status;
 }
 
 _Ret_maybenull_
@@ -7900,82 +7698,294 @@ INT _r_str_versioncompare (
 	return 0;
 }
 
-_Success_ (return == STATUS_SUCCESS)
-NTSTATUS _r_str_multibyte2unicode (
-	_In_ PR_BYTEREF string,
-	_Out_ PR_STRING_PTR out_buffer
+ULONG _r_str_crc32 (
+	_In_ PR_STRINGREF string,
+	_In_ BOOLEAN is_ignorecase
 )
 {
-	NTSTATUS status;
-	PR_STRING out_string;
-	ULONG output_size;
+	static const ULONG crc32_table[256] = {
+		0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3, 0x0edb8832,
+		0x79dcb8a4, 0xe0d5e91e, 0x97d2d988, 0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91, 0x1db71064, 0x6ab020f2,
+		0xf3b97148, 0x84be41de, 0x1adad47d, 0x6ddde4eb, 0xf4d4b551, 0x83d385c7, 0x136c9856, 0x646ba8c0, 0xfd62f97a,
+		0x8a65c9ec, 0x14015c4f, 0x63066cd9, 0xfa0f3d63, 0x8d080df5, 0x3b6e20c8, 0x4c69105e, 0xd56041e4, 0xa2677172,
+		0x3c03e4d1, 0x4b04d447, 0xd20d85fd, 0xa50ab56b, 0x35b5a8fa, 0x42b2986c, 0xdbbbc9d6, 0xacbcf940, 0x32d86ce3,
+		0x45df5c75, 0xdcd60dcf, 0xabd13d59, 0x26d930ac, 0x51de003a, 0xc8d75180, 0xbfd06116, 0x21b4f4b5, 0x56b3c423,
+		0xcfba9599, 0xb8bda50f, 0x2802b89e, 0x5f058808, 0xc60cd9b2, 0xb10be924, 0x2f6f7c87, 0x58684c11, 0xc1611dab,
+		0xb6662d3d, 0x76dc4190, 0x01db7106, 0x98d220bc, 0xefd5102a, 0x71b18589, 0x06b6b51f, 0x9fbfe4a5, 0xe8b8d433,
+		0x7807c9a2, 0x0f00f934, 0x9609a88e, 0xe10e9818, 0x7f6a0dbb, 0x086d3d2d, 0x91646c97, 0xe6635c01, 0x6b6b51f4,
+		0x1c6c6162, 0x856530d8, 0xf262004e, 0x6c0695ed, 0x1b01a57b, 0x8208f4c1, 0xf50fc457, 0x65b0d9c6, 0x12b7e950,
+		0x8bbeb8ea, 0xfcb9887c, 0x62dd1ddf, 0x15da2d49, 0x8cd37cf3, 0xfbd44c65, 0x4db26158, 0x3ab551ce, 0xa3bc0074,
+		0xd4bb30e2, 0x4adfa541, 0x3dd895d7, 0xa4d1c46d, 0xd3d6f4fb, 0x4369e96a, 0x346ed9fc, 0xad678846, 0xda60b8d0,
+		0x44042d73, 0x33031de5, 0xaa0a4c5f, 0xdd0d7cc9, 0x5005713c, 0x270241aa, 0xbe0b1010, 0xc90c2086, 0x5768b525,
+		0x206f85b3, 0xb966d409, 0xce61e49f, 0x5edef90e, 0x29d9c998, 0xb0d09822, 0xc7d7a8b4, 0x59b33d17, 0x2eb40d81,
+		0xb7bd5c3b, 0xc0ba6cad, 0xedb88320, 0x9abfb3b6, 0x03b6e20c, 0x74b1d29a, 0xead54739, 0x9dd277af, 0x04db2615,
+		0x73dc1683, 0xe3630b12, 0x94643b84, 0x0d6d6a3e, 0x7a6a5aa8, 0xe40ecf0b, 0x9309ff9d, 0x0a00ae27, 0x7d079eb1,
+		0xf00f9344, 0x8708a3d2, 0x1e01f268, 0x6906c2fe, 0xf762575d, 0x806567cb, 0x196c3671, 0x6e6b06e7, 0xfed41b76,
+		0x89d32be0, 0x10da7a5a, 0x67dd4acc, 0xf9b9df6f, 0x8ebeeff9, 0x17b7be43, 0x60b08ed5, 0xd6d6a3e8, 0xa1d1937e,
+		0x38d8c2c4, 0x4fdff252, 0xd1bb67f1, 0xa6bc5767, 0x3fb506dd, 0x48b2364b, 0xd80d2bda, 0xaf0a1b4c, 0x36034af6,
+		0x41047a60, 0xdf60efc3, 0xa867df55, 0x316e8eef, 0x4669be79, 0xcb61b38c, 0xbc66831a, 0x256fd2a0, 0x5268e236,
+		0xcc0c7795, 0xbb0b4703, 0x220216b9, 0x5505262f, 0xc5ba3bbe, 0xb2bd0b28, 0x2bb45a92, 0x5cb36a04, 0xc2d7ffa7,
+		0xb5d0cf31, 0x2cd99e8b, 0x5bdeae1d, 0x9b64c2b0, 0xec63f226, 0x756aa39c, 0x026d930a, 0x9c0906a9, 0xeb0e363f,
+		0x72076785, 0x05005713, 0x95bf4a82, 0xe2b87a14, 0x7bb12bae, 0x0cb61b38, 0x92d28e9b, 0xe5d5be0d, 0x7cdcefb7,
+		0x0bdbdf21, 0x86d3d2d4, 0xf1d4e242, 0x68ddb3f8, 0x1fda836e, 0x81be16cd, 0xf6b9265b, 0x6fb077e1, 0x18b74777,
+		0x88085ae6, 0xff0f6a70, 0x66063bca, 0x11010b5c, 0x8f659eff, 0xf862ae69, 0x616bffd3, 0x166ccf45, 0xa00ae278,
+		0xd70dd2ee, 0x4e048354, 0x3903b3c2, 0xa7672661, 0xd06016f7, 0x4969474d, 0x3e6e77db, 0xaed16a4a, 0xd9d65adc,
+		0x40df0b66, 0x37d83bf0, 0xa9bcae53, 0xdebb9ec5, 0x47b2cf7f, 0x30b5ffe9, 0xbdbdf21c, 0xcabac28a, 0x53b39330,
+		0x24b4a3a6, 0xbad03605, 0xcdd70693, 0x54de5729, 0x23d967bf, 0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94,
+		0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d,
+	};
 
-	status = RtlMultiByteToUnicodeSize (&output_size, string->buffer, (ULONG)string->length);
+	LPWSTR buffer;
+	LPWSTR end_buffer;
+	ULONG hash_code;
+	WCHAR chr;
 
-	if (status != STATUS_SUCCESS)
-		return status;
+	if (!string->length)
+		return 0;
 
-	out_string = _r_obj_createstring_ex (NULL, output_size);
+	end_buffer = string->buffer + _r_str_getlength3 (string);
 
-	status = RtlMultiByteToUnicodeN (
-		out_string->buffer,
-		(ULONG)out_string->length,
-		NULL,
-		string->buffer,
-		(ULONG)string->length
-	);
+	hash_code = ULONG_MAX;
 
-	if (status == STATUS_SUCCESS)
+	if (is_ignorecase)
 	{
-		*out_buffer = out_string;
+		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		{
+			chr = _r_str_upper (*buffer);
+
+			hash_code = (hash_code >> 8) ^ (crc32_table[(hash_code ^ (ULONG)chr) & 0xFF]);
+		}
 	}
 	else
 	{
-		*out_buffer = NULL;
+		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		{
+			chr = *buffer;
 
-		_r_obj_dereference (out_string);
+			hash_code = (hash_code >> 8) ^ (crc32_table[(hash_code ^ (ULONG)chr) & 0xFF]);
+		}
 	}
 
-	return status;
+	return hash_code ^ ULONG_MAX;
 }
 
-_Success_ (return == STATUS_SUCCESS)
-NTSTATUS _r_str_unicode2multibyte (
+ULONG64 _r_str_crc64 (
 	_In_ PR_STRINGREF string,
-	_Out_ PR_BYTE_PTR out_buffer
+	_In_ BOOLEAN is_ignorecase
 )
 {
-	NTSTATUS status;
-	PR_BYTE out_string;
-	ULONG output_size;
+	static const ULONG64 crc64_table[256] = {
+		0x0000000000000000ULL, 0x7ad870c830358979ULL, 0xf5b0e190606b12f2ULL, 0x8f689158505e9b8bULL,
+		0xc038e5739841b68fULL, 0xbae095bba8743ff6ULL, 0x358804e3f82aa47dULL, 0x4f50742bc81f2d04ULL,
+		0xab28ecb46814fe75ULL, 0xd1f09c7c5821770cULL, 0x5e980d24087fec87ULL, 0x24407dec384a65feULL,
+		0x6b1009c7f05548faULL, 0x11c8790fc060c183ULL, 0x9ea0e857903e5a08ULL, 0xe478989fa00bd371ULL,
+		0x7d08ff3b88be6f81ULL, 0x07d08ff3b88be6f8ULL, 0x88b81eabe8d57d73ULL, 0xf2606e63d8e0f40aULL,
+		0xbd301a4810ffd90eULL, 0xc7e86a8020ca5077ULL, 0x4880fbd87094cbfcULL, 0x32588b1040a14285ULL,
+		0xd620138fe0aa91f4ULL, 0xacf86347d09f188dULL, 0x2390f21f80c18306ULL, 0x594882d7b0f40a7fULL,
+		0x1618f6fc78eb277bULL, 0x6cc0863448deae02ULL, 0xe3a8176c18803589ULL, 0x997067a428b5bcf0ULL,
+		0xfa11fe77117cdf02ULL, 0x80c98ebf2149567bULL, 0x0fa11fe77117cdf0ULL, 0x75796f2f41224489ULL,
+		0x3a291b04893d698dULL, 0x40f16bccb908e0f4ULL, 0xcf99fa94e9567b7fULL, 0xb5418a5cd963f206ULL,
+		0x513912c379682177ULL, 0x2be1620b495da80eULL, 0xa489f35319033385ULL, 0xde51839b2936bafcULL,
+		0x9101f7b0e12997f8ULL, 0xebd98778d11c1e81ULL, 0x64b116208142850aULL, 0x1e6966e8b1770c73ULL,
+		0x8719014c99c2b083ULL, 0xfdc17184a9f739faULL, 0x72a9e0dcf9a9a271ULL, 0x08719014c99c2b08ULL,
+		0x4721e43f0183060cULL, 0x3df994f731b68f75ULL, 0xb29105af61e814feULL, 0xc849756751dd9d87ULL,
+		0x2c31edf8f1d64ef6ULL, 0x56e99d30c1e3c78fULL, 0xd9810c6891bd5c04ULL, 0xa3597ca0a188d57dULL,
+		0xec09088b6997f879ULL, 0x96d1784359a27100ULL, 0x19b9e91b09fcea8bULL, 0x636199d339c963f2ULL,
+		0xdf7adabd7a6e2d6fULL, 0xa5a2aa754a5ba416ULL, 0x2aca3b2d1a053f9dULL, 0x50124be52a30b6e4ULL,
+		0x1f423fcee22f9be0ULL, 0x659a4f06d21a1299ULL, 0xeaf2de5e82448912ULL, 0x902aae96b271006bULL,
+		0x74523609127ad31aULL, 0x0e8a46c1224f5a63ULL, 0x81e2d7997211c1e8ULL, 0xfb3aa75142244891ULL,
+		0xb46ad37a8a3b6595ULL, 0xceb2a3b2ba0eececULL, 0x41da32eaea507767ULL, 0x3b024222da65fe1eULL,
+		0xa2722586f2d042eeULL, 0xd8aa554ec2e5cb97ULL, 0x57c2c41692bb501cULL, 0x2d1ab4dea28ed965ULL,
+		0x624ac0f56a91f461ULL, 0x1892b03d5aa47d18ULL, 0x97fa21650afae693ULL, 0xed2251ad3acf6feaULL,
+		0x095ac9329ac4bc9bULL, 0x7382b9faaaf135e2ULL, 0xfcea28a2faafae69ULL, 0x8632586aca9a2710ULL,
+		0xc9622c4102850a14ULL, 0xb3ba5c8932b0836dULL, 0x3cd2cdd162ee18e6ULL, 0x460abd1952db919fULL,
+		0x256b24ca6b12f26dULL, 0x5fb354025b277b14ULL, 0xd0dbc55a0b79e09fULL, 0xaa03b5923b4c69e6ULL,
+		0xe553c1b9f35344e2ULL, 0x9f8bb171c366cd9bULL, 0x10e3202993385610ULL, 0x6a3b50e1a30ddf69ULL,
+		0x8e43c87e03060c18ULL, 0xf49bb8b633338561ULL, 0x7bf329ee636d1eeaULL, 0x012b592653589793ULL,
+		0x4e7b2d0d9b47ba97ULL, 0x34a35dc5ab7233eeULL, 0xbbcbcc9dfb2ca865ULL, 0xc113bc55cb19211cULL,
+		0x5863dbf1e3ac9decULL, 0x22bbab39d3991495ULL, 0xadd33a6183c78f1eULL, 0xd70b4aa9b3f20667ULL,
+		0x985b3e827bed2b63ULL, 0xe2834e4a4bd8a21aULL, 0x6debdf121b863991ULL, 0x1733afda2bb3b0e8ULL,
+		0xf34b37458bb86399ULL, 0x8993478dbb8deae0ULL, 0x06fbd6d5ebd3716bULL, 0x7c23a61ddbe6f812ULL,
+		0x3373d23613f9d516ULL, 0x49aba2fe23cc5c6fULL, 0xc6c333a67392c7e4ULL, 0xbc1b436e43a74e9dULL,
+		0x95ac9329ac4bc9b5ULL, 0xef74e3e19c7e40ccULL, 0x601c72b9cc20db47ULL, 0x1ac40271fc15523eULL,
+		0x5594765a340a7f3aULL, 0x2f4c0692043ff643ULL, 0xa02497ca54616dc8ULL, 0xdafce7026454e4b1ULL,
+		0x3e847f9dc45f37c0ULL, 0x445c0f55f46abeb9ULL, 0xcb349e0da4342532ULL, 0xb1eceec59401ac4bULL,
+		0xfebc9aee5c1e814fULL, 0x8464ea266c2b0836ULL, 0x0b0c7b7e3c7593bdULL, 0x71d40bb60c401ac4ULL,
+		0xe8a46c1224f5a634ULL, 0x927c1cda14c02f4dULL, 0x1d148d82449eb4c6ULL, 0x67ccfd4a74ab3dbfULL,
+		0x289c8961bcb410bbULL, 0x5244f9a98c8199c2ULL, 0xdd2c68f1dcdf0249ULL, 0xa7f41839ecea8b30ULL,
+		0x438c80a64ce15841ULL, 0x3954f06e7cd4d138ULL, 0xb63c61362c8a4ab3ULL, 0xcce411fe1cbfc3caULL,
+		0x83b465d5d4a0eeceULL, 0xf96c151de49567b7ULL, 0x76048445b4cbfc3cULL, 0x0cdcf48d84fe7545ULL,
+		0x6fbd6d5ebd3716b7ULL, 0x15651d968d029fceULL, 0x9a0d8ccedd5c0445ULL, 0xe0d5fc06ed698d3cULL,
+		0xaf85882d2576a038ULL, 0xd55df8e515432941ULL, 0x5a3569bd451db2caULL, 0x20ed197575283bb3ULL,
+		0xc49581ead523e8c2ULL, 0xbe4df122e51661bbULL, 0x3125607ab548fa30ULL, 0x4bfd10b2857d7349ULL,
+		0x04ad64994d625e4dULL, 0x7e7514517d57d734ULL, 0xf11d85092d094cbfULL, 0x8bc5f5c11d3cc5c6ULL,
+		0x12b5926535897936ULL, 0x686de2ad05bcf04fULL, 0xe70573f555e26bc4ULL, 0x9ddd033d65d7e2bdULL,
+		0xd28d7716adc8cfb9ULL, 0xa85507de9dfd46c0ULL, 0x273d9686cda3dd4bULL, 0x5de5e64efd965432ULL,
+		0xb99d7ed15d9d8743ULL, 0xc3450e196da80e3aULL, 0x4c2d9f413df695b1ULL, 0x36f5ef890dc31cc8ULL,
+		0x79a59ba2c5dc31ccULL, 0x037deb6af5e9b8b5ULL, 0x8c157a32a5b7233eULL, 0xf6cd0afa9582aa47ULL,
+		0x4ad64994d625e4daULL, 0x300e395ce6106da3ULL, 0xbf66a804b64ef628ULL, 0xc5bed8cc867b7f51ULL,
+		0x8aeeace74e645255ULL, 0xf036dc2f7e51db2cULL, 0x7f5e4d772e0f40a7ULL, 0x05863dbf1e3ac9deULL,
+		0xe1fea520be311aafULL, 0x9b26d5e88e0493d6ULL, 0x144e44b0de5a085dULL, 0x6e963478ee6f8124ULL,
+		0x21c640532670ac20ULL, 0x5b1e309b16452559ULL, 0xd476a1c3461bbed2ULL, 0xaeaed10b762e37abULL,
+		0x37deb6af5e9b8b5bULL, 0x4d06c6676eae0222ULL, 0xc26e573f3ef099a9ULL, 0xb8b627f70ec510d0ULL,
+		0xf7e653dcc6da3dd4ULL, 0x8d3e2314f6efb4adULL, 0x0256b24ca6b12f26ULL, 0x788ec2849684a65fULL,
+		0x9cf65a1b368f752eULL, 0xe62e2ad306bafc57ULL, 0x6946bb8b56e467dcULL, 0x139ecb4366d1eea5ULL,
+		0x5ccebf68aecec3a1ULL, 0x2616cfa09efb4ad8ULL, 0xa97e5ef8cea5d153ULL, 0xd3a62e30fe90582aULL,
+		0xb0c7b7e3c7593bd8ULL, 0xca1fc72bf76cb2a1ULL, 0x45775673a732292aULL, 0x3faf26bb9707a053ULL,
+		0x70ff52905f188d57ULL, 0x0a2722586f2d042eULL, 0x854fb3003f739fa5ULL, 0xff97c3c80f4616dcULL,
+		0x1bef5b57af4dc5adULL, 0x61372b9f9f784cd4ULL, 0xee5fbac7cf26d75fULL, 0x9487ca0fff135e26ULL,
+		0xdbd7be24370c7322ULL, 0xa10fceec0739fa5bULL, 0x2e675fb4576761d0ULL, 0x54bf2f7c6752e8a9ULL,
+		0xcdcf48d84fe75459ULL, 0xb71738107fd2dd20ULL, 0x387fa9482f8c46abULL, 0x42a7d9801fb9cfd2ULL,
+		0x0df7adabd7a6e2d6ULL, 0x772fdd63e7936bafULL, 0xf8474c3bb7cdf024ULL, 0x829f3cf387f8795dULL,
+		0x66e7a46c27f3aa2cULL, 0x1c3fd4a417c62355ULL, 0x935745fc4798b8deULL, 0xe98f353477ad31a7ULL,
+		0xa6df411fbfb21ca3ULL, 0xdc0731d78f8795daULL, 0x536fa08fdfd90e51ULL, 0x29b7d047efec8728ULL,
+	};
 
-	status = RtlUnicodeToMultiByteSize (&output_size, string->buffer, (ULONG)string->length);
+	LPWSTR buffer;
+	LPWSTR end_buffer;
+	ULONG64 hash_code;
+	WCHAR chr;
 
-	if (status != STATUS_SUCCESS)
-		return status;
+	if (!string->length)
+		return 0;
 
-	out_string = _r_obj_createbyte_ex (NULL, output_size);
+	end_buffer = string->buffer + _r_str_getlength3 (string);
 
-	status = RtlUnicodeToMultiByteN (
-		out_string->buffer,
-		(ULONG)out_string->length,
-		NULL,
-		string->buffer,
-		(ULONG)string->length
-	);
+	hash_code = 0;
 
-	if (status == STATUS_SUCCESS)
+	if (is_ignorecase)
 	{
-		*out_buffer = out_string;
+		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		{
+			chr = _r_str_upper (*buffer);
+
+			hash_code = (hash_code >> 8) ^ (crc64_table[(hash_code ^ (ULONG)chr) & 0xFF]);
+		}
 	}
 	else
 	{
-		*out_buffer = NULL;
+		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		{
+			chr = *buffer;
 
-		_r_obj_dereference (out_string);
+			hash_code = (hash_code >> 8) ^ (crc64_table[(hash_code ^ (ULONG)chr) & 0xFF]);
+		}
 	}
 
-	return status;
+	return ~hash_code;
+}
+
+ULONG _r_str_fnv32a (
+	_In_ PR_STRINGREF string,
+	_In_ BOOLEAN is_ignorecase
+)
+{
+	LPWSTR buffer;
+	LPWSTR end_buffer;
+	ULONG hash_code;
+	WCHAR chr;
+
+	if (!string->length)
+		return 0;
+
+	end_buffer = string->buffer + _r_str_getlength3 (string);
+
+	hash_code = 2166136261UL;
+
+	if (is_ignorecase)
+	{
+		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		{
+			chr = _r_str_upper (*buffer);
+
+			hash_code = (hash_code ^ (ULONG)chr) * 16777619U;
+		}
+	}
+	else
+	{
+		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		{
+			chr = *buffer;
+
+			hash_code = (hash_code ^ (ULONG)chr) * 16777619U;
+		}
+	}
+
+	return hash_code;
+}
+
+ULONG64 _r_str_fnv64a (
+	_In_ PR_STRINGREF string,
+	_In_ BOOLEAN is_ignorecase
+)
+{
+	LPWSTR buffer;
+	LPWSTR end_buffer;
+	ULONG64 hash_code;
+	WCHAR chr;
+
+	if (!string->length)
+		return 0;
+
+	end_buffer = string->buffer + _r_str_getlength3 (string);
+
+	hash_code = 14695981039346656037ULL;
+
+	if (is_ignorecase)
+	{
+		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		{
+			chr = _r_str_upper (*buffer);
+
+			hash_code = (hash_code ^ (ULONG)chr) * 1099511628211LL;
+		}
+	}
+	else
+	{
+		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		{
+			chr = *buffer;
+
+			hash_code = (hash_code ^ (ULONG)chr) * 1099511628211LL;
+		}
+	}
+
+	return hash_code;
+}
+
+ULONG _r_str_x65599 (
+	_In_ PR_STRINGREF string,
+	_In_ BOOLEAN is_ignorecase
+)
+{
+	LPWSTR buffer;
+	LPWSTR end_buffer;
+	ULONG hash_code;
+
+	if (!string->length)
+		return 0;
+
+	end_buffer = string->buffer + _r_str_getlength3 (string);
+
+	hash_code = 0;
+
+	if (is_ignorecase)
+	{
+		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		{
+			hash_code = ((65599 * (hash_code)) + (ULONG)(((*buffer) >= L'a' &&
+						 (*buffer) <= L'z') ? (*buffer) - L'a' + L'A' : (*buffer)));
+		}
+	}
+	else
+	{
+		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		{
+			hash_code = ((65599 * (hash_code)) + (ULONG)(*buffer));
+		}
+	}
+
+	return hash_code;
 }
 
 //
@@ -8105,8 +8115,8 @@ BOOLEAN _r_sys_iswine ()
 BOOLEAN _r_sys_iswow64 ()
 {
 #if !defined(_WIN64)
-	NTSTATUS status;
 	ULONG_PTR iswow64;
+	NTSTATUS status;
 
 	status = NtQueryInformationProcess (
 		NtCurrentProcess (),
@@ -8857,8 +8867,8 @@ NTSTATUS _r_sys_decompressbuffer (
 	PR_BYTE tmp_buffer;
 	ULONG allocation_length;
 	ULONG out_length;
-	NTSTATUS status;
 	ULONG attempts;
+	NTSTATUS status;
 
 	allocation_length = (ULONG)(buffer->length) * 2;
 
@@ -9095,23 +9105,12 @@ NTSTATUS _r_sys_openprocess (
 	CLIENT_ID client_id;
 	NTSTATUS status;
 
-	InitializeObjectAttributes (
-		&object_attributes,
-		NULL,
-		0,
-		NULL,
-		NULL
-	);
+	InitializeObjectAttributes (&object_attributes, NULL, 0, NULL, NULL);
 
 	client_id.UniqueProcess = process_id;
 	client_id.UniqueThread = NULL;
 
-	status = NtOpenProcess (
-		process_handle,
-		desired_access,
-		&object_attributes,
-		&client_id
-	);
+	status = NtOpenProcess (process_handle, desired_access, &object_attributes, &client_id);
 
 	return status;
 }
@@ -9122,9 +9121,9 @@ NTSTATUS _r_sys_queryprocessstring (
 	_Out_ PVOID_PTR file_name
 )
 {
-	NTSTATUS status;
 	PVOID buffer;
 	ULONG return_length;
+	NTSTATUS status;
 
 	return_length = 0;
 
@@ -9477,10 +9476,10 @@ NTSTATUS _r_sys_querytokeninformation (
 	_Out_ PVOID_PTR token_info
 )
 {
-	NTSTATUS status;
 	PVOID buffer;
 	ULONG buffer_length;
 	ULONG return_length;
+	NTSTATUS status;
 
 	return_length = 0;
 	buffer_length = 128;
@@ -9531,10 +9530,10 @@ NTSTATUS _r_sys_setprocessprivilege (
 	_In_ BOOLEAN is_enable
 )
 {
-	NTSTATUS status;
 	HANDLE token_handle;
 	PVOID privileges_buffer;
 	PTOKEN_PRIVILEGES token_privileges;
+	NTSTATUS status;
 
 	status = NtOpenProcessToken (process_handle, TOKEN_ADJUST_PRIVILEGES, &token_handle);
 
@@ -9787,8 +9786,8 @@ BOOLEAN _r_dc_adjustwindowrect (
 _Ret_maybenull_
 HBITMAP _r_dc_bitmapfromicon (
 	_In_ HICON hicon,
-	_In_ INT x,
-	_In_ INT y
+	_In_ LONG x,
+	_In_ LONG y
 )
 {
 	BITMAPINFO bitmap_info = {0};
@@ -9823,14 +9822,7 @@ HBITMAP _r_dc_bitmapfromicon (
 	bitmap_info.bmiHeader.biHeight = y;
 	bitmap_info.bmiHeader.biBitCount = 32;
 
-	hbitmap = CreateDIBSection (
-		screen_hdc,
-		&bitmap_info,
-		DIB_RGB_COLORS,
-		&memory_bits,
-		NULL,
-		0
-	);
+	hbitmap = CreateDIBSection (screen_hdc, &bitmap_info, DIB_RGB_COLORS, &memory_bits, NULL, 0);
 
 	if (!hbitmap)
 		goto CleanupExit;
@@ -9847,27 +9839,11 @@ HBITMAP _r_dc_bitmapfromicon (
 
 	SetRect (&icon_rect, 0, 0, x, y);
 
-	hpaint_buffer = BeginBufferedPaint (
-		screen_hdc,
-		&icon_rect,
-		BPBF_DIB,
-		&paint_params,
-		&buffer_hdc
-	);
+	hpaint_buffer = BeginBufferedPaint (screen_hdc, &icon_rect, BPBF_DIB, &paint_params, &buffer_hdc);
 
 	if (hpaint_buffer)
 	{
-		DrawIconEx (
-			buffer_hdc,
-			0,
-			0,
-			hicon,
-			x,
-			y,
-			0,
-			NULL,
-			DI_NORMAL
-		);
+		DrawIconEx (buffer_hdc, 0, 0, hicon, x, y, 0, NULL, DI_NORMAL);
 
 		EndBufferedPaint (hpaint_buffer, TRUE);
 	}
@@ -9875,17 +9851,7 @@ HBITMAP _r_dc_bitmapfromicon (
 	{
 		_r_dc_fillrect (screen_hdc, &icon_rect, RGB (255, 255, 255));
 
-		DrawIconEx (
-			screen_hdc,
-			0,
-			0,
-			hicon,
-			x,
-			y,
-			0,
-			NULL,
-			DI_NORMAL
-		);
+		DrawIconEx (screen_hdc, 0, 0, hicon, x, y, 0, NULL, DI_NORMAL);
 	}
 
 	SelectObject (screen_hdc, old_bitmap);
@@ -9903,8 +9869,8 @@ CleanupExit:
 _Ret_maybenull_
 HICON _r_dc_bitmaptoicon (
 	_In_ HBITMAP hbitmap,
-	_In_ INT x,
-	_In_ INT y
+	_In_ LONG x,
+	_In_ LONG y
 )
 {
 	ICONINFO icon_info = {0};
@@ -9942,8 +9908,8 @@ HBITMAP _r_dc_imagetobitmap (
 	_In_ LPCGUID format,
 	_In_ WICInProcPointer buffer,
 	_In_ ULONG buffer_length,
-	_In_ INT x,
-	_In_ INT y
+	_In_ LONG x,
+	_In_ LONG y
 )
 {
 	BITMAPINFO bmi = {0};
@@ -9966,24 +9932,13 @@ HBITMAP _r_dc_imagetobitmap (
 
 	HRESULT hr;
 
-	// Create the ImagingFactory
-	hr = CoCreateInstance (
-		&CLSID_WICImagingFactory2,
-		NULL,
-		CLSCTX_INPROC_SERVER,
-		&IID_IWICImagingFactory2,
-		&wicFactory
-	); // win8+
+	// Create the ImagingFactory (win8+)
+	hr = CoCreateInstance (&CLSID_WICImagingFactory2, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory2, &wicFactory);
 
 	if (FAILED (hr))
 	{
-		hr = CoCreateInstance (
-			&CLSID_WICImagingFactory1,
-			NULL,
-			CLSCTX_INPROC_SERVER,
-			&IID_IWICImagingFactory,
-			&wicFactory
-		); // winxp+
+		// winxp+
+		hr = CoCreateInstance (&CLSID_WICImagingFactory1, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory, &wicFactory);
 
 		if (FAILED (hr))
 			goto CleanupExit;
@@ -10120,14 +10075,7 @@ HBITMAP _r_dc_imagetobitmap (
 		goto CleanupExit;
 	}
 
-	hbitmap = CreateDIBSection (
-		hdc,
-		&bmi,
-		DIB_RGB_COLORS,
-		&bitmap_buffer,
-		NULL,
-		0
-	);
+	hbitmap = CreateDIBSection (hdc, &bmi, DIB_RGB_COLORS, &bitmap_buffer, NULL, 0);
 
 	if (!hbitmap)
 	{
@@ -10260,8 +10208,8 @@ BOOLEAN _r_dc_drawimagelisticon (
 	_In_ HDC hdc,
 	_In_ HIMAGELIST himglist,
 	_In_ INT index,
-	_In_ INT x,
-	_In_ INT y,
+	_In_ LONG x,
+	_In_ LONG y,
 	_In_opt_ ULONG state,
 	_In_opt_ UINT style
 )
@@ -12893,7 +12841,7 @@ PR_STRING _r_reg_querystring (
 	{
 		PR_STRING expanded_string;
 
-		expanded_string = _r_str_expandenvironmentstring (&buffer->sr);
+		expanded_string = _r_str_environmentexpandstring (&buffer->sr);
 
 		if (expanded_string)
 			_r_obj_movereference (&buffer, expanded_string);
@@ -13432,9 +13380,9 @@ PR_STRING _r_crypt_finalhashcontext (
 	_In_ BOOLEAN is_uppercase
 )
 {
-	NTSTATUS status;
 	PR_BYTE bytes;
 	PR_STRING string;
+	NTSTATUS status;
 
 	status = _r_crypt_finalhashcontext_ex (hash_context, &bytes);
 

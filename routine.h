@@ -1943,63 +1943,6 @@ FORCEINLINE VOID _r_shell_opendefault (
 #define _r_str_isbyteempty(string) \
 	((string) == NULL || (string)[0] == ANSI_NULL)
 
-BOOLEAN _r_str_isdigit (
-	_In_ WCHAR chr
-);
-
-BOOLEAN _r_str_isequal (
-	_In_ PR_STRINGREF string1,
-	_In_ PR_STRINGREF string2,
-	_In_ BOOLEAN is_ignorecase
-);
-
-BOOLEAN _r_str_isequal2 (
-	_In_ PR_STRINGREF string1,
-	_In_ LPCWSTR string2,
-	_In_ BOOLEAN is_ignorecase
-);
-
-BOOLEAN _r_str_isnumeric (
-	_In_ PR_STRINGREF string
-);
-
-BOOLEAN _r_str_isstartswith (
-	_In_ PR_STRINGREF string,
-	_In_ PR_STRINGREF prefix,
-	_In_ BOOLEAN is_ignorecase
-);
-
-BOOLEAN _r_str_isstartswith2 (
-	_In_ PR_STRINGREF string,
-	_In_ LPCWSTR prefix,
-	_In_ BOOLEAN is_ignorecase
-);
-
-BOOLEAN _r_str_isendsswith (
-	_In_ PR_STRINGREF string,
-	_In_ PR_STRINGREF suffix,
-	_In_ BOOLEAN is_ignorecase
-);
-
-BOOLEAN _r_str_isendsswith2 (
-	_In_ PR_STRINGREF string,
-	_In_ LPCWSTR suffix,
-	_In_ BOOLEAN is_ignorecase
-);
-
-INT _r_str_compare (
-	_In_ LPCWSTR string1,
-	_In_ LPCWSTR string2
-);
-
-INT _r_str_compare_length (
-	_In_ LPCWSTR string1,
-	_In_ LPCWSTR string2,
-	_In_ SIZE_T length
-);
-
-#define _r_str_compare_logical StrCmpLogicalW
-
 _Success_ (return)
 BOOLEAN _r_str_append (
 	_Inout_updates_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
@@ -2013,6 +1956,25 @@ BOOLEAN _r_str_appendformat (
 	_In_ SIZE_T buffer_size,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
+);
+
+_Check_return_
+INT _r_str_compare (
+	_In_ LPCWSTR string1,
+	_In_ LPCWSTR string2
+);
+
+_Check_return_
+INT _r_str_compare_length (
+	_In_ LPCWSTR string1,
+	_In_ LPCWSTR string2,
+	_In_ SIZE_T length
+);
+
+_Check_return_
+INT _r_str_compare_logical (
+	_In_ PR_STRING string1,
+	_In_ PR_STRING string2
 );
 
 _Success_ (return)
@@ -2029,45 +1991,95 @@ BOOLEAN _r_str_copystring (
 	_In_ PR_STRINGREF string
 );
 
-_Success_ (return)
-BOOLEAN _r_str_printf (
-	_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
+_Ret_maybenull_
+PR_STRING _r_str_environmentexpandstring (
+	_In_ PR_STRINGREF string
+);
+
+_Ret_maybenull_
+PR_STRING _r_str_environmentunexpandstring (
+	_In_ LPCWSTR string
+);
+
+_Success_ (return != SIZE_MAX)
+SIZE_T _r_str_findchar (
+	_In_ PR_STRINGREF string,
+	_In_ WCHAR character,
+	_In_ BOOLEAN is_ignorecase
+);
+
+_Success_ (return != SIZE_MAX)
+SIZE_T _r_str_findlastchar (
+	_In_ PR_STRINGREF string,
+	_In_ WCHAR character,
+	_In_ BOOLEAN is_ignorecase
+);
+
+_Success_ (return != SIZE_MAX)
+SIZE_T _r_str_findstring (
+	_In_ PR_STRINGREF string,
+	_In_ PR_STRINGREF sub_string,
+	_In_ BOOLEAN is_ignorecase
+);
+
+PR_STRING _r_str_formatversion (
+	_In_ PR_STRING string
+);
+
+VOID _r_str_fromlong (
+	_Out_writes_ (buffer_size) LPWSTR buffer,
 	_In_ SIZE_T buffer_size,
-	_In_ _Printf_format_string_ LPCWSTR format,
-	...
+	_In_ LONG value
 );
 
-_Success_ (return)
-BOOLEAN _r_str_printf_v (
-	_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
+VOID _r_str_fromlong64 (
+	_Out_writes_ (buffer_size) LPWSTR buffer,
 	_In_ SIZE_T buffer_size,
-	_In_ _Printf_format_string_ LPCWSTR format,
-	_In_ va_list arg_ptr
+	_In_ LONG64 value
 );
 
-ULONG _r_str_crc32 (
-	_In_ PR_STRINGREF string,
-	_In_ BOOLEAN is_ignorecase
+VOID _r_str_fromulong (
+	_Out_writes_ (buffer_size) LPWSTR buffer,
+	_In_ SIZE_T buffer_size,
+	_In_ ULONG value
 );
 
-ULONG64 _r_str_crc64 (
-	_In_ PR_STRINGREF string,
-	_In_ BOOLEAN is_ignorecase
+VOID _r_str_fromulong64 (
+	_Out_writes_ (buffer_size) LPWSTR buffer,
+	_In_ SIZE_T buffer_size,
+	_In_ ULONG64 value
 );
 
-ULONG _r_str_fnv32a (
-	_In_ PR_STRINGREF string,
-	_In_ BOOLEAN is_ignorecase
+_Success_ (return == STATUS_SUCCESS)
+NTSTATUS _r_str_fromguid (
+	_In_ LPCGUID guid,
+	_In_ BOOLEAN is_uppercase,
+	_Out_ PR_STRING_PTR out_buffer
 );
 
-ULONG64 _r_str_fnv64a (
-	_In_ PR_STRINGREF string,
-	_In_ BOOLEAN is_ignorecase
+PR_STRING _r_str_fromhex (
+	_In_reads_bytes_ (length) PUCHAR buffer,
+	_In_ SIZE_T length,
+	_In_ BOOLEAN is_uppercase
 );
 
-ULONG _r_str_x65599 (
-	_In_ PR_STRINGREF string,
-	_In_ BOOLEAN is_ignorecase
+_Success_ (return == ERROR_SUCCESS)
+ULONG _r_str_fromsecuritydescriptor (
+	_In_ PSECURITY_DESCRIPTOR security_descriptor,
+	_In_ SECURITY_INFORMATION security_information,
+	_Out_ PR_STRING_PTR out_buffer
+);
+
+_Success_ (return == STATUS_SUCCESS)
+NTSTATUS _r_str_fromsid (
+	_In_ PSID sid,
+	_Out_ PR_STRING_PTR out_buffer
+);
+
+VOID _r_str_generaterandom (
+	_Out_writes_z_ (buffer_size) LPWSTR buffer,
+	_In_ SIZE_T buffer_size,
+	_In_ BOOLEAN is_uppercase
 );
 
 ULONG _r_str_gethash (
@@ -2123,157 +2135,49 @@ SIZE_T _r_str_getbytelength_ex (
 	_In_ SIZE_T max_count
 );
 
-_Ret_maybenull_
-PR_STRING _r_str_expandenvironmentstring (
-	_In_ PR_STRINGREF string
+
+
+BOOLEAN _r_str_isdigit (
+	_In_ WCHAR chr
 );
 
-_Ret_maybenull_
-PR_STRING _r_str_unexpandenvironmentstring (
-	_In_ LPCWSTR string
-);
-
-PR_STRING _r_str_formatversion (
-	_In_ PR_STRING string
-);
-
-VOID _r_str_generaterandom (
-	_Out_writes_z_ (buffer_size) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
-	_In_ BOOLEAN is_uppercase
-);
-
-VOID _r_str_fromlong (
-	_Out_writes_ (buffer_size) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
-	_In_ LONG value
-);
-
-VOID _r_str_fromlong64 (
-	_Out_writes_ (buffer_size) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
-	_In_ LONG64 value
-);
-
-VOID _r_str_fromulong (
-	_Out_writes_ (buffer_size) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
-	_In_ ULONG value
-);
-
-VOID _r_str_fromulong64 (
-	_Out_writes_ (buffer_size) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
-	_In_ ULONG64 value
-);
-
-_Success_ (return == STATUS_SUCCESS)
-NTSTATUS _r_str_fromguid (
-	_In_ LPCGUID guid,
-	_In_ BOOLEAN is_uppercase,
-	_Out_ PR_STRING_PTR out_buffer
-);
-
-PR_STRING _r_str_fromhex (
-	_In_reads_bytes_ (length) PUCHAR buffer,
-	_In_ SIZE_T length,
-	_In_ BOOLEAN is_uppercase
-);
-
-_Success_ (return == ERROR_SUCCESS)
-ULONG _r_str_fromsecuritydescriptor (
-	_In_ PSECURITY_DESCRIPTOR security_descriptor,
-	_In_ SECURITY_INFORMATION security_information,
-	_Out_ PR_STRING_PTR out_buffer
-);
-
-_Success_ (return == STATUS_SUCCESS)
-NTSTATUS _r_str_fromsid (
-	_In_ PSID sid,
-	_Out_ PR_STRING_PTR out_buffer
-);
-
-_Success_ (return == STATUS_SUCCESS)
-NTSTATUS _r_str_toguid (
-	_In_ PR_STRINGREF string,
-	_Out_ LPGUID guid
-);
-
-BOOLEAN _r_str_touinteger64 (
-	_In_ PR_STRINGREF string,
-	_In_ ULONG base,
-	_Out_ PULONG64 integer
-);
-
-BOOLEAN _r_str_tointeger64 (
-	_In_ PR_STRINGREF string,
-	_In_opt_ ULONG base,
-	_Out_opt_ PULONG new_base_ptr,
-	_Out_ PLONG64 integer
-);
-
-BOOLEAN _r_str_toboolean (
-	_In_ PR_STRINGREF string
-);
-
-LONG _r_str_tolong (
-	_In_ PR_STRINGREF string
-);
-
-LONG _r_str_tolong_ex (
-	_In_ PR_STRINGREF string,
-	_In_opt_ ULONG base
-);
-
-LONG64 _r_str_tolong64 (
-	_In_ PR_STRINGREF string
-);
-
-ULONG _r_str_toulong (
-	_In_ PR_STRINGREF string
-);
-
-ULONG _r_str_toulong_ex (
-	_In_ PR_STRINGREF string,
-	_In_opt_ ULONG base
-);
-
-ULONG64 _r_str_toulong64 (
-	_In_ PR_STRINGREF string
-);
-
-#if defined(_WIN64)
-#define _r_str_fromlong_ptr _r_str_fromlong64
-#define _r_str_fromulong_ptr _r_str_fromulong64
-
-#define _r_str_tolong_ptr _r_str_tolong64
-#define _r_str_toulong_ptr _r_str_toulong64
-#else
-#define _r_str_fromlong_ptr _r_str_fromlong
-#define _r_str_fromulong_ptr _r_str_fromulong
-
-#define _r_str_tolong_ptr _r_str_tolong
-#define _r_str_toulong_ptr _r_str_toulong
-#endif // _WIN64
-
-_Success_ (return != SIZE_MAX)
-SIZE_T _r_str_findchar (
-	_In_ PR_STRINGREF string,
-	_In_ WCHAR character,
+BOOLEAN _r_str_isequal (
+	_In_ PR_STRINGREF string1,
+	_In_ PR_STRINGREF string2,
 	_In_ BOOLEAN is_ignorecase
 );
 
-_Success_ (return != SIZE_MAX)
-SIZE_T _r_str_findlastchar (
-	_In_ PR_STRINGREF string,
-	_In_ WCHAR character,
+BOOLEAN _r_str_isequal2 (
+	_In_ PR_STRINGREF string1,
+	_In_ LPCWSTR string2,
 	_In_ BOOLEAN is_ignorecase
 );
 
-_Success_ (return != SIZE_MAX)
-SIZE_T _r_str_findstring (
+BOOLEAN _r_str_isnumeric (
+	_In_ PR_STRINGREF string
+);
+
+BOOLEAN _r_str_isstartswith (
 	_In_ PR_STRINGREF string,
-	_In_ PR_STRINGREF sub_string,
+	_In_ PR_STRINGREF prefix,
+	_In_ BOOLEAN is_ignorecase
+);
+
+BOOLEAN _r_str_isstartswith2 (
+	_In_ PR_STRINGREF string,
+	_In_ LPCWSTR prefix,
+	_In_ BOOLEAN is_ignorecase
+);
+
+BOOLEAN _r_str_isendsswith (
+	_In_ PR_STRINGREF string,
+	_In_ PR_STRINGREF suffix,
+	_In_ BOOLEAN is_ignorecase
+);
+
+BOOLEAN _r_str_isendsswith2 (
+	_In_ PR_STRINGREF string,
+	_In_ LPCWSTR suffix,
 	_In_ BOOLEAN is_ignorecase
 );
 
@@ -2282,6 +2186,28 @@ BOOLEAN _r_str_match (
 	_In_ LPCWSTR string,
 	_In_ LPCWSTR pattern,
 	_In_ BOOLEAN is_ignorecase
+);
+
+_Success_ (return)
+BOOLEAN _r_str_printf (
+	_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
+	_In_ SIZE_T buffer_size,
+	_In_ _Printf_format_string_ LPCWSTR format,
+	...
+);
+
+_Success_ (return)
+BOOLEAN _r_str_printf_v (
+	_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
+	_In_ SIZE_T buffer_size,
+	_In_ _Printf_format_string_ LPCWSTR format,
+	_In_ va_list arg_ptr
+);
+
+VOID _r_str_replacechar (
+	_Inout_ PR_STRINGREF string,
+	_In_ WCHAR char_from,
+	_In_ WCHAR char_to
 );
 
 BOOLEAN _r_str_splitatchar (
@@ -2298,10 +2224,51 @@ BOOLEAN _r_str_splitatlastchar (
 	_Out_ PR_STRINGREF second_part
 );
 
-VOID _r_str_replacechar (
-	_Inout_ PR_STRINGREF string,
-	_In_ WCHAR char_from,
-	_In_ WCHAR char_to
+_Success_ (return == STATUS_SUCCESS)
+NTSTATUS _r_str_toguid (
+	_In_ PR_STRINGREF string,
+	_Out_ LPGUID guid
+);
+
+BOOLEAN _r_str_toboolean (
+	_In_ PR_STRINGREF string
+);
+
+LONG _r_str_tolong (
+	_In_ PR_STRINGREF string
+);
+
+LONG64 _r_str_tolong64 (
+	_In_ PR_STRINGREF string
+);
+
+ULONG _r_str_toulong (
+	_In_ PR_STRINGREF string
+);
+
+ULONG64 _r_str_toulong64 (
+	_In_ PR_STRINGREF string
+);
+
+BOOLEAN _r_str_tointeger64 (
+	_In_ PR_STRINGREF string,
+	_In_opt_ ULONG base,
+	_Out_opt_ PULONG new_base_ptr,
+	_Out_ PLONG64 integer_ptr
+);
+
+BOOLEAN _r_str_touinteger64 (
+	_In_ PR_STRINGREF string,
+	_In_ ULONG base,
+	_Out_ PULONG64 integer_ptr
+);
+
+VOID _r_str_tolower (
+	_Inout_ PR_STRINGREF string
+);
+
+VOID _r_str_toupper (
+	_Inout_ PR_STRINGREF string
 );
 
 VOID _r_str_trimstring (
@@ -2328,28 +2295,6 @@ VOID _r_str_trimstringref2 (
 	_In_ ULONG flags
 );
 
-#define _r_str_trim StrTrimW
-
-VOID _r_str_tolower (
-	_Inout_ PR_STRINGREF string
-);
-
-VOID _r_str_toupper (
-	_Inout_ PR_STRINGREF string
-);
-
-_Ret_maybenull_
-PR_HASHTABLE _r_str_unserialize (
-	_In_ PR_STRINGREF string,
-	_In_ WCHAR key_delimeter,
-	_In_ WCHAR value_delimeter
-);
-
-INT _r_str_versioncompare (
-	_In_ PR_STRINGREF v1,
-	_In_ PR_STRINGREF v2
-);
-
 _Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_str_multibyte2unicode (
 	_In_ PR_BYTEREF string,
@@ -2361,6 +2306,63 @@ NTSTATUS _r_str_unicode2multibyte (
 	_In_ PR_STRINGREF string,
 	_Out_ PR_BYTE_PTR out_buffer
 );
+
+_Ret_maybenull_
+PR_HASHTABLE _r_str_unserialize (
+	_In_ PR_STRINGREF string,
+	_In_ WCHAR key_delimeter,
+	_In_ WCHAR value_delimeter
+);
+
+ULONG64 _r_str_versiontoulong64 (
+	_In_ PR_STRINGREF version
+);
+
+INT _r_str_versioncompare (
+	_In_ PR_STRINGREF v1,
+	_In_ PR_STRINGREF v2
+);
+
+ULONG _r_str_crc32 (
+	_In_ PR_STRINGREF string,
+	_In_ BOOLEAN is_ignorecase
+);
+
+ULONG64 _r_str_crc64 (
+	_In_ PR_STRINGREF string,
+	_In_ BOOLEAN is_ignorecase
+);
+
+ULONG _r_str_fnv32a (
+	_In_ PR_STRINGREF string,
+	_In_ BOOLEAN is_ignorecase
+);
+
+ULONG64 _r_str_fnv64a (
+	_In_ PR_STRINGREF string,
+	_In_ BOOLEAN is_ignorecase
+);
+
+ULONG _r_str_x65599 (
+	_In_ PR_STRINGREF string,
+	_In_ BOOLEAN is_ignorecase
+);
+
+#if defined(_WIN64)
+#define _r_str_fromlong_ptr _r_str_fromlong64
+#define _r_str_fromulong_ptr _r_str_fromulong64
+
+#define _r_str_tolong_ptr _r_str_tolong64
+#define _r_str_toulong_ptr _r_str_toulong64
+#else
+#define _r_str_fromlong_ptr _r_str_fromlong
+#define _r_str_fromulong_ptr _r_str_fromulong
+
+#define _r_str_tolong_ptr _r_str_tolong
+#define _r_str_toulong_ptr _r_str_toulong
+#endif // _WIN64
+
+#define _r_str_trim StrTrimW
 
 #define _r_str_lower RtlDowncaseUnicodeChar
 #define _r_str_upper RtlUpcaseUnicodeChar
@@ -2740,15 +2742,15 @@ BOOLEAN _r_dc_adjustwindowrect (
 _Ret_maybenull_
 HBITMAP _r_dc_bitmapfromicon (
 	_In_ HICON hicon,
-	_In_ INT x,
-	_In_ INT y
+	_In_ LONG x,
+	_In_ LONG y
 );
 
 _Ret_maybenull_
 HICON _r_dc_bitmaptoicon (
 	_In_ HBITMAP hbitmap,
-	_In_ INT x,
-	_In_ INT y
+	_In_ LONG x,
+	_In_ LONG y
 );
 
 _Ret_maybenull_
@@ -2756,8 +2758,8 @@ HBITMAP _r_dc_imagetobitmap (
 	_In_ LPCGUID format,
 	_In_ WICInProcPointer buffer,
 	_In_ ULONG buffer_length,
-	_In_ INT x,
-	_In_ INT y
+	_In_ LONG x,
+	_In_ LONG y
 );
 
 BOOLEAN _r_dc_drawwindow (
@@ -2770,8 +2772,8 @@ BOOLEAN _r_dc_drawimagelisticon (
 	_In_ HDC hdc,
 	_In_ HIMAGELIST himglist,
 	_In_ INT index,
-	_In_ INT x,
-	_In_ INT y,
+	_In_ LONG x,
+	_In_ LONG y,
 	_In_opt_ ULONG state,
 	_In_opt_ UINT style
 );
