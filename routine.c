@@ -11412,12 +11412,10 @@ VOID _r_wnd_adjustrectangletoworkingarea (
 	_In_opt_ HWND hwnd
 )
 {
-	MONITORINFO monitor_info = {0};
+	MONITORINFO monitor_info;
 	HMONITOR hmonitor;
 	R_RECTANGLE bounds;
 	RECT rect;
-
-	monitor_info.cbSize = sizeof (monitor_info);
 
 	if (hwnd)
 	{
@@ -11429,6 +11427,8 @@ VOID _r_wnd_adjustrectangletoworkingarea (
 
 		hmonitor = MonitorFromRect (&rect, MONITOR_DEFAULTTONEAREST);
 	}
+
+	monitor_info.cbSize = sizeof (monitor_info);
 
 	if (GetMonitorInfo (hmonitor, &monitor_info))
 	{
@@ -11832,11 +11832,11 @@ BOOLEAN _r_wnd_isplatformfullscreenmode ()
 	if (SHQueryUserNotificationState (&state) != S_OK)
 		return FALSE;
 #else
-	if (_r_sys_isosversionlower (WINDOWS_VISTA))
-		return FALSE;
-
 	HINSTANCE hshell32;
 	SHQUNS _SHQueryUserNotificationState;
+
+	if (_r_sys_isosversionlower (WINDOWS_VISTA))
+		return FALSE;
 
 	hshell32 = _r_sys_loadlibrary (L"shell32.dll");
 
@@ -11862,7 +11862,7 @@ BOOLEAN _r_wnd_isfullscreenwindowmode (
 	_In_ HWND hwnd
 )
 {
-	MONITORINFO monitor_info = {0};
+	MONITORINFO monitor_info;
 	RECT wnd_rect;
 	HMONITOR hmonitor;
 	LONG_PTR style;

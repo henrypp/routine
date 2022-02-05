@@ -3974,7 +3974,7 @@ VOID _r_window_saveposition (
 	_In_ LPCWSTR window_name
 )
 {
-	MONITORINFO monitor_info = {0};
+	MONITORINFO monitor_info;
 	R_RECTANGLE rectangle;
 	HMONITOR hmonitor;
 
