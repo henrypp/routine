@@ -10282,6 +10282,20 @@ VOID _r_dc_fillrect (
 	SetBkColor (hdc, clr_prev);
 }
 
+COLORREF _r_dc_getcoloraccent ()
+{
+	COLORREF clr;
+	BOOL is_opaque;
+	HRESULT hr;
+
+	hr = DwmGetColorizationColor (&clr, &is_opaque);
+
+	if (hr != S_OK)
+		return 0;
+
+	return RGB (GetBValue (clr), GetGValue (clr), GetRValue (clr));
+}
+
 COLORREF _r_dc_getcolorbrightness (
 	_In_ COLORREF clr
 )
@@ -10316,6 +10330,21 @@ COLORREF _r_dc_getcolorbrightness (
 		return RGB (0x00, 0x00, 0x00);
 
 	return RGB (0xff, 0xff, 0xff);
+}
+
+COLORREF _r_dc_getcolorinverse (
+	_In_ COLORREF clr
+)
+{
+	COLORREF r;
+	COLORREF g;
+	COLORREF b;
+
+	r = 255 - GetRValue (clr);
+	g = 255 - GetGValue (clr);
+	b = 255 - GetBValue (clr);
+
+	return RGB (r, g, b);
 }
 
 COLORREF _r_dc_getcolorshade (

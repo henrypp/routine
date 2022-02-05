@@ -2787,7 +2787,13 @@ VOID _r_dc_fillrect (
 	_In_ COLORREF clr
 );
 
+COLORREF _r_dc_getcoloraccent ();
+
 COLORREF _r_dc_getcolorbrightness (
+	_In_ COLORREF clr
+);
+
+COLORREF _r_dc_getcolorinverse (
 	_In_ COLORREF clr
 );
 
