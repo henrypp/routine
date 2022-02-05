@@ -1,7 +1,7 @@
 // routine.c
 // project sdk library
 //
-// Copyright (c) 2012-2021 Henry++
+// Copyright (c) 2012-2022 Henry++
 
 #include "rapp.h"
 
@@ -860,9 +860,7 @@ LRESULT CALLBACK _r_app_maindlgproc (
 
 		case WM_DESTROY:
 		{
-			if (_r_wnd_getstyle (hwnd) & WS_MAXIMIZEBOX)
-				_r_config_setboolean_ex (L"IsMaximized", _r_wnd_ismaximized (hwnd), L"window");
-
+			_r_window_saveposition (hwnd, L"window");
 			break;
 		}
 
@@ -1541,12 +1539,12 @@ VOID _r_config_getsize (
 	{
 		_r_obj_initializestringref2 (&remaining_part, pair_config);
 
-		// get x value
+		// get x-value
 		_r_str_splitatchar (&remaining_part, L',', &first_part, &remaining_part);
 
 		size->cx = _r_str_tolong (&first_part);
 
-		// get y value
+		// get y-value
 		_r_str_splitatchar (&remaining_part, L',', &first_part, &remaining_part);
 
 		size->cy = _r_str_tolong (&first_part);
@@ -3937,19 +3935,20 @@ VOID _r_window_restoreposition (
 	_In_ LPCWSTR window_name
 )
 {
-	R_RECTANGLE rectangle_new = {0};
+	R_RECTANGLE rectangle_new;
 	R_RECTANGLE rectangle_current;
+	LONG_PTR style;
 	LONG dpi_value;
-	BOOLEAN is_resizeavailable;
+	BOOLEAN is_maximized;
 
 	if (!_r_wnd_getposition (hwnd, &rectangle_current))
 		return;
 
+	style = _r_wnd_getstyle (hwnd);
+
 	_r_config_getsize (L"Position", &rectangle_new.position, &rectangle_current.position, window_name);
 
-	is_resizeavailable = !!(_r_wnd_getstyle (hwnd) & WS_SIZEBOX);
-
-	if (is_resizeavailable)
+	if (style & WS_SIZEBOX)
 	{
 		dpi_value = _r_dc_getwindowdpi (hwnd);
 
@@ -3966,7 +3965,19 @@ VOID _r_window_restoreposition (
 
 	_r_wnd_adjustrectangletoworkingarea (&rectangle_new, NULL);
 
-	_r_wnd_setposition (hwnd, &rectangle_new.position, is_resizeavailable ? &rectangle_new.size : NULL);
+	_r_wnd_setposition (hwnd, &rectangle_new.position, (style & WS_SIZEBOX) ? &rectangle_new.size : NULL);
+
+	if (style & WS_MAXIMIZEBOX)
+	{
+		// HACK!!! Do not maximize main window!
+		if (_r_str_compare (window_name, L"window") != 0)
+		{
+			is_maximized = _r_config_getboolean_ex (L"IsMaximized", FALSE, window_name);
+
+			if (is_maximized)
+				ShowWindow (hwnd, SW_SHOWMAXIMIZED);
+		}
+	}
 }
 
 VOID _r_window_saveposition (
@@ -3977,13 +3988,22 @@ VOID _r_window_saveposition (
 	MONITORINFO monitor_info;
 	R_RECTANGLE rectangle;
 	HMONITOR hmonitor;
+	LONG_PTR style;
+	BOOLEAN is_maximized;
 
-	monitor_info.cbSize = sizeof (monitor_info);
+	style = _r_wnd_getstyle (hwnd);
+
+	is_maximized = _r_wnd_ismaximized (hwnd);
+
+	if (style & WS_MAXIMIZEBOX)
+		_r_config_setboolean_ex (L"IsMaximized", is_maximized, window_name);
 
 	if (!_r_wnd_getposition (hwnd, &rectangle))
 		return;
 
 	hmonitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTOPRIMARY);
+
+	monitor_info.cbSize = sizeof (monitor_info);
 
 	if (GetMonitorInfo (hmonitor, &monitor_info))
 	{
@@ -3993,11 +4013,14 @@ VOID _r_window_saveposition (
 
 	_r_config_setsize (L"Position", &rectangle.position, window_name);
 
-	if (_r_wnd_getstyle (hwnd) & WS_SIZEBOX)
+	if (style & WS_SIZEBOX)
 	{
-		_r_dc_getsizedpivalue (&rectangle.size, _r_dc_getwindowdpi (hwnd), FALSE);
+		if (!is_maximized)
+		{
+			_r_dc_getsizedpivalue (&rectangle.size, _r_dc_getwindowdpi (hwnd), FALSE);
 
-		_r_config_setsize (L"Size", &rectangle.size, window_name);
+			_r_config_setsize (L"Size", &rectangle.size, window_name);
+		}
 	}
 }
 #endif // !APP_CONSOLE
