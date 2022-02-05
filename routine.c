@@ -416,6 +416,21 @@ LONG64 _r_calc_clamp64 (
 	return value;
 }
 
+ULONG _r_calc_countbits (
+	_In_ ULONG value
+)
+{
+	ULONG count = 0;
+
+	while (value)
+	{
+		count += 1;
+		value &= value - 1;
+	}
+
+	return count;
+}
+
 VOID _r_calc_millisecondstolargeinteger (
 	_Out_ PLARGE_INTEGER timeout,
 	_In_ ULONG milliseconds
@@ -437,7 +452,12 @@ ULONG _r_calc_multipledivide (
 	_In_ ULONG denominator
 )
 {
-	return (ULONG)(((ULONG64)number * (ULONG64)numerator + denominator / 2) / (ULONG64)denominator);
+	ULONG value;
+
+	value = (ULONG)(((ULONG64)number * (ULONG64)numerator + denominator / 2) / (ULONG64)denominator);
+
+	return value;
+
 }
 
 LONG _r_calc_multipledividesigned (
@@ -446,14 +466,18 @@ LONG _r_calc_multipledividesigned (
 	_In_ ULONG denominator
 )
 {
+	LONG value;
+
 	if (number >= 0)
 	{
-		return _r_calc_multipledivide (number, numerator, denominator);
+		value = _r_calc_multipledivide (number, numerator, denominator);
 	}
 	else
 	{
-		return -(LONG)_r_calc_multipledivide (-number, numerator, denominator);
+		value = -(LONG)_r_calc_multipledivide (-number, numerator, denominator);
 	}
+
+	return value;
 }
 
 LONG _r_calc_percentof (
@@ -461,7 +485,11 @@ LONG _r_calc_percentof (
 	_In_ LONG total_length
 )
 {
-	return (LONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
+	LONG value;
+
+	value = (LONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
+
+	return value;
 }
 
 LONG _r_calc_percentof64 (
@@ -469,7 +497,11 @@ LONG _r_calc_percentof64 (
 	_In_ LONG64 total_length
 )
 {
-	return (LONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
+	LONG value;
+
+	value = (LONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
+
+	return value;
 }
 
 LONG _r_calc_percentval (
@@ -477,7 +509,11 @@ LONG _r_calc_percentval (
 	_In_ LONG total_length
 )
 {
-	return (total_length * percent) / 100;
+	LONG value;
+
+	value = (total_length * percent) / 100;
+
+	return value;
 }
 
 LONG64 _r_calc_percentval64 (
@@ -485,7 +521,33 @@ LONG64 _r_calc_percentval64 (
 	_In_ LONG64 total_length
 )
 {
-	return (total_length * percent) / 100;
+	LONG64 value;
+
+	value = (total_length * percent) / 100;
+
+	return value;
+}
+
+LONG _r_calc_rectheight (
+	_In_ LPCRECT rect
+)
+{
+	return rect->bottom - rect->top;
+}
+
+LONG _r_calc_rectwidth (
+	_In_ LPCRECT rect
+)
+{
+	return rect->right - rect->left;
+}
+
+ULONG64 _r_calc_roundnumber (
+	_In_ ULONG64 value,
+	_In_ ULONG64 granularity
+)
+{
+	return (value + granularity / 2) / granularity * granularity;
 }
 
 //
@@ -10528,37 +10590,25 @@ VOID _r_dc_getsizedpivalue (
 	_In_ BOOLEAN is_unpack
 )
 {
+	LONG numerator;
+	LONG denominator;
+
 	if (dpi_value == USER_DEFAULT_SCREEN_DPI)
 		return;
 
 	if (is_unpack)
 	{
-		size->cx = _r_calc_multipledividesigned (
-			size->cx,
-			dpi_value,
-			USER_DEFAULT_SCREEN_DPI
-		);
-
-		size->cy = _r_calc_multipledividesigned (
-			size->cy,
-			dpi_value,
-			USER_DEFAULT_SCREEN_DPI
-		);
+		numerator = dpi_value;
+		denominator = USER_DEFAULT_SCREEN_DPI;
 	}
 	else
 	{
-		size->cx = _r_calc_multipledividesigned (
-			size->cx,
-			USER_DEFAULT_SCREEN_DPI,
-			dpi_value
-		);
-
-		size->cy = _r_calc_multipledividesigned (
-			size->cy,
-			USER_DEFAULT_SCREEN_DPI,
-			dpi_value
-		);
+		numerator = USER_DEFAULT_SCREEN_DPI;
+		denominator = dpi_value;
 	}
+
+	size->cx = _r_calc_multipledividesigned (size->cx, numerator, denominator);
+	size->cy = _r_calc_multipledividesigned (size->cy, numerator, denominator);
 }
 
 LONG _r_dc_getsystemmetrics (

@@ -1582,6 +1582,10 @@ LONG64 _r_calc_clamp64 (
 	_In_ LONG64 max_value
 );
 
+ULONG _r_calc_countbits (
+	_In_ ULONG value
+);
+
 VOID _r_calc_millisecondstolargeinteger (
 	_Out_ PLARGE_INTEGER timeout,
 	_In_ ULONG milliseconds
@@ -1619,19 +1623,18 @@ LONG64 _r_calc_percentval64 (
 	_In_ LONG64 total_length
 );
 
-FORCEINLINE LONG _r_calc_rectheight (
+LONG _r_calc_rectheight (
 	_In_ LPCRECT rect
-)
-{
-	return rect->bottom - rect->top;
-}
+);
 
-FORCEINLINE LONG _r_calc_rectwidth (
+LONG _r_calc_rectwidth (
 	_In_ LPCRECT rect
-)
-{
-	return rect->right - rect->left;
-}
+);
+
+ULONG64 _r_calc_roundnumber (
+	_In_ ULONG64 value,
+	_In_ ULONG64 granularity
+);
 
 FORCEINLINE LONG _r_calc_kilobytes2bytes (
 	_In_ LONG kilobytes
