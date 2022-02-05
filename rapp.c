@@ -549,7 +549,7 @@ PR_STRING _r_app_getconfigpath ()
 		{
 			_r_str_trimstring2 (buffer, L".\\/\" ", 0);
 
-			_r_obj_movereference (&buffer, _r_str_expandenvironmentstring (&buffer->sr));
+			_r_obj_movereference (&buffer, _r_str_environmentexpandstring (&buffer->sr));
 
 			if (!_r_obj_isstringempty (buffer))
 			{
@@ -1589,7 +1589,7 @@ PR_STRING _r_config_getstringexpand_ex (
 
 	if (config_value)
 	{
-		string = _r_str_expandenvironmentstring (&config_value->sr);
+		string = _r_str_environmentexpandstring (&config_value->sr);
 
 		if (string)
 		{
@@ -1866,7 +1866,7 @@ VOID _r_config_setstringexpand_ex (
 
 	if (value)
 	{
-		string = _r_str_unexpandenvironmentstring (value);
+		string = _r_str_environmentunexpandstring (value);
 	}
 	else
 	{
