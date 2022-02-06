@@ -320,6 +320,7 @@ BOOLEAN _r_format_number (
 
 	NUMBERFMT number_format = {0};
 	WCHAR number_string[64];
+	LONG result;
 
 	if (_r_initonce_begin (&init_once))
 	{
@@ -353,9 +354,9 @@ BOOLEAN _r_format_number (
 
 	_r_str_fromlong64 (number_string, RTL_NUMBER_OF (number_string), number);
 
-	buffer_size = GetNumberFormat (LOCALE_USER_DEFAULT, 0, number_string, &number_format, buffer, buffer_size);
+	result = GetNumberFormat (LOCALE_USER_DEFAULT, 0, number_string, &number_format, buffer, buffer_size);
 
-	if (!buffer_size)
+	if (!result)
 		_r_str_copy (buffer, buffer_size, number_string);
 
 	return TRUE;
@@ -5902,10 +5903,9 @@ VOID _r_shell_showfile (
 // Strings
 //
 
-_Success_ (return)
-BOOLEAN _r_str_append (
-	_Inout_updates_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
+VOID _r_str_append (
+	_Inout_updates_z_ (buffer_size) LPWSTR buffer,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) SIZE_T buffer_size,
 	_In_ LPCWSTR string
 )
 {
@@ -5916,17 +5916,12 @@ BOOLEAN _r_str_append (
 		dest_length = _r_str_getlength_ex (buffer, buffer_size + 1);
 
 		_r_str_copy (buffer + dest_length, buffer_size - dest_length, string);
-
-		return TRUE;
 	}
-
-	return FALSE;
 }
 
-_Success_ (return)
-BOOLEAN _r_str_appendformat (
-	_Inout_updates_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
+VOID _r_str_appendformat (
+	_Inout_updates_z_ (buffer_size) LPWSTR buffer,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) SIZE_T buffer_size,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 )
@@ -5935,7 +5930,7 @@ BOOLEAN _r_str_appendformat (
 	SIZE_T dest_length;
 
 	if (buffer_size > PR_SIZE_MAX_STRING_LENGTH)
-		return FALSE;
+		return;
 
 	dest_length = _r_str_getlength_ex (buffer, buffer_size + 1);
 
@@ -5949,8 +5944,6 @@ BOOLEAN _r_str_appendformat (
 	);
 
 	va_end (arg_ptr);
-
-	return TRUE;
 }
 
 _Check_return_
@@ -5981,37 +5974,30 @@ INT _r_str_compare_logical (
 	return StrCmpLogicalW (string1->buffer, string2->buffer);
 }
 
-_Success_ (return)
-BOOLEAN _r_str_copy (
-	_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
+VOID _r_str_copy (
+	_Out_writes_z_ (buffer_size) LPWSTR buffer,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) SIZE_T buffer_size,
 	_In_ LPCWSTR string
 )
 {
-	if (buffer_size <= PR_SIZE_MAX_STRING_LENGTH)
+	if (buffer_size && buffer_size <= PR_SIZE_MAX_STRING_LENGTH)
 	{
-		if (!_r_str_isempty (string))
+		while (buffer_size && (*string != UNICODE_NULL))
 		{
-			while (buffer_size && (*string != UNICODE_NULL))
-			{
-				*buffer++ = *string++;
-				buffer_size -= 1;
-			}
-
-			if (!buffer_size)
-				buffer -= 1; // truncate buffer
+			*buffer++ = *string++;
+			buffer_size -= 1;
 		}
+
+		if (!buffer_size)
+			buffer -= 1; // truncate buffer
 	}
 
 	*buffer = UNICODE_NULL;
-
-	return TRUE;
 }
 
-_Success_ (return)
-BOOLEAN _r_str_copystring (
-	_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
+VOID _r_str_copystring (
+	_Out_writes_z_ (buffer_size) LPWSTR buffer,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) SIZE_T buffer_size,
 	_In_ PR_STRINGREF string
 )
 {
@@ -6022,7 +6008,7 @@ BOOLEAN _r_str_copystring (
 	if (length > buffer_size)
 		length = buffer_size;
 
-	return _r_str_copy (buffer, length, string->buffer);
+	_r_str_copy (buffer, length, string->buffer);
 }
 
 _Ret_maybenull_
@@ -6542,7 +6528,7 @@ SIZE_T _r_str_getlength4 (
 }
 
 SIZE_T _r_str_getlength_ex (
-	_In_ LPCWSTR string,
+	_In_reads_or_z_ (max_count) LPCWSTR string,
 	_In_ SIZE_T max_count
 )
 {
@@ -6571,7 +6557,7 @@ SIZE_T _r_str_getbytelength3 (
 }
 
 SIZE_T _r_str_getbytelength_ex (
-	_In_ LPCSTR string,
+	_In_reads_or_z_ (max_count) LPCSTR string,
 	_In_ SIZE_T max_count
 )
 {
@@ -6884,10 +6870,9 @@ StarCheck:
 	goto LoopStart;
 }
 
-_Success_ (return)
-BOOLEAN _r_str_printf (
-	_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
+VOID _r_str_printf (
+	_Out_writes_z_ (buffer_size) LPWSTR buffer,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) SIZE_T buffer_size,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 )
@@ -6897,20 +6882,17 @@ BOOLEAN _r_str_printf (
 	if (buffer_size > PR_SIZE_MAX_STRING_LENGTH)
 	{
 		*buffer = UNICODE_NULL;
-		return FALSE;
+		return;
 	}
 
 	va_start (arg_ptr, format);
 	_r_str_printf_v (buffer, buffer_size, format, arg_ptr);
 	va_end (arg_ptr);
-
-	return TRUE;
 }
 
-_Success_ (return)
-BOOLEAN _r_str_printf_v (
-	_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
+VOID _r_str_printf_v (
+	_Out_writes_z_ (buffer_size) LPWSTR buffer,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) SIZE_T buffer_size,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	_In_ va_list arg_ptr
 )
@@ -6921,10 +6903,11 @@ BOOLEAN _r_str_printf_v (
 	if (buffer_size > PR_SIZE_MAX_STRING_LENGTH)
 	{
 		*buffer = UNICODE_NULL;
-		return FALSE;
+		return;
 	}
 
-	max_length = buffer_size - 1; // leave the last space for the null terminator
+	// leave the last space for the null terminator
+	max_length = buffer_size - 1;
 
 #pragma warning(push)
 #pragma warning(disable: _UCRT_DISABLED_WARNINGS)
@@ -6932,9 +6915,11 @@ BOOLEAN _r_str_printf_v (
 #pragma warning(pop)
 
 	if (format_size == -1 || (SIZE_T)format_size >= max_length)
-		buffer[max_length] = UNICODE_NULL; // need to null terminate the string
-
-	return TRUE;
+	{
+		// need to null terminate the string
+		buffer += max_length;
+		*buffer = UNICODE_NULL;
+	}
 }
 
 VOID _r_str_replacechar (
@@ -12485,7 +12470,6 @@ ULONG _r_inet_querystatuscode (
 	return 0;
 }
 
-
 VOID _r_inet_initializedownload (
 	_Out_ PR_DOWNLOAD_INFO download_info
 )
@@ -16307,7 +16291,6 @@ VOID _r_util_templatewriteshort (
 {
 	_r_util_templatewrite_ex (ptr, &data, sizeof (data));
 }
-
 
 VOID _r_util_templatewritestring (
 	_Inout_ PBYTE_PTR ptr,

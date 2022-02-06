@@ -1943,17 +1943,15 @@ FORCEINLINE VOID _r_shell_opendefault (
 #define _r_str_isbyteempty(string) \
 	((string) == NULL || (string)[0] == ANSI_NULL)
 
-_Success_ (return)
-BOOLEAN _r_str_append (
-	_Inout_updates_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
+VOID _r_str_append (
+	_Inout_updates_z_ (buffer_size) LPWSTR buffer,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) SIZE_T buffer_size,
 	_In_ LPCWSTR string
 );
 
-_Success_ (return)
-BOOLEAN _r_str_appendformat (
-	_Inout_updates_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
+VOID _r_str_appendformat (
+	_Inout_updates_z_ (buffer_size) LPWSTR buffer,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) SIZE_T buffer_size,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 );
@@ -1977,17 +1975,15 @@ INT _r_str_compare_logical (
 	_In_ PR_STRING string2
 );
 
-_Success_ (return)
-BOOLEAN _r_str_copy (
-	_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
+VOID _r_str_copy (
+	_Out_writes_z_ (buffer_size) LPWSTR buffer,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) SIZE_T buffer_size,
 	_In_ LPCWSTR string
 );
 
-_Success_ (return)
-BOOLEAN _r_str_copystring (
-	_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
+VOID _r_str_copystring (
+	_Out_writes_z_ (buffer_size) LPWSTR buffer,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) SIZE_T buffer_size,
 	_In_ PR_STRINGREF string
 );
 
@@ -2114,7 +2110,7 @@ SIZE_T _r_str_getlength4 (
 );
 
 SIZE_T _r_str_getlength_ex (
-	_In_ LPCWSTR string,
+	_In_reads_or_z_ (max_count) LPCWSTR string,
 	_In_ SIZE_T max_count
 );
 
@@ -2131,11 +2127,9 @@ SIZE_T _r_str_getbytelength3 (
 );
 
 SIZE_T _r_str_getbytelength_ex (
-	_In_ LPCSTR string,
+	_In_reads_or_z_ (max_count) LPCSTR string,
 	_In_ SIZE_T max_count
 );
-
-
 
 BOOLEAN _r_str_isdigit (
 	_In_ WCHAR chr
@@ -2188,18 +2182,16 @@ BOOLEAN _r_str_match (
 	_In_ BOOLEAN is_ignorecase
 );
 
-_Success_ (return)
-BOOLEAN _r_str_printf (
-	_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
+VOID _r_str_printf (
+	_Out_writes_z_ (buffer_size) LPWSTR buffer,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) SIZE_T buffer_size,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 );
 
-_Success_ (return)
-BOOLEAN _r_str_printf_v (
-	_Out_writes_ (buffer_size) _Always_ (_Post_z_) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
+VOID _r_str_printf_v (
+	_Out_writes_z_ (buffer_size) LPWSTR buffer,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) SIZE_T buffer_size,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	_In_ va_list arg_ptr
 );
