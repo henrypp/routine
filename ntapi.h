@@ -1357,7 +1357,6 @@ typedef struct _PEB
 		};
 	};
 
-
 	HANDLE Mutant;
 
 	PVOID ImageBaseAddress;
