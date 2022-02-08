@@ -1899,13 +1899,9 @@ PR_STRING _r_path_resolvenetworkprefix (
 
 _Ret_maybenull_
 PR_STRING _r_path_search (
-	_In_ LPCWSTR path
-);
-
-_Ret_maybenull_
-PR_STRING _r_path_searchfile (
 	_In_ LPCWSTR path,
-	_In_opt_ LPCWSTR extension
+	_In_opt_ LPCWSTR extension,
+	_In_ BOOLEAN is_dontcheckattributes
 );
 
 PR_STRING _r_path_dospathfromnt (

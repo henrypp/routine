@@ -5031,7 +5031,7 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 		{
 			buffer = _r_obj_createstring3 (&args_sr);
 
-			file_path_sr = _r_path_searchfile (buffer->buffer, L".exe");
+			file_path_sr = _r_path_search (buffer->buffer, L".exe", FALSE);
 
 			if (file_path_sr)
 			{
@@ -5087,7 +5087,7 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 			*(remaining_part.buffer - 1) = UNICODE_NULL;
 		}
 
-		file_path_sr = _r_path_searchfile (temp.buffer, L".exe");
+		file_path_sr = _r_path_search (temp.buffer, L".exe", FALSE);
 
 		if (is_found)
 			*(remaining_part.buffer - 1) = original_char;
@@ -5272,13 +5272,7 @@ PR_STRING _r_path_resolvedeviceprefix_workaround (
 
 	RtlInitUnicodeString (&device_prefix, L"\\GLOBAL??");
 
-	InitializeObjectAttributes (
-		&object_attributes,
-		&device_prefix,
-		OBJ_CASE_INSENSITIVE,
-		NULL,
-		NULL
-	);
+	InitializeObjectAttributes (&object_attributes, &device_prefix, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
 	status = NtOpenDirectoryObject (&directory_handle, DIRECTORY_QUERY, &object_attributes);
 
@@ -5471,12 +5465,7 @@ PR_STRING _r_path_resolvenetworkprefix (
 					&provider_part_sr
 				);
 
-				if (RegOpenKeyEx (
-					HKEY_LOCAL_MACHINE,
-					service_key->buffer,
-					0,
-					KEY_READ,
-					&hkey) == ERROR_SUCCESS)
+				if (RegOpenKeyEx (HKEY_LOCAL_MACHINE, service_key->buffer, 0, KEY_READ, &hkey) == ERROR_SUCCESS)
 				{
 					device_name_string = _r_reg_querystring (hkey, NULL, L"DeviceName");
 
@@ -5538,32 +5527,9 @@ PR_STRING _r_path_resolvenetworkprefix (
 
 _Ret_maybenull_
 PR_STRING _r_path_search (
-	_In_ LPCWSTR path
-)
-{
-	PR_STRING string;
-	UINT length;
-
-	length = 512;
-
-	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
-
-	if (!PathSearchAndQualify (path, string->buffer, length))
-	{
-		_r_obj_dereference (string);
-
-		return NULL;
-	}
-
-	_r_obj_trimstringtonullterminator (string);
-
-	return string;
-}
-
-_Ret_maybenull_
-PR_STRING _r_path_searchfile (
 	_In_ LPCWSTR path,
-	_In_opt_ LPCWSTR extension
+	_In_opt_ LPCWSTR extension,
+	_In_ BOOLEAN is_dontcheckattributes
 )
 {
 	PR_STRING full_path;
@@ -5572,7 +5538,6 @@ PR_STRING _r_path_searchfile (
 	ULONG attributes;
 
 	buffer_length = 256;
-
 	full_path = _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR));
 
 	return_length = SearchPath (
@@ -5584,7 +5549,7 @@ PR_STRING _r_path_searchfile (
 		NULL
 	);
 
-	if (!return_length && return_length <= buffer_length)
+	if (return_length == 0 && return_length <= buffer_length)
 		goto CleanupExit;
 
 	if (return_length > buffer_length)
@@ -5603,19 +5568,23 @@ PR_STRING _r_path_searchfile (
 		);
 	}
 
-	if (!return_length && return_length <= buffer_length)
+	if (return_length == 0 && return_length <= buffer_length)
 		goto CleanupExit;
 
 	_r_obj_trimstringtonullterminator (full_path);
 
-	// Make sure this is not a directory.
-	attributes = GetFileAttributes (full_path->buffer);
+	if (!is_dontcheckattributes)
+	{
+		attributes = GetFileAttributes (full_path->buffer);
 
-	if (attributes == INVALID_FILE_ATTRIBUTES)
-		goto CleanupExit;
+		// Make sure this file is exists.
+		if (attributes == INVALID_FILE_ATTRIBUTES)
+			goto CleanupExit;
 
-	if (attributes & FILE_ATTRIBUTE_DIRECTORY)
-		goto CleanupExit;
+		// Make sure this is not a directory.
+		if (attributes & FILE_ATTRIBUTE_DIRECTORY)
+			goto CleanupExit;
+	}
 
 	return full_path;
 
@@ -5626,7 +5595,9 @@ CleanupExit:
 	return NULL;
 }
 
-PR_STRING _r_path_dospathfromnt (_In_ PR_STRING path)
+PR_STRING _r_path_dospathfromnt (
+	_In_ PR_STRING path
+)
 {
 	R_STRINGREF system_root;
 	PR_STRING string;
@@ -8583,13 +8554,7 @@ NTSTATUS _r_sys_getusernamefromsid (
 	BOOLEAN is_hasname;
 	NTSTATUS status;
 
-	InitializeObjectAttributes (
-		&object_attributes,
-		NULL,
-		0,
-		NULL,
-		NULL
-	);
+	InitializeObjectAttributes (&object_attributes, NULL, 0, NULL, NULL);
 
 	referenced_domains = NULL;
 	names = NULL;
@@ -9018,19 +8983,12 @@ NTSTATUS _r_sys_createprocess_ex (
 		}
 	}
 
-	if (!_r_obj_isstringempty (file_name_string) && !_r_fs_exists (file_name_string->buffer))
+	if (file_name_string && !_r_fs_exists (file_name_string->buffer))
 	{
+		// The user typed a name without a path so attempt to locate the executable. (dmex)
+		new_path = _r_path_search (file_name_string->buffer, L".exe", FALSE);
 
-		new_path = _r_path_search (file_name_string->buffer);
-
-		if (new_path)
-		{
-			_r_obj_movereference (&file_name_string, new_path);
-		}
-		else
-		{
-			_r_obj_clearreference (&file_name_string);
-		}
+		_r_obj_movereference (&file_name_string, new_path); // clear or set
 	}
 
 	if (current_directory)
