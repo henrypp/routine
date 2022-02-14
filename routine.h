@@ -942,7 +942,13 @@ VOID _r_obj_removestring (
 
 VOID _r_obj_setstringlength (
 	_Inout_ PR_STRING string,
-	_In_ SIZE_T length
+	_In_ SIZE_T new_length
+);
+
+VOID _r_obj_setstringlength_ex (
+	_Inout_ PR_STRING string,
+	_In_ SIZE_T new_length,
+	_In_ SIZE_T allocated_length
 );
 
 VOID _r_obj_skipstringlength (

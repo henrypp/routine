@@ -2813,16 +2813,25 @@ VOID _r_obj_removestring (
 
 VOID _r_obj_setstringlength (
 	_Inout_ PR_STRING string,
-	_In_ SIZE_T length
+	_In_ SIZE_T new_length
 )
 {
-	if (string->length <= length)
+	_r_obj_setstringlength_ex (string, new_length, string->length);
+}
+
+VOID _r_obj_setstringlength_ex (
+	_Inout_ PR_STRING string,
+	_In_ SIZE_T new_length,
+	_In_ SIZE_T allocated_length
+)
+{
+	if (allocated_length < new_length)
 		return;
 
-	if (length & 0x01)
-		length += 1;
+	if (new_length & 0x01)
+		new_length += 1;
 
-	string->length = length;
+	string->length = new_length;
 
 	_r_obj_writestringnullterminator (string); // terminate
 }
@@ -4880,18 +4889,37 @@ PR_STRING _r_path_getmodulepath (
 )
 {
 	PR_STRING string;
-	ULONG length;
+	ULONG allocated_length;
+	ULONG out_length;
+	ULONG attempts;
 
-	length = 512;
+	attempts = 6;
+	allocated_length = 256;
 
-	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
-
-	if (GetModuleFileName (hinst, string->buffer, length))
+	do
 	{
-		_r_obj_trimstringtonullterminator (string);
+		string = _r_obj_createstring_ex (NULL, allocated_length * sizeof (WCHAR));
 
-		return string;
+		out_length = GetModuleFileName (hinst, string->buffer, allocated_length);
+
+		if (!out_length)
+			break;
+
+		if (out_length < allocated_length)
+		{
+			_r_obj_setstringlength_ex (string, out_length * sizeof (WCHAR), allocated_length * sizeof (WCHAR));
+
+			return string;
+		}
+
+		allocated_length *= 2;
+
+		if (allocated_length > PR_SIZE_BUFFER_OVERFLOW)
+			break;
+
+		_r_obj_dereference (string);
 	}
+	while (--attempts);
 
 	_r_obj_dereference (string);
 
@@ -4999,7 +5027,6 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 
 	if (*args_sr.buffer == L'"')
 	{
-
 		_r_obj_skipstringlength (&args_sr, sizeof (WCHAR));
 
 		// Find the matching quote character and we have our file name.
@@ -13718,7 +13745,7 @@ PR_HASHTABLE _r_parseini (
 
 		if (out_length)
 		{
-			_r_obj_setstringlength (values_string, out_length * sizeof (WCHAR));
+			_r_obj_setstringlength_ex (values_string, out_length * sizeof (WCHAR), allocated_length * sizeof (WCHAR));
 
 			if (section_list)
 				_r_obj_addlistitem (section_list, _r_obj_createstring3 (&sections_iterator));
