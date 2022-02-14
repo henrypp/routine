@@ -3434,6 +3434,7 @@ VOID _r_obj_cleararray (
 {
 	PVOID array_item;
 	SIZE_T count;
+	SIZE_T i;
 
 	if (!array_node->count)
 		return;
@@ -3443,7 +3444,7 @@ VOID _r_obj_cleararray (
 
 	if (array_node->cleanup_callback)
 	{
-		for (SIZE_T i = 0; i < count; i++)
+		for (i = 0; i < count; i++)
 		{
 			array_item = PTR_ADD_OFFSET (array_node->items, i * array_node->item_size);
 
@@ -3592,6 +3593,7 @@ VOID _r_obj_clearlist (
 {
 	PVOID list_item;
 	SIZE_T count;
+	SIZE_T i;
 
 	if (!list_node->count)
 		return;
@@ -3601,7 +3603,7 @@ VOID _r_obj_clearlist (
 
 	if (list_node->cleanup_callback)
 	{
-		for (SIZE_T i = 0; i < count; i++)
+		for (i = 0; i < count; i++)
 		{
 			list_item = list_node->items[i];
 
