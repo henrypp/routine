@@ -4905,7 +4905,7 @@ BOOLEAN _r_path_issecurelocation (
 	PSECURITY_DESCRIPTOR security_descriptor;
 	PACL dacl;
 	PSID current_user_sid;
-	PACCESS_ALLOWED_ACE pace;
+	PACCESS_ALLOWED_ACE ace;
 	ULONG status;
 	BOOLEAN is_writeable;
 
@@ -4935,16 +4935,16 @@ BOOLEAN _r_path_issecurelocation (
 
 		for (WORD ace_index = 0; ace_index < dacl->AceCount; ace_index++)
 		{
-			if (!GetAce (dacl, ace_index, &pace))
+			if (!GetAce (dacl, ace_index, &ace))
 				continue;
 
-			if (pace->Header.AceType != ACCESS_ALLOWED_ACE_TYPE)
+			if (ace->Header.AceType != ACCESS_ALLOWED_ACE_TYPE)
 				continue;
 
-			if (RtlEqualSid (&pace->SidStart, &SeAuthenticatedUserSid) ||
-				RtlEqualSid (&pace->SidStart, current_user_sid))
+			if (RtlEqualSid (&ace->SidStart, &SeAuthenticatedUserSid) ||
+				RtlEqualSid (&ace->SidStart, current_user_sid))
 			{
-				if (pace->Mask & (DELETE | ACTRL_FILE_WRITE_ATTRIB | SYNCHRONIZE | READ_CONTROL))
+				if (ace->Mask & (DELETE | ACTRL_FILE_WRITE_ATTRIB | SYNCHRONIZE | READ_CONTROL))
 				{
 					is_writeable = TRUE;
 					break;
