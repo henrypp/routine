@@ -2514,13 +2514,22 @@ BOOLEAN _r_obj_isbytenullterminated (
 
 VOID _r_obj_setbytelength (
 	_Inout_ PR_BYTE string,
-	_In_ SIZE_T length
+	_In_ SIZE_T new_length
 )
 {
-	if (string->length <= length)
-		return;
+	_r_obj_setbytelength_ex (string, new_length, string->length);
+}
 
-	string->length = length;
+VOID _r_obj_setbytelength_ex (
+	_Inout_ PR_BYTE string,
+	_In_ SIZE_T new_length,
+	_In_ SIZE_T allocated_length
+)
+{
+	if (allocated_length < new_length)
+		new_length = allocated_length;
+
+	string->length = new_length;
 
 	_r_obj_writebytenullterminator (string); // terminate
 }
@@ -2826,7 +2835,7 @@ VOID _r_obj_setstringlength_ex (
 )
 {
 	if (allocated_length < new_length)
-		return;
+		new_length = allocated_length;
 
 	if (new_length & 0x01)
 		new_length += 1;

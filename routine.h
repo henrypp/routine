@@ -861,7 +861,13 @@ BOOLEAN _r_obj_isbytenullterminated (
 
 VOID _r_obj_setbytelength (
 	_Inout_ PR_BYTE string,
-	_In_ SIZE_T length
+	_In_ SIZE_T new_length
+);
+
+VOID _r_obj_setbytelength_ex (
+	_Inout_ PR_BYTE string,
+	_In_ SIZE_T new_length,
+	_In_ SIZE_T allocated_length
 );
 
 VOID _r_obj_skipbytelength (
