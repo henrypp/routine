@@ -4011,11 +4011,11 @@ VOID _r_window_saveposition (
 		rectangle.top += monitor_info.rcWork.top - monitor_info.rcMonitor.top;
 	}
 
-	_r_config_setsize (L"Position", &rectangle.position, window_name);
-
-	if (style & WS_SIZEBOX)
+	if (!is_maximized)
 	{
-		if (!is_maximized)
+		_r_config_setsize (L"Position", &rectangle.position, window_name);
+
+		if (style & WS_SIZEBOX)
 		{
 			_r_dc_getsizedpivalue (&rectangle.size, _r_dc_getwindowdpi (hwnd), FALSE);
 
