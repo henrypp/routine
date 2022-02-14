@@ -3066,9 +3066,6 @@ VOID _r_obj_deletestringbuilder (
 	_Inout_ PR_STRINGBUILDER builder
 )
 {
-	if (!builder->allocated_length)
-		return;
-
 	builder->allocated_length = 0;
 
 	SAFE_DELETE_REFERENCE (builder->string);
@@ -9655,6 +9652,22 @@ VOID _r_sys_setthreadenvironment (
 	}
 }
 
+_Success_ (return != 0)
+EXECUTION_STATE _r_sys_setthreadexecutionstate (
+	_In_ EXECUTION_STATE new_state
+)
+{
+	EXECUTION_STATE old_state;
+	NTSTATUS status;
+
+	status = NtSetThreadExecutionState (new_state, &old_state);
+
+	if (NT_SUCCESS (status))
+		return old_state;
+
+	return 0;
+}
+
 //
 // Unixtime
 //
@@ -12525,16 +12538,11 @@ ULONG _r_inet_begindownload (
 
 	total_readed = 0;
 
-	while (_r_inet_readrequest (
-		hrequest,
-		content_bytes->buffer,
-		allocated_length,
-		&readed_length,
-		&total_readed))
+	while (_r_inet_readrequest (hrequest, content_bytes->buffer, allocated_length, &readed_length, &total_readed))
 	{
-		_r_sys_setthreadexecutionstate (ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED);
+		_r_sys_setthreadexecutionstate (ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED | ES_CONTINUOUS);
 
-		_r_obj_setbytelength (content_bytes, readed_length);
+		_r_obj_setbytelength_ex (content_bytes, readed_length, allocated_length);
 
 		if (download_info->is_savetofile)
 		{

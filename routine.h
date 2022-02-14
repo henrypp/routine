@@ -2575,6 +2575,11 @@ VOID _r_sys_setthreadenvironment (
 	_In_ PR_ENVIRONMENT environment
 );
 
+_Success_ (return != 0)
+EXECUTION_STATE _r_sys_setthreadexecutionstate (
+	_In_ EXECUTION_STATE new_state
+);
+
 FORCEINLINE VOID _r_sys_exitprocess (
 	_In_ NTSTATUS code
 )
@@ -2584,15 +2589,6 @@ FORCEINLINE VOID _r_sys_exitprocess (
 #else
 	ExitProcess (code);
 #endif // APP_NO_DEPRECATIONS
-}
-
-FORCEINLINE VOID _r_sys_setthreadexecutionstate (
-	_In_ ULONG state
-)
-{
-	ULONG old_state;
-
-	NtSetThreadExecutionState (state, &old_state);
 }
 
 FORCEINLINE HINSTANCE _r_sys_getimagebase ()
