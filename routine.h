@@ -1478,13 +1478,13 @@ VOID _r_debug_v (
 
 VOID _r_error_initialize (
 	_Out_ PR_ERROR_INFO error_info,
-	_In_opt_ HINSTANCE hinst,
+	_In_opt_ HINSTANCE hinstance,
 	_In_opt_ LPCWSTR description
 );
 
 VOID _r_error_initialize_ex (
 	_Out_ PR_ERROR_INFO error_info,
-	_In_opt_ HINSTANCE hinst,
+	_In_opt_ HINSTANCE hinstance,
 	_In_opt_ LPCWSTR description,
 	_In_opt_ PEXCEPTION_POINTERS exception_ptr
 );
@@ -1880,7 +1880,7 @@ PR_STRING _r_path_getknownfolder (
 
 _Ret_maybenull_
 PR_STRING _r_path_getmodulepath (
-	_In_opt_ HMODULE hinst
+	_In_opt_ HINSTANCE hinstance
 );
 
 BOOLEAN _r_path_issecurelocation (
@@ -1947,6 +1947,9 @@ FORCEINLINE VOID _r_shell_opendefault (
 
 #define _r_str_isempty(string) \
     ((string) == NULL || (string)[0] == UNICODE_NULL)
+
+#define _r_str_isempty2(string) \
+    ((string)[0] == UNICODE_NULL)
 
 #define _r_str_isbyteempty(string) \
 	((string) == NULL || (string)[0] == ANSI_NULL)
@@ -2400,12 +2403,19 @@ BOOLEAN _r_sys_iswow64 ();
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_sys_formatmessage (
 	_In_ ULONG error_code,
-	_In_opt_ HINSTANCE hinst,
+	_In_opt_ HINSTANCE hinstance,
 	_In_opt_ ULONG lang_id,
 	_Out_ PR_STRING_PTR out_buffer
 );
 
 R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ();
+
+_Success_ (return == ERROR_SUCCESS)
+ULONG _r_sys_getlocaleinfo (
+	_In_ LCID locale_id,
+	_In_ LCTYPE locale_type,
+	_Out_ PR_STRING_PTR out_buffer
+);
 
 VOID _r_sys_getsystemroot (
 	_Out_ PR_STRINGREF path
@@ -2433,6 +2443,10 @@ ULONG _r_sys_getsessioninfo (
 	_Out_ PR_STRING_PTR out_buffer
 );
 
+ULONG _r_sys_gettickcount ();
+
+ULONG64 _r_sys_gettickcount64 ();
+
 _Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_sys_getusernamefromsid (
 	_In_ PSID sid,
@@ -2456,7 +2470,7 @@ NTSTATUS _r_sys_decompressbuffer (
 );
 
 _Ret_maybenull_
-HMODULE _r_sys_loadlibrary (
+HINSTANCE _r_sys_loadlibrary (
 	_In_ LPCWSTR lib_name
 );
 
@@ -2515,18 +2529,16 @@ NTSTATUS _r_sys_createthread (
 
 _Ret_maybenull_
 HICON _r_sys_loadicon (
-	_In_opt_ HINSTANCE hinst,
+	_In_opt_ HINSTANCE hinstance,
 	_In_ LPCWSTR icon_name,
-	_In_ LONG x,
-	_In_ LONG y
+	_In_ LONG width
 );
 
 _Ret_maybenull_
 HICON _r_sys_loadsharedicon (
-	_In_opt_ HINSTANCE hinst,
+	_In_opt_ HINSTANCE hinstance,
 	_In_ LPCWSTR icon_name,
-	_In_ LONG x,
-	_In_ LONG y
+	_In_ LONG width
 );
 
 _Ret_maybenull_
@@ -2580,16 +2592,11 @@ EXECUTION_STATE _r_sys_setthreadexecutionstate (
 	_In_ EXECUTION_STATE new_state
 );
 
-FORCEINLINE VOID _r_sys_exitprocess (
-	_In_ NTSTATUS code
-)
-{
 #if defined(APP_NO_DEPRECATIONS)
-	RtlExitUserProcess (code);
+#define _r_sys_exitprocess RtlExitUserProcess
 #else
-	ExitProcess (code);
+#define _r_sys_exitprocess ExitProcess
 #endif // APP_NO_DEPRECATIONS
-}
 
 FORCEINLINE HINSTANCE _r_sys_getimagebase ()
 {
@@ -2621,60 +2628,6 @@ FORCEINLINE HANDLE _r_sys_getstdout ()
 	return NtCurrentPeb ()->ProcessParameters->StandardOutput;
 }
 
-FORCEINLINE ULONG _r_sys_gettickcount ()
-{
-#ifdef _WIN64
-
-	return (ULONG)((USER_SHARED_DATA->TickCountQuad * USER_SHARED_DATA->TickCountMultiplier) >> 24);
-
-#else
-
-	ULARGE_INTEGER tick_count;
-
-	while (TRUE)
-	{
-		tick_count.HighPart = (ULONG)USER_SHARED_DATA->TickCount.High1Time;
-		tick_count.LowPart = USER_SHARED_DATA->TickCount.LowPart;
-
-		if (tick_count.HighPart == (ULONG)USER_SHARED_DATA->TickCount.High2Time)
-			break;
-
-		YieldProcessor ();
-	}
-
-	return (ULONG)((UInt32x32To64 (tick_count.LowPart, USER_SHARED_DATA->TickCountMultiplier) >> 24) +
-				   UInt32x32To64 ((tick_count.HighPart << 8) & 0xffffffff, USER_SHARED_DATA->TickCountMultiplier));
-
-#endif
-}
-
-FORCEINLINE ULONG64 _r_sys_gettickcount64 ()
-{
-	ULARGE_INTEGER tick_count;
-
-#ifdef _WIN64
-
-	tick_count.QuadPart = USER_SHARED_DATA->TickCountQuad;
-
-#else
-
-	while (TRUE)
-	{
-		tick_count.HighPart = (ULONG)USER_SHARED_DATA->TickCount.High1Time;
-		tick_count.LowPart = USER_SHARED_DATA->TickCount.LowPart;
-
-		if (tick_count.HighPart == (ULONG)USER_SHARED_DATA->TickCount.High2Time)
-			break;
-
-		YieldProcessor ();
-	}
-
-#endif
-
-	return (UInt32x32To64 (tick_count.LowPart, USER_SHARED_DATA->TickCountMultiplier) >> 24) +
-		(UInt32x32To64 (tick_count.HighPart, USER_SHARED_DATA->TickCountMultiplier) << 8);
-}
-
 FORCEINLINE LONG64 _r_sys_startexecutiontime ()
 {
 	LARGE_INTEGER frequency;
@@ -2703,6 +2656,14 @@ FORCEINLINE DOUBLE _r_sys_finalexecutiontime (
 
 LONG64 _r_unixtime_now ();
 
+LONG64 _r_unixtime_from_filetime (
+	_In_ const FILETIME * file_time
+);
+
+LONG64 _r_unixtime_from_systemtime (
+	_In_ const SYSTEMTIME * system_time
+);
+
 VOID _r_unixtime_to_filetime (
 	_In_ LONG64 unixtime,
 	_Out_ PFILETIME file_time
@@ -2712,14 +2673,6 @@ _Success_ (return)
 BOOLEAN _r_unixtime_to_systemtime (
 	_In_ LONG64 unixtime,
 	_Out_ PSYSTEMTIME system_time
-);
-
-LONG64 _r_unixtime_from_filetime (
-	_In_ const FILETIME * file_time
-);
-
-LONG64 _r_unixtime_from_systemtime (
-	_In_ const SYSTEMTIME * system_time
 );
 
 //
@@ -3002,10 +2955,9 @@ VOID _r_wnd_changemessagefilter (
 	_In_ ULONG action
 );
 
-VOID _r_wnd_changesettings (
-	_In_ HWND hwnd,
-	_In_opt_ WPARAM wparam,
-	_In_opt_ LPARAM lparam
+VOID _r_wnd_copyrectangle (
+	_Out_ PR_RECTANGLE rectangle_dst,
+	_In_ PR_RECTANGLE rectangle_src
 );
 
 _Ret_maybenull_
@@ -3025,9 +2977,139 @@ INT_PTR _r_wnd_createmodalwindow (
 	_In_opt_ PVOID lparam
 );
 
-INT _r_wnd_messageloop (
+_Success_ (return)
+BOOLEAN _r_wnd_getclientsize (
+	_In_ HWND hwnd,
+	_Out_ PR_RECTANGLE rectangle
+);
+
+_Success_ (return)
+BOOLEAN _r_wnd_getposition (
+	_In_ HWND hwnd,
+	_Out_ PR_RECTANGLE rectangle
+);
+
+LONG_PTR _r_wnd_getstyle (
+	_In_ HWND hwnd
+);
+
+LONG_PTR _r_wnd_getstyle_ex (
+	_In_ HWND hwnd
+);
+
+BOOLEAN _r_wnd_isdesktop (
+	_In_ HWND hwnd
+);
+
+BOOLEAN _r_wnd_isdialog (
+	_In_ HWND hwnd
+);
+
+BOOLEAN _r_wnd_isfullscreenconsolemode (
+	_In_ HWND hwnd
+);
+
+BOOLEAN _r_wnd_isfullscreenusermode ();
+
+BOOLEAN _r_wnd_isfullscreenwindowmode (
+	_In_ HWND hwnd
+);
+
+BOOLEAN _r_wnd_isfullscreenmode ();
+
+BOOLEAN _r_wnd_ismaximized (
+	_In_ HWND hwnd
+);
+
+BOOLEAN _r_wnd_ismenu (
+	_In_ HWND hwnd
+);
+
+BOOLEAN _r_wnd_isminimized (
+	_In_ HWND hwnd
+);
+
+BOOLEAN _r_wnd_isoverlapped (
+	_In_ HWND hwnd
+);
+
+BOOLEAN _r_wnd_isundercursor (
+	_In_ HWND hwnd
+);
+
+BOOLEAN _r_wnd_isvisible (
+	_In_ HWND hwnd
+);
+
+BOOLEAN _r_wnd_isvisible_ex (
+	_In_ HWND hwnd
+);
+
+ULONG CALLBACK _r_wnd_message_callback (
 	_In_ HWND main_wnd,
 	_In_ LPCWSTR accelerator_table
+);
+
+VOID CALLBACK _r_wnd_message_dpichanged (
+	_In_ HWND hwnd,
+	_In_opt_ WPARAM wparam,
+	_In_opt_ LPARAM lparam
+);
+
+VOID CALLBACK _r_wnd_message_settingchange (
+	_In_ HWND hwnd,
+	_In_opt_ WPARAM wparam,
+	_In_opt_ LPARAM lparam
+);
+
+VOID _r_wnd_rectangletorect (
+	_Out_ PRECT rect,
+	_In_ PR_RECTANGLE rectangle
+);
+
+VOID _r_wnd_recttorectangle (
+	_Out_ PR_RECTANGLE rectangle,
+	_In_ LPCRECT rect
+);
+
+VOID _r_wnd_seticon (
+	_In_ HWND hwnd,
+	_In_opt_ HICON hicon_small,
+	_In_opt_ HICON hicon_big
+);
+
+VOID _r_wnd_setrectangle (
+	_Out_ PR_RECTANGLE rectangle,
+	_In_ LONG left,
+	_In_ LONG top,
+	_In_ LONG width,
+	_In_ LONG height
+);
+
+VOID _r_wnd_setposition (
+	_In_ HWND hwnd,
+	_In_opt_ PR_SIZE position,
+	_In_opt_ PR_SIZE size
+);
+
+VOID _r_wnd_setstyle (
+	_In_ HWND hwnd,
+	_In_ LONG_PTR style
+);
+
+VOID _r_wnd_setstyle_ex (
+	_In_ HWND hwnd,
+	_In_ LONG_PTR ex_style
+);
+
+VOID _r_wnd_toggle (
+	_In_ HWND hwnd,
+	_In_ BOOLEAN is_show
+);
+
+VOID _r_wnd_top (
+	_In_ HWND hwnd,
+	_In_ BOOLEAN is_enable
 );
 
 ULONG _r_wnd_getcontext_hash (
@@ -3051,156 +3133,6 @@ VOID _r_wnd_removecontext (
 	_In_ HWND hwnd,
 	_In_ ULONG property_id
 );
-
-VOID _r_wnd_copyrectangle (
-	_Out_ PR_RECTANGLE rectangle_dst,
-	_In_ PR_RECTANGLE rectangle_src
-);
-
-VOID _r_wnd_setrectangle (
-	_Out_ PR_RECTANGLE rectangle,
-	_In_ LONG left,
-	_In_ LONG top,
-	_In_ LONG width,
-	_In_ LONG height
-);
-
-VOID _r_wnd_recttorectangle (
-	_Out_ PR_RECTANGLE rectangle,
-	_In_ LPCRECT rect
-);
-
-VOID _r_wnd_rectangletorect (
-	_Out_ PRECT rect,
-	_In_ PR_RECTANGLE rectangle
-);
-
-BOOLEAN _r_wnd_isfullscreenmode ();
-
-BOOLEAN _r_wnd_isoverlapped (
-	_In_ HWND hwnd
-);
-
-BOOLEAN _r_wnd_isundercursor (
-	_In_ HWND hwnd
-);
-
-_Success_ (return)
-BOOLEAN _r_wnd_getclientsize (
-	_In_ HWND hwnd,
-	_Out_ PR_RECTANGLE rectangle
-);
-
-_Success_ (return)
-BOOLEAN _r_wnd_getposition (
-	_In_ HWND hwnd,
-	_Out_ PR_RECTANGLE rectangle
-);
-
-VOID _r_wnd_setposition (
-	_In_ HWND hwnd,
-	_In_opt_ PR_SIZE position,
-	_In_opt_ PR_SIZE size
-);
-
-VOID _r_wnd_toggle (
-	_In_ HWND hwnd,
-	_In_ BOOLEAN is_show
-);
-
-VOID _r_wnd_top (
-	_In_ HWND hwnd,
-	_In_ BOOLEAN is_enable
-);
-
-FORCEINLINE LONG_PTR _r_wnd_getstyle (
-	_In_ HWND hwnd
-)
-{
-	return GetWindowLongPtr (hwnd, GWL_STYLE);
-}
-
-FORCEINLINE LONG_PTR _r_wnd_getstyle_ex (
-	_In_ HWND hwnd
-)
-{
-	return GetWindowLongPtr (hwnd, GWL_EXSTYLE);
-}
-
-FORCEINLINE VOID _r_wnd_setstyle (
-	_In_ HWND hwnd,
-	_In_ LONG_PTR style
-)
-{
-	SetWindowLongPtr (hwnd, GWL_STYLE, style);
-}
-
-FORCEINLINE VOID _r_wnd_setstyle_ex (
-	_In_ HWND hwnd,
-	_In_ LONG_PTR ex_style
-)
-{
-	SetWindowLongPtr (hwnd, GWL_EXSTYLE, ex_style);
-}
-
-FORCEINLINE BOOLEAN _r_wnd_isdesktop (
-	HWND hwnd
-)
-{
-	return (GetClassLongPtr (hwnd, GCW_ATOM) == 0x8001); // #32769
-}
-
-FORCEINLINE BOOLEAN _r_wnd_isdialog (
-	HWND hwnd
-)
-{
-	return (GetClassLongPtr (hwnd, GCW_ATOM) == 0x8002); // #32770
-}
-
-FORCEINLINE BOOLEAN _r_wnd_ismenu (
-	HWND hwnd
-)
-{
-	return (GetClassLongPtr (hwnd, GCW_ATOM) == 0x8000); // #32768
-}
-
-FORCEINLINE BOOLEAN _r_wnd_ismaximized (
-	_In_ HWND hwnd
-)
-{
-	return !!IsZoomed (hwnd);
-}
-
-FORCEINLINE BOOLEAN _r_wnd_isminimized (
-	_In_ HWND hwnd
-)
-{
-	return !!IsIconic (hwnd);
-}
-
-FORCEINLINE BOOLEAN _r_wnd_isvisible (
-	_In_ HWND hwnd
-)
-{
-	return !!IsWindowVisible (hwnd);
-}
-
-FORCEINLINE BOOLEAN _r_wnd_isvisiblefull (
-	_In_ HWND hwnd
-)
-{
-	return _r_wnd_isvisible (hwnd) && !_r_wnd_isminimized (hwnd);
-}
-
-FORCEINLINE VOID _r_wnd_seticon (
-	_In_ HWND hwnd,
-	_In_opt_ HICON hicon_small,
-	_In_opt_ HICON hicon_big
-)
-{
-	SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hicon_small);
-	SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)hicon_big);
-}
 
 //
 // Inernet access (WinHTTP)
@@ -3448,7 +3380,7 @@ FORCEINLINE LONG _r_math_createguid (
 //
 
 BOOLEAN _r_res_loadresource (
-	_In_opt_ HINSTANCE hinst,
+	_In_opt_ HINSTANCE hinstance,
 	_In_ LPCWSTR name,
 	_In_ LPCWSTR type,
 	_Out_ PR_BYTEREF out_buffer
@@ -3456,7 +3388,7 @@ BOOLEAN _r_res_loadresource (
 
 _Ret_maybenull_
 PR_STRING _r_res_loadstring (
-	_In_opt_ HINSTANCE hinst,
+	_In_opt_ HINSTANCE hinstance,
 	_In_ UINT string_id
 );
 
