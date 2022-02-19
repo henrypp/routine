@@ -10590,26 +10590,16 @@ LONG _r_dc_gettaskbardpi ()
 	return _r_dc_getdpivalue (NULL, NULL);
 }
 
+_Success_ (return != 0)
 LONG _r_dc_getfontwidth (
 	_In_ HDC hdc,
 	_In_ PR_STRINGREF string
 )
 {
 	SIZE size;
-	BOOL result;
 
-	if (!string->length)
+	if (!GetTextExtentPoint32 (hdc, string->buffer, (ULONG)_r_str_getlength3 (string), &size))
 		return 0;
-
-	result = GetTextExtentPoint32 (
-		hdc,
-		string->buffer,
-		(INT)_r_str_getlength3 (string),
-		&size
-	);
-
-	if (!result)
-		return 200; // fallback
 
 	return size.cx;
 }
@@ -14524,7 +14514,7 @@ VOID _r_tray_initialize (
 		// a new location and reregister it with a new GUID.
 
 		nid->guidItem.Data1 ^= hash_code; // HACK!!!
-}
+	}
 
 #endif // APP_NO_DEPRECATIONS
 }
@@ -14604,7 +14594,7 @@ BOOLEAN _r_tray_create (
 	}
 
 	return FALSE;
-	}
+}
 
 BOOLEAN _r_tray_destroy (
 	_In_ HWND hwnd,
@@ -14708,7 +14698,7 @@ BOOLEAN _r_tray_setinfo (
 	}
 
 	return !!Shell_NotifyIcon (NIM_MODIFY, &nid);
-	}
+}
 
 BOOLEAN _r_tray_setinfoformat (
 	_In_ HWND hwnd,

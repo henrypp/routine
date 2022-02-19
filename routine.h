@@ -2776,6 +2776,7 @@ LONG _r_dc_getdpivalue (
 
 LONG _r_dc_gettaskbardpi ();
 
+_Success_ (return != 0)
 LONG _r_dc_getfontwidth (
 	_In_ HDC hdc,
 	_In_ PR_STRINGREF string
