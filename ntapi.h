@@ -169,6 +169,9 @@ typedef struct DECLSPEC_ALIGN (MEMORY_ALLOCATION_ALIGNMENT) _QUAD_PTR
 	ULONG_PTR DoNotUseThisField2;
 } QUAD_PTR, *PQUAD_PTR;
 
+typedef ULONG LOGICAL;
+typedef ULONG *PLOGICAL;
+
 #include <pshpack1.h>
 typedef struct _DLGTEMPLATEEX
 {
@@ -3033,6 +3036,22 @@ RtlDecompressFragmentEx (
 	_In_ ULONG UncompressedChunkSize,
 	_Out_ PULONG FinalUncompressedSize,
 	_In_ PVOID WorkSpace
+);
+
+// win7+
+NTSYSCALLAPI
+LOGICAL
+NTAPI
+RtlQueryPerformanceCounter (
+	_Out_ PLARGE_INTEGER PerformanceCounter
+);
+
+// win7+
+NTSYSCALLAPI
+LOGICAL
+NTAPI
+RtlQueryPerformanceFrequency (
+	_Out_ PLARGE_INTEGER PerformanceFrequency
 );
 
 // extern c end
