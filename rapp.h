@@ -518,7 +518,7 @@ HWND _r_app_createwindow (
 	_In_ DLGPROC dlg_proc
 );
 
-INT _r_app_getshowcode (
+ULONG _r_app_getshowcode (
 	_In_ HWND hwnd
 );
 

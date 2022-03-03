@@ -71,24 +71,11 @@ LONG NTAPI _r_app_exceptionfilter_callback (
 	_r_app_exceptionfilter_savedump (exception_ptr);
 
 #if defined(APP_CONSOLE)
-	_r_console_writestringformat (
-		APP_EXCEPTION_TITLE L" 0x%08X\r\n",
-		exception_ptr->ExceptionRecord->ExceptionCode
-	);
+	_r_console_writestringformat (APP_EXCEPTION_TITLE L" 0x%08X\r\n", exception_ptr->ExceptionRecord->ExceptionCode);
 #else
-	_r_error_initialize_ex (
-		&error_info,
-		NULL,
-		NULL,
-		exception_ptr
-	);
+	_r_error_initialize_ex (&error_info, NULL, NULL, exception_ptr);
 
-	_r_show_errormessage (
-		NULL,
-		APP_EXCEPTION_TITLE,
-		exception_ptr->ExceptionRecord->ExceptionCode,
-		&error_info
-	);
+	_r_show_errormessage (NULL, APP_EXCEPTION_TITLE, exception_ptr->ExceptionRecord->ExceptionCode, &error_info);
 #endif // APP_CONSOLE
 
 	_r_sys_exitprocess (exception_ptr->ExceptionRecord->ExceptionCode);
@@ -122,11 +109,7 @@ LPCWSTR _r_app_getmutexname ()
 			_r_str_gethash (_r_sys_getimagecommandline (), TRUE)
 		);
 
-		current_name = InterlockedCompareExchangePointer (
-			&cached_name,
-			new_name,
-			NULL
-		);
+		current_name = InterlockedCompareExchangePointer (&cached_name, new_name, NULL);
 
 		if (!current_name)
 		{
@@ -153,13 +136,13 @@ BOOLEAN _r_app_isportable ()
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static BOOLEAN is_portable = FALSE;
 
+	PR_STRING string;
+	PR_STRING directory;
+
 	if (_r_initonce_begin (&init_once))
 	{
 		LPCWSTR file_names[] = {L"portable", _r_app_getnameshort ()};
 		LPCWSTR file_exts[] = {L"dat", L"ini"};
-
-		PR_STRING string;
-		PR_STRING directory;
 
 		C_ASSERT (sizeof (file_names) == sizeof (file_exts));
 
@@ -231,17 +214,9 @@ BOOLEAN _r_app_initialize_com ()
 	if (!SUCCEEDED (hr))
 	{
 #if defined(APP_CONSOLE)
-		_r_console_writestringformat (
-			APP_FAILED_COM_INITIALIZE L" 0x%08" TEXT (PRIX32) L"!\r\n",
-			hr
-		);
+		_r_console_writestringformat (APP_FAILED_COM_INITIALIZE L" 0x%08" TEXT (PRIX32) L"!\r\n", hr);
 #else
-		_r_show_errormessage (
-			NULL,
-			APP_FAILED_COM_INITIALIZE,
-			hr,
-			NULL
-		);
+		_r_show_errormessage (NULL, APP_FAILED_COM_INITIALIZE, hr, NULL);
 #endif // APP_CONSOLE
 
 		return FALSE;
@@ -253,27 +228,13 @@ BOOLEAN _r_app_initialize_com ()
 #if !defined(APP_CONSOLE)
 BOOLEAN _r_app_initialize_components ()
 {
-	ULONG length;
-
 	// set locale information
 	app_global.locale.resource_name = _r_obj_createstring (APP_LANGUAGE_DEFAULT);
-	app_global.locale.default_name = _r_obj_createstring_ex (NULL, LOCALE_NAME_MAX_LENGTH * sizeof (WCHAR));
 
-	length = GetLocaleInfo (
-		LOCALE_USER_DEFAULT,
-		LOCALE_SENGLISHLANGUAGENAME,
-		app_global.locale.default_name->buffer,
-		LOCALE_NAME_MAX_LENGTH
-	);
+	if (app_global.locale.default_name)
+		_r_obj_dereference (app_global.locale.default_name);
 
-	if (length > 1)
-	{
-		_r_obj_trimstringtonullterminator (app_global.locale.default_name); // terminate
-	}
-	else
-	{
-		_r_obj_clearreference (&app_global.locale.default_name);
-	}
+	_r_sys_getlocaleinfo (LOCALE_USER_DEFAULT, LOCALE_SENGLISHLANGUAGENAME, &app_global.locale.default_name);
 
 	// register TaskbarCreated message
 #if defined(APP_HAVE_TRAY)
@@ -298,7 +259,7 @@ BOOLEAN _r_app_initialize_components ()
 #if !defined(APP_CONSOLE)
 BOOLEAN _r_app_initialize_controls ()
 {
-	INITCOMMONCONTROLSEX icex = {0};
+	INITCOMMONCONTROLSEX icex;
 
 	icex.dwSize = sizeof (icex);
 	icex.dwICC = ICC_LISTVIEW_CLASSES | ICC_TREEVIEW_CLASSES;
@@ -323,7 +284,7 @@ BOOLEAN _r_app_initialize_dll ()
 	SetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 #else
 	R_ERROR_INFO error_info;
-	HMODULE hkernel32;
+	HINSTANCE hkernel32;
 	SSPM _SetSearchPathMode;
 	SDDD _SetDefaultDllDirectories;
 
@@ -373,31 +334,20 @@ VOID _r_app_initialize_seh ()
 	ULONG error_mode;
 	NTSTATUS status;
 
-	status = NtQueryInformationProcess (
-		NtCurrentProcess (),
-		ProcessDefaultHardErrorMode,
-		&error_mode,
-		sizeof (ULONG),
-		NULL
-	);
+	status = NtQueryInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (ULONG), NULL);
 
 	if (NT_SUCCESS (status))
 	{
 		error_mode &= ~(SEM_NOOPENFILEERRORBOX | SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
 
-		NtSetInformationProcess (
-			NtCurrentProcess (),
-			ProcessDefaultHardErrorMode,
-			&error_mode,
-			sizeof (ULONG)
-		);
+		NtSetInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (ULONG));
 	}
 
 #if defined(APP_NO_DEPRECATIONS)
 	RtlSetUnhandledExceptionFilter (&_r_app_exceptionfilter_callback);
 #else
 
-	HMODULE hntdll;
+	HINSTANCE hntdll;
 	RSUEF _RtlSetUnhandledExceptionFilter;
 	BOOLEAN is_set;
 
@@ -505,12 +455,12 @@ PR_STRING _r_app_getdirectory ()
 	PR_STRING current_path;
 	PR_STRING new_path;
 
+	R_STRINGREF sr;
+
 	current_path = InterlockedCompareExchangePointer (&cached_path, NULL, NULL);
 
 	if (!current_path)
 	{
-		R_STRINGREF sr;
-
 		_r_obj_initializestringrefconst (&sr, _r_sys_getimagepath ());
 
 		new_path = _r_path_getbasedirectory (&sr);
@@ -523,7 +473,8 @@ PR_STRING _r_app_getdirectory ()
 		}
 		else
 		{
-			_r_obj_dereference (new_path);
+			if (new_path)
+				_r_obj_dereference (new_path);
 		}
 	}
 
@@ -535,70 +486,75 @@ PR_STRING _r_app_getconfigpath ()
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static PR_STRING cached_result = NULL;
 
+	PR_STRING buffer;
+	PR_STRING string;
+	PR_STRING new_result;
+	HANDLE hfile;
+
 	if (_r_initonce_begin (&init_once))
 	{
-		PR_STRING buffer;
-		PR_STRING string;
-		PR_STRING new_result;
-		HANDLE hfile;
-
 		new_result = NULL;
 
 		// parse config path from arguments
-		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"ini", &buffer) && buffer)
+		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"ini", &buffer))
 		{
-			_r_str_trimstring2 (buffer, L".\\/\" ", 0);
-
-			_r_obj_movereference (&buffer, _r_str_environmentexpandstring (&buffer->sr));
-
-			if (!_r_obj_isstringempty (buffer))
+			if (buffer)
 			{
-				if (PathGetDriveNumber (buffer->buffer) == -1)
-				{
-					string = _r_obj_concatstrings (
-						3,
-						_r_app_getdirectory ()->buffer,
-						L"\\",
-						buffer->buffer
-					);
+				_r_str_trimstring2 (buffer, L".\\/\" ", 0);
 
-					_r_obj_movereference (&new_result, string);
-				}
-				else
-				{
-					_r_obj_swapreference (&new_result, buffer);
-				}
+				string = _r_str_environmentexpandstring (&buffer->sr);
 
-				// trying to create file
-				if (!_r_fs_exists (new_result->buffer))
-				{
-					hfile = CreateFile (
-						new_result->buffer,
-						GENERIC_WRITE,
-						FILE_SHARE_READ,
-						NULL,
-						OPEN_ALWAYS,
-						FILE_ATTRIBUTE_NORMAL,
-						NULL
-					);
+				if (string)
+					_r_obj_movereference (&buffer, string);
 
-					if (!_r_fs_isvalidhandle (hfile))
+				if (!_r_obj_isstringempty2 (buffer))
+				{
+					if (PathGetDriveNumber (buffer->buffer) == -1)
 					{
-						_r_obj_clearreference (&new_result);
+						string = _r_obj_concatstrings (
+							3,
+							_r_app_getdirectory ()->buffer,
+							L"\\",
+							buffer->buffer
+						);
+
+						_r_obj_movereference (&new_result, string);
 					}
 					else
 					{
-						NtClose (hfile);
+						_r_obj_swapreference (&new_result, buffer);
+					}
+
+					// trying to create file
+					if (!_r_fs_exists (new_result->buffer))
+					{
+						hfile = CreateFile (
+							new_result->buffer,
+							GENERIC_WRITE,
+							FILE_SHARE_READ,
+							NULL,
+							OPEN_ALWAYS,
+							FILE_ATTRIBUTE_NORMAL,
+							NULL
+						);
+
+						if (!_r_fs_isvalidhandle (hfile))
+						{
+							_r_obj_clearreference (&new_result);
+						}
+						else
+						{
+							NtClose (hfile);
+						}
 					}
 				}
-			}
 
-			if (buffer)
 				_r_obj_dereference (buffer);
+			}
 		}
 
 		// get configuration path
-		if (_r_obj_isstringempty (new_result) || !_r_fs_exists (new_result->buffer))
+		if (!new_result || !_r_fs_exists (new_result->buffer))
 		{
 			if (_r_app_isportable ())
 			{
@@ -609,8 +565,6 @@ PR_STRING _r_app_getconfigpath ()
 					_r_app_getnameshort (),
 					L".ini"
 				);
-
-				_r_obj_movereference (&new_result, string);
 			}
 			else
 			{
@@ -618,9 +572,9 @@ PR_STRING _r_app_getconfigpath ()
 					CSIDL_APPDATA,
 					L"\\" APP_AUTHOR L"\\" APP_NAME L"\\" APP_NAME_SHORT L".ini"
 				);
-
-				_r_obj_movereference (&new_result, string);
 			}
+
+			_r_obj_movereference (&new_result, string);
 		}
 
 		cached_result = new_result;
@@ -635,7 +589,7 @@ LPCWSTR _r_app_getcachedirectory ()
 {
 	static WCHAR cached_path[512] = {0};
 
-	if (_r_str_isempty (cached_path))
+	if (_r_str_isempty2 (cached_path))
 	{
 		_r_str_printf (
 			cached_path,
@@ -652,7 +606,7 @@ LPCWSTR _r_app_getcrashdirectory ()
 {
 	static WCHAR cached_path[512] = {0};
 
-	if (_r_str_isempty (cached_path))
+	if (_r_str_isempty2 (cached_path))
 	{
 		_r_str_printf (
 			cached_path,
@@ -765,7 +719,8 @@ PR_STRING _r_app_getprofiledirectory ()
 		}
 		else
 		{
-			_r_obj_dereference (new_path);
+			if (new_path)
+				_r_obj_dereference (new_path);
 		}
 	}
 
@@ -781,12 +736,12 @@ PR_STRING _r_app_getuseragent ()
 	PR_STRING current_agent;
 	PR_STRING new_agent;
 
+	PR_STRING string;
+
 	current_agent = InterlockedCompareExchangePointer (&cached_agent, NULL, NULL);
 
 	if (!current_agent)
 	{
-		PR_STRING string;
-
 		new_agent = _r_config_getstring (L"UserAgent", NULL);
 
 		if (_r_obj_isstringempty (new_agent))
@@ -922,27 +877,15 @@ LRESULT CALLBACK _r_app_maindlgproc (
 			break;
 		}
 
-		case WM_SETTINGCHANGE:
+		case WM_DPICHANGED:
 		{
-			_r_wnd_changesettings (hwnd, wparam, lparam);
+			_r_wnd_message_dpichanged (hwnd, wparam, lparam);
 			break;
 		}
 
-		case WM_DPICHANGED:
+		case WM_SETTINGCHANGE:
 		{
-			R_RECTANGLE rectangle;
-			LPRECT rect;
-
-			rect = (LPRECT)lparam;
-
-			_r_wnd_recttorectangle (&rectangle, rect);
-
-			_r_wnd_setposition (
-				hwnd,
-				&rectangle.position,
-				(_r_wnd_getstyle (hwnd) & WS_SIZEBOX) ? &rectangle.size : NULL
-			);
-
+			_r_wnd_message_settingchange (hwnd, wparam, lparam);
 			break;
 		}
 	}
@@ -953,32 +896,23 @@ LRESULT CALLBACK _r_app_maindlgproc (
 	return CallWindowProc (app_global.main.wnd_proc, hwnd, msg, wparam, lparam);
 }
 
-INT _r_app_getshowcode (
+ULONG _r_app_getshowcode (
 	_In_ HWND hwnd
 )
 {
-	STARTUPINFO startup_info = {0};
-	INT show_code;
+	ULONG show_code;
 	BOOLEAN is_windowhidden;
 
-	show_code = SW_SHOWNORMAL;
 	is_windowhidden = FALSE;
 
-	startup_info.cb = sizeof (startup_info);
-
-	GetStartupInfo (&startup_info);
-
-	if (startup_info.dwFlags & STARTF_USESHOWWINDOW)
-		show_code = startup_info.wShowWindow;
-
-	// if window have tray - check arguments
-#if defined(APP_HAVE_TRAY)
-	if (_r_config_getboolean (L"IsStartMinimized", FALSE) ||
-		_r_sys_getopt (_r_sys_getimagecommandline (), L"minimized", NULL))
+	if (NtCurrentPeb ()->ProcessParameters->WindowFlags & STARTF_USESHOWWINDOW)
 	{
-		is_windowhidden = TRUE;
+		show_code = NtCurrentPeb ()->ProcessParameters->ShowWindowFlags;
 	}
-#endif // APP_HAVE_TRAY
+	else
+	{
+		show_code = SW_SHOWNORMAL;
+	}
 
 	if (show_code == SW_HIDE ||
 		show_code == SW_MINIMIZE ||
@@ -988,10 +922,20 @@ INT _r_app_getshowcode (
 		is_windowhidden = TRUE;
 	}
 
+	// if window have tray - check arguments
+#if defined(APP_HAVE_TRAY)
+	if (!is_windowhidden)
+	{
+		if (_r_config_getboolean (L"IsStartMinimized", FALSE) || _r_sys_getopt (_r_sys_getimagecommandline (), L"minimized", NULL))
+		{
+			is_windowhidden = TRUE;
+		}
+	}
+#endif // APP_HAVE_TRAY
+
 	if (_r_wnd_getstyle (hwnd) & WS_MAXIMIZEBOX)
 	{
-		if (show_code == SW_SHOWMAXIMIZED ||
-			_r_config_getboolean_ex (L"IsMaximized", FALSE, L"window"))
+		if (show_code == SW_SHOWMAXIMIZED || _r_config_getboolean_ex (L"IsMaximized", FALSE, L"window"))
 		{
 			if (is_windowhidden)
 			{
@@ -1026,29 +970,14 @@ HWND _r_app_createwindow (
 
 	_r_str_fromlong64 (locale_version, RTL_NUMBER_OF (locale_version), _r_locale_getversion ());
 
-	_r_update_addcomponent (
-		_r_app_getname (),
-		_r_app_getnameshort (),
-		_r_app_getversion (),
-		_r_app_getdirectory (),
-		TRUE
-	);
-
-	_r_update_addcomponent (
-		L"Language pack",
-		L"language",
-		locale_version,
-		_r_app_getlocalepath (),
-		FALSE
-	);
+	_r_update_addcomponent (_r_app_getname (), _r_app_getnameshort (), _r_app_getversion (), _r_app_getdirectory (), TRUE);
+	_r_update_addcomponent (L"Language pack", L"language", locale_version, _r_app_getlocalepath (), FALSE);
 #endif // APP_HAVE_UPDATES
 
 	HWND hwnd;
 	LONG dpi_value;
-	LONG icon_small_x;
-	LONG icon_small_y;
-	LONG icon_large_x;
-	LONG icon_large_y;
+	LONG icon_small;
+	LONG icon_large;
 
 	// create main window
 	hwnd = _r_wnd_createwindow (hinstance, dlg_name, NULL, dlg_proc, NULL);
@@ -1066,16 +995,13 @@ HWND _r_app_createwindow (
 	{
 		dpi_value = _r_dc_getwindowdpi (hwnd);
 
-		icon_small_x = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
-		icon_small_y = _r_dc_getsystemmetrics (SM_CYSMICON, dpi_value);
-
-		icon_large_x = _r_dc_getsystemmetrics (SM_CXICON, dpi_value);
-		icon_large_y = _r_dc_getsystemmetrics (SM_CYICON, dpi_value);
+		icon_small = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
+		icon_large = _r_dc_getsystemmetrics (SM_CXICON, dpi_value);
 
 		_r_wnd_seticon (
 			hwnd,
-			_r_sys_loadsharedicon (hinstance, icon_name, icon_small_x, icon_small_y),
-			_r_sys_loadsharedicon (hinstance, icon_name, icon_large_x, icon_large_y)
+			_r_sys_loadsharedicon (hinstance, icon_name, icon_small),
+			_r_sys_loadsharedicon (hinstance, icon_name, icon_large)
 		);
 	}
 
@@ -1142,19 +1068,12 @@ BOOLEAN _r_app_runasadmin ()
 		return TRUE;
 #endif // APP_HAVE_SKIPUAC
 
-	if (_r_sys_runasadmin (
-		_r_sys_getimagepath (),
-		_r_sys_getimagecommandline (),
-		_r_sys_getcurrentdirectory ()))
-	{
+	if (_r_sys_runasadmin (_r_sys_getimagepath (), _r_sys_getimagecommandline (), _r_sys_getcurrentdirectory ()))
 		return TRUE;
-	}
 
+	// restore mutex on error
 	if (is_mutexdestroyed)
-	{
-		// restore mutex on error
 		_r_mutex_create (_r_app_getmutexname (), &app_global.main.hmutex);
-	}
 
 	_r_sys_sleep (500); // HACK!!! prevent loop
 
@@ -1166,15 +1085,8 @@ VOID _r_app_restart (_In_opt_ HWND hwnd)
 	HWND hmain;
 	BOOLEAN is_mutexdestroyed;
 
-	if (_r_show_message (
-		hwnd,
-		MB_YESNO | MB_ICONQUESTION,
-		NULL,
-		APP_QUESTION_RESTART
-		) != IDYES)
-	{
+	if (_r_show_message (hwnd, MB_YESNO | MB_ICONQUESTION, NULL, APP_QUESTION_RESTART) != IDYES)
 		return;
-	}
 
 	is_mutexdestroyed = _r_mutex_destroy (&app_global.main.hmutex);
 
@@ -1186,11 +1098,9 @@ VOID _r_app_restart (_In_opt_ HWND hwnd)
 		SW_SHOW,
 		0) != STATUS_SUCCESS)
 	{
+		// restore mutex on error
 		if (is_mutexdestroyed)
-		{
-			// restore mutex on error
 			_r_mutex_create (_r_app_getmutexname (), &app_global.main.hmutex);
-		}
 
 		return;
 	}
@@ -1281,7 +1191,7 @@ LONG _r_config_getlong_ex (
 {
 	WCHAR number_string[64];
 	PR_STRING string;
-	LONG result;
+	LONG value;
 
 	_r_str_fromlong (number_string, RTL_NUMBER_OF (number_string), def_value);
 
@@ -1289,11 +1199,11 @@ LONG _r_config_getlong_ex (
 
 	if (string)
 	{
-		result = _r_str_tolong (&string->sr);
+		value = _r_str_tolong (&string->sr);
 
 		_r_obj_dereference (string);
 
-		return result;
+		return value;
 	}
 
 	return 0;
@@ -1319,7 +1229,7 @@ LONG64 _r_config_getlong64_ex (
 {
 	WCHAR number_string[64];
 	PR_STRING string;
-	LONG64 result;
+	LONG64 value;
 
 	_r_str_fromlong64 (number_string, RTL_NUMBER_OF (number_string), def_value);
 
@@ -1327,11 +1237,11 @@ LONG64 _r_config_getlong64_ex (
 
 	if (string)
 	{
-		result = _r_str_tolong64 (&string->sr);
+		value = _r_str_tolong64 (&string->sr);
 
 		_r_obj_dereference (string);
 
-		return result;
+		return value;
 	}
 
 	return 0;
@@ -1395,7 +1305,7 @@ ULONG64 _r_config_getulong64_ex (
 {
 	WCHAR number_string[64];
 	PR_STRING string;
-	ULONG64 result;
+	ULONG64 value;
 
 	_r_str_fromulong64 (number_string, RTL_NUMBER_OF (number_string), def_value);
 
@@ -1403,11 +1313,11 @@ ULONG64 _r_config_getulong64_ex (
 
 	if (string)
 	{
-		result = _r_str_toulong64 (&string->sr);
+		value = _r_str_toulong64 (&string->sr);
 
 		_r_obj_dereference (string);
 
-		return result;
+		return value;
 	}
 
 	return 0;
@@ -1443,26 +1353,11 @@ VOID _r_config_getfont_ex (
 		_r_obj_initializestringref2 (&remaining_part, font_config);
 
 		// get font face name
-		if (_r_str_splitatchar (
-			&remaining_part,
-			L';',
-			&first_part,
-			&remaining_part))
-		{
-			_r_str_copystring (
-				logfont->lfFaceName,
-				RTL_NUMBER_OF (logfont->lfFaceName),
-				&first_part
-			);
-		}
+		if (_r_str_splitatchar (&remaining_part, L';', &first_part, &remaining_part))
+			_r_str_copystring (logfont->lfFaceName, RTL_NUMBER_OF (logfont->lfFaceName), &first_part);
 
 		// get font size
-		_r_str_splitatchar (
-			&remaining_part,
-			L';',
-			&first_part,
-			&remaining_part
-		);
+		_r_str_splitatchar (&remaining_part, L';', &first_part, &remaining_part);
 
 		font_size = _r_str_tolong (&first_part);
 
@@ -1470,12 +1365,7 @@ VOID _r_config_getfont_ex (
 			logfont->lfHeight = _r_dc_fontsizetoheight (font_size, dpi_value);
 
 		// get font weight
-		_r_str_splitatchar (
-			&remaining_part,
-			L';',
-			&first_part,
-			&remaining_part
-		);
+		_r_str_splitatchar (&remaining_part, L';', &first_part, &remaining_part);
 
 		logfont->lfWeight = _r_str_tolong (&first_part); // weight
 
@@ -1485,15 +1375,12 @@ VOID _r_config_getfont_ex (
 	logfont->lfCharSet = DEFAULT_CHARSET;
 	logfont->lfQuality = DEFAULT_QUALITY;
 
-	if (!_r_str_isempty (logfont->lfFaceName) &&
-		logfont->lfHeight &&
-		logfont->lfWeight)
-	{
+	if (!_r_str_isempty2 (logfont->lfFaceName) && logfont->lfHeight && logfont->lfWeight)
 		return;
-	}
 
 	// fill missed font values
 	RtlZeroMemory (&ncm, sizeof (ncm));
+
 	ncm.cbSize = sizeof (ncm);
 
 #if !defined(APP_NO_DEPRECATIONS)
@@ -1501,15 +1388,11 @@ VOID _r_config_getfont_ex (
 		ncm.cbSize -= sizeof (INT); // xp support
 #endif // !APP_NO_DEPRECATIONS
 
-	if (_r_dc_getsystemparametersinfo (
-		SPI_GETNONCLIENTMETRICS,
-		ncm.cbSize,
-		&ncm,
-		dpi_value))
+	if (_r_dc_getsystemparametersinfo (SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, dpi_value))
 	{
 		system_font = &ncm.lfMessageFont;
 
-		if (_r_str_isempty (logfont->lfFaceName))
+		if (_r_str_isempty2 (logfont->lfFaceName))
 			_r_str_copy (logfont->lfFaceName, LF_FACESIZE, system_font->lfFaceName);
 
 		if (!logfont->lfHeight)
@@ -1704,7 +1587,7 @@ VOID _r_config_setboolean (
 )
 {
 	_r_config_setstring_ex (key_name, value ? L"true" : L"false", NULL);
-};
+}
 
 VOID _r_config_setboolean_ex (
 	_In_ LPCWSTR key_name,
@@ -1993,27 +1876,17 @@ VOID _r_locale_initialize ()
 
 	if (!language_config)
 	{
-		if (app_global.locale.default_name)
-		{
-			_r_obj_movereference (&app_global.locale.current_name, _r_obj_createstring2 (app_global.locale.default_name));
-		}
-		else
-		{
-			_r_obj_clearreference (&app_global.locale.current_name);
-		}
+		_r_obj_swapreference (&app_global.locale.current_name, app_global.locale.default_name);
 	}
 	else
 	{
-		if (_r_str_isstartswith (
-			&language_config->sr,
-			&app_global.locale.resource_name->sr,
-			TRUE))
+		if (_r_str_isstartswith (&language_config->sr, &app_global.locale.resource_name->sr, TRUE))
 		{
-			_r_obj_movereference (&app_global.locale.current_name, _r_obj_createstring2 (app_global.locale.resource_name));
+			_r_obj_swapreference (&app_global.locale.current_name, app_global.locale.resource_name);
 		}
 		else
 		{
-			_r_obj_movereference (&app_global.locale.current_name, _r_obj_createstring2 (language_config));
+			_r_obj_swapreference (&app_global.locale.current_name, language_config);
 		}
 
 		_r_obj_dereference (language_config);
@@ -2065,29 +1938,20 @@ VOID _r_locale_apply (
 			return;
 
 		locale_index = _r_combobox_getitemparam (hwnd, ctrl_id, item_id);
-
 #else
 		return;
-
 #endif // APP_HAVE_SETTINGS
 	}
 
 	if (locale_index == SIZE_MAX)
 	{
-		_r_obj_movereference (&app_global.locale.current_name, _r_obj_createstring2 (app_global.locale.resource_name));
+		_r_obj_swapreference (&app_global.locale.current_name, app_global.locale.resource_name);
 	}
 	else
 	{
 		locale_name = _r_obj_getlistitem (app_global.locale.available_list, locale_index);
 
-		if (locale_name)
-		{
-			_r_obj_movereference (&app_global.locale.current_name, _r_obj_createstring2 (locale_name));
-		}
-		else
-		{
-			_r_obj_clearreference (&app_global.locale.current_name);
-		}
+		_r_obj_swapreference (&app_global.locale.current_name, locale_name);
 	}
 
 	_r_config_setstring (L"Language", _r_obj_getstring (app_global.locale.current_name));
@@ -2974,16 +2838,19 @@ HRESULT CALLBACK _r_update_pagecallback (
 	{
 		case TDN_CREATED:
 		{
+			HWND hparent;
+
 			update_info->htaskdlg = hwnd;
 
 			SendMessage (hwnd, TDM_SET_MARQUEE_PROGRESS_BAR, TRUE, 0);
 			SendMessage (hwnd, TDM_SET_PROGRESS_BAR_MARQUEE, TRUE, 10);
 
+			hparent = GetParent (hwnd);
+
+			_r_wnd_center (hwnd, hparent);
+
 			if (update_info->hparent)
-			{
-				_r_wnd_center (hwnd, update_info->hparent);
 				_r_wnd_top (hwnd, TRUE);
-			}
 
 			break;
 		}
@@ -3098,7 +2965,7 @@ VOID _r_update_navigate (
 
 	tdc.cbSize = sizeof (tdc);
 	tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND | flags;
-	tdc.hwndParent = update_info->hparent;
+	tdc.hwndParent = update_info->hparent ? update_info->hparent : _r_app_gethwnd ();
 	tdc.hInstance = _r_sys_getimagebase ();
 	tdc.dwCommonButtons = buttons;
 	tdc.pfCallback = &_r_update_pagecallback;
@@ -3277,23 +3144,17 @@ FORCEINLINE ULONG _r_log_leveltrayicon (
 	{
 		case LOG_LEVEL_DEBUG:
 		case LOG_LEVEL_INFO:
-		{
 			return NIIF_INFO;
-		}
 
 		case LOG_LEVEL_WARNING:
 			return NIIF_WARNING;
 
 		case LOG_LEVEL_ERROR:
 		case LOG_LEVEL_CRITICAL:
-		{
 			return NIIF_ERROR;
-		}
-
-		default:
-			return NIIF_NONE;
 	}
 
+	return NIIF_NONE;
 }
 
 BOOLEAN _r_log_isenabled (
@@ -3319,7 +3180,7 @@ BOOLEAN _r_log_isenabled (
 _Ret_maybenull_
 HANDLE _r_log_getfilehandle ()
 {
-	static HANDLE cached_hfile = NULL;
+	static HANDLE hfile = NULL;
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 
 	PR_STRING string;
@@ -3335,7 +3196,7 @@ HANDLE _r_log_getfilehandle ()
 
 		if (string)
 		{
-			cached_hfile = CreateFile (
+			hfile = CreateFile (
 				string->buffer,
 				GENERIC_WRITE,
 				FILE_SHARE_READ,
@@ -3345,9 +3206,9 @@ HANDLE _r_log_getfilehandle ()
 				NULL
 			);
 
-			if (!_r_fs_isvalidhandle (cached_hfile))
+			if (!_r_fs_isvalidhandle (hfile))
 			{
-				cached_hfile = NULL;
+				hfile = NULL;
 			}
 			else
 			{
@@ -3356,26 +3217,14 @@ HANDLE _r_log_getfilehandle ()
 					BYTE bom[] = {0xFF, 0xFE};
 
 					// write utf-16 le byte order mask
-					WriteFile (
-						cached_hfile,
-						bom,
-						sizeof (bom),
-						&unused,
-						NULL
-					);
+					WriteFile (hfile, bom, sizeof (bom), &unused, NULL);
 
 					// adds csv header
-					WriteFile (
-						cached_hfile,
-						PR_DEBUG_HEADER,
-						(ULONG)(_r_str_getlength (PR_DEBUG_HEADER) * sizeof (WCHAR)),
-						&unused,
-						NULL
-					);
+					WriteFile (hfile, PR_DEBUG_HEADER, (ULONG)(_r_str_getlength (PR_DEBUG_HEADER) * sizeof (WCHAR)), &unused, NULL);
 				}
 				else
 				{
-					_r_fs_setpos (cached_hfile, 0, FILE_END);
+					_r_fs_setpos (hfile, 0, FILE_END);
 				}
 			}
 		}
@@ -3383,7 +3232,7 @@ HANDLE _r_log_getfilehandle ()
 		_r_initonce_end (&init_once);
 	}
 
-	return cached_hfile;
+	return hfile;
 }
 
 VOID _r_log (
@@ -3435,13 +3284,7 @@ VOID _r_log (
 			NtCurrentPeb ()->OSBuildNumber
 		);
 
-		WriteFile (
-			hfile,
-			error_string->buffer,
-			(ULONG)error_string->length,
-			&unused,
-			NULL
-		);
+		WriteFile (hfile, error_string->buffer, (ULONG)error_string->length, &unused, NULL);
 
 		_r_obj_dereference (error_string);
 	}
@@ -3465,13 +3308,7 @@ VOID _r_log (
 			// check for timeout (sec.)
 			if ((current_timestamp - app_global.error.last_timestamp) > APP_ERROR_PERIOD)
 			{
-				_r_tray_popup (
-					_r_app_gethwnd (),
-					tray_guid,
-					icon_id,
-					_r_app_getname (),
-					APP_WARNING_LOG_TEXT
-				);
+				_r_tray_popup (_r_app_gethwnd (), tray_guid, icon_id, _r_app_getname (), APP_WARNING_LOG_TEXT);
 
 				app_global.error.last_timestamp = current_timestamp;
 			}
@@ -3640,20 +3477,20 @@ VOID _r_show_errormessage (
 	LPCWSTR path;
 	R_STRINGREF sr;
 	PR_STRING string;
-	HINSTANCE hinst;
+	HINSTANCE hinstance;
 	INT command_id;
 	ULONG status;
 
 	if (error_info_ptr && error_info_ptr->hinst)
 	{
-		hinst = error_info_ptr->hinst;
+		hinstance = error_info_ptr->hinst;
 	}
 	else
 	{
-		hinst = GetModuleHandle (L"kernel32.dll");
+		hinstance = GetModuleHandle (L"kernel32.dll");
 	}
 
-	status = _r_sys_formatmessage (error_code, hinst, 0, &string);
+	status = _r_sys_formatmessage (error_code, hinstance, 0, &string);
 
 	if (status == ERROR_MR_MID_NOT_FOUND)
 		_r_sys_formatmessage (error_code, GetModuleHandle (L"ntdll.dll"), 0, &string);
@@ -3985,26 +3822,32 @@ VOID _r_window_saveposition (
 	_In_ LPCWSTR window_name
 )
 {
+	WINDOWPLACEMENT placement;
 	MONITORINFO monitor_info;
 	R_RECTANGLE rectangle;
 	HMONITOR hmonitor;
 	LONG_PTR style;
 	BOOLEAN is_maximized;
 
+	placement.length = sizeof (placement);
+
+	if (!GetWindowPlacement (hwnd, &placement))
+		return;
+
 	style = _r_wnd_getstyle (hwnd);
 
-	is_maximized = _r_wnd_ismaximized (hwnd);
+	is_maximized = (placement.showCmd == SW_MAXIMIZE) || (placement.showCmd == SW_SHOWMINIMIZED);
 
 	if (style & WS_MAXIMIZEBOX)
 		_r_config_setboolean_ex (L"IsMaximized", is_maximized, window_name);
 
-	if (!_r_wnd_getposition (hwnd, &rectangle))
-		return;
+	_r_wnd_recttorectangle (&rectangle, &placement.rcNormalPosition);
 
-	hmonitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTOPRIMARY);
+	hmonitor = MonitorFromRect (&placement.rcNormalPosition, MONITOR_DEFAULTTOPRIMARY);
 
 	monitor_info.cbSize = sizeof (monitor_info);
 
+	// The rectangle is in workspace coordinates. Convert the values back to screen coordinates.
 	if (GetMonitorInfo (hmonitor, &monitor_info))
 	{
 		rectangle.left += monitor_info.rcWork.left - monitor_info.rcMonitor.left;
@@ -4087,6 +3930,10 @@ VOID _r_settings_createwindow (
 	PVOID buffer;
 	PBYTE buffer_ptr;
 
+	R_BYTEREF dlg_buffer;
+	LPDLGTEMPLATEEX dlg_template;
+	PR_SETTINGS_PAGE ptr_page;
+
 	SIZE_T size;
 	WORD controls;
 
@@ -4101,10 +3948,6 @@ VOID _r_settings_createwindow (
 	// calculate maximum dialog size
 	if (_r_initonce_begin (&init_once))
 	{
-		R_BYTEREF dlg_buffer;
-		LPDLGTEMPLATEEX dlg_template;
-		PR_SETTINGS_PAGE ptr_page;
-
 		for (SIZE_T i = 0; i < _r_obj_getarraysize (app_global.settings.page_list); i++)
 		{
 			ptr_page = _r_obj_getarrayitem (app_global.settings.page_list, i);
@@ -4112,14 +3955,8 @@ VOID _r_settings_createwindow (
 			if (!ptr_page->dlg_id)
 				continue;
 
-			if (!_r_res_loadresource (
-				_r_sys_getimagebase (),
-				MAKEINTRESOURCE (ptr_page->dlg_id),
-				RT_DIALOG,
-				&dlg_buffer))
-			{
+			if (!_r_res_loadresource (_r_sys_getimagebase (), MAKEINTRESOURCE (ptr_page->dlg_id), RT_DIALOG, &dlg_buffer))
 				continue;
-			}
 
 			dlg_template = (LPDLGTEMPLATEEX)dlg_buffer.buffer;
 
@@ -4136,7 +3973,6 @@ VOID _r_settings_createwindow (
 		height += 38;
 
 #if defined(APP_HAVE_SETTINGS_TABS)
-
 		width += 18;
 #else
 		width += 112;
@@ -4327,24 +4163,18 @@ INT_PTR CALLBACK _r_settings_wndproc (
 #ifdef IDI_MAIN
 			LONG dpi_value;
 
-			LONG icon_small_x;
-			LONG icon_small_y;
-
-			LONG icon_large_x;
-			LONG icon_large_y;
+			LONG icon_small;
+			LONG icon_large;
 
 			dpi_value = _r_dc_getwindowdpi (hwnd);
 
-			icon_small_x = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
-			icon_small_y = _r_dc_getsystemmetrics (SM_CYSMICON, dpi_value);
-
-			icon_large_x = _r_dc_getsystemmetrics (SM_CXICON, dpi_value);
-			icon_large_y = _r_dc_getsystemmetrics (SM_CYICON, dpi_value);
+			icon_small = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
+			icon_large = _r_dc_getsystemmetrics (SM_CXICON, dpi_value);
 
 			_r_wnd_seticon (
 				hwnd,
-				_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCE (IDI_MAIN), icon_small_x, icon_small_y),
-				_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCE (IDI_MAIN), icon_large_x, icon_large_y)
+				_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCE (IDI_MAIN), icon_small),
+				_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCE (IDI_MAIN), icon_large)
 			);
 #else
 #pragma PR_PRINT_WARNING(IDI_MAIN)
@@ -4531,15 +4361,18 @@ INT_PTR CALLBACK _r_settings_wndproc (
 			break;
 		}
 
-		case WM_SETTINGCHANGE:
+		case WM_DPICHANGED:
 		{
-			_r_wnd_changesettings (hwnd, wparam, lparam);
+			_r_wnd_message_dpichanged (hwnd, wparam, lparam);
+
+			SendMessage (hwnd, RM_LOCALIZE, 0, 0);
+
 			break;
 		}
 
-		case WM_DPICHANGED:
+		case WM_SETTINGCHANGE:
 		{
-			SendMessage (hwnd, RM_LOCALIZE, 0, 0);
+			_r_wnd_message_settingchange (hwnd, wparam, lparam);
 			break;
 		}
 
