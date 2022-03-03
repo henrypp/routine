@@ -4297,14 +4297,19 @@ HRESULT CALLBACK _r_msg_callback (
 	{
 		case TDN_CREATED:
 		{
+			HWND hparent;
 			BOOL is_topmost;
 
+			// center window
+			hparent = GetParent (hwnd);
+
+			_r_wnd_center (hwnd, hparent);
+
+			// set on top
 			is_topmost = HIWORD (lpdata);
 
 			if (is_topmost)
 				_r_wnd_top (hwnd, TRUE);
-
-			_r_wnd_center (hwnd, GetParent (hwnd));
 
 			break;
 		}
@@ -14932,15 +14937,15 @@ VOID _r_ctrl_settablestring (
 	LONG ctrl1_width;
 	LONG ctrl2_width;
 
+	hdc = GetDC (hwnd);
+
+	if (!hdc)
+		return;
+
 	hctrl1 = GetDlgItem (hwnd, ctrl_id1);
 	hctrl2 = GetDlgItem (hwnd, ctrl_id2);
 
 	if (!hctrl1 || !hctrl2)
-		return;
-
-	hdc = GetDC (hwnd);
-
-	if (!hdc)
 		return;
 
 	window_width = _r_ctrl_getwidth (hwnd, 0);
