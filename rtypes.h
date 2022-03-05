@@ -671,8 +671,8 @@ typedef struct _R_CRYPT_CONTEXT
 #define WINDOWS_10_21H2_SERVER 0x0A0D
 #define WINDOWS_11 0x0B00
 #define WINDOWS_11_21H2 WINDOWS_11
-#define WINDOWS_11_22H1 0x0B01 // ???
-#define WINDOWS_11_22H2 0x0B02 // ???
+//#define WINDOWS_11_22H1 0x0B01 // ???
+#define WINDOWS_11_22H2 0x0B01
 
 typedef struct _R_THREAD_CONTEXT
 {

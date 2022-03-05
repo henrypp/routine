@@ -8814,7 +8814,11 @@ ULONG _r_sys_getwindowsversion ()
 			}
 			else if (version_info.dwMajorVersion == 10 && version_info.dwMinorVersion == 0)
 			{
-				if (version_info.dwBuildNumber >= 22000)
+				if (version_info.dwBuildNumber >= 22567)
+				{
+					windows_version = WINDOWS_11_22H2;
+				}
+				else if (version_info.dwBuildNumber >= 22000)
 				{
 					windows_version = WINDOWS_11_21H2;
 				}
