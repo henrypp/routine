@@ -7992,6 +7992,32 @@ ULONG _r_str_x65599 (
 }
 
 //
+// Performance
+//
+
+LONG64 _r_perf_getexecutionstart ()
+{
+	LONG64 current_time;
+
+	current_time = _r_perf_querycounter ();
+
+	return current_time;
+}
+
+DOUBLE _r_perf_getexecutionfinal (
+	_In_ LONG64 start_time
+)
+{
+	LONG64 current_time;
+	LONG64 frequency;
+
+	current_time = _r_perf_querycounter ();
+	frequency = _r_perf_queryfrequency ();
+
+	return ((current_time - start_time) * 1000.0) / frequency / 1000.0;
+}
+
+//
 // System information
 //
 

@@ -2371,6 +2371,48 @@ ULONG _r_str_x65599 (
 #define _r_str_upper RtlUpcaseUnicodeChar
 
 //
+// Performance
+//
+
+FORCEINLINE LONG64 _r_perf_querycounter ()
+{
+	LARGE_INTEGER counter;
+
+#if defined(APP_NO_DEPRECATIONS)
+	// win7+
+	if (!RtlQueryPerformanceCounter (&counter))
+		return 0;
+#else
+	if (!QueryPerformanceCounter (&counter))
+		return 0;
+#endif // APP_NO_DEPRECATIONS
+
+	return counter.QuadPart;
+}
+
+FORCEINLINE LONG64 _r_perf_queryfrequency ()
+{
+	LARGE_INTEGER frequency;
+
+#if defined(APP_NO_DEPRECATIONS)
+	// win7+
+	if (!RtlQueryPerformanceFrequency (&frequency))
+		return 0;
+#else
+	if (!QueryPerformanceFrequency (&frequency))
+		return 0;
+#endif // APP_NO_DEPRECATIONS
+
+	return frequency.QuadPart;
+};
+
+LONG64 _r_perf_getexecutionstart ();
+
+DOUBLE _r_perf_getexecutionfinal (
+	_In_ LONG64 start_time
+);
+
+//
 // System information
 //
 
@@ -2626,28 +2668,6 @@ FORCEINLINE ULONG _r_sys_getprocessorscount ()
 FORCEINLINE HANDLE _r_sys_getstdout ()
 {
 	return NtCurrentPeb ()->ProcessParameters->StandardOutput;
-}
-
-FORCEINLINE LONG64 _r_sys_startexecutiontime ()
-{
-	LARGE_INTEGER frequency;
-
-	if (!QueryPerformanceCounter (&frequency))
-		return 0;
-
-	return frequency.QuadPart;
-}
-
-FORCEINLINE DOUBLE _r_sys_finalexecutiontime (
-	_In_ LONG64 start_time
-)
-{
-	LARGE_INTEGER frequency;
-
-	if (!QueryPerformanceFrequency (&frequency))
-		return 0.0;
-
-	return ((_r_sys_startexecutiontime () - start_time) * 1000.0) / frequency.QuadPart / 1000.0;
 }
 
 //
