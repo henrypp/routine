@@ -1,4 +1,4 @@
-// rlist.h
+// ntrtl.h
 
 #pragma once
 
@@ -13,7 +13,8 @@ FORCEINLINE VOID InitializeListHead (
 	ListHead->Flink = ListHead->Blink = ListHead;
 }
 
-_Check_return_ FORCEINLINE BOOLEAN IsListEmpty (
+_Check_return_
+FORCEINLINE BOOLEAN IsListEmpty (
 	_In_ PLIST_ENTRY ListHead
 )
 {
