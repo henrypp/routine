@@ -1658,14 +1658,7 @@ VOID FASTCALL _r_condition_waitfor (
 
 	while (TRUE)
 	{
-		if (_r_queuedlock_pushwaitblock (
-			condition,
-			value,
-			TRUE,
-			&wait_block,
-			&is_optimize,
-			&value,
-			&current_value))
+		if (_r_queuedlock_pushwaitblock (condition, value, TRUE, &wait_block, &is_optimize, &value, &current_value))
 		{
 			if (is_optimize)
 				_r_queuedlock_optimizelist_ex (condition, current_value, TRUE);
@@ -4335,7 +4328,7 @@ HRESULT CALLBACK _r_msg_callback (
 	}
 
 	return S_OK;
-}
+	}
 
 //
 // Clipboard operations
@@ -5227,7 +5220,7 @@ PR_STRING _r_path_resolvedeviceprefix (
 			{
 				if (!(device_map.Query.DriveMap & (0x01 << i)))
 					continue;
-			}
+		}
 
 			device_name_buffer[4] = L'A' + (WCHAR)i;
 
@@ -5297,8 +5290,8 @@ PR_STRING _r_path_resolvedeviceprefix (
 
 				NtClose (link_handle);
 			}
-		}
 	}
+}
 
 	return NULL;
 }
@@ -8070,7 +8063,7 @@ BOOLEAN _r_sys_isosversiongreaterorequal (
 	windows_version = _r_sys_getwindowsversion ();
 
 	return windows_version >= version;
-}
+	}
 
 BOOLEAN _r_sys_isosversionlower (
 	_In_ ULONG version
@@ -8697,7 +8690,7 @@ ULONG64 _r_sys_gettickcount64 ()
 			break;
 
 		YieldProcessor ();
-	}
+}
 
 #endif
 
@@ -9536,7 +9529,7 @@ HICON _r_sys_loadsharedicon (
 	}
 
 	return hicon;
-}
+	}
 
 _Ret_maybenull_
 PR_STRING _r_sys_querytaginformation (
@@ -9739,7 +9732,7 @@ VOID _r_sys_setprocessenvironment (
 
 		NtSetInformationProcess (process_handle, ProcessPagePriority, &page_priority_info, sizeof (page_priority_info));
 	}
-}
+	}
 
 VOID _r_sys_setthreadenvironment (
 	_In_ HANDLE thread_handle,
@@ -9778,7 +9771,7 @@ VOID _r_sys_setthreadenvironment (
 
 		NtSetInformationThread (thread_handle, ThreadPagePriority, &page_priority_info, sizeof (page_priority_info));
 	}
-}
+	}
 
 _Success_ (return != 0)
 EXECUTION_STATE _r_sys_setthreadexecutionstate (
@@ -10847,7 +10840,7 @@ BOOLEAN _r_filedialog_show (
 		{
 			return !!GetSaveFileName (ofn);
 		}
-	}
+}
 #endif // APP_NO_DEPRECATIONS
 }
 
@@ -10878,7 +10871,7 @@ PR_STRING _r_filedialog_getpath (
 			}
 
 			IShellItem_Release (result);
-		}
+			}
 
 		if (!file_name)
 		{
@@ -10893,7 +10886,7 @@ PR_STRING _r_filedialog_getpath (
 		}
 
 		return file_name;
-	}
+		}
 #if !defined(APP_NO_DEPRECATIONS)
 	else
 	{
@@ -10934,10 +10927,10 @@ VOID _r_filedialog_setpath (
 				SHCreateShellItem (NULL, NULL, item, &shell_item);
 
 				CoTaskMemFree (item);
-			}
+		}
 
 			_r_obj_dereference (directory);
-		}
+}
 
 		if (shell_item)
 		{
@@ -10950,7 +10943,7 @@ VOID _r_filedialog_setpath (
 		{
 			IFileDialog_SetFileName (file_dialog->u.ifd, path);
 		}
-	}
+}
 #if !defined(APP_NO_DEPRECATIONS)
 	else
 	{
@@ -11043,7 +11036,7 @@ VOID _r_filedialog_destroy (
 		_r_mem_free (ofn);
 	}
 #endif // !APP_NO_DEPRECATIONS
-}
+		}
 
 //
 // Window layout
@@ -11934,7 +11927,7 @@ BOOLEAN _r_wnd_isfullscreenwindowmode (
 
 	return !((style & (WS_DLGFRAME | WS_THICKFRAME)) ||
 			 (ex_style & (WS_EX_WINDOWEDGE | WS_EX_TOOLWINDOW)));
-}
+		}
 
 BOOLEAN _r_wnd_isfullscreenmode ()
 {
@@ -14573,7 +14566,7 @@ VOID _r_tray_setversion (
 #endif // APP_NO_DEPRECATIONS
 
 	Shell_NotifyIcon (NIM_SETVERSION, nid);
-}
+	}
 
 BOOLEAN _r_tray_create (
 	_In_ HWND hwnd,
@@ -14756,7 +14749,7 @@ BOOLEAN _r_tray_setinfoformat (
 	_r_obj_dereference (string);
 
 	return status;
-}
+	}
 
 BOOLEAN _r_tray_toggle (
 	_In_ HWND hwnd,
