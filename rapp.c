@@ -4762,7 +4762,10 @@ CleanupExit:
 	return SUCCEEDED (hr);
 }
 
-HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
+HRESULT _r_skipuac_enable (
+	_In_opt_ HWND hwnd,
+	_In_ BOOLEAN is_enable
+)
 {
 #ifndef APP_NO_DEPRECATIONS
 	if (_r_sys_isosversionlower (WINDOWS_VISTA))
