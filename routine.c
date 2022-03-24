@@ -2249,8 +2249,8 @@ PVOID NTAPI _r_mem_allocateandcopy (
 	return base_address;
 }
 
-// // If RtlReAllocateHeap fails, the original memory is not freed, and the original handle and pointer are still valid.
-// // https://docs.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heaprealloc
+// If RtlReAllocateHeap fails, the original memory is not freed, and the original handle and pointer are still valid.
+// https://docs.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heaprealloc
 
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_reallocate (
@@ -4328,7 +4328,7 @@ HRESULT CALLBACK _r_msg_callback (
 	}
 
 	return S_OK;
-	}
+}
 
 //
 // Clipboard operations
@@ -5220,7 +5220,7 @@ PR_STRING _r_path_resolvedeviceprefix (
 			{
 				if (!(device_map.Query.DriveMap & (0x01 << i)))
 					continue;
-		}
+			}
 
 			device_name_buffer[4] = L'A' + (WCHAR)i;
 
@@ -5290,8 +5290,8 @@ PR_STRING _r_path_resolvedeviceprefix (
 
 				NtClose (link_handle);
 			}
+		}
 	}
-}
 
 	return NULL;
 }
@@ -8063,7 +8063,7 @@ BOOLEAN _r_sys_isosversiongreaterorequal (
 	windows_version = _r_sys_getwindowsversion ();
 
 	return windows_version >= version;
-	}
+}
 
 BOOLEAN _r_sys_isosversionlower (
 	_In_ ULONG version
@@ -8690,7 +8690,7 @@ ULONG64 _r_sys_gettickcount64 ()
 			break;
 
 		YieldProcessor ();
-}
+	}
 
 #endif
 
@@ -9529,7 +9529,7 @@ HICON _r_sys_loadsharedicon (
 	}
 
 	return hicon;
-	}
+}
 
 _Ret_maybenull_
 PR_STRING _r_sys_querytaginformation (
@@ -9700,8 +9700,8 @@ VOID _r_sys_setprocessenvironment (
 )
 {
 	IO_PRIORITY_HINT io_priority;
-	PROCESS_PRIORITY_CLASS priority_class = {0};
-	PAGE_PRIORITY_INFORMATION page_priority_info = {0};
+	PROCESS_PRIORITY_CLASS priority_class;
+	PAGE_PRIORITY_INFORMATION page_priority_info;
 
 #if !defined(APP_NO_DEPRECATIONS)
 	if (_r_sys_isosversionlower (WINDOWS_VISTA))
@@ -9732,7 +9732,7 @@ VOID _r_sys_setprocessenvironment (
 
 		NtSetInformationProcess (process_handle, ProcessPagePriority, &page_priority_info, sizeof (page_priority_info));
 	}
-	}
+}
 
 VOID _r_sys_setthreadenvironment (
 	_In_ HANDLE thread_handle,
@@ -9741,7 +9741,7 @@ VOID _r_sys_setthreadenvironment (
 {
 	LONG base_priority;
 	IO_PRIORITY_HINT io_priority;
-	PAGE_PRIORITY_INFORMATION page_priority_info = {0};
+	PAGE_PRIORITY_INFORMATION page_priority_info;
 
 #if !defined(APP_NO_DEPRECATIONS)
 	if (_r_sys_isosversionlower (WINDOWS_VISTA))
@@ -9771,7 +9771,7 @@ VOID _r_sys_setthreadenvironment (
 
 		NtSetInformationThread (thread_handle, ThreadPagePriority, &page_priority_info, sizeof (page_priority_info));
 	}
-	}
+}
 
 _Success_ (return != 0)
 EXECUTION_STATE _r_sys_setthreadexecutionstate (
@@ -10840,7 +10840,7 @@ BOOLEAN _r_filedialog_show (
 		{
 			return !!GetSaveFileName (ofn);
 		}
-}
+	}
 #endif // APP_NO_DEPRECATIONS
 }
 
@@ -10871,7 +10871,7 @@ PR_STRING _r_filedialog_getpath (
 			}
 
 			IShellItem_Release (result);
-			}
+		}
 
 		if (!file_name)
 		{
@@ -10886,7 +10886,7 @@ PR_STRING _r_filedialog_getpath (
 		}
 
 		return file_name;
-		}
+	}
 #if !defined(APP_NO_DEPRECATIONS)
 	else
 	{
@@ -10927,10 +10927,10 @@ VOID _r_filedialog_setpath (
 				SHCreateShellItem (NULL, NULL, item, &shell_item);
 
 				CoTaskMemFree (item);
-		}
+			}
 
 			_r_obj_dereference (directory);
-}
+		}
 
 		if (shell_item)
 		{
@@ -10943,7 +10943,7 @@ VOID _r_filedialog_setpath (
 		{
 			IFileDialog_SetFileName (file_dialog->u.ifd, path);
 		}
-}
+	}
 #if !defined(APP_NO_DEPRECATIONS)
 	else
 	{
@@ -11036,7 +11036,7 @@ VOID _r_filedialog_destroy (
 		_r_mem_free (ofn);
 	}
 #endif // !APP_NO_DEPRECATIONS
-		}
+}
 
 //
 // Window layout
@@ -11927,7 +11927,7 @@ BOOLEAN _r_wnd_isfullscreenwindowmode (
 
 	return !((style & (WS_DLGFRAME | WS_THICKFRAME)) ||
 			 (ex_style & (WS_EX_WINDOWEDGE | WS_EX_TOOLWINDOW)));
-		}
+}
 
 BOOLEAN _r_wnd_isfullscreenmode ()
 {
@@ -12495,7 +12495,11 @@ ULONG _r_inet_openurl (
 	if (total_length_ptr)
 		*total_length_ptr = 0;
 
-	status = _r_inet_queryurlparts (url, PR_URLPARTS_SCHEME | PR_URLPARTS_HOST | PR_URLPARTS_PORT | PR_URLPARTS_PATH, &url_parts);
+	status = _r_inet_queryurlparts (
+		url,
+		PR_URLPARTS_SCHEME | PR_URLPARTS_HOST | PR_URLPARTS_PORT | PR_URLPARTS_PATH,
+		&url_parts
+	);
 
 	if (status != ERROR_SUCCESS)
 		goto CleanupExit;
@@ -14566,7 +14570,7 @@ VOID _r_tray_setversion (
 #endif // APP_NO_DEPRECATIONS
 
 	Shell_NotifyIcon (NIM_SETVERSION, nid);
-	}
+}
 
 BOOLEAN _r_tray_create (
 	_In_ HWND hwnd,
@@ -14749,7 +14753,7 @@ BOOLEAN _r_tray_setinfoformat (
 	_r_obj_dereference (string);
 
 	return status;
-	}
+}
 
 BOOLEAN _r_tray_toggle (
 	_In_ HWND hwnd,
