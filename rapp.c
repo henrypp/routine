@@ -4862,11 +4862,7 @@ HRESULT _r_skipuac_enable (_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
 		}
 
 		// Set task settings (win7+)
-		hr = ITaskSettings_QueryInterface (
-			task_settings,
-			&IID_ITaskSettings2,
-			&task_settings2
-		);
+		hr = ITaskSettings_QueryInterface (task_settings, &IID_ITaskSettings2, &task_settings2);
 
 		if (SUCCEEDED (hr))
 		{
@@ -5076,7 +5072,7 @@ BOOLEAN _r_skipuac_run ()
 		LocalFree (arga);
 	}
 
-	if (!_r_str_isempty (arguments))
+	if (!_r_str_isempty2 (arguments))
 	{
 		task_args = SysAllocString (arguments);
 
@@ -5102,7 +5098,7 @@ BOOLEAN _r_skipuac_run ()
 
 	hr = E_ABORT;
 
-	// check if run succesfull
+	// check if started succesfull
 	attempts = 6;
 
 	do
@@ -5113,9 +5109,10 @@ BOOLEAN _r_skipuac_run ()
 		{
 			if (state == TASK_STATE_DISABLED)
 			{
+				hr = SCHED_S_TASK_DISABLED;
 				break;
 			}
-			else if (state == TASK_STATE_RUNNING || state == TASK_STATE_UNKNOWN)
+			else if (state == TASK_STATE_RUNNING)
 			{
 				hr = S_OK;
 				break;
