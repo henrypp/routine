@@ -503,7 +503,7 @@ typedef enum _PROCESSINFOCLASS
 	ProcessHandleTracing, // q: PROCESS_HANDLE_TRACING_QUERY; s: size 0 disables, otherwise enables
 	ProcessIoPriority, // qs: IO_PRIORITY_HINT
 	ProcessExecuteFlags, // qs: ULONG
-	ProcessTlsInformation, // PROCESS_TLS_INFORMATION // ProcessResourceManagement 
+	ProcessTlsInformation, // PROCESS_TLS_INFORMATION // ProcessResourceManagement
 	ProcessCookie, // q: ULONG
 	ProcessImageInformation, // q: SECTION_IMAGE_INFORMATION
 	ProcessCycleTime, // q: PROCESS_CYCLE_TIME_INFORMATION // since VISTA
