@@ -7042,6 +7042,28 @@ NTSTATUS _r_str_toguid (
 	return status;
 }
 
+_Ret_maybenull_
+PR_BYTE _r_str_tosid (
+	_In_ PR_STRING sid_string
+)
+{
+	PR_BYTE bytes;
+	PSID sid;
+	ULONG length;
+
+	if (!ConvertStringSidToSid (sid_string->buffer, &sid))
+		return NULL;
+
+	length = RtlLengthSid (sid);
+	bytes = _r_obj_createbyte_ex (NULL, length);
+
+	RtlCopyMemory (bytes->buffer, sid, length);
+
+	LocalFree (sid);
+
+	return bytes;
+}
+
 BOOLEAN _r_str_toboolean (
 	_In_ PR_STRINGREF string
 )
@@ -8575,6 +8597,70 @@ BOOLEAN _r_sys_getopt (
 	return is_namefound;
 }
 
+_Success_ (return == ERROR_SUCCESS)
+LONG _r_sys_getpackagepath (
+	_In_ PR_STRING package_full_name,
+	_Out_ PR_STRING_PTR out_buffer
+)
+{
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static GSPPBF _GetStagedPackagePathByFullName = NULL;
+
+	HINSTANCE hkernel32;
+	PR_STRING string;
+	UINT32 length;
+	LONG status;
+
+	if (_r_initonce_begin (&init_once))
+	{
+		hkernel32 = _r_sys_loadlibrary (L"kernel32.dll");
+
+		if (hkernel32)
+		{
+			// win81+
+			_GetStagedPackagePathByFullName = (GSPPBF)GetProcAddress (hkernel32, "GetStagedPackagePathByFullName");
+
+			FreeLibrary (hkernel32);
+		}
+
+		_r_initonce_end (&init_once);
+	}
+
+	if (!_GetStagedPackagePathByFullName)
+	{
+		*out_buffer = NULL;
+
+		return ERROR_NOT_SUPPORTED;
+	}
+
+	length = 0;
+	status = _GetStagedPackagePathByFullName (package_full_name->buffer, &length, NULL);
+
+	if (status != ERROR_INSUFFICIENT_BUFFER)
+	{
+		*out_buffer = NULL;
+
+		return status;
+	}
+
+	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
+
+	status = _GetStagedPackagePathByFullName (package_full_name->buffer, &length, string->buffer);
+
+	if (status == ERROR_SUCCESS)
+	{
+		*out_buffer = string;
+	}
+	else
+	{
+		*out_buffer = NULL;
+
+		_r_obj_dereference (string);
+	}
+
+	return status;
+}
+
 _Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_sys_getservicesid (
 	_In_ PR_STRINGREF name,
@@ -10021,253 +10107,6 @@ HICON _r_dc_bitmaptoicon (
 	return hicon;
 }
 
-_Ret_maybenull_
-HBITMAP _r_dc_imagetobitmap (
-	_In_ LPCGUID format,
-	_In_ WICInProcPointer buffer,
-	_In_ ULONG buffer_length,
-	_In_ LONG x,
-	_In_ LONG y
-)
-{
-	BITMAPINFO bmi = {0};
-
-	HDC hdc = NULL;
-	HDC hdc_buffer = NULL;
-	HBITMAP hbitmap = NULL;
-	PVOID bitmap_buffer;
-
-	IWICStream *wicStream = NULL;
-	IWICBitmapSource *wicBitmapSource = NULL;
-	IWICBitmapDecoder *wicDecoder = NULL;
-	IWICBitmapFrameDecode *wicFrame = NULL;
-	IWICImagingFactory2 *wicFactory = NULL;
-	IWICFormatConverter *wicFormatConverter = NULL;
-	IWICBitmapScaler *wicScaler = NULL;
-	WICPixelFormatGUID pixelFormat;
-	WICRect rect = {0};
-	UINT frame_count;
-
-	HRESULT hr;
-
-	// Create the ImagingFactory (win8+)
-	hr = CoCreateInstance (&CLSID_WICImagingFactory2, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory2, &wicFactory);
-
-	if (FAILED (hr))
-	{
-		// winxp+
-		hr = CoCreateInstance (&CLSID_WICImagingFactory1, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory, &wicFactory);
-
-		if (FAILED (hr))
-			goto CleanupExit;
-	}
-
-	// Create the Stream
-	hr = IWICImagingFactory_CreateStream (
-		wicFactory,
-		&wicStream
-	);
-
-	if (FAILED (hr))
-		goto CleanupExit;
-
-	// Initialize the Stream from Memory
-	hr = IWICStream_InitializeFromMemory (
-		wicStream,
-		buffer,
-		buffer_length
-	);
-
-	if (FAILED (hr))
-		goto CleanupExit;
-
-	hr = IWICImagingFactory_CreateDecoder (
-		wicFactory,
-		format,
-		NULL,
-		&wicDecoder
-	);
-
-	if (FAILED (hr))
-		goto CleanupExit;
-
-	hr = IWICBitmapDecoder_Initialize (
-		wicDecoder,
-		(IStream *)wicStream,
-		WICDecodeMetadataCacheOnLoad
-	);
-
-	if (FAILED (hr))
-		goto CleanupExit;
-
-	// Get the Frame count
-	hr = IWICBitmapDecoder_GetFrameCount (
-		wicDecoder,
-		&frame_count
-	);
-
-	if (FAILED (hr) || frame_count < 1)
-		goto CleanupExit;
-
-	// Get the Frame
-	hr = IWICBitmapDecoder_GetFrame (
-		wicDecoder,
-		0,
-		&wicFrame
-	);
-
-	if (FAILED (hr))
-		goto CleanupExit;
-
-	// Get the WicFrame image format
-	hr = IWICBitmapFrameDecode_GetPixelFormat (
-		wicFrame,
-		&pixelFormat
-	);
-
-	if (FAILED (hr))
-		goto CleanupExit;
-
-	// Check if the image format is supported:
-	if (IsEqualGUID (&pixelFormat, &GUID_WICPixelFormat32bppPRGBA))
-	{
-		wicBitmapSource = (IWICBitmapSource *)wicFrame;
-	}
-	else
-	{
-		hr = IWICImagingFactory_CreateFormatConverter (
-			wicFactory,
-			&wicFormatConverter
-		);
-
-		if (FAILED (hr))
-			goto CleanupExit;
-
-		hr = IWICFormatConverter_Initialize (
-			wicFormatConverter,
-			(IWICBitmapSource *)wicFrame,
-			&GUID_WICPixelFormat32bppPBGRA,
-			WICBitmapDitherTypeNone,
-			NULL,
-			0.0,
-			WICBitmapPaletteTypeCustom
-		);
-
-		if (FAILED (hr))
-			goto CleanupExit;
-
-		// Convert the image to the correct format.
-		IWICFormatConverter_QueryInterface (
-			wicFormatConverter,
-			&IID_IWICBitmapSource,
-			&wicBitmapSource
-		);
-
-		// Cleanup the converter.
-		IWICFormatConverter_Release (wicFormatConverter);
-
-		// Dispose the old frame now that the converted frame is in wicBitmapSource.
-		IWICBitmapFrameDecode_Release (wicFrame);
-	}
-
-	bmi.bmiHeader.biSize = sizeof (BITMAPINFOHEADER);
-	bmi.bmiHeader.biWidth = x;
-	bmi.bmiHeader.biHeight = -(y);
-	bmi.bmiHeader.biPlanes = 1;
-	bmi.bmiHeader.biBitCount = 32;
-	bmi.bmiHeader.biCompression = BI_RGB;
-
-	hdc = GetDC (NULL);
-
-	if (!hdc)
-	{
-		hr = E_FAIL;
-		goto CleanupExit;
-	}
-
-	hdc_buffer = CreateCompatibleDC (hdc);
-
-	if (!hdc_buffer)
-	{
-		hr = E_FAIL;
-		goto CleanupExit;
-	}
-
-	hbitmap = CreateDIBSection (hdc, &bmi, DIB_RGB_COLORS, &bitmap_buffer, NULL, 0);
-
-	if (!hbitmap)
-	{
-		hr = E_FAIL;
-		goto CleanupExit;
-	}
-
-	hr = IWICImagingFactory_CreateBitmapScaler (
-		wicFactory,
-		&wicScaler
-	);
-
-	if (FAILED (hr))
-		goto CleanupExit;
-
-	hr = IWICBitmapScaler_Initialize (
-		wicScaler,
-		wicBitmapSource,
-		x,
-		y,
-		WICBitmapInterpolationModeFant
-	);
-
-	if (FAILED (hr))
-		goto CleanupExit;
-
-	rect.Width = x;
-	rect.Height = y;
-
-	hr = IWICBitmapScaler_CopyPixels (
-		wicScaler,
-		&rect,
-		x * 4,
-		x * y * 4,
-		(PBYTE)bitmap_buffer
-	);
-
-	if (FAILED (hr))
-		goto CleanupExit;
-
-CleanupExit:
-
-	if (hdc_buffer)
-		DeleteDC (hdc_buffer);
-
-	if (hdc)
-		ReleaseDC (NULL, hdc);
-
-	if (wicScaler)
-		IWICBitmapScaler_Release (wicScaler);
-
-	if (wicBitmapSource)
-		IWICBitmapSource_Release (wicBitmapSource);
-
-	if (wicStream)
-		IWICStream_Release (wicStream);
-
-	if (wicDecoder)
-		IWICBitmapDecoder_Release (wicDecoder);
-
-	if (wicFactory)
-		IWICImagingFactory_Release (wicFactory);
-
-	if (FAILED (hr))
-	{
-		if (hbitmap)
-			DeleteObject (hbitmap);
-
-		return NULL;
-	}
-
-	return hbitmap;
-}
-
 BOOLEAN _r_dc_drawwindow (
 	_In_ HDC hdc,
 	_In_ HWND hwnd,
@@ -10348,45 +10187,6 @@ BOOLEAN _r_dc_drawimagelisticon (
 	return !!ImageList_DrawIndirect (&ildp);
 }
 
-_Success_ (return)
-BOOLEAN _r_dc_getsystemparametersinfo (
-	_In_ UINT action,
-	_In_ UINT param1,
-	_Pre_maybenull_ _Post_valid_ PVOID param2,
-	_In_ LONG dpi_value
-)
-{
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static SPIFP _SystemParametersInfoForDpi = NULL;
-
-	HINSTANCE huser32;
-
-	// initialize library calls
-	if (_r_initonce_begin (&init_once))
-	{
-		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1607))
-		{
-			huser32 = _r_sys_loadlibrary (L"user32.dll");
-
-			if (huser32)
-			{
-				// win10rs1+
-				_SystemParametersInfoForDpi = (SPIFP)GetProcAddress (huser32, "SystemParametersInfoForDpi");
-
-				FreeLibrary (huser32);
-			}
-		}
-
-		_r_initonce_end (&init_once);
-	}
-
-	// win10rs1+
-	if (_SystemParametersInfoForDpi)
-		return !!_SystemParametersInfoForDpi (action, param1, param2, 0, dpi_value);
-
-	return !!SystemParametersInfo (action, param1, param2, 0);
-}
-
 // Optimized version of WinAPI function "FillRect"
 VOID _r_dc_fillrect (
 	_In_ HDC hdc,
@@ -10401,6 +10201,47 @@ VOID _r_dc_fillrect (
 	ExtTextOut (hdc, 0, 0, ETO_OPAQUE, rect, NULL, 0, NULL);
 
 	SetBkColor (hdc, clr_prev);
+}
+
+VOID _r_dc_fixcontrolfont (
+	_In_ HDC hdc,
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id
+)
+{
+	HFONT hfont;
+
+	hfont = (HFONT)SendDlgItemMessage (hwnd, ctrl_id, WM_GETFONT, 0, 0);
+
+	SelectObject (hdc, hfont);
+}
+
+VOID _r_dc_fixwindowfont (
+	_In_ HDC hdc,
+	_In_ HWND hwnd
+)
+{
+	HFONT hfont;
+
+	hfont = (HFONT)SendMessage (hwnd, WM_GETFONT, 0, 0);
+
+	SelectObject (hdc, hfont);
+}
+
+LONG _r_dc_fontsizetoheight (
+	_In_ LONG size,
+	_In_ LONG dpi_value
+)
+{
+	return -_r_calc_multipledividesigned (size, dpi_value, 72);
+}
+
+LONG _r_dc_fontheighttosize (
+	_In_ LONG height,
+	_In_ LONG dpi_value
+)
+{
+	return _r_calc_multipledividesigned (-height, 72, dpi_value);
 }
 
 COLORREF _r_dc_getcoloraccent ()
@@ -10484,26 +10325,45 @@ COLORREF _r_dc_getcolorshade (
 	return RGB (r, g, b);
 }
 
+VOID _r_dc_getdefaultfont (
+	_Inout_ PLOGFONT logfont,
+	_In_ LONG dpi_value,
+	_In_ BOOLEAN is_forced
+)
+{
+	NONCLIENTMETRICS ncm;
+	PLOGFONT system_font;
+
+	RtlZeroMemory (&ncm, sizeof (ncm));
+
+	ncm.cbSize = sizeof (ncm);
+
+#if !defined(APP_NO_DEPRECATIONS)
+	if (_r_sys_isosversionlower (WINDOWS_VISTA))
+		ncm.cbSize -= sizeof (INT); // xp support
+#endif // !APP_NO_DEPRECATIONS
+
+	if (!_r_dc_getsystemparametersinfo (SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, dpi_value))
+		return;
+
+	system_font = &ncm.lfMessageFont;
+
+	if (is_forced || _r_str_isempty2 (logfont->lfFaceName))
+		_r_str_copy (logfont->lfFaceName, LF_FACESIZE, system_font->lfFaceName);
+
+	if (is_forced || !logfont->lfHeight)
+		logfont->lfHeight = system_font->lfHeight;
+
+	if (is_forced || !logfont->lfWeight)
+		logfont->lfWeight = system_font->lfWeight;
+}
+
 LONG _r_dc_getdpi (
 	_In_ LONG number,
 	_In_ LONG dpi_value
 )
 {
 	return _r_calc_multipledividesigned (number, dpi_value, USER_DEFAULT_SCREEN_DPI);
-}
-
-LONG _r_dc_getwindowdpi (
-	_In_ HWND hwnd
-)
-{
-	return _r_dc_getdpivalue (hwnd, NULL);
-}
-
-LONG _r_dc_getmonitordpi (
-	_In_ LPCRECT rect
-)
-{
-	return _r_dc_getdpivalue (NULL, rect);
 }
 
 LONG _r_dc_getdpivalue (
@@ -10606,18 +10466,6 @@ LONG _r_dc_getdpivalue (
 	return USER_DEFAULT_SCREEN_DPI;
 }
 
-LONG _r_dc_gettaskbardpi ()
-{
-	APPBARDATA taskbar_rect = {0};
-
-	taskbar_rect.cbSize = sizeof (APPBARDATA);
-
-	if (SHAppBarMessage (ABM_GETTASKBARPOS, &taskbar_rect))
-		return _r_dc_getmonitordpi (&taskbar_rect.rc);
-
-	return _r_dc_getdpivalue (NULL, NULL);
-}
-
 _Success_ (return != 0)
 LONG _r_dc_getfontwidth (
 	_In_ HDC hdc,
@@ -10630,6 +10478,13 @@ LONG _r_dc_getfontwidth (
 		return 0;
 
 	return size.cx;
+}
+
+LONG _r_dc_getmonitordpi (
+	_In_ LPCRECT rect
+)
+{
+	return _r_dc_getdpivalue (NULL, rect);
 }
 
 VOID _r_dc_getsizedpivalue (
@@ -10695,45 +10550,300 @@ LONG _r_dc_getsystemmetrics (
 	return GetSystemMetrics (index);
 }
 
-VOID _r_dc_fixcontrolfont (
-	_In_ HDC hdc,
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+_Success_ (return)
+BOOLEAN _r_dc_getsystemparametersinfo (
+	_In_ UINT action,
+	_In_ UINT param1,
+	_Pre_maybenull_ _Post_valid_ PVOID param2,
+	_In_ LONG dpi_value
 )
 {
-	HFONT hfont;
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static SPIFP _SystemParametersInfoForDpi = NULL;
 
-	hfont = (HFONT)SendDlgItemMessage (hwnd, ctrl_id, WM_GETFONT, 0, 0);
+	HINSTANCE huser32;
 
-	SelectObject (hdc, hfont);
+	// initialize library calls
+	if (_r_initonce_begin (&init_once))
+	{
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1607))
+		{
+			huser32 = _r_sys_loadlibrary (L"user32.dll");
+
+			if (huser32)
+			{
+				// win10rs1+
+				_SystemParametersInfoForDpi = (SPIFP)GetProcAddress (huser32, "SystemParametersInfoForDpi");
+
+				FreeLibrary (huser32);
+			}
+		}
+
+		_r_initonce_end (&init_once);
+	}
+
+	// win10rs1+
+	if (_SystemParametersInfoForDpi)
+		return !!_SystemParametersInfoForDpi (action, param1, param2, 0, dpi_value);
+
+	return !!SystemParametersInfo (action, param1, param2, 0);
 }
 
-VOID _r_dc_fixwindowfont (
-	_In_ HDC hdc,
+LONG _r_dc_gettaskbardpi ()
+{
+	APPBARDATA taskbar_rect = {0};
+
+	taskbar_rect.cbSize = sizeof (APPBARDATA);
+
+	if (SHAppBarMessage (ABM_GETTASKBARPOS, &taskbar_rect))
+		return _r_dc_getmonitordpi (&taskbar_rect.rc);
+
+	return _r_dc_getdpivalue (NULL, NULL);
+}
+
+LONG _r_dc_getwindowdpi (
 	_In_ HWND hwnd
 )
 {
-	HFONT hfont;
-
-	hfont = (HFONT)SendMessage (hwnd, WM_GETFONT, 0, 0);
-
-	SelectObject (hdc, hfont);
+	return _r_dc_getdpivalue (hwnd, NULL);
 }
 
-LONG _r_dc_fontheighttosize (
-	_In_ LONG height,
-	_In_ LONG dpi_value
+_Ret_maybenull_
+HBITMAP _r_dc_imagetobitmap (
+	_In_ LPCGUID format,
+	_In_ WICInProcPointer buffer,
+	_In_ ULONG buffer_length,
+	_In_ LONG x,
+	_In_ LONG y
 )
 {
-	return _r_calc_multipledividesigned (-height, 72, dpi_value);
+	BITMAPINFO bmi = {0};
+
+	HDC hdc = NULL;
+	HDC hdc_buffer = NULL;
+	HBITMAP hbitmap = NULL;
+	PVOID bitmap_buffer = NULL;
+
+	IWICStream *wicStream = NULL;
+	IWICBitmapSource *wicBitmapSource = NULL;
+	IWICBitmapDecoder *wicDecoder = NULL;
+	IWICBitmapFrameDecode *wicFrame = NULL;
+	IWICImagingFactory2 *wicFactory = NULL;
+	IWICFormatConverter *wicFormatConverter = NULL;
+	IWICBitmapScaler *wicScaler = NULL;
+	WICPixelFormatGUID pixelFormat;
+	WICRect rect = {0};
+	UINT frame_count;
+
+	HRESULT hr;
+
+	// Create the ImagingFactory (win8+)
+	hr = CoCreateInstance (
+		&CLSID_WICImagingFactory2,
+		NULL,
+		CLSCTX_INPROC_SERVER,
+		&IID_IWICImagingFactory2,
+		&wicFactory
+	);
+
+	if (FAILED (hr))
+	{
+		// winxp+
+		hr = CoCreateInstance (
+			&CLSID_WICImagingFactory1,
+			NULL,
+			CLSCTX_INPROC_SERVER,
+			&IID_IWICImagingFactory,
+			&wicFactory
+		);
+
+		if (FAILED (hr))
+			goto CleanupExit;
+	}
+
+	// Create the Stream
+	hr = IWICImagingFactory_CreateStream (wicFactory, &wicStream);
+
+	if (FAILED (hr))
+		goto CleanupExit;
+
+	// Initialize the Stream from Memory
+	hr = IWICStream_InitializeFromMemory (wicStream, buffer, buffer_length);
+
+	if (FAILED (hr))
+		goto CleanupExit;
+
+	hr = IWICImagingFactory_CreateDecoder (wicFactory, format, NULL, &wicDecoder);
+
+	if (FAILED (hr))
+		goto CleanupExit;
+
+	hr = IWICBitmapDecoder_Initialize (wicDecoder, (IStream *)wicStream, WICDecodeMetadataCacheOnLoad);
+
+	if (FAILED (hr))
+		goto CleanupExit;
+
+	// Get the Frame count
+	hr = IWICBitmapDecoder_GetFrameCount (wicDecoder, &frame_count);
+
+	if (FAILED (hr) || frame_count < 1)
+		goto CleanupExit;
+
+	// Get the Frame
+	hr = IWICBitmapDecoder_GetFrame (wicDecoder, 0, &wicFrame);
+
+	if (FAILED (hr))
+		goto CleanupExit;
+
+	// Get the WicFrame image format
+	hr = IWICBitmapFrameDecode_GetPixelFormat (wicFrame, &pixelFormat);
+
+	if (FAILED (hr))
+		goto CleanupExit;
+
+	// Check if the image format is supported:
+	if (IsEqualGUID (&pixelFormat, &GUID_WICPixelFormat32bppPRGBA))
+	{
+		wicBitmapSource = (IWICBitmapSource *)wicFrame;
+	}
+	else
+	{
+		hr = IWICImagingFactory_CreateFormatConverter (wicFactory, &wicFormatConverter);
+
+		if (FAILED (hr))
+			goto CleanupExit;
+
+		hr = IWICFormatConverter_Initialize (
+			wicFormatConverter,
+			(IWICBitmapSource *)wicFrame,
+			&GUID_WICPixelFormat32bppPBGRA,
+			WICBitmapDitherTypeNone,
+			NULL,
+			0.0,
+			WICBitmapPaletteTypeCustom
+		);
+
+		if (FAILED (hr))
+			goto CleanupExit;
+
+		// Convert the image to the correct format.
+		IWICFormatConverter_QueryInterface (
+			wicFormatConverter,
+			&IID_IWICBitmapSource,
+			&wicBitmapSource
+		);
+
+		// Cleanup the converter.
+		IWICFormatConverter_Release (wicFormatConverter);
+
+		// Dispose the old frame now that the converted frame is in wicBitmapSource.
+		IWICBitmapFrameDecode_Release (wicFrame);
+	}
+
+	bmi.bmiHeader.biSize = sizeof (BITMAPINFOHEADER);
+	bmi.bmiHeader.biWidth = x;
+	bmi.bmiHeader.biHeight = -(y);
+	bmi.bmiHeader.biPlanes = 1;
+	bmi.bmiHeader.biBitCount = 32;
+	bmi.bmiHeader.biCompression = BI_RGB;
+
+	hdc = GetDC (NULL);
+
+	if (!hdc)
+	{
+		hr = E_FAIL;
+		goto CleanupExit;
+	}
+
+	hdc_buffer = CreateCompatibleDC (hdc);
+
+	if (!hdc_buffer)
+	{
+		hr = E_FAIL;
+		goto CleanupExit;
+	}
+
+	hbitmap = CreateDIBSection (hdc, &bmi, DIB_RGB_COLORS, &bitmap_buffer, NULL, 0);
+
+	if (!hbitmap)
+	{
+		hr = E_FAIL;
+		goto CleanupExit;
+	}
+
+	hr = IWICImagingFactory_CreateBitmapScaler (wicFactory, &wicScaler);
+
+	if (FAILED (hr))
+		goto CleanupExit;
+
+	hr = IWICBitmapScaler_Initialize (wicScaler, wicBitmapSource, x, y, WICBitmapInterpolationModeFant);
+
+	if (FAILED (hr))
+		goto CleanupExit;
+
+	rect.Width = x;
+	rect.Height = y;
+
+	hr = IWICBitmapScaler_CopyPixels (
+		wicScaler,
+		&rect,
+		x * 4,
+		x * y * 4,
+		(PBYTE)bitmap_buffer
+	);
+
+	if (FAILED (hr))
+		goto CleanupExit;
+
+CleanupExit:
+
+	if (hdc_buffer)
+		DeleteDC (hdc_buffer);
+
+	if (hdc)
+		ReleaseDC (NULL, hdc);
+
+	if (wicScaler)
+		IWICBitmapScaler_Release (wicScaler);
+
+	if (wicBitmapSource)
+		IWICBitmapSource_Release (wicBitmapSource);
+
+	if (wicStream)
+		IWICStream_Release (wicStream);
+
+	if (wicDecoder)
+		IWICBitmapDecoder_Release (wicDecoder);
+
+	if (wicFactory)
+		IWICImagingFactory_Release (wicFactory);
+
+	if (FAILED (hr))
+	{
+		if (hbitmap)
+			DeleteObject (hbitmap);
+
+		return NULL;
+	}
+
+	return hbitmap;
 }
 
-LONG _r_dc_fontsizetoheight (
-	_In_ LONG size,
-	_In_ LONG dpi_value
+BOOLEAN _r_dc_isfontexists (
+	_In_ PLOGFONT logfont
 )
 {
-	return -_r_calc_multipledividesigned (size, dpi_value, 72);
+	HDC hdc;
+	INT result;
+
+	hdc = GetDC (NULL);
+
+	result = EnumFontFamiliesEx (hdc, logfont, &_r_util_enum_font_callback, (LPARAM)logfont, 0);
+
+	if (hdc)
+		ReleaseDC (NULL, hdc);
+
+	return !(result != 0);
 }
 
 //
@@ -16453,6 +16563,31 @@ BOOL CALLBACK _r_util_activate_window_callback (
 			_r_wnd_toggle (hwnd, TRUE);
 			return FALSE;
 		}
+	}
+
+	return TRUE;
+}
+
+INT CALLBACK _r_util_enum_font_callback (
+	_In_ const LOGFONT * logfont,
+	_In_ const TEXTMETRIC * textmetric,
+	_In_ DWORD font_type,
+	_In_ LPARAM lparam
+)
+{
+	PLOGFONT logfont_req;
+
+	logfont_req = (PLOGFONT)lparam;
+
+	if (_r_str_compare (logfont_req->lfFaceName, logfont->lfFaceName) == 0)
+	{
+		if (logfont_req->lfWeight)
+		{
+			if (logfont_req->lfWeight != logfont->lfWeight)
+				return TRUE;
+		}
+
+		return FALSE;
 	}
 
 	return TRUE;

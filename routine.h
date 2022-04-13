@@ -891,7 +891,7 @@ VOID _r_obj_writebytenullterminator (
     ((string) == NULL || (string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == UNICODE_NULL)
 
 #define _r_obj_isstringempty2(string) \
-    ((string)->length == 0 || (string)->buffer[0] == UNICODE_NULL)
+    ((string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == UNICODE_NULL)
 
 PR_STRING _r_obj_createstring (
 	_In_ LPCWSTR string
@@ -2233,6 +2233,11 @@ NTSTATUS _r_str_toguid (
 	_Out_ LPGUID guid
 );
 
+_Ret_maybenull_
+PR_BYTE _r_str_tosid (
+	_In_ PR_STRING sid_string
+);
+
 BOOLEAN _r_str_toboolean (
 	_In_ PR_STRINGREF string
 );
@@ -2471,6 +2476,12 @@ BOOLEAN _r_sys_getopt (
 	_In_ LPCWSTR args,
 	_In_ LPCWSTR name,
 	_Outptr_opt_result_maybenull_ PR_STRING_PTR out_value
+);
+
+_Success_ (return == ERROR_SUCCESS)
+LONG _r_sys_getpackagepath (
+	_In_ PR_STRING package_full_name,
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 _Success_ (return == STATUS_SUCCESS)
@@ -2722,15 +2733,6 @@ HICON _r_dc_bitmaptoicon (
 	_In_ LONG y
 );
 
-_Ret_maybenull_
-HBITMAP _r_dc_imagetobitmap (
-	_In_ LPCGUID format,
-	_In_ WICInProcPointer buffer,
-	_In_ ULONG buffer_length,
-	_In_ LONG x,
-	_In_ LONG y
-);
-
 BOOLEAN _r_dc_drawwindow (
 	_In_ HDC hdc,
 	_In_ HWND hwnd,
@@ -2747,70 +2749,10 @@ BOOLEAN _r_dc_drawimagelisticon (
 	_In_opt_ UINT style
 );
 
-_Success_ (return)
-BOOLEAN _r_dc_getsystemparametersinfo (
-	_In_ UINT action,
-	_In_ UINT param1,
-	_Pre_maybenull_ _Post_valid_ PVOID param2,
-	_In_ LONG dpi_value
-);
-
 VOID _r_dc_fillrect (
 	_In_ HDC hdc,
 	_In_ LPCRECT rect,
 	_In_ COLORREF clr
-);
-
-COLORREF _r_dc_getcoloraccent ();
-
-COLORREF _r_dc_getcolorbrightness (
-	_In_ COLORREF clr
-);
-
-COLORREF _r_dc_getcolorinverse (
-	_In_ COLORREF clr
-);
-
-COLORREF _r_dc_getcolorshade (
-	_In_ COLORREF clr,
-	_In_ ULONG percent
-);
-
-LONG _r_dc_getdpi (
-	_In_ LONG number,
-	_In_ LONG dpi_value
-);
-
-LONG _r_dc_getwindowdpi (
-	_In_ HWND hwnd
-);
-
-LONG _r_dc_getmonitordpi (
-	_In_ LPCRECT rect
-);
-
-LONG _r_dc_getdpivalue (
-	_In_opt_ HWND hwnd,
-	_In_opt_ LPCRECT rect
-);
-
-LONG _r_dc_gettaskbardpi ();
-
-_Success_ (return != 0)
-LONG _r_dc_getfontwidth (
-	_In_ HDC hdc,
-	_In_ PR_STRINGREF string
-);
-
-VOID _r_dc_getsizedpivalue (
-	_Inout_ PR_SIZE size,
-	_In_ LONG dpi_value,
-	_In_ BOOLEAN is_unpack
-);
-
-LONG _r_dc_getsystemmetrics (
-	_In_ INT index,
-	_In_ LONG dpi_value
 );
 
 VOID _r_dc_fixcontrolfont (
@@ -2832,6 +2774,85 @@ LONG _r_dc_fontheighttosize (
 LONG _r_dc_fontsizetoheight (
 	_In_ LONG size,
 	_In_ LONG dpi_value
+);
+
+COLORREF _r_dc_getcoloraccent ();
+
+COLORREF _r_dc_getcolorbrightness (
+	_In_ COLORREF clr
+);
+
+COLORREF _r_dc_getcolorinverse (
+	_In_ COLORREF clr
+);
+
+COLORREF _r_dc_getcolorshade (
+	_In_ COLORREF clr,
+	_In_ ULONG percent
+);
+
+VOID _r_dc_getdefaultfont (
+	_Inout_ PLOGFONT logfont,
+	_In_ LONG dpi_value,
+	_In_ BOOLEAN is_forced
+);
+
+LONG _r_dc_getdpi (
+	_In_ LONG number,
+	_In_ LONG dpi_value
+);
+
+LONG _r_dc_getdpivalue (
+	_In_opt_ HWND hwnd,
+	_In_opt_ LPCRECT rect
+);
+
+_Success_ (return != 0)
+LONG _r_dc_getfontwidth (
+	_In_ HDC hdc,
+	_In_ PR_STRINGREF string
+);
+
+LONG _r_dc_getmonitordpi (
+	_In_ LPCRECT rect
+);
+
+VOID _r_dc_getsizedpivalue (
+	_Inout_ PR_SIZE size,
+	_In_ LONG dpi_value,
+	_In_ BOOLEAN is_unpack
+);
+
+LONG _r_dc_getsystemmetrics (
+	_In_ INT index,
+	_In_ LONG dpi_value
+);
+
+_Success_ (return)
+BOOLEAN _r_dc_getsystemparametersinfo (
+	_In_ UINT action,
+	_In_ UINT param1,
+	_Pre_maybenull_ _Post_valid_ PVOID param2,
+	_In_ LONG dpi_value
+);
+
+LONG _r_dc_gettaskbardpi ();
+
+LONG _r_dc_getwindowdpi (
+	_In_ HWND hwnd
+);
+
+_Ret_maybenull_
+HBITMAP _r_dc_imagetobitmap (
+	_In_ LPCGUID format,
+	_In_ WICInProcPointer buffer,
+	_In_ ULONG buffer_length,
+	_In_ LONG x,
+	_In_ LONG y
+);
+
+BOOLEAN _r_dc_isfontexists (
+	_In_ PLOGFONT logfont
 );
 
 //
@@ -4531,6 +4552,13 @@ VOID _r_progress_setmarquee (
 
 BOOL CALLBACK _r_util_activate_window_callback (
 	_In_ HWND hwnd,
+	_In_ LPARAM lparam
+);
+
+INT CALLBACK _r_util_enum_font_callback (
+	_In_ const LOGFONT *logfont,
+	_In_ const TEXTMETRIC *textmetric,
+	_In_ DWORD font_type,
 	_In_ LPARAM lparam
 );
 
