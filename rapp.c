@@ -1339,11 +1339,9 @@ VOID _r_config_getfont_ex (
 	_In_opt_ LPCWSTR section_name
 )
 {
-	NONCLIENTMETRICS ncm;
 	PR_STRING font_config;
 	R_STRINGREF remaining_part;
 	R_STRINGREF first_part;
-	PLOGFONT system_font;
 	LONG font_size;
 
 	font_config = _r_config_getstring_ex (key_name, NULL, section_name);
@@ -1374,33 +1372,16 @@ VOID _r_config_getfont_ex (
 
 	logfont->lfCharSet = DEFAULT_CHARSET;
 	logfont->lfQuality = DEFAULT_QUALITY;
+	logfont->lfPitchAndFamily = DEFAULT_PITCH;
+
+	if (!_r_str_isempty2 (logfont->lfFaceName) && !_r_dc_isfontexists (logfont))
+		logfont->lfFaceName[0] = UNICODE_NULL;
 
 	if (!_r_str_isempty2 (logfont->lfFaceName) && logfont->lfHeight && logfont->lfWeight)
 		return;
 
 	// fill missed font values
-	RtlZeroMemory (&ncm, sizeof (ncm));
-
-	ncm.cbSize = sizeof (ncm);
-
-#if !defined(APP_NO_DEPRECATIONS)
-	if (_r_sys_isosversionlower (WINDOWS_VISTA))
-		ncm.cbSize -= sizeof (INT); // xp support
-#endif // !APP_NO_DEPRECATIONS
-
-	if (_r_dc_getsystemparametersinfo (SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, dpi_value))
-	{
-		system_font = &ncm.lfMessageFont;
-
-		if (_r_str_isempty2 (logfont->lfFaceName))
-			_r_str_copy (logfont->lfFaceName, LF_FACESIZE, system_font->lfFaceName);
-
-		if (!logfont->lfHeight)
-			logfont->lfHeight = system_font->lfHeight;
-
-		if (!logfont->lfWeight)
-			logfont->lfWeight = system_font->lfWeight;
-	}
+	_r_util_fillmissedfont (logfont, dpi_value);
 }
 
 VOID _r_config_getsize (
