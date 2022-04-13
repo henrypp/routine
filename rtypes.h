@@ -98,6 +98,13 @@ typedef HRESULT (WINAPI *GDFM)(
 	_Out_ PUINT dpiY
 	);
 
+// GetStagedPackagePathByFullName (win81+)
+typedef LONG (WINAPI *GSPPBF)(
+	_In_ PCWSTR packageFullName,
+	_Inout_ UINT32 *pathLength,
+	_Out_opt_ PWSTR  path
+);
+
 // AdjustWindowRectExForDpi (win10rs1+)
 typedef BOOL (WINAPI *AWRFD)(
 	_Inout_ LPRECT lpRect,
