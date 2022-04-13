@@ -1381,7 +1381,7 @@ VOID _r_config_getfont_ex (
 		return;
 
 	// fill missed font values
-	_r_util_fillmissedfont (logfont, dpi_value);
+	_r_dc_getdefaultfont (logfont, dpi_value, FALSE);
 }
 
 VOID _r_config_getsize (
