@@ -480,6 +480,8 @@ BOOLEAN _r_app_initialize_controls ();
 
 BOOLEAN _r_app_initialize_dll ();
 
+VOID _r_app_initialize_locale ();
+
 VOID _r_app_initialize_seh ();
 
 BOOLEAN _r_app_initialize ();

@@ -234,7 +234,7 @@ BOOLEAN _r_app_initialize_components ()
 	if (app_global.locale.default_name)
 		_r_obj_dereference (app_global.locale.default_name);
 
-	_r_sys_getlocaleinfo (LOCALE_USER_DEFAULT, LOCALE_SENGLISHLANGUAGENAME, &app_global.locale.default_name);
+	_r_app_initialize_locale ();
 
 	// register TaskbarCreated message
 #if defined(APP_HAVE_TRAY)
@@ -327,6 +327,18 @@ BOOLEAN _r_app_initialize_dll ()
 #endif // APP_NO_DEPRECATIONS
 
 	return TRUE;
+}
+
+VOID _r_app_initialize_locale ()
+{
+	ULONG status;
+
+	_r_obj_clearreference (&app_global.locale.default_name);
+
+	status = _r_sys_getlocaleinfo (GetUserDefaultUILanguage (), LOCALE_SENGLISHLANGUAGENAME, &app_global.locale.default_name);
+
+	if (status != ERROR_SUCCESS)
+		_r_sys_getlocaleinfo (LOCALE_SYSTEM_DEFAULT, LOCALE_SENGLISHLANGUAGENAME, &app_global.locale.default_name);
 }
 
 VOID _r_app_initialize_seh ()
