@@ -231,6 +231,14 @@ VOID _r_autopool_drain (
 	_Inout_ PR_AUTO_POOL auto_pool
 );
 
+PR_AUTO_POOL _r_autopool_getcurrentdata ();
+
+ULONG _r_autopool_getthreadindex ();
+
+VOID _r_autopool_setcurrentdata (
+	_In_ PR_AUTO_POOL auto_pool
+);
+
 //
 // Synchronization: A fast event object.
 //
@@ -3958,7 +3966,7 @@ VOID _r_menu_setitemtextformat (
 
 INT _r_menu_popup (
 	_In_ HMENU hmenu,
-	_In_ HWND hwnd,
+	_In_opt_ HWND hwnd,
 	_In_opt_ PPOINT point,
 	_In_ BOOLEAN is_sendmessage
 );

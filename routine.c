@@ -210,16 +210,17 @@ BOOLEAN _r_format_bytesize64 (
 	HRESULT hr;
 
 #if defined(APP_NO_DEPRECATIONS)
+	// vista (sp1)+
 	hr = StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, buffer_size);
 
-	if (hr == S_OK) // vista (sp1)+
+	if (hr == S_OK)
 		return TRUE;
 #else
+	HINSTANCE hshlwapi;
+	SFBSE _StrFormatByteSizeEx;
+
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
 	{
-		HINSTANCE hshlwapi;
-		SFBSE _StrFormatByteSizeEx;
-
 		hshlwapi = _r_sys_loadlibrary (L"shlwapi.dll");
 
 		if (hshlwapi)
@@ -233,7 +234,7 @@ BOOLEAN _r_format_bytesize64 (
 			{
 				hr = _StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, buffer_size);
 
-				if (hr == S_OK) // vista (sp1)+
+				if (hr == S_OK)
 					return TRUE;
 			}
 		}
@@ -328,21 +329,13 @@ BOOLEAN _r_format_number (
 
 	if (_r_initonce_begin (&init_once))
 	{
-		if (!GetLocaleInfo (
-			LOCALE_USER_DEFAULT,
-			LOCALE_SDECIMAL,
-			decimal_separator,
-			RTL_NUMBER_OF (decimal_separator)))
+		if (!GetLocaleInfo (LOCALE_USER_DEFAULT, LOCALE_SDECIMAL, decimal_separator, RTL_NUMBER_OF (decimal_separator)))
 		{
 			decimal_separator[0] = L'.';
 			decimal_separator[1] = UNICODE_NULL;
 		}
 
-		if (!GetLocaleInfo (
-			LOCALE_USER_DEFAULT,
-			LOCALE_STHOUSAND,
-			thousand_separator,
-			RTL_NUMBER_OF (thousand_separator)))
+		if (!GetLocaleInfo (LOCALE_USER_DEFAULT, LOCALE_STHOUSAND, thousand_separator, RTL_NUMBER_OF (thousand_separator)))
 		{
 			thousand_separator[0] = L',';
 			thousand_separator[1] = UNICODE_NULL;
@@ -425,7 +418,9 @@ ULONG _r_calc_countbits (
 	_In_ ULONG value
 )
 {
-	ULONG count = 0;
+	ULONG count;
+
+	count = 0;
 
 	while (value)
 	{
@@ -559,42 +554,6 @@ ULONG64 _r_calc_roundnumber (
 // Synchronization: Auto-dereference pool
 //
 
-ULONG _r_autopool_getthreadindex ()
-{
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static ULONG tls_index = 0;
-
-	if (_r_initonce_begin (&init_once))
-	{
-		tls_index = TlsAlloc ();
-
-		_r_initonce_end (&init_once);
-	}
-
-	return tls_index;
-}
-
-PR_AUTO_POOL _r_autopool_getcurrentdata ()
-{
-	ULONG tls_index;
-
-	tls_index = _r_autopool_getthreadindex ();
-
-	return (PR_AUTO_POOL)TlsGetValue (tls_index);
-}
-
-VOID _r_autopool_setcurrentdata (
-	_In_ PR_AUTO_POOL auto_pool
-)
-{
-	ULONG tls_index;
-
-	tls_index = _r_autopool_getthreadindex ();
-
-	if (!TlsSetValue (tls_index, auto_pool))
-		RtlRaiseStatus (STATUS_UNSUCCESSFUL);
-}
-
 VOID _r_autopool_initialize (
 	_Out_ PR_AUTO_POOL auto_pool
 )
@@ -649,6 +608,42 @@ VOID _r_autopool_drain (
 			auto_pool->dynamic_objects = NULL;
 		}
 	}
+}
+
+PR_AUTO_POOL _r_autopool_getcurrentdata ()
+{
+	ULONG tls_index;
+
+	tls_index = _r_autopool_getthreadindex ();
+
+	return (PR_AUTO_POOL)TlsGetValue (tls_index);
+}
+
+ULONG _r_autopool_getthreadindex ()
+{
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static ULONG tls_index = 0;
+
+	if (_r_initonce_begin (&init_once))
+	{
+		tls_index = TlsAlloc ();
+
+		_r_initonce_end (&init_once);
+	}
+
+	return tls_index;
+}
+
+VOID _r_autopool_setcurrentdata (
+	_In_ PR_AUTO_POOL auto_pool
+)
+{
+	ULONG tls_index;
+
+	tls_index = _r_autopool_getthreadindex ();
+
+	if (!TlsSetValue (tls_index, auto_pool))
+		RtlRaiseStatus (STATUS_UNSUCCESSFUL);
 }
 
 //
@@ -853,7 +848,7 @@ PVOID _r_freelist_allocateitem (
 
 	if (list_entry)
 	{
-		_InterlockedDecrement (&free_list->count);
+		InterlockedDecrement (&free_list->count);
 		entry = CONTAINING_RECORD (list_entry, R_FREE_LIST_ENTRY, list_entry);
 
 		RtlSecureZeroMemory (&entry->body, free_list->size);
@@ -880,7 +875,7 @@ VOID _r_freelist_deleteitem (
 	{
 		RtlInterlockedPushEntrySList (&free_list->list_head, &entry->list_entry);
 
-		_InterlockedIncrement (&free_list->count);
+		InterlockedIncrement (&free_list->count);
 	}
 	else
 	{
@@ -1012,11 +1007,7 @@ FORCEINLINE BOOLEAN _r_queuedlock_pushwaitblock (
 	*current_value_ptr = new_value;
 	*is_optimize_ptr = is_optimize;
 
-	new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
-		(PVOID_PTR)&queued_lock->value,
-		(PVOID)new_value,
-		(PVOID)value
-	);
+	new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
 
 	*new_value_ptr = new_value;
 
@@ -1076,7 +1067,7 @@ FORCEINLINE VOID _r_queuedlock_optimizelist_ex (
 
 		// Try to clear the traversing bit.
 		new_value = current_value - PR_QUEUED_LOCK_TRAVERSING;
-		new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+		new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
 			(PVOID_PTR)&queued_lock->value,
 			(PVOID)new_value,
 			(PVOID)current_value
@@ -1126,12 +1117,12 @@ FORCEINLINE PR_QUEUED_WAIT_BLOCK _r_queuedlock_preparetowake (
 	_In_ BOOLEAN is_wakeall
 )
 {
-	ULONG_PTR value;
-	ULONG_PTR new_value;
 	PR_QUEUED_WAIT_BLOCK wait_block;
 	PR_QUEUED_WAIT_BLOCK first_wait_block;
 	PR_QUEUED_WAIT_BLOCK last_wait_block;
 	PR_QUEUED_WAIT_BLOCK previous_wait_block;
+	ULONG_PTR value;
+	ULONG_PTR new_value;
 
 	value = current_value;
 
@@ -1149,7 +1140,7 @@ FORCEINLINE PR_QUEUED_WAIT_BLOCK _r_queuedlock_preparetowake (
 		{
 			new_value = value - PR_QUEUED_LOCK_TRAVERSING;
 
-			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+			new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
 				(PVOID_PTR)&queued_lock->value,
 				(PVOID)new_value,
 				(PVOID)value
@@ -1210,7 +1201,7 @@ FORCEINLINE PR_QUEUED_WAIT_BLOCK _r_queuedlock_preparetowake (
 		{
 			// We're waking an exclusive waiter and there is only one waiter, or we are waking a
 			// shared waiter and possibly others.
-			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+			new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
 				(PVOID_PTR)&queued_lock->value,
 				IntToPtr (0),
 				(PVOID)value
@@ -1331,7 +1322,7 @@ VOID FASTCALL _r_queuedlock_acquireexclusive_ex (
 	{
 		if (!(value & PR_QUEUED_LOCK_OWNED))
 		{
-			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+			new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
 				(PVOID_PTR)&queued_lock->value,
 				(PVOID)(value + PR_QUEUED_LOCK_OWNED),
 				(PVOID)value
@@ -1385,7 +1376,7 @@ VOID FASTCALL _r_queuedlock_acquireshared_ex (
 		{
 			new_value = (value + PR_QUEUED_LOCK_SHARED_INC) | PR_QUEUED_LOCK_OWNED;
 
-			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+			new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
 				(PVOID_PTR)&queued_lock->value,
 				(PVOID)new_value,
 				(PVOID)value
@@ -1438,7 +1429,7 @@ VOID FASTCALL _r_queuedlock_releaseexclusive_ex (
 			// If there are no waiters, we're simply releasing ownership. If someone is traversing
 			// the list, clearing the owned bit is a signal for them to wake waiters.
 			new_value = value - PR_QUEUED_LOCK_OWNED;
-			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+			new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
 				(PVOID_PTR)&queued_lock->value,
 				(PVOID)new_value,
 				(PVOID)value
@@ -1454,7 +1445,7 @@ VOID FASTCALL _r_queuedlock_releaseexclusive_ex (
 			new_value = (value - PR_QUEUED_LOCK_OWNED + PR_QUEUED_LOCK_TRAVERSING);
 			current_value = new_value;
 
-			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+			new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
 				(PVOID_PTR)&queued_lock->value,
 				(PVOID)new_value,
 				(PVOID)value
@@ -1496,7 +1487,7 @@ VOID FASTCALL _r_queuedlock_releaseshared_ex (
 			new_value = 0;
 		}
 
-		new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+		new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
 			(PVOID_PTR)&queued_lock->value,
 			(PVOID)new_value,
 			(PVOID)value
@@ -1513,7 +1504,7 @@ VOID FASTCALL _r_queuedlock_releaseshared_ex (
 		// Unfortunately we have to find the last wait block and decrement the shared owners count.
 		wait_lock = _r_queuedlock_findlastwaitblock (value);
 
-		if ((ULONG)_InterlockedDecrement ((PLONG)&wait_lock->shared_owners) > 0)
+		if ((ULONG)InterlockedDecrement ((PLONG)&wait_lock->shared_owners) > 0)
 			return;
 	}
 
@@ -1523,7 +1514,7 @@ VOID FASTCALL _r_queuedlock_releaseshared_ex (
 		{
 			new_value = value & ~(PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_MULTIPLE_SHARED);
 
-			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+			new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
 				(PVOID_PTR)&queued_lock->value,
 				(PVOID)new_value,
 				(PVOID)value
@@ -1537,7 +1528,7 @@ VOID FASTCALL _r_queuedlock_releaseshared_ex (
 			new_value = (value & ~(PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_MULTIPLE_SHARED)) | PR_QUEUED_LOCK_TRAVERSING;
 			current_value = new_value;
 
-			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+			new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
 				(PVOID_PTR)&queued_lock->value,
 				(PVOID)new_value,
 				(PVOID)value
@@ -1570,12 +1561,7 @@ VOID FASTCALL _r_queuedlock_wake (
 	PR_QUEUED_WAIT_BLOCK wait_block;
 	PR_QUEUED_WAIT_BLOCK previous_wait_block;
 
-	wait_block = _r_queuedlock_preparetowake (
-		queued_lock,
-		value,
-		FALSE,
-		FALSE
-	);
+	wait_block = _r_queuedlock_preparetowake (queued_lock, value, FALSE, FALSE);
 
 	// Wake waiters.
 	while (wait_block)
@@ -1596,12 +1582,7 @@ VOID FASTCALL _r_queuedlock_wake_ex (
 	PR_QUEUED_WAIT_BLOCK wait_block;
 	PR_QUEUED_WAIT_BLOCK previous_wait_block;
 
-	wait_block = _r_queuedlock_preparetowake (
-		queued_lock,
-		value,
-		is_ignoreowned,
-		is_wakeall
-	);
+	wait_block = _r_queuedlock_preparetowake (queued_lock, value, is_ignoreowned, is_wakeall);
 
 	// Wake waiters.
 	while (wait_block)
@@ -1622,7 +1603,7 @@ VOID FASTCALL _r_queuedlock_wakeforrelease (
 
 	new_value = value + PR_QUEUED_LOCK_TRAVERSING;
 
-	current_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+	current_value = (ULONG_PTR)InterlockedCompareExchangePointer (
 		(PVOID_PTR)&queued_lock->value,
 		(PVOID)new_value,
 		(PVOID)value
@@ -1694,7 +1675,7 @@ BOOLEAN FASTCALL _r_protection_acquire_ex (
 		if (value & PR_RUNDOWN_ACTIVE)
 			return FALSE;
 
-		new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+		new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
 			(PVOID_PTR)&protection->value,
 			(PVOID)(value + PR_RUNDOWN_REF_INC),
 			(PVOID)value
@@ -1731,7 +1712,7 @@ VOID FASTCALL _r_protection_release_ex (
 		else
 		{
 			// Decrement the reference count normally.
-			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+			new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
 				(PVOID_PTR)&protection->value,
 				(PVOID)(value - PR_RUNDOWN_REF_INC),
 				(PVOID)value
@@ -1753,7 +1734,7 @@ VOID FASTCALL _r_protection_waitfor_ex (
 	ULONG_PTR count;
 
 	// Fast path. If the reference count is 0 or rundown has already been completed, return.
-	value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+	value = (ULONG_PTR)InterlockedCompareExchangePointer (
 		(PVOID_PTR)&protection->value,
 		IntToPtr (PR_RUNDOWN_ACTIVE),
 		IntToPtr (0)
@@ -1773,7 +1754,7 @@ VOID FASTCALL _r_protection_waitfor_ex (
 		// Save the existing reference count.
 		wait_block.count = count;
 
-		new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+		new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
 			(PVOID_PTR)&protection->value,
 			(PVOID)((ULONG_PTR)&wait_block | PR_RUNDOWN_ACTIVE),
 			(PVOID)value
@@ -1971,7 +1952,7 @@ NTSTATUS _r_workqueue_threadproc (
 
 				work_queue_item->function_address (work_queue_item->context, work_queue->busy_count);
 
-				_InterlockedDecrement (&work_queue->busy_count);
+				InterlockedDecrement (&work_queue->busy_count);
 
 				_r_workqueue_destroyitem (work_queue_item);
 			}
@@ -2016,7 +1997,7 @@ VOID _r_workqueue_queueitem (
 	_r_queuedlock_acquireexclusive (&work_queue->queue_lock);
 
 	InsertTailList (&work_queue->queue_list_head, &work_queue_item->list_entry);
-	_InterlockedIncrement (&work_queue->busy_count);
+	InterlockedIncrement (&work_queue->busy_count);
 
 	_r_queuedlock_releaseexclusive (&work_queue->queue_lock);
 
@@ -2186,11 +2167,7 @@ PVOID NTAPI _r_mem_allocate (
 
 	heap_handle = _r_mem_getheap ();
 
-	base_address = RtlAllocateHeap (
-		heap_handle,
-		HEAP_GENERATE_EXCEPTIONS,
-		bytes_count
-	);
+	base_address = RtlAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS, bytes_count);
 
 	return base_address;
 }
@@ -2205,11 +2182,7 @@ PVOID NTAPI _r_mem_allocatezero (
 
 	heap_handle = _r_mem_getheap ();
 
-	base_address = RtlAllocateHeap (
-		heap_handle,
-		HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY,
-		bytes_count
-	);
+	base_address = RtlAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, bytes_count);
 
 	return base_address;
 }
@@ -2225,11 +2198,7 @@ PVOID NTAPI _r_mem_allocatezerosafe (
 
 	heap_handle = _r_mem_getheap ();
 
-	base_address = RtlAllocateHeap (
-		heap_handle,
-		HEAP_ZERO_MEMORY,
-		bytes_count
-	);
+	base_address = RtlAllocateHeap (heap_handle, HEAP_ZERO_MEMORY, bytes_count);
 
 	return base_address;
 }
@@ -2263,12 +2232,7 @@ PVOID NTAPI _r_mem_reallocate (
 
 	heap_handle = _r_mem_getheap ();
 
-	new_address = RtlReAllocateHeap (
-		heap_handle,
-		HEAP_GENERATE_EXCEPTIONS,
-		base_address,
-		bytes_count
-	);
+	new_address = RtlReAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS, base_address, bytes_count);
 
 	return new_address;
 }
@@ -2284,12 +2248,7 @@ PVOID NTAPI _r_mem_reallocatezero (
 
 	heap_handle = _r_mem_getheap ();
 
-	new_address = RtlReAllocateHeap (
-		heap_handle,
-		HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY,
-		base_address,
-		bytes_count
-	);
+	new_address = RtlReAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, base_address, bytes_count);
 
 	return new_address;
 }
@@ -2306,12 +2265,7 @@ PVOID NTAPI _r_mem_reallocatezerosafe (
 
 	heap_handle = _r_mem_getheap ();
 
-	new_address = RtlReAllocateHeap (
-		heap_handle,
-		HEAP_ZERO_MEMORY,
-		base_address,
-		bytes_count
-	);
+	new_address = RtlReAllocateHeap (heap_handle, HEAP_ZERO_MEMORY, base_address, bytes_count);
 
 	return new_address;
 }
@@ -2705,9 +2659,7 @@ PR_STRING _r_obj_concatstringrefs (
 	PR_STRING string;
 
 	va_start (arg_ptr, count);
-
 	string = _r_obj_concatstringrefs_v (count, arg_ptr);
-
 	va_end (arg_ptr);
 
 	return string;
@@ -3907,13 +3859,7 @@ PVOID _r_obj_addhashtableitem (
 	PVOID hashtable_entry;
 	BOOLEAN is_added;
 
-	hashtable_entry = _r_obj_addhashtableitem_ex (
-		hashtable,
-		hash_code,
-		entry,
-		TRUE,
-		&is_added
-	);
+	hashtable_entry = _r_obj_addhashtableitem_ex (hashtable, hash_code, entry, TRUE, &is_added);
 
 	if (is_added)
 		return hashtable_entry;
@@ -3929,13 +3875,7 @@ PVOID _r_obj_replacehashtableitem (
 {
 	PVOID hashtable_entry;
 
-	hashtable_entry = _r_obj_addhashtableitem_ex (
-		hashtable,
-		hash_code,
-		entry,
-		FALSE,
-		NULL
-	);
+	hashtable_entry = _r_obj_addhashtableitem_ex (hashtable, hash_code, entry, FALSE, NULL);
 
 	return hashtable_entry;
 }
@@ -4800,14 +4740,8 @@ LPCWSTR _r_path_getextension (
 
 	_r_obj_initializestringrefconst (&fullpath_part, path);
 
-	if (!_r_str_splitatlastchar (
-		&fullpath_part,
-		L'.',
-		&directory_part,
-		&extension_part))
-	{
+	if (!_r_str_splitatlastchar (&fullpath_part, L'.', &directory_part, &extension_part))
 		return NULL;
-	}
 
 	return extension_part.buffer;
 }
@@ -4820,14 +4754,8 @@ PR_STRING _r_path_getextensionstring (
 	R_STRINGREF directory_part;
 	R_STRINGREF extension_part;
 
-	if (!_r_str_splitatlastchar (
-		path,
-		L'.',
-		&directory_part,
-		&extension_part))
-	{
+	if (!_r_str_splitatlastchar (path, L'.', &directory_part, &extension_part))
 		return NULL;
-	}
 
 	return _r_obj_createstring3 (&extension_part);
 }
@@ -4929,14 +4857,12 @@ PR_STRING _r_path_getmodulepath (
 		if (!return_length)
 		{
 			_r_obj_dereference (string);
-
 			break;
 		}
 
 		if (return_length < allocated_length)
 		{
 			_r_obj_setstringlength (string, return_length * sizeof (WCHAR));
-
 			return string;
 		}
 
@@ -5056,11 +4982,7 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 		_r_obj_skipstringlength (&args_sr, sizeof (WCHAR));
 
 		// Find the matching quote character and we have our file name.
-		if (!_r_str_splitatchar (
-			&args_sr,
-			L'"',
-			&args_sr,
-			&arguments))
+		if (!_r_str_splitatchar (&args_sr, L'"', &args_sr, &arguments))
 		{
 			// Unskip the initial quote character
 			_r_obj_skipstringlength (&args_sr, -(LONG_PTR)sizeof (WCHAR));
@@ -5127,12 +5049,7 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 	{
 		original_char = UNICODE_NULL;
 
-		is_found = _r_str_splitatchar (
-			&remaining_part,
-			L' ',
-			&current_part,
-			&remaining_part
-		);
+		is_found = _r_str_splitatchar (&remaining_part, L' ', &current_part, &remaining_part);
 
 		if (is_found)
 		{
@@ -5871,22 +5788,11 @@ VOID _r_shell_showfile (
 	SFGAOF attributes;
 	HRESULT hr;
 
-	hr = SHParseDisplayName (
-		path,
-		NULL,
-		&item,
-		0,
-		&attributes
-	);
+	hr = SHParseDisplayName (path, NULL, &item, 0, &attributes);
 
 	if (SUCCEEDED (hr))
 	{
-		hr = SHOpenFolderAndSelectItems (
-			item,
-			0,
-			NULL,
-			0
-		);
+		hr = SHOpenFolderAndSelectItems (item, 0, NULL, 0);
 
 		CoTaskMemFree (item);
 
@@ -6370,14 +6276,7 @@ PR_STRING _r_str_fromhex (
 	PR_STRING string;
 	PCHAR table;
 
-	if (is_uppercase)
-	{
-		table = integer_char_upper_table;
-	}
-	else
-	{
-		table = integer_char_table;
-	}
+	table = is_uppercase ? integer_char_upper_table : integer_char_table;
 
 	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR) * 2);
 
@@ -7722,35 +7621,38 @@ ULONG _r_str_crc32 (
 )
 {
 	static const ULONG crc32_table[256] = {
-		0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3, 0x0edb8832,
-		0x79dcb8a4, 0xe0d5e91e, 0x97d2d988, 0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91, 0x1db71064, 0x6ab020f2,
-		0xf3b97148, 0x84be41de, 0x1adad47d, 0x6ddde4eb, 0xf4d4b551, 0x83d385c7, 0x136c9856, 0x646ba8c0, 0xfd62f97a,
-		0x8a65c9ec, 0x14015c4f, 0x63066cd9, 0xfa0f3d63, 0x8d080df5, 0x3b6e20c8, 0x4c69105e, 0xd56041e4, 0xa2677172,
-		0x3c03e4d1, 0x4b04d447, 0xd20d85fd, 0xa50ab56b, 0x35b5a8fa, 0x42b2986c, 0xdbbbc9d6, 0xacbcf940, 0x32d86ce3,
-		0x45df5c75, 0xdcd60dcf, 0xabd13d59, 0x26d930ac, 0x51de003a, 0xc8d75180, 0xbfd06116, 0x21b4f4b5, 0x56b3c423,
-		0xcfba9599, 0xb8bda50f, 0x2802b89e, 0x5f058808, 0xc60cd9b2, 0xb10be924, 0x2f6f7c87, 0x58684c11, 0xc1611dab,
-		0xb6662d3d, 0x76dc4190, 0x01db7106, 0x98d220bc, 0xefd5102a, 0x71b18589, 0x06b6b51f, 0x9fbfe4a5, 0xe8b8d433,
-		0x7807c9a2, 0x0f00f934, 0x9609a88e, 0xe10e9818, 0x7f6a0dbb, 0x086d3d2d, 0x91646c97, 0xe6635c01, 0x6b6b51f4,
-		0x1c6c6162, 0x856530d8, 0xf262004e, 0x6c0695ed, 0x1b01a57b, 0x8208f4c1, 0xf50fc457, 0x65b0d9c6, 0x12b7e950,
-		0x8bbeb8ea, 0xfcb9887c, 0x62dd1ddf, 0x15da2d49, 0x8cd37cf3, 0xfbd44c65, 0x4db26158, 0x3ab551ce, 0xa3bc0074,
-		0xd4bb30e2, 0x4adfa541, 0x3dd895d7, 0xa4d1c46d, 0xd3d6f4fb, 0x4369e96a, 0x346ed9fc, 0xad678846, 0xda60b8d0,
-		0x44042d73, 0x33031de5, 0xaa0a4c5f, 0xdd0d7cc9, 0x5005713c, 0x270241aa, 0xbe0b1010, 0xc90c2086, 0x5768b525,
-		0x206f85b3, 0xb966d409, 0xce61e49f, 0x5edef90e, 0x29d9c998, 0xb0d09822, 0xc7d7a8b4, 0x59b33d17, 0x2eb40d81,
-		0xb7bd5c3b, 0xc0ba6cad, 0xedb88320, 0x9abfb3b6, 0x03b6e20c, 0x74b1d29a, 0xead54739, 0x9dd277af, 0x04db2615,
-		0x73dc1683, 0xe3630b12, 0x94643b84, 0x0d6d6a3e, 0x7a6a5aa8, 0xe40ecf0b, 0x9309ff9d, 0x0a00ae27, 0x7d079eb1,
-		0xf00f9344, 0x8708a3d2, 0x1e01f268, 0x6906c2fe, 0xf762575d, 0x806567cb, 0x196c3671, 0x6e6b06e7, 0xfed41b76,
-		0x89d32be0, 0x10da7a5a, 0x67dd4acc, 0xf9b9df6f, 0x8ebeeff9, 0x17b7be43, 0x60b08ed5, 0xd6d6a3e8, 0xa1d1937e,
-		0x38d8c2c4, 0x4fdff252, 0xd1bb67f1, 0xa6bc5767, 0x3fb506dd, 0x48b2364b, 0xd80d2bda, 0xaf0a1b4c, 0x36034af6,
-		0x41047a60, 0xdf60efc3, 0xa867df55, 0x316e8eef, 0x4669be79, 0xcb61b38c, 0xbc66831a, 0x256fd2a0, 0x5268e236,
-		0xcc0c7795, 0xbb0b4703, 0x220216b9, 0x5505262f, 0xc5ba3bbe, 0xb2bd0b28, 0x2bb45a92, 0x5cb36a04, 0xc2d7ffa7,
-		0xb5d0cf31, 0x2cd99e8b, 0x5bdeae1d, 0x9b64c2b0, 0xec63f226, 0x756aa39c, 0x026d930a, 0x9c0906a9, 0xeb0e363f,
-		0x72076785, 0x05005713, 0x95bf4a82, 0xe2b87a14, 0x7bb12bae, 0x0cb61b38, 0x92d28e9b, 0xe5d5be0d, 0x7cdcefb7,
-		0x0bdbdf21, 0x86d3d2d4, 0xf1d4e242, 0x68ddb3f8, 0x1fda836e, 0x81be16cd, 0xf6b9265b, 0x6fb077e1, 0x18b74777,
-		0x88085ae6, 0xff0f6a70, 0x66063bca, 0x11010b5c, 0x8f659eff, 0xf862ae69, 0x616bffd3, 0x166ccf45, 0xa00ae278,
-		0xd70dd2ee, 0x4e048354, 0x3903b3c2, 0xa7672661, 0xd06016f7, 0x4969474d, 0x3e6e77db, 0xaed16a4a, 0xd9d65adc,
-		0x40df0b66, 0x37d83bf0, 0xa9bcae53, 0xdebb9ec5, 0x47b2cf7f, 0x30b5ffe9, 0xbdbdf21c, 0xcabac28a, 0x53b39330,
-		0x24b4a3a6, 0xbad03605, 0xcdd70693, 0x54de5729, 0x23d967bf, 0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94,
-		0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d,
+		0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3,
+		0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988, 0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91,
+		0x1db71064, 0x6ab020f2, 0xf3b97148, 0x84be41de, 0x1adad47d, 0x6ddde4eb, 0xf4d4b551, 0x83d385c7,
+		0x136c9856, 0x646ba8c0, 0xfd62f97a, 0x8a65c9ec, 0x14015c4f, 0x63066cd9, 0xfa0f3d63, 0x8d080df5,
+		0x3b6e20c8, 0x4c69105e, 0xd56041e4, 0xa2677172, 0x3c03e4d1, 0x4b04d447, 0xd20d85fd, 0xa50ab56b,
+		0x35b5a8fa, 0x42b2986c, 0xdbbbc9d6, 0xacbcf940, 0x32d86ce3, 0x45df5c75, 0xdcd60dcf, 0xabd13d59,
+		0x26d930ac, 0x51de003a, 0xc8d75180, 0xbfd06116, 0x21b4f4b5, 0x56b3c423, 0xcfba9599, 0xb8bda50f,
+		0x2802b89e, 0x5f058808, 0xc60cd9b2, 0xb10be924, 0x2f6f7c87, 0x58684c11, 0xc1611dab, 0xb6662d3d,
+		0x76dc4190, 0x01db7106, 0x98d220bc, 0xefd5102a, 0x71b18589, 0x06b6b51f, 0x9fbfe4a5, 0xe8b8d433,
+		0x7807c9a2, 0x0f00f934, 0x9609a88e, 0xe10e9818, 0x7f6a0dbb, 0x086d3d2d, 0x91646c97, 0xe6635c01,
+		0x6b6b51f4, 0x1c6c6162, 0x856530d8, 0xf262004e, 0x6c0695ed, 0x1b01a57b, 0x8208f4c1, 0xf50fc457,
+		0x65b0d9c6, 0x12b7e950, 0x8bbeb8ea, 0xfcb9887c, 0x62dd1ddf, 0x15da2d49, 0x8cd37cf3, 0xfbd44c65,
+		0x4db26158, 0x3ab551ce, 0xa3bc0074, 0xd4bb30e2, 0x4adfa541, 0x3dd895d7, 0xa4d1c46d, 0xd3d6f4fb,
+		0x4369e96a, 0x346ed9fc, 0xad678846, 0xda60b8d0, 0x44042d73, 0x33031de5, 0xaa0a4c5f, 0xdd0d7cc9,
+		0x5005713c, 0x270241aa, 0xbe0b1010, 0xc90c2086, 0x5768b525, 0x206f85b3, 0xb966d409, 0xce61e49f,
+		0x5edef90e, 0x29d9c998, 0xb0d09822, 0xc7d7a8b4, 0x59b33d17, 0x2eb40d81, 0xb7bd5c3b, 0xc0ba6cad,
+		0xedb88320, 0x9abfb3b6, 0x03b6e20c, 0x74b1d29a, 0xead54739, 0x9dd277af, 0x04db2615, 0x73dc1683,
+		0xe3630b12, 0x94643b84, 0x0d6d6a3e, 0x7a6a5aa8, 0xe40ecf0b, 0x9309ff9d, 0x0a00ae27, 0x7d079eb1,
+		0xf00f9344, 0x8708a3d2, 0x1e01f268, 0x6906c2fe, 0xf762575d, 0x806567cb, 0x196c3671, 0x6e6b06e7,
+		0xfed41b76, 0x89d32be0, 0x10da7a5a, 0x67dd4acc, 0xf9b9df6f, 0x8ebeeff9, 0x17b7be43, 0x60b08ed5,
+		0xd6d6a3e8, 0xa1d1937e, 0x38d8c2c4, 0x4fdff252, 0xd1bb67f1, 0xa6bc5767, 0x3fb506dd, 0x48b2364b,
+		0xd80d2bda, 0xaf0a1b4c, 0x36034af6, 0x41047a60, 0xdf60efc3, 0xa867df55, 0x316e8eef, 0x4669be79,
+		0xcb61b38c, 0xbc66831a, 0x256fd2a0, 0x5268e236, 0xcc0c7795, 0xbb0b4703, 0x220216b9, 0x5505262f,
+		0xc5ba3bbe, 0xb2bd0b28, 0x2bb45a92, 0x5cb36a04, 0xc2d7ffa7, 0xb5d0cf31, 0x2cd99e8b, 0x5bdeae1d,
+		0x9b64c2b0, 0xec63f226, 0x756aa39c, 0x026d930a, 0x9c0906a9, 0xeb0e363f, 0x72076785, 0x05005713,
+		0x95bf4a82, 0xe2b87a14, 0x7bb12bae, 0x0cb61b38, 0x92d28e9b, 0xe5d5be0d, 0x7cdcefb7, 0x0bdbdf21,
+		0x86d3d2d4, 0xf1d4e242, 0x68ddb3f8, 0x1fda836e, 0x81be16cd, 0xf6b9265b, 0x6fb077e1, 0x18b74777,
+		0x88085ae6, 0xff0f6a70, 0x66063bca, 0x11010b5c, 0x8f659eff, 0xf862ae69, 0x616bffd3, 0x166ccf45,
+		0xa00ae278, 0xd70dd2ee, 0x4e048354, 0x3903b3c2, 0xa7672661, 0xd06016f7, 0x4969474d, 0x3e6e77db,
+		0xaed16a4a, 0xd9d65adc, 0x40df0b66, 0x37d83bf0, 0xa9bcae53, 0xdebb9ec5, 0x47b2cf7f, 0x30b5ffe9,
+		0xbdbdf21c, 0xcabac28a, 0x53b39330, 0x24b4a3a6, 0xbad03605, 0xcdd70693, 0x54de5729, 0x23d967bf,
+		0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94, 0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d,
 	};
 
 	LPWSTR buffer;
@@ -8492,6 +8394,7 @@ BOOLEAN _r_sys_getopt (
 	R_STRINGREF key_value;
 	R_STRINGREF name_sr;
 	LPWSTR *arga;
+	LPWSTR buffer;
 	SIZE_T option_length;
 	INT numargs;
 	BOOLEAN is_namefound;
@@ -8562,7 +8465,7 @@ BOOLEAN _r_sys_getopt (
 			{
 				if (numargs > (i + 1))
 				{
-					LPWSTR buffer = arga[i + 1];
+					buffer = arga[i + 1];
 
 					if (*buffer == L'/' || *buffer == L'-' || *buffer == L' ')
 						continue;
@@ -8644,7 +8547,6 @@ LONG _r_sys_getpackagepath (
 	}
 
 	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
-
 	status = _GetStagedPackagePathByFullName (package_full_name->buffer, &length, string->buffer);
 
 	if (status == ERROR_SUCCESS)
@@ -9681,14 +9583,26 @@ NTSTATUS _r_sys_querytokeninformation (
 	buffer_length = 128;
 	buffer = _r_mem_allocatezero (buffer_length);
 
-	status = NtQueryInformationToken (token_handle, token_class, buffer, buffer_length, &return_length);
+	status = NtQueryInformationToken (
+		token_handle,
+		token_class,
+		buffer,
+		buffer_length,
+		&return_length
+	);
 
 	if (status == STATUS_BUFFER_OVERFLOW || status == STATUS_BUFFER_TOO_SMALL)
 	{
 		buffer_length = return_length;
 		buffer = _r_mem_reallocatezero (buffer, buffer_length);
 
-		status = NtQueryInformationToken (token_handle, token_class, buffer, buffer_length, &return_length);
+		status = NtQueryInformationToken (
+			token_handle,
+			token_class,
+			buffer,
+			buffer_length,
+			&return_length
+		);
 	}
 
 	if (NT_SUCCESS (status))
@@ -9770,14 +9684,24 @@ VOID _r_sys_setdefaultprocessenvironment (
 	_Out_ PR_ENVIRONMENT environment
 )
 {
-	_r_sys_setenvironment (environment, PROCESS_PRIORITY_CLASS_NORMAL, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
+	_r_sys_setenvironment (
+		environment,
+		PROCESS_PRIORITY_CLASS_NORMAL,
+		IoPriorityNormal,
+		MEMORY_PRIORITY_NORMAL
+	);
 }
 
 VOID _r_sys_setdefaultthreadenvironment (
 	_Out_ PR_ENVIRONMENT environment
 )
 {
-	_r_sys_setenvironment (environment, THREAD_PRIORITY_NORMAL, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
+	_r_sys_setenvironment (
+		environment,
+		THREAD_PRIORITY_NORMAL,
+		IoPriorityNormal,
+		MEMORY_PRIORITY_NORMAL
+	);
 }
 
 VOID _r_sys_setprocessenvironment (
@@ -9800,7 +9724,12 @@ VOID _r_sys_setprocessenvironment (
 		priority_class.Foreground = FALSE;
 		priority_class.PriorityClass = (UCHAR)environment->base_priority;
 
-		NtSetInformationProcess (process_handle, ProcessPriorityClass, &priority_class, sizeof (priority_class));
+		NtSetInformationProcess (
+			process_handle,
+			ProcessPriorityClass,
+			&priority_class,
+			sizeof (priority_class)
+		);
 	}
 
 	// set i/o priority
@@ -9808,7 +9737,12 @@ VOID _r_sys_setprocessenvironment (
 	{
 		io_priority = environment->io_priority;
 
-		NtSetInformationProcess (process_handle, ProcessIoPriority, &io_priority, sizeof (io_priority));
+		NtSetInformationProcess (
+			process_handle,
+			ProcessIoPriority,
+			&io_priority,
+			sizeof (io_priority)
+		);
 	}
 
 	// set memory priority
@@ -9816,7 +9750,12 @@ VOID _r_sys_setprocessenvironment (
 	{
 		page_priority_info.PagePriority = environment->page_priority;
 
-		NtSetInformationProcess (process_handle, ProcessPagePriority, &page_priority_info, sizeof (page_priority_info));
+		NtSetInformationProcess (
+			process_handle,
+			ProcessPagePriority,
+			&page_priority_info,
+			sizeof (page_priority_info)
+		);
 	}
 }
 
@@ -9839,7 +9778,12 @@ VOID _r_sys_setthreadenvironment (
 	{
 		base_priority = environment->base_priority;
 
-		NtSetInformationThread (thread_handle, ThreadBasePriority, &base_priority, sizeof (base_priority));
+		NtSetInformationThread (
+			thread_handle,
+			ThreadBasePriority,
+			base_priority,
+			sizeof (base_priority)
+		);
 	}
 
 	// set i/o priority
@@ -9847,7 +9791,12 @@ VOID _r_sys_setthreadenvironment (
 	{
 		io_priority = environment->io_priority;
 
-		NtSetInformationThread (thread_handle, ThreadIoPriority, &io_priority, sizeof (io_priority));
+		NtSetInformationThread (
+			thread_handle,
+			ThreadIoPriority,
+			&io_priority,
+			sizeof (io_priority)
+		);
 	}
 
 	// set memory priority
@@ -9855,7 +9804,12 @@ VOID _r_sys_setthreadenvironment (
 	{
 		page_priority_info.PagePriority = environment->page_priority;
 
-		NtSetInformationThread (thread_handle, ThreadPagePriority, &page_priority_info, sizeof (page_priority_info));
+		NtSetInformationThread (
+			thread_handle,
+			ThreadPagePriority,
+			page_priority_info,
+			sizeof (page_priority_info)
+		);
 	}
 }
 
@@ -14092,11 +14046,7 @@ PR_HASHTABLE _r_parseini (
 				// skip comments
 				if (*values_iterator.buffer != L'#')
 				{
-					if (_r_str_splitatchar (
-						&values_iterator,
-						L'=',
-						&key_string,
-						&value_string))
+					if (_r_str_splitatchar (&values_iterator, '=', &key_string, &value_string))
 					{
 						// set hash code in table to "section\key" string
 						hash_string = _r_obj_concatstringrefs (
@@ -14221,14 +14171,7 @@ HRESULT _r_xml_createfilestream (
 	PR_XML_STREAM hstream_prev;
 	HRESULT hr;
 
-	hr = SHCreateStreamOnFileEx (
-		file_path,
-		mode,
-		FILE_ATTRIBUTE_NORMAL,
-		is_create,
-		NULL,
-		&hstream
-	);
+	hr = SHCreateStreamOnFileEx (file_path, mode, FILE_ATTRIBUTE_NORMAL, is_create, NULL, &hstream);
 
 	if (hr != S_OK)
 		return hr;
@@ -15409,7 +15352,7 @@ VOID _r_menu_setitemtextformat (
 
 INT _r_menu_popup (
 	_In_ HMENU hmenu,
-	_In_ HWND hwnd,
+	_In_opt_ HWND hwnd,
 	_In_opt_ PPOINT point,
 	_In_ BOOLEAN is_sendmessage
 )
