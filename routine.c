@@ -9781,7 +9781,7 @@ VOID _r_sys_setthreadenvironment (
 		NtSetInformationThread (
 			thread_handle,
 			ThreadBasePriority,
-			base_priority,
+			&base_priority,
 			sizeof (base_priority)
 		);
 	}
@@ -9807,7 +9807,7 @@ VOID _r_sys_setthreadenvironment (
 		NtSetInformationThread (
 			thread_handle,
 			ThreadPagePriority,
-			page_priority_info,
+			&page_priority_info,
 			sizeof (page_priority_info)
 		);
 	}
@@ -12208,17 +12208,22 @@ VOID CALLBACK _r_wnd_message_settingchange (
 	_In_opt_ LPARAM lparam
 )
 {
-	LPCWSTR type;
+	R_STRINGREF sr;
+	LPWSTR type;
 
 	UNREFERENCED_PARAMETER (wparam);
 
-	type = (LPCWSTR)lparam;
+	type = (LPWSTR)lparam;
 
 	if (!type)
 		return;
 
-	if (_r_str_compare (type, L"WindowMetrics") == 0)
+	_r_obj_initializestringref (&sr, type);
+
+	if (_r_str_isequal2 (&sr, L"WindowMetrics", TRUE))
+	{
 		SendMessage (hwnd, RM_LOCALIZE, 0, 0);
+	}
 }
 
 VOID _r_wnd_rectangletorect (
