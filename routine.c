@@ -15357,7 +15357,7 @@ VOID _r_menu_setitemtextformat (
 
 INT _r_menu_popup (
 	_In_ HMENU hmenu,
-	_In_opt_ HWND hwnd,
+	_In_ HWND hwnd,
 	_In_opt_ PPOINT point,
 	_In_ BOOLEAN is_sendmessage
 )

@@ -1219,6 +1219,9 @@ VOID _r_obj_resizestringbuilder (
 #define _r_obj_isarrayempty(array_node) \
     ((array_node) == NULL || (array_node)->count == 0)
 
+#define _r_obj_isarrayempty2(array_node) \
+    ((array_node)->count == 0)
+
 PR_ARRAY _r_obj_createarray_ex (
 	_In_ SIZE_T item_size,
 	_In_ SIZE_T initial_capacity,
@@ -3966,7 +3969,7 @@ VOID _r_menu_setitemtextformat (
 
 INT _r_menu_popup (
 	_In_ HMENU hmenu,
-	_In_opt_ HWND hwnd,
+	_In_ HWND hwnd,
 	_In_opt_ PPOINT point,
 	_In_ BOOLEAN is_sendmessage
 );
