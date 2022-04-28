@@ -10290,12 +10290,18 @@ VOID _r_dc_getdefaultfont (
 
 	RtlZeroMemory (&ncm, sizeof (ncm));
 
+#if defined(APP_NO_DEPRECATIONS)
 	ncm.cbSize = sizeof (ncm);
-
-#if !defined(APP_NO_DEPRECATIONS)
-	if (_r_sys_isosversionlower (WINDOWS_VISTA))
-		ncm.cbSize -= sizeof (INT); // xp support
-#endif // !APP_NO_DEPRECATIONS
+#else
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
+	{
+		ncm.cbSize = sizeof (ncm);
+	}
+	else
+	{
+		ncm.cbSize = RTL_SIZEOF_THROUGH_FIELD (NONCLIENTMETRICS, lfMessageFont); // xp support
+	}
+#endif // APP_NO_DEPRECATIONS
 
 	if (!_r_dc_getsystemparametersinfo (SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, dpi_value))
 		return;
