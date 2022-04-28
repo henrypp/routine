@@ -416,7 +416,7 @@ typedef VOID (NTAPI *PR_WORKQUEUE_FUNCTION) (
 
 typedef struct _R_ENVIRONMENT
 {
-	LONG base_priority : 6; // Base priority increment
+	KPRIORITY base_priority : 6; // Base priority increment
 	ULONG io_priority : 3; // I/O priority hint
 	ULONG page_priority : 3; // Page/memory priority
 	ULONG is_forced : 1;

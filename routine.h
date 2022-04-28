@@ -2628,7 +2628,7 @@ NTSTATUS _r_sys_setprocessprivilege (
 
 VOID _r_sys_setenvironment (
 	_Out_ PR_ENVIRONMENT environment,
-	_In_ LONG base_priority,
+	_In_ KPRIORITY base_priority,
 	_In_ ULONG io_priority,
 	_In_ ULONG page_priority
 );

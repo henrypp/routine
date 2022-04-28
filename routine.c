@@ -9669,7 +9669,7 @@ NTSTATUS _r_sys_setprocessprivilege (
 
 VOID _r_sys_setenvironment (
 	_Out_ PR_ENVIRONMENT environment,
-	_In_ LONG base_priority,
+	_In_ KPRIORITY base_priority,
 	_In_ ULONG io_priority,
 	_In_ ULONG page_priority
 )
@@ -9684,24 +9684,14 @@ VOID _r_sys_setdefaultprocessenvironment (
 	_Out_ PR_ENVIRONMENT environment
 )
 {
-	_r_sys_setenvironment (
-		environment,
-		PROCESS_PRIORITY_CLASS_NORMAL,
-		IoPriorityNormal,
-		MEMORY_PRIORITY_NORMAL
-	);
+	_r_sys_setenvironment (environment, PROCESS_PRIORITY_CLASS_NORMAL, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
 }
 
 VOID _r_sys_setdefaultthreadenvironment (
 	_Out_ PR_ENVIRONMENT environment
 )
 {
-	_r_sys_setenvironment (
-		environment,
-		THREAD_PRIORITY_NORMAL,
-		IoPriorityNormal,
-		MEMORY_PRIORITY_NORMAL
-	);
+	_r_sys_setenvironment (environment, THREAD_PRIORITY_NORMAL, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
 }
 
 VOID _r_sys_setprocessenvironment (
@@ -9724,12 +9714,7 @@ VOID _r_sys_setprocessenvironment (
 		priority_class.Foreground = FALSE;
 		priority_class.PriorityClass = (UCHAR)environment->base_priority;
 
-		NtSetInformationProcess (
-			process_handle,
-			ProcessPriorityClass,
-			&priority_class,
-			sizeof (priority_class)
-		);
+		NtSetInformationProcess (process_handle, ProcessPriorityClass, &priority_class, sizeof (priority_class));
 	}
 
 	// set i/o priority
@@ -9737,12 +9722,7 @@ VOID _r_sys_setprocessenvironment (
 	{
 		io_priority = environment->io_priority;
 
-		NtSetInformationProcess (
-			process_handle,
-			ProcessIoPriority,
-			&io_priority,
-			sizeof (io_priority)
-		);
+		NtSetInformationProcess (process_handle, ProcessIoPriority, &io_priority, sizeof (io_priority));
 	}
 
 	// set memory priority
@@ -9750,12 +9730,7 @@ VOID _r_sys_setprocessenvironment (
 	{
 		page_priority_info.PagePriority = environment->page_priority;
 
-		NtSetInformationProcess (
-			process_handle,
-			ProcessPagePriority,
-			&page_priority_info,
-			sizeof (page_priority_info)
-		);
+		NtSetInformationProcess (process_handle, ProcessPagePriority, &page_priority_info, sizeof (page_priority_info));
 	}
 }
 
@@ -9778,12 +9753,7 @@ VOID _r_sys_setthreadenvironment (
 	{
 		base_priority = environment->base_priority;
 
-		NtSetInformationThread (
-			thread_handle,
-			ThreadBasePriority,
-			&base_priority,
-			sizeof (base_priority)
-		);
+		NtSetInformationThread (thread_handle, ThreadBasePriority, &base_priority, sizeof (base_priority));
 	}
 
 	// set i/o priority
@@ -9791,12 +9761,7 @@ VOID _r_sys_setthreadenvironment (
 	{
 		io_priority = environment->io_priority;
 
-		NtSetInformationThread (
-			thread_handle,
-			ThreadIoPriority,
-			&io_priority,
-			sizeof (io_priority)
-		);
+		NtSetInformationThread (thread_handle, ThreadIoPriority, &io_priority, sizeof (io_priority));
 	}
 
 	// set memory priority
@@ -9804,12 +9769,7 @@ VOID _r_sys_setthreadenvironment (
 	{
 		page_priority_info.PagePriority = environment->page_priority;
 
-		NtSetInformationThread (
-			thread_handle,
-			ThreadPagePriority,
-			&page_priority_info,
-			sizeof (page_priority_info)
-		);
+		NtSetInformationThread (thread_handle, ThreadPagePriority, &page_priority_info, sizeof (page_priority_info));
 	}
 }
 
