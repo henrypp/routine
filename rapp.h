@@ -342,11 +342,13 @@ VOID _r_update_enable (
 	_In_ BOOLEAN is_enable
 );
 
+_Success_ (return)
 BOOLEAN _r_update_isenabled (
 	_In_ BOOLEAN is_checktimestamp
 );
 
-VOID _r_update_check (
+_Success_ (return)
+BOOLEAN _r_update_check (
 	_In_opt_ HWND hparent
 );
 
@@ -405,6 +407,14 @@ VOID _r_log_v (
 	_In_ ULONG error_code,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
+);
+
+LPCWSTR _r_log_leveltostring (
+	_In_ R_LOG_LEVEL log_level
+);
+
+ULONG _r_log_leveltrayicon (
+	_In_ R_LOG_LEVEL log_level
 );
 
 #if !defined(APP_CONSOLE)
@@ -480,7 +490,9 @@ BOOLEAN _r_app_initialize_controls ();
 
 BOOLEAN _r_app_initialize_dll ();
 
+#if !defined(APP_CONSOLE)
 VOID _r_app_initialize_locale ();
+#endif // !APP_CONSOLE
 
 VOID _r_app_initialize_seh ();
 

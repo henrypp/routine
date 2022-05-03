@@ -229,10 +229,10 @@ BOOLEAN _r_app_initialize_com ()
 BOOLEAN _r_app_initialize_components ()
 {
 	// set locale information
-	app_global.locale.resource_name = _r_obj_createstring (APP_LANGUAGE_DEFAULT);
-
 	if (app_global.locale.default_name)
 		_r_obj_dereference (app_global.locale.default_name);
+
+	app_global.locale.resource_name = _r_obj_createstring (APP_LANGUAGE_DEFAULT);
 
 	_r_app_initialize_locale ();
 
@@ -329,6 +329,7 @@ BOOLEAN _r_app_initialize_dll ()
 	return TRUE;
 }
 
+#if !defined(APP_CONSOLE)
 VOID _r_app_initialize_locale ()
 {
 	ULONG status;
@@ -340,6 +341,7 @@ VOID _r_app_initialize_locale ()
 	if (status != ERROR_SUCCESS)
 		_r_sys_getlocaleinfo (LOCALE_SYSTEM_DEFAULT, LOCALE_SENGLISHLANGUAGENAME, &app_global.locale.default_name);
 }
+#endif // !APP_CONSOLE
 
 VOID _r_app_initialize_seh ()
 {
@@ -391,6 +393,10 @@ VOID _r_app_initialize_seh ()
 
 BOOLEAN _r_app_initialize ()
 {
+	// set main thread name (win10rs1+)
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1607))
+		_r_sys_setthreadname (NtCurrentThread (), L"MainThread");
+
 	// initialize controls
 #if !defined(APP_CONSOLE)
 	if (!_r_app_initialize_controls ())
@@ -2718,6 +2724,7 @@ VOID _r_update_enable (
 	_r_config_setlong (L"CheckUpdatesPeriod", value);
 }
 
+_Success_ (return)
 BOOLEAN _r_update_isenabled (
 	_In_ BOOLEAN is_checktimestamp
 )
@@ -2746,7 +2753,8 @@ BOOLEAN _r_update_isenabled (
 	return TRUE;
 }
 
-VOID _r_update_check (
+_Success_ (return)
+BOOLEAN _r_update_check (
 	_In_opt_ HWND hparent
 )
 {
@@ -2768,24 +2776,24 @@ VOID _r_update_check (
 		if (hparent)
 			_r_show_message (hparent, MB_OK | MB_ICONWARNING, APP_SECURITY_TITLE, APP_WARNING_UPDATE_TEXT);
 
-		return;
+		return FALSE;
 	}
 #endif // !APP_NO_DEPRECATIONS
 
 	update_info = &app_global.update.info;
 
 	if (!hparent && !_r_update_isenabled (TRUE))
-		return;
+		return FALSE;
 
 	if (InterlockedCompareExchange (&update_info->lock, 0, 0) != 0)
-		return;
+		return FALSE;
 
 	_r_sys_setenvironment (&environment, THREAD_PRIORITY_LOWEST, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
 
-	status = _r_sys_createthread (&_r_update_checkthread, update_info, &hthread, &environment);
+	status = _r_sys_createthread (&_r_update_checkthread, update_info, &hthread, &environment, NULL);
 
-	if (status != STATUS_SUCCESS)
-		return;
+	if (!NT_SUCCESS (status))
+		return FALSE;
 
 	InterlockedIncrement (&update_info->lock);
 
@@ -2815,6 +2823,8 @@ VOID _r_update_check (
 		NtResumeThread (hthread, NULL);
 		NtClose (hthread);
 	}
+
+	return TRUE;
 }
 
 HRESULT CALLBACK _r_update_pagecallback (
@@ -2875,9 +2885,15 @@ HRESULT CALLBACK _r_update_pagecallback (
 			{
 				_r_sys_setenvironment (&environment, THREAD_PRIORITY_LOWEST, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
 
-				status = _r_sys_createthread (&_r_update_downloadthread, update_info, &update_info->hthread, &environment);
+				status = _r_sys_createthread (
+					&_r_update_downloadthread,
+					update_info,
+					&update_info->hthread,
+					&environment,
+					NULL
+				);
 
-				if (status == STATUS_SUCCESS)
+				if (NT_SUCCESS (status))
 				{
 					if (update_info->is_clicked)
 					{
@@ -3101,55 +3117,6 @@ VOID _r_update_install (
 }
 #endif // APP_HAVE_UPDATES
 
-FORCEINLINE LPCWSTR _r_log_leveltostring (
-	_In_ R_LOG_LEVEL log_level
-)
-{
-	switch (log_level)
-	{
-		case LOG_LEVEL_DISABLED:
-			return L"Disabled";
-
-		case LOG_LEVEL_DEBUG:
-			return L"Debug";
-
-		case LOG_LEVEL_INFO:
-			return L"Info";
-
-		case LOG_LEVEL_WARNING:
-			return L"Warning";
-
-		case LOG_LEVEL_ERROR:
-			return L"Error";
-
-		case LOG_LEVEL_CRITICAL:
-			return L"Critical";
-	}
-
-	return NULL;
-}
-
-FORCEINLINE ULONG _r_log_leveltrayicon (
-	_In_ R_LOG_LEVEL log_level
-)
-{
-	switch (log_level)
-	{
-		case LOG_LEVEL_DEBUG:
-		case LOG_LEVEL_INFO:
-			return NIIF_INFO;
-
-		case LOG_LEVEL_WARNING:
-			return NIIF_WARNING;
-
-		case LOG_LEVEL_ERROR:
-		case LOG_LEVEL_CRITICAL:
-			return NIIF_ERROR;
-	}
-
-	return NIIF_NONE;
-}
-
 BOOLEAN _r_log_isenabled (
 	_In_ R_LOG_LEVEL log_level_check
 )
@@ -3213,7 +3180,13 @@ HANDLE _r_log_getfilehandle ()
 					WriteFile (hfile, bom, sizeof (bom), &unused, NULL);
 
 					// adds csv header
-					WriteFile (hfile, PR_DEBUG_HEADER, (ULONG)(_r_str_getlength (PR_DEBUG_HEADER) * sizeof (WCHAR)), &unused, NULL);
+					WriteFile (
+						hfile,
+						PR_DEBUG_HEADER,
+						(ULONG)(_r_str_getlength (PR_DEBUG_HEADER) * sizeof (WCHAR)),
+						&unused,
+						NULL
+					);
 				}
 				else
 				{
@@ -3327,6 +3300,57 @@ VOID _r_log_v (
 	va_end (arg_ptr);
 
 	_r_log (log_level, tray_guid, title, error_code, string);
+}
+
+LPCWSTR _r_log_leveltostring (
+	_In_ R_LOG_LEVEL log_level
+)
+{
+	switch (log_level)
+	{
+		case LOG_LEVEL_DISABLED:
+			return L"Disabled";
+
+		case LOG_LEVEL_DEBUG:
+			return L"Debug";
+
+		case LOG_LEVEL_INFO:
+			return L"Info";
+
+		case LOG_LEVEL_WARNING:
+			return L"Warning";
+
+		case LOG_LEVEL_ERROR:
+			return L"Error";
+
+		case LOG_LEVEL_CRITICAL:
+			return L"Critical";
+
+		default:
+			return NULL;
+	}
+}
+
+ULONG _r_log_leveltrayicon (
+	_In_ R_LOG_LEVEL log_level
+)
+{
+	switch (log_level)
+	{
+		case LOG_LEVEL_DEBUG:
+		case LOG_LEVEL_INFO:
+			return NIIF_INFO;
+
+		case LOG_LEVEL_WARNING:
+			return NIIF_WARNING;
+
+		case LOG_LEVEL_ERROR:
+		case LOG_LEVEL_CRITICAL:
+			return NIIF_ERROR;
+
+		default:
+			return NIIF_NONE;
+	}
 }
 
 #if !defined(APP_CONSOLE)
