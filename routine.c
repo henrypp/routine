@@ -1794,7 +1794,8 @@ VOID _r_workqueue_initialize (
 	_In_ ULONG minimum_threads,
 	_In_ ULONG maximum_threads,
 	_In_ ULONG no_work_timeout,
-	_In_opt_ PR_ENVIRONMENT environment
+	_In_opt_ PR_ENVIRONMENT environment,
+	_In_opt_ LPCWSTR thread_name
 )
 {
 	InitializeListHead (&work_queue->queue_list_head);
@@ -1815,8 +1816,15 @@ VOID _r_workqueue_initialize (
 	}
 	else
 	{
-		_r_sys_setdefaultthreadenvironment (&work_queue->environment);
+		_r_sys_setenvironment (
+			&work_queue->environment,
+			THREAD_PRIORITY_NORMAL,
+			IoPriorityNormal,
+			MEMORY_PRIORITY_NORMAL
+		);
 	}
+
+	work_queue->thread_name = thread_name ? _r_obj_createstring (thread_name) : NULL;
 
 	NtCreateSemaphore (&work_queue->semaphore_handle, SEMAPHORE_ALL_ACCESS, NULL, 0, MAXLONG);
 
@@ -1857,7 +1865,7 @@ VOID _r_workqueue_destroy (
 }
 
 PR_WORKQUEUE_ITEM _r_workqueue_createitem (
-	_In_ PR_WORKQUEUE_FUNCTION function_address,
+	_In_ PR_WORKQUEUE_FUNCTION base_address,
 	_In_opt_ PVOID context
 )
 {
@@ -1868,7 +1876,7 @@ PR_WORKQUEUE_ITEM _r_workqueue_createitem (
 
 	work_queue_item = _r_freelist_allocateitem (free_list);
 
-	work_queue_item->function_address = function_address;
+	work_queue_item->base_address = base_address;
 	work_queue_item->context = context;
 
 	return work_queue_item;
@@ -1950,7 +1958,7 @@ NTSTATUS _r_workqueue_threadproc (
 			{
 				work_queue_item = CONTAINING_RECORD (list_entry, R_WORKQUEUE_ITEM, list_entry);
 
-				work_queue_item->function_address (work_queue_item->context, work_queue->busy_count);
+				work_queue_item->base_address (work_queue_item->context, work_queue->busy_count);
 
 				InterlockedDecrement (&work_queue->busy_count);
 
@@ -1990,6 +1998,7 @@ VOID _r_workqueue_queueitem (
 )
 {
 	PR_WORKQUEUE_ITEM work_queue_item;
+	NTSTATUS status;
 
 	work_queue_item = _r_workqueue_createitem (function_address, context);
 
@@ -2013,7 +2022,15 @@ VOID _r_workqueue_queueitem (
 		// Make sure the structure doesn't get deleted while the thread is running.
 		if (_r_protection_acquire (&work_queue->rundown_protect))
 		{
-			if (_r_sys_createthread (&_r_workqueue_threadproc, work_queue, NULL, &work_queue->environment) == STATUS_SUCCESS)
+			status = _r_sys_createthread (
+				&_r_workqueue_threadproc,
+				work_queue,
+				NULL,
+				&work_queue->environment,
+				_r_obj_getstring (work_queue->thread_name)
+			);
+
+			if (NT_SUCCESS (status))
 			{
 				work_queue->current_threads += 1;
 			}
@@ -4510,7 +4527,8 @@ BOOLEAN _r_fs_makebackup (
 	return is_success;
 }
 
-BOOLEAN _r_fs_mkdir (
+_Success_ (return == ERROR_SUCCESS)
+ULONG _r_fs_mkdir (
 	_In_ LPCWSTR path
 )
 {
@@ -4529,7 +4547,7 @@ BOOLEAN _r_fs_mkdir (
 
 	status = SHCreateDirectoryEx (NULL, path, NULL);
 
-	return (status == ERROR_SUCCESS);
+	return status;
 }
 
 _Success_ (return == STATUS_SUCCESS)
@@ -5510,7 +5528,14 @@ PR_STRING _r_path_search (
 	buffer_length = 256;
 	full_path = _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR));
 
-	return_length = SearchPath (NULL, path, extension, buffer_length, full_path->buffer, NULL);
+	return_length = SearchPath (
+		NULL,
+		path,
+		extension,
+		buffer_length,
+		full_path->buffer,
+		NULL
+	);
 
 	if (return_length == 0 && return_length <= buffer_length)
 		goto CleanupExit;
@@ -5522,7 +5547,14 @@ PR_STRING _r_path_search (
 		_r_obj_dereference (full_path);
 		full_path = _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR));
 
-		return_length = SearchPath (NULL, path, extension, buffer_length, full_path->buffer, NULL);
+		return_length = SearchPath (
+			NULL,
+			path,
+			extension,
+			buffer_length,
+			full_path->buffer,
+			NULL
+		);
 	}
 
 	if (return_length == 0 && return_length <= buffer_length)
@@ -6217,7 +6249,7 @@ VOID _r_str_fromulong64 (
 	_r_str_printf (buffer, buffer_size, L"%" TEXT (PR_ULONG64), value);
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_fromguid (
 	_In_ LPCGUID guid,
 	_In_ BOOLEAN is_uppercase,
@@ -6230,7 +6262,7 @@ NTSTATUS _r_str_fromguid (
 
 	status = RtlStringFromGUID ((LPGUID)guid, &us);
 
-	if (status == STATUS_SUCCESS)
+	if (NT_SUCCESS (status))
 	{
 		string = _r_obj_createstring4 (&us);
 
@@ -8563,7 +8595,7 @@ LONG _r_sys_getpackagepath (
 	return status;
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getservicesid (
 	_In_ PR_STRINGREF name,
 	_Out_ PR_BYTE_PTR out_buffer
@@ -8587,7 +8619,7 @@ NTSTATUS _r_sys_getservicesid (
 
 		status = RtlCreateServiceSid (&service_name, sid->buffer, &sid_length);
 
-		if (status == STATUS_SUCCESS)
+		if (NT_SUCCESS (status))
 		{
 			*out_buffer = sid;
 		}
@@ -8686,7 +8718,7 @@ ULONG64 _r_sys_gettickcount64 ()
 		(UInt32x32To64 (tick_count.HighPart, USER_SHARED_DATA->TickCountMultiplier) << 8);
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getusernamefromsid (
 	_In_ PSID sid,
 	_Out_ PR_STRING_PTR out_buffer
@@ -8709,12 +8741,12 @@ NTSTATUS _r_sys_getusernamefromsid (
 
 	status = LsaOpenPolicy (NULL, &object_attributes, POLICY_LOOKUP_NAMES, &policy_handle);
 
-	if (status != STATUS_SUCCESS)
+	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
 	status = LsaLookupSids (policy_handle, 1, &sid, &referenced_domains, &names);
 
-	if (status != STATUS_SUCCESS)
+	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
 	if (names[0].Use == SidTypeInvalid || names[0].Use == SidTypeUnknown)
@@ -8746,7 +8778,7 @@ NTSTATUS _r_sys_getusernamefromsid (
 
 CleanupExit:
 
-	if (status == STATUS_SUCCESS)
+	if (NT_SUCCESS (status))
 	{
 		*out_buffer = _r_obj_finalstringbuilder (&sb);
 	}
@@ -8902,7 +8934,7 @@ ULONG _r_sys_getwindowsversion ()
 	return windows_version;
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_compressbuffer (
 	_In_ USHORT format,
 	_In_ PR_BYTEREF buffer,
@@ -8919,7 +8951,7 @@ NTSTATUS _r_sys_compressbuffer (
 
 	status = RtlGetCompressionWorkSpaceSize (format, &ws_buffer_length, &ws_fragment_length);
 
-	if (status != STATUS_SUCCESS)
+	if (!NT_SUCCESS (status))
 	{
 		*out_buffer = NULL;
 
@@ -8943,7 +8975,7 @@ NTSTATUS _r_sys_compressbuffer (
 		ws_buffer
 	);
 
-	if (status == STATUS_SUCCESS)
+	if (NT_SUCCESS (status))
 	{
 		tmp_buffer->length = return_length;
 
@@ -8961,7 +8993,7 @@ NTSTATUS _r_sys_compressbuffer (
 	return status;
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_decompressbuffer (
 	_In_ USHORT format,
 	_In_ PR_BYTEREF buffer,
@@ -9026,7 +9058,7 @@ NTSTATUS _r_sys_decompressbuffer (
 		while (--attempts);
 	}
 
-	if (status == STATUS_SUCCESS)
+	if (NT_SUCCESS (status))
 	{
 		tmp_buffer->length = return_length;
 
@@ -9131,7 +9163,6 @@ NTSTATUS _r_sys_createprocess_ex (
 
 			if (arga)
 			{
-				_r_obj_dereference (file_name_string);
 				file_name_string = _r_obj_createstring (arga[0]);
 
 				LocalFree (arga);
@@ -9194,6 +9225,7 @@ NTSTATUS _r_sys_createprocess_ex (
 	return status;
 }
 
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_openprocess (
 	_In_opt_ HANDLE process_id,
 	_In_ ACCESS_MASK desired_access,
@@ -9214,10 +9246,11 @@ NTSTATUS _r_sys_openprocess (
 	return status;
 }
 
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_queryprocessstring (
 	_In_ HANDLE process_handle,
 	_In_ PROCESSINFOCLASS info_class,
-	_Out_ PVOID_PTR file_name
+	_Out_ PR_STRING_PTR out_buffer
 )
 {
 	PVOID buffer;
@@ -9238,7 +9271,7 @@ NTSTATUS _r_sys_queryprocessstring (
 		status != STATUS_BUFFER_TOO_SMALL &&
 		status != STATUS_INFO_LENGTH_MISMATCH)
 	{
-		*file_name = NULL;
+		*out_buffer = NULL;
 
 		return status;
 	}
@@ -9255,11 +9288,11 @@ NTSTATUS _r_sys_queryprocessstring (
 
 	if (NT_SUCCESS (status))
 	{
-		*file_name = _r_obj_createstring4 (buffer);
+		*out_buffer = _r_obj_createstring4 (buffer);
 	}
 	else
 	{
-		*file_name = NULL;
+		*out_buffer = NULL;
 	}
 
 	_r_mem_free (buffer);
@@ -9292,7 +9325,7 @@ VOID _r_sys_sleep (
 {
 	LARGE_INTEGER timeout;
 
-	if (!milliseconds || milliseconds == INFINITE)
+	if (milliseconds == 0 || milliseconds == INFINITE)
 		return;
 
 	_r_calc_millisecondstolargeinteger (&timeout, milliseconds);
@@ -9317,7 +9350,7 @@ NTSTATUS NTAPI _r_sys_basethreadstart (
 
 	hr = CoInitializeEx (NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 
-	status = context.function_address (context.arglist);
+	status = context.base_address (context.arglist);
 
 	if (hr == S_OK || hr == S_FALSE)
 		CoUninitialize ();
@@ -9342,12 +9375,13 @@ PR_FREE_LIST _r_sys_getthreadfreelist ()
 	return &free_list;
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_createthread (
-	_In_ PUSER_THREAD_START_ROUTINE function_address,
+	_In_ PUSER_THREAD_START_ROUTINE base_address,
 	_In_opt_ PVOID arglist,
 	_Out_opt_ PHANDLE thread_handle,
-	_In_opt_ PR_ENVIRONMENT environment
+	_In_opt_ PR_ENVIRONMENT environment,
+	_In_opt_ LPCWSTR thread_name
 )
 {
 	PR_THREAD_CONTEXT context;
@@ -9359,7 +9393,7 @@ NTSTATUS _r_sys_createthread (
 
 	context = _r_freelist_allocateitem (free_list);
 
-	context->function_address = function_address;
+	context->base_address = base_address;
 	context->arglist = arglist;
 
 	status = RtlCreateUserThread (
@@ -9375,10 +9409,17 @@ NTSTATUS _r_sys_createthread (
 		NULL
 	);
 
-	if (status == STATUS_SUCCESS)
+	if (NT_SUCCESS (status))
 	{
 		if (environment)
 			_r_sys_setthreadenvironment (hthread, environment);
+
+		// win10rs1+
+		if (thread_name)
+		{
+			if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1607))
+				_r_sys_setthreadname (hthread, thread_name);
+		}
 
 		if (thread_handle)
 		{
@@ -9619,6 +9660,100 @@ NTSTATUS _r_sys_querytokeninformation (
 	return status;
 }
 
+VOID _r_sys_queryprocessenvironment (
+	_In_ HANDLE process_handle,
+	_Out_ PR_ENVIRONMENT environment
+)
+{
+	IO_PRIORITY_HINT io_priority;
+	PROCESS_PRIORITY_CLASS priority_class;
+	PAGE_PRIORITY_INFORMATION page_priority;
+	NTSTATUS status;
+
+	// query base priority
+	status = NtQueryInformationProcess (process_handle, ProcessPriorityClass, &priority_class, sizeof (priority_class), NULL);
+
+	if (NT_SUCCESS (status))
+	{
+		environment->base_priority = priority_class.PriorityClass;
+	}
+	else
+	{
+		environment->base_priority = PROCESS_PRIORITY_CLASS_UNKNOWN;
+	}
+
+	// query i/o priority
+	status = NtQueryInformationProcess (process_handle, ProcessIoPriority, &io_priority, sizeof (io_priority), NULL);
+
+	if (NT_SUCCESS (status))
+	{
+		environment->io_priority = io_priority;
+	}
+	else
+	{
+		environment->io_priority = IoPriorityVeryLow;
+	}
+
+	// query memory priority
+	status = NtQueryInformationProcess (process_handle, ProcessPagePriority, &page_priority, sizeof (page_priority), NULL);
+
+	if (NT_SUCCESS (status))
+	{
+		environment->page_priority = page_priority.PagePriority;
+	}
+	else
+	{
+		environment->page_priority = MEMORY_PRIORITY_LOWEST;
+	}
+}
+
+VOID _r_sys_querythreadenvironment (
+	_In_ HANDLE thread_handle,
+	_Out_ PR_ENVIRONMENT environment
+)
+{
+	KPRIORITY base_priority;
+	IO_PRIORITY_HINT io_priority;
+	PAGE_PRIORITY_INFORMATION page_priority;
+	NTSTATUS status;
+
+	// query base priority
+	status = NtQueryInformationThread (thread_handle, ThreadBasePriority, &base_priority, sizeof (base_priority), NULL);
+
+	if (NT_SUCCESS (status))
+	{
+		environment->base_priority = base_priority;
+	}
+	else
+	{
+		environment->base_priority = THREAD_PRIORITY_NORMAL;
+	}
+
+	// query i/o priority
+	status = NtQueryInformationThread (thread_handle, ThreadIoPriority, &io_priority, sizeof (io_priority), NULL);
+
+	if (NT_SUCCESS (status))
+	{
+		environment->io_priority = io_priority;
+	}
+	else
+	{
+		environment->io_priority = IoPriorityVeryLow;
+	}
+
+	// query memory priority
+	status = NtQueryInformationThread (thread_handle, ThreadPagePriority, &page_priority, sizeof (page_priority), NULL);
+
+	if (NT_SUCCESS (status))
+	{
+		environment->page_priority = page_priority.PagePriority;
+	}
+	else
+	{
+		environment->page_priority = MEMORY_PRIORITY_LOWEST;
+	}
+}
+
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_setprocessprivilege (
 	_In_ HANDLE process_handle,
@@ -9677,99 +9812,90 @@ VOID _r_sys_setenvironment (
 	environment->base_priority = base_priority;
 	environment->io_priority = io_priority;
 	environment->page_priority = page_priority;
-	environment->is_forced = FALSE;
-}
-
-VOID _r_sys_setdefaultprocessenvironment (
-	_Out_ PR_ENVIRONMENT environment
-)
-{
-	_r_sys_setenvironment (environment, PROCESS_PRIORITY_CLASS_NORMAL, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
-}
-
-VOID _r_sys_setdefaultthreadenvironment (
-	_Out_ PR_ENVIRONMENT environment
-)
-{
-	_r_sys_setenvironment (environment, THREAD_PRIORITY_NORMAL, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
 }
 
 VOID _r_sys_setprocessenvironment (
 	_In_ HANDLE process_handle,
-	_In_ PR_ENVIRONMENT environment
+	_In_ PR_ENVIRONMENT new_environment
 )
 {
+	R_ENVIRONMENT current_environment;
 	IO_PRIORITY_HINT io_priority;
 	PROCESS_PRIORITY_CLASS priority_class;
-	PAGE_PRIORITY_INFORMATION page_priority_info;
+	PAGE_PRIORITY_INFORMATION page_priority;
+
+	_r_sys_queryprocessenvironment (process_handle, &current_environment);
+
+	// set base priority
+	if (current_environment.base_priority != new_environment->base_priority)
+	{
+		priority_class.Foreground = FALSE;
+		priority_class.PriorityClass = (UCHAR)(new_environment->base_priority);
+
+		NtSetInformationProcess (process_handle, ProcessPriorityClass, &priority_class, sizeof (priority_class));
+	}
 
 #if !defined(APP_NO_DEPRECATIONS)
 	if (_r_sys_isosversionlower (WINDOWS_VISTA))
 		return;
 #endif // !APP_NO_DEPRECATIONS
 
-	// set base priority
-	if (environment->is_forced || environment->base_priority != PROCESS_PRIORITY_CLASS_NORMAL)
-	{
-		priority_class.Foreground = FALSE;
-		priority_class.PriorityClass = (UCHAR)environment->base_priority;
-
-		NtSetInformationProcess (process_handle, ProcessPriorityClass, &priority_class, sizeof (priority_class));
-	}
-
 	// set i/o priority
-	if (environment->is_forced || environment->io_priority != IoPriorityNormal)
+	if (current_environment.io_priority != new_environment->io_priority)
 	{
-		io_priority = environment->io_priority;
+		io_priority = new_environment->io_priority;
 
 		NtSetInformationProcess (process_handle, ProcessIoPriority, &io_priority, sizeof (io_priority));
 	}
 
 	// set memory priority
-	if (environment->is_forced || environment->page_priority != MEMORY_PRIORITY_NORMAL)
+	if (current_environment.page_priority != new_environment->page_priority)
 	{
-		page_priority_info.PagePriority = environment->page_priority;
+		page_priority.PagePriority = new_environment->page_priority;
 
-		NtSetInformationProcess (process_handle, ProcessPagePriority, &page_priority_info, sizeof (page_priority_info));
+		NtSetInformationProcess (process_handle, ProcessPagePriority, &page_priority, sizeof (page_priority));
 	}
 }
 
 VOID _r_sys_setthreadenvironment (
 	_In_ HANDLE thread_handle,
-	_In_ PR_ENVIRONMENT environment
+	_In_ PR_ENVIRONMENT new_environment
 )
 {
-	LONG base_priority;
+	R_ENVIRONMENT current_environment;
+	KPRIORITY base_priority;
 	IO_PRIORITY_HINT io_priority;
-	PAGE_PRIORITY_INFORMATION page_priority_info;
+	PAGE_PRIORITY_INFORMATION page_priority;
+
+	_r_sys_querythreadenvironment (thread_handle, &current_environment);
+
+	// set base priority
+	if (current_environment.base_priority != new_environment->base_priority)
+	{
+		base_priority = new_environment->base_priority;
+
+		NtSetInformationThread (thread_handle, ThreadBasePriority, &base_priority, sizeof (base_priority));
+	}
 
 #if !defined(APP_NO_DEPRECATIONS)
 	if (_r_sys_isosversionlower (WINDOWS_VISTA))
 		return;
 #endif // !APP_NO_DEPRECATIONS
 
-	// set base priority
-	if (environment->is_forced || environment->base_priority != THREAD_PRIORITY_NORMAL)
-	{
-		base_priority = environment->base_priority;
-
-		NtSetInformationThread (thread_handle, ThreadBasePriority, &base_priority, sizeof (base_priority));
-	}
-
 	// set i/o priority
-	if (environment->is_forced || environment->io_priority != IoPriorityNormal)
+	if (current_environment.io_priority != new_environment->io_priority)
 	{
-		io_priority = environment->io_priority;
+		io_priority = new_environment->io_priority;
 
 		NtSetInformationThread (thread_handle, ThreadIoPriority, &io_priority, sizeof (io_priority));
 	}
 
 	// set memory priority
-	if (environment->is_forced || environment->page_priority != MEMORY_PRIORITY_NORMAL)
+	if (current_environment.page_priority != new_environment->page_priority)
 	{
-		page_priority_info.PagePriority = environment->page_priority;
+		page_priority.PagePriority = new_environment->page_priority;
 
-		NtSetInformationThread (thread_handle, ThreadPagePriority, &page_priority_info, sizeof (page_priority_info));
+		NtSetInformationThread (thread_handle, ThreadPagePriority, &page_priority, sizeof (page_priority));
 	}
 }
 
@@ -9787,6 +9913,23 @@ EXECUTION_STATE _r_sys_setthreadexecutionstate (
 		return old_state;
 
 	return 0;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_setthreadname (
+	_In_ HANDLE thread_handle,
+	_In_ LPCWSTR thread_name
+)
+{
+	THREAD_NAME_INFORMATION tni;
+	NTSTATUS status;
+
+	RtlZeroMemory (&tni, sizeof (tni));
+	RtlInitUnicodeString (&tni.ThreadName, thread_name);
+
+	status = NtSetInformationThread (thread_handle, ThreadNameInformation, &tni, sizeof (tni));
+
+	return status;
 }
 
 //
@@ -13278,7 +13421,7 @@ VOID _r_crypt_destroycryptcontext (
 	SAFE_DELETE_REFERENCE (crypt_context->block_data);
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_createcryptcontext (
 	_Out_ PR_CRYPT_CONTEXT crypt_context,
 	_In_ LPCWSTR algorithm_id
@@ -13308,7 +13451,7 @@ NTSTATUS _r_crypt_createcryptcontext (
 		0
 	);
 
-	if (status != STATUS_SUCCESS)
+	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
 	// Calculate the size of the buffer to hold the key object
@@ -13321,7 +13464,7 @@ NTSTATUS _r_crypt_createcryptcontext (
 		0
 	);
 
-	if (status != STATUS_SUCCESS)
+	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
 	crypt_context->object_data = _r_obj_createbyte_ex (NULL, data_length);
@@ -13336,14 +13479,14 @@ NTSTATUS _r_crypt_createcryptcontext (
 		0
 	);
 
-	if (status != STATUS_SUCCESS)
+	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
 	crypt_context->block_data = _r_obj_createbyte_ex (NULL, data_length);
 
 CleanupExit:
 
-	if (status != STATUS_SUCCESS)
+	if (!NT_SUCCESS (status))
 		_r_crypt_destroycryptcontext (crypt_context);
 
 	return status;
@@ -13363,7 +13506,7 @@ PR_BYTE _r_crypt_getivblock (
 	return crypt_context->block_data;
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_generatekey (
 	_Inout_ PR_CRYPT_CONTEXT crypt_context,
 	_In_ PR_BYTEREF key
@@ -13392,7 +13535,7 @@ NTSTATUS _r_crypt_generatekey (
 	return status;
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_encryptbuffer (
 	_In_ PR_CRYPT_CONTEXT crypt_context,
 	_In_reads_bytes_ (buffer_length) PVOID buffer,
@@ -13418,7 +13561,7 @@ NTSTATUS _r_crypt_encryptbuffer (
 		BCRYPT_BLOCK_PADDING
 	);
 
-	if (status != STATUS_SUCCESS)
+	if (!NT_SUCCESS (status))
 	{
 		*out_buffer = NULL;
 
@@ -13440,7 +13583,7 @@ NTSTATUS _r_crypt_encryptbuffer (
 		BCRYPT_BLOCK_PADDING
 	);
 
-	if (status == STATUS_SUCCESS)
+	if (NT_SUCCESS (status))
 	{
 		tmp_buffer->length = written;
 
@@ -13456,7 +13599,7 @@ NTSTATUS _r_crypt_encryptbuffer (
 	return status;
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_decryptbuffer (
 	_In_ PR_CRYPT_CONTEXT crypt_context,
 	_In_reads_bytes_ (buffer_length) PVOID buffer,
@@ -13482,7 +13625,7 @@ NTSTATUS _r_crypt_decryptbuffer (
 		BCRYPT_BLOCK_PADDING
 	);
 
-	if (status != STATUS_SUCCESS)
+	if (!NT_SUCCESS (status))
 	{
 		*out_buffer = NULL;
 
@@ -13504,7 +13647,7 @@ NTSTATUS _r_crypt_decryptbuffer (
 		BCRYPT_BLOCK_PADDING
 	);
 
-	if (status == STATUS_SUCCESS)
+	if (NT_SUCCESS (status))
 	{
 		tmp_buffer->length = written;
 
@@ -13520,7 +13663,7 @@ NTSTATUS _r_crypt_decryptbuffer (
 	return status;
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_createhashcontext (
 	_Out_ PR_CRYPT_CONTEXT hash_context,
 	_In_ LPCWSTR algorithm_id
@@ -13539,7 +13682,7 @@ NTSTATUS _r_crypt_createhashcontext (
 		0
 	);
 
-	if (status != STATUS_SUCCESS)
+	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
 	status = BCryptGetProperty (
@@ -13565,7 +13708,7 @@ NTSTATUS _r_crypt_createhashcontext (
 		0
 	);
 
-	if (status != STATUS_SUCCESS)
+	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
 	hash_context->block_data = _r_obj_createbyte_ex (NULL, data_length);
@@ -13582,13 +13725,13 @@ NTSTATUS _r_crypt_createhashcontext (
 
 CleanupExit:
 
-	if (status != STATUS_SUCCESS)
+	if (!NT_SUCCESS (status))
 		_r_crypt_destroycryptcontext (hash_context);
 
 	return status;
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_hashbuffer (
 	_In_ PR_CRYPT_CONTEXT hash_context,
 	_In_reads_bytes_ (buffer_length) PVOID buffer,
@@ -13614,7 +13757,7 @@ PR_STRING _r_crypt_finalhashcontext (
 
 	status = _r_crypt_finalhashcontext_ex (hash_context, &bytes);
 
-	if (status != STATUS_SUCCESS)
+	if (!NT_SUCCESS (status))
 		return NULL;
 
 	string = _r_str_fromhex (bytes->buffer, bytes->length, is_uppercase);
@@ -13624,7 +13767,7 @@ PR_STRING _r_crypt_finalhashcontext (
 	return string;
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_finalhashcontext_ex (
 	_In_ PR_CRYPT_CONTEXT hash_context,
 	_Out_ PR_BYTE_PTR out_buffer
@@ -13639,7 +13782,7 @@ NTSTATUS _r_crypt_finalhashcontext_ex (
 		0
 	);
 
-	if (status == STATUS_SUCCESS)
+	if (NT_SUCCESS (status))
 	{
 		*out_buffer = _r_obj_reference (hash_context->block_data);
 	}
@@ -14983,7 +15126,7 @@ VOID _r_ctrl_settablestring (
 	HWND hctrl1;
 	HWND hctrl2;
 	HDC hdc;
-	LONG window_width;
+	LONG wnd_width;
 	LONG wnd_spacing;
 	LONG ctrl1_width;
 	LONG ctrl2_width;
@@ -14997,11 +15140,11 @@ VOID _r_ctrl_settablestring (
 	hctrl2 = GetDlgItem (hwnd, ctrl_id2);
 
 	if (!hctrl1 || !hctrl2)
-		return;
+		goto CleanupExit;
 
-	window_width = _r_ctrl_getwidth (hwnd, 0);
+	wnd_width = _r_ctrl_getwidth (hwnd, 0);
 
-	if (!window_width)
+	if (!wnd_width)
 		goto CleanupExit;
 
 	if (!GetWindowRect (hctrl1, &control_rect))
@@ -15010,15 +15153,15 @@ VOID _r_ctrl_settablestring (
 	MapWindowPoints (HWND_DESKTOP, hwnd, (PPOINT)&control_rect, 2);
 
 	wnd_spacing = control_rect.left;
-	window_width -= (wnd_spacing * 2);
+	wnd_width -= (wnd_spacing * 2);
 
 	_r_dc_fixwindowfont (hdc, hctrl1); // fix
 
 	ctrl1_width = _r_dc_getfontwidth (hdc, text1) + wnd_spacing;
 	ctrl2_width = _r_dc_getfontwidth (hdc, text2) + wnd_spacing;
 
-	ctrl2_width = min (ctrl2_width, window_width - ctrl1_width - wnd_spacing);
-	ctrl1_width = min (ctrl1_width, window_width - ctrl2_width - wnd_spacing);
+	ctrl2_width = min (ctrl2_width, wnd_width - ctrl1_width - wnd_spacing);
+	ctrl1_width = min (ctrl1_width, wnd_width - ctrl2_width - wnd_spacing);
 
 	_r_ctrl_setstringlength (hwnd, ctrl_id1, text1);
 	_r_ctrl_setstringlength (hwnd, ctrl_id2, text2);
@@ -15044,7 +15187,7 @@ VOID _r_ctrl_settablestring (
 			hdefer,
 			hctrl2,
 			NULL,
-			window_width - ctrl2_width,
+			wnd_width - ctrl2_width,
 			control_rect.top,
 			ctrl2_width + wnd_spacing,
 			_r_calc_rectheight (&control_rect),

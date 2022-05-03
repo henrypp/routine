@@ -665,7 +665,8 @@ VOID _r_workqueue_initialize (
 	_In_ ULONG minimum_threads,
 	_In_ ULONG maximum_threads,
 	_In_ ULONG no_work_timeout,
-	_In_opt_ PR_ENVIRONMENT environment
+	_In_opt_ PR_ENVIRONMENT environment,
+	_In_opt_ LPCWSTR thread_name
 );
 
 VOID _r_workqueue_destroy (
@@ -673,7 +674,7 @@ VOID _r_workqueue_destroy (
 );
 
 PR_WORKQUEUE_ITEM _r_workqueue_createitem (
-	_In_ PR_WORKQUEUE_FUNCTION function_address,
+	_In_ PR_WORKQUEUE_FUNCTION base_address,
 	_In_opt_ PVOID context
 );
 
@@ -1792,7 +1793,8 @@ BOOLEAN _r_fs_makebackup (
 	_In_ BOOLEAN is_removesourcefile
 );
 
-BOOLEAN _r_fs_mkdir (
+_Success_ (return == ERROR_SUCCESS)
+ULONG _r_fs_mkdir (
 	_In_ LPCWSTR path
 );
 
@@ -2068,7 +2070,7 @@ VOID _r_str_fromulong64 (
 	_In_ ULONG64 value
 );
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_fromguid (
 	_In_ LPCGUID guid,
 	_In_ BOOLEAN is_uppercase,
@@ -2495,7 +2497,7 @@ LONG _r_sys_getpackagepath (
 	_Out_ PR_STRING_PTR out_buffer
 );
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getservicesid (
 	_In_ PR_STRINGREF name,
 	_Out_ PR_BYTE_PTR out_buffer
@@ -2511,7 +2513,7 @@ ULONG _r_sys_gettickcount ();
 
 ULONG64 _r_sys_gettickcount64 ();
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getusernamefromsid (
 	_In_ PSID sid,
 	_Out_ PR_STRING_PTR out_buffer
@@ -2519,14 +2521,14 @@ NTSTATUS _r_sys_getusernamefromsid (
 
 ULONG _r_sys_getwindowsversion ();
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_compressbuffer (
 	_In_ USHORT format,
 	_In_ PR_BYTEREF buffer,
 	_Out_ PR_BYTE_PTR out_buffer
 );
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_decompressbuffer (
 	_In_ USHORT format,
 	_In_ PR_BYTEREF buffer,
@@ -2555,16 +2557,18 @@ NTSTATUS _r_sys_createprocess_ex (
 	_In_ ULONG flags
 );
 
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_openprocess (
 	_In_opt_ HANDLE process_id,
 	_In_ ACCESS_MASK desired_access,
 	_Out_ PHANDLE process_handle
 );
 
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_queryprocessstring (
 	_In_ HANDLE process_handle,
 	_In_ PROCESSINFOCLASS info_class,
-	_Out_ PVOID_PTR file_name
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 BOOLEAN _r_sys_runasadmin (
@@ -2583,12 +2587,13 @@ NTSTATUS NTAPI _r_sys_basethreadstart (
 
 PR_FREE_LIST _r_sys_getthreadfreelist ();
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_createthread (
-	_In_ PUSER_THREAD_START_ROUTINE function_address,
+	_In_ PUSER_THREAD_START_ROUTINE base_address,
 	_In_opt_ PVOID arglist,
 	_Out_opt_ PHANDLE thread_handle,
-	_In_opt_ PR_ENVIRONMENT environment
+	_In_opt_ PR_ENVIRONMENT environment,
+	_In_opt_ LPCWSTR thread_name
 );
 
 _Ret_maybenull_
@@ -2618,6 +2623,16 @@ NTSTATUS _r_sys_querytokeninformation (
 	_Out_ PVOID_PTR token_info
 );
 
+VOID _r_sys_queryprocessenvironment (
+	_In_ HANDLE process_handle,
+	_Out_ PR_ENVIRONMENT environment
+);
+
+VOID _r_sys_querythreadenvironment (
+	_In_ HANDLE thread_handle,
+	_Out_ PR_ENVIRONMENT environment
+);
+
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_setprocessprivilege (
 	_In_ HANDLE process_handle,
@@ -2633,27 +2648,25 @@ VOID _r_sys_setenvironment (
 	_In_ ULONG page_priority
 );
 
-VOID _r_sys_setdefaultprocessenvironment (
-	_Out_ PR_ENVIRONMENT environment
-);
-
-VOID _r_sys_setdefaultthreadenvironment (
-	_Out_ PR_ENVIRONMENT environment
-);
-
 VOID _r_sys_setprocessenvironment (
 	_In_ HANDLE process_handle,
-	_In_ PR_ENVIRONMENT environment
+	_In_ PR_ENVIRONMENT new_environment
 );
 
 VOID _r_sys_setthreadenvironment (
 	_In_ HANDLE thread_handle,
-	_In_ PR_ENVIRONMENT environment
+	_In_ PR_ENVIRONMENT new_environment
 );
 
 _Success_ (return != 0)
 EXECUTION_STATE _r_sys_setthreadexecutionstate (
 	_In_ EXECUTION_STATE new_state
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_setthreadname (
+	_In_ HANDLE thread_handle,
+	_In_ LPCWSTR thread_name
 );
 
 #if defined(APP_NO_DEPRECATIONS)
@@ -3320,7 +3333,7 @@ VOID _r_crypt_destroycryptcontext (
 	_In_ PR_CRYPT_CONTEXT context
 );
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_createcryptcontext (
 	_Out_ PR_CRYPT_CONTEXT crypt_context,
 	_In_ LPCWSTR algorithm_id
@@ -3334,13 +3347,13 @@ PR_BYTE _r_crypt_getivblock (
 	_Inout_ PR_CRYPT_CONTEXT crypt_context
 );
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_generatekey (
 	_Inout_ PR_CRYPT_CONTEXT crypt_context,
 	_In_ PR_BYTEREF key
 );
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_encryptbuffer (
 	_In_ PR_CRYPT_CONTEXT crypt_context,
 	_In_reads_bytes_ (buffer_length) PVOID buffer,
@@ -3348,7 +3361,7 @@ NTSTATUS _r_crypt_encryptbuffer (
 	_Out_ PR_BYTE_PTR out_buffer
 );
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_decryptbuffer (
 	_In_ PR_CRYPT_CONTEXT crypt_context,
 	_In_reads_bytes_ (buffer_length) PVOID buffer,
@@ -3356,13 +3369,13 @@ NTSTATUS _r_crypt_decryptbuffer (
 	_Out_ PR_BYTE_PTR out_buffer
 );
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_createhashcontext (
 	_Out_ PR_CRYPT_CONTEXT hash_context,
 	_In_ LPCWSTR algorithm_id
 );
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_hashbuffer (
 	_In_ PR_CRYPT_CONTEXT hash_context,
 	_In_reads_bytes_ (buffer_length) PVOID buffer,
@@ -3375,7 +3388,7 @@ PR_STRING _r_crypt_finalhashcontext (
 	_In_ BOOLEAN is_uppercase
 );
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_finalhashcontext_ex (
 	_In_ PR_CRYPT_CONTEXT hash_context,
 	_Out_ PR_BYTE_PTR out_buffer
@@ -4567,8 +4580,8 @@ BOOL CALLBACK _r_util_activate_window_callback (
 );
 
 INT CALLBACK _r_util_enum_font_callback (
-	_In_ const LOGFONT *logfont,
-	_In_ const TEXTMETRIC *textmetric,
+	_In_ const LOGFONT * logfont,
+	_In_ const TEXTMETRIC * textmetric,
 	_In_ DWORD font_type,
 	_In_ LPARAM lparam
 );
