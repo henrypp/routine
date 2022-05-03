@@ -419,14 +419,13 @@ typedef struct _R_ENVIRONMENT
 	KPRIORITY base_priority : 6; // Base priority increment
 	ULONG io_priority : 3; // I/O priority hint
 	ULONG page_priority : 3; // Page/memory priority
-	ULONG is_forced : 1;
-	ULONG spare_bits : 19;
+	ULONG spare_bits : 20;
 } R_ENVIRONMENT, *PR_ENVIRONMENT;
 
 typedef struct _R_WORKQUEUE_ITEM
 {
 	LIST_ENTRY list_entry;
-	PR_WORKQUEUE_FUNCTION function_address;
+	PR_WORKQUEUE_FUNCTION base_address;
 	PVOID context;
 } R_WORKQUEUE_ITEM, *PR_WORKQUEUE_ITEM;
 
@@ -441,6 +440,7 @@ typedef struct _R_WORKQUEUE
 	R_CONDITION queue_empty_condition;
 
 	R_ENVIRONMENT environment;
+	PVOID thread_name; // PR_STRING
 
 	HANDLE semaphore_handle;
 
@@ -678,12 +678,11 @@ typedef struct _R_CRYPT_CONTEXT
 #define WINDOWS_10_21H2_SERVER 0x0A0D
 #define WINDOWS_11 0x0B00
 #define WINDOWS_11_21H2 WINDOWS_11
-//#define WINDOWS_11_22H1 0x0B01 // ???
 #define WINDOWS_11_22H2 0x0B01
 
 typedef struct _R_THREAD_CONTEXT
 {
-	PUSER_THREAD_START_ROUTINE function_address;
+	PUSER_THREAD_START_ROUTINE base_address;
 	PVOID arglist;
 } R_THREAD_CONTEXT, *PR_THREAD_CONTEXT;
 
