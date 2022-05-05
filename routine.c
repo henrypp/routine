@@ -9446,7 +9446,7 @@ _Ret_maybenull_
 HICON _r_sys_loadicon (
 	_In_opt_ HINSTANCE hinstance,
 	_In_ LPCWSTR icon_name,
-	_In_ LONG width
+	_In_ LONG icon_size
 )
 {
 	HICON hicon;
@@ -9454,7 +9454,7 @@ HICON _r_sys_loadicon (
 
 #if defined(APP_NO_DEPRECATIONS)
 
-	hr = LoadIconWithScaleDown (hinstance, icon_name, width, width, &hicon);
+	hr = LoadIconWithScaleDown (hinstance, icon_name, icon_size, icon_size, &hicon);
 
 	if (hr == S_OK)
 		return hicon;
@@ -9483,7 +9483,7 @@ HICON _r_sys_loadicon (
 
 	if (_LoadIconWithScaleDown)
 	{
-		hr = _LoadIconWithScaleDown (hinstance, icon_name, width, width, &hicon);
+		hr = _LoadIconWithScaleDown (hinstance, icon_name, icon_size, icon_size, &hicon);
 
 		if (hr == S_OK)
 			return hicon;
@@ -9491,7 +9491,7 @@ HICON _r_sys_loadicon (
 
 #endif // APP_NO_DEPRECATIONS
 
-	hicon = (HICON)LoadImage (hinstance, icon_name, IMAGE_ICON, width, width, 0);
+	hicon = (HICON)LoadImage (hinstance, icon_name, IMAGE_ICON, icon_size, icon_size, 0);
 
 	return hicon;
 }
@@ -9500,7 +9500,7 @@ _Ret_maybenull_
 HICON _r_sys_loadsharedicon (
 	_In_opt_ HINSTANCE hinstance,
 	_In_ LPCWSTR icon_name,
-	_In_ LONG width
+	_In_ LONG icon_size
 )
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
@@ -9531,7 +9531,7 @@ HICON _r_sys_loadsharedicon (
 		name_hash = _r_str_gethash (icon_name, TRUE);
 	}
 
-	hash_code = (name_hash ^ (PtrToUlong (hinstance) >> 5) ^ (width << 3) ^ width);
+	hash_code = (name_hash ^ (PtrToUlong (hinstance) >> 5) ^ (icon_size << 3) ^ icon_size);
 
 	_r_queuedlock_acquireshared (&queued_lock);
 	object_ptr = _r_obj_findhashtable (shared_icons, hash_code);
@@ -9545,7 +9545,7 @@ HICON _r_sys_loadsharedicon (
 	else
 	{
 		// add new shared icon entry
-		hicon = _r_sys_loadicon (hinstance, icon_name, width);
+		hicon = _r_sys_loadicon (hinstance, icon_name, icon_size);
 
 		if (hicon)
 		{

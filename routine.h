@@ -2600,14 +2600,14 @@ _Ret_maybenull_
 HICON _r_sys_loadicon (
 	_In_opt_ HINSTANCE hinstance,
 	_In_ LPCWSTR icon_name,
-	_In_ LONG width
+	_In_ LONG icon_size
 );
 
 _Ret_maybenull_
 HICON _r_sys_loadsharedicon (
 	_In_opt_ HINSTANCE hinstance,
 	_In_ LPCWSTR icon_name,
-	_In_ LONG width
+	_In_ LONG icon_size
 );
 
 _Ret_maybenull_
