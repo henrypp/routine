@@ -831,6 +831,12 @@ LRESULT CALLBACK _r_app_maindlgproc (
 			break;
 		}
 
+		//case WM_NCDESTROY:
+		//{
+		//	SendMessage (hwnd, RM_UNINITIALIZE_POST, 0, 0);
+		//	break;
+		//}
+
 		case WM_DESTROY:
 		{
 			_r_window_saveposition (hwnd, L"window");
@@ -982,6 +988,11 @@ HWND _r_app_createwindow (
 	_In_ DLGPROC dlg_proc
 )
 {
+	HWND hwnd;
+	LONG dpi_value;
+	LONG icon_small;
+	LONG icon_large;
+
 #ifdef APP_HAVE_UPDATES
 	// configure components
 	WCHAR locale_version[64];
@@ -991,11 +1002,6 @@ HWND _r_app_createwindow (
 	_r_update_addcomponent (_r_app_getname (), _r_app_getnameshort (), _r_app_getversion (), _r_app_getdirectory (), TRUE);
 	_r_update_addcomponent (L"Language pack", L"language", locale_version, _r_app_getlocalepath (), FALSE);
 #endif // APP_HAVE_UPDATES
-
-	HWND hwnd;
-	LONG dpi_value;
-	LONG icon_small;
-	LONG icon_large;
 
 	// create main window
 	hwnd = _r_wnd_createwindow (hinstance, dlg_name, NULL, dlg_proc, NULL);
