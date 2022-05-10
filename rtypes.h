@@ -12,6 +12,7 @@
 typedef PVOID *PVOID_PTR;
 typedef PBYTE *PBYTE_PTR;
 typedef HICON *HICON_PTR;
+typedef HDWP *HDWP_PTR;
 
 //
 // Exported function definitions
@@ -561,6 +562,8 @@ typedef struct _R_ARRAY
 	PVOID items;
 } R_ARRAY, *PR_ARRAY;
 
+typedef PR_ARRAY *PR_ARRAY_PTR;
+
 //
 // List object
 //
@@ -572,6 +575,8 @@ typedef struct _R_LIST
 	SIZE_T count;
 	PVOID_PTR items;
 } R_LIST, *PR_LIST;
+
+typedef PR_LIST *PR_LIST_PTR;
 
 //
 // Hashtable object
@@ -596,6 +601,8 @@ typedef struct _R_HASHTABLE
 	SIZE_T allocated_entries;
 	SIZE_T count;
 } R_HASHTABLE, *PR_HASHTABLE;
+
+typedef PR_HASHTABLE *PR_HASHTABLE_PTR;
 
 #define PR_HASHTABLE_ENTRY_SIZE(inner_size) \
 	(UFIELD_OFFSET(R_HASHTABLE_ENTRY, body) + (inner_size))
