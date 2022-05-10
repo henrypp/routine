@@ -15115,6 +15115,7 @@ VOID _r_ctrl_setbuttonmargins (
 
 VOID _r_ctrl_settablestring (
 	_In_ HWND hwnd,
+	_Inout_opt_ HDWP_PTR hdefer,
 	_In_ INT ctrl_id1,
 	_In_ PR_STRINGREF text1,
 	_In_ INT ctrl_id2,
@@ -15122,43 +15123,42 @@ VOID _r_ctrl_settablestring (
 )
 {
 	RECT control_rect;
-	HDWP hdefer;
 	HWND hctrl1;
 	HWND hctrl2;
-	HDC hdc;
+	HDC hdc1;
+	HDC hdc2;
 	LONG wnd_width;
 	LONG wnd_spacing;
 	LONG ctrl1_width;
 	LONG ctrl2_width;
 
-	hdc = GetDC (hwnd);
-
-	if (!hdc)
-		return;
-
 	hctrl1 = GetDlgItem (hwnd, ctrl_id1);
 	hctrl2 = GetDlgItem (hwnd, ctrl_id2);
 
 	if (!hctrl1 || !hctrl2)
-		goto CleanupExit;
+		return;
 
 	wnd_width = _r_ctrl_getwidth (hwnd, 0);
 
 	if (!wnd_width)
-		goto CleanupExit;
+		return;
 
 	if (!GetWindowRect (hctrl1, &control_rect))
-		goto CleanupExit;
+		return;
 
 	MapWindowPoints (HWND_DESKTOP, hwnd, (PPOINT)&control_rect, 2);
 
 	wnd_spacing = control_rect.left;
 	wnd_width -= (wnd_spacing * 2);
 
-	_r_dc_fixwindowfont (hdc, hctrl1); // fix
+	hdc1 = GetDC (hctrl1);
+	hdc2 = GetDC (hctrl2);
 
-	ctrl1_width = _r_dc_getfontwidth (hdc, text1) + wnd_spacing;
-	ctrl2_width = _r_dc_getfontwidth (hdc, text2) + wnd_spacing;
+	_r_dc_fixwindowfont (hdc1, hctrl1); // fix
+	_r_dc_fixwindowfont (hdc2, hctrl2); // fix
+
+	ctrl1_width = _r_dc_getfontwidth (hdc1, text1) + wnd_spacing;
+	ctrl2_width = _r_dc_getfontwidth (hdc2, text2) + wnd_spacing;
 
 	ctrl2_width = min (ctrl2_width, wnd_width - ctrl1_width - wnd_spacing);
 	ctrl1_width = min (ctrl1_width, wnd_width - ctrl2_width - wnd_spacing);
@@ -15166,13 +15166,11 @@ VOID _r_ctrl_settablestring (
 	_r_ctrl_setstringlength (hwnd, ctrl_id1, text1);
 	_r_ctrl_setstringlength (hwnd, ctrl_id2, text2);
 
-	hdefer = BeginDeferWindowPos (2);
-
-	if (hdefer)
+	if (hdefer && *hdefer)
 	{
 		// resize control #1
-		hdefer = DeferWindowPos (
-			hdefer,
+		*hdefer = DeferWindowPos (
+			*hdefer,
 			hctrl1,
 			NULL,
 			control_rect.left,
@@ -15183,8 +15181,8 @@ VOID _r_ctrl_settablestring (
 		);
 
 		// resize control #2
-		hdefer = DeferWindowPos (
-			hdefer,
+		*hdefer = DeferWindowPos (
+			*hdefer,
 			hctrl2,
 			NULL,
 			wnd_width - ctrl2_width,
@@ -15193,13 +15191,34 @@ VOID _r_ctrl_settablestring (
 			_r_calc_rectheight (&control_rect),
 			SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER
 		);
+	}
+	else
+	{
+		// resize control #1
+		SetWindowPos (
+			hctrl1,
+			NULL,
+			control_rect.left,
+			control_rect.top,
+			ctrl1_width,
+			_r_calc_rectheight (&control_rect),
+			SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER
+		);
 
-		EndDeferWindowPos (hdefer);
+		// resize control #2
+		SetWindowPos (
+			hctrl2,
+			NULL,
+			wnd_width - ctrl2_width,
+			control_rect.top,
+			ctrl2_width + wnd_spacing,
+			_r_calc_rectheight (&control_rect),
+			SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER
+		);
 	}
 
-CleanupExit:
-
-	ReleaseDC (hwnd, hdc);
+	ReleaseDC (hctrl1, hdc1);
+	ReleaseDC (hctrl2, hdc2);
 }
 
 VOID _r_ctrl_setstringformat (

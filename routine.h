@@ -3776,6 +3776,7 @@ VOID _r_ctrl_setbuttonmargins (
 
 VOID _r_ctrl_settablestring (
 	_In_ HWND hwnd,
+	_Inout_opt_ HDWP_PTR hdefer,
 	_In_ INT ctrl_id1,
 	_In_ PR_STRINGREF text1,
 	_In_ INT ctrl_id2,
