@@ -58,15 +58,20 @@
 //
 
 #define RM_INITIALIZE (WM_APP + 1) // application initialization
-#define RM_INITIALIZE_POST (WM_APP + 2) // application one-time initialization
-#define RM_UNINITIALIZE (WM_APP + 3) // application uninitialization
-#define RM_LOCALIZE (WM_APP + 4) // localization applied/changed
-#define RM_TASKBARCREATED (WM_APP + 5) // explorer restarted
-#define RM_CONFIG_SAVE (WM_APP + 6) // save configuration
-#define RM_CONFIG_UPDATE (WM_APP + 7) // update has finished
-#define RM_CONFIG_RESET (WM_APP + 8) // reset configuration has finished
+#define RM_UNINITIALIZE (WM_APP + 2) // application uninitialization
 
-#define RM_TRAYICON (WM_APP + 10)
+#define RM_INITIALIZE_POST (WM_APP + 3) // application one-time initialization
+#define RM_UNINITIALIZE_POST (WM_APP + 4) // application uninitialization
+
+#define RM_LOCALIZE (WM_APP + 5) // localization applied/changed
+#define RM_ARGUMENTS (WM_APP + 6) // application arguments
+#define RM_TASKBARCREATED (WM_APP + 7) // explorer restarted
+
+#define RM_CONFIG_SAVE (WM_APP + 8) // save configuration
+#define RM_CONFIG_UPDATE (WM_APP + 9) // update has finished
+#define RM_CONFIG_RESET (WM_APP + 10) // reset configuration has finished
+
+#define RM_TRAYICON (WM_APP + 11)
 
 //
 // Project configuration
