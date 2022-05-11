@@ -1770,6 +1770,10 @@ BOOLEAN _r_clipboard_set (
 // Filesystem
 //
 
+VOID _r_fs_clearfile (
+	_In_ HANDLE hfile
+);
+
 BOOLEAN _r_fs_deletefile (
 	_In_ LPCWSTR path,
 	_In_ BOOLEAN is_forced
@@ -1800,7 +1804,8 @@ ULONG _r_fs_mkdir (
 
 _Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_fs_mapfile (
-	_In_ LPCWSTR path,
+	_In_opt_ LPCWSTR path,
+	_In_opt_ HANDLE hfile_in,
 	_Out_ PR_BYTE_PTR out_buffer
 );
 

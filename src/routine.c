@@ -4371,6 +4371,17 @@ BOOLEAN _r_clipboard_set (
 // Filesystem
 //
 
+VOID _r_fs_clearfile (
+	_In_ HANDLE hfile
+)
+{
+	_r_fs_setpos (hfile, 0, FILE_BEGIN);
+
+	SetEndOfFile (hfile);
+
+	FlushFileBuffers (hfile);
+}
+
 BOOLEAN _r_fs_deletefile (
 	_In_ LPCWSTR path,
 	_In_ BOOLEAN is_forced
@@ -4552,7 +4563,8 @@ ULONG _r_fs_mkdir (
 
 _Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_fs_mapfile (
-	_In_ LPCWSTR path,
+	_In_opt_ LPCWSTR path,
+	_In_opt_ HANDLE hfile_in,
 	_Out_ PR_BYTE_PTR out_buffer
 )
 {
@@ -4560,28 +4572,42 @@ NTSTATUS _r_fs_mapfile (
 	PVOID file_bytes;
 	HANDLE hfile;
 	HANDLE hmap;
+	BOOLEAN is_extfile;
 	NTSTATUS status;
 
 	*out_buffer = NULL;
 
-	hfile = CreateFile (
-		path,
-		FILE_GENERIC_READ,
-		FILE_SHARE_READ,
-		NULL,
-		OPEN_EXISTING,
-		FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN,
-		NULL
-	);
+	is_extfile = _r_fs_isvalidhandle (hfile_in);
 
-	if (!_r_fs_isvalidhandle (hfile))
-		return RtlGetLastNtStatus ();
+	if (!is_extfile && !path)
+		return STATUS_INVALID_PARAMETER;
+
+	if (is_extfile)
+	{
+		hfile = hfile_in;
+	}
+	else
+	{
+		hfile = CreateFile (
+			path,
+			FILE_GENERIC_READ,
+			FILE_SHARE_READ,
+			NULL,
+			OPEN_EXISTING,
+			FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN,
+			NULL
+		);
+
+		if (!_r_fs_isvalidhandle (hfile))
+			return RtlGetLastNtStatus ();
+	}
 
 	if (!GetFileSizeEx (hfile, &file_size))
 	{
 		status = GetLastError ();
 
-		NtClose (hfile);
+		if (!is_extfile)
+			NtClose (hfile);
 
 		return status;
 	}
@@ -4616,7 +4642,8 @@ NTSTATUS _r_fs_mapfile (
 		NtClose (hmap);
 	}
 
-	NtClose (hfile);
+	if (!is_extfile)
+		NtClose (hfile);
 
 	return status;
 }
@@ -6055,13 +6082,13 @@ SIZE_T _r_str_findchar (
 	length = _r_str_getlength3 (string);
 
 	if (is_ignorecase)
-		character = _r_str_upper (character);
+		character = _r_str_lower (character);
 
 	do
 	{
 		if (is_ignorecase)
 		{
-			chr = _r_str_upper (*buffer);
+			chr = _r_str_lower (*buffer);
 		}
 		else
 		{
@@ -6096,7 +6123,7 @@ SIZE_T _r_str_findlastchar (
 	length = _r_str_getlength3 (string);
 
 	if (is_ignorecase)
-		character = _r_str_upper (character);
+		character = _r_str_lower (character);
 
 	buffer -= 1;
 
@@ -6104,7 +6131,7 @@ SIZE_T _r_str_findlastchar (
 	{
 		if (is_ignorecase)
 		{
-			chr = _r_str_upper (*buffer);
+			chr = _r_str_lower (*buffer);
 		}
 		else
 		{
@@ -6161,7 +6188,7 @@ SIZE_T _r_str_findstring (
 
 	if (is_ignorecase)
 	{
-		chr2 = _r_str_upper (*sr2.buffer++);
+		chr2 = _r_str_lower (*sr2.buffer++);
 	}
 	else
 	{
@@ -6172,7 +6199,7 @@ SIZE_T _r_str_findstring (
 	{
 		if (is_ignorecase)
 		{
-			chr1 = _r_str_upper (*sr1.buffer++);
+			chr1 = _r_str_lower (*sr1.buffer++);
 		}
 		else
 		{
@@ -6627,8 +6654,8 @@ CompareCharacters:
 			}
 			else
 			{
-				chr1 = _r_str_upper (*buffer1);
-				chr2 = _r_str_upper (*buffer2);
+				chr1 = _r_str_lower (*buffer1);
+				chr2 = _r_str_lower (*buffer2);
 			}
 
 			if (chr1 != chr2)
@@ -6788,7 +6815,7 @@ LoopStart:
 				}
 				else
 				{
-					if (_r_str_upper (*s) != _r_str_upper (*p))
+					if (_r_str_lower (*s) != _r_str_lower (*p))
 						goto StarCheck;
 				}
 
@@ -7709,7 +7736,7 @@ ULONG _r_str_crc32 (
 	{
 		for (buffer = string->buffer; buffer != end_buffer; buffer++)
 		{
-			chr = _r_str_upper (*buffer);
+			chr = _r_str_lower (*buffer);
 
 			hash_code = (hash_code >> 8) ^ (crc32_table[(hash_code ^ (ULONG)chr) & 0xFF]);
 		}
@@ -7815,7 +7842,7 @@ ULONG64 _r_str_crc64 (
 	{
 		for (buffer = string->buffer; buffer != end_buffer; buffer++)
 		{
-			chr = _r_str_upper (*buffer);
+			chr = _r_str_lower (*buffer);
 
 			hash_code = (hash_code >> 8) ^ (crc64_table[(hash_code ^ (ULONG)chr) & 0xFF]);
 		}
@@ -7854,7 +7881,7 @@ ULONG _r_str_fnv32a (
 	{
 		for (buffer = string->buffer; buffer != end_buffer; buffer++)
 		{
-			chr = _r_str_upper (*buffer);
+			chr = _r_str_lower (*buffer);
 
 			hash_code = (hash_code ^ (ULONG)chr) * 16777619U;
 		}
@@ -7893,7 +7920,7 @@ ULONG64 _r_str_fnv64a (
 	{
 		for (buffer = string->buffer; buffer != end_buffer; buffer++)
 		{
-			chr = _r_str_upper (*buffer);
+			chr = _r_str_lower (*buffer);
 
 			hash_code = (hash_code ^ (ULONG)chr) * 1099511628211LL;
 		}
