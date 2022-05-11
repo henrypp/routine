@@ -10270,7 +10270,8 @@ VOID _r_dc_fixcontrolfont (
 
 	hfont = (HFONT)SendDlgItemMessage (hwnd, ctrl_id, WM_GETFONT, 0, 0);
 
-	SelectObject (hdc, hfont);
+	if (hfont)
+		SelectObject (hdc, hfont);
 }
 
 VOID _r_dc_fixwindowfont (
@@ -10282,7 +10283,8 @@ VOID _r_dc_fixwindowfont (
 
 	hfont = (HFONT)SendMessage (hwnd, WM_GETFONT, 0, 0);
 
-	SelectObject (hdc, hfont);
+	if (hfont)
+		SelectObject (hdc, hfont);
 }
 
 LONG _r_dc_fontsizetoheight (
@@ -11664,6 +11666,7 @@ VOID _r_wnd_addstyle (
 {
 	HWND htarget;
 	LONG_PTR style;
+	UINT swp_flags;
 
 	if (ctrl_id)
 	{
@@ -11678,18 +11681,10 @@ VOID _r_wnd_addstyle (
 	}
 
 	style = (GetWindowLongPtr (htarget, index) & ~state_mask) | mask;
-
 	SetWindowLongPtr (htarget, index, style);
 
-	SetWindowPos (
-		htarget,
-		NULL,
-		0,
-		0,
-		0,
-		0,
-		SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER
-	);
+	swp_flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER;
+	SetWindowPos (htarget, NULL, 0, 0, 0, 0, swp_flags);
 }
 
 VOID _r_wnd_adjustrectangletobounds (
@@ -15052,6 +15047,7 @@ PR_STRING _r_ctrl_getstring (
 	return NULL;
 }
 
+_Success_ (return != 0)
 LONG _r_ctrl_getwidth (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id
@@ -15122,7 +15118,8 @@ VOID _r_ctrl_settablestring (
 	_In_ PR_STRINGREF text2
 )
 {
-	RECT control_rect;
+	RECT rect1;
+	RECT rect2;
 	HWND hctrl1;
 	HWND hctrl2;
 	HDC hdc1;
@@ -15131,6 +15128,7 @@ VOID _r_ctrl_settablestring (
 	LONG wnd_spacing;
 	LONG ctrl1_width;
 	LONG ctrl2_width;
+	UINT swp_flags;
 
 	hctrl1 = GetDlgItem (hwnd, ctrl_id1);
 	hctrl2 = GetDlgItem (hwnd, ctrl_id2);
@@ -15143,12 +15141,12 @@ VOID _r_ctrl_settablestring (
 	if (!wnd_width)
 		return;
 
-	if (!GetWindowRect (hctrl1, &control_rect))
+	if (!GetWindowRect (hctrl1, &rect1))
 		return;
 
-	MapWindowPoints (HWND_DESKTOP, hwnd, (PPOINT)&control_rect, 2);
+	MapWindowPoints (HWND_DESKTOP, hwnd, (PPOINT)&rect1, 2);
 
-	wnd_spacing = control_rect.left;
+	wnd_spacing = rect1.left;
 	wnd_width -= (wnd_spacing * 2);
 
 	hdc1 = GetDC (hctrl1);
@@ -15163,59 +15161,31 @@ VOID _r_ctrl_settablestring (
 	ctrl2_width = min (ctrl2_width, wnd_width - ctrl1_width - wnd_spacing);
 	ctrl1_width = min (ctrl1_width, wnd_width - ctrl2_width - wnd_spacing);
 
-	_r_ctrl_setstringlength (hwnd, ctrl_id1, text1);
-	_r_ctrl_setstringlength (hwnd, ctrl_id2, text2);
+	swp_flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER;
+
+	// set control rectangles
+	SetRect (&rect1, rect1.left, rect1.top, ctrl1_width, _r_calc_rectheight (&rect1));
+	SetRect (&rect2, wnd_width - ctrl2_width, rect1.top, ctrl2_width + wnd_spacing, rect1.bottom);
 
 	if (hdefer && *hdefer)
 	{
 		// resize control #1
-		*hdefer = DeferWindowPos (
-			*hdefer,
-			hctrl1,
-			NULL,
-			control_rect.left,
-			control_rect.top,
-			ctrl1_width,
-			_r_calc_rectheight (&control_rect),
-			SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER
-		);
+		*hdefer = DeferWindowPos (*hdefer, hctrl1, NULL, rect1.left, rect1.top, rect1.right, rect1.bottom, swp_flags);
 
 		// resize control #2
-		*hdefer = DeferWindowPos (
-			*hdefer,
-			hctrl2,
-			NULL,
-			wnd_width - ctrl2_width,
-			control_rect.top,
-			ctrl2_width + wnd_spacing,
-			_r_calc_rectheight (&control_rect),
-			SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER
-		);
+		*hdefer = DeferWindowPos (*hdefer, hctrl2, NULL, rect2.left, rect2.top, rect2.right, rect2.bottom, swp_flags);
 	}
 	else
 	{
 		// resize control #1
-		SetWindowPos (
-			hctrl1,
-			NULL,
-			control_rect.left,
-			control_rect.top,
-			ctrl1_width,
-			_r_calc_rectheight (&control_rect),
-			SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER
-		);
+		SetWindowPos (hctrl1, NULL, rect1.left, rect1.top, rect1.right, rect1.bottom, swp_flags);
 
 		// resize control #2
-		SetWindowPos (
-			hctrl2,
-			NULL,
-			wnd_width - ctrl2_width,
-			control_rect.top,
-			ctrl2_width + wnd_spacing,
-			_r_calc_rectheight (&control_rect),
-			SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER
-		);
+		SetWindowPos (hctrl2, NULL, rect2.left, rect2.top, rect2.right, rect2.bottom, swp_flags);
 	}
+
+	_r_ctrl_setstringlength (hwnd, ctrl_id1, text1);
+	_r_ctrl_setstringlength (hwnd, ctrl_id2, text2);
 
 	ReleaseDC (hctrl1, hdc1);
 	ReleaseDC (hctrl2, hdc2);

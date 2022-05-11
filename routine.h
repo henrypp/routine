@@ -3763,6 +3763,7 @@ PR_STRING _r_ctrl_getstring (
 	_In_ INT ctrl_id
 );
 
+_Success_ (return != 0)
 LONG _r_ctrl_getwidth (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id
