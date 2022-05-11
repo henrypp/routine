@@ -7448,7 +7448,7 @@ VOID _r_str_trimstringref2 (
 	_r_str_trimstringref (string, &sr, flags);
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_multibyte2unicode (
 	_In_ PR_BYTEREF string,
 	_Out_ PR_STRING_PTR out_buffer
@@ -7460,8 +7460,11 @@ NTSTATUS _r_str_multibyte2unicode (
 
 	status = RtlMultiByteToUnicodeSize (&output_size, string->buffer, (ULONG)string->length);
 
-	if (status != STATUS_SUCCESS)
+	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
 		return status;
+	}
 
 	out_string = _r_obj_createstring_ex (NULL, output_size);
 
@@ -7473,7 +7476,7 @@ NTSTATUS _r_str_multibyte2unicode (
 		(ULONG)string->length
 	);
 
-	if (status == STATUS_SUCCESS)
+	if (NT_SUCCESS (status))
 	{
 		*out_buffer = out_string;
 	}
@@ -7487,7 +7490,7 @@ NTSTATUS _r_str_multibyte2unicode (
 	return status;
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_unicode2multibyte (
 	_In_ PR_STRINGREF string,
 	_Out_ PR_BYTE_PTR out_buffer
@@ -7499,8 +7502,11 @@ NTSTATUS _r_str_unicode2multibyte (
 
 	status = RtlUnicodeToMultiByteSize (&output_size, string->buffer, (ULONG)string->length);
 
-	if (status != STATUS_SUCCESS)
+	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
 		return status;
+	}
 
 	out_string = _r_obj_createbyte_ex (NULL, output_size);
 
@@ -7512,7 +7518,7 @@ NTSTATUS _r_str_unicode2multibyte (
 		(ULONG)string->length
 	);
 
-	if (status == STATUS_SUCCESS)
+	if (NT_SUCCESS (status))
 	{
 		*out_buffer = out_string;
 	}

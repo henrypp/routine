@@ -2316,13 +2316,13 @@ VOID _r_str_trimstringref2 (
 	_In_ ULONG flags
 );
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_multibyte2unicode (
 	_In_ PR_BYTEREF string,
 	_Out_ PR_STRING_PTR out_buffer
 );
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_unicode2multibyte (
 	_In_ PR_STRINGREF string,
 	_Out_ PR_BYTE_PTR out_buffer
