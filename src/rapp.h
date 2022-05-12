@@ -462,11 +462,11 @@ VOID _r_window_saveposition (
 VOID _r_app_exceptionfilter_savedump (
 	_In_ PEXCEPTION_POINTERS exception_ptr
 );
-#endif // !_DEBUG
 
 LONG NTAPI _r_app_exceptionfilter_callback (
 	_In_ PEXCEPTION_POINTERS exception_ptr
 );
+#endif // !_DEBUG
 
 //
 // Application: common
@@ -494,7 +494,9 @@ BOOLEAN _r_app_initialize_dll ();
 VOID _r_app_initialize_locale ();
 #endif // !APP_CONSOLE
 
+#if !defined(_DEBUG)
 VOID _r_app_initialize_seh ();
+#endif // !_DEBUG
 
 BOOLEAN _r_app_initialize ();
 
