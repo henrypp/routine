@@ -3148,10 +3148,11 @@ BOOLEAN _r_log_isenabled (
 _Ret_maybenull_
 HANDLE _r_log_getfilehandle ()
 {
-	static HANDLE hfile = NULL;
 	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static HANDLE hfile = NULL;
 
 	PR_STRING string;
+	LONG64 file_size;
 	ULONG unused;
 
 	// write to file only when readonly mode is not specified
@@ -3198,7 +3199,9 @@ HANDLE _r_log_getfilehandle ()
 				}
 				else
 				{
-					_r_fs_setpos (hfile, 0, FILE_END);
+					file_size = _r_fs_getsize (hfile);
+
+					_r_fs_setpos (hfile, file_size);
 				}
 			}
 		}
@@ -4582,7 +4585,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 					}
 
 					// made backup of existing configuration
-					_r_fs_makebackup (_r_app_getconfigpath ()->buffer, TRUE);
+					_r_path_makebackup (_r_app_getconfigpath (), TRUE);
 
 					// reinitialize configuration
 					_r_config_initialize (); // reload config
