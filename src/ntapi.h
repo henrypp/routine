@@ -465,7 +465,7 @@ typedef enum _SYSTEM_INFORMATION_CLASS
 	SystemPoolZeroingInformation, // SYSTEM_POOL_ZEROING_INFORMATION
 	SystemDpcWatchdogInformation,
 	SystemDpcWatchdogInformation2,
-	SystemSupportedProcessorArchitectures2, // q: in opt: HANDLE, out: SYSTEM_SUPPORTED_PROCESSOR_ARCHITECTURES_INFORMATION[] // NtQuerySystemInformationEx  // 230
+	SystemSupportedProcessorArchitectures2, // q: in opt: HANDLE, out: SYSTEM_SUPPORTED_PROCESSOR_ARCHITECTURES_INFORMATION[] // NtQuerySystemInformationEx // 230
 	SystemSingleProcessorRelationshipInformation, // q: SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX // (EX in: PROCESSOR_NUMBER Processor)
 	SystemXfgCheckFailureInformation,
 	SystemIommuStateInformation, // SYSTEM_IOMMU_STATE_INFORMATION // since 22H1
@@ -476,6 +476,87 @@ typedef enum _SYSTEM_INFORMATION_CLASS
 	SystemOriginalImageFeatureInformation,
 	MaxSystemInfoClass
 } SYSTEM_INFORMATION_CLASS;
+
+typedef enum _FILE_INFORMATION_CLASS
+{
+	FileDirectoryInformation = 1, // FILE_DIRECTORY_INFORMATION
+	FileFullDirectoryInformation, // FILE_FULL_DIR_INFORMATION
+	FileBothDirectoryInformation, // FILE_BOTH_DIR_INFORMATION
+	FileBasicInformation, // FILE_BASIC_INFORMATION
+	FileStandardInformation, // FILE_STANDARD_INFORMATION
+	FileInternalInformation, // FILE_INTERNAL_INFORMATION
+	FileEaInformation, // FILE_EA_INFORMATION
+	FileAccessInformation, // FILE_ACCESS_INFORMATION
+	FileNameInformation, // FILE_NAME_INFORMATION
+	FileRenameInformation, // FILE_RENAME_INFORMATION // 10
+	FileLinkInformation, // FILE_LINK_INFORMATION
+	FileNamesInformation, // FILE_NAMES_INFORMATION
+	FileDispositionInformation, // FILE_DISPOSITION_INFORMATION
+	FilePositionInformation, // FILE_POSITION_INFORMATION
+	FileFullEaInformation, // FILE_FULL_EA_INFORMATION
+	FileModeInformation, // FILE_MODE_INFORMATION
+	FileAlignmentInformation, // FILE_ALIGNMENT_INFORMATION
+	FileAllInformation, // FILE_ALL_INFORMATION
+	FileAllocationInformation, // FILE_ALLOCATION_INFORMATION
+	FileEndOfFileInformation, // FILE_END_OF_FILE_INFORMATION // 20
+	FileAlternateNameInformation, // FILE_NAME_INFORMATION
+	FileStreamInformation, // FILE_STREAM_INFORMATION
+	FilePipeInformation, // FILE_PIPE_INFORMATION
+	FilePipeLocalInformation, // FILE_PIPE_LOCAL_INFORMATION
+	FilePipeRemoteInformation, // FILE_PIPE_REMOTE_INFORMATION
+	FileMailslotQueryInformation, // FILE_MAILSLOT_QUERY_INFORMATION
+	FileMailslotSetInformation, // FILE_MAILSLOT_SET_INFORMATION
+	FileCompressionInformation, // FILE_COMPRESSION_INFORMATION
+	FileObjectIdInformation, // FILE_OBJECTID_INFORMATION
+	FileCompletionInformation, // FILE_COMPLETION_INFORMATION // 30
+	FileMoveClusterInformation, // FILE_MOVE_CLUSTER_INFORMATION
+	FileQuotaInformation, // FILE_QUOTA_INFORMATION
+	FileReparsePointInformation, // FILE_REPARSE_POINT_INFORMATION
+	FileNetworkOpenInformation, // FILE_NETWORK_OPEN_INFORMATION
+	FileAttributeTagInformation, // FILE_ATTRIBUTE_TAG_INFORMATION
+	FileTrackingInformation, // FILE_TRACKING_INFORMATION
+	FileIdBothDirectoryInformation, // FILE_ID_BOTH_DIR_INFORMATION
+	FileIdFullDirectoryInformation, // FILE_ID_FULL_DIR_INFORMATION
+	FileValidDataLengthInformation, // FILE_VALID_DATA_LENGTH_INFORMATION
+	FileShortNameInformation, // FILE_NAME_INFORMATION // 40
+	FileIoCompletionNotificationInformation, // FILE_IO_COMPLETION_NOTIFICATION_INFORMATION // since VISTA
+	FileIoStatusBlockRangeInformation, // FILE_IOSTATUSBLOCK_RANGE_INFORMATION
+	FileIoPriorityHintInformation, // FILE_IO_PRIORITY_HINT_INFORMATION, FILE_IO_PRIORITY_HINT_INFORMATION_EX
+	FileSfioReserveInformation, // FILE_SFIO_RESERVE_INFORMATION
+	FileSfioVolumeInformation, // FILE_SFIO_VOLUME_INFORMATION
+	FileHardLinkInformation, // FILE_LINKS_INFORMATION
+	FileProcessIdsUsingFileInformation, // FILE_PROCESS_IDS_USING_FILE_INFORMATION
+	FileNormalizedNameInformation, // FILE_NAME_INFORMATION
+	FileNetworkPhysicalNameInformation, // FILE_NETWORK_PHYSICAL_NAME_INFORMATION
+	FileIdGlobalTxDirectoryInformation, // FILE_ID_GLOBAL_TX_DIR_INFORMATION // since WIN7 // 50
+	FileIsRemoteDeviceInformation, // FILE_IS_REMOTE_DEVICE_INFORMATION
+	FileUnusedInformation,
+	FileNumaNodeInformation, // FILE_NUMA_NODE_INFORMATION
+	FileStandardLinkInformation, // FILE_STANDARD_LINK_INFORMATION
+	FileRemoteProtocolInformation, // FILE_REMOTE_PROTOCOL_INFORMATION
+	FileRenameInformationBypassAccessCheck, // (kernel-mode only); FILE_RENAME_INFORMATION // since WIN8
+	FileLinkInformationBypassAccessCheck, // (kernel-mode only); FILE_LINK_INFORMATION
+	FileVolumeNameInformation, // FILE_VOLUME_NAME_INFORMATION
+	FileIdInformation, // FILE_ID_INFORMATION
+	FileIdExtdDirectoryInformation, // FILE_ID_EXTD_DIR_INFORMATION // 60
+	FileReplaceCompletionInformation, // FILE_COMPLETION_INFORMATION // since WINBLUE
+	FileHardLinkFullIdInformation, // FILE_LINK_ENTRY_FULL_ID_INFORMATION // FILE_LINKS_FULL_ID_INFORMATION
+	FileIdExtdBothDirectoryInformation, // FILE_ID_EXTD_BOTH_DIR_INFORMATION // since THRESHOLD
+	FileDispositionInformationEx, // FILE_DISPOSITION_INFO_EX // since REDSTONE
+	FileRenameInformationEx, // FILE_RENAME_INFORMATION_EX
+	FileRenameInformationExBypassAccessCheck, // (kernel-mode only); FILE_RENAME_INFORMATION_EX
+	FileDesiredStorageClassInformation, // FILE_DESIRED_STORAGE_CLASS_INFORMATION // since REDSTONE2
+	FileStatInformation, // FILE_STAT_INFORMATION
+	FileMemoryPartitionInformation, // FILE_MEMORY_PARTITION_INFORMATION // since REDSTONE3
+	FileStatLxInformation, // FILE_STAT_LX_INFORMATION // since REDSTONE4 // 70
+	FileCaseSensitiveInformation, // FILE_CASE_SENSITIVE_INFORMATION
+	FileLinkInformationEx, // FILE_LINK_INFORMATION_EX // since REDSTONE5
+	FileLinkInformationExBypassAccessCheck, // (kernel-mode only); FILE_LINK_INFORMATION_EX
+	FileStorageReserveIdInformation, // FILE_SET_STORAGE_RESERVE_ID_INFORMATION
+	FileCaseSensitiveInformationForceAccessCheck, // FILE_CASE_SENSITIVE_INFORMATION
+	FileKnownFolderInformation, // FILE_KNOWN_FOLDER_INFORMATION // since WIN11
+	FileMaximumInformation
+} FILE_INFORMATION_CLASS, *PFILE_INFORMATION_CLASS;
 
 typedef enum _PROCESSINFOCLASS
 {
@@ -752,6 +833,60 @@ typedef enum _KTHREAD_STATE
 //
 // structs
 //
+
+typedef struct _FILE_BASIC_INFORMATION
+{
+	LARGE_INTEGER CreationTime;
+	LARGE_INTEGER LastAccessTime;
+	LARGE_INTEGER LastWriteTime;
+	LARGE_INTEGER ChangeTime;
+	ULONG FileAttributes;
+} FILE_BASIC_INFORMATION, *PFILE_BASIC_INFORMATION;
+
+typedef struct _FILE_STANDARD_INFORMATION
+{
+	LARGE_INTEGER AllocationSize;
+	LARGE_INTEGER EndOfFile;
+	ULONG NumberOfLinks;
+	BOOLEAN DeletePending;
+	BOOLEAN Directory;
+} FILE_STANDARD_INFORMATION, *PFILE_STANDARD_INFORMATION;
+
+typedef struct _FILE_STANDARD_INFORMATION_EX
+{
+	LARGE_INTEGER AllocationSize;
+	LARGE_INTEGER EndOfFile;
+	ULONG NumberOfLinks;
+	BOOLEAN DeletePending;
+	BOOLEAN Directory;
+	BOOLEAN AlternateStream;
+	BOOLEAN MetadataAttribute;
+} FILE_STANDARD_INFORMATION_EX, *PFILE_STANDARD_INFORMATION_EX;
+
+typedef struct _FILE_INTERNAL_INFORMATION
+{
+	LARGE_INTEGER IndexNumber;
+} FILE_INTERNAL_INFORMATION, *PFILE_INTERNAL_INFORMATION;
+
+typedef struct _FILE_EA_INFORMATION
+{
+	ULONG EaSize;
+} FILE_EA_INFORMATION, *PFILE_EA_INFORMATION;
+
+typedef struct _FILE_ACCESS_INFORMATION
+{
+	ACCESS_MASK AccessFlags;
+} FILE_ACCESS_INFORMATION, *PFILE_ACCESS_INFORMATION;
+
+typedef struct _FILE_POSITION_INFORMATION
+{
+	LARGE_INTEGER CurrentByteOffset;
+} FILE_POSITION_INFORMATION, *PFILE_POSITION_INFORMATION;
+
+typedef struct _FILE_END_OF_FILE_INFORMATION
+{
+	LARGE_INTEGER EndOfFile;
+} FILE_END_OF_FILE_INFORMATION, *PFILE_END_OF_FILE_INFORMATION;
 
 typedef struct _CLIENT_ID
 {
@@ -1313,16 +1448,16 @@ typedef struct _RTL_ACTIVATION_CONTEXT_STACK_FRAME
 {
 	struct _RTL_ACTIVATION_CONTEXT_STACK_FRAME *Previous;
 	struct _ACTIVATION_CONTEXT *ActivationContext;
-	ULONG                                       Flags;
+	ULONG Flags;
 } RTL_ACTIVATION_CONTEXT_STACK_FRAME, *PRTL_ACTIVATION_CONTEXT_STACK_FRAME;
 
 typedef struct _ACTIVATION_CONTEXT_STACK
 {
 	RTL_ACTIVATION_CONTEXT_STACK_FRAME *ActiveFrame;
-	LIST_ENTRY                          FrameListCache;
-	ULONG                               Flags;
-	ULONG                               NextCookieSequenceNumber;
-	ULONG_PTR                           StackId;
+	LIST_ENTRY FrameListCache;
+	ULONG Flags;
+	ULONG NextCookieSequenceNumber;
+	ULONG_PTR StackId;
 } ACTIVATION_CONTEXT_STACK, *PACTIVATION_CONTEXT_STACK;
 
 typedef struct _API_SET_NAMESPACE
@@ -2387,6 +2522,28 @@ NTAPI
 NtFlushBuffersFile (
 	_In_ HANDLE FileHandle,
 	_Out_ PIO_STATUS_BLOCK IoStatusBlock
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtQueryInformationFile (
+	_In_ HANDLE FileHandle,
+	_Out_ PIO_STATUS_BLOCK IoStatusBlock,
+	_Out_writes_bytes_ (Length) PVOID FileInformation,
+	_In_ ULONG Length,
+	_In_ FILE_INFORMATION_CLASS FileInformationClass
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtSetInformationFile (
+	_In_ HANDLE FileHandle,
+	_Out_ PIO_STATUS_BLOCK IoStatusBlock,
+	_In_reads_bytes_ (Length) PVOID FileInformation,
+	_In_ ULONG Length,
+	_In_ FILE_INFORMATION_CLASS FileInformationClass
 );
 
 NTSYSCALLAPI
