@@ -1562,7 +1562,7 @@ BOOLEAN _r_format_bytesize64 (
 
 _Ret_maybenull_
 PR_STRING _r_format_filetime_ex (
-	_In_ LPFILETIME file_time,
+	_In_ PFILETIME file_time,
 	_In_ ULONG flags
 );
 
@@ -1774,27 +1774,43 @@ VOID _r_fs_clearfile (
 	_In_ HANDLE hfile
 );
 
+_Success_ (return == ERROR_SUCCESS)
+ULONG _r_fs_deletedirectory (
+	_In_ LPCWSTR path,
+	_In_ BOOLEAN is_recurse
+);
+
 BOOLEAN _r_fs_deletefile (
 	_In_ LPCWSTR path,
 	_In_ BOOLEAN is_forced
 );
 
-BOOLEAN _r_fs_deletedirectory (
-	_In_ LPCWSTR path,
-	_In_ BOOLEAN is_recurse
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_flushfile (
+	_In_ HANDLE hfile
+);
+
+LONG64 _r_fs_getpos (
+	_In_ HANDLE hfile
 );
 
 LONG64 _r_fs_getsize (
 	_In_ HANDLE hfile
 );
 
-LONG64 _r_fs_getfilesize (
-	_In_ LPCWSTR path
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_gettimestamp (
+	_In_ HANDLE hfile,
+	_Out_opt_ PFILETIME creation_time,
+	_Out_opt_ PFILETIME access_time,
+	_Out_opt_ PFILETIME write_time
 );
 
-BOOLEAN _r_fs_makebackup (
-	_In_ LPCWSTR path,
-	_In_ BOOLEAN is_removesourcefile
+_Success_ (return == ERROR_SUCCESS)
+ULONG _r_fs_mapfile (
+	_In_opt_ LPCWSTR path,
+	_In_opt_ HANDLE hfile_in,
+	_Out_ PR_BYTE_PTR out_buffer
 );
 
 _Success_ (return == ERROR_SUCCESS)
@@ -1802,21 +1818,29 @@ ULONG _r_fs_mkdir (
 	_In_ LPCWSTR path
 );
 
-_Success_ (return == STATUS_SUCCESS)
-NTSTATUS _r_fs_mapfile (
-	_In_opt_ LPCWSTR path,
-	_In_opt_ HANDLE hfile_in,
-	_Out_ PR_BYTE_PTR out_buffer
+_Success_ (return != INVALID_HANDLE_VALUE)
+HANDLE _r_fs_openfile (
+	_In_ LPCWSTR path
 );
 
-LONG64 _r_fs_getpos (
-	_In_ HANDLE hfile
-);
-
-BOOLEAN _r_fs_setpos (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_setpos (
 	_In_ HANDLE hfile,
-	_In_ LONG64 pos,
-	_In_ ULONG method
+	_In_ LONG64 new_pos
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_setsize (
+	_In_ HANDLE hfile,
+	_In_ LONG64 new_size
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_settimestamp (
+	_In_ HANDLE hfile,
+	_In_opt_ PFILETIME creation_time,
+	_In_opt_ PFILETIME access_time,
+	_In_opt_ PFILETIME write_time
 );
 
 #define _r_fs_isvalidhandle(handle) \
@@ -1903,6 +1927,11 @@ PR_STRING _r_path_getmodulepath (
 
 BOOLEAN _r_path_issecurelocation (
 	_In_ LPCWSTR file_path
+);
+
+BOOLEAN _r_path_makebackup (
+	_In_ PR_STRING path,
+	_In_ BOOLEAN is_removesourcefile
 );
 
 BOOLEAN _r_path_parsecommandlinefuzzy (

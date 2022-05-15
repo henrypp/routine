@@ -251,7 +251,7 @@ BOOLEAN _r_format_bytesize64 (
 
 _Ret_maybenull_
 PR_STRING _r_format_filetime_ex (
-	_In_ LPFILETIME file_time,
+	_In_ PFILETIME file_time,
 	_In_ ULONG flags
 )
 {
@@ -4375,35 +4375,14 @@ VOID _r_fs_clearfile (
 	_In_ HANDLE hfile
 )
 {
-	_r_fs_setpos (hfile, 0, FILE_BEGIN);
+	_r_fs_setpos (hfile, 0);
+	_r_fs_setsize (hfile, 0);
 
-	SetEndOfFile (hfile);
-
-	FlushFileBuffers (hfile);
+	_r_fs_flushfile (hfile);
 }
 
-BOOLEAN _r_fs_deletefile (
-	_In_ LPCWSTR path,
-	_In_ BOOLEAN is_forced
-)
-{
-	ULONG attributes;
-
-	attributes = GetFileAttributes (path);
-
-	if (attributes == INVALID_FILE_ATTRIBUTES)
-		return FALSE;
-
-	if (attributes & FILE_ATTRIBUTE_DIRECTORY)
-		return FALSE;
-
-	if (is_forced)
-		SetFileAttributes (path, FILE_ATTRIBUTE_NORMAL);
-
-	return !!DeleteFile (path);
-}
-
-BOOLEAN _r_fs_deletedirectory (
+_Success_ (return == ERROR_SUCCESS)
+ULONG _r_fs_deletedirectory (
 	_In_ LPCWSTR path,
 	_In_ BOOLEAN is_recurse
 )
@@ -4412,15 +4391,15 @@ BOOLEAN _r_fs_deletedirectory (
 	PR_STRING string;
 	SIZE_T length;
 	ULONG attributes;
-	LONG status;
+	ULONG status;
 
 	attributes = GetFileAttributes (path);
 
 	if (attributes == INVALID_FILE_ATTRIBUTES)
-		return FALSE;
+		return ERROR_FILE_NOT_FOUND; // not found
 
 	if (!(attributes & FILE_ATTRIBUTE_DIRECTORY))
-		return FALSE;
+		return ERROR_BAD_PATHNAME; // not a directory
 
 	length = _r_str_getlength (path) + 1;
 
@@ -4440,102 +4419,253 @@ BOOLEAN _r_fs_deletedirectory (
 
 	_r_obj_dereference (string);
 
-	return (status == ERROR_SUCCESS);
+	return status;
+}
+
+BOOLEAN _r_fs_deletefile (
+	_In_ LPCWSTR path,
+	_In_ BOOLEAN is_forced
+)
+{
+	ULONG attributes;
+
+	attributes = GetFileAttributes (path);
+
+	if (attributes == INVALID_FILE_ATTRIBUTES)
+		return FALSE; // not found
+
+	if (attributes & FILE_ATTRIBUTE_DIRECTORY)
+		return FALSE; // not a file
+
+	if (is_forced)
+		SetFileAttributes (path, FILE_ATTRIBUTE_NORMAL);
+
+	return !!DeleteFile (path);
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_flushfile (
+	_In_ HANDLE hfile
+)
+{
+	IO_STATUS_BLOCK io;
+	NTSTATUS status;
+
+	status = NtFlushBuffersFile (hfile, &io);
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_getattributes (
+	_In_ HANDLE hfile,
+	_Out_ PULONG attributes_ptr
+)
+{
+	FILE_BASIC_INFORMATION info;
+	IO_STATUS_BLOCK io;
+	NTSTATUS status;
+
+	status = NtQueryInformationFile (
+		hfile,
+		&io,
+		&info,
+		sizeof (info),
+		FileBasicInformation
+	);
+
+	if (NT_SUCCESS (status))
+	{
+		*attributes_ptr = info.FileAttributes;
+	}
+	else
+	{
+		*attributes_ptr = INVALID_FILE_ATTRIBUTES;
+	}
+
+	return status;
+}
+
+LONG64 _r_fs_getpos (
+	_In_ HANDLE hfile
+)
+{
+	FILE_POSITION_INFORMATION info;
+	IO_STATUS_BLOCK io;
+	NTSTATUS status;
+
+	status = NtQueryInformationFile (
+		hfile,
+		&io,
+		&info,
+		sizeof (info),
+		FilePositionInformation
+	);
+
+	if (!NT_SUCCESS (status))
+		return 0;
+
+	return info.CurrentByteOffset.QuadPart;
 }
 
 LONG64 _r_fs_getsize (
 	_In_ HANDLE hfile
 )
 {
-	LARGE_INTEGER file_size;
+	FILE_STANDARD_INFORMATION info;
+	IO_STATUS_BLOCK io;
+	NTSTATUS status;
 
-	if (GetFileSizeEx (hfile, &file_size))
-		return file_size.QuadPart;
-
-	return 0;
-}
-
-LONG64 _r_fs_getfilesize (
-	_In_ LPCWSTR path
-)
-{
-	HANDLE hfile;
-	LONG64 file_size;
-
-	hfile = CreateFile (
-		path,
-		GENERIC_READ,
-		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-		NULL,
-		OPEN_EXISTING,
-		0,
-		NULL
+	status = NtQueryInformationFile (
+		hfile,
+		&io,
+		&info,
+		sizeof (info),
+		FileStandardInformation
 	);
 
-	if (!_r_fs_isvalidhandle (hfile))
+	if (!NT_SUCCESS (status))
 		return 0;
 
-	file_size = _r_fs_getsize (hfile);
-
-	NtClose (hfile);
-
-	return file_size;
+	return info.EndOfFile.QuadPart;
 }
 
-BOOLEAN _r_fs_makebackup (
-	_In_ LPCWSTR path,
-	_In_ BOOLEAN is_removesourcefile
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_gettimestamp (
+	_In_ HANDLE hfile,
+	_Out_opt_ PFILETIME creation_time,
+	_Out_opt_ PFILETIME access_time,
+	_Out_opt_ PFILETIME write_time
 )
 {
-	WCHAR timestamp_string[64];
-	PR_STRING new_path;
-	LONG64 current_timestamp;
+	FILE_BASIC_INFORMATION info;
+	IO_STATUS_BLOCK io;
+	NTSTATUS status;
 
-	R_STRINGREF directory_part;
-	R_STRINGREF basename_part;
-	PR_STRING directory;
-
-	BOOLEAN is_success;
-
-	current_timestamp = _r_unixtime_now ();
-
-	_r_obj_initializestringrefconst (&directory_part, path);
-
-	_r_path_getpathinfo (&directory_part, &directory_part, &basename_part);
-
-	directory = _r_obj_createstring3 (&directory_part);
-
-	_r_str_fromlong64 (timestamp_string, RTL_NUMBER_OF (timestamp_string), current_timestamp);
-
-	new_path = _r_obj_concatstrings (
-		6,
-		directory->buffer,
-		L"\\",
-		basename_part.buffer,
-		L"-",
-		timestamp_string,
-		L".bak"
+	status = NtQueryInformationFile (
+		 hfile,
+		 &io,
+		 &info,
+		 sizeof (info),
+		 FileBasicInformation
 	);
 
-	if (_r_fs_exists (new_path->buffer))
-		_r_fs_deletefile (new_path->buffer, TRUE);
+	if (!NT_SUCCESS (status))
+		RtlZeroMemory (&info, sizeof (info));
 
-	if (is_removesourcefile)
+	if (creation_time)
 	{
-		is_success = _r_fs_movefile (path, new_path->buffer, 0);
+		creation_time->dwHighDateTime = info.CreationTime.HighPart;
+		creation_time->dwLowDateTime = info.CreationTime.LowPart;
+	}
 
-		if (!is_success)
-			is_success = _r_fs_movefile (path, new_path->buffer, MOVEFILE_COPY_ALLOWED);
+	if (access_time)
+	{
+		access_time->dwHighDateTime = info.LastAccessTime.HighPart;
+		access_time->dwLowDateTime = info.LastAccessTime.LowPart;
+	}
+
+	if (write_time)
+	{
+		write_time->dwHighDateTime = info.LastWriteTime.HighPart;
+		write_time->dwLowDateTime = info.LastWriteTime.LowPart;
+	}
+
+	return status;
+}
+
+_Success_ (return == ERROR_SUCCESS)
+ULONG _r_fs_mapfile (
+	_In_opt_ LPCWSTR path,
+	_In_opt_ HANDLE hfile_in,
+	_Out_ PR_BYTE_PTR out_buffer
+)
+{
+	LARGE_INTEGER file_size;
+	PVOID file_bytes;
+	HANDLE hfile;
+	HANDLE hmap;
+	BOOLEAN is_extfile;
+	ULONG status;
+
+	*out_buffer = NULL;
+
+	is_extfile = _r_fs_isvalidhandle (hfile_in);
+
+	if (!is_extfile && !path)
+		return ERROR_INVALID_PARAMETER;
+
+	if (is_extfile)
+	{
+		hfile = hfile_in;
 	}
 	else
 	{
-		is_success = _r_fs_copyfile (path, new_path->buffer, 0);
+		hfile = CreateFile (
+			path,
+			FILE_GENERIC_READ,
+			FILE_SHARE_READ,
+			NULL,
+			OPEN_EXISTING,
+			FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN,
+			NULL
+		);
+
+		if (!_r_fs_isvalidhandle (hfile))
+			return GetLastError ();
 	}
 
-	_r_obj_dereference (directory);
-	_r_obj_dereference (new_path);
+	if (!GetFileSizeEx (hfile, &file_size))
+	{
+		status = GetLastError ();
 
-	return is_success;
+		if (!is_extfile)
+			NtClose (hfile);
+
+		return status;
+	}
+
+	hmap = CreateFileMapping (
+		hfile,
+		NULL,
+		PAGE_READONLY,
+		file_size.HighPart,
+		file_size.LowPart,
+		NULL
+	);
+
+	if (!hmap)
+	{
+		status = GetLastError ();
+	}
+	else
+	{
+		file_bytes = MapViewOfFile (hmap, FILE_MAP_READ, 0, 0, 0);
+
+		if (!file_bytes)
+		{
+			status = GetLastError ();
+		}
+		else
+		{
+#ifdef _WIN64
+			*out_buffer = _r_obj_createbyte_ex (file_bytes, file_size.QuadPart);
+#else
+			*out_buffer = _r_obj_createbyte_ex (file_bytes, file_size.LowPart);
+#endif
+
+			UnmapViewOfFile (file_bytes);
+
+			status = ERROR_SUCCESS;
+		}
+
+		NtClose (hmap);
+	}
+
+	if (!is_extfile)
+		NtClose (hfile);
+
+	return status;
 }
 
 _Success_ (return == ERROR_SUCCESS)
@@ -4561,117 +4691,113 @@ ULONG _r_fs_mkdir (
 	return status;
 }
 
-_Success_ (return == STATUS_SUCCESS)
-NTSTATUS _r_fs_mapfile (
-	_In_opt_ LPCWSTR path,
-	_In_opt_ HANDLE hfile_in,
-	_Out_ PR_BYTE_PTR out_buffer
+_Success_ (return != INVALID_HANDLE_VALUE)
+HANDLE _r_fs_openfile (
+	_In_ LPCWSTR path
 )
 {
-	LARGE_INTEGER file_size;
-	PVOID file_bytes;
 	HANDLE hfile;
-	HANDLE hmap;
-	BOOLEAN is_extfile;
+
+	hfile = CreateFile (
+		path,
+		GENERIC_READ,
+		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+		NULL,
+		OPEN_EXISTING,
+		0,
+		NULL
+	);
+
+	return hfile;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_setpos (
+	_In_ HANDLE hfile,
+	_In_ LONG64 new_pos
+)
+{
+	FILE_POSITION_INFORMATION info;
+	IO_STATUS_BLOCK io;
 	NTSTATUS status;
 
-	*out_buffer = NULL;
+	info.CurrentByteOffset.QuadPart = new_pos;
 
-	is_extfile = _r_fs_isvalidhandle (hfile_in);
-
-	if (!is_extfile && !path)
-		return STATUS_INVALID_PARAMETER;
-
-	if (is_extfile)
-	{
-		hfile = hfile_in;
-	}
-	else
-	{
-		hfile = CreateFile (
-			path,
-			FILE_GENERIC_READ,
-			FILE_SHARE_READ,
-			NULL,
-			OPEN_EXISTING,
-			FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN,
-			NULL
-		);
-
-		if (!_r_fs_isvalidhandle (hfile))
-			return RtlGetLastNtStatus ();
-	}
-
-	if (!GetFileSizeEx (hfile, &file_size))
-	{
-		status = GetLastError ();
-
-		if (!is_extfile)
-			NtClose (hfile);
-
-		return status;
-	}
-
-	hmap = CreateFileMapping (hfile, NULL, PAGE_READONLY, file_size.HighPart, file_size.LowPart, NULL);
-
-	if (!hmap)
-	{
-		status = GetLastError ();
-	}
-	else
-	{
-		file_bytes = MapViewOfFile (hmap, FILE_MAP_READ, 0, 0, 0);
-
-		if (!file_bytes)
-		{
-			status = GetLastError ();
-		}
-		else
-		{
-#ifdef _WIN64
-			*out_buffer = _r_obj_createbyte_ex (file_bytes, file_size.QuadPart);
-#else
-			*out_buffer = _r_obj_createbyte_ex (file_bytes, file_size.LowPart);
-#endif
-
-			UnmapViewOfFile (file_bytes);
-
-			status = STATUS_SUCCESS;
-		}
-
-		NtClose (hmap);
-	}
-
-	if (!is_extfile)
-		NtClose (hfile);
+	status = NtSetInformationFile (
+		hfile,
+		&io,
+		&info,
+		sizeof (info),
+		FilePositionInformation
+	);
 
 	return status;
 }
 
-LONG64 _r_fs_getpos (
-	_In_ HANDLE hfile
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_setsize (
+	_In_ HANDLE hfile,
+	_In_ LONG64 new_size
 )
 {
-	LARGE_INTEGER li = {0};
-	LARGE_INTEGER pos;
+	FILE_END_OF_FILE_INFORMATION info;
+	IO_STATUS_BLOCK io;
+	NTSTATUS status;
 
-	if (!SetFilePointerEx (hfile, li, &pos, FILE_CURRENT))
-		return 0;
+	info.EndOfFile.QuadPart = new_size;
 
-	return pos.QuadPart;
+	status = NtSetInformationFile (
+		hfile,
+		&io,
+		&info,
+		sizeof (info),
+		FileEndOfFileInformation
+	);
+
+	return status;
 }
 
-BOOLEAN _r_fs_setpos (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_settimestamp (
 	_In_ HANDLE hfile,
-	_In_ LONG64 pos,
-	_In_ ULONG method
+	_In_opt_ PFILETIME creation_time,
+	_In_opt_ PFILETIME access_time,
+	_In_opt_ PFILETIME write_time
 )
 {
-	LARGE_INTEGER li = {0};
+	FILE_BASIC_INFORMATION info;
+	IO_STATUS_BLOCK io;
+	NTSTATUS status;
 
-	li.QuadPart = pos;
+	RtlZeroMemory (&info, sizeof (info));
 
-	return !!SetFilePointerEx (hfile, li, NULL, method);
+	if (creation_time)
+	{
+		info.CreationTime.HighPart = creation_time->dwHighDateTime;
+		info.CreationTime.LowPart = creation_time->dwLowDateTime;
+	}
+
+	if (access_time)
+	{
+		info.LastAccessTime.HighPart = access_time->dwHighDateTime;
+		info.LastAccessTime.LowPart = access_time->dwLowDateTime;
+	}
+
+	if (write_time)
+	{
+		info.LastWriteTime.HighPart = write_time->dwHighDateTime;
+		info.LastWriteTime.LowPart = write_time->dwLowDateTime;
+	}
+
+	status = NtSetInformationFile (
+		 hfile,
+		 &io,
+		 &info,
+		 sizeof (info),
+		 FileBasicInformation
+	);
+
+	return status;
 }
 
 //
@@ -4981,6 +5107,59 @@ BOOLEAN _r_path_issecurelocation (
 	LocalFree (security_descriptor);
 
 	return !is_writeable;
+}
+
+BOOLEAN _r_path_makebackup (
+	_In_ PR_STRING path,
+	_In_ BOOLEAN is_removesourcefile
+)
+{
+	WCHAR timestamp_string[64];
+	PR_STRING new_path;
+	LONG64 current_timestamp;
+	R_STRINGREF directory_part;
+	R_STRINGREF basename_part;
+	PR_STRING directory;
+	BOOLEAN is_success;
+
+	_r_obj_initializestringref2 (&directory_part, path);
+
+	_r_path_getpathinfo (&directory_part, &directory_part, &basename_part);
+
+	directory = _r_obj_createstring3 (&directory_part);
+
+	current_timestamp = _r_unixtime_now ();
+	_r_str_fromlong64 (timestamp_string, RTL_NUMBER_OF (timestamp_string), current_timestamp);
+
+	new_path = _r_obj_concatstrings (
+		6,
+		directory->buffer,
+		L"\\",
+		basename_part.buffer,
+		L"-",
+		timestamp_string,
+		L".bak"
+	);
+
+	if (_r_fs_exists (new_path->buffer))
+		_r_fs_deletefile (new_path->buffer, TRUE);
+
+	if (is_removesourcefile)
+	{
+		is_success = _r_fs_movefile (path->buffer, new_path->buffer, 0);
+
+		if (!is_success)
+			is_success = _r_fs_movefile (path->buffer, new_path->buffer, MOVEFILE_COPY_ALLOWED);
+	}
+	else
+	{
+		is_success = _r_fs_copyfile (path->buffer, new_path->buffer, 0);
+	}
+
+	_r_obj_dereference (directory);
+	_r_obj_dereference (new_path);
+
+	return is_success;
 }
 
 // Parses a command line string. If the string does not contain quotation marks
