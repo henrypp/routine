@@ -14416,7 +14416,7 @@ PR_HASHTABLE _r_parseini (
 // Xml library
 //
 
-_Success_ (return == S_OK)
+_Success_ (SUCCEEDED (return))
 HRESULT _r_xml_initializelibrary (
 	_Out_ PR_XML_LIBRARY xml_library,
 	_In_ BOOLEAN is_reader
@@ -14431,7 +14431,7 @@ HRESULT _r_xml_initializelibrary (
 	{
 		hr = CreateXmlReader (&IID_IXmlReader, (PVOID_PTR)&xml_library->reader, NULL);
 
-		if (hr != S_OK)
+		if (FAILED (hr))
 		{
 			xml_library->reader = NULL;
 			return hr;
@@ -14443,7 +14443,7 @@ HRESULT _r_xml_initializelibrary (
 	{
 		hr = CreateXmlWriter (&IID_IXmlWriter, (PVOID_PTR)&xml_library->writer, NULL);
 
-		if (hr != S_OK)
+		if (FAILED (hr))
 		{
 			xml_library->writer = NULL;
 			return hr;
@@ -14453,13 +14453,15 @@ HRESULT _r_xml_initializelibrary (
 		IXmlWriter_SetProperty (xml_library->writer, XmlWriterProperty_CompactEmptyElement, TRUE);
 	}
 
-	return S_OK;
+	return hr;
 }
 
 VOID _r_xml_destroylibrary (
 	_Inout_ PR_XML_LIBRARY xml_library
 )
 {
+	SAFE_DELETE_STREAM (xml_library->hstream);
+
 	if (xml_library->is_reader)
 	{
 		if (xml_library->reader)
@@ -14476,11 +14478,9 @@ VOID _r_xml_destroylibrary (
 			xml_library->writer = NULL;
 		}
 	}
-
-	SAFE_DELETE_STREAM (xml_library->hstream);
 }
 
-_Success_ (return == S_OK)
+_Success_ (SUCCEEDED (return))
 HRESULT _r_xml_createfilestream (
 	_Inout_ PR_XML_LIBRARY xml_library,
 	_In_ LPCWSTR file_path,
@@ -14489,25 +14489,20 @@ HRESULT _r_xml_createfilestream (
 )
 {
 	PR_XML_STREAM hstream;
-	PR_XML_STREAM hstream_prev;
 	HRESULT hr;
 
 	hr = SHCreateStreamOnFileEx (file_path, mode, FILE_ATTRIBUTE_NORMAL, is_create, NULL, &hstream);
 
-	if (hr != S_OK)
+	if (FAILED (hr))
 		return hr;
 
-	hstream_prev = xml_library->hstream;
 
 	hr = _r_xml_setlibrarystream (xml_library, hstream);
-
-	if (hstream_prev)
-		IStream_Release (hstream_prev);
 
 	return hr;
 }
 
-_Success_ (return == S_OK)
+_Success_ (SUCCEEDED (return))
 HRESULT _r_xml_createstream (
 	_Inout_ PR_XML_LIBRARY xml_library,
 	_In_opt_ LPCVOID buffer,
@@ -14515,25 +14510,19 @@ HRESULT _r_xml_createstream (
 )
 {
 	PR_XML_STREAM hstream;
-	PR_XML_STREAM hstream_prev;
 	HRESULT hr;
 
 	hstream = SHCreateMemStream (buffer, buffer_length);
 
 	if (!hstream)
-		return S_FALSE;
-
-	hstream_prev = xml_library->hstream;
+		return E_UNEXPECTED;
 
 	hr = _r_xml_setlibrarystream (xml_library, hstream);
-
-	if (hstream_prev)
-		IStream_Release (hstream_prev);
 
 	return hr;
 }
 
-_Success_ (return == S_OK)
+_Success_ (SUCCEEDED (return))
 HRESULT _r_xml_parsefile (
 	_Inout_ PR_XML_LIBRARY xml_library,
 	_In_ LPCWSTR file_path
@@ -14546,7 +14535,7 @@ HRESULT _r_xml_parsefile (
 	return hr;
 }
 
-_Success_ (return == S_OK)
+_Success_ (SUCCEEDED (return))
 HRESULT _r_xml_parsestring (
 	_Inout_ PR_XML_LIBRARY xml_library,
 	_In_ LPCVOID buffer,
@@ -14560,7 +14549,7 @@ HRESULT _r_xml_parsestring (
 	return hr;
 }
 
-_Success_ (return == S_OK)
+_Success_ (SUCCEEDED (return))
 HRESULT _r_xml_readstream (
 	_Inout_ PR_XML_LIBRARY xml_library,
 	_Out_ PR_BYTE_PTR out_buffer
@@ -14573,7 +14562,7 @@ HRESULT _r_xml_readstream (
 
 	hr = IStream_Size (xml_library->hstream, &size);
 
-	if (hr != S_OK)
+	if (FAILED (hr))
 	{
 		*out_buffer = NULL;
 
@@ -14587,7 +14576,7 @@ HRESULT _r_xml_readstream (
 
 	hr = ISequentialStream_Read (xml_library->hstream, bytes->buffer, (ULONG)bytes->length, &readed);
 
-	if (hr == S_OK)
+	if (SUCCEEDED (hr))
 	{
 		_r_obj_setbytelength (bytes, readed);
 
@@ -14616,7 +14605,7 @@ BOOLEAN _r_xml_getattribute (
 
 	hr = IXmlReader_MoveToAttributeByName (xml_library->reader, attrib_name, NULL);
 
-	if (hr != S_OK)
+	if (FAILED (hr))
 		return FALSE;
 
 	hr = IXmlReader_GetValue (xml_library->reader, &value_string, &value_length);
@@ -14624,7 +14613,7 @@ BOOLEAN _r_xml_getattribute (
 	// restore position before return from the function!
 	IXmlReader_MoveToElement (xml_library->reader);
 
-	if (hr != S_OK || _r_str_isempty (value_string) || !value_length)
+	if (FAILED (hr) || _r_str_isempty (value_string) || !value_length)
 		return FALSE;
 
 	_r_obj_initializestringref_ex (
@@ -14735,7 +14724,7 @@ BOOLEAN _r_xml_enumchilditemsbytagname (
 
 		hr = IXmlReader_Read (xml_library->reader, &node_type);
 
-		if (hr != S_OK)
+		if (FAILED (hr))
 			return FALSE;
 
 		if (node_type == XmlNodeType_Element)
@@ -14744,7 +14733,7 @@ BOOLEAN _r_xml_enumchilditemsbytagname (
 
 			hr = IXmlReader_GetLocalName (xml_library->reader, &buffer, &buffer_length);
 
-			if (hr != S_OK)
+			if (FAILED (hr))
 				return FALSE;
 
 			if (_r_str_isempty (buffer))
@@ -14792,7 +14781,7 @@ BOOLEAN _r_xml_findchildbytagname (
 
 		hr = IXmlReader_Read (xml_library->reader, &node_type);
 
-		if (hr != S_OK)
+		if (FAILED (hr))
 			return FALSE;
 
 		if (node_type == XmlNodeType_Element)
@@ -14805,10 +14794,7 @@ BOOLEAN _r_xml_findchildbytagname (
 
 			hr = IXmlReader_GetLocalName (xml_library->reader, &buffer, &buffer_length);
 
-			if (hr != S_OK)
-				break;
-
-			if (_r_str_isempty (buffer))
+			if (FAILED (hr) || _r_str_isempty (buffer))
 				break;
 
 			_r_obj_initializestringref_ex (
@@ -14825,7 +14811,7 @@ BOOLEAN _r_xml_findchildbytagname (
 	return FALSE;
 }
 
-_Success_ (return == S_OK)
+_Success_ (SUCCEEDED (return))
 HRESULT _r_xml_resetlibrarystream (
 	_Inout_ PR_XML_LIBRARY xml_library
 )
@@ -14833,7 +14819,7 @@ HRESULT _r_xml_resetlibrarystream (
 	HRESULT hr;
 
 	if (!xml_library->hstream)
-		return S_FALSE;
+		return E_UNEXPECTED;
 
 	// reset stream position to the beginning
 	IStream_Reset (xml_library->hstream);
@@ -14843,7 +14829,7 @@ HRESULT _r_xml_resetlibrarystream (
 	return hr;
 }
 
-_Success_ (return == S_OK)
+_Success_ (SUCCEEDED (return))
 HRESULT _r_xml_setlibrarystream (
 	_Inout_ PR_XML_LIBRARY xml_library,
 	_In_ PR_XML_STREAM hstream

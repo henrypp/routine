@@ -3534,7 +3534,7 @@ PR_HASHTABLE _r_parseini (
 // Xml library
 //
 
-_Success_ (return == S_OK)
+_Success_ (SUCCEEDED (return))
 HRESULT _r_xml_initializelibrary (
 	_Out_ PR_XML_LIBRARY xml_library,
 	_In_ BOOLEAN is_reader
@@ -3544,7 +3544,7 @@ VOID _r_xml_destroylibrary (
 	_Inout_ PR_XML_LIBRARY xml_library
 );
 
-_Success_ (return == S_OK)
+_Success_ (SUCCEEDED (return))
 HRESULT _r_xml_createfilestream (
 	_Inout_ PR_XML_LIBRARY xml_library,
 	_In_ LPCWSTR file_path,
@@ -3552,27 +3552,27 @@ HRESULT _r_xml_createfilestream (
 	_In_ BOOL is_create
 );
 
-_Success_ (return == S_OK)
+_Success_ (SUCCEEDED (return))
 HRESULT _r_xml_createstream (
 	_Inout_ PR_XML_LIBRARY xml_library,
 	_In_opt_ LPCVOID buffer,
 	_In_ ULONG buffer_length
 );
 
-_Success_ (return == S_OK)
+_Success_ (SUCCEEDED (return))
 HRESULT _r_xml_parsefile (
 	_Inout_ PR_XML_LIBRARY xml_library,
 	_In_ LPCWSTR file_path
 );
 
-_Success_ (return == S_OK)
+_Success_ (SUCCEEDED (return))
 HRESULT _r_xml_parsestring (
 	_Inout_ PR_XML_LIBRARY xml_library,
 	_In_ LPCVOID buffer,
 	_In_ ULONG buffer_length
 );
 
-_Success_ (return == S_OK)
+_Success_ (SUCCEEDED (return))
 HRESULT _r_xml_readstream (
 	_Inout_ PR_XML_LIBRARY xml_library,
 	_Out_ PR_BYTE_PTR out_buffer
@@ -3648,12 +3648,12 @@ BOOLEAN _r_xml_findchildbytagname (
 	_In_ LPCWSTR tag_name
 );
 
-_Success_ (return == S_OK)
+_Success_ (SUCCEEDED (return))
 HRESULT _r_xml_resetlibrarystream (
 	_Inout_ PR_XML_LIBRARY xml_library
 );
 
-_Success_ (return == S_OK)
+_Success_ (SUCCEEDED (return))
 HRESULT _r_xml_setlibrarystream (
 	_Inout_ PR_XML_LIBRARY xml_library,
 	_In_ PR_XML_STREAM stream
