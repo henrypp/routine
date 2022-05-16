@@ -2778,6 +2778,15 @@ RtlExpandEnvironmentStrings_U (
 );
 
 NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlSetEnvironmentVariable (
+	_Inout_opt_ PVOID *Environment,
+	_In_ PUNICODE_STRING Name,
+	_In_opt_ PUNICODE_STRING Value
+);
+
+NTSYSCALLAPI
 ULONG
 NTAPI
 RtlNtStatusToDosError (
