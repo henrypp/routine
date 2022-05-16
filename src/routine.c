@@ -9065,7 +9065,7 @@ ULONG _r_sys_getwindowsversion ()
 			}
 			else if (version_info.dwMajorVersion == 10 && version_info.dwMinorVersion == 0)
 			{
-				if (version_info.dwBuildNumber >= 22567)
+				if (version_info.dwBuildNumber >= 22621)
 				{
 					windows_version = WINDOWS_11_22H2;
 				}
@@ -10024,6 +10024,33 @@ VOID _r_sys_setenvironment (
 	environment->base_priority = base_priority;
 	environment->io_priority = io_priority;
 	environment->page_priority = page_priority;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_setenvironmentvariable (
+	_In_opt_ PVOID environment,
+	_In_ PR_STRINGREF name_sr,
+	_In_opt_ PR_STRINGREF value_sr
+)
+{
+	UNICODE_STRING name_us;
+	UNICODE_STRING value_us;
+	NTSTATUS status;
+
+	_r_obj_initializeunicodestring3 (&name_us, name_sr);
+
+	if (value_sr)
+	{
+		_r_obj_initializeunicodestring3 (&value_us, value_sr);
+	}
+	else
+	{
+		RtlZeroMemory (&value_us, sizeof (value_us));
+	}
+
+	status = RtlSetEnvironmentVariable (environment, &name_us, &value_us);
+
+	return status;
 }
 
 VOID _r_sys_setprocessenvironment (

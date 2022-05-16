@@ -2682,6 +2682,13 @@ VOID _r_sys_setenvironment (
 	_In_ ULONG page_priority
 );
 
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_setenvironmentvariable (
+	_In_opt_ PVOID environment,
+	_In_ PR_STRINGREF name_sr,
+	_In_opt_ PR_STRINGREF value_sr
+);
+
 VOID _r_sys_setprocessenvironment (
 	_In_ HANDLE process_handle,
 	_In_ PR_ENVIRONMENT new_environment
