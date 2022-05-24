@@ -4543,11 +4543,11 @@ NTSTATUS _r_fs_gettimestamp (
 	NTSTATUS status;
 
 	status = NtQueryInformationFile (
-		 hfile,
-		 &io,
-		 &info,
-		 sizeof (info),
-		 FileBasicInformation
+		hfile,
+		&io,
+		&info,
+		sizeof (info),
+		FileBasicInformation
 	);
 
 	if (!NT_SUCCESS (status))
@@ -4790,11 +4790,11 @@ NTSTATUS _r_fs_settimestamp (
 	}
 
 	status = NtSetInformationFile (
-		 hfile,
-		 &io,
-		 &info,
-		 sizeof (info),
-		 FileBasicInformation
+		hfile,
+		&io,
+		&info,
+		sizeof (info),
+		FileBasicInformation
 	);
 
 	return status;
@@ -12235,6 +12235,64 @@ BOOLEAN _r_wnd_isdialog (
 	return FALSE;
 }
 
+BOOLEAN _r_wnd_isfocusassist ()
+{
+	static R_INITONCE init_once = {0};
+	static NTQWNFSD _NtQueryWnfStateData = NULL;
+
+	WNF_CHANGE_STAMP change_stamp;
+	WNF_STATE_NAME state_name;
+	HINSTANCE hntdll;
+	ULONG buffer;
+	ULONG buffer_size;
+	NTSTATUS status;
+
+	if (_r_initonce_begin (&init_once))
+	{
+		hntdll = _r_sys_loadlibrary (L"ntdll.dll");
+
+		if (hntdll)
+		{
+			// win10rs3+
+			_NtQueryWnfStateData = (NTQWNFSD)GetProcAddress (hntdll, "NtQueryWnfStateData");
+
+			FreeLibrary (hntdll);
+		}
+
+		_r_initonce_end (&init_once);
+	}
+
+	if (!_NtQueryWnfStateData)
+		return FALSE;
+
+	// WNF_SHEL_QUIETHOURS_ACTIVE_PROFILE_CHANGED
+	// This wnf is signaled whenever active quiet hours profile / mode changes.
+	// The value is the restrictive level of an active profile and
+	// the restrictive level is unique per profile
+
+	state_name.Data[0] = 0xA3BF1C75;
+	state_name.Data[1] = 0xD83063E;
+
+	buffer_size = sizeof (buffer);
+
+	status = _NtQueryWnfStateData (
+		&state_name,
+		NULL,
+		NULL,
+		&change_stamp,
+		&buffer,
+		&buffer_size
+	);
+
+	if (NT_SUCCESS (status))
+	{
+		if (buffer == FOCUS_ASSIST_PRIORITY_ONLY || buffer == FOCUS_ASSIST_ALARMS_ONLY)
+			return TRUE;
+	}
+
+	return FALSE;
+}
+
 BOOLEAN _r_wnd_isfullscreenconsolemode (
 	_In_ HWND hwnd
 )
@@ -12340,8 +12398,19 @@ BOOLEAN _r_wnd_isfullscreenmode ()
 {
 	HWND hwnd;
 
-	if (_r_wnd_isfullscreenusermode ())
-		return TRUE;
+	// win10rs3+
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1803))
+	{
+		if (_r_wnd_isfocusassist ())
+			return TRUE;
+	}
+
+	// vista+
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
+	{
+		if (_r_wnd_isfullscreenusermode ())
+			return TRUE;
+	}
 
 	// Get the foreground window which the user is currently working on.
 	hwnd = GetForegroundWindow ();
@@ -13674,7 +13743,7 @@ NTSTATUS _r_crypt_createcryptcontext (
 		0
 	);
 
-	if (status != STATUS_SUCCESS)
+	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
 	status = BCryptSetProperty (
@@ -13928,7 +13997,7 @@ NTSTATUS _r_crypt_createhashcontext (
 		0
 	);
 
-	if (status != STATUS_SUCCESS)
+	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
 	hash_context->object_data = _r_obj_createbyte_ex (NULL, data_length);

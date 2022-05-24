@@ -3112,6 +3112,8 @@ BOOLEAN _r_wnd_isdialog (
 	_In_ HWND hwnd
 );
 
+BOOLEAN _r_wnd_isfocusassist ();
+
 BOOLEAN _r_wnd_isfullscreenconsolemode (
 	_In_ HWND hwnd
 );
