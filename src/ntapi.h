@@ -1044,6 +1044,69 @@ typedef struct _PROCESS_PRIORITY_CLASS
 	UCHAR PriorityClass;
 } PROCESS_PRIORITY_CLASS, *PPROCESS_PRIORITY_CLASS;
 
+// WNF (win8+)
+typedef struct _WNF_STATE_NAME
+{
+	ULONG Data[2];
+} WNF_STATE_NAME, *PWNF_STATE_NAME;
+
+typedef const WNF_STATE_NAME *PCWNF_STATE_NAME;
+
+typedef enum _WNF_STATE_NAME_LIFETIME
+{
+	WnfWellKnownStateName,
+	WnfPermanentStateName,
+	WnfPersistentStateName,
+	WnfTemporaryStateName
+} WNF_STATE_NAME_LIFETIME;
+
+typedef enum _WNF_STATE_NAME_INFORMATION
+{
+	WnfInfoStateNameExist,
+	WnfInfoSubscribersPresent,
+	WnfInfoIsQuiescent
+} WNF_STATE_NAME_INFORMATION;
+
+typedef enum _WNF_DATA_SCOPE
+{
+	WnfDataScopeSystem,
+	WnfDataScopeSession,
+	WnfDataScopeUser,
+	WnfDataScopeProcess,
+	WnfDataScopeMachine, // REDSTONE3
+	WnfDataScopePhysicalMachine, // WIN11
+} WNF_DATA_SCOPE;
+
+typedef struct _WNF_TYPE_ID
+{
+	GUID TypeId;
+} WNF_TYPE_ID, *PWNF_TYPE_ID;
+
+typedef const WNF_TYPE_ID *PCWNF_TYPE_ID;
+
+// rev
+typedef ULONG WNF_CHANGE_STAMP, *PWNF_CHANGE_STAMP;
+
+typedef struct _WNF_DELIVERY_DESCRIPTOR
+{
+	ULONGLONG SubscriptionId;
+	WNF_STATE_NAME StateName;
+	WNF_CHANGE_STAMP ChangeStamp;
+	ULONG StateDataSize;
+	ULONG EventMask;
+	WNF_TYPE_ID TypeId;
+	ULONG StateDataOffset;
+} WNF_DELIVERY_DESCRIPTOR, *PWNF_DELIVERY_DESCRIPTOR;
+
+typedef enum _FOCUS_ASSIST_INFO
+{
+	FOCUS_ASSIST_NOT_SUPPORTED = -2,
+	FOCUS_ASSIST_FAILED = -1,
+	FOCUS_ASSIST_OFF = 0,
+	FOCUS_ASSIST_PRIORITY_ONLY = 1,
+	FOCUS_ASSIST_ALARMS_ONLY = 2
+} FOCUS_ASSIST_INFO, *PFOCUS_ASSIST_INFO;
+
 //
 // Synchronization enumerations
 //
@@ -3260,6 +3323,95 @@ LOGICAL
 NTAPI
 RtlQueryPerformanceFrequency (
 	_Out_ PLARGE_INTEGER PerformanceFrequency
+);
+
+// win8+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtCreateWnfStateName (
+	_Out_ PWNF_STATE_NAME StateName,
+	_In_ WNF_STATE_NAME_LIFETIME NameLifetime,
+	_In_ WNF_DATA_SCOPE DataScope,
+	_In_ BOOLEAN PersistData,
+	_In_opt_ PCWNF_TYPE_ID TypeId,
+	_In_ ULONG MaximumStateSize,
+	_In_ PSECURITY_DESCRIPTOR SecurityDescriptor
+);
+
+// win8+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtDeleteWnfStateName (
+	_In_ PCWNF_STATE_NAME StateName
+);
+
+// win8+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtUpdateWnfStateData (
+	_In_ PCWNF_STATE_NAME StateName,
+	_In_reads_bytes_opt_ (Length) const VOID *Buffer,
+	_In_opt_ ULONG Length,
+	_In_opt_ PCWNF_TYPE_ID TypeId,
+	_In_opt_ const VOID *ExplicitScope,
+	_In_ WNF_CHANGE_STAMP MatchingChangeStamp,
+	_In_ LOGICAL CheckStamp
+);
+
+// win8+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtDeleteWnfStateData (
+	_In_ PCWNF_STATE_NAME StateName,
+	_In_opt_ const VOID *ExplicitScope
+);
+
+// win8+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtQueryWnfStateData (
+	_In_ PCWNF_STATE_NAME StateName,
+	_In_opt_ PCWNF_TYPE_ID TypeId,
+	_In_opt_ const VOID *ExplicitScope,
+	_Out_ PWNF_CHANGE_STAMP ChangeStamp,
+	_Out_writes_bytes_to_opt_ (*BufferSize, *BufferSize) PVOID Buffer,
+	_Inout_ PULONG BufferSize
+);
+
+// win8+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtQueryWnfStateNameInformation (
+	_In_ PCWNF_STATE_NAME StateName,
+	_In_ WNF_STATE_NAME_INFORMATION NameInfoClass,
+	_In_opt_ const VOID *ExplicitScope,
+	_Out_writes_bytes_ (InfoBufferSize) PVOID InfoBuffer,
+	_In_ ULONG InfoBufferSize
+);
+
+// win8+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtSubscribeWnfStateChange (
+	_In_ PCWNF_STATE_NAME StateName,
+	_In_opt_ WNF_CHANGE_STAMP ChangeStamp,
+	_In_ ULONG EventMask,
+	_Out_opt_ PULONG64 SubscriptionId
+);
+
+// win8+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtUnsubscribeWnfStateChange (
+	_In_ PCWNF_STATE_NAME StateName
 );
 
 // extern c end
