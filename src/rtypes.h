@@ -91,6 +91,16 @@ typedef BOOL (WINAPI *IIP) (
 	_In_ HANDLE hProcess
 	);
 
+// NtQueryWnfStateData (win8+)
+typedef NTSTATUS (NTAPI *NTQWNFSD) (
+	_In_ PCWNF_STATE_NAME StateName,
+	_In_opt_ PCWNF_TYPE_ID TypeId,
+	_In_opt_ const VOID *ExplicitScope,
+	_Out_ PWNF_CHANGE_STAMP ChangeStamp,
+	_Out_writes_bytes_to_opt_ (*BufferSize, *BufferSize) PVOID Buffer,
+	_Inout_ PULONG BufferSize
+	);
+
 // GetDpiForMonitor (win81+)
 typedef HRESULT (WINAPI *GDFM)(
 	_In_ HMONITOR hmonitor,
@@ -104,7 +114,7 @@ typedef LONG (WINAPI *GSPPBF)(
 	_In_ PCWSTR packageFullName,
 	_Inout_ UINT32 *pathLength,
 	_Out_opt_ PWSTR  path
-);
+	);
 
 // AdjustWindowRectExForDpi (win10rs1+)
 typedef BOOL (WINAPI *AWRFD)(
