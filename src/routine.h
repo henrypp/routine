@@ -93,6 +93,7 @@
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "psapi.lib")
 #pragma comment(lib, "rpcrt4.lib")
+#pragma comment(lib, "shcore.lib")
 #pragma comment(lib, "taskschd.lib")
 #pragma comment(lib, "uxtheme.lib")
 #pragma comment(lib, "version.lib")
@@ -1615,13 +1616,7 @@ VOID _r_calc_millisecondstolargeinteger (
 	_In_ ULONG milliseconds
 );
 
-ULONG _r_calc_multipledivide (
-	_In_ ULONG number,
-	_In_ ULONG numerator,
-	_In_ ULONG denominator
-);
-
-LONG _r_calc_multipledividesigned (
+LONG _r_calc_multipledivide (
 	_In_ LONG number,
 	_In_ ULONG numerator,
 	_In_ ULONG denominator
@@ -2780,7 +2775,7 @@ BOOLEAN _r_dc_adjustwindowrect (
 	_Inout_ LPRECT rect,
 	_In_ ULONG style,
 	_In_ ULONG ex_style,
-	_In_ LONG dpi_value,
+	_In_opt_ LONG dpi_value,
 	_In_ BOOL is_menu
 );
 
@@ -2890,7 +2885,7 @@ VOID _r_dc_getsizedpivalue (
 
 LONG _r_dc_getsystemmetrics (
 	_In_ INT index,
-	_In_ LONG dpi_value
+	_In_opt_ LONG dpi_value
 );
 
 _Success_ (return)
@@ -2898,7 +2893,7 @@ BOOLEAN _r_dc_getsystemparametersinfo (
 	_In_ UINT action,
 	_In_ UINT param1,
 	_Pre_maybenull_ _Post_valid_ PVOID param2,
-	_In_ LONG dpi_value
+	_In_opt_ LONG dpi_value
 );
 
 LONG _r_dc_gettaskbardpi ();
