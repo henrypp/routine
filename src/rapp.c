@@ -4249,6 +4249,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 					_r_locale_getstring (ptr_page->locale_id),
 					I_IMAGENONE,
 					NULL,
+					NULL,
 					(LPARAM)ptr_page
 				);
 
