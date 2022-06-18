@@ -16481,8 +16481,9 @@ HTREEITEM _r_treeview_additem (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_opt_ LPCWSTR text,
-	_In_opt_ HTREEITEM hparent,
 	_In_ INT image_id,
+	_In_opt_ HTREEITEM hparent,
+	_In_opt_ HTREEITEM hinsert_after,
 	_In_opt_ LPARAM lparam
 )
 {
@@ -16501,6 +16502,9 @@ HTREEITEM _r_treeview_additem (
 	if (hparent)
 		tvi.hParent = hparent;
 
+	if (hinsert_after)
+		tvi.hInsertAfter = hinsert_after;
+
 	if (image_id != I_IMAGENONE)
 	{
 		tvi.itemex.mask |= TVIF_IMAGE | TVIF_SELECTEDIMAGE;
@@ -16517,6 +16521,26 @@ HTREEITEM _r_treeview_additem (
 	return (HTREEITEM)SendDlgItemMessage (hwnd, ctrl_id, TVM_INSERTITEM, 0, (LPARAM)&tvi);
 }
 
+VOID _r_treeview_deleteallitems (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id
+)
+{
+	SendDlgItemMessage (hwnd, ctrl_id, TVM_DELETEITEM, 0, (LPARAM)TVI_ROOT);
+}
+
+INT _r_treeview_getitemcount (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id
+)
+{
+	INT total_count;
+
+	total_count = (INT)SendDlgItemMessage (hwnd, ctrl_id, TVM_GETCOUNT, 0, 0);
+
+	return total_count;
+}
+
 LPARAM _r_treeview_getlparam (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
@@ -16531,6 +16555,34 @@ LPARAM _r_treeview_getlparam (
 	SendDlgItemMessage (hwnd, ctrl_id, TVM_GETITEM, 0, (LPARAM)&tvi);
 
 	return tvi.lParam;
+}
+
+VOID _r_treeview_setitemcheck (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ HTREEITEM item_id,
+	_In_ BOOLEAN is_check
+)
+{
+	_r_treeview_setitemstate (hwnd, ctrl_id, item_id, INDEXTOSTATEIMAGEMASK (is_check ? 2 : 1), TVIS_STATEIMAGEMASK);
+}
+
+VOID _r_treeview_setitemstate (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ HTREEITEM item_id,
+	_In_ UINT state,
+	_In_opt_ UINT state_mask
+)
+{
+	TVITEM tvi = {0};
+
+	tvi.mask = TVIF_STATE;
+	tvi.state = state;
+	tvi.stateMask = state_mask;
+	tvi.hItem = item_id;
+
+	SendDlgItemMessage (hwnd, ctrl_id, TVM_SETITEM, 0, (LPARAM)&tvi);
 }
 
 VOID _r_treeview_setitem (

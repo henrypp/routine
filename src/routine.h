@@ -4411,15 +4411,41 @@ HTREEITEM _r_treeview_additem (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_opt_ LPCWSTR text,
-	_In_opt_ HTREEITEM hparent,
 	_In_ INT image_id,
+	_In_opt_ HTREEITEM hparent,
+	_In_opt_ HTREEITEM hinsert_after,
 	_In_opt_ LPARAM lparam
+);
+
+VOID _r_treeview_deleteallitems (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id
+);
+
+INT _r_treeview_getitemcount (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id
 );
 
 LPARAM _r_treeview_getlparam (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ HTREEITEM hitem
+);
+
+VOID _r_treeview_setitemcheck (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ HTREEITEM item_id,
+	_In_ BOOLEAN is_check
+);
+
+VOID _r_treeview_setitemstate (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ HTREEITEM item_id,
+	_In_ UINT state,
+	_In_opt_ UINT state_mask
 );
 
 VOID _r_treeview_setitem (
