@@ -432,7 +432,7 @@ VOID _r_show_errormessage (
 BOOLEAN _r_show_confirmmessage (
 	_In_opt_ HWND hwnd,
 	_In_opt_ LPCWSTR main,
-	_In_ LPCWSTR content,
+	_In_opt_ LPCWSTR content,
 	_In_opt_ LPCWSTR config_key
 );
 

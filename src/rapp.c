@@ -3622,7 +3622,7 @@ VOID _r_show_errormessage (
 BOOLEAN _r_show_confirmmessage (
 	_In_opt_ HWND hwnd,
 	_In_opt_ LPCWSTR main,
-	_In_ LPCWSTR content,
+	_In_opt_ LPCWSTR content,
 	_In_opt_ LPCWSTR config_key
 )
 {
@@ -4247,8 +4247,8 @@ INT_PTR CALLBACK _r_settings_wndproc (
 					hwnd,
 					IDC_NAV,
 					_r_locale_getstring (ptr_page->locale_id),
-					NULL,
 					I_IMAGENONE,
+					NULL,
 					(LPARAM)ptr_page
 				);
 
