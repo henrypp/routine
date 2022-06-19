@@ -11944,6 +11944,8 @@ VOID _r_wnd_adjustrectangletoworkingarea (
 		hmonitor = MonitorFromRect (&rect, MONITOR_DEFAULTTONEAREST);
 	}
 
+	RtlZeroMemory (&monitor_info, sizeof (monitor_info));
+
 	monitor_info.cbSize = sizeof (monitor_info);
 
 	if (GetMonitorInfo (hmonitor, &monitor_info))
@@ -12002,18 +12004,21 @@ VOID _r_wnd_center (
 
 	if (hparent)
 	{
-		if (_r_wnd_isvisible_ex (hparent) &&
-			_r_wnd_getposition (hwnd, &rectangle) &&
-			_r_wnd_getposition (hparent, &parent_rect))
-		{
-			_r_wnd_centerwindowrect (&rectangle, &parent_rect);
-			_r_wnd_adjustrectangletoworkingarea (&rectangle, hwnd);
-
-			_r_wnd_setposition (hwnd, &rectangle.position, NULL);
-
+		if (!_r_wnd_isvisible_ex (hparent))
 			return;
-		}
+
+		if (!_r_wnd_getposition (hwnd, &rectangle) || !_r_wnd_getposition (hparent, &parent_rect))
+			return;
+
+		_r_wnd_centerwindowrect (&rectangle, &parent_rect);
+		_r_wnd_adjustrectangletoworkingarea (&rectangle, hwnd);
+
+		_r_wnd_setposition (hwnd, &rectangle.position, &rectangle.size);
+
+		return;
 	}
+
+	RtlZeroMemory (&monitor_info, sizeof (monitor_info));
 
 	monitor_info.cbSize = sizeof (monitor_info);
 
@@ -12028,7 +12033,7 @@ VOID _r_wnd_center (
 	_r_wnd_recttorectangle (&parent_rect, &monitor_info.rcWork);
 	_r_wnd_centerwindowrect (&rectangle, &parent_rect);
 
-	_r_wnd_setposition (hwnd, &rectangle.position, NULL);
+	_r_wnd_setposition (hwnd, &rectangle.position, &rectangle.size);
 }
 
 VOID _r_wnd_centerwindowrect (
@@ -12578,19 +12583,20 @@ VOID CALLBACK _r_wnd_message_dpichanged (
 	_In_opt_ LPARAM lparam
 )
 {
-	R_RECTANGLE rectangle;
-	LPCRECT rect;
+	//R_RECTANGLE rectangle;
+	//LPCRECT rect;
 
 	UNREFERENCED_PARAMETER (wparam);
+	UNREFERENCED_PARAMETER (lparam);
 
-	rect = (LPCRECT)lparam;
+	//rect = (LPCRECT)lparam;
 
-	if (!rect)
-		return;
+	//if (!rect)
+	//	return;
 
-	_r_wnd_recttorectangle (&rectangle, rect);
+	//_r_wnd_recttorectangle (&rectangle, rect);
 
-	_r_wnd_setposition (hwnd, &rectangle.position, &rectangle.size);
+	//_r_wnd_setposition (hwnd, &rectangle.position, &rectangle.size);
 }
 
 VOID CALLBACK _r_wnd_message_settingchange (
@@ -12672,8 +12678,16 @@ VOID _r_wnd_setposition (
 	_In_opt_ PR_SIZE size
 )
 {
-	R_RECTANGLE rectangle = {0};
+	R_RECTANGLE rectangle;
 	UINT swp_flags;
+
+	if (position && size)
+	{
+		MoveWindow (hwnd, position->cx, position->cy, size->cx, size->cy, TRUE);
+		return;
+	}
+
+	RtlZeroMemory (&rectangle, sizeof (rectangle));
 
 	swp_flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER;
 
