@@ -330,6 +330,11 @@ BOOLEAN NTAPI _r_update_downloadcallback (
 	_In_ PVOID lparam
 );
 
+ULONG _r_update_downloadupdate (
+	_In_ PR_UPDATE_INFO update_info,
+	_Inout_ PR_UPDATE_COMPONENT update_component
+);
+
 NTSTATUS NTAPI _r_update_downloadthread (
 	_In_ PVOID arglist
 );
@@ -362,12 +367,12 @@ HRESULT CALLBACK _r_update_pagecallback (
 
 VOID _r_update_navigate (
 	_In_ PR_UPDATE_INFO update_info,
-	_In_opt_ LPCWSTR main_icon,
-	_In_ TASKDIALOG_FLAGS flags,
 	_In_ TASKDIALOG_COMMON_BUTTON_FLAGS buttons,
+	_In_opt_ TASKDIALOG_FLAGS flags,
+	_In_opt_ LPCWSTR main_icon,
 	_In_opt_ LPCWSTR main,
 	_In_opt_ LPCWSTR content,
-	_In_ ULONG error_code
+	_In_opt_ ULONG error_code
 );
 
 VOID _r_update_addcomponent (

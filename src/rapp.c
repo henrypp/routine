@@ -2359,7 +2359,7 @@ BOOLEAN NTAPI _r_update_downloadcallback (
 
 ULONG _r_update_downloadupdate (
 	_In_ PR_UPDATE_INFO update_info,
-	_In_ PR_UPDATE_COMPONENT update_component
+	_Inout_ PR_UPDATE_COMPONENT update_component
 )
 {
 	R_DOWNLOAD_INFO download_info;
@@ -2389,14 +2389,10 @@ ULONG _r_update_downloadupdate (
 
 	status = _r_inet_begindownload (update_info->hsession, update_component->url, &download_info);
 
-	if (status != ERROR_SUCCESS)
-	{
-		NtClose (hfile);
-
-		return status;
-	}
-
 	NtClose (hfile); // required!
+
+	if (status != ERROR_SUCCESS)
+		return status;
 
 	if (update_component->flags & PR_UPDATE_FLAG_FILE)
 	{
@@ -2508,7 +2504,7 @@ NTSTATUS NTAPI _r_update_downloadthread (
 #endif // IDS_UPDATE_ERROR
 	}
 
-	_r_update_navigate (update_info, main_icon, 0, buttons, NULL, str_content, status);
+	_r_update_navigate (update_info, buttons, 0, main_icon, NULL, str_content, status);
 
 	return STATUS_SUCCESS;
 }
@@ -2541,13 +2537,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 
 	update_info = arglist;
 
-	if (!update_info->hsession)
-		update_info->hsession = _r_inet_createsession (_r_app_getuseragent ());
-
 	update_url = _r_obj_createstring (_r_app_getupdate_url ());
-
-	if (!update_info->hsession)
-		goto CleanupExit;
 
 	_r_inet_initializedownload (&download_info);
 
@@ -2564,7 +2554,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 #pragma PR_PRINT_WARNING(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
 
-			_r_update_navigate (update_info, TD_WARNING_ICON, 0, TDCBF_CLOSE_BUTTON, NULL, str_content, status);
+			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, TD_WARNING_ICON, NULL, str_content, status);
 		}
 
 		goto CleanupExit;
@@ -2660,7 +2650,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 #pragma PR_PRINT_WARNING(IDS_UPDATE_YES)
 #endif // IDS_UPDATE_YES
 
-		_r_update_navigate (update_info, NULL, 0, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, str_content, str_updates, 0);
+		_r_update_navigate (update_info, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, 0, NULL, str_content, str_updates, 0);
 	}
 	else
 	{
@@ -2697,15 +2687,15 @@ NTSTATUS NTAPI _r_update_checkthread (
 				}
 			}
 
-			_r_update_navigate (update_info, NULL, 0, TDCBF_CLOSE_BUTTON, NULL, str_content, status);
+			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, NULL, NULL, str_content, status);
 		}
 	}
 
 	_r_config_setlong64 (L"CheckUpdatesLast", _r_unixtime_now ());
 
-	_r_inet_destroydownload (&download_info);
-
 CleanupExit:
+
+	_r_inet_destroydownload (&download_info);
 
 	_r_obj_dereference (update_url);
 
@@ -2798,7 +2788,19 @@ BOOLEAN _r_update_check (
 
 	_r_sys_setenvironment (&environment, THREAD_PRIORITY_LOWEST, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
 
-	status = _r_sys_createthread (&_r_update_checkthread, update_info, &hthread, &environment, NULL);
+	if (!update_info->hsession)
+		update_info->hsession = _r_inet_createsession (_r_app_getuseragent ());
+
+	if (!update_info->hsession)
+		return FALSE;
+
+	status = _r_sys_createthread (
+		&_r_update_checkthread,
+		update_info,
+		&hthread,
+		&environment,
+		L"UpdateThread"
+	);
 
 	if (!NT_SUCCESS (status))
 		return FALSE;
@@ -2824,7 +2826,7 @@ BOOLEAN _r_update_check (
 
 		update_info->hthread = hthread;
 
-		_r_update_navigate (update_info, NULL, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, NULL, str_content, 0);
+		_r_update_navigate (update_info, TDCBF_CANCEL_BUTTON, TDF_SHOW_PROGRESS_BAR, NULL, NULL, str_content, 0);
 	}
 	else
 	{
@@ -2898,7 +2900,7 @@ HRESULT CALLBACK _r_update_pagecallback (
 					update_info,
 					&update_info->hthread,
 					&environment,
-					NULL
+					L"UpdateThread"
 				);
 
 				if (NT_SUCCESS (status))
@@ -2916,7 +2918,7 @@ HRESULT CALLBACK _r_update_pagecallback (
 #pragma PR_PRINT_WARNING(IDS_UPDATE_DOWNLOAD)
 #endif // IDS_UPDATE_DOWNLOAD
 
-					_r_update_navigate (update_info, NULL, TDF_SHOW_PROGRESS_BAR, TDCBF_CANCEL_BUTTON, NULL, str_content, 0);
+					_r_update_navigate (update_info, TDCBF_CANCEL_BUTTON, TDF_SHOW_PROGRESS_BAR, NULL, NULL, str_content, 0);
 
 					return S_FALSE;
 				}
@@ -2968,12 +2970,12 @@ HRESULT CALLBACK _r_update_pagecallback (
 
 VOID _r_update_navigate (
 	_In_ PR_UPDATE_INFO update_info,
-	_In_opt_ LPCWSTR main_icon,
-	_In_ TASKDIALOG_FLAGS flags,
 	_In_ TASKDIALOG_COMMON_BUTTON_FLAGS buttons,
+	_In_opt_ TASKDIALOG_FLAGS flags,
+	_In_opt_ LPCWSTR main_icon,
 	_In_opt_ LPCWSTR main,
 	_In_opt_ LPCWSTR content,
-	_In_ ULONG error_code
+	_In_opt_ ULONG error_code
 )
 {
 	TASKDIALOGCONFIG tdc = {0};
