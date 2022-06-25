@@ -350,13 +350,24 @@ VOID _r_app_initialize_seh ()
 	ULONG error_mode;
 	NTSTATUS status;
 
-	status = NtQueryInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (ULONG), NULL);
+	status = NtQueryInformationProcess (
+		NtCurrentProcess (),
+		ProcessDefaultHardErrorMode,
+		&error_mode,
+		sizeof (ULONG),
+		NULL
+	);
 
 	if (NT_SUCCESS (status))
 	{
 		error_mode &= ~(SEM_NOOPENFILEERRORBOX | SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
 
-		NtSetInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (ULONG));
+		NtSetInformationProcess (
+			NtCurrentProcess (),
+			ProcessDefaultHardErrorMode,
+			&error_mode,
+			sizeof (ULONG)
+		);
 	}
 
 #if defined(APP_NO_DEPRECATIONS)
@@ -3859,6 +3870,8 @@ VOID _r_window_saveposition (
 	LONG_PTR style;
 	BOOLEAN is_maximized;
 
+	RtlZeroMemory (&placement, sizeof (placement));
+
 	placement.length = sizeof (placement);
 
 	if (!GetWindowPlacement (hwnd, &placement))
@@ -3874,6 +3887,8 @@ VOID _r_window_saveposition (
 	_r_wnd_recttorectangle (&rectangle, &placement.rcNormalPosition);
 
 	hmonitor = MonitorFromRect (&placement.rcNormalPosition, MONITOR_DEFAULTTOPRIMARY);
+
+	RtlZeroMemory (&monitor_info, sizeof (monitor_info));
 
 	monitor_info.cbSize = sizeof (monitor_info);
 

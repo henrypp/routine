@@ -12353,6 +12353,8 @@ BOOLEAN _r_wnd_isfullscreenwindowmode (
 	if (!hmonitor)
 		return FALSE;
 
+	RtlZeroMemory (&monitor_info, sizeof (monitor_info));
+
 	monitor_info.cbSize = sizeof (monitor_info);
 
 	if (!GetMonitorInfo (hmonitor, &monitor_info))
@@ -14309,7 +14311,10 @@ PR_STRING _r_res_querystring_ex (
 		if (length <= sizeof (UNICODE_NULL))
 			return NULL;
 
-		string = _r_obj_createstring_ex (buffer, (length - 1) * sizeof (WCHAR));
+		length -= 1;
+		length *= sizeof (WCHAR);
+
+		string = _r_obj_createstring_ex (buffer, length);
 
 		return string;
 	}
