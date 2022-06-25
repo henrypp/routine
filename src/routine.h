@@ -3150,7 +3150,7 @@ BOOLEAN _r_wnd_isvisible_ex (
 );
 
 ULONG CALLBACK _r_wnd_message_callback (
-	_In_ HWND main_wnd,
+	_In_ HWND hmain_wnd,
 	_In_ LPCWSTR accelerator_table
 );
 

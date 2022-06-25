@@ -12521,7 +12521,7 @@ BOOLEAN _r_wnd_isvisible_ex (
 }
 
 ULONG CALLBACK _r_wnd_message_callback (
-	_In_ HWND main_wnd,
+	_In_ HWND hmain_wnd,
 	_In_ LPCWSTR accelerator_table
 )
 {
@@ -12555,14 +12555,14 @@ ULONG CALLBACK _r_wnd_message_callback (
 			}
 			else
 			{
-				hactive_wnd = main_wnd;
+				hactive_wnd = hmain_wnd;
 			}
 		}
 
 		if (TranslateAccelerator (hactive_wnd, haccelerator, &msg))
 			is_processed = TRUE;
 
-		if (IsDialogMessage (main_wnd, &msg))
+		if (IsDialogMessage (hmain_wnd, &msg))
 			is_processed = TRUE;
 
 		if (!is_processed)
