@@ -9065,7 +9065,7 @@ ULONG _r_sys_getwindowsversion ()
 				}
 				else if (version_info.dwBuildNumber >= 19045)
 				{
-					windows_version = WINDOWS_10_21H2;
+					windows_version = WINDOWS_10_22H2;
 				}
 				else if (version_info.dwBuildNumber >= 19044)
 				{
