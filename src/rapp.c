@@ -3630,7 +3630,7 @@ VOID _r_show_errormessage (
 			buffer,
 			RTL_NUMBER_OF (buffer),
 			L"%s\r\n\r\n%s\r\n\r\n%s",
-			str_main,
+			main ? main : APP_FAILED_MESSAGE_TITLE,
 			str_content,
 			APP_FAILED_MESSAGE_FOOTER
 		);
