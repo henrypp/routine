@@ -3512,7 +3512,7 @@ VOID _r_show_errormessage (
 )
 {
 	TASKDIALOGCONFIG tdc;
-	TASKDIALOG_BUTTON td_buttons[2];
+	TASKDIALOG_BUTTON td_buttons[3] = {0};
 	WCHAR str_content[1024];
 	LPCWSTR str_main;
 	LPCWSTR path;
@@ -3520,6 +3520,7 @@ VOID _r_show_errormessage (
 	PR_STRING string;
 	HINSTANCE hinstance;
 	INT command_id;
+	UINT btn_cnt;
 	ULONG status;
 
 	if (error_info_ptr && error_info_ptr->hinst)
@@ -3573,25 +3574,35 @@ VOID _r_show_errormessage (
 		tdc.pfCallback = &_r_msg_callback;
 		tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
 
+		btn_cnt = 0;
+
 		if (error_info_ptr && error_info_ptr->exception_ptr)
 		{
 			// add "Crash dumps" button
-			td_buttons[0].pszButtonText = L"Crash dumps";
-			td_buttons[0].nButtonID = IDYES;
+			td_buttons[btn_cnt].pszButtonText = L"Crash dumps";
+			td_buttons[btn_cnt].nButtonID = IDYES;
+
+			btn_cnt += 1;
 		}
-		else
+
+		// add "Copy" button
 		{
-			// add "Copy" button
-			td_buttons[0].pszButtonText = L"Copy";
-			td_buttons[0].nButtonID = IDNO;
+			td_buttons[btn_cnt].pszButtonText = L"Copy";
+			td_buttons[btn_cnt].nButtonID = IDNO;
+
+			btn_cnt += 1;
 		}
 
 		// add "Close" button
-		td_buttons[1].pszButtonText = L"Close";
-		td_buttons[1].nButtonID = IDCLOSE;
+		{
+			td_buttons[btn_cnt].pszButtonText = L"Close";
+			td_buttons[btn_cnt].nButtonID = IDCLOSE;
+
+			btn_cnt += 1;
+		}
 
 		tdc.pButtons = td_buttons;
-		tdc.cButtons = RTL_NUMBER_OF (td_buttons);
+		tdc.cButtons = btn_cnt;
 
 		tdc.nDefaultButton = IDCLOSE;
 
