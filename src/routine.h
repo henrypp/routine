@@ -23,7 +23,7 @@
 #define CINTERFACE
 #endif // !CINTERFACE
 
-#if !defined(COBJMACROS)
+#if !defined(__cplusplus) && !defined(COBJMACROS)
 #define COBJMACROS
 #endif // !COBJMACROS
 
@@ -215,6 +215,8 @@ FORCEINLINE LONG_PTR InterlockedDecrementPointer (
 	return (LONG_PTR)_InterlockedDecrement ((PLONG)addend);
 #endif
 }
+
+EXTERN_C_START
 
 //
 // Synchronization: Auto-dereference pool
@@ -2713,7 +2715,7 @@ NTSTATUS _r_sys_setthreadname (
 
 FORCEINLINE HINSTANCE _r_sys_getimagebase ()
 {
-	return NtCurrentPeb ()->ImageBaseAddress;
+	return (HINSTANCE)(NtCurrentPeb ()->ImageBaseAddress);
 }
 
 FORCEINLINE LPCWSTR _r_sys_getimagepath ()
@@ -3610,6 +3612,18 @@ LONG64 _r_xml_getattribute_long64 (
 	_In_ LPCWSTR attrib_name
 );
 
+VOID _r_xml_setattribute (
+	_Inout_ PR_XML_LIBRARY xml_library,
+	_In_ LPCWSTR attrib_name,
+	_In_opt_ LPCWSTR value
+);
+
+VOID _r_xml_setattribute_boolean (
+	_Inout_ PR_XML_LIBRARY xml_library,
+	_In_ LPCWSTR name,
+	_In_ BOOLEAN value
+);
+
 VOID _r_xml_setattribute_long (
 	_Inout_ PR_XML_LIBRARY xml_library,
 	_In_ LPCWSTR attrib_name,
@@ -3621,24 +3635,6 @@ VOID _r_xml_setattribute_long64 (
 	_In_ LPCWSTR attrib_name,
 	_In_ LONG64 value
 );
-
-FORCEINLINE VOID _r_xml_setattribute (
-	_Inout_ PR_XML_LIBRARY xml_library,
-	_In_ LPCWSTR attrib_name,
-	_In_opt_ LPCWSTR value
-)
-{
-	IXmlWriter_WriteAttributeString (xml_library->writer, NULL, attrib_name, NULL, value);
-}
-
-FORCEINLINE VOID _r_xml_setattribute_boolean (
-	_Inout_ PR_XML_LIBRARY xml_library,
-	_In_ LPCWSTR name,
-	_In_ BOOLEAN value
-)
-{
-	_r_xml_setattribute (xml_library, name, value ? L"true" : L"false");
-}
 
 _Success_ (return)
 BOOLEAN _r_xml_enumchilditemsbytagname (
@@ -3663,44 +3659,27 @@ HRESULT _r_xml_setlibrarystream (
 	_In_ PR_XML_STREAM stream
 );
 
-FORCEINLINE VOID _r_xml_writewhitespace (
-	_Inout_ PR_XML_LIBRARY xml_library,
-	_In_ LPCWSTR whitespace
-)
-{
-	IXmlWriter_WriteWhitespace (xml_library->writer, whitespace);
-}
-
-FORCEINLINE VOID _r_xml_writestartdocument (
+VOID _r_xml_writestartdocument (
 	_Inout_ PR_XML_LIBRARY xml_library
-)
-{
-	IXmlWriter_WriteStartDocument (xml_library->writer, XmlStandalone_Omit);
-}
+);
 
-FORCEINLINE VOID _r_xml_writeenddocument (
+VOID _r_xml_writeenddocument (
 	_Inout_ PR_XML_LIBRARY xml_library
-)
-{
-	IXmlWriter_WriteEndDocument (xml_library->writer);
+);
 
-	IXmlWriter_Flush (xml_library->writer);
-}
-
-FORCEINLINE VOID _r_xml_writestartelement (
+VOID _r_xml_writestartelement (
 	_Inout_ PR_XML_LIBRARY xml_library,
 	_In_ LPCWSTR name
-)
-{
-	IXmlWriter_WriteStartElement (xml_library->writer, NULL, name, NULL);
-}
+);
 
-FORCEINLINE VOID _r_xml_writeendelement (
+VOID _r_xml_writeendelement (
 	_Inout_ PR_XML_LIBRARY xml_library
-)
-{
-	IXmlWriter_WriteEndElement (xml_library->writer);
-}
+);
+
+VOID _r_xml_writewhitespace (
+	_Inout_ PR_XML_LIBRARY xml_library,
+	_In_ LPCWSTR whitespace
+);
 
 //
 // System tray
@@ -4703,3 +4682,5 @@ VOID NTAPI _r_util_cleanhashtable_callback (
 VOID NTAPI _r_util_cleanhashtablepointer_callback (
 	_In_ PVOID entry
 );
+
+EXTERN_C_END

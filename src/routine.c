@@ -14776,6 +14776,24 @@ LONG64 _r_xml_getattribute_long64 (
 	return _r_str_tolong64 (&text_value);
 }
 
+VOID _r_xml_setattribute (
+	_Inout_ PR_XML_LIBRARY xml_library,
+	_In_ LPCWSTR attrib_name,
+	_In_opt_ LPCWSTR value
+)
+{
+	IXmlWriter_WriteAttributeString (xml_library->writer, NULL, attrib_name, NULL, value);
+}
+
+VOID _r_xml_setattribute_boolean (
+	_Inout_ PR_XML_LIBRARY xml_library,
+	_In_ LPCWSTR name,
+	_In_ BOOLEAN value
+)
+{
+	_r_xml_setattribute (xml_library, name, value ? L"true" : L"false");
+}
+
 VOID _r_xml_setattribute_long (
 	_Inout_ PR_XML_LIBRARY xml_library,
 	_In_ LPCWSTR attrib_name,
@@ -14947,6 +14965,45 @@ HRESULT _r_xml_setlibrarystream (
 	}
 
 	return hr;
+}
+
+VOID _r_xml_writestartdocument (
+	_Inout_ PR_XML_LIBRARY xml_library
+)
+{
+	IXmlWriter_WriteStartDocument (xml_library->writer, XmlStandalone_Omit);
+}
+
+VOID _r_xml_writeenddocument (
+	_Inout_ PR_XML_LIBRARY xml_library
+)
+{
+	IXmlWriter_WriteEndDocument (xml_library->writer);
+
+	IXmlWriter_Flush (xml_library->writer);
+}
+
+VOID _r_xml_writestartelement (
+	_Inout_ PR_XML_LIBRARY xml_library,
+	_In_ LPCWSTR name
+)
+{
+	IXmlWriter_WriteStartElement (xml_library->writer, NULL, name, NULL);
+}
+
+VOID _r_xml_writeendelement (
+	_Inout_ PR_XML_LIBRARY xml_library
+)
+{
+	IXmlWriter_WriteEndElement (xml_library->writer);
+}
+
+VOID _r_xml_writewhitespace (
+	_Inout_ PR_XML_LIBRARY xml_library,
+	_In_ LPCWSTR whitespace
+)
+{
+	IXmlWriter_WriteWhitespace (xml_library->writer, whitespace);
 }
 
 //
