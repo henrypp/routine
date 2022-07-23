@@ -3916,7 +3916,11 @@ VOID _r_window_saveposition (
 
 		if (style & WS_SIZEBOX)
 		{
-			_r_dc_getsizedpivalue (&rectangle.size, _r_dc_getwindowdpi (hwnd), FALSE);
+			_r_dc_getsizedpivalue (
+				&rectangle.size,
+				_r_dc_getmonitordpi (&placement.rcNormalPosition),
+				FALSE
+			);
 
 			_r_config_setsize (L"Size", &rectangle.size, window_name);
 		}

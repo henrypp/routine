@@ -11447,6 +11447,7 @@ BOOLEAN _r_layout_initializemanager (
 {
 	R_RECTANGLE client_rect;
 	R_RECTANGLE rect;
+	RECT wnd_rect;
 	LONG dpi_value;
 
 	if (!_r_wnd_getposition (hwnd, &rect))
@@ -11455,7 +11456,9 @@ BOOLEAN _r_layout_initializemanager (
 	if (!_r_wnd_getclientsize (hwnd, &client_rect))
 		return FALSE;
 
-	dpi_value = _r_dc_getwindowdpi (hwnd);
+	_r_wnd_rectangletorect (&wnd_rect, &rect);
+
+	dpi_value = _r_dc_getmonitordpi (&wnd_rect);
 
 	_r_dc_getsizedpivalue (&rect.size, dpi_value, FALSE);
 	_r_dc_getsizedpivalue (&client_rect.size, dpi_value, FALSE);
@@ -11618,6 +11621,7 @@ BOOLEAN _r_layout_resize (
 {
 	PR_LAYOUT_ITEM layout_item;
 	R_RECTANGLE rect;
+	RECT wnd_rect;
 	LONG dpi_value;
 
 	if (wparam != SIZE_RESTORED && wparam != SIZE_MAXIMIZED)
@@ -11626,7 +11630,10 @@ BOOLEAN _r_layout_resize (
 	if (!_r_wnd_getclientsize (layout_manager->root_item.hwnd, &rect))
 		return FALSE;
 
-	dpi_value = _r_dc_getwindowdpi (layout_manager->root_item.hwnd);
+	if (!GetWindowRect (layout_manager->root_item.hwnd, &wnd_rect))
+		return FALSE;
+
+	dpi_value = _r_dc_getmonitordpi (&wnd_rect);
 
 	layout_manager->dpi_value = dpi_value;
 
@@ -15523,10 +15530,28 @@ VOID _r_ctrl_settablestring (
 	if (hdefer && *hdefer)
 	{
 		// resize control #1
-		*hdefer = DeferWindowPos (*hdefer, hctrl1, NULL, rect1.left, rect1.top, rect1.right, rect1.bottom, swp_flags);
+		*hdefer = DeferWindowPos (
+			*hdefer,
+			hctrl1,
+			NULL,
+			rect1.left,
+			rect1.top,
+			rect1.right,
+			rect1.bottom,
+			swp_flags
+		);
 
 		// resize control #2
-		*hdefer = DeferWindowPos (*hdefer, hctrl2, NULL, rect2.left, rect2.top, rect2.right, rect2.bottom, swp_flags);
+		*hdefer = DeferWindowPos (
+			*hdefer,
+			hctrl2,
+			NULL,
+			rect2.left,
+			rect2.top,
+			rect2.right,
+			rect2.bottom,
+			swp_flags
+		);
 	}
 	else
 	{
