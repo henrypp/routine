@@ -10892,7 +10892,12 @@ LONG _r_dc_getwindowdpi (
 	_In_ HWND hwnd
 )
 {
-	return _r_dc_getdpivalue (hwnd, NULL);
+	RECT rect;
+
+	if (!GetWindowRect (hwnd, &rect))
+		return _r_dc_getdpivalue (hwnd, NULL);
+
+	return _r_dc_getdpivalue (NULL, &rect);
 }
 
 _Ret_maybenull_
