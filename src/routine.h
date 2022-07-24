@@ -476,7 +476,7 @@ FORCEINLINE VOID _r_queuedlock_acquireshared (
 {
 	ULONG_PTR value;
 
-	value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+	value = (ULONG_PTR)InterlockedCompareExchangePointer (
 		(PVOID_PTR)&queued_lock->value,
 		IntToPtr (PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC),
 		IntToPtr (0)
@@ -512,7 +512,7 @@ FORCEINLINE VOID _r_queuedlock_releaseshared (
 
 	value = PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC;
 
-	new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+	new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
 		(PVOID_PTR)&queued_lock->value,
 		IntToPtr (0),
 		(PVOID)value
@@ -607,7 +607,7 @@ FORCEINLINE BOOLEAN _r_protection_acquire (
 	ULONG_PTR new_value;
 
 	value = protection->value & ~PR_RUNDOWN_ACTIVE; // fail fast path when rundown is active
-	new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+	new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
 		(PVOID_PTR)&protection->value,
 		(PVOID)(value + PR_RUNDOWN_REF_INC),
 		(PVOID)value
@@ -631,7 +631,7 @@ FORCEINLINE VOID _r_protection_release (
 	ULONG_PTR new_value;
 
 	value = protection->value & ~PR_RUNDOWN_ACTIVE; // Fail fast path when rundown is active
-	new_value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+	new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
 		(PVOID_PTR)&protection->value,
 		(PVOID)(value - PR_RUNDOWN_REF_INC),
 		(PVOID)value
@@ -647,7 +647,7 @@ FORCEINLINE VOID _r_protection_waitfor (
 {
 	ULONG_PTR value;
 
-	value = (ULONG_PTR)_InterlockedCompareExchangePointer (
+	value = (ULONG_PTR)InterlockedCompareExchangePointer (
 		(PVOID_PTR)&protection->value,
 		IntToPtr (PR_RUNDOWN_ACTIVE),
 		IntToPtr (0)
