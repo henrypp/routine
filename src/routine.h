@@ -219,6 +219,35 @@ FORCEINLINE LONG_PTR InterlockedDecrementPointer (
 EXTERN_C_START
 
 //
+// Debugging
+//
+
+VOID _r_debug (
+	_In_ LPCWSTR string
+);
+
+VOID _r_debug_v (
+	_In_ _Printf_format_string_ LPCWSTR format,
+	...
+);
+
+VOID _r_error_initialize (
+	_Out_ PR_ERROR_INFO error_info,
+	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ LPCWSTR description
+);
+
+VOID _r_error_initialize_ex (
+	_Out_ PR_ERROR_INFO error_info,
+	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ LPCWSTR description,
+	_In_opt_ PEXCEPTION_POINTERS exception_ptr
+);
+
+#define RDBG(a) _r_debug ((a))
+#define RDBG2(a, ...) _r_debug_v ((a), __VA_ARGS__)
+
+//
 // Synchronization: Auto-dereference pool
 //
 
@@ -1477,35 +1506,6 @@ BOOLEAN _r_obj_removehashtablepointer (
 	_Inout_ PR_HASHTABLE hashtable,
 	_In_ ULONG_PTR hash_code
 );
-
-//
-// Debugging
-//
-
-VOID _r_debug (
-	_In_ LPCWSTR string
-);
-
-VOID _r_debug_v (
-	_In_ _Printf_format_string_ LPCWSTR format,
-	...
-);
-
-VOID _r_error_initialize (
-	_Out_ PR_ERROR_INFO error_info,
-	_In_opt_ HINSTANCE hinstance,
-	_In_opt_ LPCWSTR description
-);
-
-VOID _r_error_initialize_ex (
-	_Out_ PR_ERROR_INFO error_info,
-	_In_opt_ HINSTANCE hinstance,
-	_In_opt_ LPCWSTR description,
-	_In_opt_ PEXCEPTION_POINTERS exception_ptr
-);
-
-#define RDBG(a) _r_debug ((a))
-#define RDBG2(a, ...) _r_debug_v ((a), __VA_ARGS__)
 
 //
 // Console
