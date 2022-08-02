@@ -993,7 +993,11 @@ FORCEINLINE BOOLEAN _r_queuedlock_pushwaitblock (
 	*current_value_ptr = new_value;
 	*is_optimize_ptr = is_optimize;
 
-	new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+	new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
+		(PVOID_PTR)&queued_lock->value,
+		(PVOID)new_value,
+		(PVOID)value
+	);
 
 	*new_value_ptr = new_value;
 
