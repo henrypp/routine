@@ -556,9 +556,7 @@ FORCEINLINE BOOLEAN _r_queuedlock_tryacquireexclusive (
 	_Inout_ PR_QUEUED_LOCK queued_lock
 )
 {
-	if (!_InterlockedBitTestAndSetPointer (
-		(PLONG_PTR)&queued_lock->value,
-		PR_QUEUED_LOCK_OWNED_SHIFT))
+	if (!_InterlockedBitTestAndSetPointer ((PLONG_PTR)&queued_lock->value, PR_QUEUED_LOCK_OWNED_SHIFT))
 	{
 		return TRUE;
 	}
