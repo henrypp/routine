@@ -3879,6 +3879,7 @@ VOID _r_window_saveposition (
 	R_RECTANGLE rectangle;
 	HMONITOR hmonitor;
 	LONG_PTR style;
+	LONG dpi_value;
 	BOOLEAN is_maximized;
 
 	RtlZeroMemory (&placement, sizeof (placement));
@@ -3916,11 +3917,9 @@ VOID _r_window_saveposition (
 
 		if (style & WS_SIZEBOX)
 		{
-			_r_dc_getsizedpivalue (
-				&rectangle.size,
-				_r_dc_getmonitordpi (&placement.rcNormalPosition),
-				FALSE
-			);
+			dpi_value = _r_dc_getwindowdpi (hwnd);
+
+			_r_dc_getsizedpivalue (&rectangle.size, dpi_value, FALSE);
 
 			_r_config_setsize (L"Size", &rectangle.size, window_name);
 		}

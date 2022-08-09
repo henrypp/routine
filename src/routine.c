@@ -11456,7 +11456,6 @@ BOOLEAN _r_layout_initializemanager (
 {
 	R_RECTANGLE client_rect;
 	R_RECTANGLE rect;
-	RECT wnd_rect;
 	LONG dpi_value;
 
 	if (!_r_wnd_getposition (hwnd, &rect))
@@ -11465,9 +11464,7 @@ BOOLEAN _r_layout_initializemanager (
 	if (!_r_wnd_getclientsize (hwnd, &client_rect))
 		return FALSE;
 
-	_r_wnd_rectangletorect (&wnd_rect, &rect);
-
-	dpi_value = _r_dc_getmonitordpi (&wnd_rect);
+	dpi_value = _r_dc_getwindowdpi (hwnd);
 
 	_r_dc_getsizedpivalue (&rect.size, dpi_value, FALSE);
 	_r_dc_getsizedpivalue (&client_rect.size, dpi_value, FALSE);
@@ -11630,7 +11627,6 @@ BOOLEAN _r_layout_resize (
 {
 	PR_LAYOUT_ITEM layout_item;
 	R_RECTANGLE rect;
-	RECT wnd_rect;
 	LONG dpi_value;
 
 	if (wparam != SIZE_RESTORED && wparam != SIZE_MAXIMIZED)
@@ -11639,10 +11635,7 @@ BOOLEAN _r_layout_resize (
 	if (!_r_wnd_getclientsize (layout_manager->root_item.hwnd, &rect))
 		return FALSE;
 
-	if (!GetWindowRect (layout_manager->root_item.hwnd, &wnd_rect))
-		return FALSE;
-
-	dpi_value = _r_dc_getmonitordpi (&wnd_rect);
+	dpi_value = _r_dc_getwindowdpi (layout_manager->root_item.hwnd);
 
 	layout_manager->dpi_value = dpi_value;
 
