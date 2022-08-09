@@ -12421,10 +12421,10 @@ BOOLEAN _r_wnd_isfullscreenmode ()
 	// Get the foreground window which the user is currently working on.
 	hwnd = GetForegroundWindow ();
 
-	if (hwnd)
-		return (_r_wnd_isfullscreenwindowmode (hwnd) || _r_wnd_isfullscreenconsolemode (hwnd));
+	if (!hwnd)
+		return FALSE;
 
-	return FALSE;
+	return _r_wnd_isfullscreenwindowmode (hwnd) || _r_wnd_isfullscreenconsolemode (hwnd);
 }
 
 BOOLEAN _r_wnd_ismaximized (
@@ -15565,10 +15565,26 @@ VOID _r_ctrl_settablestring (
 	else
 	{
 		// resize control #1
-		SetWindowPos (hctrl1, NULL, rect1.left, rect1.top, rect1.right, rect1.bottom, swp_flags);
+		SetWindowPos (
+			hctrl1,
+			NULL,
+			rect1.left,
+			rect1.top,
+			rect1.right,
+			rect1.bottom,
+			swp_flags
+		);
 
 		// resize control #2
-		SetWindowPos (hctrl2, NULL, rect2.left, rect2.top, rect2.right, rect2.bottom, swp_flags);
+		SetWindowPos (
+			hctrl2,
+			NULL,
+			rect2.left,
+			rect2.top,
+			rect2.right,
+			rect2.bottom,
+			swp_flags
+		);
 	}
 
 	_r_ctrl_setstringlength (hwnd, ctrl_id1, text1);
