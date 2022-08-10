@@ -406,6 +406,8 @@ VOID _r_app_initialize_seh ()
 
 BOOLEAN _r_app_initialize ()
 {
+	R_STRINGREF sr;
+
 	// set main thread name (win10rs1+)
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1607))
 		_r_sys_setthreadname (NtCurrentThread (), L"MainThread");
@@ -432,7 +434,9 @@ BOOLEAN _r_app_initialize ()
 	// prevent app duplicates
 	if (_r_mutex_isexists (_r_app_getmutexname ()))
 	{
-		EnumWindows (&_r_util_activate_window_callback, (LPARAM)_r_app_getname ());
+		_r_obj_initializestringref (&sr, (LPWSTR)_r_app_getname ());
+
+		EnumWindows (&_r_util_activate_window_callback, (LPARAM)&sr);
 
 		return FALSE;
 	}
