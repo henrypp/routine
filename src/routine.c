@@ -16188,6 +16188,9 @@ VOID _r_listview_deleteallcolumns (
 
 	column_count = _r_listview_getcolumncount (hwnd, ctrl_id);
 
+	if (!column_count)
+		return;
+
 	for (INT i = column_count; i >= 0; i--)
 		SendDlgItemMessage (hwnd, ctrl_id, LVM_DELETECOLUMN, (WPARAM)i, 0);
 }
