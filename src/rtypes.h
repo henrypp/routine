@@ -25,6 +25,14 @@ typedef ULONG (NTAPI *IQTI) (
 	_Inout_ PTAG_INFO_NAME_FROM_TAG TagInfo
 	);
 
+// VerQueryValue
+typedef BOOL (WINAPI *VQV) (
+	_In_ LPCVOID pBlock,
+	_In_ LPCWSTR lpSubBlock,
+	_Outptr_ PVOID_PTR lplpBuffer,
+	_Out_ PUINT puLen
+	);
+
 // RtlSetUnhandledExceptionFilter (vista+)
 typedef VOID (NTAPI *RSUEF) (
 	_In_ PRTLP_UNHANDLED_EXCEPTION_FILTER UnhandledExceptionFilter
