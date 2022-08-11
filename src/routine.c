@@ -14681,20 +14681,19 @@ PR_STRING _r_res_querystring_ex (
 		entry_name
 	);
 
-	if (VerQueryValue (ver_block, entry, &buffer, &length) && buffer)
-	{
-		if (length <= sizeof (UNICODE_NULL))
-			return NULL;
+	if (!_r_res_queryvalue (ver_block, entry, &buffer, &length))
+		return NULL;
 
-		length -= 1;
-		length *= sizeof (WCHAR);
+	if (length <= sizeof (UNICODE_NULL))
+		return NULL;
 
-		string = _r_obj_createstring_ex (buffer, length);
+	length -= 1;
+	length *= sizeof (WCHAR);
 
-		return string;
-	}
+	string = _r_obj_createstring_ex (buffer, length);
 
-	return NULL;
+	return string;
+
 }
 
 ULONG _r_res_querytranslation (
@@ -14704,12 +14703,62 @@ ULONG _r_res_querytranslation (
 	PR_VERSION_TRANSLATION buffer;
 	UINT length;
 
-	buffer = NULL;
-
-	if (VerQueryValue (ver_block, L"\\VarFileInfo\\Translation", &buffer, &length) && buffer)
+	if (_r_res_queryvalue (ver_block, L"\\VarFileInfo\\Translation", &buffer, &length))
 		return PR_LANG_TO_LCID (buffer->lang_id, buffer->code_page);
 
 	return PR_LANG_TO_LCID (MAKELANGID (LANG_ENGLISH, SUBLANG_ENGLISH_US), 1252);
+}
+
+_Success_ (return)
+BOOLEAN _r_res_queryvalue (
+	_In_ LPCVOID block,
+	_In_ LPCWSTR sub_block,
+	_Outptr_ PVOID_PTR out_buffer,
+	_Out_ PUINT out_length
+)
+{
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static VQV _VerQueryValue = NULL;
+
+	HINSTANCE hversion;
+	PVOID buffer;
+	UINT length;
+	BOOL is_success;
+
+	if (_r_initonce_begin (&init_once))
+	{
+		hversion = _r_sys_loadlibrary (L"version.dll");
+
+		if (hversion)
+		{
+			_VerQueryValue = (VQV)GetProcAddress (hversion, "VerQueryValueW");
+
+			//FreeLibrary (hversion);
+		}
+
+		_r_initonce_end (&init_once);
+	}
+
+	if (!_VerQueryValue)
+	{
+		*out_buffer = NULL;
+		*out_length = 0;
+
+		return FALSE;
+	}
+
+	is_success = _VerQueryValue (block, sub_block, &buffer, &length);
+
+	if (is_success)
+	{
+		if (!buffer || !length)
+			is_success = FALSE;
+	}
+
+	*out_buffer = buffer;
+	*out_length = length;
+
+	return is_success;
 }
 
 _Success_ (return)
@@ -14720,7 +14769,7 @@ BOOLEAN _r_res_queryversion (
 {
 	UINT length;
 
-	return !!VerQueryValue (ver_block, L"\\", file_info, &length);
+	return _r_res_queryvalue (ver_block, L"\\", file_info, &length);
 }
 
 _Ret_maybenull_
@@ -15457,7 +15506,6 @@ VOID _r_tray_initialize (
 
 		nid->guidItem.Data1 ^= hash_code; // HACK!!!
 	}
-
 #endif // APP_NO_DEPRECATIONS
 }
 

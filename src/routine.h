@@ -3515,6 +3515,14 @@ ULONG _r_res_querytranslation (
 );
 
 _Success_ (return)
+BOOLEAN _r_res_queryvalue (
+	_In_ LPCVOID block,
+	_In_ LPCWSTR sub_block,
+	_Outptr_ PVOID_PTR out_buffer,
+	_Out_ PUINT out_length
+);
+
+_Success_ (return)
 BOOLEAN _r_res_queryversion (
 	_In_ LPCVOID ver_block,
 	_Out_ PVOID_PTR file_info
