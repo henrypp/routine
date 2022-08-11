@@ -221,10 +221,12 @@ BOOLEAN _r_format_bytesize64 (
 	if (hr == S_OK)
 		return TRUE;
 #else
-	HINSTANCE hshlwapi;
-	SFBSE _StrFormatByteSizeEx;
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static SFBSE _StrFormatByteSizeEx = NULL;
 
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
+	HINSTANCE hshlwapi;
+
+	if (_r_initonce_begin (&init_once))
 	{
 		hshlwapi = _r_sys_loadlibrary (L"shlwapi.dll");
 
@@ -233,21 +235,23 @@ BOOLEAN _r_format_bytesize64 (
 			// vista (sp1+)
 			_StrFormatByteSizeEx = (SFBSE)GetProcAddress (hshlwapi, "StrFormatByteSizeEx");
 
-			FreeLibrary (hshlwapi);
-
-			if (_StrFormatByteSizeEx)
-			{
-				hr = _StrFormatByteSizeEx (
-					bytes,
-					SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT,
-					buffer,
-					buffer_size
-				);
-
-				if (hr == S_OK)
-					return TRUE;
-			}
+			//FreeLibrary (hshlwapi);
 		}
+
+		_r_initonce_end (&init_once);
+	}
+
+	if (_StrFormatByteSizeEx)
+	{
+		hr = _StrFormatByteSizeEx (
+			bytes,
+			SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT,
+			buffer,
+			buffer_size
+		);
+
+		if (hr == S_OK)
+			return TRUE;
 	}
 #endif // APP_NO_DEPRECATIONS
 
@@ -4312,7 +4316,7 @@ BOOLEAN _r_msg_taskdialog (
 			// vista+
 			_TaskDialogIndirect = (TDI)GetProcAddress (hcomctl32, "TaskDialogIndirect");
 
-			FreeLibrary (hcomctl32);
+			// FreeLibrary (hcomctl32);
 		}
 
 		_r_initonce_end (&init_once);
@@ -8451,7 +8455,7 @@ BOOLEAN _r_sys_isprocessimmersive (
 			// win8+
 			_IsImmersiveProcess = (IIP)GetProcAddress (huser32, "IsImmersiveProcess");
 
-			FreeLibrary (huser32);
+			//FreeLibrary (huser32);
 		}
 
 		_r_initonce_end (&init_once);
@@ -8959,7 +8963,7 @@ LONG _r_sys_getpackagepath (
 				"GetStagedPackagePathByFullName"
 			);
 
-			FreeLibrary (hkernel32);
+			//FreeLibrary (hkernel32);
 		}
 
 		_r_initonce_end (&init_once);
@@ -9915,7 +9919,7 @@ HICON _r_sys_loadicon (
 			// vista+
 			_LoadIconWithScaleDown = (LIWSD)GetProcAddress (hcomctl32, "LoadIconWithScaleDown");
 
-			FreeLibrary (hcomctl32);
+			//FreeLibrary (hcomctl32);
 		}
 
 		_r_initonce_end (&init_once);
@@ -10022,7 +10026,7 @@ PR_STRING _r_sys_querytaginformation (
 		{
 			_I_QueryTagInformation = (IQTI)GetProcAddress (hadvapi32, "I_QueryTagInformation");
 
-			FreeLibrary (hadvapi32);
+			//FreeLibrary (hadvapi32);
 		}
 
 		_r_initonce_end (&init_once);
@@ -10569,7 +10573,7 @@ BOOLEAN _r_dc_adjustwindowrect (
 			// win10rs1+
 			_AdjustWindowRectExForDpi = (AWRFD)GetProcAddress (huser32, "AdjustWindowRectExForDpi");
 
-			FreeLibrary (huser32);
+			//FreeLibrary (huser32);
 		}
 
 		_r_initonce_end (&init_once);
@@ -10999,7 +11003,7 @@ LONG _r_dc_getdpivalue (
 			// win81+
 			_GetDpiForMonitor = (GDFM)GetProcAddress (hshcore, "GetDpiForMonitor");
 
-			FreeLibrary (hshcore);
+			//FreeLibrary (hshcore);
 		}
 
 		if (huser32)
@@ -11010,51 +11014,48 @@ LONG _r_dc_getdpivalue (
 			// win10rs1+
 			_GetDpiForSystem = (GDFS)GetProcAddress (huser32, "GetDpiForSystem");
 
-			FreeLibrary (huser32);
+			//FreeLibrary (huser32);
 		}
 
 		_r_initonce_end (&init_once);
 	}
 
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_8_1))
+	if (rect || hwnd)
 	{
-		if (rect || hwnd)
+		// win10rs1+
+		if (_GetDpiForWindow)
 		{
-			// win10rs1+
-			if (_GetDpiForWindow)
+			if (hwnd)
 			{
-				if (hwnd)
-				{
-					dpi_x = _GetDpiForWindow (hwnd);
+				dpi_x = _GetDpiForWindow (hwnd);
 
-					if (dpi_x)
-						return dpi_x;
-				}
-			}
-
-			// win81+
-			if (_GetDpiForMonitor)
-			{
-				if (rect)
-				{
-					hmonitor = MonitorFromRect (rect, MONITOR_DEFAULTTONEAREST);
-				}
-				else
-				{
-					hmonitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
-				}
-
-				hr = _GetDpiForMonitor (hmonitor, MDT_EFFECTIVE_DPI, &dpi_x, &dpi_y);
-
-				if (SUCCEEDED (hr))
+				if (dpi_x)
 					return dpi_x;
 			}
 		}
 
-		// win10rs1+
-		if (_GetDpiForSystem)
-			return _GetDpiForSystem ();
+		// win81+
+		if (_GetDpiForMonitor)
+		{
+			if (rect)
+			{
+				hmonitor = MonitorFromRect (rect, MONITOR_DEFAULTTONEAREST);
+			}
+			else
+			{
+				hmonitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+			}
+
+			hr = _GetDpiForMonitor (hmonitor, MDT_EFFECTIVE_DPI, &dpi_x, &dpi_y);
+
+			if (SUCCEEDED (hr))
+				return dpi_x;
+		}
 	}
+
+	// win10rs1+
+	if (_GetDpiForSystem)
+		return _GetDpiForSystem ();
 
 	// win8 and lower fallback
 	hdc = GetDC (NULL);
@@ -11139,7 +11140,7 @@ LONG _r_dc_getsystemmetrics (
 			// win10rs1+
 			_GetSystemMetricsForDpi = (GSMFD)GetProcAddress (huser32, "GetSystemMetricsForDpi");
 
-			FreeLibrary (huser32);
+			//FreeLibrary (huser32);
 		}
 
 		_r_initonce_end (&init_once);
@@ -11175,7 +11176,7 @@ BOOLEAN _r_dc_getsystemparametersinfo (
 			// win10rs1+
 			_SystemParametersInfoForDpi = (SPIFP)GetProcAddress (huser32, "SystemParametersInfoForDpi");
 
-			FreeLibrary (huser32);
+			//FreeLibrary (huser32);
 		}
 
 		_r_initonce_end (&init_once);
@@ -12576,7 +12577,7 @@ BOOLEAN _r_wnd_isfocusassist ()
 			// win10rs3+
 			_NtQueryWnfStateData = (NTQWNFSD)GetProcAddress (hntdll, "NtQueryWnfStateData");
 
-			FreeLibrary (hntdll);
+			//FreeLibrary (hntdll);
 		}
 
 		_r_initonce_end (&init_once);
@@ -12657,13 +12658,16 @@ BOOLEAN _r_wnd_isfullscreenusermode ()
 		// vista+
 		_SHQueryUserNotificationState = (SHQUNS)GetProcAddress (hshell32, "SHQueryUserNotificationState");
 
-		FreeLibrary (hshell32);
-
 		if (_SHQueryUserNotificationState)
 		{
 			if (_SHQueryUserNotificationState (&state) != S_OK)
+			{
+				FreeLibrary (hshell32);
 				return FALSE;
+			}
 		}
+
+		FreeLibrary (hshell32);
 	}
 #endif // APP_NO_DEPRECATIONS
 
