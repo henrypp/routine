@@ -16,6 +16,8 @@
 
 DECLSPEC_SELECTANY APP_GLOBAL_CONFIG app_global = {0};
 
+EXTERN_C_START
+
 //
 // Configuration
 //
@@ -549,6 +551,8 @@ VOID _r_app_restart (
 	_In_opt_ HWND hwnd
 );
 #endif // !APP_CONSOLE
+
+EXTERN_C_END
 
 #if !defined(APP_CONSOLE)
 FORCEINLINE HWND _r_app_gethwnd ()
