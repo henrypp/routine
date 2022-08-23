@@ -2796,6 +2796,7 @@ HICON _r_dc_bitmaptoicon (
 BOOLEAN _r_dc_drawwindow (
 	_In_ HDC hdc,
 	_In_ HWND hwnd,
+	_In_opt_ COLORREF cust_clr,
 	_In_ BOOLEAN is_drawfooter
 );
 

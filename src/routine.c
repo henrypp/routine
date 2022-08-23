@@ -10709,6 +10709,7 @@ HICON _r_dc_bitmaptoicon (
 BOOLEAN _r_dc_drawwindow (
 	_In_ HDC hdc,
 	_In_ HWND hwnd,
+	_In_opt_ COLORREF cust_clr,
 	_In_ BOOLEAN is_drawfooter
 )
 {
@@ -10722,13 +10723,20 @@ BOOLEAN _r_dc_drawwindow (
 	if (!GetClientRect (hwnd, &rect))
 		return FALSE;
 
-	if (is_drawfooter)
+	if (cust_clr)
 	{
-		clr = GetSysColor (COLOR_WINDOW);
+		clr = cust_clr;
 	}
 	else
 	{
-		clr = GetSysColor (COLOR_BTNFACE);
+		if (is_drawfooter)
+		{
+			clr = GetSysColor (COLOR_WINDOW);
+		}
+		else
+		{
+			clr = GetSysColor (COLOR_BTNFACE);
+		}
 	}
 
 	// fill background color
