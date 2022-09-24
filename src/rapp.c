@@ -406,7 +406,9 @@ VOID _r_app_initialize_seh ()
 
 BOOLEAN _r_app_initialize ()
 {
+#if !defined(APP_CONSOLE)
 	R_STRINGREF sr;
+#endif // !APP_CONSOLE
 
 	// set main thread name (win10rs1+)
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1607))
