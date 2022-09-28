@@ -3758,15 +3758,26 @@ BOOLEAN _r_tray_toggle (
 // Control: common
 //
 
+BOOLEAN _r_ctrl_isbuttonchecked (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id
+);
+
 BOOLEAN _r_ctrl_isenabled (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id
 );
 
-INT _r_ctrl_isradiobuttonchecked (
+INT _r_ctrl_isradiochecked (
 	_In_ HWND hwnd,
 	_In_ INT start_id,
 	_In_ INT end_id
+);
+
+VOID _r_ctrl_checkbutton (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ BOOLEAN is_check
 );
 
 VOID _r_ctrl_enable (
@@ -3971,6 +3982,25 @@ FORCEINLINE VOID _r_edit_settextlimit (
 //
 // Control: menu
 //
+
+VOID _r_menu_additem (
+	_In_ HMENU hmenu,
+	_In_opt_ UINT item_id,
+	_In_opt_ LPCWSTR text
+);
+
+VOID _r_menu_additem_ex (
+	_In_ HMENU hmenu,
+	_In_opt_ UINT item_id,
+	_In_opt_ LPCWSTR text,
+	_In_opt_ UINT state
+);
+
+VOID _r_menu_addsubmenu (
+	_In_ HMENU hmenu,
+	_In_ HMENU hsubmenu,
+	_In_ LPCWSTR text
+);
 
 VOID _r_menu_checkitem (
 	_In_ HMENU hmenu,

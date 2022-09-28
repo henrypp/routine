@@ -15747,6 +15747,17 @@ BOOLEAN _r_tray_toggle (
 // Control: common
 //
 
+BOOLEAN _r_ctrl_isbuttonchecked (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id
+)
+{
+	if (IsDlgButtonChecked (hwnd, ctrl_id) == BST_CHECKED)
+		return TRUE;
+
+	return FALSE;
+}
+
 BOOLEAN _r_ctrl_isenabled (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id
@@ -15762,7 +15773,7 @@ BOOLEAN _r_ctrl_isenabled (
 	return FALSE;
 }
 
-INT _r_ctrl_isradiobuttonchecked (
+INT _r_ctrl_isradiochecked (
 	_In_ HWND hwnd,
 	_In_ INT start_id,
 	_In_ INT end_id
@@ -15770,11 +15781,20 @@ INT _r_ctrl_isradiobuttonchecked (
 {
 	for (INT i = start_id; i <= end_id; i++)
 	{
-		if (IsDlgButtonChecked (hwnd, i) == BST_CHECKED)
+		if (_r_ctrl_isbuttonchecked (hwnd, i))
 			return i;
 	}
 
 	return 0;
+}
+
+VOID _r_ctrl_checkbutton (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ BOOLEAN is_check
+)
+{
+	CheckDlgButton (hwnd, ctrl_id, is_check ? BST_CHECKED : BST_UNCHECKED);
 }
 
 VOID _r_ctrl_enable (
@@ -16200,6 +16220,76 @@ VOID _r_ctrl_showballoontipformat (
 //
 // Control: menu
 //
+
+VOID _r_menu_additem (
+	_In_ HMENU hmenu,
+	_In_opt_ UINT item_id,
+	_In_opt_ LPCWSTR text
+)
+{
+	_r_menu_additem_ex (hmenu, item_id, text, MF_UNCHECKED);
+}
+
+VOID _r_menu_additem_ex (
+	_In_ HMENU hmenu,
+	_In_opt_ UINT item_id,
+	_In_opt_ LPCWSTR text,
+	_In_opt_ UINT state
+)
+{
+	MENUITEMINFO mii;
+
+	RtlZeroMemory (&mii, sizeof (mii));
+
+	mii.cbSize = sizeof (mii);
+	mii.fMask = MIIM_FTYPE;
+
+	if (item_id && text)
+	{
+		mii.fMask |= MIIM_ID | MIIM_STRING;
+
+		mii.fType = MF_STRING;
+		mii.dwTypeData = (LPWSTR)text;
+		mii.wID = item_id;
+
+		if (state)
+		{
+			mii.fMask |= MIIM_STATE;
+
+			if (state & MF_DISABLED)
+				state |= MF_GRAYED;
+
+			mii.fState = state;
+		}
+	}
+	else
+	{
+		mii.fMask |= MIIM_STATE;
+
+		mii.fType = MF_SEPARATOR;
+		mii.fState = MF_GRAYED | MF_DISABLED;
+	}
+
+	InsertMenuItem (hmenu, -1, TRUE, &mii);
+}
+
+VOID _r_menu_addsubmenu (
+	_In_ HMENU hmenu,
+	_In_ HMENU hsubmenu,
+	_In_ LPCWSTR text
+)
+{
+	MENUITEMINFO mii;
+
+	RtlZeroMemory (&mii, sizeof (mii));
+
+	mii.cbSize = sizeof (mii);
+	mii.fMask = MIIM_FTYPE | MIIM_SUBMENU | MIIM_STRING;
+	mii.hSubMenu = hsubmenu;
+	mii.dwTypeData = (LPWSTR)text;
+
+	InsertMenuItem (hmenu, -1, TRUE, &mii);
+}
 
 VOID _r_menu_checkitem (
 	_In_ HMENU hmenu,
@@ -16836,6 +16926,9 @@ VOID _r_listview_setcolumn (
 {
 	LVCOLUMN lvc = {0};
 	LONG client_width;
+
+	if (!text && !width)
+		return;
 
 	if (text)
 	{
