@@ -2014,10 +2014,9 @@ VOID _r_locale_enum (
 		// clear menu
 		_r_menu_clearitems (hsubmenu);
 
-		AppendMenu (
+		_r_menu_additem (
 			hsubmenu,
-			MF_STRING,
-			(UINT_PTR)menu_id,
+			menu_id,
 			_r_obj_getstringorempty (app_global.locale.resource_name)
 		);
 
@@ -2057,7 +2056,7 @@ VOID _r_locale_enum (
 	if (is_menu)
 	{
 		_r_menu_enableitem (hwnd, ctrl_id, MF_BYPOSITION, TRUE);
-		AppendMenu (hsubmenu, MF_SEPARATOR, 0, NULL);
+		_r_menu_additem (hsubmenu, 0, NULL);
 	}
 	else
 	{
@@ -2066,6 +2065,7 @@ VOID _r_locale_enum (
 
 	PR_STRING locale_name;
 	UINT index;
+	UINT menu_index;
 	BOOLEAN is_current;
 
 	index = 1;
@@ -2084,11 +2084,9 @@ VOID _r_locale_enum (
 
 		if (is_menu)
 		{
-			UINT menu_index;
-
 			menu_index = menu_id + (INT)(INT_PTR)i + 2;
 
-			AppendMenu (hsubmenu, MF_STRING, menu_index, locale_name->buffer);
+			_r_menu_additem (hsubmenu, menu_index, locale_name->buffer);
 
 			if (is_current)
 			{
