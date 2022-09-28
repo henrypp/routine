@@ -90,10 +90,7 @@ LONG NTAPI _r_app_exceptionfilter_callback (
 
 LPCWSTR _r_app_getmutexname ()
 {
-#if !defined(APP_NO_MUTEX)
-	return _r_app_getnameshort ();
-#else
-
+#if defined(APP_NO_MUTEX)
 	static PR_STRING cached_name = NULL;
 
 	PR_STRING current_name;
@@ -123,17 +120,14 @@ LPCWSTR _r_app_getmutexname ()
 	}
 
 	return current_name->buffer;
+#else
+	return _r_app_getnameshort ();
 #endif // !APP_NO_MUTEX
 }
 
 BOOLEAN _r_app_isportable ()
 {
-#if defined(APP_NO_APPDATA) || defined(APP_CONSOLE)
-
-	return TRUE;
-
-#else
-
+#if !defined(APP_NO_APPDATA) || !defined(APP_CONSOLE)
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static BOOLEAN is_portable = FALSE;
 
@@ -180,17 +174,14 @@ BOOLEAN _r_app_isportable ()
 	}
 
 	return is_portable;
-#endif
+#else
+	return TRUE;
+#endif // !APP_NO_APPDATA || !APP_CONSOLE
 }
 
 BOOLEAN _r_app_isreadonly ()
 {
-#if defined(APP_NO_CONFIG) || defined(APP_CONSOLE)
-
-	return TRUE;
-
-#else
-
+#if !defined(APP_NO_CONFIG) || !defined(APP_CONSOLE)
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static BOOLEAN is_readonly = FALSE;
 
@@ -202,7 +193,9 @@ BOOLEAN _r_app_isreadonly ()
 	}
 
 	return is_readonly;
-#endif // APP_NO_CONFIG || APP_CONSOLE
+#else
+	return TRUE;
+#endif // !APP_NO_CONFIG || !APP_CONSOLE
 }
 
 BOOLEAN _r_app_initialize_com ()
@@ -273,6 +266,13 @@ BOOLEAN _r_app_initialize_controls ()
 
 BOOLEAN _r_app_initialize_dll ()
 {
+#if !defined(APP_NO_DEPRECATIONS)
+	R_ERROR_INFO error_info;
+	HINSTANCE hkernel32;
+	SSPM _SetSearchPathMode;
+	SDDD _SetDefaultDllDirectories;
+#endif // !APP_NO_DEPRECATIONS
+
 	// Safe DLL loading
 	// This prevents DLL planting in the application directory.
 
@@ -284,11 +284,6 @@ BOOLEAN _r_app_initialize_dll ()
 
 	SetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 #else
-	R_ERROR_INFO error_info;
-	HINSTANCE hkernel32;
-	SSPM _SetSearchPathMode;
-	SDDD _SetDefaultDllDirectories;
-
 	hkernel32 = _r_sys_loadlibrary (L"kernel32.dll");
 
 	if (hkernel32)
@@ -337,16 +332,32 @@ VOID _r_app_initialize_locale ()
 
 	_r_obj_clearreference (&app_global.locale.default_name);
 
-	status = _r_sys_getlocaleinfo (GetUserDefaultUILanguage (), LOCALE_SENGLISHLANGUAGENAME, &app_global.locale.default_name);
+	status = _r_sys_getlocaleinfo (
+		GetUserDefaultUILanguage (),
+		LOCALE_SENGLISHLANGUAGENAME,
+		&app_global.locale.default_name
+	);
 
 	if (status != ERROR_SUCCESS)
-		_r_sys_getlocaleinfo (LOCALE_SYSTEM_DEFAULT, LOCALE_SENGLISHLANGUAGENAME, &app_global.locale.default_name);
+	{
+		_r_sys_getlocaleinfo (
+			LOCALE_SYSTEM_DEFAULT,
+			LOCALE_SENGLISHLANGUAGENAME,
+			&app_global.locale.default_name
+		);
+	}
 }
 #endif // !APP_CONSOLE
 
 #if !defined(_DEBUG)
 VOID _r_app_initialize_seh ()
 {
+#if !defined(APP_NO_DEPRECATIONS)
+	HINSTANCE hntdll;
+	RSUEF _RtlSetUnhandledExceptionFilter;
+	BOOLEAN is_set;
+#endif // !APP_NO_DEPRECATIONS
+
 	ULONG error_mode;
 	NTSTATUS status;
 
@@ -373,11 +384,6 @@ VOID _r_app_initialize_seh ()
 #if defined(APP_NO_DEPRECATIONS)
 	RtlSetUnhandledExceptionFilter (&_r_app_exceptionfilter_callback);
 #else
-
-	HINSTANCE hntdll;
-	RSUEF _RtlSetUnhandledExceptionFilter;
-	BOOLEAN is_set;
-
 	is_set = FALSE;
 
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
@@ -468,7 +474,12 @@ BOOLEAN _r_app_initialize ()
 #if !defined(_DEBUG) && !defined(_WIN64)
 	if (_r_sys_iswow64 () && !_r_sys_getopt (_r_sys_getimagecommandline (), L"nowow64", NULL))
 	{
-		_r_show_message (NULL, MB_OK | MB_ICONWARNING | MB_TOPMOST, APP_WARNING_WOW64_TITLE, APP_WARNING_WOW64_TEXT);
+		_r_show_message (
+			NULL,
+			MB_OK | MB_ICONWARNING | MB_TOPMOST,
+			APP_WARNING_WOW64_TITLE,
+			APP_WARNING_WOW64_TEXT
+		);
 
 		return FALSE;
 	}
@@ -735,7 +746,11 @@ PR_STRING _r_app_getprofiledirectory ()
 	PR_STRING current_path;
 	PR_STRING new_path;
 
-	current_path = InterlockedCompareExchangePointer (&cached_path, NULL, NULL);
+	current_path = InterlockedCompareExchangePointer (
+		&cached_path,
+		NULL,
+		NULL
+	);
 
 	if (!current_path)
 	{
@@ -745,10 +760,17 @@ PR_STRING _r_app_getprofiledirectory ()
 		}
 		else
 		{
-			new_path = _r_path_getknownfolder (CSIDL_APPDATA, L"\\" APP_AUTHOR L"\\" APP_NAME);
+			new_path = _r_path_getknownfolder (
+				CSIDL_APPDATA,
+				L"\\" APP_AUTHOR L"\\" APP_NAME
+			);
 		}
 
-		current_path = InterlockedCompareExchangePointer (&cached_path, new_path, NULL);
+		current_path = InterlockedCompareExchangePointer (
+			&cached_path,
+			new_path,
+			NULL
+		);
 
 		if (!current_path)
 		{
@@ -775,7 +797,11 @@ PR_STRING _r_app_getuseragent ()
 
 	PR_STRING string;
 
-	current_agent = InterlockedCompareExchangePointer (&cached_agent, NULL, NULL);
+	current_agent = InterlockedCompareExchangePointer (
+		&cached_agent,
+		NULL,
+		NULL
+	);
 
 	if (!current_agent)
 	{
@@ -796,7 +822,11 @@ PR_STRING _r_app_getuseragent ()
 			_r_obj_movereference (&new_agent, string);
 		}
 
-		current_agent = InterlockedCompareExchangePointer (&cached_agent, new_agent, NULL);
+		current_agent = InterlockedCompareExchangePointer (
+			&cached_agent,
+			new_agent,
+			NULL
+		);
 
 		if (!current_agent)
 		{
@@ -969,7 +999,8 @@ ULONG _r_app_getshowcode (
 #if defined(APP_HAVE_TRAY)
 	if (!is_windowhidden)
 	{
-		if (_r_config_getboolean (L"IsStartMinimized", FALSE) || _r_sys_getopt (_r_sys_getimagecommandline (), L"minimized", NULL))
+		if (_r_config_getboolean (L"IsStartMinimized", FALSE) ||
+			_r_sys_getopt (_r_sys_getimagecommandline (), L"minimized", NULL))
 		{
 			is_windowhidden = TRUE;
 		}
@@ -1820,7 +1851,13 @@ VOID _r_config_setstring_ex (
 
 	if (section_name)
 	{
-		_r_str_printf (section_string, RTL_NUMBER_OF (section_string), L"%s\\%s", _r_app_getnameshort (), section_name);
+		_r_str_printf (
+			section_string,
+			RTL_NUMBER_OF (section_string),
+			L"%s\\%s",
+			_r_app_getnameshort (),
+			section_name
+		);
 
 		section_string_full = _r_obj_concatstrings (
 			5,
@@ -1833,7 +1870,11 @@ VOID _r_config_setstring_ex (
 	}
 	else
 	{
-		_r_str_copy (section_string, RTL_NUMBER_OF (section_string), _r_app_getnameshort ());
+		_r_str_copy (
+			section_string,
+			RTL_NUMBER_OF (section_string),
+			_r_app_getnameshort ()
+		);
 
 		section_string_full = _r_obj_concatstrings (
 			3,
@@ -1933,6 +1974,10 @@ VOID _r_locale_apply (
 	_In_opt_ UINT menu_id
 )
 {
+#if defined(APP_HAVE_SETTINGS)
+	INT item_id;
+#endif // APP_HAVE_SETTINGS
+
 	PR_STRING locale_name;
 	SIZE_T locale_index;
 	HWND hwindow;
@@ -1954,8 +1999,6 @@ VOID _r_locale_apply (
 	else
 	{
 #if defined(APP_HAVE_SETTINGS)
-		INT item_id;
-
 		item_id = _r_combobox_getcurrentitem (hwnd, ctrl_id);
 
 		if (item_id == CB_ERR)
@@ -2001,8 +2044,12 @@ VOID _r_locale_enum (
 	_In_opt_ UINT menu_id
 )
 {
+	PR_STRING locale_name;
 	HMENU hsubmenu;
 	SIZE_T locale_count;
+	UINT index;
+	UINT menu_index;
+	BOOLEAN is_current;
 	BOOLEAN is_menu;
 
 	is_menu = (menu_id != 0);
@@ -2062,11 +2109,6 @@ VOID _r_locale_enum (
 	{
 		_r_ctrl_enable (hwnd, ctrl_id, TRUE);
 	}
-
-	PR_STRING locale_name;
-	UINT index;
-	UINT menu_index;
-	BOOLEAN is_current;
 
 	index = 1;
 
@@ -2519,7 +2561,15 @@ NTSTATUS NTAPI _r_update_downloadthread (
 #endif // IDS_UPDATE_ERROR
 	}
 
-	_r_update_navigate (update_info, buttons, 0, main_icon, NULL, str_content, status);
+	_r_update_navigate (
+		update_info,
+		buttons,
+		0,
+		main_icon,
+		NULL,
+		str_content,
+		status
+	);
 
 	return STATUS_SUCCESS;
 }
@@ -2569,7 +2619,15 @@ NTSTATUS NTAPI _r_update_checkthread (
 #pragma PR_PRINT_WARNING(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
 
-			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, TD_WARNING_ICON, NULL, str_content, status);
+			_r_update_navigate (
+				update_info,
+				TDCBF_CLOSE_BUTTON,
+				0,
+				TD_WARNING_ICON,
+				NULL,
+				str_content,
+				status
+			);
 		}
 
 		goto CleanupExit;
@@ -2665,7 +2723,15 @@ NTSTATUS NTAPI _r_update_checkthread (
 #pragma PR_PRINT_WARNING(IDS_UPDATE_YES)
 #endif // IDS_UPDATE_YES
 
-		_r_update_navigate (update_info, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, 0, NULL, str_content, str_updates, 0);
+		_r_update_navigate (
+			update_info,
+			TDCBF_YES_BUTTON | TDCBF_NO_BUTTON,
+			0,
+			NULL,
+			str_content,
+			str_updates,
+			0
+		);
 	}
 	else
 	{
@@ -2702,7 +2768,15 @@ NTSTATUS NTAPI _r_update_checkthread (
 				}
 			}
 
-			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, NULL, NULL, str_content, status);
+			_r_update_navigate (
+				update_info,
+				TDCBF_CLOSE_BUTTON,
+				0,
+				NULL,
+				NULL,
+				str_content,
+				status
+			);
 		}
 	}
 
@@ -2801,7 +2875,12 @@ BOOLEAN _r_update_check (
 	if (InterlockedCompareExchange (&update_info->lock, 0, 0) != 0)
 		return FALSE;
 
-	_r_sys_setenvironment (&environment, THREAD_PRIORITY_LOWEST, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
+	_r_sys_setenvironment (
+		&environment,
+		THREAD_PRIORITY_LOWEST,
+		IoPriorityNormal,
+		MEMORY_PRIORITY_NORMAL
+	);
 
 	if (!update_info->hsession)
 		update_info->hsession = _r_inet_createsession (_r_app_getuseragent ());
@@ -2841,7 +2920,15 @@ BOOLEAN _r_update_check (
 
 		update_info->hthread = hthread;
 
-		_r_update_navigate (update_info, TDCBF_CANCEL_BUTTON, TDF_SHOW_PROGRESS_BAR, NULL, NULL, str_content, 0);
+		_r_update_navigate (
+			update_info,
+			TDCBF_CANCEL_BUTTON,
+			TDF_SHOW_PROGRESS_BAR,
+			NULL,
+			NULL,
+			str_content,
+			0
+		);
 	}
 	else
 	{
@@ -2908,7 +2995,12 @@ HRESULT CALLBACK _r_update_pagecallback (
 			}
 			else if (wparam == IDYES)
 			{
-				_r_sys_setenvironment (&environment, THREAD_PRIORITY_LOWEST, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
+				_r_sys_setenvironment (
+					&environment,
+					THREAD_PRIORITY_LOWEST,
+					IoPriorityNormal,
+					MEMORY_PRIORITY_NORMAL
+				);
 
 				status = _r_sys_createthread (
 					&_r_update_downloadthread,
@@ -2933,7 +3025,15 @@ HRESULT CALLBACK _r_update_pagecallback (
 #pragma PR_PRINT_WARNING(IDS_UPDATE_DOWNLOAD)
 #endif // IDS_UPDATE_DOWNLOAD
 
-					_r_update_navigate (update_info, TDCBF_CANCEL_BUTTON, TDF_SHOW_PROGRESS_BAR, NULL, NULL, str_content, 0);
+					_r_update_navigate (
+						update_info,
+						TDCBF_CANCEL_BUTTON,
+						TDF_SHOW_PROGRESS_BAR,
+						NULL,
+						NULL,
+						str_content,
+						0
+					);
 
 					return S_FALSE;
 				}
@@ -3106,13 +3206,13 @@ VOID _r_update_applyconfig ()
 
 	hwindow = _r_app_gethwnd ();
 
-	if (hwindow)
-	{
-		SendMessage (hwindow, RM_CONFIG_UPDATE, 0, 0);
-		SendMessage (hwindow, RM_INITIALIZE, 0, 0);
+	if (!hwindow)
+		return;
 
-		SendMessage (hwindow, RM_LOCALIZE, 0, 0);
-	}
+	SendMessage (hwindow, RM_CONFIG_UPDATE, 0, 0);
+	SendMessage (hwindow, RM_INITIALIZE, 0, 0);
+
+	SendMessage (hwindow, RM_LOCALIZE, 0, 0);
 }
 
 VOID _r_update_install (
@@ -3242,7 +3342,7 @@ VOID _r_log (
 	LPCWSTR level_string;
 	LONG64 current_timestamp;
 	HANDLE hfile;
-	ULONG unused;
+	ULONG number;
 
 	if (!_r_log_isenabled (log_level))
 		return;
@@ -3278,7 +3378,13 @@ VOID _r_log (
 			NtCurrentPeb ()->OSBuildNumber
 		);
 
-		WriteFile (hfile, error_string->buffer, (ULONG)error_string->length, &unused, NULL);
+		WriteFile (
+			hfile,
+			error_string->buffer,
+			(ULONG)error_string->length,
+			&number,
+			NULL
+		);
 
 		_r_obj_dereference (error_string);
 	}
@@ -3290,19 +3396,23 @@ VOID _r_log (
 #if defined(APP_HAVE_TRAY)
 	if (tray_guid)
 	{
-		ULONG icon_id;
-
 		if (_r_config_getboolean (L"IsErrorNotificationsEnabled", TRUE))
 		{
-			icon_id = _r_log_leveltrayicon (log_level);
+			number = _r_log_leveltrayicon (log_level);
 
 			if (!_r_config_getboolean (L"IsNotificationsSound", TRUE))
-				icon_id |= NIIF_NOSOUND;
+				number |= NIIF_NOSOUND;
 
 			// check for timeout (sec.)
 			if ((current_timestamp - app_global.error.last_timestamp) > APP_ERROR_PERIOD)
 			{
-				_r_tray_popup (_r_app_gethwnd (), tray_guid, icon_id, _r_app_getname (), APP_WARNING_LOG_TEXT);
+				_r_tray_popup (
+					_r_app_gethwnd (),
+					tray_guid,
+					number,
+					_r_app_getname (),
+					APP_WARNING_LOG_TEXT
+				);
 
 				app_global.error.last_timestamp = current_timestamp;
 			}
@@ -3353,10 +3463,9 @@ LPCWSTR _r_log_leveltostring (
 
 		case LOG_LEVEL_CRITICAL:
 			return L"Critical";
-
-		default:
-			return NULL;
 	}
+
+	return NULL;
 }
 
 ULONG _r_log_leveltrayicon (
@@ -3375,10 +3484,9 @@ ULONG _r_log_leveltrayicon (
 		case LOG_LEVEL_ERROR:
 		case LOG_LEVEL_CRITICAL:
 			return NIIF_ERROR;
-
-		default:
-			return NIIF_NONE;
 	}
+
+	return NIIF_NONE;
 }
 
 #if !defined(APP_CONSOLE)
@@ -3412,7 +3520,8 @@ VOID _r_show_aboutmessage (
 	{
 		_r_str_printf (
 			str_content, RTL_NUMBER_OF (str_content),
-			L"Version %s %s, %" TEXT (PR_LONG) L"-bit (Unicode)\r\n%s\r\n\r\n<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>",
+			L"Version %s %s, %" TEXT (PR_LONG) L"-bit (Unicode)\r\n%s\r\n\r\n" \
+			L"<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>",
 			_r_app_getversion (),
 			_r_app_getversiontype (),
 			_r_app_getarch (),
@@ -3515,6 +3624,10 @@ VOID _r_show_errormessage (
 	_In_opt_ PR_ERROR_INFO error_info_ptr
 )
 {
+#if !defined(APP_NO_DEPRECATIONS)
+	WCHAR buffer[1024];
+#endif // !APP_NO_DEPRECATIONS
+
 	TASKDIALOGCONFIG tdc;
 	TASKDIALOG_BUTTON td_buttons[3] = {0};
 	WCHAR str_content[1024];
@@ -3628,8 +3741,6 @@ VOID _r_show_errormessage (
 #if !defined(APP_NO_DEPRECATIONS)
 	else
 	{
-		WCHAR buffer[1024];
-
 		_r_str_printf (
 			buffer,
 			RTL_NUMBER_OF (buffer),
@@ -3723,6 +3834,10 @@ INT _r_show_message (
 	_In_ LPCWSTR content
 )
 {
+#if !defined(APP_NO_DEPRECATIONS)
+	PR_STRING string;
+#endif // !APP_NO_DEPRECATIONS
+
 	TASKDIALOGCONFIG tdc;
 	INT command_id;
 
@@ -3799,7 +3914,7 @@ INT _r_show_message (
 #if !defined(APP_NO_DEPRECATIONS)
 	else
 	{
-		PR_STRING string = NULL;
+		string = NULL;
 
 		if (main)
 		{
@@ -4084,7 +4199,8 @@ VOID _r_settings_createwindow (
 	// style
 	_r_util_templatewriteulong (
 		&buffer_ptr,
-		WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP | WS_BORDER | WS_SYSMENU | WS_CAPTION | DS_SHELLFONT | DS_MODALFRAME
+		WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP | WS_BORDER | \
+		WS_SYSMENU | WS_CAPTION | DS_SHELLFONT | DS_MODALFRAME
 	);
 
 	// cdit
@@ -4221,14 +4337,19 @@ INT_PTR CALLBACK _r_settings_wndproc (
 			PR_SETTINGS_PAGE ptr_page;
 			LONG dlg_id;
 
-			app_global.settings.hwnd = hwnd;
+#if !defined(APP_HAVE_SETTINGS_TABS)
+			HTREEITEM hitem;
+#endif // !APP_HAVE_SETTINGS_TABS
 
 #ifdef IDI_MAIN
 			LONG dpi_value;
-
 			LONG icon_small;
 			LONG icon_large;
+#endif // IDI_MAIN
 
+			app_global.settings.hwnd = hwnd;
+
+#ifdef IDI_MAIN
 			dpi_value = _r_dc_getwindowdpi (hwnd);
 
 			icon_small = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
@@ -4276,8 +4397,6 @@ INT_PTR CALLBACK _r_settings_wndproc (
 				SendMessage (ptr_page->hwnd, RM_INITIALIZE, (WPARAM)ptr_page->dlg_id, 0);
 
 #if !defined(APP_HAVE_SETTINGS_TABS)
-				HTREEITEM hitem;
-
 				hitem = _r_treeview_additem (
 					hwnd,
 					IDC_NAV,
@@ -4325,6 +4444,11 @@ INT_PTR CALLBACK _r_settings_wndproc (
 		{
 			PR_SETTINGS_PAGE ptr_page;
 
+#if !defined(APP_HAVE_SETTINGS_TABS)
+			HTREEITEM hitem;
+			LONG dpi_value;
+#endif // !APP_HAVE_SETTINGS_TABS
+
 			// localize window
 #ifdef IDS_SETTINGS
 			SetWindowText (hwnd, _r_locale_getstring (IDS_SETTINGS));
@@ -4335,9 +4459,6 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 			// localize navigation
 #if !defined(APP_HAVE_SETTINGS_TABS)
-			HTREEITEM hitem;
-			LONG dpi_value;
-
 			dpi_value = _r_dc_getwindowdpi (hwnd);
 
 			_r_treeview_setstyle (
@@ -4356,7 +4477,14 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 				if (ptr_page)
 				{
-					_r_treeview_setitem (hwnd, IDC_NAV, hitem, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, 0);
+					_r_treeview_setitem (
+						hwnd,
+						IDC_NAV,
+						hitem,
+						_r_locale_getstring (ptr_page->locale_id),
+						I_IMAGENONE,
+						0
+					);
 
 					if (ptr_page->hwnd)
 					{
@@ -4374,7 +4502,14 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 				if (ptr_page)
 				{
-					_r_tab_setitem (hwnd, IDC_NAV, i, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, 0);
+					_r_tab_setitem (
+						hwnd,
+						IDC_NAV,
+						i,
+						_r_locale_getstring (ptr_page->locale_id),
+						I_IMAGENONE,
+						0
+					);
 
 					if (ptr_page->hwnd)
 					{
@@ -4579,7 +4714,12 @@ INT_PTR CALLBACK _r_settings_wndproc (
 						{
 							if (ptr_page->hwnd)
 							{
-								retn = (LONG_PTR)SendMessage (ptr_page->hwnd, RM_CONFIG_SAVE, (WPARAM)ptr_page->dlg_id, 0);
+								retn = (LONG_PTR)SendMessage (
+									ptr_page->hwnd,
+									RM_CONFIG_SAVE,
+									(WPARAM)ptr_page->dlg_id,
+									0
+								);
 
 								if (retn == -1)
 								{
@@ -4761,11 +4901,6 @@ CleanupExit:
 
 BOOLEAN _r_skipuac_isenabled ()
 {
-#ifndef APP_NO_DEPRECATIONS
-	if (_r_sys_isosversionlower (WINDOWS_VISTA))
-		return FALSE;
-#endif // APP_NO_DEPRECATIONS
-
 	VARIANT empty = {VT_EMPTY};
 
 	ITaskService *task_service = NULL;
@@ -4776,6 +4911,11 @@ BOOLEAN _r_skipuac_isenabled ()
 	BSTR task_name = NULL;
 
 	HRESULT hr;
+
+#ifndef APP_NO_DEPRECATIONS
+	if (_r_sys_isosversionlower (WINDOWS_VISTA))
+		return FALSE;
+#endif // APP_NO_DEPRECATIONS
 
 	hr = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
 
@@ -4831,20 +4971,6 @@ HRESULT _r_skipuac_enable (
 	_In_ BOOLEAN is_enable
 )
 {
-#ifndef APP_NO_DEPRECATIONS
-	if (_r_sys_isosversionlower (WINDOWS_VISTA))
-		return E_NOTIMPL;
-#endif // APP_NO_DEPRECATIONS
-
-	if (hwnd && is_enable)
-	{
-		if (!_r_path_issecurelocation (_r_sys_getimagepath ()))
-		{
-			if (_r_show_message (hwnd, MB_YESNO | MB_ICONWARNING, APP_SECURITY_TITLE, APP_WARNING_UAC_TEXT) != IDYES)
-				return E_ABORT;
-		}
-	}
-
 	VARIANT empty = {VT_EMPTY};
 
 	ITaskService *task_service = NULL;
@@ -4869,6 +4995,20 @@ HRESULT _r_skipuac_enable (
 	BSTR task_args = NULL;
 
 	HRESULT hr;
+
+#ifndef APP_NO_DEPRECATIONS
+	if (_r_sys_isosversionlower (WINDOWS_VISTA))
+		return E_NOTIMPL;
+#endif // APP_NO_DEPRECATIONS
+
+	if (hwnd && is_enable)
+	{
+		if (!_r_path_issecurelocation (_r_sys_getimagepath ()))
+		{
+			if (_r_show_message (hwnd, MB_YESNO | MB_ICONWARNING, APP_SECURITY_TITLE, APP_WARNING_UAC_TEXT) != IDYES)
+				return E_ABORT;
+		}
+	}
 
 	hr = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
 
@@ -5067,11 +5207,6 @@ CleanupExit:
 
 BOOLEAN _r_skipuac_run ()
 {
-#ifndef APP_NO_DEPRECATIONS
-	if (_r_sys_isosversionlower (WINDOWS_VISTA))
-		return FALSE;
-#endif // APP_NO_DEPRECATIONS
-
 	VARIANT empty = {VT_EMPTY};
 
 	ITaskService *task_service = NULL;
@@ -5091,6 +5226,11 @@ BOOLEAN _r_skipuac_run ()
 	INT numargs;
 
 	HRESULT hr;
+
+#ifndef APP_NO_DEPRECATIONS
+	if (_r_sys_isosversionlower (WINDOWS_VISTA))
+		return FALSE;
+#endif // APP_NO_DEPRECATIONS
 
 	hr = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
 
