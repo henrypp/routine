@@ -16275,8 +16275,9 @@ VOID _r_menu_additem_ex (
 
 VOID _r_menu_addsubmenu (
 	_In_ HMENU hmenu,
+	_In_ UINT pos,
 	_In_ HMENU hsubmenu,
-	_In_ LPCWSTR text
+	_In_opt_ LPCWSTR text
 )
 {
 	MENUITEMINFO mii;
@@ -16284,11 +16285,17 @@ VOID _r_menu_addsubmenu (
 	RtlZeroMemory (&mii, sizeof (mii));
 
 	mii.cbSize = sizeof (mii);
-	mii.fMask = MIIM_FTYPE | MIIM_SUBMENU | MIIM_STRING;
+	mii.fMask = MIIM_FTYPE | MIIM_SUBMENU;
 	mii.hSubMenu = hsubmenu;
-	mii.dwTypeData = (LPWSTR)text;
 
-	InsertMenuItem (hmenu, -1, TRUE, &mii);
+	if (text)
+	{
+		mii.fMask |= MIIM_STRING;
+
+		mii.dwTypeData = (LPWSTR)text;
+	}
+
+	InsertMenuItem (hmenu, pos, TRUE, &mii);
 }
 
 VOID _r_menu_checkitem (

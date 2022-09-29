@@ -3998,8 +3998,9 @@ VOID _r_menu_additem_ex (
 
 VOID _r_menu_addsubmenu (
 	_In_ HMENU hmenu,
+	_In_ UINT pos,
 	_In_ HMENU hsubmenu,
-	_In_ LPCWSTR text
+	_In_opt_ LPCWSTR text
 );
 
 VOID _r_menu_checkitem (
