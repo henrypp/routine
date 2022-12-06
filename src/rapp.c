@@ -3476,17 +3476,27 @@ ULONG _r_log_leveltrayicon (
 	{
 		case LOG_LEVEL_DEBUG:
 		case LOG_LEVEL_INFO:
+		{
 			return NIIF_INFO;
+		}
 
 		case LOG_LEVEL_WARNING:
+		{
 			return NIIF_WARNING;
+		}
 
 		case LOG_LEVEL_ERROR:
 		case LOG_LEVEL_CRITICAL:
+		{
 			return NIIF_ERROR;
-	}
+		}
 
-	return NIIF_NONE;
+		case LOG_LEVEL_DISABLED:
+		default:
+		{
+			return NIIF_NONE;
+		}
+	}
 }
 
 #if !defined(APP_CONSOLE)
