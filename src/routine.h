@@ -3041,7 +3041,7 @@ VOID _r_wnd_calculateoverlappedrect (
 	_Inout_ PRECT window_rect
 );
 
-VOID _r_wnd_center (
+BOOLEAN _r_wnd_center (
 	_In_ HWND hwnd,
 	_In_opt_ HWND hparent
 );

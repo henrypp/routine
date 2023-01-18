@@ -11201,8 +11201,6 @@ LONG _r_dc_gettaskbardpi ()
 {
 	APPBARDATA taskbar_rect = {0};
 
-	taskbar_rect.cbSize = sizeof (APPBARDATA);
-
 	if (SHAppBarMessage (ABM_GETTASKBARPOS, &taskbar_rect))
 		return _r_dc_getmonitordpi (&taskbar_rect.rc);
 
@@ -12337,7 +12335,7 @@ VOID _r_wnd_calculateoverlappedrect (
 	}
 }
 
-VOID _r_wnd_center (
+BOOLEAN _r_wnd_center (
 	_In_ HWND hwnd,
 	_In_opt_ HWND hparent
 )
@@ -12350,17 +12348,20 @@ VOID _r_wnd_center (
 	if (hparent)
 	{
 		if (!_r_wnd_isvisible_ex (hparent))
-			return;
+			return FALSE;
+
+		if (IsIconic (hparent))
+			return FALSE;
 
 		if (!_r_wnd_getposition (hwnd, &rectangle) || !_r_wnd_getposition (hparent, &parent_rect))
-			return;
+			return FALSE;
 
 		_r_wnd_centerwindowrect (&rectangle, &parent_rect);
 		_r_wnd_adjustrectangletoworkingarea (&rectangle, hwnd);
 
 		_r_wnd_setposition (hwnd, &rectangle.position, &rectangle.size);
 
-		return;
+		return TRUE;
 	}
 
 	RtlZeroMemory (&monitor_info, sizeof (monitor_info));
@@ -12370,15 +12371,17 @@ VOID _r_wnd_center (
 	hmonitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
 
 	if (!GetMonitorInfo (hmonitor, &monitor_info))
-		return;
+		return FALSE;
 
 	if (!_r_wnd_getposition (hwnd, &rectangle))
-		return;
+		return FALSE;
 
 	_r_wnd_recttorectangle (&parent_rect, &monitor_info.rcWork);
 	_r_wnd_centerwindowrect (&rectangle, &parent_rect);
 
 	_r_wnd_setposition (hwnd, &rectangle.position, &rectangle.size);
+
+	return TRUE;
 }
 
 VOID _r_wnd_centerwindowrect (
