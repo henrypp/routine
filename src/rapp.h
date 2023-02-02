@@ -605,7 +605,6 @@ FORCEINLINE LPCWSTR _r_app_getwebsite_url ()
 
 FORCEINLINE LPCWSTR _r_app_getupdate_url ()
 {
-	//return L"https://www.henrypp.org/update.php?product=" APP_NAME_SHORT;
 	return L"https://raw.githubusercontent.com/henrypp/" APP_NAME_SHORT L"/master/VERSION";
 }
 
