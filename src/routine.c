@@ -4501,6 +4501,7 @@ VOID _r_fs_clearfile (
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_fs_deletedirectory (
 	_In_ LPCWSTR path,
+	_In_ BOOLEAN is_forced,
 	_In_ BOOLEAN is_recurse
 )
 {
@@ -4517,6 +4518,9 @@ ULONG _r_fs_deletedirectory (
 
 	if (!(attributes & FILE_ATTRIBUTE_DIRECTORY))
 		return ERROR_BAD_PATHNAME; // not a directory
+
+	if (is_forced)
+		SetFileAttributes (path, FILE_ATTRIBUTE_NORMAL);
 
 	length = _r_str_getlength (path) + 1;
 
@@ -4539,6 +4543,7 @@ ULONG _r_fs_deletedirectory (
 	return status;
 }
 
+_Success_ (return)
 BOOLEAN _r_fs_deletefile (
 	_In_ LPCWSTR path,
 	_In_ BOOLEAN is_forced
@@ -12936,20 +12941,19 @@ VOID CALLBACK _r_wnd_message_dpichanged (
 	_In_opt_ LPARAM lparam
 )
 {
-	//R_RECTANGLE rectangle;
-	//LPCRECT rect;
+	R_RECTANGLE rectangle;
+	LPCRECT rect;
 
 	UNREFERENCED_PARAMETER (wparam);
-	UNREFERENCED_PARAMETER (lparam);
 
-	//rect = (LPCRECT)lparam;
+	rect = (LPCRECT)lparam;
 
-	//if (!rect)
-	//	return;
+	if (!rect)
+		return;
 
-	//_r_wnd_recttorectangle (&rectangle, rect);
+	_r_wnd_recttorectangle (&rectangle, rect);
 
-	//_r_wnd_setposition (hwnd, &rectangle.position, &rectangle.size);
+	_r_wnd_setposition (hwnd, &rectangle.position, &rectangle.size);
 }
 
 VOID CALLBACK _r_wnd_message_settingchange (
@@ -13482,7 +13486,7 @@ BOOLEAN _r_inet_readrequest (
 	_In_ HINTERNET hrequest,
 	_Out_writes_bytes_ (buffer_size) PVOID buffer,
 	_In_ ULONG buffer_size,
-	_Out_ PULONG readed_ptr,
+	_Out_opt_ PULONG readed_ptr,
 	_Inout_opt_ PULONG total_readed_ptr
 )
 {
@@ -13490,19 +13494,21 @@ BOOLEAN _r_inet_readrequest (
 
 	if (!WinHttpReadData (hrequest, buffer, buffer_size, &readed))
 	{
-		*readed_ptr = 0;
+		if (readed_ptr)
+			*readed_ptr = 0;
 
 		return FALSE;
 	}
 
-	if (!readed)
+	if (readed_ptr && !readed)
 	{
 		*readed_ptr = 0;
 
 		return FALSE;
 	}
 
-	*readed_ptr = readed;
+	if (readed_ptr)
+		*readed_ptr = readed;
 
 	if (total_readed_ptr)
 		*total_readed_ptr += readed;
@@ -13510,6 +13516,7 @@ BOOLEAN _r_inet_readrequest (
 	return TRUE;
 }
 
+_Success_ (return != 0)
 ULONG _r_inet_querycontentlength (
 	_In_ HINTERNET hrequest
 )
@@ -13533,6 +13540,7 @@ ULONG _r_inet_querycontentlength (
 	return 0;
 }
 
+_Success_ (return != 0)
 LONG64 _r_inet_querylastmodified (
 	_In_ HINTERNET hrequest
 )
@@ -13556,6 +13564,7 @@ LONG64 _r_inet_querylastmodified (
 	return 0;
 }
 
+_Success_ (return != 0)
 ULONG _r_inet_querystatuscode (
 	_In_ HINTERNET hrequest
 )
@@ -15463,6 +15472,7 @@ VOID _r_xml_writewhitespace (
 	IXmlWriter_WriteWhitespace (xml_library->writer, whitespace);
 }
 
+
 //
 // System tray
 //
@@ -15870,12 +15880,28 @@ PR_STRING _r_ctrl_getstring (
 		_r_obj_trimstringtonullterminator (string);
 
 		return string;
-
 	}
 
 	_r_obj_dereference (string);
 
 	return NULL;
+}
+
+_Success_ (return != 0)
+LONG _r_ctrl_getnumber (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id
+)
+{
+	INT number;
+	BOOL is_success;
+
+	number = GetDlgItemInt (hwnd, ctrl_id, &is_success, TRUE);
+
+	if (!is_success)
+		return 0;
+
+	return number;
 }
 
 _Success_ (return != 0)

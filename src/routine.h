@@ -1772,9 +1772,11 @@ VOID _r_fs_clearfile (
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_fs_deletedirectory (
 	_In_ LPCWSTR path,
+	_In_ BOOLEAN is_forced,
 	_In_ BOOLEAN is_recurse
 );
 
+_Success_ (return)
 BOOLEAN _r_fs_deletefile (
 	_In_ LPCWSTR path,
 	_In_ BOOLEAN is_forced
@@ -3262,17 +3264,21 @@ BOOLEAN _r_inet_readrequest (
 	_In_ HINTERNET hrequest,
 	_Out_writes_bytes_ (buffer_size) PVOID buffer,
 	_In_ ULONG buffer_size,
-	_Out_ PULONG readed_ptr,
+	_Out_opt_ PULONG readed_ptr,
 	_Inout_opt_ PULONG total_readed_ptr
 );
 
+_Success_ (return != 0)
 ULONG _r_inet_querycontentlength (
 	_In_ HINTERNET hrequest
 );
 
+_Success_ (return != 0)
 LONG64 _r_inet_querylastmodified (
 	_In_ HINTERNET hrequest
 );
+
+_Success_ (return != 0)
 ULONG _r_inet_querystatuscode (
 	_In_ HINTERNET hrequest
 );
@@ -3794,6 +3800,12 @@ LONG64 _r_ctrl_getinteger (
 
 _Ret_maybenull_
 PR_STRING _r_ctrl_getstring (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id
+);
+
+_Success_ (return != 0)
+LONG _r_ctrl_getnumber (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id
 );
