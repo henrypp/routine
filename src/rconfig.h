@@ -118,6 +118,7 @@
 	L"License 3 as published by the Free Software Foundation."
 
 #define APP_EXCEPTION_TITLE L"Exception raised :("
+
 #define APP_SECURITY_TITLE L"Security warning!"
 
 #define APP_FAILED_MESSAGE_TITLE L"It happens ;("

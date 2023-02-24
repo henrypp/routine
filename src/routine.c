@@ -4291,6 +4291,143 @@ BOOLEAN _r_obj_removehashtablepointer (
 // System messages
 //
 
+INT _r_msg (
+	_In_ HWND hwnd,
+	_In_ ULONG flags,
+	_In_opt_ LPCWSTR title,
+	_In_opt_ LPCWSTR main,
+	_In_opt_ LPCWSTR text,
+	_In_opt_ ...
+)
+{
+#ifndef APP_NO_DEPRECATIONS
+	MSGBOXPARAMS mbp;
+#endif // APP_NO_DEPRECATIONS
+
+	TASKDIALOGCONFIG tdc;
+	WCHAR buffer[1024];
+	va_list args;
+	INT result;
+
+	if (text)
+	{
+		va_start (args, text);
+		_r_str_printf_v (buffer, RTL_NUMBER_OF (buffer), text, args);
+		va_end (args);
+	}
+
+#ifndef APP_NO_DEPRECATIONS
+	if (_r_sys_validversion (6, 0))
+	{
+#endif // APP_NO_DEPRECATIONS
+		ZeroMemory (&tdc, sizeof (tdc));
+
+		tdc.cbSize = sizeof (tdc);
+		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
+		tdc.hwndParent = hwnd;
+		tdc.hInstance = GetModuleHandle (NULL);
+		tdc.pfCallback = &_r_msg_callback;
+		tdc.pszWindowTitle = title;
+		tdc.pszMainInstruction = main;
+
+		if (text && buffer[0])
+			tdc.pszContent = buffer;
+
+		// default buttons
+		if ((flags & MB_DEFMASK) == MB_DEFBUTTON2)
+			tdc.nDefaultButton = IDNO;
+
+		// buttons
+		if ((flags & MB_TYPEMASK) == MB_YESNO)
+		{
+			tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
+		}
+		else if ((flags & MB_TYPEMASK) == MB_YESNOCANCEL)
+		{
+			tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON | TDCBF_CANCEL_BUTTON;
+		}
+		else if ((flags & MB_TYPEMASK) == MB_OKCANCEL)
+		{
+			tdc.dwCommonButtons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
+		}
+		else if ((flags & MB_TYPEMASK) == MB_RETRYCANCEL)
+		{
+			tdc.dwCommonButtons = TDCBF_RETRY_BUTTON | TDCBF_CANCEL_BUTTON;
+		}
+		else
+		{
+			tdc.dwCommonButtons = TDCBF_OK_BUTTON;
+		}
+
+		// icons
+		if ((flags & MB_ICONMASK) == MB_USERICON)
+		{
+#ifdef IDI_MAIN
+			tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
+#else
+			tdc.pszMainIcon = MAKEINTRESOURCE (100);
+#endif // IDI_MAIN
+		}
+		else if ((flags & MB_ICONMASK) == MB_ICONASTERISK)
+		{
+			tdc.pszMainIcon = TD_INFORMATION_ICON;
+		}
+		else if ((flags & MB_ICONMASK) == MB_ICONEXCLAMATION)
+		{
+			tdc.pszMainIcon = TD_WARNING_ICON;
+		}
+		else if ((flags & MB_ICONMASK) == MB_ICONQUESTION)
+		{
+			tdc.pszMainIcon = TD_INFORMATION_ICON;
+		}
+		else if ((flags & MB_ICONMASK) == MB_ICONHAND)
+		{
+			tdc.pszMainIcon = TD_ERROR_ICON;
+		}
+
+		if ((flags & MB_TOPMOST) != 0)
+			tdc.lpCallbackData = MAKELONG (0, TRUE);
+
+		if (_r_msg_taskdialog (&tdc, &result, NULL, NULL))
+			return result;
+#ifndef APP_NO_DEPRECATIONS
+	}
+#endif // APP_NO_DEPRECATIONS
+
+#ifndef APP_NO_DEPRECATIONS
+	if (!result)
+	{
+		if (main)
+		{
+			if (!buffer[0])
+			{
+				buffer = main;
+			}
+			else
+			{
+				_r_str_appendformat (buffer.InsertFormat (0, L"%s\r\n\r\n", main);
+			}
+		}
+
+		ZeroMemory (&mbp, sizeof (mbp));
+
+		mbp.cbSize = sizeof (mbp);
+		mbp.hwndOwner = hwnd;
+		mbp.hInstance = GetModuleHandle (NULL);
+		mbp.dwStyle = flags;
+		mbp.lpszCaption = title;
+		mbp.lpszText = buffer;
+
+		if ((flags & MB_ICONMASK) == MB_USERICON)
+			mbp.lpszIcon = MAKEINTRESOURCE (100);
+
+		return MessageBoxIndirect (&mbp);
+	}
+#endif // APP_NO_DEPRECATIONS
+
+	return 0;
+}
+
 _Success_ (return)
 BOOLEAN _r_msg_taskdialog (
 	_In_ const TASKDIALOGCONFIG * task_dialog,
@@ -11206,6 +11343,8 @@ LONG _r_dc_gettaskbardpi ()
 {
 	APPBARDATA taskbar_rect = {0};
 
+	taskbar_rect.cbSize = sizeof (taskbar_rect);
+
 	if (SHAppBarMessage (ABM_GETTASKBARPOS, &taskbar_rect))
 		return _r_dc_getmonitordpi (&taskbar_rect.rc);
 
@@ -12875,7 +13014,7 @@ BOOLEAN _r_wnd_isvisible_ex (
 	if (style & WS_MINIMIZE)
 		return FALSE;
 
-	return !!IsWindowVisible (hwnd);
+	return _r_wnd_isvisible (hwnd);
 }
 
 ULONG CALLBACK _r_wnd_message_callback (
@@ -14705,7 +14844,7 @@ PR_STRING _r_res_querystring_ex (
 		entry_name
 	);
 
-	if (!_r_res_queryvalue (ver_block, entry, &buffer, &length))
+	if (!VerQueryValue (ver_block, entry, &buffer, &length) || !buffer)
 		return NULL;
 
 	if (length <= sizeof (UNICODE_NULL))
@@ -14727,62 +14866,10 @@ ULONG _r_res_querytranslation (
 	PR_VERSION_TRANSLATION buffer;
 	UINT length;
 
-	if (_r_res_queryvalue (ver_block, L"\\VarFileInfo\\Translation", &buffer, &length))
+	if (VerQueryValue (ver_block, L"\\VarFileInfo\\Translation", &buffer, &length))
 		return PR_LANG_TO_LCID (buffer->lang_id, buffer->code_page);
 
 	return PR_LANG_TO_LCID (MAKELANGID (LANG_ENGLISH, SUBLANG_ENGLISH_US), 1252);
-}
-
-_Success_ (return)
-BOOLEAN _r_res_queryvalue (
-	_In_ LPCVOID block,
-	_In_ LPCWSTR sub_block,
-	_Outptr_ PVOID_PTR out_buffer,
-	_Out_ PUINT out_length
-)
-{
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static VQV _VerQueryValue = NULL;
-
-	HINSTANCE hversion;
-	PVOID buffer;
-	UINT length;
-	BOOL is_success;
-
-	if (_r_initonce_begin (&init_once))
-	{
-		hversion = _r_sys_loadlibrary (L"version.dll");
-
-		if (hversion)
-		{
-			_VerQueryValue = (VQV)GetProcAddress (hversion, "VerQueryValueW");
-
-			//FreeLibrary (hversion);
-		}
-
-		_r_initonce_end (&init_once);
-	}
-
-	if (!_VerQueryValue)
-	{
-		*out_buffer = NULL;
-		*out_length = 0;
-
-		return FALSE;
-	}
-
-	is_success = _VerQueryValue (block, sub_block, &buffer, &length);
-
-	if (is_success)
-	{
-		if (!buffer || !length)
-			is_success = FALSE;
-	}
-
-	*out_buffer = buffer;
-	*out_length = length;
-
-	return is_success;
 }
 
 _Success_ (return)
@@ -14793,7 +14880,9 @@ BOOLEAN _r_res_queryversion (
 {
 	UINT length;
 
-	return _r_res_queryvalue (ver_block, L"\\", file_info, &length);
+	*file_info = NULL;
+
+	return !!VerQueryValue (ver_block, L"\\", file_info, &length);
 }
 
 _Ret_maybenull_
@@ -14805,39 +14894,42 @@ PR_STRING _r_res_queryversionstring (
 	PR_STRING string;
 	PVOID ver_block;
 	ULONG ver_size;
-	BOOL result;
+	ULONG handle;
+	BOOL ver_info;
 
-	ver_size = GetFileVersionInfoSize (path, NULL);
+	ver_size = GetFileVersionInfoSizeEx (FILE_VER_GET_LOCALISED | FILE_VER_GET_NEUTRAL, path, &handle);
 
 	if (!ver_size)
 		return NULL;
 
 	ver_block = _r_mem_allocatezero (ver_size);
 
-	result = GetFileVersionInfo (path, 0, ver_size, ver_block);
+	ver_info = GetFileVersionInfo (path, 0, ver_size, ver_block);
 
-	if (result)
+	if (!ver_info)
+		goto CleanupExit;
+
+	ver_info = _r_res_queryversion (ver_block, &file_info);
+
+	if (!ver_info)
+		goto CleanupExit;
+
+	if (file_info->dwSignature == VS_FFI_SIGNATURE)
 	{
-		result = _r_res_queryversion (ver_block, &file_info);
+		string = _r_format_string (
+			L"%" TEXT (PR_ULONG) L".%" TEXT (PR_ULONG) L".%" TEXT (PR_ULONG) L".%" TEXT (PR_ULONG),
+			HIWORD (file_info->dwFileVersionMS),
+			LOWORD (file_info->dwFileVersionMS),
+			HIWORD (file_info->dwFileVersionLS),
+			LOWORD (file_info->dwFileVersionLS)
+		);
 
-		if (result)
-		{
-			if (file_info->dwSignature == VS_FFI_SIGNATURE)
-			{
-				string = _r_format_string (
-					L"%" TEXT (PR_ULONG) L".%" TEXT (PR_ULONG) L".%" TEXT (PR_ULONG) L".%" TEXT (PR_ULONG),
-					HIWORD (file_info->dwFileVersionMS),
-					LOWORD (file_info->dwFileVersionMS),
-					HIWORD (file_info->dwFileVersionLS),
-					LOWORD (file_info->dwFileVersionLS)
-				);
+		_r_mem_free (ver_block);
 
-				_r_mem_free (ver_block);
-
-				return string;
-			}
-		}
+		return string;
 	}
+
+CleanupExit:
 
 	_r_mem_free (ver_block);
 
@@ -15947,7 +16039,8 @@ VOID _r_ctrl_setbuttonmargins (
 	if (!hctrl)
 		return;
 
-	// set button text margin
+	// set button margin
+	dpi_value = _r_dc_getwindowdpi (hctrl);
 	padding = _r_dc_getdpi (4, dpi_value);
 
 	SetRect (&padding_rect, padding, 0, padding, 0);
@@ -16683,16 +16776,6 @@ INT _r_listview_addgroup (
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTGROUP, (WPARAM)group_id, (LPARAM)&lvg);
 }
 
-INT _r_listview_additem (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ INT item_id,
-	_In_ LPCWSTR text
-)
-{
-	return _r_listview_additem_ex (hwnd, ctrl_id, item_id, text, I_IMAGENONE, I_GROUPIDNONE, 0);
-}
-
 INT _r_listview_additem_ex (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
@@ -16735,22 +16818,6 @@ INT _r_listview_additem_ex (
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTITEM, 0, (LPARAM)&lvi);
 }
 
-_Success_ (return != -1)
-INT _r_listview_finditem (
-	_In_ HWND hwnd,
-	_In_ INT listview_id,
-	_In_ INT start_pos,
-	_In_ LPARAM lparam
-)
-{
-	LVFINDINFO lvfi = {0};
-
-	lvfi.flags = LVFI_PARAM;
-	lvfi.lParam = lparam;
-
-	return (INT)SendDlgItemMessage (hwnd, listview_id, LVM_FINDITEM, (WPARAM)start_pos, (LPARAM)&lvfi);
-}
-
 VOID _r_listview_deleteallcolumns (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id
@@ -16765,6 +16832,45 @@ VOID _r_listview_deleteallcolumns (
 
 	for (INT i = column_count; i >= 0; i--)
 		SendDlgItemMessage (hwnd, ctrl_id, LVM_DELETECOLUMN, (WPARAM)i, 0);
+}
+
+VOID _r_listview_fillitems (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ INT item_start,
+	_In_ INT item_end,
+	_In_ INT subitem_id,
+	_In_opt_ LPCWSTR text,
+	_In_ INT image_id
+
+)
+{
+	if (item_start == -1 || item_end == -1)
+	{
+		item_start = 0;
+		item_end = _r_listview_getitemcount (hwnd, ctrl_id);
+	}
+
+	for (INT i = item_start; i < item_end; i++)
+	{
+		_r_listview_setitem_ex (hwnd, ctrl_id, i, subitem_id, text, image_id, I_GROUPIDNONE, 0);
+	}
+}
+
+_Success_ (return != -1)
+INT _r_listview_finditem (
+	_In_ HWND hwnd,
+	_In_ INT listview_id,
+	_In_ INT start_pos,
+	_In_ LPARAM lparam
+)
+{
+	LVFINDINFO lvfi = {0};
+
+	lvfi.flags = LVFI_PARAM;
+	lvfi.lParam = lparam;
+
+	return (INT)SendDlgItemMessage (hwnd, listview_id, LVM_FINDITEM, (WPARAM)start_pos, (LPARAM)&lvfi);
 }
 
 INT _r_listview_getcolumncount (
@@ -17031,26 +17137,6 @@ VOID _r_listview_setcolumnsortindex (
 	Header_SetItem (header, column_id, &hitem);
 }
 
-VOID _r_listview_setitem (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ INT item_id,
-	_In_ INT subitem_id,
-	_In_opt_ LPCWSTR text
-)
-{
-	_r_listview_setitem_ex (
-		hwnd,
-		ctrl_id,
-		item_id,
-		subitem_id,
-		text,
-		I_IMAGENONE,
-		I_GROUPIDNONE,
-		0
-	);
-}
-
 VOID _r_listview_setitem_ex (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
@@ -17073,7 +17159,7 @@ VOID _r_listview_setitem_ex (
 		lvi.pszText = (LPWSTR)text;
 	}
 
-	if (!subitem_id)
+	if (subitem_id == 0)
 	{
 		if (image_id != I_IMAGENONE)
 		{
@@ -17095,22 +17181,6 @@ VOID _r_listview_setitem_ex (
 	}
 
 	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEM, 0, (LPARAM)&lvi);
-}
-
-VOID _r_listview_setitemcheck (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ INT item_id,
-	_In_ BOOLEAN is_check
-)
-{
-	_r_listview_setitemstate (
-		hwnd,
-		ctrl_id,
-		item_id,
-		INDEXTOSTATEIMAGEMASK (is_check ? 2 : 1),
-		LVIS_STATEIMAGEMASK
-	);
 }
 
 VOID _r_listview_setitemstate (
@@ -17253,26 +17323,6 @@ HTREEITEM _r_treeview_additem (
 	return (HTREEITEM)SendDlgItemMessage (hwnd, ctrl_id, TVM_INSERTITEM, 0, (LPARAM)&tvi);
 }
 
-VOID _r_treeview_deleteallitems (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id
-)
-{
-	SendDlgItemMessage (hwnd, ctrl_id, TVM_DELETEITEM, 0, (LPARAM)TVI_ROOT);
-}
-
-INT _r_treeview_getitemcount (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id
-)
-{
-	INT total_count;
-
-	total_count = (INT)SendDlgItemMessage (hwnd, ctrl_id, TVM_GETCOUNT, 0, 0);
-
-	return total_count;
-}
-
 LPARAM _r_treeview_getlparam (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
@@ -17287,22 +17337,6 @@ LPARAM _r_treeview_getlparam (
 	SendDlgItemMessage (hwnd, ctrl_id, TVM_GETITEM, 0, (LPARAM)&tvi);
 
 	return tvi.lParam;
-}
-
-VOID _r_treeview_setitemcheck (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ HTREEITEM item_id,
-	_In_ BOOLEAN is_check
-)
-{
-	_r_treeview_setitemstate (
-		hwnd,
-		ctrl_id,
-		item_id,
-		INDEXTOSTATEIMAGEMASK (is_check ? 2 : 1),
-		TVIS_STATEIMAGEMASK
-	);
 }
 
 VOID _r_treeview_setitemstate (

@@ -1738,6 +1738,15 @@ HRESULT CALLBACK _r_msg_callback (
 	_In_opt_ LONG_PTR lpdata
 );
 
+INT _r_msg (
+	_In_ HWND hwnd,
+	_In_ ULONG flags,
+	_In_opt_ LPCWSTR title,
+	_In_opt_ LPCWSTR main,
+	_In_opt_ LPCWSTR text,
+	...
+);
+
 // TaskDialogIndirect (vista+)
 _Success_ (return)
 BOOLEAN _r_msg_taskdialog (
@@ -3522,14 +3531,6 @@ ULONG _r_res_querytranslation (
 );
 
 _Success_ (return)
-BOOLEAN _r_res_queryvalue (
-	_In_ LPCVOID block,
-	_In_ LPCWSTR sub_block,
-	_Outptr_ PVOID_PTR out_buffer,
-	_Out_ PUINT out_length
-);
-
-_Success_ (return)
 BOOLEAN _r_res_queryversion (
 	_In_ LPCVOID ver_block,
 	_Out_ PVOID_PTR file_info
@@ -3896,7 +3897,7 @@ FORCEINLINE ULONG _r_ctrl_getstringlength (
 FORCEINLINE VOID _r_ctrl_setstring (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
-	_In_ LPCWSTR text
+	_In_opt_ LPCWSTR text
 )
 {
 	SetDlgItemText (hwnd, ctrl_id, text);
@@ -4145,13 +4146,6 @@ INT _r_listview_addgroup (
 	_In_opt_ UINT state_mask
 );
 
-INT _r_listview_additem (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ INT item_id,
-	_In_ LPCWSTR text
-);
-
 INT _r_listview_additem_ex (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
@@ -4162,17 +4156,37 @@ INT _r_listview_additem_ex (
 	_In_opt_ LPARAM lparam
 );
 
+FORCEINLINE INT _r_listview_additem (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ INT item_id,
+	_In_ LPCWSTR text
+)
+{
+	return _r_listview_additem_ex (hwnd, ctrl_id, item_id, text, I_IMAGENONE, I_GROUPIDNONE, 0);
+}
+
+VOID _r_listview_deleteallcolumns (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id
+);
+
+VOID _r_listview_fillitems (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ INT item_start,
+	_In_ INT item_end,
+	_In_ INT subitem_id,
+	_In_opt_ LPCWSTR text,
+	_In_ INT image_id
+);
+
 _Success_ (return != -1)
 INT _r_listview_finditem (
 	_In_ HWND hwnd,
 	_In_ INT listview_id,
 	_In_ INT start_pos,
 	_In_ LPARAM lparam
-);
-
-VOID _r_listview_deleteallcolumns (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id
 );
 
 INT _r_listview_getcolumncount (
@@ -4239,14 +4253,6 @@ VOID _r_listview_setcolumnsortindex (
 	_In_ INT arrow
 );
 
-VOID _r_listview_setitem (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ INT item_id,
-	_In_ INT subitem_id,
-	_In_opt_ LPCWSTR text
-);
-
 VOID _r_listview_setitem_ex (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
@@ -4258,12 +4264,16 @@ VOID _r_listview_setitem_ex (
 	_In_opt_ LPARAM lparam
 );
 
-VOID _r_listview_setitemcheck (
+FORCEINLINE VOID _r_listview_setitem (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ INT item_id,
-	_In_ BOOLEAN is_check
-);
+	_In_ INT subitem_id,
+	_In_opt_ LPCWSTR text
+)
+{
+	_r_listview_setitem_ex (hwnd, ctrl_id, item_id, subitem_id, text, I_IMAGENONE, I_GROUPIDNONE, 0);
+}
 
 VOID _r_listview_setitemstate (
 	_In_ HWND hwnd,
@@ -4272,6 +4282,16 @@ VOID _r_listview_setitemstate (
 	_In_ UINT state,
 	_In_opt_ UINT state_mask
 );
+
+FORCEINLINE VOID _r_listview_setitemcheck (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ INT item_id,
+	_In_ BOOLEAN is_check
+)
+{
+	_r_listview_setitemstate (hwnd, ctrl_id, item_id, INDEXTOSTATEIMAGEMASK (is_check ? 2 : 1), LVIS_STATEIMAGEMASK);
+}
 
 VOID _r_listview_setitemvisible (
 	_In_ HWND hwnd,
@@ -4446,27 +4466,26 @@ HTREEITEM _r_treeview_additem (
 	_In_opt_ LPARAM lparam
 );
 
-VOID _r_treeview_deleteallitems (
+FORCEINLINE VOID _r_treeview_deleteallitems (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id
-);
+)
+{
+	SendDlgItemMessage (hwnd, ctrl_id, TVM_DELETEITEM, 0, (LPARAM)TVI_ROOT);
+}
 
-INT _r_treeview_getitemcount (
+FORCEINLINE INT _r_treeview_getitemcount (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id
-);
+)
+{
+	return (INT)SendDlgItemMessage (hwnd, ctrl_id, TVM_GETCOUNT, 0, 0);
+}
 
 LPARAM _r_treeview_getlparam (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ HTREEITEM hitem
-);
-
-VOID _r_treeview_setitemcheck (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ HTREEITEM item_id,
-	_In_ BOOLEAN is_check
 );
 
 VOID _r_treeview_setitemstate (
@@ -4476,6 +4495,16 @@ VOID _r_treeview_setitemstate (
 	_In_ UINT state,
 	_In_opt_ UINT state_mask
 );
+
+FORCEINLINE VOID _r_treeview_setitemcheck (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ HTREEITEM item_id,
+	_In_ BOOLEAN is_check
+)
+{
+	_r_treeview_setitemstate (hwnd, ctrl_id, item_id, INDEXTOSTATEIMAGEMASK (is_check ? 2 : 1), TVIS_STATEIMAGEMASK);
+}
 
 VOID _r_treeview_setitem (
 	_In_ HWND hwnd,
