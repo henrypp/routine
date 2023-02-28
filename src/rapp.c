@@ -866,16 +866,14 @@ LRESULT CALLBACK _r_app_maindlgproc (
 	{
 		case RM_LOCALIZE:
 		{
-			if (app_global.main.wnd_proc)
-			{
-				CallWindowProc (app_global.main.wnd_proc, hwnd, msg, wparam, lparam);
+			if (!app_global.main.wnd_proc)
+				break;
 
-				RedrawWindow (hwnd, NULL, NULL, RDW_ERASENOW | RDW_INVALIDATE);
+			CallWindowProc (app_global.main.wnd_proc, hwnd, msg, wparam, lparam);
 
-				DrawMenuBar (hwnd); // HACK!!!
+			RedrawWindow (hwnd, NULL, NULL, RDW_ERASENOW | RDW_INVALIDATE);
 
-				return FALSE;
-			}
+			DrawMenuBar (hwnd); // HACK!!!
 
 			break;
 		}
