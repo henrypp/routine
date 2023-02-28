@@ -13114,9 +13114,7 @@ VOID CALLBACK _r_wnd_message_settingchange (
 	_r_obj_initializestringref (&sr, type);
 
 	if (_r_str_isequal2 (&sr, L"WindowMetrics", TRUE))
-	{
 		SendMessage (hwnd, RM_LOCALIZE, 0, 0);
-	}
 }
 
 VOID _r_wnd_rectangletorect (
@@ -16853,6 +16851,9 @@ VOID _r_listview_fillitems (
 
 	for (INT i = item_start; i < item_end; i++)
 	{
+		if (subitem_id)
+			_r_listview_setitem_ex (hwnd, ctrl_id, i, 0, NULL, image_id, I_GROUPIDNONE, 0);
+
 		_r_listview_setitem_ex (hwnd, ctrl_id, i, subitem_id, text, image_id, I_GROUPIDNONE, 0);
 	}
 }
