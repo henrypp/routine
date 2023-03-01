@@ -3900,7 +3900,7 @@ FORCEINLINE VOID _r_ctrl_setstring (
 	_In_opt_ LPCWSTR text
 )
 {
-	SetDlgItemText (hwnd, ctrl_id, text);
+	SendDlgItemMessage (hwnd, ctrl_id, WM_SETTEXT, 0, (LPARAM)text);
 }
 
 //
