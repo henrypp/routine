@@ -568,7 +568,7 @@ FORCEINLINE VOID _r_app_sethwnd (
 }
 #endif // !APP_CONSOLE
 
-FORCEINLINE LPCWSTR _r_app_getname ()
+FORCEINLINE LPWSTR _r_app_getname ()
 {
 	return APP_NAME;
 }
