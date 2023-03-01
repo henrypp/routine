@@ -4405,7 +4405,8 @@ INT _r_msg (
 			}
 			else
 			{
-				_r_str_appendformat (buffer.InsertFormat (0, L"%s\r\n\r\n", main);
+				PR_PRINT_WARNING (L"Not working correctly!");
+				//_r_str_appendformat (buffer.InsertFormat (0, L"%s\r\n\r\n", main);
 			}
 		}
 
@@ -13142,16 +13143,6 @@ VOID _r_wnd_recttorectangle (
 	rectangle->height = rect->bottom - rect->top;
 }
 
-VOID _r_wnd_seticon (
-	_In_ HWND hwnd,
-	_In_opt_ HICON hicon_small,
-	_In_opt_ HICON hicon_big
-)
-{
-	SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hicon_small);
-	SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)hicon_big);
-}
-
 VOID _r_wnd_setrectangle (
 	_Out_ PR_RECTANGLE rectangle,
 	_In_ LONG left,
@@ -14868,19 +14859,6 @@ ULONG _r_res_querytranslation (
 		return PR_LANG_TO_LCID (buffer->lang_id, buffer->code_page);
 
 	return PR_LANG_TO_LCID (MAKELANGID (LANG_ENGLISH, SUBLANG_ENGLISH_US), 1252);
-}
-
-_Success_ (return)
-BOOLEAN _r_res_queryversion (
-	_In_ LPCVOID ver_block,
-	_Out_ PVOID_PTR file_info
-)
-{
-	UINT length;
-
-	*file_info = NULL;
-
-	return !!VerQueryValue (ver_block, L"\\", file_info, &length);
 }
 
 _Ret_maybenull_
