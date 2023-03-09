@@ -15,13 +15,6 @@ static R_QUEUED_LOCK _r_context_lock = PR_QUEUED_LOCK_INIT;
 // Debugging
 //
 
-VOID _r_debug (
-	_In_ LPCWSTR string
-)
-{
-	OutputDebugString (string);
-}
-
 VOID _r_debug_v (
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
@@ -207,18 +200,13 @@ BOOLEAN _r_format_bytesize64 (
 	_In_ ULONG64 bytes
 )
 {
-	HRESULT hr;
+	HRESULT status;
 
 #if defined(APP_NO_DEPRECATIONS)
 	// vista (sp1)+
-	hr = StrFormatByteSizeEx (
-		bytes,
-		SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT,
-		buffer,
-		buffer_size
-	);
+	status = StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, buffer_size);
 
-	if (hr == S_OK)
+	if (status == S_OK)
 		return TRUE;
 #else
 	static R_INITONCE init_once = PR_INITONCE_INIT;
@@ -243,14 +231,9 @@ BOOLEAN _r_format_bytesize64 (
 
 	if (_StrFormatByteSizeEx)
 	{
-		hr = _StrFormatByteSizeEx (
-			bytes,
-			SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT,
-			buffer,
-			buffer_size
-		);
+		status = _StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, buffer_size);
 
-		if (hr == S_OK)
+		if (status == S_OK)
 			return TRUE;
 	}
 #endif // APP_NO_DEPRECATIONS
@@ -276,12 +259,7 @@ PR_STRING _r_format_filetime_ex (
 	buffer_length = 128;
 	string = _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR));
 
-	return_length = SHFormatDateTime (
-		file_time,
-		&flags,
-		string->buffer,
-		buffer_length
-	);
+	return_length = SHFormatDateTime (file_time, &flags, string->buffer, buffer_length);
 
 	if (return_length)
 	{
@@ -305,24 +283,19 @@ PR_STRING _r_format_interval (
 	LONG seconds32;
 	ULONG buffer_length;
 	ULONG return_length;
-	HRESULT hr;
+	HRESULT status;
 
 	seconds = _r_calc_seconds2milliseconds64 (seconds);
 
-	hr = LongLongToLong (seconds, &seconds32);
+	status = LongLongToLong (seconds, &seconds32);
 
-	if (hr != S_OK)
+	if (status != S_OK)
 		return NULL;
 
 	buffer_length = 128;
 	string = _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR));
 
-	return_length = StrFromTimeInterval (
-		string->buffer,
-		buffer_length,
-		seconds32,
-		digits
-	);
+	return_length = StrFromTimeInterval (string->buffer, buffer_length, seconds32, digits);
 
 	if (return_length)
 	{
@@ -336,8 +309,7 @@ PR_STRING _r_format_interval (
 	return NULL;
 }
 
-_Success_ (return)
-BOOLEAN _r_format_number (
+VOID _r_format_number (
 	_Out_writes_ (buffer_size) LPWSTR buffer,
 	_In_ ULONG buffer_size,
 	_In_ LONG64 number
@@ -353,21 +325,13 @@ BOOLEAN _r_format_number (
 
 	if (_r_initonce_begin (&init_once))
 	{
-		if (!GetLocaleInfo (
-			LOCALE_USER_DEFAULT,
-			LOCALE_SDECIMAL,
-			decimal_separator,
-			RTL_NUMBER_OF (decimal_separator)))
+		if (!GetLocaleInfo (LOCALE_USER_DEFAULT, LOCALE_SDECIMAL, decimal_separator, RTL_NUMBER_OF (decimal_separator)))
 		{
 			decimal_separator[0] = L'.';
 			decimal_separator[1] = UNICODE_NULL;
 		}
 
-		if (!GetLocaleInfo (
-			LOCALE_USER_DEFAULT,
-			LOCALE_STHOUSAND,
-			thousand_separator,
-			RTL_NUMBER_OF (thousand_separator)))
+		if (!GetLocaleInfo (LOCALE_USER_DEFAULT, LOCALE_STHOUSAND, thousand_separator, RTL_NUMBER_OF (thousand_separator)))
 		{
 			thousand_separator[0] = L',';
 			thousand_separator[1] = UNICODE_NULL;
@@ -383,19 +347,10 @@ BOOLEAN _r_format_number (
 
 	_r_str_fromlong64 (number_string, RTL_NUMBER_OF (number_string), number);
 
-	result = GetNumberFormat (
-		LOCALE_USER_DEFAULT,
-		0,
-		number_string,
-		&number_format,
-		buffer,
-		buffer_size
-	);
+	result = GetNumberFormat (LOCALE_USER_DEFAULT, 0, number_string, &number_format, buffer, buffer_size);
 
 	if (!result)
 		_r_str_copy (buffer, buffer_size, number_string);
-
-	return TRUE;
 }
 
 _Ret_maybenull_
@@ -464,6 +419,7 @@ ULONG _r_calc_countbits (
 	while (value)
 	{
 		count += 1;
+
 		value &= value - 1;
 	}
 
@@ -503,76 +459,6 @@ LONG _r_calc_multipledivide (
 	}
 
 	return value;
-}
-
-LONG _r_calc_percentof (
-	_In_ LONG length,
-	_In_ LONG total_length
-)
-{
-	LONG value;
-
-	value = (LONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
-
-	return value;
-}
-
-LONG _r_calc_percentof64 (
-	_In_ LONG64 length,
-	_In_ LONG64 total_length
-)
-{
-	LONG value;
-
-	value = (LONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
-
-	return value;
-}
-
-LONG _r_calc_percentval (
-	_In_ LONG percent,
-	_In_ LONG total_length
-)
-{
-	LONG value;
-
-	value = (total_length * percent) / 100;
-
-	return value;
-}
-
-LONG64 _r_calc_percentval64 (
-	_In_ LONG64 percent,
-	_In_ LONG64 total_length
-)
-{
-	LONG64 value;
-
-	value = (total_length * percent) / 100;
-
-	return value;
-}
-
-LONG _r_calc_rectheight (
-	_In_ LPCRECT rect
-)
-{
-	return rect->bottom - rect->top;
-}
-
-LONG _r_calc_rectwidth (
-	_In_ LPCRECT rect
-)
-{
-	return rect->right - rect->left;
-}
-
-ULONG64 _r_calc_roundnumber (
-	_In_ ULONG64 value,
-	_In_ ULONG64 granularity
-)
-{
-	return (value + granularity / 2) / granularity * granularity;
 }
 
 //
@@ -623,14 +509,14 @@ VOID _r_autopool_drain (
 	if (auto_pool->dynamic_count)
 	{
 		_r_obj_dereferencelist (auto_pool->dynamic_objects, auto_pool->dynamic_count);
+
 		auto_pool->dynamic_count = 0;
 
 		if (auto_pool->dynamic_allocated > PR_AUTO_POOL_DYNAMIC_BIG_SIZE)
 		{
 			auto_pool->dynamic_allocated = 0;
 
-			_r_mem_free (auto_pool->dynamic_objects);
-			auto_pool->dynamic_objects = NULL;
+			SAFE_DELETE_MEMORY (auto_pool->dynamic_objects);
 		}
 	}
 }
@@ -757,6 +643,7 @@ BOOLEAN FASTCALL _r_event_wait_ex (
 		{
 			// Someone else set the event before we did.
 			NtClose (event_handle);
+
 			event_handle = event_object->event_handle;
 		}
 	}
@@ -856,6 +743,7 @@ VOID _r_freelist_destroy (
 	while (list_entry)
 	{
 		entry = CONTAINING_RECORD (list_entry, R_FREE_LIST_ENTRY, list_entry);
+
 		list_entry = list_entry->Next;
 
 		_r_mem_free (entry);
@@ -960,6 +848,182 @@ VOID _r_freelist_deleteitem (
 
 // Source: https://github.com/processhacker2/processhacker
 
+FORCEINLINE ULONG _r_queuedlock_getspincount ()
+{
+	if (NtCurrentPeb ()->NumberOfProcessors > 1)
+		return 4000;
+
+	return 0;
+}
+
+FORCEINLINE NTSTATUS _r_queuedlock_blockwaitblock (
+	_Inout_ PR_QUEUED_WAIT_BLOCK wait_block,
+	_In_ BOOLEAN is_spin,
+	_In_opt_ PLARGE_INTEGER timeout
+)
+{
+	HANDLE hevent;
+	NTSTATUS status;
+
+	if (is_spin)
+	{
+		for (ULONG i = _r_queuedlock_getspincount (); i != 0; i--)
+		{
+			if (!(*(volatile ULONG *)&wait_block->flags & PR_QUEUED_WAITER_SPINNING))
+				return STATUS_SUCCESS;
+
+			YieldProcessor ();
+		}
+	}
+
+	if (_interlockedbittestandreset ((PLONG)&wait_block->flags, PR_QUEUED_WAITER_SPINNING_SHIFT))
+	{
+		hevent = _r_queuedlock_getevent ();
+
+		status = NtWaitForKeyedEvent (hevent, wait_block, FALSE, timeout);
+
+		// If an error occurred (timeout is not an error), raise an exception as it is nearly
+		// impossible to recover from this situation.
+		if (!NT_SUCCESS (status))
+			RtlRaiseStatus (status);
+	}
+	else
+	{
+		status = STATUS_SUCCESS;
+	}
+
+	return status;
+}
+
+FORCEINLINE PR_QUEUED_WAIT_BLOCK _r_queuedlock_findlastwaitblock (
+	_In_ ULONG_PTR value
+)
+{
+	PR_QUEUED_WAIT_BLOCK wait_block;
+	PR_QUEUED_WAIT_BLOCK last_wait_block;
+
+	wait_block = _r_queuedlock_getwaitblock (value);
+
+	// Traverse the list until we find the last wait block.
+	// The Last pointer should be set by list optimization, allowing us to skip all, if not most of
+	// the wait blocks.
+	while (TRUE)
+	{
+		last_wait_block = wait_block->last_block;
+
+		if (last_wait_block)
+		{
+			// Follow the Last pointer. This can mean two things: the pointer was set by list
+			// optimization, or this wait block is actually the last wait block (set when it was
+			// pushed onto the list).
+			wait_block = last_wait_block;
+			break;
+		}
+
+		wait_block = wait_block->next_block;
+	}
+
+	return wait_block;
+}
+
+FORCEINLINE PR_QUEUED_WAIT_BLOCK _r_queuedlock_preparetowake (
+	_Inout_ PR_QUEUED_LOCK queued_lock,
+	_In_ ULONG_PTR current_value,
+	_In_ BOOLEAN is_ignoreowned,
+	_In_ BOOLEAN is_wakeall
+)
+{
+	PR_QUEUED_WAIT_BLOCK wait_block;
+	PR_QUEUED_WAIT_BLOCK first_wait_block;
+	PR_QUEUED_WAIT_BLOCK last_wait_block;
+	PR_QUEUED_WAIT_BLOCK previous_wait_block;
+	ULONG_PTR value;
+	ULONG_PTR new_value;
+
+	value = current_value;
+
+	while (TRUE)
+	{
+		// If there are multiple shared owners, no one is going to wake waiters since the lock would
+		// still be owned. Also if there are multiple shared owners they may be traversing the list.
+		// While that is safe when done concurrently with list optimization, we may be removing and
+		// waking waiters.
+		assert (!(value & PR_QUEUED_LOCK_MULTIPLE_SHARED));
+		assert (is_ignoreowned || (value & PR_QUEUED_LOCK_TRAVERSING));
+
+		// There's no point in waking a waiter if the lock is owned. Clear the traversing bit.
+		while (!is_ignoreowned && (value & PR_QUEUED_LOCK_OWNED))
+		{
+			new_value = value - PR_QUEUED_LOCK_TRAVERSING;
+
+			new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+
+			if (new_value == value)
+				return NULL;
+
+			value = new_value;
+		}
+
+		// Finish up any needed optimization (setting the Previous pointers) while finding the last
+		// wait block.
+		wait_block = _r_queuedlock_getwaitblock (value);
+		first_wait_block = wait_block;
+
+		while (TRUE)
+		{
+			last_wait_block = wait_block->last_block;
+
+			if (last_wait_block)
+			{
+				wait_block = last_wait_block;
+				break;
+			}
+
+			previous_wait_block = wait_block;
+			wait_block = wait_block->next_block;
+			wait_block->previous_block = previous_wait_block;
+		}
+
+		// Unlink the relevant wait blocks and clear the traversing bit before we wake waiters.
+		if (!is_wakeall &&
+			(wait_block->flags & PR_QUEUED_WAITER_EXCLUSIVE) &&
+			(previous_wait_block = wait_block->previous_block))
+		{
+			// We have an exclusive waiter and there are multiple waiters. We'll only be waking this
+			// waiter.
+
+			// Unlink the wait block from the list. Although other wait blocks may have their Last
+			// pointers set to this wait block, the algorithm to find the last wait block will stop
+			// here. Likewise the Next pointers are never followed beyond this point, so we don't
+			// need to clear those.
+			first_wait_block->last_block = previous_wait_block;
+
+			// Make sure we only wake this waiter.
+			wait_block->previous_block = NULL;
+
+			// Clear the traversing bit.
+			if (!is_ignoreowned)
+				InterlockedExchangeAddPointer ((PLONG_PTR)&queued_lock->value, -(LONG_PTR)PR_QUEUED_LOCK_TRAVERSING);
+
+			break;
+		}
+		else
+		{
+			// We're waking an exclusive waiter and there is only one waiter, or we are waking a
+			// shared waiter and possibly others.
+			new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, NULL, (PVOID)value);
+
+			if (new_value == value)
+				break;
+
+			// Someone changed the lock (acquired it or pushed a wait block).
+			value = new_value;
+		}
+	}
+
+	return wait_block;
+}
+
 FORCEINLINE BOOLEAN _r_queuedlock_pushwaitblock (
 	_Inout_ PR_QUEUED_LOCK queued_lock,
 	_In_ ULONG_PTR value,
@@ -1012,8 +1076,7 @@ FORCEINLINE BOOLEAN _r_queuedlock_pushwaitblock (
 
 			if (wait_block->shared_owners > 1)
 			{
-				new_value = ((ULONG_PTR)wait_block) | PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_WAITERS |
-					PR_QUEUED_LOCK_MULTIPLE_SHARED;
+				new_value = ((ULONG_PTR)wait_block) | PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_WAITERS | PR_QUEUED_LOCK_MULTIPLE_SHARED;
 			}
 			else
 			{
@@ -1033,11 +1096,7 @@ FORCEINLINE BOOLEAN _r_queuedlock_pushwaitblock (
 	*current_value_ptr = new_value;
 	*is_optimize_ptr = is_optimize;
 
-	new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-		(PVOID_PTR)&queued_lock->value,
-		(PVOID)new_value,
-		(PVOID)value
-	);
+	new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
 
 	*new_value_ptr = new_value;
 
@@ -1097,11 +1156,7 @@ FORCEINLINE VOID _r_queuedlock_optimizelist_ex (
 
 		// Try to clear the traversing bit.
 		new_value = current_value - PR_QUEUED_LOCK_TRAVERSING;
-		new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-			(PVOID_PTR)&queued_lock->value,
-			(PVOID)new_value,
-			(PVOID)current_value
-		);
+		new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)current_value);
 
 		if (new_value == current_value)
 			break;
@@ -1109,6 +1164,24 @@ FORCEINLINE VOID _r_queuedlock_optimizelist_ex (
 		// Either someone pushed a wait block onto the list or someone released ownership. In either
 		// case we need to go back.
 		current_value = new_value;
+	}
+}
+
+FORCEINLINE VOID _r_queuedlock_unblockwaitblock (
+	_Inout_ PR_QUEUED_WAIT_BLOCK wait_block
+)
+{
+	HANDLE hevent;
+	NTSTATUS status;
+
+	if (!_interlockedbittestandreset ((PLONG)&wait_block->flags, PR_QUEUED_WAITER_SPINNING_SHIFT))
+	{
+		hevent = _r_queuedlock_getevent ();
+
+		status = NtReleaseKeyedEvent (hevent, wait_block, FALSE, NULL);
+
+		if (!NT_SUCCESS (status))
+			RtlRaiseStatus (status);
 	}
 }
 
@@ -1132,213 +1205,6 @@ HANDLE _r_queuedlock_getevent ()
 	return hevent;
 }
 
-FORCEINLINE ULONG _r_queuedlock_getspincount ()
-{
-	if (NtCurrentPeb ()->NumberOfProcessors > 1)
-		return 4000;
-
-	return 0;
-}
-
-FORCEINLINE PR_QUEUED_WAIT_BLOCK _r_queuedlock_preparetowake (
-	_Inout_ PR_QUEUED_LOCK queued_lock,
-	_In_ ULONG_PTR current_value,
-	_In_ BOOLEAN is_ignoreowned,
-	_In_ BOOLEAN is_wakeall
-)
-{
-	PR_QUEUED_WAIT_BLOCK wait_block;
-	PR_QUEUED_WAIT_BLOCK first_wait_block;
-	PR_QUEUED_WAIT_BLOCK last_wait_block;
-	PR_QUEUED_WAIT_BLOCK previous_wait_block;
-	ULONG_PTR value;
-	ULONG_PTR new_value;
-
-	value = current_value;
-
-	while (TRUE)
-	{
-		// If there are multiple shared owners, no one is going to wake waiters since the lock would
-		// still be owned. Also if there are multiple shared owners they may be traversing the list.
-		// While that is safe when done concurrently with list optimization, we may be removing and
-		// waking waiters.
-		assert (!(value & PR_QUEUED_LOCK_MULTIPLE_SHARED));
-		assert (is_ignoreowned || (value & PR_QUEUED_LOCK_TRAVERSING));
-
-		// There's no point in waking a waiter if the lock is owned. Clear the traversing bit.
-		while (!is_ignoreowned && (value & PR_QUEUED_LOCK_OWNED))
-		{
-			new_value = value - PR_QUEUED_LOCK_TRAVERSING;
-
-			new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-				(PVOID_PTR)&queued_lock->value,
-				(PVOID)new_value,
-				(PVOID)value
-			);
-
-			if (new_value == value)
-				return NULL;
-
-			value = new_value;
-		}
-
-		// Finish up any needed optimization (setting the Previous pointers) while finding the last
-		// wait block.
-		wait_block = _r_queuedlock_getwaitblock (value);
-		first_wait_block = wait_block;
-
-		while (TRUE)
-		{
-			last_wait_block = wait_block->last_block;
-
-			if (last_wait_block)
-			{
-				wait_block = last_wait_block;
-				break;
-			}
-
-			previous_wait_block = wait_block;
-			wait_block = wait_block->next_block;
-			wait_block->previous_block = previous_wait_block;
-		}
-
-		// Unlink the relevant wait blocks and clear the traversing bit before we wake waiters.
-		if (!is_wakeall &&
-			(wait_block->flags & PR_QUEUED_WAITER_EXCLUSIVE) &&
-			(previous_wait_block = wait_block->previous_block))
-		{
-			// We have an exclusive waiter and there are multiple waiters. We'll only be waking this
-			// waiter.
-
-			// Unlink the wait block from the list. Although other wait blocks may have their Last
-			// pointers set to this wait block, the algorithm to find the last wait block will stop
-			// here. Likewise the Next pointers are never followed beyond this point, so we don't
-			// need to clear those.
-			first_wait_block->last_block = previous_wait_block;
-
-			// Make sure we only wake this waiter.
-			wait_block->previous_block = NULL;
-
-			if (!is_ignoreowned)
-			{
-				// Clear the traversing bit.
-				InterlockedExchangeAddPointer (
-					(PLONG_PTR)&queued_lock->value,
-					-(LONG_PTR)PR_QUEUED_LOCK_TRAVERSING
-				);
-			}
-
-			break;
-		}
-		else
-		{
-			// We're waking an exclusive waiter and there is only one waiter, or we are waking a
-			// shared waiter and possibly others.
-			new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-				(PVOID_PTR)&queued_lock->value,
-				IntToPtr (0),
-				(PVOID)value
-			);
-
-			if (new_value == value)
-				break;
-
-			// Someone changed the lock (acquired it or pushed a wait block).
-			value = new_value;
-		}
-	}
-
-	return wait_block;
-}
-
-FORCEINLINE PR_QUEUED_WAIT_BLOCK _r_queuedlock_findlastwaitblock (
-	_In_ ULONG_PTR value
-)
-{
-	PR_QUEUED_WAIT_BLOCK wait_block;
-	PR_QUEUED_WAIT_BLOCK last_wait_block;
-
-	wait_block = _r_queuedlock_getwaitblock (value);
-
-	// Traverse the list until we find the last wait block.
-	// The Last pointer should be set by list optimization, allowing us to skip all, if not most of
-	// the wait blocks.
-	while (TRUE)
-	{
-		last_wait_block = wait_block->last_block;
-
-		if (last_wait_block)
-		{
-			// Follow the Last pointer. This can mean two things: the pointer was set by list
-			// optimization, or this wait block is actually the last wait block (set when it was
-			// pushed onto the list).
-			wait_block = last_wait_block;
-			break;
-		}
-
-		wait_block = wait_block->next_block;
-	}
-
-	return wait_block;
-}
-
-FORCEINLINE NTSTATUS _r_queuedlock_blockwaitblock (
-	_Inout_ PR_QUEUED_WAIT_BLOCK wait_block,
-	_In_ BOOLEAN is_spin,
-	_In_opt_ PLARGE_INTEGER timeout
-)
-{
-	HANDLE hevent;
-	NTSTATUS status;
-
-	if (is_spin)
-	{
-		for (ULONG i = _r_queuedlock_getspincount (); i != 0; i--)
-		{
-			if (!(*(volatile ULONG *)&wait_block->flags & PR_QUEUED_WAITER_SPINNING))
-				return STATUS_SUCCESS;
-
-			YieldProcessor ();
-		}
-	}
-
-	if (_interlockedbittestandreset ((PLONG)&wait_block->flags, PR_QUEUED_WAITER_SPINNING_SHIFT))
-	{
-		hevent = _r_queuedlock_getevent ();
-
-		status = NtWaitForKeyedEvent (hevent, wait_block, FALSE, timeout);
-
-		// If an error occurred (timeout is not an error), raise an exception as it is nearly
-		// impossible to recover from this situation.
-		if (!NT_SUCCESS (status))
-			RtlRaiseStatus (status);
-	}
-	else
-	{
-		status = STATUS_SUCCESS;
-	}
-
-	return status;
-}
-
-FORCEINLINE VOID _r_queuedlock_unblockwaitblock (
-	_Inout_ PR_QUEUED_WAIT_BLOCK wait_block
-)
-{
-	HANDLE hevent;
-	NTSTATUS status;
-
-	if (!_interlockedbittestandreset ((PLONG)&wait_block->flags, PR_QUEUED_WAITER_SPINNING_SHIFT))
-	{
-		hevent = _r_queuedlock_getevent ();
-
-		status = NtReleaseKeyedEvent (hevent, wait_block, FALSE, NULL);
-
-		if (!NT_SUCCESS (status))
-			RtlRaiseStatus (status);
-	}
-}
-
 VOID FASTCALL _r_queuedlock_acquireexclusive_ex (
 	_Inout_ PR_QUEUED_LOCK queued_lock
 )
@@ -1355,25 +1221,14 @@ VOID FASTCALL _r_queuedlock_acquireexclusive_ex (
 	{
 		if (!(value & PR_QUEUED_LOCK_OWNED))
 		{
-			new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-				(PVOID_PTR)&queued_lock->value,
-				(PVOID)(value + PR_QUEUED_LOCK_OWNED),
-				(PVOID)value
-			);
+			new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)(value + PR_QUEUED_LOCK_OWNED), (PVOID)value);
 
 			if (new_value == value)
 				break;
 		}
 		else
 		{
-			if (_r_queuedlock_pushwaitblock (
-				queued_lock,
-				value,
-				TRUE,
-				&wait_block,
-				&is_optimize,
-				&new_value,
-				&current_value))
+			if (_r_queuedlock_pushwaitblock (queued_lock, value, TRUE, &wait_block, &is_optimize, &new_value, &current_value))
 			{
 				if (is_optimize)
 					_r_queuedlock_optimizelist (queued_lock, current_value);
@@ -1409,25 +1264,14 @@ VOID FASTCALL _r_queuedlock_acquireshared_ex (
 		{
 			new_value = (value + PR_QUEUED_LOCK_SHARED_INC) | PR_QUEUED_LOCK_OWNED;
 
-			new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-				(PVOID_PTR)&queued_lock->value,
-				(PVOID)new_value,
-				(PVOID)value
-			);
+			new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
 
 			if (new_value == value)
 				break;
 		}
 		else
 		{
-			if (_r_queuedlock_pushwaitblock (
-				queued_lock,
-				value,
-				FALSE,
-				&wait_block,
-				&is_optimize,
-				&new_value,
-				&current_value))
+			if (_r_queuedlock_pushwaitblock (queued_lock, value, FALSE, &wait_block, &is_optimize, &new_value, &current_value))
 			{
 				if (is_optimize)
 					_r_queuedlock_optimizelist (queued_lock, current_value);
@@ -1462,11 +1306,7 @@ VOID FASTCALL _r_queuedlock_releaseexclusive_ex (
 			// If there are no waiters, we're simply releasing ownership. If someone is traversing
 			// the list, clearing the owned bit is a signal for them to wake waiters.
 			new_value = value - PR_QUEUED_LOCK_OWNED;
-			new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-				(PVOID_PTR)&queued_lock->value,
-				(PVOID)new_value,
-				(PVOID)value
-			);
+			new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
 
 			if (new_value == value)
 				break;
@@ -1478,11 +1318,7 @@ VOID FASTCALL _r_queuedlock_releaseexclusive_ex (
 			new_value = (value - PR_QUEUED_LOCK_OWNED + PR_QUEUED_LOCK_TRAVERSING);
 			current_value = new_value;
 
-			new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-				(PVOID_PTR)&queued_lock->value,
-				(PVOID)new_value,
-				(PVOID)value
-			);
+			new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
 
 			if (new_value == value)
 			{
@@ -1520,11 +1356,7 @@ VOID FASTCALL _r_queuedlock_releaseshared_ex (
 			new_value = 0;
 		}
 
-		new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-			(PVOID_PTR)&queued_lock->value,
-			(PVOID)new_value,
-			(PVOID)value
-		);
+		new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
 
 		if (new_value == value)
 			return;
@@ -1547,11 +1379,7 @@ VOID FASTCALL _r_queuedlock_releaseshared_ex (
 		{
 			new_value = value & ~(PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_MULTIPLE_SHARED);
 
-			new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-				(PVOID_PTR)&queued_lock->value,
-				(PVOID)new_value,
-				(PVOID)value
-			);
+			new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
 
 			if (new_value == value)
 				break;
@@ -1563,11 +1391,7 @@ VOID FASTCALL _r_queuedlock_releaseshared_ex (
 
 			current_value = new_value;
 
-			new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-				(PVOID_PTR)&queued_lock->value,
-				(PVOID)new_value,
-				(PVOID)value
-			);
+			new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
 
 			if (new_value == value)
 			{
@@ -1596,12 +1420,7 @@ VOID FASTCALL _r_queuedlock_wake (
 	PR_QUEUED_WAIT_BLOCK wait_block;
 	PR_QUEUED_WAIT_BLOCK previous_wait_block;
 
-	wait_block = _r_queuedlock_preparetowake (
-		queued_lock,
-		value,
-		FALSE,
-		FALSE
-	);
+	wait_block = _r_queuedlock_preparetowake (queued_lock, value, FALSE, FALSE);
 
 	// Wake waiters.
 	while (wait_block)
@@ -1622,12 +1441,7 @@ VOID FASTCALL _r_queuedlock_wake_ex (
 	PR_QUEUED_WAIT_BLOCK wait_block;
 	PR_QUEUED_WAIT_BLOCK previous_wait_block;
 
-	wait_block = _r_queuedlock_preparetowake (
-		queued_lock,
-		value,
-		is_ignoreowned,
-		is_wakeall
-	);
+	wait_block = _r_queuedlock_preparetowake (queued_lock, value, is_ignoreowned, is_wakeall);
 
 	// Wake waiters.
 	while (wait_block)
@@ -1648,11 +1462,7 @@ VOID FASTCALL _r_queuedlock_wakeforrelease (
 
 	new_value = value + PR_QUEUED_LOCK_TRAVERSING;
 
-	current_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-		(PVOID_PTR)&queued_lock->value,
-		(PVOID)new_value,
-		(PVOID)value
-	);
+	current_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
 
 	if (current_value == value)
 		_r_queuedlock_wake (queued_lock, new_value);
@@ -1684,14 +1494,7 @@ VOID FASTCALL _r_condition_waitfor (
 
 	while (TRUE)
 	{
-		if (_r_queuedlock_pushwaitblock (
-			condition,
-			value,
-			TRUE,
-			&wait_block,
-			&is_optimize,
-			&value,
-			&current_value))
+		if (_r_queuedlock_pushwaitblock (condition, value, TRUE, &wait_block, &is_optimize, &value, &current_value))
 		{
 			if (is_optimize)
 				_r_queuedlock_optimizelist_ex (condition, current_value, TRUE);
@@ -1727,11 +1530,7 @@ BOOLEAN FASTCALL _r_protection_acquire_ex (
 		if (value & PR_RUNDOWN_ACTIVE)
 			return FALSE;
 
-		new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-			(PVOID_PTR)&protection->value,
-			(PVOID)(value + PR_RUNDOWN_REF_INC),
-			(PVOID)value
-		);
+		new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value + PR_RUNDOWN_REF_INC), (PVOID)value);
 
 		if (new_value == value)
 			return TRUE;
@@ -1764,11 +1563,7 @@ VOID FASTCALL _r_protection_release_ex (
 		else
 		{
 			// Decrement the reference count normally.
-			new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-				(PVOID_PTR)&protection->value,
-				(PVOID)(value - PR_RUNDOWN_REF_INC),
-				(PVOID)value
-			);
+			new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value - PR_RUNDOWN_REF_INC), (PVOID)value);
 
 			if (new_value == value)
 				break;
@@ -1786,11 +1581,7 @@ VOID FASTCALL _r_protection_waitfor_ex (
 	ULONG_PTR count;
 
 	// Fast path. If the reference count is 0 or rundown has already been completed, return.
-	value = (ULONG_PTR)InterlockedCompareExchangePointer (
-		(PVOID_PTR)&protection->value,
-		IntToPtr (PR_RUNDOWN_ACTIVE),
-		IntToPtr (0)
-	);
+	value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, IntToPtr (PR_RUNDOWN_ACTIVE), NULL);
 
 	if (value == 0 || value == PR_RUNDOWN_ACTIVE)
 		return;
@@ -1806,11 +1597,7 @@ VOID FASTCALL _r_protection_waitfor_ex (
 		// Save the existing reference count.
 		wait_block.count = count;
 
-		new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-			(PVOID_PTR)&protection->value,
-			(PVOID)((ULONG_PTR)&wait_block | PR_RUNDOWN_ACTIVE),
-			(PVOID)value
-		);
+		new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)((ULONG_PTR)&wait_block | PR_RUNDOWN_ACTIVE), (PVOID)value);
 
 		if (new_value == value)
 		{
@@ -1864,66 +1651,21 @@ VOID _r_workqueue_initialize (
 
 	if (environment)
 	{
-		work_queue->environment = *environment;
+		RtlCopyMemory (&work_queue->environment, environment, sizeof (R_ENVIRONMENT));
 	}
 	else
 	{
-		_r_sys_setenvironment (
-			&work_queue->environment,
-			THREAD_PRIORITY_NORMAL,
-			IoPriorityNormal,
-			MEMORY_PRIORITY_NORMAL
-		);
+		_r_sys_setenvironment (&work_queue->environment, THREAD_PRIORITY_NORMAL, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
 	}
 
 	work_queue->thread_name = thread_name ? _r_obj_createstring (thread_name) : NULL;
 
-	NtCreateSemaphore (
-		&work_queue->semaphore_handle,
-		SEMAPHORE_ALL_ACCESS,
-		NULL,
-		0,
-		MAXLONG
-	);
+	NtCreateSemaphore (&work_queue->semaphore_handle, SEMAPHORE_ALL_ACCESS, NULL, 0, MAXLONG);
 
 	work_queue->current_threads = 0;
 	work_queue->busy_count = 0;
 
 	work_queue->is_terminating = FALSE;
-}
-
-VOID _r_workqueue_destroy (
-	_Inout_ PR_WORKQUEUE work_queue
-)
-{
-	PR_WORKQUEUE_ITEM work_queue_item;
-	PLIST_ENTRY list_entry;
-
-	// Wait for all worker threads to exit.
-	work_queue->is_terminating = TRUE;
-	MemoryBarrier ();
-
-	NtReleaseSemaphore (
-		work_queue->semaphore_handle,
-		work_queue->current_threads,
-		NULL
-	);
-
-	_r_protection_waitfor (&work_queue->rundown_protect);
-
-	// Free all un-executed work items.
-	list_entry = work_queue->queue_list_head.Flink;
-
-	while (list_entry != &work_queue->queue_list_head)
-	{
-		work_queue_item = CONTAINING_RECORD (list_entry, R_WORKQUEUE_ITEM, list_entry);
-		list_entry = list_entry->Flink;
-
-		_r_workqueue_destroyitem (work_queue_item);
-	}
-
-	NtClose (work_queue->semaphore_handle);
-	work_queue->semaphore_handle = NULL;
 }
 
 PR_WORKQUEUE_ITEM _r_workqueue_createitem (
@@ -1942,6 +1684,37 @@ PR_WORKQUEUE_ITEM _r_workqueue_createitem (
 	work_queue_item->context = context;
 
 	return work_queue_item;
+}
+
+VOID _r_workqueue_destroy (
+	_Inout_ PR_WORKQUEUE work_queue
+)
+{
+	PR_WORKQUEUE_ITEM work_queue_item;
+	PLIST_ENTRY list_entry;
+
+	// Wait for all worker threads to exit.
+	work_queue->is_terminating = TRUE;
+	MemoryBarrier ();
+
+	NtReleaseSemaphore (work_queue->semaphore_handle, work_queue->current_threads, NULL);
+
+	_r_protection_waitfor (&work_queue->rundown_protect);
+
+	// Free all un-executed work items.
+	list_entry = work_queue->queue_list_head.Flink;
+
+	while (list_entry != &work_queue->queue_list_head)
+	{
+		work_queue_item = CONTAINING_RECORD (list_entry, R_WORKQUEUE_ITEM, list_entry);
+
+		list_entry = list_entry->Flink;
+
+		_r_workqueue_destroyitem (work_queue_item);
+	}
+
+	NtClose (work_queue->semaphore_handle);
+	work_queue->semaphore_handle = NULL;
 }
 
 VOID _r_workqueue_destroyitem (
@@ -1996,11 +1769,7 @@ NTSTATUS _r_workqueue_threadproc (
 			// Wait for work.
 			_r_calc_millisecondstolargeinteger (&timeout, work_queue->no_work_timeout);
 
-			status = NtWaitForSingleObject (
-				work_queue->semaphore_handle,
-				FALSE,
-				&timeout
-			);
+			status = NtWaitForSingleObject (work_queue->semaphore_handle, FALSE, &timeout);
 		}
 		else
 		{
@@ -2090,13 +1859,7 @@ VOID _r_workqueue_queueitem (
 		// Make sure the structure doesn't get deleted while the thread is running.
 		if (_r_protection_acquire (&work_queue->rundown_protect))
 		{
-			status = _r_sys_createthread (
-				&_r_workqueue_threadproc,
-				work_queue,
-				NULL,
-				&work_queue->environment,
-				_r_obj_getstring (work_queue->thread_name)
-			);
+			status = _r_sys_createthread (&_r_workqueue_threadproc, work_queue, NULL, &work_queue->environment, _r_obj_getstring (work_queue->thread_name));
 
 			if (NT_SUCCESS (status))
 			{
@@ -2120,10 +1883,7 @@ VOID _r_workqueue_waitforfinish (
 
 	while (!IsListEmpty (&work_queue->queue_list_head))
 	{
-		_r_condition_waitfor (
-			&work_queue->queue_empty_condition,
-			&work_queue->queue_lock
-		);
+		_r_condition_waitfor (&work_queue->queue_empty_condition, &work_queue->queue_lock);
 	}
 
 	_r_queuedlock_releaseexclusive (&work_queue->queue_lock);
@@ -2132,24 +1892,6 @@ VOID _r_workqueue_waitforfinish (
 //
 // Synchronization: Mutex
 //
-
-BOOLEAN _r_mutex_isexists (
-	_In_ LPCWSTR name
-)
-{
-	HANDLE hmutex;
-
-	hmutex = OpenMutex (MUTANT_QUERY_STATE, FALSE, name);
-
-	if (hmutex)
-	{
-		NtClose (hmutex);
-
-		return TRUE;
-	}
-
-	return FALSE;
-}
 
 _When_ (return != FALSE, _Acquires_lock_ (*hmutex))
 BOOLEAN _r_mutex_create (
@@ -2163,10 +1905,10 @@ BOOLEAN _r_mutex_create (
 
 	*hmutex = original_mutex;
 
-	if (original_mutex)
-		return TRUE;
+	if (!original_mutex)
+		return FALSE;
 
-	return FALSE;
+	return TRUE;
 }
 
 _When_ (return != FALSE, _Releases_lock_ (*hmutex))
@@ -2190,6 +1932,23 @@ BOOLEAN _r_mutex_destroy (
 	return FALSE;
 }
 
+_Success_ (return)
+BOOLEAN _r_mutex_isexists (
+	_In_ LPCWSTR name
+)
+{
+	HANDLE hmutex;
+
+	hmutex = OpenMutex (MUTANT_QUERY_STATE, FALSE, name);
+
+	if (!hmutex)
+		return FALSE;
+
+	NtClose (hmutex);
+
+	return TRUE;
+}
+
 //
 // Memory allocation
 //
@@ -2203,40 +1962,15 @@ HANDLE NTAPI _r_mem_getheap ()
 	{
 		// win10rs1 preview (14295)+
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1607))
-		{
-			heap_handle = RtlCreateHeap (
-				HEAP_GROWABLE | HEAP_CLASS_1 | HEAP_CREATE_SEGMENT_HEAP,
-				NULL,
-				0,
-				0,
-				NULL,
-				NULL
-			);
-		}
+			heap_handle = RtlCreateHeap (HEAP_GROWABLE | HEAP_CLASS_1 | HEAP_CREATE_SEGMENT_HEAP, NULL, 0, 0, NULL, NULL);
 
 		if (!heap_handle)
-		{
-			heap_handle = RtlCreateHeap (
-				HEAP_GROWABLE | HEAP_CLASS_1,
-				NULL,
-				_r_calc_megabytes2bytes (2),
-				_r_calc_megabytes2bytes (1),
-				NULL,
-				NULL
-			);
-		}
+			heap_handle = RtlCreateHeap (HEAP_GROWABLE | HEAP_CLASS_1, NULL, _r_calc_megabytes2bytes (2), _r_calc_megabytes2bytes (1), NULL, NULL);
 
 		if (heap_handle)
 		{
 			if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
-			{
-				RtlSetHeapInformation (
-					heap_handle,
-					HeapCompatibilityInformation,
-					&(ULONG){HEAP_COMPATIBILITY_LFH},
-					sizeof (ULONG)
-				);
-			}
+				RtlSetHeapInformation (heap_handle, HeapCompatibilityInformation, &(ULONG){HEAP_COMPATIBILITY_LFH}, sizeof (ULONG));
 		}
 
 		_r_initonce_end (&init_once);
@@ -2255,11 +1989,7 @@ PVOID NTAPI _r_mem_allocate (
 
 	heap_handle = _r_mem_getheap ();
 
-	base_address = RtlAllocateHeap (
-		heap_handle,
-		HEAP_GENERATE_EXCEPTIONS,
-		bytes_count
-	);
+	base_address = RtlAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS, bytes_count);
 
 	return base_address;
 }
@@ -2274,11 +2004,7 @@ PVOID NTAPI _r_mem_allocatezero (
 
 	heap_handle = _r_mem_getheap ();
 
-	base_address = RtlAllocateHeap (
-		heap_handle,
-		HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY,
-		bytes_count
-	);
+	base_address = RtlAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, bytes_count);
 
 	return base_address;
 }
@@ -2294,11 +2020,7 @@ PVOID NTAPI _r_mem_allocatezerosafe (
 
 	heap_handle = _r_mem_getheap ();
 
-	base_address = RtlAllocateHeap (
-		heap_handle,
-		HEAP_ZERO_MEMORY,
-		bytes_count
-	);
+	base_address = RtlAllocateHeap (heap_handle, HEAP_ZERO_MEMORY, bytes_count);
 
 	return base_address;
 }
@@ -2334,12 +2056,7 @@ PVOID NTAPI _r_mem_reallocate (
 
 	heap_handle = _r_mem_getheap ();
 
-	new_address = RtlReAllocateHeap (
-		heap_handle,
-		HEAP_GENERATE_EXCEPTIONS,
-		base_address,
-		bytes_count
-	);
+	new_address = RtlReAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS, base_address, bytes_count);
 
 	return new_address;
 }
@@ -2355,12 +2072,7 @@ PVOID NTAPI _r_mem_reallocatezero (
 
 	heap_handle = _r_mem_getheap ();
 
-	new_address = RtlReAllocateHeap (
-		heap_handle,
-		HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY,
-		base_address,
-		bytes_count
-	);
+	new_address = RtlReAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, base_address, bytes_count);
 
 	return new_address;
 }
@@ -2377,12 +2089,7 @@ PVOID NTAPI _r_mem_reallocatezerosafe (
 
 	heap_handle = _r_mem_getheap ();
 
-	new_address = RtlReAllocateHeap (
-		heap_handle,
-		HEAP_ZERO_MEMORY,
-		base_address,
-		bytes_count
-	);
+	new_address = RtlReAllocateHeap (heap_handle, HEAP_ZERO_MEMORY, base_address, bytes_count);
 
 	return new_address;
 }
@@ -2563,6 +2270,7 @@ PR_BYTE _r_obj_createbyte_ex (
 	if (buffer)
 	{
 		RtlCopyMemory (bytes->buffer, buffer, length);
+
 		_r_obj_writebytenullterminator (bytes);
 	}
 	else
@@ -2679,6 +2387,7 @@ PR_STRING _r_obj_createstring_ex (
 	if (buffer)
 	{
 		RtlCopyMemory (string->buffer, buffer, length);
+
 		_r_obj_writestringnullterminator (string);
 	}
 	else
@@ -2712,15 +2421,15 @@ PR_STRING _r_obj_concatstrings_v (
 	va_list argptr;
 	PR_STRING string;
 	LPCWSTR arg;
+	LPWSTR ptr;
 	SIZE_T cached_length[PR_SIZE_CONCAT_LENGTH_CACHE] = {0};
 	SIZE_T total_length;
 	SIZE_T string_length;
-	SIZE_T i;
 
 	argptr = arg_ptr;
 	total_length = 0;
 
-	for (i = 0; i < count; i++)
+	for (SIZE_T i = 0; i < count; i++)
 	{
 		arg = va_arg (argptr, LPCWSTR);
 
@@ -2739,7 +2448,7 @@ PR_STRING _r_obj_concatstrings_v (
 	argptr = arg_ptr;
 	total_length = 0;
 
-	for (i = 0; i < count; i++)
+	for (SIZE_T i = 0; i < count; i++)
 	{
 		arg = va_arg (argptr, LPCWSTR);
 
@@ -2755,11 +2464,9 @@ PR_STRING _r_obj_concatstrings_v (
 			string_length = _r_str_getlength (arg) * sizeof (WCHAR);
 		}
 
-		RtlCopyMemory (
-			PTR_ADD_OFFSET (string->buffer, total_length),
-			arg,
-			string_length
-		);
+		ptr = PTR_ADD_OFFSET (string->buffer, total_length);
+
+		RtlCopyMemory (ptr, arg, string_length);
 
 		total_length += string_length;
 	}
@@ -2790,13 +2497,13 @@ PR_STRING _r_obj_concatstringrefs_v (
 	va_list argptr;
 	PR_STRINGREF arg;
 	PR_STRING string;
+	LPWSTR ptr;
 	SIZE_T total_length;
-	SIZE_T i;
 
 	argptr = arg_ptr;
 	total_length = 0;
 
-	for (i = 0; i < count; i++)
+	for (SIZE_T i = 0; i < count; i++)
 	{
 		arg = va_arg (argptr, PR_STRINGREF);
 
@@ -2811,18 +2518,16 @@ PR_STRING _r_obj_concatstringrefs_v (
 	argptr = arg_ptr;
 	total_length = 0;
 
-	for (i = 0; i < count; i++)
+	for (SIZE_T i = 0; i < count; i++)
 	{
 		arg = va_arg (argptr, PR_STRINGREF);
 
 		if (!arg || !arg->length)
 			continue;
 
-		RtlCopyMemory (
-			PTR_ADD_OFFSET (string->buffer, total_length),
-			arg->buffer,
-			arg->length
-		);
+		ptr = PTR_ADD_OFFSET (string->buffer, total_length);
+
+		RtlCopyMemory (ptr, arg->buffer, arg->length);
 
 		total_length += arg->length;
 	}
@@ -2875,11 +2580,7 @@ VOID _r_obj_removestring (
 	_In_ SIZE_T length
 )
 {
-	RtlMoveMemory (
-		&string->buffer[start_pos],
-		&string->buffer[start_pos + length],
-		string->length - (length + start_pos) * sizeof (WCHAR)
-	);
+	RtlMoveMemory (&string->buffer[start_pos], &string->buffer[start_pos + length], string->length - (length + start_pos) * sizeof (WCHAR));
 
 	string->length -= (length * sizeof (WCHAR));
 
@@ -2944,21 +2645,6 @@ VOID _r_obj_writestringnullterminator (
 // 8-bit string reference object
 //
 
-VOID _r_obj_initializebyterefempty (
-	_Out_ PR_BYTEREF string
-)
-{
-	_r_obj_initializebyteref_ex (string, NULL, 0);
-}
-
-VOID _r_obj_initializebyterefconst (
-	_Out_ PR_BYTEREF string,
-	_In_ LPCSTR buffer
-)
-{
-	_r_obj_initializebyteref_ex (string, (LPSTR)buffer, _r_str_getbytelength (buffer));
-}
-
 VOID _r_obj_initializebyteref (
 	_Out_ PR_BYTEREF string,
 	_In_ LPSTR buffer
@@ -2983,6 +2669,21 @@ VOID _r_obj_initializebyteref3 (
 	_r_obj_initializebyteref_ex (string, buffer->buffer, buffer->length);
 }
 
+VOID _r_obj_initializebyterefempty (
+	_Out_ PR_BYTEREF string
+)
+{
+	_r_obj_initializebyteref_ex (string, NULL, 0);
+}
+
+VOID _r_obj_initializebyterefconst (
+	_Out_ PR_BYTEREF string,
+	_In_ LPCSTR buffer
+)
+{
+	_r_obj_initializebyteref_ex (string, (LPSTR)buffer, _r_str_getbytelength (buffer));
+}
+
 VOID _r_obj_initializebyteref_ex (
 	_Out_ PR_BYTEREF string,
 	_In_opt_ LPSTR buffer,
@@ -2996,21 +2697,6 @@ VOID _r_obj_initializebyteref_ex (
 //
 // 16-bit string reference object
 //
-
-VOID _r_obj_initializestringrefempty (
-	_Out_ PR_STRINGREF string
-)
-{
-	_r_obj_initializestringref_ex (string, NULL, 0);
-}
-
-VOID _r_obj_initializestringrefconst (
-	_Out_ PR_STRINGREF string,
-	_In_ LPCWSTR buffer
-)
-{
-	_r_obj_initializestringref_ex (string, (LPWSTR)buffer, _r_str_getlength (buffer) * sizeof (WCHAR));
-}
 
 VOID _r_obj_initializestringref (
 	_Out_ PR_STRINGREF string,
@@ -3044,6 +2730,21 @@ VOID _r_obj_initializestringref4 (
 	_r_obj_initializestringref_ex (string, buffer->Buffer, buffer->Length);
 }
 
+VOID _r_obj_initializestringrefempty (
+	_Out_ PR_STRINGREF string
+)
+{
+	_r_obj_initializestringref_ex (string, NULL, 0);
+}
+
+VOID _r_obj_initializestringrefconst (
+	_Out_ PR_STRINGREF string,
+	_In_ LPCWSTR buffer
+)
+{
+	_r_obj_initializestringref_ex (string, (LPWSTR)buffer, _r_str_getlength (buffer) * sizeof (WCHAR));
+}
+
 VOID _r_obj_initializestringref_ex (
 	_Out_ PR_STRINGREF string,
 	_In_opt_ LPWSTR buffer,
@@ -3060,6 +2761,22 @@ VOID _r_obj_initializestringref_ex (
 // Unicode string object
 //
 
+BOOLEAN _r_obj_initializeunicodestring2 (
+	_Out_ PUNICODE_STRING string,
+	_In_ PR_STRING buffer
+)
+{
+	return _r_obj_initializeunicodestring_ex (string, buffer->buffer, (USHORT)buffer->length, (USHORT)buffer->length + sizeof (UNICODE_NULL));
+}
+
+BOOLEAN _r_obj_initializeunicodestring3 (
+	_Out_ PUNICODE_STRING string,
+	_In_ PR_STRINGREF buffer
+)
+{
+	return _r_obj_initializeunicodestring_ex (string, buffer->buffer, (USHORT)buffer->length, (USHORT)buffer->length + sizeof (UNICODE_NULL));
+}
+
 BOOLEAN _r_obj_initializeunicodestring_ex (
 	_Out_ PUNICODE_STRING string,
 	_In_opt_ LPWSTR buffer,
@@ -3074,41 +2791,15 @@ BOOLEAN _r_obj_initializeunicodestring_ex (
 	return string->Length <= UNICODE_STRING_MAX_BYTES;
 }
 
-BOOLEAN _r_obj_initializeunicodestring2 (
-	_Out_ PUNICODE_STRING string,
-	_In_ PR_STRING buffer
-)
-{
-	return _r_obj_initializeunicodestring_ex (
-		string,
-		buffer->buffer,
-		(USHORT)buffer->length,
-		(USHORT)buffer->length + sizeof (UNICODE_NULL)
-	);
-}
-
-BOOLEAN _r_obj_initializeunicodestring3 (
-	_Out_ PUNICODE_STRING string,
-	_In_ PR_STRINGREF buffer
-)
-{
-	return _r_obj_initializeunicodestring_ex (
-		string,
-		buffer->buffer,
-		(USHORT)buffer->length,
-		(USHORT)buffer->length + sizeof (UNICODE_NULL)
-	);
-}
-
 //
 // String builder
 //
 
 VOID _r_obj_initializestringbuilder (
-	_Out_ PR_STRINGBUILDER builder
+	_Out_ PR_STRINGBUILDER sb
 )
 {
-	_r_obj_initializestringbuilder_ex (builder, 256 * sizeof (WCHAR));
+	_r_obj_initializestringbuilder_ex (sb, 256 * sizeof (WCHAR));
 }
 
 VOID _r_obj_initializestringbuilder_ex (
@@ -3135,78 +2826,62 @@ VOID _r_obj_initializestringbuilder_ex (
 	builder->string->buffer[0] = UNICODE_NULL;
 }
 
-VOID _r_obj_deletestringbuilder (
-	_Inout_ PR_STRINGBUILDER builder
-)
-{
-	builder->allocated_length = 0;
-
-	SAFE_DELETE_REFERENCE (builder->string);
-}
-
-PR_STRING _r_obj_finalstringbuilder (
-	_In_ PR_STRINGBUILDER builder
-)
-{
-	return builder->string;
-}
-
 VOID _r_obj_appendstringbuilder (
-	_Inout_ PR_STRINGBUILDER builder,
+	_Inout_ PR_STRINGBUILDER sb,
 	_In_ LPCWSTR string
 )
 {
-	_r_obj_appendstringbuilder_ex (builder, string, _r_str_getlength (string) * sizeof (WCHAR));
+	_r_obj_appendstringbuilder_ex (sb, string, _r_str_getlength (string) * sizeof (WCHAR));
 }
 
 VOID _r_obj_appendstringbuilder2 (
-	_Inout_ PR_STRINGBUILDER builder,
+	_Inout_ PR_STRINGBUILDER sb,
 	_In_ PR_STRING string
 )
 {
-	_r_obj_appendstringbuilder_ex (builder, string->buffer, string->length);
+	_r_obj_appendstringbuilder_ex (sb, string->buffer, string->length);
 }
 
 VOID _r_obj_appendstringbuilder3 (
-	_Inout_ PR_STRINGBUILDER builder,
+	_Inout_ PR_STRINGBUILDER sb,
 	_In_ PR_STRINGREF string
 )
 {
-	_r_obj_appendstringbuilder_ex (builder, string->buffer, string->length);
+	_r_obj_appendstringbuilder_ex (sb, string->buffer, string->length);
 }
 
 VOID _r_obj_appendstringbuilder4 (
-	_Inout_ PR_STRINGBUILDER builder,
+	_Inout_ PR_STRINGBUILDER sb,
 	_In_ PUNICODE_STRING string
 )
 {
-	_r_obj_appendstringbuilder_ex (builder, string->Buffer, string->Length);
+	_r_obj_appendstringbuilder_ex (sb, string->Buffer, string->Length);
 }
 
 VOID _r_obj_appendstringbuilder_ex (
-	_Inout_ PR_STRINGBUILDER builder,
+	_Inout_ PR_STRINGBUILDER sb,
 	_In_ LPCWSTR string,
 	_In_ SIZE_T length
 )
 {
+	LPWSTR ptr;
+
 	// See if we need to re-allocate the string.
-	if (builder->allocated_length < builder->string->length + length)
-		_r_obj_resizestringbuilder (builder, builder->string->length + length);
+	if (sb->allocated_length < sb->string->length + length)
+		_r_obj_resizestringbuilder (sb, sb->string->length + length);
+
+	ptr = PTR_ADD_OFFSET (sb->string->buffer, sb->string->length);
 
 	// Copy the string, add the length, then write the null terminator.
-	RtlCopyMemory (
-		PTR_ADD_OFFSET (builder->string->buffer, builder->string->length),
-		string,
-		length
-	);
+	RtlCopyMemory (ptr, string, length);
 
-	builder->string->length += length;
+	sb->string->length += length;
 
-	_r_obj_writestringnullterminator (builder->string); // terminate
+	_r_obj_writestringnullterminator (sb->string); // terminate
 }
 
 VOID _r_obj_appendstringbuilderformat (
-	_Inout_ PR_STRINGBUILDER builder,
+	_Inout_ PR_STRINGBUILDER sb,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 )
@@ -3214,12 +2889,12 @@ VOID _r_obj_appendstringbuilderformat (
 	va_list arg_ptr;
 
 	va_start (arg_ptr, format);
-	_r_obj_appendstringbuilderformat_v (builder, format, arg_ptr);
+	_r_obj_appendstringbuilderformat_v (sb, format, arg_ptr);
 	va_end (arg_ptr);
 }
 
 VOID _r_obj_appendstringbuilderformat_v (
-	_Inout_ PR_STRINGBUILDER builder,
+	_Inout_ PR_STRINGBUILDER sb,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	_In_ va_list arg_ptr
 )
@@ -3235,20 +2910,37 @@ VOID _r_obj_appendstringbuilderformat_v (
 
 	length_in_bytes = length * sizeof (WCHAR);
 
-	if (builder->allocated_length < builder->string->length + length_in_bytes)
-		_r_obj_resizestringbuilder (builder, builder->string->length + length_in_bytes);
+	if (sb->allocated_length < sb->string->length + length_in_bytes)
+		_r_obj_resizestringbuilder (sb, sb->string->length + length_in_bytes);
 
 #pragma warning(push)
 #pragma warning(disable: _UCRT_DISABLED_WARNINGS)
 
-	buffer = PTR_ADD_OFFSET (builder->string->buffer, builder->string->length);
+	buffer = PTR_ADD_OFFSET (sb->string->buffer, sb->string->length);
+
 	_vsnwprintf (buffer, length, format, arg_ptr);
 
 #pragma warning(pop)
 
-	builder->string->length += length_in_bytes;
+	sb->string->length += length_in_bytes;
 
-	_r_obj_writestringnullterminator (builder->string); // terminate
+	_r_obj_writestringnullterminator (sb->string); // terminate
+}
+
+VOID _r_obj_deletestringbuilder (
+	_Inout_ PR_STRINGBUILDER sb
+)
+{
+	sb->allocated_length = 0;
+
+	SAFE_DELETE_REFERENCE (sb->string);
+}
+
+PR_STRING _r_obj_finalstringbuilder (
+	_In_ PR_STRINGBUILDER sb
+)
+{
+	return sb->string;
 }
 
 VOID _r_obj_insertstringbuilder (
@@ -3309,11 +3001,7 @@ VOID _r_obj_insertstringbuilder_ex (
 	}
 
 	// Copy the new string.
-	RtlCopyMemory (
-		&builder->string->buffer[index],
-		string,
-		length
-	);
+	RtlCopyMemory (&builder->string->buffer[index], string, length);
 
 	builder->string->length += length;
 
@@ -3355,13 +3043,7 @@ VOID _r_obj_insertstringbuilderformat_v (
 		_r_obj_resizestringbuilder (builder, builder->string->length + length_in_bytes);
 
 	if ((index * sizeof (WCHAR)) < builder->string->length)
-	{
-		RtlMoveMemory (
-			&builder->string->buffer[index + length],
-			&builder->string->buffer[index],
-			builder->string->length - (index * sizeof (WCHAR))
-		);
-	}
+		RtlMoveMemory (&builder->string->buffer[index + length], &builder->string->buffer[index], builder->string->length - (index * sizeof (WCHAR)));
 
 #pragma warning(push)
 #pragma warning(disable: _UCRT_DISABLED_WARNINGS)
@@ -3394,11 +3076,7 @@ VOID _r_obj_resizestringbuilder (
 	new_string = _r_obj_createstring_ex (NULL, new_size);
 
 	// Copy the old string to the new string.
-	RtlCopyMemory (
-		new_string->buffer,
-		builder->string->buffer,
-		builder->string->length + sizeof (UNICODE_NULL)
-	);
+	RtlCopyMemory (new_string->buffer, builder->string->buffer, builder->string->length + sizeof (UNICODE_NULL));
 
 	// Copy the old string length.
 	new_string->length = builder->string->length;
@@ -3514,7 +3192,6 @@ VOID _r_obj_cleararray (
 {
 	PVOID array_item;
 	SIZE_T count;
-	SIZE_T i;
 
 	if (!array_node->count)
 		return;
@@ -3524,7 +3201,7 @@ VOID _r_obj_cleararray (
 
 	if (array_node->cleanup_callback)
 	{
-		for (i = 0; i < count; i++)
+		for (SIZE_T i = 0; i < count; i++)
 		{
 			array_item = PTR_ADD_OFFSET (array_node->items, i * array_node->item_size);
 
@@ -3581,11 +3258,7 @@ VOID _r_obj_removearrayitems (
 		}
 	}
 
-	RtlMoveMemory (
-		dst,
-		src,
-		(array_node->count - start_pos - count) * array_node->item_size
-	);
+	RtlMoveMemory (dst, src, (array_node->count - start_pos - count) * array_node->item_size);
 
 	array_node->count -= count;
 }
@@ -3600,10 +3273,7 @@ VOID _r_obj_resizearray (
 
 	array_node->allocated_count = new_capacity;
 
-	array_node->items = _r_mem_reallocatezero (
-		array_node->items,
-		array_node->allocated_count * array_node->item_size
-	);
+	array_node->items = _r_mem_reallocatezero (array_node->items, array_node->allocated_count * array_node->item_size);
 }
 
 //
@@ -3626,9 +3296,7 @@ PR_LIST _r_obj_createlist_ex (
 	list_node->cleanup_callback = cleanup_callback;
 	list_node->count = 0;
 
-	list_node->items = _r_mem_allocatezero (
-		list_node->allocated_count * sizeof (PVOID)
-	);
+	list_node->items = _r_mem_allocatezero (list_node->allocated_count * sizeof (PVOID));
 
 	return list_node;
 }
@@ -3675,7 +3343,6 @@ VOID _r_obj_clearlist (
 {
 	PVOID list_item;
 	SIZE_T count;
-	SIZE_T i;
 
 	if (!list_node->count)
 		return;
@@ -3685,7 +3352,7 @@ VOID _r_obj_clearlist (
 
 	if (list_node->cleanup_callback)
 	{
-		for (i = 0; i < count; i++)
+		for (SIZE_T i = 0; i < count; i++)
 		{
 			list_item = list_node->items[i];
 
@@ -3748,13 +3415,7 @@ VOID _r_obj_insertlistitems (
 	}
 
 	if (start_pos < list_node->count)
-	{
-		RtlMoveMemory (
-			&list_node->items[start_pos + count],
-			&list_node->items[start_pos],
-			(list_node->count - start_pos) * sizeof (PVOID)
-		);
-	}
+		RtlMoveMemory (&list_node->items[start_pos + count], &list_node->items[start_pos], (list_node->count - start_pos) * sizeof (PVOID));
 
 	RtlCopyMemory (&list_node->items[start_pos], list_items, count * sizeof (PVOID));
 
@@ -3789,11 +3450,7 @@ VOID _r_obj_removelistitems (
 		}
 	}
 
-	RtlMoveMemory (
-		&list_node->items[start_pos],
-		&list_node->items[start_pos + count],
-		(list_node->count - start_pos - count) * sizeof (PVOID)
-	);
+	RtlMoveMemory (&list_node->items[start_pos], &list_node->items[start_pos + count], (list_node->count - start_pos - count) * sizeof (PVOID));
 
 	list_node->count -= count;
 }
@@ -3825,11 +3482,11 @@ VOID _r_obj_setlistitem (
 	prev_list_item = list_node->items[index];
 	list_node->items[index] = list_item;
 
-	if (list_node->cleanup_callback)
-	{
-		if (prev_list_item)
-			list_node->cleanup_callback (prev_list_item);
-	}
+	if (!list_node->cleanup_callback)
+		return;
+
+	if (prev_list_item)
+		list_node->cleanup_callback (prev_list_item);
 }
 
 //
@@ -3862,17 +3519,11 @@ PR_HASHTABLE _r_obj_createhashtable_ex (
 	hashtable->buckets = _r_mem_allocatezero (hashtable->allocated_buckets * sizeof (SIZE_T));
 
 	// Set all bucket values to -1.
-	memset (
-		hashtable->buckets,
-		PR_HASHTABLE_INIT_VALUE,
-		hashtable->allocated_buckets * sizeof (SIZE_T)
-	);
+	memset (hashtable->buckets, PR_HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
 
 	// Allocate the entries.
 	hashtable->allocated_entries = hashtable->allocated_buckets;
-	hashtable->entries = _r_mem_allocatezero (
-		hashtable->allocated_entries * PR_HASHTABLE_ENTRY_SIZE (entry_size)
-	);
+	hashtable->entries = _r_mem_allocatezero (hashtable->allocated_entries * PR_HASHTABLE_ENTRY_SIZE (entry_size));
 
 	hashtable->count = 0;
 	hashtable->free_entry = SIZE_MAX;
@@ -3939,7 +3590,7 @@ FORCEINLINE PVOID _r_obj_addhashtableitem_ex (
 			index = _r_obj_indexfromhash (hashtable, valid_hash);
 		}
 
-		free_entry = hashtable->next_entry++;
+		free_entry = hashtable->next_entry += 1;
 		hashtable_entry = PR_HASHTABLE_GET_ENTRY (hashtable, free_entry);
 	}
 
@@ -4017,11 +3668,7 @@ VOID _r_obj_clearhashtable (
 
 	next_entry = hashtable->next_entry;
 
-	memset (
-		hashtable->buckets,
-		PR_HASHTABLE_INIT_VALUE,
-		hashtable->allocated_buckets * sizeof (SIZE_T)
-	);
+	memset (hashtable->buckets, PR_HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
 
 	hashtable->count = 0;
 	hashtable->free_entry = SIZE_MAX;
@@ -4170,25 +3817,15 @@ VOID _r_obj_resizehashtable (
 	// Re-allocate the buckets. Note that we don't need to keep the contents.
 	hashtable->allocated_buckets = _r_math_rounduptopoweroftwo (new_capacity);
 
-	hashtable->buckets = _r_mem_reallocatezero (
-		hashtable->buckets,
-		hashtable->allocated_buckets * sizeof (SIZE_T)
-	);
+	hashtable->buckets = _r_mem_reallocatezero (hashtable->buckets, hashtable->allocated_buckets * sizeof (SIZE_T));
 
 	// Set all bucket values to -1.
-	memset (
-		hashtable->buckets,
-		PR_HASHTABLE_INIT_VALUE,
-		hashtable->allocated_buckets * sizeof (SIZE_T)
-	);
+	memset (hashtable->buckets, PR_HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
 
 	// Re-allocate the entries.
 	hashtable->allocated_entries = hashtable->allocated_buckets;
 
-	hashtable->entries = _r_mem_reallocatezero (
-		hashtable->entries,
-		PR_HASHTABLE_ENTRY_SIZE (hashtable->entry_size) * hashtable->allocated_entries
-	);
+	hashtable->entries = _r_mem_reallocatezero (hashtable->entries, PR_HASHTABLE_ENTRY_SIZE (hashtable->entry_size) * hashtable->allocated_entries);
 
 	// Re-distribute the entries among the buckets.
 
@@ -4217,11 +3854,7 @@ PR_HASHTABLE _r_obj_createhashtablepointer (
 	_In_ SIZE_T initial_capacity
 )
 {
-	return _r_obj_createhashtable_ex (
-		sizeof (R_OBJECT_POINTER),
-		initial_capacity,
-		&_r_util_cleanhashtablepointer_callback
-	);
+	return _r_obj_createhashtable_ex (sizeof (R_OBJECT_POINTER), initial_capacity, &_r_util_cleanhashtablepointer_callback);
 }
 
 _Ret_maybenull_
@@ -4309,6 +3942,8 @@ INT _r_msg (
 	va_list args;
 	INT result;
 
+	result = 0;
+
 	if (text)
 	{
 		va_start (args, text);
@@ -4317,7 +3952,7 @@ INT _r_msg (
 	}
 
 #ifndef APP_NO_DEPRECATIONS
-	if (_r_sys_validversion (6, 0))
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
 	{
 #endif // APP_NO_DEPRECATIONS
 		ZeroMemory (&tdc, sizeof (tdc));
@@ -4325,7 +3960,7 @@ INT _r_msg (
 		tdc.cbSize = sizeof (tdc);
 		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
 		tdc.hwndParent = hwnd;
-		tdc.hInstance = GetModuleHandle (NULL);
+		tdc.hInstance = _r_sys_getimagebase ();
 		tdc.pfCallback = &_r_msg_callback;
 		tdc.pszWindowTitle = title;
 		tdc.pszMainInstruction = main;
@@ -4399,28 +4034,34 @@ INT _r_msg (
 	{
 		if (main)
 		{
-			if (!buffer[0])
-			{
-				buffer = main;
-			}
-			else
-			{
-				PR_PRINT_WARNING (L"Not working correctly!");
-				//_r_str_appendformat (buffer.InsertFormat (0, L"%s\r\n\r\n", main);
-			}
+			//if (!buffer[0])
+			//{
+			//	//buffer = main;
+			//}
+			//else
+			//{
+			//	//PR_PRINT_WARNING (L"Not working correctly!");
+			//	//_r_str_appendformat (buffer.InsertFormat (0, L"%s\r\n\r\n", main);
+			//}
 		}
 
 		ZeroMemory (&mbp, sizeof (mbp));
 
 		mbp.cbSize = sizeof (mbp);
 		mbp.hwndOwner = hwnd;
-		mbp.hInstance = GetModuleHandle (NULL);
+		mbp.hInstance = _r_sys_getimagebase ();
 		mbp.dwStyle = flags;
 		mbp.lpszCaption = title;
 		mbp.lpszText = buffer;
 
 		if ((flags & MB_ICONMASK) == MB_USERICON)
-			mbp.lpszIcon = MAKEINTRESOURCE (100);
+		{
+#ifdef IDI_MAIN
+			mbp.lpszIcon = MAKEINTRESOURCE (IDI_MAIN);
+#else
+			tdc.pszMainIcon = MAKEINTRESOURCE (100);
+#endif // IDI_MAIN
+		}
 
 		return MessageBoxIndirect (&mbp);
 	}
@@ -4437,7 +4078,7 @@ BOOLEAN _r_msg_taskdialog (
 	_Out_opt_ LPBOOL is_flagchecked_ptr
 )
 {
-	HRESULT hr;
+	HRESULT status;
 
 #if !defined(APP_NO_DEPRECATIONS)
 	static R_INITONCE init_once = PR_INITONCE_INIT;
@@ -4460,32 +4101,18 @@ BOOLEAN _r_msg_taskdialog (
 		_r_initonce_end (&init_once);
 	}
 
-	if (_TaskDialogIndirect)
-	{
-		hr = _TaskDialogIndirect (
-			task_dialog,
-			button_ptr,
-			radio_button_ptr,
-			is_flagchecked_ptr
-		);
-	}
-	else
-	{
+	if (!_TaskDialogIndirect)
 		return FALSE;
-	}
+
+	status = _TaskDialogIndirect (task_dialog, button_ptr, radio_button_ptr, is_flagchecked_ptr);
 
 #else
 
-	hr = TaskDialogIndirect (
-		task_dialog,
-		button_ptr,
-		radio_button_ptr,
-		is_flagchecked_ptr
-	);
+	status = TaskDialogIndirect (task_dialog, button_ptr, radio_button_ptr, is_flagchecked_ptr);
 
 #endif // APP_NO_DEPRECATIONS
 
-	return (hr == S_OK);
+	return (status == S_OK);
 }
 
 HRESULT CALLBACK _r_msg_callback (
@@ -4543,7 +4170,7 @@ HRESULT CALLBACK _r_msg_callback (
 }
 
 //
-// Clipboard operations
+// Clipboard
 //
 
 _Ret_maybenull_
@@ -4722,17 +4349,11 @@ NTSTATUS _r_fs_getattributes (
 	_Out_ PULONG attributes_ptr
 )
 {
-	FILE_BASIC_INFORMATION info;
+	FILE_BASIC_INFORMATION info = {0};
 	IO_STATUS_BLOCK io;
 	NTSTATUS status;
 
-	status = NtQueryInformationFile (
-		hfile,
-		&io,
-		&info,
-		sizeof (info),
-		FileBasicInformation
-	);
+	status = NtQueryInformationFile (hfile, &io, &info, sizeof (info), FileBasicInformation);
 
 	if (NT_SUCCESS (status))
 	{
@@ -4746,48 +4367,38 @@ NTSTATUS _r_fs_getattributes (
 	return status;
 }
 
-LONG64 _r_fs_getpos (
-	_In_ HANDLE hfile
-)
-{
-	FILE_POSITION_INFORMATION info;
-	IO_STATUS_BLOCK io;
-	NTSTATUS status;
-
-	status = NtQueryInformationFile (
-		hfile,
-		&io,
-		&info,
-		sizeof (info),
-		FilePositionInformation
-	);
-
-	if (!NT_SUCCESS (status))
-		return 0;
-
-	return info.CurrentByteOffset.QuadPart;
-}
-
+_Success_ (return != 0)
 LONG64 _r_fs_getsize (
 	_In_ HANDLE hfile
 )
 {
-	FILE_STANDARD_INFORMATION info;
+	FILE_STANDARD_INFORMATION info = {0};
 	IO_STATUS_BLOCK io;
 	NTSTATUS status;
 
-	status = NtQueryInformationFile (
-		hfile,
-		&io,
-		&info,
-		sizeof (info),
-		FileStandardInformation
-	);
+	status = NtQueryInformationFile (hfile, &io, &info, sizeof (info), FileStandardInformation);
 
 	if (!NT_SUCCESS (status))
 		return 0;
 
 	return info.EndOfFile.QuadPart;
+}
+
+_Success_ (return != 0)
+LONG64 _r_fs_getpos (
+	_In_ HANDLE hfile
+)
+{
+	FILE_POSITION_INFORMATION info = {0};
+	IO_STATUS_BLOCK io;
+	NTSTATUS status;
+
+	status = NtQueryInformationFile (hfile, &io, &info, sizeof (info), FilePositionInformation);
+
+	if (!NT_SUCCESS (status))
+		return 0;
+
+	return info.CurrentByteOffset.QuadPart;
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -4798,17 +4409,11 @@ NTSTATUS _r_fs_gettimestamp (
 	_Out_opt_ PFILETIME write_time
 )
 {
-	FILE_BASIC_INFORMATION info;
+	FILE_BASIC_INFORMATION info = {0};
 	IO_STATUS_BLOCK io;
 	NTSTATUS status;
 
-	status = NtQueryInformationFile (
-		hfile,
-		&io,
-		&info,
-		sizeof (info),
-		FileBasicInformation
-	);
+	status = NtQueryInformationFile (hfile, &io, &info, sizeof (info), FileBasicInformation);
 
 	if (!NT_SUCCESS (status))
 		RtlZeroMemory (&info, sizeof (info));
@@ -4885,14 +4490,7 @@ ULONG _r_fs_mapfile (
 		return status;
 	}
 
-	hmap = CreateFileMapping (
-		hfile,
-		NULL,
-		PAGE_READONLY,
-		file_size.HighPart,
-		file_size.LowPart,
-		NULL
-	);
+	hmap = CreateFileMapping (hfile, NULL, PAGE_READONLY, file_size.HighPart, file_size.LowPart, NULL);
 
 	if (!hmap)
 	{
@@ -4977,19 +4575,13 @@ NTSTATUS _r_fs_setpos (
 	_In_ LONG64 new_pos
 )
 {
-	FILE_POSITION_INFORMATION info;
+	FILE_POSITION_INFORMATION info = {0};
 	IO_STATUS_BLOCK io;
 	NTSTATUS status;
 
 	info.CurrentByteOffset.QuadPart = new_pos;
 
-	status = NtSetInformationFile (
-		hfile,
-		&io,
-		&info,
-		sizeof (info),
-		FilePositionInformation
-	);
+	status = NtSetInformationFile (hfile, &io, &info, sizeof (info), FilePositionInformation);
 
 	return status;
 }
@@ -5000,19 +4592,13 @@ NTSTATUS _r_fs_setsize (
 	_In_ LONG64 new_size
 )
 {
-	FILE_END_OF_FILE_INFORMATION info;
+	FILE_END_OF_FILE_INFORMATION info = {0};
 	IO_STATUS_BLOCK io;
 	NTSTATUS status;
 
 	info.EndOfFile.QuadPart = new_size;
 
-	status = NtSetInformationFile (
-		hfile,
-		&io,
-		&info,
-		sizeof (info),
-		FileEndOfFileInformation
-	);
+	status = NtSetInformationFile (hfile, &io, &info, sizeof (info), FileEndOfFileInformation);
 
 	return status;
 }
@@ -5025,7 +4611,7 @@ NTSTATUS _r_fs_settimestamp (
 	_In_opt_ PFILETIME write_time
 )
 {
-	FILE_BASIC_INFORMATION info;
+	FILE_BASIC_INFORMATION info = {0};
 	IO_STATUS_BLOCK io;
 	NTSTATUS status;
 
@@ -5049,13 +4635,7 @@ NTSTATUS _r_fs_settimestamp (
 		info.LastWriteTime.LowPart = write_time->dwLowDateTime;
 	}
 
-	status = NtSetInformationFile (
-		hfile,
-		&io,
-		&info,
-		sizeof (info),
-		FileBasicInformation
-	);
+	status = NtSetInformationFile (hfile, &io, &info, sizeof (info), FileBasicInformation);
 
 	return status;
 }
@@ -5234,26 +4814,25 @@ PR_STRING _r_path_getknownfolder (
 )
 {
 	PR_STRING string;
+	LPWSTR dst;
 	SIZE_T append_length;
-	HRESULT hr;
+	HRESULT status;
 
 	append_length = append ? _r_str_getlength (append) * sizeof (WCHAR) : 0;
 
 	string = _r_obj_createstring_ex (NULL, (256 * sizeof (WCHAR)) + append_length);
 
-	hr = SHGetFolderPath (NULL, folder, NULL, SHGFP_TYPE_CURRENT, string->buffer);
+	status = SHGetFolderPath (NULL, folder, NULL, SHGFP_TYPE_CURRENT, string->buffer);
 
-	if (hr == S_OK)
+	if (status == S_OK)
 	{
 		_r_obj_trimstringtonullterminator (string);
 
 		if (append)
 		{
-			RtlCopyMemory (
-				&string->buffer[_r_str_getlength2 (string)],
-				append,
-				append_length + sizeof (UNICODE_NULL)
-			);
+			dst = &string->buffer[_r_str_getlength2 (string)];
+
+			RtlCopyMemory (dst, append, append_length + sizeof (UNICODE_NULL));
 
 			string->length += append_length;
 		}
@@ -5606,13 +5185,7 @@ PR_STRING _r_path_resolvedeviceprefix (
 	PROCESS_DEVICEMAP_INFORMATION_EX device_map = {0};
 #endif
 
-	status = NtQueryInformationProcess (
-		NtCurrentProcess (),
-		ProcessDeviceMap,
-		&device_map,
-		sizeof (device_map),
-		NULL
-	);
+	status = NtQueryInformationProcess (NtCurrentProcess (), ProcessDeviceMap, &device_map, sizeof (device_map), NULL);
 
 	if (NT_SUCCESS (status))
 	{
@@ -5641,11 +5214,7 @@ PR_STRING _r_path_resolvedeviceprefix (
 				NULL
 			);
 
-			status = NtOpenSymbolicLinkObject (
-				&link_handle,
-				SYMBOLIC_LINK_QUERY,
-				&object_attributes
-			);
+			status = NtOpenSymbolicLinkObject (&link_handle, SYMBOLIC_LINK_QUERY, &object_attributes);
 
 			if (NT_SUCCESS (status))
 			{
@@ -5656,11 +5225,7 @@ PR_STRING _r_path_resolvedeviceprefix (
 					RTL_NUMBER_OF (device_prefix_buffer) * sizeof (WCHAR)
 				);
 
-				status = NtQuerySymbolicLinkObject (
-					link_handle,
-					&device_prefix,
-					NULL
-				);
+				status = NtQuerySymbolicLinkObject (link_handle, &device_prefix, NULL);
 
 				if (NT_SUCCESS (status))
 				{
@@ -5676,19 +5241,12 @@ PR_STRING _r_path_resolvedeviceprefix (
 							path->buffer[prefix_length] == OBJ_NAME_PATH_SEPARATOR)
 						{
 							// <letter>:path
-							string = _r_obj_createstring_ex (
-								NULL,
-								(2 * sizeof (WCHAR)) + path->length - device_prefix.Length
-							);
+							string = _r_obj_createstring_ex (NULL, (2 * sizeof (WCHAR)) + path->length - device_prefix.Length);
 
 							string->buffer[0] = L'A' + (WCHAR)i;
 							string->buffer[1] = L':';
 
-							RtlCopyMemory (
-								&string->buffer[2],
-								&path->buffer[prefix_length],
-								path->length - device_prefix.Length
-							);
+							RtlCopyMemory (&string->buffer[2], &path->buffer[prefix_length], path->length - device_prefix.Length);
 
 							_r_obj_trimstringtonullterminator (string);
 
@@ -5744,11 +5302,7 @@ PR_STRING _r_path_resolvedeviceprefix_workaround (
 		NULL
 	);
 
-	status = NtOpenDirectoryObject (
-		&directory_handle,
-		DIRECTORY_QUERY,
-		&object_attributes
-	);
+	status = NtOpenDirectoryObject (&directory_handle, DIRECTORY_QUERY, &object_attributes);
 
 	if (NT_SUCCESS (status))
 	{
@@ -5762,15 +5316,7 @@ PR_STRING _r_path_resolvedeviceprefix_workaround (
 		{
 			while (TRUE)
 			{
-				status = NtQueryDirectoryObject (
-					directory_handle,
-					directory_entry,
-					buffer_size,
-					FALSE,
-					is_firsttime,
-					&query_context,
-					NULL
-				);
+				status = NtQueryDirectoryObject (directory_handle, directory_entry, buffer_size, FALSE, is_firsttime, &query_context, NULL);
 
 				if (status != STATUS_MORE_ENTRIES)
 					break;
@@ -5813,11 +5359,7 @@ PR_STRING _r_path_resolvedeviceprefix_workaround (
 						NULL
 					);
 
-					status = NtOpenSymbolicLinkObject (
-						&link_handle,
-						SYMBOLIC_LINK_QUERY,
-						&object_attributes
-					);
+					status = NtOpenSymbolicLinkObject (&link_handle, SYMBOLIC_LINK_QUERY, &object_attributes);
 
 					if (NT_SUCCESS (status))
 					{
@@ -5828,11 +5370,7 @@ PR_STRING _r_path_resolvedeviceprefix_workaround (
 							RTL_NUMBER_OF (device_prefix_buffer) * sizeof (WCHAR)
 						);
 
-						status = NtQuerySymbolicLinkObject (
-							link_handle,
-							&device_prefix,
-							NULL
-						);
+						status = NtQuerySymbolicLinkObject (link_handle, &device_prefix, NULL);
 
 						if (NT_SUCCESS (status))
 						{
@@ -5848,19 +5386,12 @@ PR_STRING _r_path_resolvedeviceprefix_workaround (
 									path->buffer[prefix_length] == OBJ_NAME_PATH_SEPARATOR)
 								{
 									// <letter>:path
-									string = _r_obj_createstring_ex (
-										NULL,
-										(2 * sizeof (WCHAR)) + path->length - device_prefix.Length
-									);
+									string = _r_obj_createstring_ex (NULL, (2 * sizeof (WCHAR)) + path->length - device_prefix.Length);
 
 									string->buffer[0] = directory_info->Name.Buffer[0];
 									string->buffer[1] = L':';
 
-									RtlCopyMemory (
-										&string->buffer[2],
-										&path->buffer[prefix_length],
-										path->length - device_prefix.Length
-									);
+									RtlCopyMemory (&string->buffer[2], &path->buffer[prefix_length], path->length - device_prefix.Length);
 
 									_r_obj_trimstringtonullterminator (string);
 
@@ -5966,18 +5497,11 @@ PR_STRING _r_path_resolvenetworkprefix (
 								path->buffer[prefix_length] == OBJ_NAME_PATH_SEPARATOR)
 							{
 								// \path
-								string = _r_obj_createstring_ex (
-									NULL,
-									sizeof (WCHAR) + path->length - device_name_string->length
-								);
+								string = _r_obj_createstring_ex (NULL, sizeof (WCHAR) + path->length - device_name_string->length);
 
 								string->buffer[0] = OBJ_NAME_PATH_SEPARATOR;
 
-								RtlCopyMemory (
-									&string->buffer[1],
-									&path->buffer[prefix_length],
-									path->length - device_name_string->length
-								);
+								RtlCopyMemory (&string->buffer[1], &path->buffer[prefix_length], path->length - device_name_string->length);
 
 								_r_obj_trimstringtonullterminator (string);
 
@@ -6024,14 +5548,7 @@ PR_STRING _r_path_search (
 	buffer_length = 256;
 	full_path = _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR));
 
-	return_length = SearchPath (
-		NULL,
-		path,
-		extension,
-		buffer_length,
-		full_path->buffer,
-		NULL
-	);
+	return_length = SearchPath (NULL, path, extension, buffer_length, full_path->buffer, NULL);
 
 	if (return_length == 0 && return_length <= buffer_length)
 		goto CleanupExit;
@@ -6040,17 +5557,9 @@ PR_STRING _r_path_search (
 	{
 		buffer_length = return_length;
 
-		_r_obj_dereference (full_path);
-		full_path = _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR));
+		_r_obj_movereference (&full_path, _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR)));
 
-		return_length = SearchPath (
-			NULL,
-			path,
-			extension,
-			buffer_length,
-			full_path->buffer,
-			NULL
-		);
+		return_length = SearchPath (NULL, path, extension, buffer_length, full_path->buffer, NULL);
 	}
 
 	if (return_length == 0 && return_length <= buffer_length)
@@ -6086,6 +5595,7 @@ PR_STRING _r_path_dospathfromnt (
 {
 	R_STRINGREF system_root;
 	PR_STRING string;
+	LPWSTR dst;
 	SIZE_T path_length;
 
 	path_length = _r_str_getlength2 (path);
@@ -6095,11 +5605,7 @@ PR_STRING _r_path_dospathfromnt (
 	{
 		string = _r_obj_createstring_ex (NULL, path->length - 4 * sizeof (WCHAR));
 
-		RtlCopyMemory (
-			string->buffer,
-			&path->buffer[4],
-			path->length - 4 * sizeof (WCHAR)
-		);
+		RtlCopyMemory (string->buffer, &path->buffer[4], path->length - 4 * sizeof (WCHAR));
 
 		return string;
 	}
@@ -6108,21 +5614,13 @@ PR_STRING _r_path_dospathfromnt (
 	{
 		_r_sys_getsystemroot (&system_root);
 
-		string = _r_obj_createstring_ex (
-			NULL,
-			system_root.length + path->length - 11 * sizeof (WCHAR)
-		);
+		string = _r_obj_createstring_ex (NULL, system_root.length + path->length - 11 * sizeof (WCHAR));
 
-		RtlCopyMemory (
-			string->buffer,
-			system_root.buffer,
-			system_root.length
-		);
+		RtlCopyMemory (string->buffer, system_root.buffer, system_root.length);
 
-		RtlCopyMemory (
-			PTR_ADD_OFFSET (string->buffer, system_root.length),
-			&path->buffer[11], path->length - 11 * sizeof (WCHAR)
-		);
+		dst = PTR_ADD_OFFSET (string->buffer, system_root.length);
+
+		RtlCopyMemory (dst, &path->buffer[11], path->length - 11 * sizeof (WCHAR));
 
 		return string;
 	}
@@ -6131,24 +5629,15 @@ PR_STRING _r_path_dospathfromnt (
 	{
 		_r_sys_getsystemroot (&system_root);
 
-		string = _r_obj_createstring_ex (
-			NULL,
-			system_root.length + sizeof (UNICODE_NULL) + path->length
-		);
+		string = _r_obj_createstring_ex (NULL, system_root.length + sizeof (UNICODE_NULL) + path->length);
 
-		RtlCopyMemory (
-			string->buffer,
-			system_root.buffer,
-			system_root.length
-		);
+		RtlCopyMemory (string->buffer, system_root.buffer, system_root.length);
 
 		string->buffer[_r_str_getlength3 (&system_root)] = OBJ_NAME_PATH_SEPARATOR;
 
-		RtlCopyMemory (
-			PTR_ADD_OFFSET (string->buffer, system_root.length + sizeof (WCHAR)),
-			path->buffer,
-			path->length
-		);
+		dst = PTR_ADD_OFFSET (string->buffer, system_root.length + sizeof (WCHAR));
+
+		RtlCopyMemory (dst, path->buffer, path->length);
 
 		return string;
 
@@ -6159,23 +5648,15 @@ PR_STRING _r_path_dospathfromnt (
 	{
 		_r_sys_getsystemroot (&system_root);
 
-		string = _r_obj_createstring_ex (
-			NULL,
-			system_root.length + sizeof (UNICODE_NULL) + path->length
-		);
+		string = _r_obj_createstring_ex (NULL, system_root.length + sizeof (UNICODE_NULL) + path->length);
 
-		RtlCopyMemory (
-			string->buffer,
-			system_root.buffer,
-			system_root.length
-		);
+		RtlCopyMemory (string->buffer, system_root.buffer, system_root.length);
 
 		string->buffer[_r_str_getlength3 (&system_root)] = OBJ_NAME_PATH_SEPARATOR;
 
-		RtlCopyMemory (
-			PTR_ADD_OFFSET (string->buffer, system_root.length + sizeof (UNICODE_NULL)),
-			path->buffer, path->length
-		);
+		dst = PTR_ADD_OFFSET (string->buffer, system_root.length + sizeof (UNICODE_NULL));
+
+		RtlCopyMemory (dst, path->buffer, path->length);
 
 		return string;
 	}
@@ -6273,13 +5754,7 @@ NTSTATUS _r_path_ntpathfromdos (
 
 	do
 	{
-		status = NtQueryObject (
-			hfile,
-			ObjectNameInformation,
-			obj_name_info,
-			buffer_size,
-			&buffer_size
-		);
+		status = NtQueryObject (hfile, ObjectNameInformation, obj_name_info, buffer_size, &buffer_size);
 
 		if (status == STATUS_BUFFER_OVERFLOW ||
 			status == STATUS_INFO_LENGTH_MISMATCH ||
@@ -6331,17 +5806,17 @@ VOID _r_shell_showfile (
 	LPITEMIDLIST item;
 	PR_STRING string;
 	SFGAOF attributes;
-	HRESULT hr;
+	HRESULT status;
 
-	hr = SHParseDisplayName (path, NULL, &item, 0, &attributes);
+	status = SHParseDisplayName (path, NULL, &item, 0, &attributes);
 
-	if (SUCCEEDED (hr))
+	if (SUCCEEDED (status))
 	{
-		hr = SHOpenFolderAndSelectItems (item, 0, NULL, 0);
+		status = SHOpenFolderAndSelectItems (item, 0, NULL, 0);
 
 		CoTaskMemFree (item);
 
-		if (SUCCEEDED (hr))
+		if (SUCCEEDED (status))
 			return;
 	}
 
@@ -6498,12 +5973,7 @@ PR_STRING _r_str_environmentexpandstring (
 		(USHORT)buffer_size
 	);
 
-	status = RtlExpandEnvironmentStrings_U (
-		NULL,
-		&input_string,
-		&output_string,
-		&buffer_size
-	);
+	status = RtlExpandEnvironmentStrings_U (NULL, &input_string, &output_string, &buffer_size);
 
 	if (status == STATUS_BUFFER_TOO_SMALL)
 	{
@@ -6517,12 +5987,7 @@ PR_STRING _r_str_environmentexpandstring (
 			(USHORT)buffer_size
 		);
 
-		status = RtlExpandEnvironmentStrings_U (
-			NULL,
-			&input_string,
-			&output_string,
-			&buffer_size
-		);
+		status = RtlExpandEnvironmentStrings_U (NULL, &input_string, &output_string, &buffer_size);
 	}
 
 	if (NT_SUCCESS (status))
@@ -6655,7 +6120,6 @@ SIZE_T _r_str_findstring (
 	R_STRINGREF sr2;
 	SIZE_T length1;
 	SIZE_T length2;
-
 	WCHAR chr1;
 	WCHAR chr2;
 
@@ -6717,10 +6181,13 @@ PR_STRING _r_str_formatversion (
 )
 {
 	SYSTEMTIME st;
+	LONG64 unixtime;
 
 	if (_r_str_isnumeric (&string->sr))
 	{
-		_r_unixtime_to_systemtime (_r_str_tolong64 (&string->sr), &st);
+		unixtime = _r_str_tolong64 (&string->sr);
+
+		_r_unixtime_to_systemtime (unixtime, &st);
 
 		return _r_format_string (
 			L"%02d-%02d-%04d %02d:%02d:%02d",
@@ -7235,15 +6702,14 @@ BOOLEAN _r_str_isendsswith (
 )
 {
 	R_STRINGREF sr;
+	LPWSTR dst;
 
 	if (suffix->length > string->length)
 		return FALSE;
 
-	_r_obj_initializestringref_ex (
-		&sr,
-		(LPWSTR)PTR_ADD_OFFSET (string->buffer, string->length - suffix->length),
-		suffix->length
-	);
+	dst = (LPWSTR)PTR_ADD_OFFSET (string->buffer, string->length - suffix->length);
+
+	_r_obj_initializestringref_ex (&sr, dst, suffix->length);
 
 	return _r_str_isequal (&sr, suffix, is_ignorecase);
 }
@@ -7383,6 +6849,7 @@ VOID _r_str_printf_v (
 	{
 		// need to null terminate the string
 		buffer += max_length;
+
 		*buffer = UNICODE_NULL;
 	}
 }
@@ -7530,6 +6997,7 @@ BOOLEAN _r_str_toboolean (
 	return _r_str_isequal (string, &value, TRUE);
 }
 
+_Success_ (return != 0)
 LONG _r_str_tolong (
 	_In_ PR_STRINGREF string
 )
@@ -7546,6 +7014,7 @@ LONG _r_str_tolong (
 	return 0;
 }
 
+_Success_ (return != 0)
 LONG64 _r_str_tolong64 (
 	_In_ PR_STRINGREF string
 )
@@ -7558,6 +7027,7 @@ LONG64 _r_str_tolong64 (
 	return 0;
 }
 
+_Success_ (return != 0)
 ULONG _r_str_toulong (
 	_In_ PR_STRINGREF string
 )
@@ -7574,6 +7044,7 @@ ULONG _r_str_toulong (
 	return 0;
 }
 
+_Success_ (return != 0)
 ULONG64 _r_str_toulong64 (
 	_In_ PR_STRINGREF string
 )
@@ -7823,15 +7294,12 @@ VOID _r_str_trimstringref (
 {
 	LPCWSTR charset_buff;
 	LPCWSTR buffer;
-
-	BOOLEAN charset_table[256];
-	BOOLEAN charset_table_complete;
 	SIZE_T charset_count;
 	SIZE_T trim_count;
 	SIZE_T count;
-
-	SIZE_T i;
 	USHORT chr;
+	BOOLEAN charset_table[256];
+	BOOLEAN charset_table_complete;
 
 	if (!string->length || !charset->length)
 		return;
@@ -7886,7 +7354,7 @@ VOID _r_str_trimstringref (
 
 	charset_table_complete = TRUE;
 
-	for (i = 0; i < charset_count; i++)
+	for (SIZE_T i = 0; i < charset_count; i++)
 	{
 		chr = charset_buff[i];
 		charset_table[chr & 0xFF] = TRUE;
@@ -7910,7 +7378,7 @@ VOID _r_str_trimstringref (
 
 			if (!charset_table_complete)
 			{
-				for (i = 0; i < charset_count; i++)
+				for (SIZE_T i = 0; i < charset_count; i++)
 				{
 					if (charset_buff[i] == chr)
 						goto CharFound;
@@ -7941,7 +7409,7 @@ CharFound:
 
 			if (!charset_table_complete)
 			{
-				for (i = 0; i < charset_count; i++)
+				for (SIZE_T i = 0; i < charset_count; i++)
 				{
 					if (charset_buff[i] == chr)
 						goto CharFound2;
@@ -7981,11 +7449,7 @@ NTSTATUS _r_str_multibyte2unicode (
 	ULONG output_size;
 	NTSTATUS status;
 
-	status = RtlMultiByteToUnicodeSize (
-		&output_size,
-		string->buffer,
-		(ULONG)string->length
-	);
+	status = RtlMultiByteToUnicodeSize (&output_size, string->buffer, (ULONG)string->length);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -7995,13 +7459,7 @@ NTSTATUS _r_str_multibyte2unicode (
 
 	out_string = _r_obj_createstring_ex (NULL, output_size);
 
-	status = RtlMultiByteToUnicodeN (
-		out_string->buffer,
-		(ULONG)out_string->length,
-		NULL,
-		string->buffer,
-		(ULONG)string->length
-	);
+	status = RtlMultiByteToUnicodeN (out_string->buffer, (ULONG)out_string->length, NULL, string->buffer, (ULONG)string->length);
 
 	if (NT_SUCCESS (status))
 	{
@@ -8027,11 +7485,7 @@ NTSTATUS _r_str_unicode2multibyte (
 	ULONG output_size;
 	NTSTATUS status;
 
-	status = RtlUnicodeToMultiByteSize (
-		&output_size,
-		string->buffer,
-		(ULONG)string->length
-	);
+	status = RtlUnicodeToMultiByteSize (&output_size, string->buffer, (ULONG)string->length);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -8041,13 +7495,7 @@ NTSTATUS _r_str_unicode2multibyte (
 
 	out_string = _r_obj_createbyte_ex (NULL, output_size);
 
-	status = RtlUnicodeToMultiByteN (
-		out_string->buffer,
-		(ULONG)out_string->length,
-		NULL,
-		string->buffer,
-		(ULONG)string->length
-	);
+	status = RtlUnicodeToMultiByteN (out_string->buffer, (ULONG)out_string->length, NULL, string->buffer, (ULONG)string->length);
 
 	if (NT_SUCCESS (status))
 	{
@@ -8224,7 +7672,6 @@ ULONG _r_str_crc32 (
 		0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94, 0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d,
 	};
 
-	LPWSTR buffer;
 	LPWSTR end_buffer;
 	ULONG hash_code;
 	WCHAR chr;
@@ -8238,7 +7685,7 @@ ULONG _r_str_crc32 (
 
 	if (is_ignorecase)
 	{
-		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		for (LPWSTR buffer = string->buffer; buffer != end_buffer; buffer++)
 		{
 			chr = _r_str_lower (*buffer);
 
@@ -8247,7 +7694,7 @@ ULONG _r_str_crc32 (
 	}
 	else
 	{
-		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		for (LPWSTR buffer = string->buffer; buffer != end_buffer; buffer++)
 		{
 			chr = *buffer;
 
@@ -8330,7 +7777,6 @@ ULONG64 _r_str_crc64 (
 		0xa6df411fbfb21ca3ULL, 0xdc0731d78f8795daULL, 0x536fa08fdfd90e51ULL, 0x29b7d047efec8728ULL,
 	};
 
-	LPWSTR buffer;
 	LPWSTR end_buffer;
 	ULONG64 hash_code;
 	WCHAR chr;
@@ -8344,7 +7790,7 @@ ULONG64 _r_str_crc64 (
 
 	if (is_ignorecase)
 	{
-		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		for (LPWSTR buffer = string->buffer; buffer != end_buffer; buffer++)
 		{
 			chr = _r_str_lower (*buffer);
 
@@ -8353,7 +7799,7 @@ ULONG64 _r_str_crc64 (
 	}
 	else
 	{
-		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		for (LPWSTR buffer = string->buffer; buffer != end_buffer; buffer++)
 		{
 			chr = *buffer;
 
@@ -8369,7 +7815,6 @@ ULONG _r_str_fnv32a (
 	_In_ BOOLEAN is_ignorecase
 )
 {
-	LPWSTR buffer;
 	LPWSTR end_buffer;
 	ULONG hash_code;
 	WCHAR chr;
@@ -8383,7 +7828,7 @@ ULONG _r_str_fnv32a (
 
 	if (is_ignorecase)
 	{
-		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		for (LPWSTR buffer = string->buffer; buffer != end_buffer; buffer++)
 		{
 			chr = _r_str_lower (*buffer);
 
@@ -8392,7 +7837,7 @@ ULONG _r_str_fnv32a (
 	}
 	else
 	{
-		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		for (LPWSTR buffer = string->buffer; buffer != end_buffer; buffer++)
 		{
 			chr = *buffer;
 
@@ -8408,7 +7853,6 @@ ULONG64 _r_str_fnv64a (
 	_In_ BOOLEAN is_ignorecase
 )
 {
-	LPWSTR buffer;
 	LPWSTR end_buffer;
 	ULONG64 hash_code;
 	WCHAR chr;
@@ -8422,7 +7866,7 @@ ULONG64 _r_str_fnv64a (
 
 	if (is_ignorecase)
 	{
-		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		for (LPWSTR buffer = string->buffer; buffer != end_buffer; buffer++)
 		{
 			chr = _r_str_lower (*buffer);
 
@@ -8431,7 +7875,7 @@ ULONG64 _r_str_fnv64a (
 	}
 	else
 	{
-		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		for (LPWSTR buffer = string->buffer; buffer != end_buffer; buffer++)
 		{
 			chr = *buffer;
 
@@ -8447,7 +7891,6 @@ ULONG _r_str_x65599 (
 	_In_ BOOLEAN is_ignorecase
 )
 {
-	LPWSTR buffer;
 	LPWSTR end_buffer;
 	ULONG hash_code;
 
@@ -8460,7 +7903,7 @@ ULONG _r_str_x65599 (
 
 	if (is_ignorecase)
 	{
-		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		for (LPWSTR buffer = string->buffer; buffer != end_buffer; buffer++)
 		{
 			hash_code = ((65599 * (hash_code)) + (ULONG)(((*buffer) >= L'a' &&
 						 (*buffer) <= L'z') ? (*buffer) - L'a' + L'A' : (*buffer)));
@@ -8468,7 +7911,7 @@ ULONG _r_str_x65599 (
 	}
 	else
 	{
-		for (buffer = string->buffer; buffer != end_buffer; buffer++)
+		for (LPWSTR buffer = string->buffer; buffer != end_buffer; buffer++)
 		{
 			hash_code = ((65599 * (hash_code)) + (ULONG)(*buffer));
 		}
@@ -8633,13 +8076,7 @@ BOOLEAN _r_sys_iswow64 ()
 	ULONG_PTR iswow64;
 	NTSTATUS status;
 
-	status = NtQueryInformationProcess (
-		NtCurrentProcess (),
-		ProcessWow64Information,
-		&iswow64,
-		sizeof (ULONG_PTR),
-		NULL
-	);
+	status = NtQueryInformationProcess (NtCurrentProcess (), ProcessWow64Information, &iswow64, sizeof (ULONG_PTR), NULL);
 
 	if (NT_SUCCESS (status))
 		return !!iswow64;
@@ -8742,11 +8179,7 @@ R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
 		}
 		else
 		{
-			status = NtOpenProcessToken (
-				NtCurrentProcess (),
-				TOKEN_QUERY,
-				&token_handle
-			);
+			status = NtOpenProcessToken (NtCurrentProcess (), TOKEN_QUERY, &token_handle);
 
 			if (NT_SUCCESS (status))
 				attributes.token_handle = token_handle;
@@ -8754,40 +8187,21 @@ R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
 
 		if (attributes.token_handle)
 		{
-			status = NtQueryInformationToken (
-				attributes.token_handle,
-				TokenElevation,
-				&elevation,
-				sizeof (elevation),
-				&return_length
-			);
+			status = NtQueryInformationToken (attributes.token_handle, TokenElevation, &elevation, sizeof (elevation), &return_length);
 
 			if (NT_SUCCESS (status))
 				attributes.is_elevated = !!elevation.TokenIsElevated;
 
-			status = NtQueryInformationToken (
-				attributes.token_handle,
-				TokenElevationType,
-				&elevation_type,
-				sizeof (elevation_type),
-				&return_length
-			);
+			status = NtQueryInformationToken (attributes.token_handle, TokenElevationType, &elevation_type, sizeof (elevation_type), &return_length);
 
 			if (NT_SUCCESS (status))
 				attributes.elevation_type = elevation_type;
 
-			status = _r_sys_querytokeninformation (
-				attributes.token_handle,
-				TokenUser,
-				&token_user
-			);
+			status = _r_sys_querytokeninformation (attributes.token_handle, TokenUser, &token_user);
 
 			if (NT_SUCCESS (status))
 			{
-				attributes.token_sid = _r_mem_allocateandcopy (
-					token_user->User.Sid,
-					RtlLengthSid (token_user->User.Sid)
-				);
+				attributes.token_sid = _r_mem_allocateandcopy (token_user->User.Sid, RtlLengthSid (token_user->User.Sid));
 
 				_r_mem_free (token_user);
 			}
@@ -8930,8 +8344,7 @@ PR_STRING _r_sys_gettempdirectory ()
 		{
 			buffer_length = return_length;
 
-			_r_obj_dereference (new_path);
-			new_path = _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR));
+			_r_obj_movereference (&new_path, _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR)));
 
 			return_length = GetTempPath (buffer_length, new_path->buffer);
 		}
@@ -9101,10 +8514,7 @@ LONG _r_sys_getpackagepath (
 		if (hkernel32)
 		{
 			// win81+
-			_GetStagedPackagePathByFullName = (GSPPBF)GetProcAddress (
-				hkernel32,
-				"GetStagedPackagePathByFullName"
-			);
+			_GetStagedPackagePathByFullName = (GSPPBF)GetProcAddress (hkernel32, "GetStagedPackagePathByFullName");
 
 			//FreeLibrary (hkernel32);
 		}
@@ -9121,11 +8531,7 @@ LONG _r_sys_getpackagepath (
 
 	length = 0;
 
-	status = _GetStagedPackagePathByFullName (
-		package_full_name->buffer,
-		&length,
-		NULL
-	);
+	status = _GetStagedPackagePathByFullName (package_full_name->buffer, &length, NULL);
 
 	if (status != ERROR_INSUFFICIENT_BUFFER)
 	{
@@ -9136,11 +8542,7 @@ LONG _r_sys_getpackagepath (
 
 	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
-	status = _GetStagedPackagePathByFullName (
-		package_full_name->buffer,
-		&length,
-		string->buffer
-	);
+	status = _GetStagedPackagePathByFullName (package_full_name->buffer, &length, string->buffer);
 
 	if (status == ERROR_SUCCESS)
 	{
@@ -9209,12 +8611,7 @@ ULONG _r_sys_getsessioninfo (
 	LPWSTR buffer;
 	ULONG length;
 
-	if (!WTSQuerySessionInformation (
-		WTS_CURRENT_SERVER_HANDLE,
-		WTS_CURRENT_SESSION,
-		info_class,
-		&buffer,
-		&length))
+	if (!WTSQuerySessionInformation (WTS_CURRENT_SERVER_HANDLE, WTS_CURRENT_SESSION, info_class, &buffer, &length))
 	{
 		*out_buffer = NULL;
 
@@ -9520,11 +8917,7 @@ NTSTATUS _r_sys_compressbuffer (
 	ULONG return_length;
 	NTSTATUS status;
 
-	status = RtlGetCompressionWorkSpaceSize (
-		format,
-		&ws_buffer_length,
-		&ws_fragment_length
-	);
+	status = RtlGetCompressionWorkSpaceSize (format, &ws_buffer_length, &ws_fragment_length);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -9615,8 +9008,7 @@ NTSTATUS _r_sys_decompressbuffer (
 				break;
 			}
 
-			_r_obj_dereference (tmp_buffer);
-			tmp_buffer = _r_obj_createbyte_ex (NULL, allocation_length);
+			_r_obj_movereference (&tmp_buffer, _r_obj_createbyte_ex (NULL, allocation_length));
 
 			status = RtlDecompressBuffer (
 				format,
@@ -9682,14 +9074,11 @@ NTSTATUS _r_sys_createprocess (
 	_In_opt_ LPCWSTR current_directory
 )
 {
-	return _r_sys_createprocess_ex (
-		file_name,
-		command_line,
-		current_directory,
-		NULL,
-		SW_SHOWDEFAULT,
-		0
-	);
+	NTSTATUS status;
+
+	status = _r_sys_createprocess_ex (file_name, command_line, current_directory, NULL, SW_SHOWDEFAULT, 0);
+
+	return status;
 }
 
 _Success_ (return == STATUS_SUCCESS)
@@ -9704,15 +9093,12 @@ NTSTATUS _r_sys_createprocess_ex (
 {
 	STARTUPINFO startup_info = {0};
 	PROCESS_INFORMATION process_info = {0};
-
 	PR_STRING file_name_string = NULL;
 	PR_STRING command_line_string = NULL;
 	PR_STRING current_directory_string = NULL;
-
 	PR_STRING new_path;
 	LPWSTR *arga;
 	INT numargs;
-
 	NTSTATUS status;
 
 	if (!startup_info_ptr)
@@ -9823,12 +9209,7 @@ NTSTATUS _r_sys_openprocess (
 	client_id.UniqueProcess = process_id;
 	client_id.UniqueThread = NULL;
 
-	status = NtOpenProcess (
-		process_handle,
-		desired_access,
-		&object_attributes,
-		&client_id
-	);
+	status = NtOpenProcess (process_handle, desired_access, &object_attributes, &client_id);
 
 	return status;
 }
@@ -9846,41 +9227,21 @@ NTSTATUS _r_sys_queryprocessstring (
 
 	return_length = 0;
 
-	status = NtQueryInformationProcess (
-		process_handle,
-		info_class,
-		NULL,
-		0,
-		&return_length
-	);
+	*out_buffer = NULL;
+
+	status = NtQueryInformationProcess (process_handle, info_class, NULL, 0, &return_length);
 
 	if (status != STATUS_BUFFER_OVERFLOW &&
 		status != STATUS_BUFFER_TOO_SMALL &&
 		status != STATUS_INFO_LENGTH_MISMATCH)
-	{
-		*out_buffer = NULL;
-
 		return status;
-	}
 
 	buffer = _r_mem_allocatezero (return_length);
 
-	status = NtQueryInformationProcess (
-		process_handle,
-		info_class,
-		buffer,
-		return_length,
-		&return_length
-	);
+	status = NtQueryInformationProcess (process_handle, info_class, buffer, return_length, &return_length);
 
 	if (NT_SUCCESS (status))
-	{
 		*out_buffer = _r_obj_createstring4 (buffer);
-	}
-	else
-	{
-		*out_buffer = NULL;
-	}
 
 	_r_mem_free (buffer);
 
@@ -10037,13 +9398,13 @@ HICON _r_sys_loadicon (
 )
 {
 	HICON hicon;
-	HRESULT hr;
+	HRESULT status;
 
 #if defined(APP_NO_DEPRECATIONS)
 
-	hr = LoadIconWithScaleDown (hinstance, icon_name, icon_size, icon_size, &hicon);
+	status = LoadIconWithScaleDown (hinstance, icon_name, icon_size, icon_size, &hicon);
 
-	if (hr == S_OK)
+	if (status == S_OK)
 		return hicon;
 
 #else
@@ -10070,9 +9431,9 @@ HICON _r_sys_loadicon (
 
 	if (_LoadIconWithScaleDown)
 	{
-		hr = _LoadIconWithScaleDown (hinstance, icon_name, icon_size, icon_size, &hicon);
+		status = _LoadIconWithScaleDown (hinstance, icon_name, icon_size, icon_size, &hicon);
 
-		if (hr == S_OK)
+		if (status == S_OK)
 			return hicon;
 	}
 
@@ -10096,9 +9457,7 @@ HICON _r_sys_loadsharedicon (
 
 	PR_OBJECT_POINTER object_ptr;
 	R_OBJECT_POINTER object_data;
-
 	HICON hicon;
-
 	ULONG hash_code;
 	ULONG name_hash;
 
@@ -10158,7 +9517,6 @@ PR_STRING _r_sys_querytaginformation (
 
 	TAG_INFO_NAME_FROM_TAG tag_query = {0};
 	PR_STRING service_name_string;
-
 	HINSTANCE hadvapi32;
 
 	if (_r_initonce_begin (&init_once))
@@ -10211,26 +9569,14 @@ NTSTATUS _r_sys_querytokeninformation (
 	buffer_length = 128;
 	buffer = _r_mem_allocatezero (buffer_length);
 
-	status = NtQueryInformationToken (
-		token_handle,
-		token_class,
-		buffer,
-		buffer_length,
-		&return_length
-	);
+	status = NtQueryInformationToken (token_handle, token_class, buffer, buffer_length, &return_length);
 
 	if (status == STATUS_BUFFER_OVERFLOW || status == STATUS_BUFFER_TOO_SMALL)
 	{
 		buffer_length = return_length;
 		buffer = _r_mem_reallocatezero (buffer, buffer_length);
 
-		status = NtQueryInformationToken (
-			token_handle,
-			token_class,
-			buffer,
-			buffer_length,
-			&return_length
-		);
+		status = NtQueryInformationToken (token_handle, token_class, buffer, buffer_length, &return_length);
 	}
 
 	if (NT_SUCCESS (status))
@@ -10258,13 +9604,7 @@ VOID _r_sys_queryprocessenvironment (
 	NTSTATUS status;
 
 	// query base priority
-	status = NtQueryInformationProcess (
-		process_handle,
-		ProcessPriorityClass,
-		&priority_class,
-		sizeof (priority_class),
-		NULL
-	);
+	status = NtQueryInformationProcess (process_handle, ProcessPriorityClass, &priority_class, sizeof (priority_class), NULL);
 
 	if (NT_SUCCESS (status))
 	{
@@ -10276,13 +9616,7 @@ VOID _r_sys_queryprocessenvironment (
 	}
 
 	// query i/o priority
-	status = NtQueryInformationProcess (
-		process_handle,
-		ProcessIoPriority,
-		&io_priority,
-		sizeof (io_priority),
-		NULL
-	);
+	status = NtQueryInformationProcess (process_handle, ProcessIoPriority, &io_priority, sizeof (io_priority), NULL);
 
 	if (NT_SUCCESS (status))
 	{
@@ -10294,13 +9628,7 @@ VOID _r_sys_queryprocessenvironment (
 	}
 
 	// query memory priority
-	status = NtQueryInformationProcess (
-		process_handle,
-		ProcessPagePriority,
-		&page_priority,
-		sizeof (page_priority),
-		NULL
-	);
+	status = NtQueryInformationProcess (process_handle, ProcessPagePriority, &page_priority, sizeof (page_priority), NULL);
 
 	if (NT_SUCCESS (status))
 	{
@@ -10323,13 +9651,7 @@ VOID _r_sys_querythreadenvironment (
 	NTSTATUS status;
 
 	// query base priority
-	status = NtQueryInformationThread (
-		thread_handle,
-		ThreadBasePriority,
-		&base_priority,
-		sizeof (base_priority),
-		NULL
-	);
+	status = NtQueryInformationThread (thread_handle, ThreadBasePriority, &base_priority, sizeof (base_priority), NULL);
 
 	if (NT_SUCCESS (status))
 	{
@@ -10341,13 +9663,7 @@ VOID _r_sys_querythreadenvironment (
 	}
 
 	// query i/o priority
-	status = NtQueryInformationThread (
-		thread_handle,
-		ThreadIoPriority,
-		&io_priority,
-		sizeof (io_priority),
-		NULL
-	);
+	status = NtQueryInformationThread (thread_handle, ThreadIoPriority, &io_priority, sizeof (io_priority), NULL);
 
 	if (NT_SUCCESS (status))
 	{
@@ -10359,13 +9675,7 @@ VOID _r_sys_querythreadenvironment (
 	}
 
 	// query memory priority
-	status = NtQueryInformationThread (
-		thread_handle,
-		ThreadPagePriority,
-		&page_priority,
-		sizeof (page_priority),
-		NULL
-	);
+	status = NtQueryInformationThread (thread_handle, ThreadPagePriority, &page_priority, sizeof (page_priority), NULL);
 
 	if (NT_SUCCESS (status))
 	{
@@ -10392,43 +9702,34 @@ NTSTATUS _r_sys_setprocessprivilege (
 
 	status = NtOpenProcessToken (process_handle, TOKEN_ADJUST_PRIVILEGES, &token_handle);
 
-	if (NT_SUCCESS (status))
+	if (!NT_SUCCESS (status))
+		return status;
+
+	privileges_buffer = _r_mem_allocatezero (FIELD_OFFSET (TOKEN_PRIVILEGES, Privileges) + (sizeof (LUID_AND_ATTRIBUTES) * count));
+
+	token_privileges = privileges_buffer;
+	token_privileges->PrivilegeCount = count;
+
+	for (ULONG i = 0; i < count; i++)
 	{
-		privileges_buffer = _r_mem_allocatezero (
-			FIELD_OFFSET (TOKEN_PRIVILEGES, Privileges) + (sizeof (LUID_AND_ATTRIBUTES) * count)
-		);
+		//token_privileges->Privileges[i].Luid.HighPart = 0;
+		token_privileges->Privileges[i].Luid.LowPart = privileges[i];
 
-		token_privileges = privileges_buffer;
-		token_privileges->PrivilegeCount = count;
-
-		for (ULONG i = 0; i < count; i++)
+		if (is_enable)
 		{
-			//token_privileges->Privileges[i].Luid.HighPart = 0;
-			token_privileges->Privileges[i].Luid.LowPart = privileges[i];
-
-			if (is_enable)
-			{
-				token_privileges->Privileges[i].Attributes = SE_PRIVILEGE_ENABLED;
-			}
-			else
-			{
-				token_privileges->Privileges[i].Attributes = SE_PRIVILEGE_REMOVED;
-			}
+			token_privileges->Privileges[i].Attributes = SE_PRIVILEGE_ENABLED;
 		}
-
-		status = NtAdjustPrivilegesToken (
-			token_handle,
-			FALSE,
-			token_privileges,
-			0,
-			NULL,
-			NULL
-		);
-
-		_r_mem_free (privileges_buffer);
-
-		NtClose (token_handle);
+		else
+		{
+			token_privileges->Privileges[i].Attributes = SE_PRIVILEGE_REMOVED;
+		}
 	}
+
+	status = NtAdjustPrivilegesToken (token_handle, FALSE, token_privileges, 0, NULL, NULL);
+
+	_r_mem_free (privileges_buffer);
+
+	NtClose (token_handle);
 
 	return status;
 }
@@ -10490,12 +9791,7 @@ VOID _r_sys_setprocessenvironment (
 		priority_class.Foreground = FALSE;
 		priority_class.PriorityClass = (UCHAR)(new_environment->base_priority);
 
-		NtSetInformationProcess (
-			process_handle,
-			ProcessPriorityClass,
-			&priority_class,
-			sizeof (priority_class)
-		);
+		NtSetInformationProcess (process_handle, ProcessPriorityClass, &priority_class, sizeof (priority_class));
 	}
 
 #if !defined(APP_NO_DEPRECATIONS)
@@ -10508,12 +9804,7 @@ VOID _r_sys_setprocessenvironment (
 	{
 		io_priority = new_environment->io_priority;
 
-		NtSetInformationProcess (
-			process_handle,
-			ProcessIoPriority,
-			&io_priority,
-			sizeof (io_priority)
-		);
+		NtSetInformationProcess (process_handle, ProcessIoPriority, &io_priority, sizeof (io_priority));
 	}
 
 	// set memory priority
@@ -10521,12 +9812,7 @@ VOID _r_sys_setprocessenvironment (
 	{
 		page_priority.PagePriority = new_environment->page_priority;
 
-		NtSetInformationProcess (
-			process_handle,
-			ProcessPagePriority,
-			&page_priority,
-			sizeof (page_priority)
-		);
+		NtSetInformationProcess (process_handle, ProcessPagePriority, &page_priority, sizeof (page_priority));
 	}
 }
 
@@ -10547,12 +9833,7 @@ VOID _r_sys_setthreadenvironment (
 	{
 		base_priority = new_environment->base_priority;
 
-		NtSetInformationThread (
-			thread_handle,
-			ThreadBasePriority,
-			&base_priority,
-			sizeof (base_priority)
-		);
+		NtSetInformationThread (thread_handle, ThreadBasePriority, &base_priority, sizeof (base_priority));
 	}
 
 #if !defined(APP_NO_DEPRECATIONS)
@@ -10565,12 +9846,7 @@ VOID _r_sys_setthreadenvironment (
 	{
 		io_priority = new_environment->io_priority;
 
-		NtSetInformationThread (
-			thread_handle,
-			ThreadIoPriority,
-			&io_priority,
-			sizeof (io_priority)
-		);
+		NtSetInformationThread (thread_handle, ThreadIoPriority, &io_priority, sizeof (io_priority));
 	}
 
 	// set memory priority
@@ -10578,12 +9854,7 @@ VOID _r_sys_setthreadenvironment (
 	{
 		page_priority.PagePriority = new_environment->page_priority;
 
-		NtSetInformationThread (
-			thread_handle,
-			ThreadPagePriority,
-			&page_priority,
-			sizeof (page_priority)
-		);
+		NtSetInformationThread (thread_handle, ThreadPagePriority, &page_priority, sizeof (page_priority));
 	}
 }
 
@@ -10996,15 +10267,16 @@ LONG _r_dc_fontheighttosize (
 	return _r_calc_multipledivide (-height, 72, dpi_value);
 }
 
+_Success_ (return != 0)
 COLORREF _r_dc_getcoloraccent ()
 {
 	COLORREF clr;
 	BOOL is_opaque;
-	HRESULT hr;
+	HRESULT status;
 
-	hr = DwmGetColorizationColor (&clr, &is_opaque);
+	status = DwmGetColorizationColor (&clr, &is_opaque);
 
-	if (hr != S_OK)
+	if (status != S_OK)
 		return 0;
 
 	return RGB (GetBValue (clr), GetGValue (clr), GetRValue (clr));
@@ -11017,7 +10289,6 @@ COLORREF _r_dc_getcolorbrightness (
 	COLORREF r;
 	COLORREF g;
 	COLORREF b;
-
 	COLORREF min;
 	COLORREF max;
 
@@ -11141,7 +10412,7 @@ LONG _r_dc_getdpivalue (
 	LONG dpi_value;
 	UINT dpi_x;
 	UINT dpi_y;
-	HRESULT hr;
+	HRESULT status;
 
 	// initialize library calls
 	if (_r_initonce_begin (&init_once))
@@ -11197,9 +10468,9 @@ LONG _r_dc_getdpivalue (
 				hmonitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
 			}
 
-			hr = _GetDpiForMonitor (hmonitor, MDT_EFFECTIVE_DPI, &dpi_x, &dpi_y);
+			status = _GetDpiForMonitor (hmonitor, MDT_EFFECTIVE_DPI, &dpi_x, &dpi_y);
 
-			if (SUCCEEDED (hr))
+			if (SUCCEEDED (status))
 				return dpi_x;
 		}
 	}
@@ -11374,12 +10645,10 @@ HBITMAP _r_dc_imagetobitmap (
 )
 {
 	BITMAPINFO bmi = {0};
-
 	HDC hdc = NULL;
 	HDC hdc_buffer = NULL;
 	HBITMAP hbitmap = NULL;
 	PVOID bitmap_buffer = NULL;
-
 	IWICStream *wicStream = NULL;
 	IWICBitmapSource *wicBitmapSource = NULL;
 	IWICBitmapDecoder *wicDecoder = NULL;
@@ -11390,75 +10659,58 @@ HBITMAP _r_dc_imagetobitmap (
 	WICPixelFormatGUID pixelFormat;
 	WICRect rect = {0};
 	UINT frame_count;
-
-	HRESULT hr;
+	HRESULT status;
 
 	// Create the ImagingFactory (win8+)
-	hr = CoCreateInstance (
-		&CLSID_WICImagingFactory2,
-		NULL,
-		CLSCTX_INPROC_SERVER,
-		&IID_IWICImagingFactory2,
-		&wicFactory
-	);
+	status = CoCreateInstance (&CLSID_WICImagingFactory2, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory2, &wicFactory);
 
-	if (FAILED (hr))
+	if (FAILED (status))
 	{
 		// winxp+
-		hr = CoCreateInstance (
-			&CLSID_WICImagingFactory1,
-			NULL,
-			CLSCTX_INPROC_SERVER,
-			&IID_IWICImagingFactory,
-			&wicFactory
-		);
+		status = CoCreateInstance (&CLSID_WICImagingFactory1, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory, &wicFactory);
 
-		if (FAILED (hr))
+		if (FAILED (status))
 			goto CleanupExit;
 	}
 
 	// Create the Stream
-	hr = IWICImagingFactory_CreateStream (wicFactory, &wicStream);
+	status = IWICImagingFactory_CreateStream (wicFactory, &wicStream);
 
-	if (FAILED (hr))
+	if (FAILED (status))
 		goto CleanupExit;
 
 	// Initialize the Stream from Memory
-	hr = IWICStream_InitializeFromMemory (wicStream, buffer, buffer_length);
+	status = IWICStream_InitializeFromMemory (wicStream, buffer, buffer_length);
 
-	if (FAILED (hr))
+	if (FAILED (status))
 		goto CleanupExit;
 
-	hr = IWICImagingFactory_CreateDecoder (wicFactory, format, NULL, &wicDecoder);
+	status = IWICImagingFactory_CreateDecoder (wicFactory, format, NULL, &wicDecoder);
 
-	if (FAILED (hr))
+	if (FAILED (status))
 		goto CleanupExit;
 
-	hr = IWICBitmapDecoder_Initialize (
-		wicDecoder,
-		(IStream *)wicStream,
-		WICDecodeMetadataCacheOnLoad
-	);
+	status = IWICBitmapDecoder_Initialize (wicDecoder, (IStream*)wicStream, WICDecodeMetadataCacheOnLoad);
 
-	if (FAILED (hr))
+	if (FAILED (status))
 		goto CleanupExit;
 
 	// Get the Frame count
-	hr = IWICBitmapDecoder_GetFrameCount (wicDecoder, &frame_count);
+	status = IWICBitmapDecoder_GetFrameCount (wicDecoder, &frame_count);
 
-	if (FAILED (hr) || frame_count < 1)
+	if (FAILED (status) || frame_count < 1)
 		goto CleanupExit;
 
 	// Get the Frame
-	hr = IWICBitmapDecoder_GetFrame (wicDecoder, 0, &wicFrame);
+	status = IWICBitmapDecoder_GetFrame (wicDecoder, 0, &wicFrame);
 
-	if (FAILED (hr))
+	if (FAILED (status))
 		goto CleanupExit;
 
 	// Get the WicFrame image format
-	hr = IWICBitmapFrameDecode_GetPixelFormat (wicFrame, &pixelFormat);
+	status = IWICBitmapFrameDecode_GetPixelFormat (wicFrame, &pixelFormat);
 
-	if (FAILED (hr))
+	if (FAILED (status))
 		goto CleanupExit;
 
 	// Check if the image format is supported:
@@ -11468,14 +10720,14 @@ HBITMAP _r_dc_imagetobitmap (
 	}
 	else
 	{
-		hr = IWICImagingFactory_CreateFormatConverter (wicFactory, &wicFormatConverter);
+		status = IWICImagingFactory_CreateFormatConverter (wicFactory, &wicFormatConverter);
 
-		if (FAILED (hr))
+		if (FAILED (status))
 			goto CleanupExit;
 
-		hr = IWICFormatConverter_Initialize (
+		status = IWICFormatConverter_Initialize (
 			wicFormatConverter,
-			(IWICBitmapSource *)wicFrame,
+			(IWICBitmapSource*)wicFrame,
 			&GUID_WICPixelFormat32bppPBGRA,
 			WICBitmapDitherTypeNone,
 			NULL,
@@ -11483,15 +10735,11 @@ HBITMAP _r_dc_imagetobitmap (
 			WICBitmapPaletteTypeCustom
 		);
 
-		if (FAILED (hr))
+		if (FAILED (status))
 			goto CleanupExit;
 
 		// Convert the image to the correct format.
-		IWICFormatConverter_QueryInterface (
-			wicFormatConverter,
-			&IID_IWICBitmapSource,
-			&wicBitmapSource
-		);
+		IWICFormatConverter_QueryInterface (wicFormatConverter, &IID_IWICBitmapSource, &wicBitmapSource);
 
 		// Cleanup the converter.
 		IWICFormatConverter_Release (wicFormatConverter);
@@ -11511,7 +10759,7 @@ HBITMAP _r_dc_imagetobitmap (
 
 	if (!hdc)
 	{
-		hr = E_FAIL;
+		status = E_FAIL;
 		goto CleanupExit;
 	}
 
@@ -11519,7 +10767,7 @@ HBITMAP _r_dc_imagetobitmap (
 
 	if (!hdc_buffer)
 	{
-		hr = E_FAIL;
+		status = E_FAIL;
 		goto CleanupExit;
 	}
 
@@ -11527,38 +10775,26 @@ HBITMAP _r_dc_imagetobitmap (
 
 	if (!hbitmap)
 	{
-		hr = E_FAIL;
+		status = E_FAIL;
 		goto CleanupExit;
 	}
 
-	hr = IWICImagingFactory_CreateBitmapScaler (wicFactory, &wicScaler);
+	status = IWICImagingFactory_CreateBitmapScaler (wicFactory, &wicScaler);
 
-	if (FAILED (hr))
+	if (FAILED (status))
 		goto CleanupExit;
 
-	hr = IWICBitmapScaler_Initialize (
-		wicScaler,
-		wicBitmapSource,
-		x,
-		y,
-		WICBitmapInterpolationModeFant
-	);
+	status = IWICBitmapScaler_Initialize (wicScaler, wicBitmapSource, x, y, WICBitmapInterpolationModeFant);
 
-	if (FAILED (hr))
+	if (FAILED (status))
 		goto CleanupExit;
 
 	rect.Width = x;
 	rect.Height = y;
 
-	hr = IWICBitmapScaler_CopyPixels (
-		wicScaler,
-		&rect,
-		x * 4,
-		x * y * 4,
-		(PBYTE)bitmap_buffer
-	);
+	status = IWICBitmapScaler_CopyPixels (wicScaler, &rect, x * 4, x * y * 4, (PBYTE)bitmap_buffer);
 
-	if (FAILED (hr))
+	if (FAILED (status))
 		goto CleanupExit;
 
 CleanupExit:
@@ -11584,7 +10820,7 @@ CleanupExit:
 	if (wicFactory)
 		IWICImagingFactory_Release (wicFactory);
 
-	if (FAILED (hr))
+	if (FAILED (status))
 	{
 		if (hbitmap)
 			DeleteObject (hbitmap);
@@ -11622,10 +10858,16 @@ BOOLEAN _r_filedialog_initialize (
 	_In_ ULONG flags
 )
 {
-	IFileDialog *ifd;
-	HRESULT hr;
+#if !defined(APP_NO_DEPRECATIONS)
+	LPOPENFILENAME ofn;
+	SIZE_T struct_size;
+	SIZE_T file_length;
+#endif // APP_NO_DEPRECATIONS
 
-	hr = CoCreateInstance (
+	IFileDialog *ifd;
+	HRESULT status;
+
+	status = CoCreateInstance (
 		(flags & (PR_FILEDIALOG_OPENFILE | PR_FILEDIALOG_OPENDIR)) ? &CLSID_FileOpenDialog : &CLSID_FileSaveDialog,
 		NULL,
 		CLSCTX_INPROC_SERVER,
@@ -11633,7 +10875,7 @@ BOOLEAN _r_filedialog_initialize (
 		&ifd
 	);
 
-	if (SUCCEEDED (hr))
+	if (SUCCEEDED (status))
 	{
 		file_dialog->flags = flags | PR_FILEDIALOG_ISIFILEDIALOG;
 		file_dialog->u.ifd = ifd;
@@ -11643,10 +10885,6 @@ BOOLEAN _r_filedialog_initialize (
 #if !defined(APP_NO_DEPRECATIONS)
 	else
 	{
-		LPOPENFILENAME ofn;
-		SIZE_T struct_size;
-		SIZE_T file_length;
-
 		struct_size = sizeof (OPENFILENAME);
 		file_length = 1024;
 
@@ -11685,11 +10923,15 @@ BOOLEAN _r_filedialog_show (
 )
 {
 #if !defined(APP_NO_DEPRECATIONS)
+	LPOPENFILENAME ofn;
+#endif // APP_NO_DEPRECATIONS
+
+	FILEOPENDIALOGOPTIONS options = 0;
+
+#if !defined(APP_NO_DEPRECATIONS)
 	if ((file_dialog->flags & PR_FILEDIALOG_ISIFILEDIALOG))
 #endif // !APP_NO_DEPRECATIONS
 	{
-		FILEOPENDIALOGOPTIONS options = 0;
-
 		IFileDialog_SetDefaultExtension (file_dialog->u.ifd, L"");
 
 		IFileDialog_GetOptions (file_dialog->u.ifd, &options);
@@ -11704,7 +10946,7 @@ BOOLEAN _r_filedialog_show (
 #if !defined(APP_NO_DEPRECATIONS)
 	else
 	{
-		LPOPENFILENAME ofn = file_dialog->u.ofn;
+		ofn = file_dialog->u.ofn;
 
 		ofn->hwndOwner = hwnd;
 
@@ -11724,22 +10966,22 @@ PR_STRING _r_filedialog_getpath (
 	_In_ PR_FILE_DIALOG file_dialog
 )
 {
+	IShellItem *result;
+	PR_STRING file_name = NULL;
+	LPWSTR name;
+	HRESULT status;
+
 #if !defined(APP_NO_DEPRECATIONS)
 	if ((file_dialog->flags & PR_FILEDIALOG_ISIFILEDIALOG))
 #endif // APP_NO_DEPRECATIONS
 	{
-		IShellItem *result;
-		PR_STRING file_name = NULL;
-		LPWSTR name;
-		HRESULT hr;
+		status = IFileDialog_GetResult (file_dialog->u.ifd, &result);
 
-		hr = IFileDialog_GetResult (file_dialog->u.ifd, &result);
-
-		if (SUCCEEDED (hr))
+		if (SUCCEEDED (status))
 		{
-			hr = IShellItem_GetDisplayName (result, SIGDN_FILESYSPATH, &name);
+			status = IShellItem_GetDisplayName (result, SIGDN_FILESYSPATH, &name);
 
-			if (SUCCEEDED (hr))
+			if (SUCCEEDED (status))
 			{
 				file_name = _r_obj_createstring (name);
 
@@ -11751,9 +10993,9 @@ PR_STRING _r_filedialog_getpath (
 
 		if (!file_name)
 		{
-			hr = IFileDialog_GetFileName (file_dialog->u.ifd, &name);
+			status = IFileDialog_GetFileName (file_dialog->u.ifd, &name);
 
-			if (SUCCEEDED (hr))
+			if (SUCCEEDED (status))
 			{
 				file_name = _r_obj_createstring (name);
 
@@ -11776,7 +11018,18 @@ VOID _r_filedialog_setpath (
 	_In_ LPCWSTR path
 )
 {
+#if !defined(APP_NO_DEPRECATIONS)
+	LPOPENFILENAME ofn;
+#endif // APP_NO_DEPRECATIONS
+
+	IShellItem *shell_item = NULL;
+	R_STRINGREF directory_part;
+	R_STRINGREF basename_part;
+	LPITEMIDLIST item;
+	SFGAOF attributes;
+	PR_STRING directory;
 	R_STRINGREF sr;
+	HRESULT status;
 
 	_r_obj_initializestringrefconst (&sr, path);
 
@@ -11784,21 +11037,13 @@ VOID _r_filedialog_setpath (
 	if ((file_dialog->flags & PR_FILEDIALOG_ISIFILEDIALOG))
 #endif // !APP_NO_DEPRECATIONS
 	{
-		IShellItem *shell_item = NULL;
-		R_STRINGREF directory_part;
-		R_STRINGREF basename_part;
-		LPITEMIDLIST item;
-		SFGAOF attributes;
-		PR_STRING directory;
-		HRESULT hr;
-
 		if (_r_path_getpathinfo (&sr, &directory_part, &basename_part))
 		{
 			directory = _r_obj_createstring3 (&directory_part);
 
-			hr = SHParseDisplayName (directory->buffer, NULL, &item, 0, &attributes);
+			status = SHParseDisplayName (directory->buffer, NULL, &item, 0, &attributes);
 
-			if (SUCCEEDED (hr))
+			if (SUCCEEDED (status))
 			{
 				SHCreateShellItem (NULL, NULL, item, &shell_item);
 
@@ -11823,7 +11068,7 @@ VOID _r_filedialog_setpath (
 #if !defined(APP_NO_DEPRECATIONS)
 	else
 	{
-		LPOPENFILENAME ofn = file_dialog->u.ofn;
+		ofn = file_dialog->u.ofn;
 
 		if (_r_str_findchar (&sr, L'/', FALSE) != SIZE_MAX)
 			return;
@@ -11846,6 +11091,12 @@ VOID _r_filedialog_setfilter (
 )
 {
 #if !defined(APP_NO_DEPRECATIONS)
+	LPOPENFILENAME ofn;
+	PR_STRING filter_string;
+	R_STRINGBUILDER sb;
+#endif // !APP_NO_DEPRECATIONS
+
+#if !defined(APP_NO_DEPRECATIONS)
 	if ((file_dialog->flags & PR_FILEDIALOG_ISIFILEDIALOG))
 #endif // !APP_NO_DEPRECATIONS
 	{
@@ -11854,10 +11105,6 @@ VOID _r_filedialog_setfilter (
 #if !defined(APP_NO_DEPRECATIONS)
 	else
 	{
-		LPOPENFILENAME ofn;
-		PR_STRING filter_string;
-		R_STRINGBUILDER sb;
-
 		ofn = file_dialog->u.ofn;
 
 		_r_obj_initializestringbuilder (&sb);
@@ -11879,10 +11126,7 @@ VOID _r_filedialog_setfilter (
 		if (ofn->lpstrFilter)
 			_r_mem_free ((PVOID)ofn->lpstrFilter);
 
-		ofn->lpstrFilter = _r_mem_allocateandcopy (
-			filter_string->buffer,
-			filter_string->length + sizeof (UNICODE_NULL)
-		);
+		ofn->lpstrFilter = _r_mem_allocateandcopy (filter_string->buffer, filter_string->length + sizeof (UNICODE_NULL));
 
 		_r_obj_dereference (filter_string);
 	}
@@ -11894,6 +11138,10 @@ VOID _r_filedialog_destroy (
 )
 {
 #if !defined(APP_NO_DEPRECATIONS)
+	LPOPENFILENAME ofn;
+#endif // APP_NO_DEPRECATIONS
+
+#if !defined(APP_NO_DEPRECATIONS)
 	if ((file_dialog->flags & PR_FILEDIALOG_ISIFILEDIALOG))
 #endif // !APP_NO_DEPRECATIONS
 	{
@@ -11902,8 +11150,6 @@ VOID _r_filedialog_destroy (
 #if !defined(APP_NO_DEPRECATIONS)
 	else
 	{
-		LPOPENFILENAME ofn;
-
 		ofn = file_dialog->u.ofn;
 
 		if (ofn->lpstrFilter)
@@ -11957,13 +11203,7 @@ BOOLEAN _r_layout_initializemanager (
 	layout_manager->list = _r_obj_createlist_ex (1, &_r_mem_free);
 
 	// Add sizing border for windows
-	_r_wnd_addstyle (
-		hwnd,
-		0,
-		WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SIZEBOX,
-		WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SIZEBOX,
-		GWL_STYLE
-	);
+	_r_wnd_addstyle (hwnd, 0, WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SIZEBOX, WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SIZEBOX, GWL_STYLE);
 
 	// Enumerate child control and windows
 	_r_layout_enumcontrols (layout_manager, &layout_manager->root_item, hwnd);
@@ -12125,7 +11365,7 @@ BOOLEAN _r_layout_resize (
 			continue;
 
 		if (layout_item->flags & PR_LAYOUT_SEND_NOTIFY)
-			SendMessage (layout_item->hwnd, WM_SIZE, 0, 0);
+			PostMessage (layout_item->hwnd, WM_SIZE, 0, 0);
 
 		if (!(layout_item->flags & PR_LAYOUT_NO_ANCHOR))
 			_r_layout_resizeitem (layout_manager, layout_item);
@@ -12480,6 +11720,7 @@ VOID _r_wnd_calculateoverlappedrect (
 	}
 }
 
+_Success_ (return)
 BOOLEAN _r_wnd_center (
 	_In_ HWND hwnd,
 	_In_opt_ HWND hparent
@@ -12600,13 +11841,7 @@ HWND _r_wnd_createwindow (
 	if (!_r_res_loadresource (hinstance, name, RT_DIALOG, &buffer))
 		return NULL;
 
-	hwnd = CreateDialogIndirectParam (
-		hinstance,
-		(LPDLGTEMPLATE)buffer.buffer,
-		hparent,
-		dlg_proc,
-		(LPARAM)lparam
-	);
+	hwnd = CreateDialogIndirectParam (hinstance, (LPDLGTEMPLATE)buffer.buffer, hparent, dlg_proc, (LPARAM)lparam);
 
 	return hwnd;
 }
@@ -12625,13 +11860,7 @@ INT_PTR _r_wnd_createmodalwindow (
 	if (!_r_res_loadresource (hinstance, name, RT_DIALOG, &buffer))
 		return 0;
 
-	result = DialogBoxIndirectParam (
-		hinstance,
-		(LPDLGTEMPLATE)buffer.buffer,
-		hparent,
-		dlg_proc,
-		(LPARAM)lparam
-	);
+	result = DialogBoxIndirectParam (hinstance, (LPDLGTEMPLATE)buffer.buffer, hparent, dlg_proc, (LPARAM)lparam);
 
 	return result;
 }
@@ -12666,20 +11895,6 @@ BOOLEAN _r_wnd_getposition (
 	_r_wnd_recttorectangle (rectangle, &rect);
 
 	return TRUE;
-}
-
-LONG_PTR _r_wnd_getstyle (
-	_In_ HWND hwnd
-)
-{
-	return GetWindowLongPtr (hwnd, GWL_STYLE);
-}
-
-LONG_PTR _r_wnd_getstyle_ex (
-	_In_ HWND hwnd
-)
-{
-	return GetWindowLongPtr (hwnd, GWL_EXSTYLE);
 }
 
 BOOLEAN _r_wnd_isdesktop (
@@ -12752,14 +11967,7 @@ BOOLEAN _r_wnd_isfocusassist ()
 
 	buffer_size = sizeof (buffer);
 
-	status = _NtQueryWnfStateData (
-		&state_name,
-		NULL,
-		NULL,
-		&change_stamp,
-		&buffer,
-		&buffer_size
-	);
+	status = _NtQueryWnfStateData (&state_name, NULL, NULL, &change_stamp, &buffer, &buffer_size);
 
 	if (NT_SUCCESS (status))
 	{
@@ -12796,13 +12004,16 @@ BOOLEAN _r_wnd_isfullscreenusermode ()
 {
 	QUERY_USER_NOTIFICATION_STATE state = 0;
 
+#if !defined(APP_NO_DEPRECATIONS)
+	HINSTANCE hshell32;
+	SHQUNS _SHQueryUserNotificationState;
+#endif // !APP_NO_DEPRECATIONS
+
 	// SHQueryUserNotificationState is only available for Vista+
 #if defined(APP_NO_DEPRECATIONS)
 	if (SHQueryUserNotificationState (&state) != S_OK)
 		return FALSE;
 #else
-	HINSTANCE hshell32;
-	SHQUNS _SHQueryUserNotificationState;
 
 	if (_r_sys_isosversionlower (WINDOWS_VISTA))
 		return FALSE;
@@ -12997,13 +12208,6 @@ BOOLEAN _r_wnd_isundercursor (
 	return !!PtInRect (&rect, point);
 }
 
-BOOLEAN _r_wnd_isvisible (
-	_In_ HWND hwnd
-)
-{
-	return !!IsWindowVisible (hwnd);
-}
-
 BOOLEAN _r_wnd_isvisible_ex (
 	_In_ HWND hwnd
 )
@@ -13123,13 +12327,7 @@ VOID _r_wnd_rectangletorect (
 	_In_ PR_RECTANGLE rectangle
 )
 {
-	SetRect (
-		rect,
-		rectangle->left,
-		rectangle->top,
-		rectangle->left + rectangle->width,
-		rectangle->top + rectangle->height
-	);
+	SetRect (rect, rectangle->left, rectangle->top, rectangle->left + rectangle->width, rectangle->top + rectangle->height);
 }
 
 VOID _r_wnd_recttorectangle (
@@ -13194,31 +12392,7 @@ VOID _r_wnd_setposition (
 		swp_flags |= SWP_NOSIZE;
 	}
 
-	SetWindowPos (
-		hwnd,
-		NULL,
-		rectangle.left,
-		rectangle.top,
-		rectangle.width,
-		rectangle.height,
-		swp_flags
-	);
-}
-
-VOID _r_wnd_setstyle (
-	_In_ HWND hwnd,
-	_In_ LONG_PTR style
-)
-{
-	SetWindowLongPtr (hwnd, GWL_STYLE, style);
-}
-
-VOID _r_wnd_setstyle_ex (
-	_In_ HWND hwnd,
-	_In_ LONG_PTR ex_style
-)
-{
-	SetWindowLongPtr (hwnd, GWL_EXSTYLE, ex_style);
+	SetWindowPos (hwnd, NULL, rectangle.left, rectangle.top, rectangle.width, rectangle.height, swp_flags);
 }
 
 VOID _r_wnd_toggle (
@@ -13248,22 +12422,6 @@ VOID _r_wnd_toggle (
 	{
 		ShowWindow (hwnd, SW_HIDE);
 	}
-}
-
-VOID _r_wnd_top (
-	_In_ HWND hwnd,
-	_In_ BOOLEAN is_enable
-)
-{
-	SetWindowPos (
-		hwnd,
-		is_enable ? HWND_TOPMOST : HWND_NOTOPMOST,
-		0,
-		0,
-		0,
-		0,
-		SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER
-	);
 }
 
 PR_HASHTABLE _r_wnd_getcontext_table ()
@@ -13310,10 +12468,10 @@ PVOID _r_wnd_getcontext (
 	object_pointer = _r_obj_findhashtable (hashtable, hash_code);
 	_r_queuedlock_releaseshared (&_r_context_lock);
 
-	if (object_pointer)
-		return object_pointer->object_body;
+	if (!object_pointer)
+		return NULL;
 
-	return NULL;
+	return object_pointer->object_body;
 }
 
 VOID _r_wnd_setcontext (
@@ -13373,13 +12531,7 @@ HINTERNET _r_inet_createsession (
 		access_type = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
 	}
 
-	hsession = WinHttpOpen (
-		_r_obj_getstring (useragent),
-		access_type,
-		WINHTTP_NO_PROXY_NAME,
-		WINHTTP_NO_PROXY_BYPASS,
-		0
-	);
+	hsession = WinHttpOpen (_r_obj_getstring (useragent), access_type, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
 
 	if (!hsession)
 		return NULL;
@@ -13483,15 +12635,7 @@ ULONG _r_inet_openurl (
 	if (url_parts.scheme == INTERNET_SCHEME_HTTPS)
 		flags |= WINHTTP_FLAG_SECURE;
 
-	hrequest = WinHttpOpenRequest (
-		hconnect,
-		NULL,
-		url_parts.path->buffer,
-		NULL,
-		WINHTTP_NO_REFERER,
-		WINHTTP_DEFAULT_ACCEPT_TYPES,
-		flags
-	);
+	hrequest = WinHttpOpenRequest (hconnect, NULL, url_parts.path->buffer, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
 
 	if (!hrequest)
 	{
@@ -13519,15 +12663,7 @@ ULONG _r_inet_openurl (
 
 	do
 	{
-		result = WinHttpSendRequest (
-			hrequest,
-			WINHTTP_NO_ADDITIONAL_HEADERS,
-			0,
-			WINHTTP_NO_REQUEST_DATA,
-			0,
-			WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH,
-			0
-		);
+		result = WinHttpSendRequest (hrequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH, 0);
 
 		if (!result)
 		{
@@ -13777,12 +12913,7 @@ ULONG _r_inet_begindownload (
 
 	total_readed = 0;
 
-	while (_r_inet_readrequest (
-		hrequest,
-		content_bytes->buffer,
-		allocated_length,
-		&readed_length,
-		&total_readed))
+	while (_r_inet_readrequest (hrequest, content_bytes->buffer, allocated_length, &readed_length, &total_readed))
 	{
 		_r_sys_setthreadexecutionstate (ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED | ES_CONTINUOUS);
 
@@ -13964,19 +13095,12 @@ PR_BYTE _r_reg_querybinary (
 	_In_ LPCWSTR value_name
 )
 {
-	PR_BYTE buffer;
+	PR_BYTE bytes;
 	ULONG type;
 	ULONG size;
 	LSTATUS status;
 
-	status = _r_reg_queryvalue (
-		hkey,
-		subkey,
-		value_name,
-		&type,
-		NULL,
-		&size
-	);
+	status = _r_reg_queryvalue (hkey, subkey, value_name, &type, NULL, &size);
 
 	if (status != ERROR_SUCCESS)
 		return NULL;
@@ -13984,25 +13108,18 @@ PR_BYTE _r_reg_querybinary (
 	if (type != REG_BINARY)
 		return NULL;
 
-	buffer = _r_obj_createbyte_ex (NULL, size);
+	bytes = _r_obj_createbyte_ex (NULL, size);
 
-	status = RegQueryValueEx (
-		hkey,
-		value_name,
-		NULL,
-		NULL,
-		(PBYTE)buffer->buffer,
-		&size
-	);
+	status = RegQueryValueEx (hkey, value_name, NULL, NULL, (PBYTE)bytes->buffer, &size);
 
 	if (status != ERROR_SUCCESS)
 	{
-		_r_obj_dereference (buffer); // cleanup
+		_r_obj_dereference (bytes); // cleanup
 
 		return NULL;
 	}
 
-	return buffer;
+	return bytes;
 }
 
 _Ret_maybenull_
@@ -14033,8 +13150,7 @@ PR_STRING _r_reg_querystring (
 
 	if (status == ERROR_MORE_DATA)
 	{
-		_r_obj_dereference (buffer);
-		buffer = _r_obj_createstring_ex (NULL, size * sizeof (WCHAR));
+		_r_obj_movereference (&buffer, _r_obj_createstring_ex (NULL, size * sizeof (WCHAR)));
 
 		size = (ULONG)buffer->length;
 		status = _r_reg_queryvalue (hkey, subkey, value_name, &type, (PBYTE)buffer->buffer, &size);
@@ -14258,36 +13374,18 @@ NTSTATUS _r_crypt_createcryptcontext (
 
 	_r_crypt_initialize (crypt_context, FALSE);
 
-	status = BCryptOpenAlgorithmProvider (
-		&crypt_context->alg_handle,
-		algorithm_id,
-		NULL,
-		0
-	);
+	status = BCryptOpenAlgorithmProvider (&crypt_context->alg_handle, algorithm_id, NULL, 0);
 
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
-	status = BCryptSetProperty (
-		crypt_context->alg_handle,
-		BCRYPT_CHAINING_MODE,
-		(PBYTE)BCRYPT_CHAIN_MODE_CBC,
-		sizeof (BCRYPT_CHAIN_MODE_CBC),
-		0
-	);
+	status = BCryptSetProperty (crypt_context->alg_handle, BCRYPT_CHAINING_MODE, (PBYTE)BCRYPT_CHAIN_MODE_CBC, sizeof (BCRYPT_CHAIN_MODE_CBC), 0);
 
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
 	// Calculate the size of the buffer to hold the key object
-	status = BCryptGetProperty (
-		crypt_context->alg_handle,
-		BCRYPT_OBJECT_LENGTH,
-		(PBYTE)&data_length,
-		sizeof (ULONG),
-		&query_size,
-		0
-	);
+	status = BCryptGetProperty (crypt_context->alg_handle, BCRYPT_OBJECT_LENGTH, (PBYTE)&data_length, sizeof (ULONG), &query_size, 0);
 
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
@@ -14295,14 +13393,7 @@ NTSTATUS _r_crypt_createcryptcontext (
 	crypt_context->object_data = _r_obj_createbyte_ex (NULL, data_length);
 
 	// Calculate the block length for the IV
-	status = BCryptGetProperty (
-		crypt_context->alg_handle,
-		BCRYPT_BLOCK_LENGTH,
-		(PBYTE)&data_length,
-		sizeof (ULONG),
-		&query_size,
-		0
-	);
+	status = BCryptGetProperty (crypt_context->alg_handle, BCRYPT_BLOCK_LENGTH, (PBYTE)&data_length, sizeof (ULONG), &query_size, 0);
 
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
@@ -14315,20 +13406,6 @@ CleanupExit:
 		_r_crypt_destroycryptcontext (crypt_context);
 
 	return status;
-}
-
-PR_BYTE _r_crypt_getkeyblock (
-	_Inout_ PR_CRYPT_CONTEXT crypt_context
-)
-{
-	return crypt_context->object_data;
-}
-
-PR_BYTE _r_crypt_getivblock (
-	_Inout_ PR_CRYPT_CONTEXT crypt_context
-)
-{
-	return crypt_context->block_data;
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -14358,6 +13435,20 @@ NTSTATUS _r_crypt_generatekey (
 	);
 
 	return status;
+}
+
+PR_BYTE _r_crypt_getivblock (
+	_Inout_ PR_CRYPT_CONTEXT crypt_context
+)
+{
+	return crypt_context->block_data;
+}
+
+PR_BYTE _r_crypt_getkeyblock (
+	_Inout_ PR_CRYPT_CONTEXT crypt_context
+)
+{
+	return crypt_context->object_data;
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -14500,38 +13591,19 @@ NTSTATUS _r_crypt_createhashcontext (
 
 	_r_crypt_initialize (hash_context, TRUE);
 
-	status = BCryptOpenAlgorithmProvider (
-		&hash_context->alg_handle,
-		algorithm_id,
-		NULL,
-		0
-	);
+	status = BCryptOpenAlgorithmProvider (&hash_context->alg_handle, algorithm_id, NULL, 0);
 
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
-	status = BCryptGetProperty (
-		hash_context->alg_handle,
-		BCRYPT_OBJECT_LENGTH,
-		(PBYTE)&data_length,
-		sizeof (ULONG),
-		&query_size,
-		0
-	);
+	status = BCryptGetProperty (hash_context->alg_handle, BCRYPT_OBJECT_LENGTH, (PBYTE)&data_length, sizeof (ULONG), &query_size, 0);
 
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
 	hash_context->object_data = _r_obj_createbyte_ex (NULL, data_length);
 
-	status = BCryptGetProperty (
-		hash_context->alg_handle,
-		BCRYPT_HASH_LENGTH,
-		(PBYTE)&data_length,
-		sizeof (ULONG),
-		&query_size,
-		0
-	);
+	status = BCryptGetProperty (hash_context->alg_handle, BCRYPT_HASH_LENGTH, (PBYTE)&data_length, sizeof (ULONG), &query_size, 0);
 
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
@@ -14552,20 +13624,6 @@ CleanupExit:
 
 	if (!NT_SUCCESS (status))
 		_r_crypt_destroycryptcontext (hash_context);
-
-	return status;
-}
-
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_crypt_hashbuffer (
-	_In_ PR_CRYPT_CONTEXT hash_context,
-	_In_reads_bytes_ (buffer_length) PVOID buffer,
-	_In_ ULONG buffer_length
-)
-{
-	NTSTATUS status;
-
-	status = BCryptHashData (hash_context->u.hash_handle, buffer, buffer_length, 0);
 
 	return status;
 }
@@ -14615,6 +13673,20 @@ NTSTATUS _r_crypt_finalhashcontext_ex (
 	{
 		*out_buffer = NULL;
 	}
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_crypt_hashbuffer (
+	_In_ PR_CRYPT_CONTEXT hash_context,
+	_In_reads_bytes_ (buffer_length) PVOID buffer,
+	_In_ ULONG buffer_length
+)
+{
+	NTSTATUS status;
+
+	status = BCryptHashData (hash_context->u.hash_handle, (PUCHAR)buffer, buffer_length, 0);
 
 	return status;
 }
@@ -14747,11 +13819,7 @@ BOOLEAN _r_res_loadresource (
 
 			if (hlock)
 			{
-				_r_obj_initializebyteref_ex (
-					out_buffer,
-					hlock,
-					SizeofResource (hinstance, hres)
-				);
+				_r_obj_initializebyteref_ex (out_buffer, hlock, SizeofResource (hinstance, hres));
 
 				return TRUE;
 			}
@@ -14825,6 +13893,8 @@ PR_STRING _r_res_querystring_ex (
 	PR_STRING string;
 	UINT length;
 
+	buffer = NULL;
+
 	_r_str_printf (
 		entry,
 		RTL_NUMBER_OF (entry),
@@ -14859,6 +13929,19 @@ ULONG _r_res_querytranslation (
 		return PR_LANG_TO_LCID (buffer->lang_id, buffer->code_page);
 
 	return PR_LANG_TO_LCID (MAKELANGID (LANG_ENGLISH, SUBLANG_ENGLISH_US), 1252);
+}
+
+_Success_ (return)
+BOOLEAN _r_res_queryversion (
+	_In_ LPCVOID ver_block,
+	_Out_ PVOID_PTR file_info
+)
+{
+	UINT length;
+
+	*file_info = NULL;
+
+	return !!VerQueryValue (ver_block, L"\\", file_info, &length);
 }
 
 _Ret_maybenull_
@@ -14941,10 +14024,7 @@ PR_HASHTABLE _r_parseini (
 	allocated_length = 0x0800; // maximum length for GetPrivateProfileSectionNames
 	sections_string = _r_obj_createstring_ex (NULL, allocated_length * sizeof (WCHAR));
 
-	return_length = GetPrivateProfileSectionNames (
-		sections_string->buffer,
-		allocated_length, path->buffer
-	);
+	return_length = GetPrivateProfileSectionNames (sections_string->buffer, allocated_length, path->buffer);
 
 	if (!return_length)
 	{
@@ -14963,18 +14043,11 @@ PR_HASHTABLE _r_parseini (
 
 	while (!_r_str_isempty (sections_iterator.buffer))
 	{
-		return_length = GetPrivateProfileSection (
-			sections_iterator.buffer,
-			values_string->buffer,
-			allocated_length, path->buffer
-		);
+		return_length = GetPrivateProfileSection (sections_iterator.buffer, values_string->buffer, allocated_length, path->buffer);
 
 		if (return_length)
 		{
-			_r_obj_setstringlength_ex (
-				values_string,
-				return_length * sizeof (WCHAR), allocated_length * sizeof (WCHAR)
-			);
+			_r_obj_setstringlength_ex (values_string, return_length * sizeof (WCHAR), allocated_length * sizeof (WCHAR));
 
 			if (section_list)
 				_r_obj_addlistitem (section_list, _r_obj_createstring3 (&sections_iterator));
@@ -15002,13 +14075,7 @@ PR_HASHTABLE _r_parseini (
 						if (hash_code)
 						{
 							if (!_r_obj_findhashtable (hashtable, hash_code))
-							{
-								_r_obj_addhashtablepointer (
-									hashtable,
-									hash_code,
-									value_string.length ? _r_obj_createstring3 (&value_string) : NULL
-								);
-							}
+								_r_obj_addhashtablepointer (hashtable, hash_code, value_string.length ? _r_obj_createstring3 (&value_string) : NULL);
 						}
 
 						_r_obj_dereference (hash_string);
@@ -15042,51 +14109,38 @@ HRESULT _r_xml_initializelibrary (
 	_In_ BOOLEAN is_reader
 )
 {
-	HRESULT hr;
+	HRESULT status;
 
 	xml_library->hstream = NULL;
 	xml_library->is_reader = is_reader;
 
 	if (is_reader)
 	{
-		hr = CreateXmlReader (&IID_IXmlReader, (PVOID_PTR)&xml_library->reader, NULL);
+		status = CreateXmlReader (&IID_IXmlReader, (PVOID_PTR)&xml_library->reader, NULL);
 
-		if (FAILED (hr))
+		if (FAILED (status))
 		{
 			xml_library->reader = NULL;
-			return hr;
+			return status;
 		}
 
-		IXmlReader_SetProperty (
-			xml_library->reader,
-			XmlReaderProperty_DtdProcessing,
-			DtdProcessing_Prohibit
-		);
+		IXmlReader_SetProperty (xml_library->reader, XmlReaderProperty_DtdProcessing, DtdProcessing_Prohibit);
 	}
 	else
 	{
-		hr = CreateXmlWriter (&IID_IXmlWriter, (PVOID_PTR)&xml_library->writer, NULL);
+		status = CreateXmlWriter (&IID_IXmlWriter, (PVOID_PTR)&xml_library->writer, NULL);
 
-		if (FAILED (hr))
+		if (FAILED (status))
 		{
 			xml_library->writer = NULL;
-			return hr;
+			return status;
 		}
 
-		IXmlWriter_SetProperty (
-			xml_library->writer,
-			XmlWriterProperty_Indent,
-			TRUE
-		);
-
-		IXmlWriter_SetProperty (
-			xml_library->writer,
-			XmlWriterProperty_CompactEmptyElement,
-			TRUE
-		);
+		IXmlWriter_SetProperty (xml_library->writer, XmlWriterProperty_Indent, TRUE);
+		IXmlWriter_SetProperty (xml_library->writer, XmlWriterProperty_CompactEmptyElement, TRUE);
 	}
 
-	return hr;
+	return status;
 }
 
 VOID _r_xml_destroylibrary (
@@ -15122,16 +14176,16 @@ HRESULT _r_xml_createfilestream (
 )
 {
 	PR_XML_STREAM hstream;
-	HRESULT hr;
+	HRESULT status;
 
-	hr = SHCreateStreamOnFileEx (file_path, mode, FILE_ATTRIBUTE_NORMAL, is_create, NULL, &hstream);
+	status = SHCreateStreamOnFileEx (file_path, mode, FILE_ATTRIBUTE_NORMAL, is_create, NULL, &hstream);
 
-	if (FAILED (hr))
-		return hr;
+	if (FAILED (status))
+		return status;
 
-	hr = _r_xml_setlibrarystream (xml_library, hstream);
+	status = _r_xml_setlibrarystream (xml_library, hstream);
 
-	return hr;
+	return status;
 }
 
 _Success_ (SUCCEEDED (return))
@@ -15142,16 +14196,16 @@ HRESULT _r_xml_createstream (
 )
 {
 	PR_XML_STREAM hstream;
-	HRESULT hr;
+	HRESULT status;
 
 	hstream = SHCreateMemStream (buffer, buffer_length);
 
 	if (!hstream)
 		return E_UNEXPECTED;
 
-	hr = _r_xml_setlibrarystream (xml_library, hstream);
+	status = _r_xml_setlibrarystream (xml_library, hstream);
 
-	return hr;
+	return status;
 }
 
 _Success_ (SUCCEEDED (return))
@@ -15160,11 +14214,11 @@ HRESULT _r_xml_parsefile (
 	_In_ LPCWSTR file_path
 )
 {
-	HRESULT hr;
+	HRESULT status;
 
-	hr = _r_xml_createfilestream (xml_library, file_path, STGM_READ, FALSE);
+	status = _r_xml_createfilestream (xml_library, file_path, STGM_READ, FALSE);
 
-	return hr;
+	return status;
 }
 
 _Success_ (SUCCEEDED (return))
@@ -15174,11 +14228,11 @@ HRESULT _r_xml_parsestring (
 	_In_ ULONG buffer_length
 )
 {
-	HRESULT hr;
+	HRESULT status;
 
-	hr = _r_xml_createstream (xml_library, buffer, buffer_length);
+	status = _r_xml_createstream (xml_library, buffer, buffer_length);
 
-	return hr;
+	return status;
 }
 
 _Success_ (SUCCEEDED (return))
@@ -15190,15 +14244,15 @@ HRESULT _r_xml_readstream (
 	ULARGE_INTEGER size;
 	PR_BYTE bytes;
 	ULONG readed;
-	HRESULT hr;
+	HRESULT status;
 
-	hr = IStream_Size (xml_library->hstream, &size);
+	status = IStream_Size (xml_library->hstream, &size);
 
-	if (FAILED (hr))
+	if (FAILED (status))
 	{
 		*out_buffer = NULL;
 
-		return hr;
+		return status;
 	}
 
 	// reset stream position to the beginning
@@ -15206,9 +14260,9 @@ HRESULT _r_xml_readstream (
 
 	bytes = _r_obj_createbyte_ex (NULL, size.LowPart);
 
-	hr = ISequentialStream_Read (xml_library->hstream, bytes->buffer, (ULONG)bytes->length, &readed);
+	status = ISequentialStream_Read (xml_library->hstream, bytes->buffer, (ULONG)bytes->length, &readed);
 
-	if (SUCCEEDED (hr))
+	if (SUCCEEDED (status))
 	{
 		_r_obj_setbytelength (bytes, readed);
 
@@ -15221,7 +14275,7 @@ HRESULT _r_xml_readstream (
 		_r_obj_dereference (bytes);
 	}
 
-	return hr;
+	return status;
 }
 
 _Success_ (return)
@@ -15233,26 +14287,22 @@ BOOLEAN _r_xml_getattribute (
 {
 	LPCWSTR value_string;
 	UINT value_length;
-	HRESULT hr;
+	HRESULT status;
 
-	hr = IXmlReader_MoveToAttributeByName (xml_library->reader, attrib_name, NULL);
+	status = IXmlReader_MoveToAttributeByName (xml_library->reader, attrib_name, NULL);
 
-	if (FAILED (hr))
+	if (FAILED (status))
 		return FALSE;
 
-	hr = IXmlReader_GetValue (xml_library->reader, &value_string, &value_length);
+	status = IXmlReader_GetValue (xml_library->reader, &value_string, &value_length);
 
 	// restore position before return from the function!
 	IXmlReader_MoveToElement (xml_library->reader);
 
-	if (FAILED (hr) || _r_str_isempty (value_string) || !value_length)
+	if (FAILED (status) || _r_str_isempty (value_string) || !value_length)
 		return FALSE;
 
-	_r_obj_initializestringref_ex (
-		value,
-		(LPWSTR)value_string,
-		value_length * sizeof (WCHAR)
-	);
+	_r_obj_initializestringref_ex (value, (LPWSTR)value_string, value_length * sizeof (WCHAR));
 
 	return TRUE;
 }
@@ -15363,7 +14413,7 @@ BOOLEAN _r_xml_enumchilditemsbytagname (
 	LPWSTR buffer;
 	UINT buffer_length;
 	XmlNodeType node_type;
-	HRESULT hr;
+	HRESULT status;
 
 	_r_obj_initializestringrefconst (&sr2, tag_name);
 
@@ -15372,28 +14422,24 @@ BOOLEAN _r_xml_enumchilditemsbytagname (
 		if (IXmlReader_IsEOF (xml_library->reader))
 			return FALSE;
 
-		hr = IXmlReader_Read (xml_library->reader, &node_type);
+		status = IXmlReader_Read (xml_library->reader, &node_type);
 
-		if (FAILED (hr))
+		if (FAILED (status))
 			return FALSE;
 
 		if (node_type == XmlNodeType_Element)
 		{
 			buffer = NULL;
 
-			hr = IXmlReader_GetLocalName (xml_library->reader, &buffer, &buffer_length);
+			status = IXmlReader_GetLocalName (xml_library->reader, &buffer, &buffer_length);
 
-			if (FAILED (hr))
+			if (FAILED (status))
 				return FALSE;
 
 			if (_r_str_isempty (buffer))
 				return FALSE;
 
-			_r_obj_initializestringref_ex (
-				&sr1,
-				buffer,
-				buffer_length * sizeof (WCHAR)
-			);
+			_r_obj_initializestringref_ex (&sr1, buffer, buffer_length * sizeof (WCHAR));
 
 			if (_r_str_isequal (&sr1, &sr2, TRUE))
 				return TRUE;
@@ -15418,7 +14464,7 @@ BOOLEAN _r_xml_findchildbytagname (
 	LPWSTR buffer;
 	UINT buffer_length;
 	XmlNodeType node_type;
-	HRESULT hr;
+	HRESULT status;
 
 	_r_xml_resetlibrarystream (xml_library);
 
@@ -15429,9 +14475,9 @@ BOOLEAN _r_xml_findchildbytagname (
 		if (IXmlReader_IsEOF (xml_library->reader))
 			return FALSE;
 
-		hr = IXmlReader_Read (xml_library->reader, &node_type);
+		status = IXmlReader_Read (xml_library->reader, &node_type);
 
-		if (FAILED (hr))
+		if (FAILED (status))
 			return FALSE;
 
 		if (node_type == XmlNodeType_Element)
@@ -15442,16 +14488,12 @@ BOOLEAN _r_xml_findchildbytagname (
 
 			buffer = NULL;
 
-			hr = IXmlReader_GetLocalName (xml_library->reader, &buffer, &buffer_length);
+			status = IXmlReader_GetLocalName (xml_library->reader, &buffer, &buffer_length);
 
-			if (FAILED (hr) || _r_str_isempty (buffer))
+			if (FAILED (status) || _r_str_isempty (buffer))
 				break;
 
-			_r_obj_initializestringref_ex (
-				&sr1,
-				buffer,
-				buffer_length * sizeof (WCHAR)
-			);
+			_r_obj_initializestringref_ex (&sr1, buffer, buffer_length * sizeof (WCHAR));
 
 			if (_r_str_isequal (&sr1, &sr2, TRUE))
 				return TRUE;
@@ -15466,7 +14508,7 @@ HRESULT _r_xml_resetlibrarystream (
 	_Inout_ PR_XML_LIBRARY xml_library
 )
 {
-	HRESULT hr;
+	HRESULT status;
 
 	if (!xml_library->hstream)
 		return E_UNEXPECTED;
@@ -15474,9 +14516,9 @@ HRESULT _r_xml_resetlibrarystream (
 	// reset stream position to the beginning
 	IStream_Reset (xml_library->hstream);
 
-	hr = _r_xml_setlibrarystream (xml_library, xml_library->hstream);
+	status = _r_xml_setlibrarystream (xml_library, xml_library->hstream);
 
-	return hr;
+	return status;
 }
 
 _Success_ (SUCCEEDED (return))
@@ -15485,20 +14527,20 @@ HRESULT _r_xml_setlibrarystream (
 	_In_ PR_XML_STREAM hstream
 )
 {
-	HRESULT hr;
+	HRESULT status;
 
 	xml_library->hstream = hstream;
 
 	if (xml_library->is_reader)
 	{
-		hr = IXmlReader_SetInput (xml_library->reader, (IUnknown *)hstream);
+		status = IXmlReader_SetInput (xml_library->reader, (IUnknown *)hstream);
 	}
 	else
 	{
-		hr = IXmlWriter_SetOutput (xml_library->writer, (IUnknown *)hstream);
+		status = IXmlWriter_SetOutput (xml_library->writer, (IUnknown *)hstream);
 	}
 
-	return hr;
+	return status;
 }
 
 VOID _r_xml_writestartdocument (
@@ -15540,7 +14582,6 @@ VOID _r_xml_writewhitespace (
 	IXmlWriter_WriteWhitespace (xml_library->writer, whitespace);
 }
 
-
 //
 // System tray
 //
@@ -15553,10 +14594,13 @@ VOID _r_tray_initialize (
 {
 	ULONG hash_code;
 
+#if !defined(APP_NO_DEPRECATIONS)
+	BOOLEAN is_vistaorlater;
+#endif // APP_NO_DEPRECATIONS
+
 	hash_code = _r_str_gethash (_r_sys_getimagepath (), TRUE);
 
 #if defined(APP_NO_DEPRECATIONS)
-
 	nid->cbSize = sizeof (NOTIFYICONDATA);
 
 	nid->uFlags |= NIF_GUID;
@@ -15573,11 +14617,7 @@ VOID _r_tray_initialize (
 	// the binary file to a new location and reregister it with a new GUID.
 
 	nid->guidItem.Data1 ^= hash_code; // HACK!!!
-
 #else
-
-	BOOLEAN is_vistaorlater;
-
 	is_vistaorlater = _r_sys_isosversiongreaterorequal (WINDOWS_VISTA);
 
 	nid->cbSize = (is_vistaorlater ? sizeof (NOTIFYICONDATA) : NOTIFYICONDATA_V3_SIZE);
@@ -15869,15 +14909,6 @@ INT _r_ctrl_isradiochecked (
 	return 0;
 }
 
-VOID _r_ctrl_checkbutton (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ BOOLEAN is_check
-)
-{
-	CheckDlgButton (hwnd, ctrl_id, is_check ? BST_CHECKED : BST_UNCHECKED);
-}
-
 VOID _r_ctrl_enable (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
@@ -16016,7 +15047,6 @@ VOID _r_ctrl_setbuttonmargins (
 		return;
 
 	// set button margin
-	dpi_value = _r_dc_getwindowdpi (hctrl);
 	padding = _r_dc_getdpi (4, dpi_value);
 
 	SetRect (&padding_rect, padding, 0, padding, 0);
@@ -16215,14 +15245,12 @@ HWND _r_ctrl_createtip (
 		NULL
 	);
 
-	if (htip)
-	{
-		_r_ctrl_settipstyle (htip);
+	if (!htip)
+		return NULL;
 
-		return htip;
-	}
+	_r_ctrl_settipstyle (htip);
 
-	return NULL;
+	return htip;
 }
 
 VOID _r_ctrl_settiptext (
@@ -16752,6 +15780,16 @@ INT _r_listview_addgroup (
 	return (INT)SendDlgItemMessage (hwnd, ctrl_id, LVM_INSERTGROUP, (WPARAM)group_id, (LPARAM)&lvg);
 }
 
+INT _r_listview_additem (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ INT item_id,
+	_In_ LPCWSTR text
+)
+{
+	return _r_listview_additem_ex (hwnd, ctrl_id, item_id, text, I_IMAGENONE, I_GROUPIDNONE, 0);
+}
+
 INT _r_listview_additem_ex (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
@@ -16993,22 +16031,13 @@ PR_STRING _r_listview_getitemtext (
 	{
 		allocated_count *= 2;
 
-		_r_obj_movereference (
-			&string,
-			_r_obj_createstring_ex (NULL, allocated_count * sizeof (WCHAR))
-		);
+		_r_obj_movereference (&string, _r_obj_createstring_ex (NULL, allocated_count * sizeof (WCHAR)));
 
 		lvi.iSubItem = subitem_id;
 		lvi.pszText = string->buffer;
 		lvi.cchTextMax = (INT)allocated_count + 1;
 
-		count = (ULONG)SendDlgItemMessage (
-			hwnd,
-			ctrl_id,
-			LVM_GETITEMTEXT,
-			(WPARAM)item_id,
-			(LPARAM)&lvi
-		);
+		count = (ULONG)SendDlgItemMessage (hwnd, ctrl_id, LVM_GETITEMTEXT, (WPARAM)item_id, (LPARAM)&lvi);
 	}
 
 	_r_obj_trimstringtonullterminator (string);
@@ -17116,6 +16145,17 @@ VOID _r_listview_setcolumnsortindex (
 	Header_SetItem (header, column_id, &hitem);
 }
 
+VOID _r_listview_setitem (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ INT item_id,
+	_In_ INT subitem_id,
+	_In_opt_ LPCWSTR text
+)
+{
+	_r_listview_setitem_ex (hwnd, ctrl_id, item_id, subitem_id, text, I_IMAGENONE, I_GROUPIDNONE, 0);
+}
+
 VOID _r_listview_setitem_ex (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
@@ -17162,6 +16202,16 @@ VOID _r_listview_setitem_ex (
 	SendDlgItemMessage (hwnd, ctrl_id, LVM_SETITEM, 0, (LPARAM)&lvi);
 }
 
+VOID _r_listview_setitemcheck (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ INT item_id,
+	_In_ BOOLEAN is_check
+)
+{
+	_r_listview_setitemstate (hwnd, ctrl_id, item_id, INDEXTOSTATEIMAGEMASK (is_check ? 2 : 1), LVIS_STATEIMAGEMASK);
+}
+
 VOID _r_listview_setitemstate (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
@@ -17185,14 +16235,7 @@ VOID _r_listview_setitemvisible (
 )
 {
 	_r_listview_setitemstate (hwnd, ctrl_id, -1, 0, LVIS_SELECTED | LVIS_FOCUSED);
-
-	_r_listview_setitemstate (
-		hwnd,
-		ctrl_id,
-		item_id,
-		LVIS_SELECTED | LVIS_FOCUSED,
-		LVIS_SELECTED | LVIS_FOCUSED
-	);
+	_r_listview_setitemstate (hwnd, ctrl_id, item_id, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
 
 	_r_listview_ensurevisible (hwnd, ctrl_id, item_id);
 }
@@ -17302,6 +16345,26 @@ HTREEITEM _r_treeview_additem (
 	return (HTREEITEM)SendDlgItemMessage (hwnd, ctrl_id, TVM_INSERTITEM, 0, (LPARAM)&tvi);
 }
 
+VOID _r_treeview_deleteallitems (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id
+)
+{
+	SendDlgItemMessage (hwnd, ctrl_id, TVM_DELETEITEM, 0, (LPARAM)TVI_ROOT);
+}
+
+INT _r_treeview_getitemcount (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id
+)
+{
+	INT total_count;
+
+	total_count = (INT)SendDlgItemMessage (hwnd, ctrl_id, TVM_GETCOUNT, 0, 0);
+
+	return total_count;
+}
+
 LPARAM _r_treeview_getlparam (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
@@ -17316,6 +16379,16 @@ LPARAM _r_treeview_getlparam (
 	SendDlgItemMessage (hwnd, ctrl_id, TVM_GETITEM, 0, (LPARAM)&tvi);
 
 	return tvi.lParam;
+}
+
+VOID _r_treeview_setitemcheck (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ HTREEITEM item_id,
+	_In_ BOOLEAN is_check
+)
+{
+	_r_treeview_setitemstate (hwnd, ctrl_id, item_id, INDEXTOSTATEIMAGEMASK (is_check ? 2 : 1), TVIS_STATEIMAGEMASK);
 }
 
 VOID _r_treeview_setitemstate (
