@@ -308,7 +308,7 @@ BOOLEAN _r_autorun_enable (
 
 #if defined(APP_HAVE_SKIPUAC)
 HRESULT _r_skipuac_checkmodulepath (
-	_In_ IRegisteredTask *registered_task
+	_In_ IRegisteredTaskPtr registered_task
 );
 
 BOOLEAN _r_skipuac_isenabled ();

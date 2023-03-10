@@ -781,6 +781,7 @@ VOID NTAPI _r_mem_free (
 	_Frees_ptr_opt_ PVOID base_address
 );
 
+_Success_ (return)
 BOOLEAN _r_mem_frobnicate (
 	_Inout_ PR_BYTEREF bytes
 );
@@ -832,7 +833,7 @@ FORCEINLINE VOID _r_obj_swapreference (
 		_r_obj_dereference (old_object);
 
 	if (new_object)
-		_r_obj_reference (new_object);
+		new_object = _r_obj_reference (new_object);
 }
 
 FORCEINLINE VOID _r_obj_movereference (
@@ -1549,7 +1550,7 @@ BOOLEAN _r_format_bytesize64 (
 
 _Ret_maybenull_
 PR_STRING _r_format_filetime_ex (
-	_In_ PFILETIME file_time,
+	_In_ LPFILETIME file_time,
 	_In_ ULONG flags
 );
 
@@ -1772,7 +1773,7 @@ INT _r_msg (
 // TaskDialogIndirect (vista+)
 _Success_ (return)
 BOOLEAN _r_msg_taskdialog (
-	_In_ const TASKDIALOGCONFIG * task_dialog,
+	_In_ const LPTASKDIALOGCONFIG task_dialog,
 	_Out_opt_ PINT button_ptr,
 	_Out_opt_ PINT radio_button_ptr,
 	_Out_opt_ LPBOOL is_flagchecked_ptr
@@ -1831,9 +1832,9 @@ LONG64 _r_fs_getpos (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_gettimestamp (
 	_In_ HANDLE hfile,
-	_Out_opt_ PFILETIME creation_time,
-	_Out_opt_ PFILETIME access_time,
-	_Out_opt_ PFILETIME write_time
+	_Out_opt_ LPFILETIME creation_time,
+	_Out_opt_ LPFILETIME access_time,
+	_Out_opt_ LPFILETIME write_time
 );
 
 _Success_ (return == ERROR_SUCCESS)
@@ -1868,9 +1869,9 @@ NTSTATUS _r_fs_setsize (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_settimestamp (
 	_In_ HANDLE hfile,
-	_In_opt_ PFILETIME creation_time,
-	_In_opt_ PFILETIME access_time,
-	_In_opt_ PFILETIME write_time
+	_In_opt_ LPFILETIME creation_time,
+	_In_opt_ LPFILETIME access_time,
+	_In_opt_ LPFILETIME write_time
 );
 
 #define _r_fs_isvalidhandle(handle) \
@@ -2787,22 +2788,22 @@ FORCEINLINE HANDLE _r_sys_getstdout ()
 LONG64 _r_unixtime_now ();
 
 LONG64 _r_unixtime_from_filetime (
-	_In_ const FILETIME * file_time
+	_In_ const LPFILETIME file_time
 );
 
 LONG64 _r_unixtime_from_systemtime (
-	_In_ const SYSTEMTIME * system_time
+	_In_ const LPSYSTEMTIME system_time
 );
 
 VOID _r_unixtime_to_filetime (
 	_In_ LONG64 unixtime,
-	_Out_ PFILETIME file_time
+	_Out_ LPFILETIME file_time
 );
 
 _Success_ (return)
 BOOLEAN _r_unixtime_to_systemtime (
 	_In_ LONG64 unixtime,
-	_Out_ PSYSTEMTIME system_time
+	_Out_ LPSYSTEMTIME system_time
 );
 
 //
@@ -2983,7 +2984,7 @@ VOID _r_filedialog_setpath (
 
 VOID _r_filedialog_setfilter (
 	_Inout_ PR_FILE_DIALOG file_dialog,
-	_In_ COMDLG_FILTERSPEC * filters,
+	_In_ LPCOMDLG_FILTERSPEC filters,
 	_In_ ULONG count
 );
 

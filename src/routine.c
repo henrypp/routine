@@ -248,7 +248,7 @@ BOOLEAN _r_format_bytesize64 (
 
 _Ret_maybenull_
 PR_STRING _r_format_filetime_ex (
-	_In_ PFILETIME file_time,
+	_In_ LPFILETIME file_time,
 	_In_ ULONG flags
 )
 {
@@ -1964,8 +1964,10 @@ HANDLE NTAPI _r_mem_getheap ()
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1607))
 			heap_handle = RtlCreateHeap (HEAP_GROWABLE | HEAP_CLASS_1 | HEAP_CREATE_SEGMENT_HEAP, NULL, 0, 0, NULL, NULL);
 
+
 		if (!heap_handle)
 			heap_handle = RtlCreateHeap (HEAP_GROWABLE | HEAP_CLASS_1, NULL, _r_calc_megabytes2bytes (2), _r_calc_megabytes2bytes (1), NULL, NULL);
+
 
 		if (heap_handle)
 		{
@@ -2105,6 +2107,7 @@ VOID NTAPI _r_mem_free (
 	RtlFreeHeap (heap_handle, 0, base_address);
 }
 
+_Success_ (return)
 BOOLEAN _r_mem_frobnicate (
 	_Inout_ PR_BYTEREF bytes
 )
@@ -4072,7 +4075,7 @@ INT _r_msg (
 
 _Success_ (return)
 BOOLEAN _r_msg_taskdialog (
-	_In_ const TASKDIALOGCONFIG * task_dialog,
+	_In_ const LPTASKDIALOGCONFIG task_dialog,
 	_Out_opt_ PINT button_ptr,
 	_Out_opt_ PINT radio_button_ptr,
 	_Out_opt_ LPBOOL is_flagchecked_ptr
@@ -4404,9 +4407,9 @@ LONG64 _r_fs_getpos (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_gettimestamp (
 	_In_ HANDLE hfile,
-	_Out_opt_ PFILETIME creation_time,
-	_Out_opt_ PFILETIME access_time,
-	_Out_opt_ PFILETIME write_time
+	_Out_opt_ LPFILETIME creation_time,
+	_Out_opt_ LPFILETIME access_time,
+	_Out_opt_ LPFILETIME write_time
 )
 {
 	FILE_BASIC_INFORMATION info = {0};
@@ -4606,9 +4609,9 @@ NTSTATUS _r_fs_setsize (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_settimestamp (
 	_In_ HANDLE hfile,
-	_In_opt_ PFILETIME creation_time,
-	_In_opt_ PFILETIME access_time,
-	_In_opt_ PFILETIME write_time
+	_In_opt_ LPFILETIME creation_time,
+	_In_opt_ LPFILETIME access_time,
+	_In_opt_ LPFILETIME write_time
 )
 {
 	FILE_BASIC_INFORMATION info = {0};
@@ -9910,7 +9913,7 @@ LONG64 _r_unixtime_now ()
 }
 
 LONG64 _r_unixtime_from_filetime (
-	_In_ const FILETIME * file_time
+	_In_ const LPFILETIME file_time
 )
 {
 	LARGE_INTEGER time_value;
@@ -9922,7 +9925,7 @@ LONG64 _r_unixtime_from_filetime (
 }
 
 LONG64 _r_unixtime_from_systemtime (
-	_In_ const SYSTEMTIME * system_time
+	_In_ const LPSYSTEMTIME system_time
 )
 {
 	FILETIME file_time;
@@ -9935,10 +9938,10 @@ LONG64 _r_unixtime_from_systemtime (
 
 VOID _r_unixtime_to_filetime (
 	_In_ LONG64 unixtime,
-	_Out_ PFILETIME file_time
+	_Out_ LPFILETIME file_time
 )
 {
-	LARGE_INTEGER time_value;
+	LARGE_INTEGER time_value = {0};
 
 	time_value.QuadPart = (unixtime * 10000000LL) + 116444736000000000LL;
 
@@ -10020,6 +10023,7 @@ HBITMAP _r_dc_bitmapfromicon (
 	HDC hdc;
 
 	hbitmap = NULL;
+	screen_hdc = NULL;
 
 	hdc = GetDC (NULL);
 
@@ -11086,7 +11090,7 @@ VOID _r_filedialog_setpath (
 
 VOID _r_filedialog_setfilter (
 	_Inout_ PR_FILE_DIALOG file_dialog,
-	_In_ COMDLG_FILTERSPEC * filters,
+	_In_ LPCOMDLG_FILTERSPEC filters,
 	_In_ ULONG count
 )
 {

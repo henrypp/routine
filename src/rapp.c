@@ -4490,7 +4490,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 #if defined(APP_HAVE_SKIPUAC)
 HRESULT _r_skipuac_checkmodulepath (
-	_In_ IRegisteredTask * registered_task
+	_In_ IRegisteredTaskPtr registered_task
 )
 {
 	ITaskDefinition *task_definition = NULL;

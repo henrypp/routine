@@ -14,6 +14,10 @@ typedef PBYTE *PBYTE_PTR;
 typedef HICON *HICON_PTR;
 typedef HDWP *HDWP_PTR;
 
+typedef COMDLG_FILTERSPEC *LPCOMDLG_FILTERSPEC;
+typedef TASKDIALOGCONFIG *LPTASKDIALOGCONFIG;
+typedef IRegisteredTask *IRegisteredTaskPtr;
+
 //
 // Exported function definitions
 //
