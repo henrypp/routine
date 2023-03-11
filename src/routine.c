@@ -1964,10 +1964,8 @@ HANDLE NTAPI _r_mem_getheap ()
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1607))
 			heap_handle = RtlCreateHeap (HEAP_GROWABLE | HEAP_CLASS_1 | HEAP_CREATE_SEGMENT_HEAP, NULL, 0, 0, NULL, NULL);
 
-
 		if (!heap_handle)
 			heap_handle = RtlCreateHeap (HEAP_GROWABLE | HEAP_CLASS_1, NULL, _r_calc_megabytes2bytes (2), _r_calc_megabytes2bytes (1), NULL, NULL);
-
 
 		if (heap_handle)
 		{
