@@ -488,7 +488,7 @@ BOOLEAN _r_app_isreadonly ();
 BOOLEAN _r_app_initialize_com ();
 
 #if !defined(APP_CONSOLE)
-BOOLEAN _r_app_initialize_components ();
+VOID _r_app_initialize_components ();
 #endif // !APP_CONSOLE
 
 #if !defined(APP_CONSOLE)

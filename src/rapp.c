@@ -203,7 +203,7 @@ BOOLEAN _r_app_initialize_com ()
 }
 
 #if !defined(APP_CONSOLE)
-BOOLEAN _r_app_initialize_components ()
+VOID _r_app_initialize_components ()
 {
 	// set locale information
 	if (app_global.locale.default_name)
@@ -228,8 +228,6 @@ BOOLEAN _r_app_initialize_components ()
 #if defined(APP_HAVE_SETTINGS)
 	app_global.settings.page_list = _r_obj_createarray (sizeof (R_SETTINGS_PAGE), NULL);
 #endif // APP_HAVE_SETTINGS
-
-	return TRUE;
 }
 #endif // !APP_CONSOLE
 
@@ -2187,7 +2185,9 @@ BOOLEAN _r_autorun_isenabled ()
 }
 
 BOOLEAN _r_autorun_enable (
-	_In_opt_ HWND hwnd, _In_ BOOLEAN is_enable)
+	_In_opt_ HWND hwnd,
+	_In_ BOOLEAN is_enable
+)
 {
 	HKEY hkey;
 	PR_STRING string;
