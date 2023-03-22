@@ -14,7 +14,7 @@ VOID _r_app_exceptionfilter_savedump (
 	_In_ PEXCEPTION_POINTERS exception_ptr
 )
 {
-	MINIDUMP_EXCEPTION_INFORMATION minidump_info;
+	MINIDUMP_EXCEPTION_INFORMATION minidump_info = {0};
 	WCHAR dump_path[512];
 	LONG64 current_time;
 	HANDLE hfile;
@@ -39,7 +39,15 @@ VOID _r_app_exceptionfilter_savedump (
 	minidump_info.ExceptionPointers = exception_ptr;
 	minidump_info.ClientPointers = FALSE;
 
-	MiniDumpWriteDump (NtCurrentProcess (), HandleToUlong (NtCurrentProcessId ()), hfile, MiniDumpNormal, &minidump_info, NULL, NULL);
+	MiniDumpWriteDump (
+		NtCurrentProcess (),
+		HandleToUlong (NtCurrentProcessId ()),
+		hfile,
+		MiniDumpNormal,
+		&minidump_info,
+		NULL,
+		NULL
+	);
 
 	NtClose (hfile);
 }
@@ -183,17 +191,17 @@ BOOLEAN _r_app_isreadonly ()
 
 BOOLEAN _r_app_initialize_com ()
 {
-	HRESULT status;
+	HRESULT hr;
 
 	// initialize COM library
-	status = CoInitializeEx (NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+	hr = CoInitializeEx (NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 
-	if (!SUCCEEDED (status))
+	if (!SUCCEEDED (hr))
 	{
 #if defined(APP_CONSOLE)
-		_r_console_writestringformat (APP_FAILED_COM_INITIALIZE L" 0x%08" TEXT (PRIX32) L"!\r\n", status);
+		_r_console_writestringformat (APP_FAILED_COM_INITIALIZE L" 0x%08" TEXT (PRIX32) L"!\r\n", hr);
 #else
-		_r_show_errormessage (NULL, APP_FAILED_COM_INITIALIZE, status, NULL);
+		_r_show_errormessage (NULL, APP_FAILED_COM_INITIALIZE, hr, NULL);
 #endif // APP_CONSOLE
 
 		return FALSE;
@@ -234,7 +242,7 @@ VOID _r_app_initialize_components ()
 #if !defined(APP_CONSOLE)
 BOOLEAN _r_app_initialize_controls ()
 {
-	INITCOMMONCONTROLSEX icex;
+	INITCOMMONCONTROLSEX icex = {0};
 
 	icex.dwSize = sizeof (icex);
 	icex.dwICC = ICC_LISTVIEW_CLASSES | ICC_TREEVIEW_CLASSES;
@@ -329,7 +337,7 @@ VOID _r_app_initialize_seh ()
 	BOOLEAN is_set;
 #endif // !APP_NO_DEPRECATIONS
 
-	ULONG error_mode;
+	ULONG error_mode = 0;
 	NTSTATUS status;
 
 	status = NtQueryInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (ULONG), NULL);
@@ -403,7 +411,7 @@ BOOLEAN _r_app_initialize ()
 	// prevent app duplicates
 	if (_r_mutex_isexists (_r_app_getmutexname ()))
 	{
-		_r_obj_initializestringref (&sr, (LPWSTR)_r_app_getname ());
+		_r_obj_initializestringref (&sr, _r_app_getname ());
 
 		EnumWindows (&_r_util_activate_window_callback, (LPARAM)&sr);
 
@@ -458,7 +466,6 @@ PR_STRING _r_app_getdirectory ()
 
 	PR_STRING current_path;
 	PR_STRING new_path;
-
 	R_STRINGREF sr;
 
 	current_path = InterlockedCompareExchangePointer (&cached_path, NULL, NULL);
@@ -532,7 +539,15 @@ PR_STRING _r_app_getconfigpath ()
 					// trying to create file
 					if (!_r_fs_exists (new_result->buffer))
 					{
-						hfile = CreateFile (new_result->buffer, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+						hfile = CreateFile (
+							new_result->buffer,
+							GENERIC_WRITE,
+							FILE_SHARE_READ,
+							NULL,
+							OPEN_ALWAYS,
+							FILE_ATTRIBUTE_NORMAL,
+							NULL
+						);
 
 						if (!_r_fs_isvalidhandle (hfile))
 						{
@@ -564,7 +579,10 @@ PR_STRING _r_app_getconfigpath ()
 			}
 			else
 			{
-				string = _r_path_getknownfolder (CSIDL_APPDATA, L"\\" APP_AUTHOR L"\\" APP_NAME L"\\" APP_NAME_SHORT L".ini");
+				string = _r_path_getknownfolder (
+					CSIDL_APPDATA,
+					L"\\" APP_AUTHOR L"\\" APP_NAME L"\\" APP_NAME_SHORT L".ini"
+				);
 			}
 
 			_r_obj_movereference (&new_result, string);
@@ -714,7 +732,6 @@ PR_STRING _r_app_getuseragent ()
 
 	PR_STRING current_agent;
 	PR_STRING new_agent;
-
 	PR_STRING string;
 
 	current_agent = InterlockedCompareExchangePointer (&cached_agent, NULL, NULL);
@@ -1798,7 +1815,14 @@ VOID _r_config_setstring_ex (
 
 		// write to configuration file
 		if (!_r_app_isreadonly ())
-			WritePrivateProfileString (section_string, key_name, _r_obj_getstring (object_ptr->object_body), _r_app_getconfigpath ()->buffer);
+		{
+			WritePrivateProfileString (
+				section_string,
+				key_name,
+				_r_obj_getstring (object_ptr->object_body),
+				_r_app_getconfigpath ()->buffer
+			);
+		}
 	}
 }
 
@@ -2206,7 +2230,14 @@ BOOLEAN _r_autorun_enable (
 				L"\" -minimized"
 			);
 
-			status = RegSetValueEx (hkey, _r_app_getname (), 0, REG_SZ, (PBYTE)string->buffer, (ULONG)(string->length + sizeof (UNICODE_NULL)));
+			status = RegSetValueEx (
+				hkey,
+				_r_app_getname (),
+				0,
+				REG_SZ,
+				(PBYTE)string->buffer,
+				(ULONG)(string->length + sizeof (UNICODE_NULL))
+			);
 
 			_r_obj_dereference (string);
 		}
@@ -2250,6 +2281,7 @@ BOOLEAN NTAPI _r_update_downloadcallback (
 	return TRUE;
 }
 
+_Success_ (return == ERROR_SUCCESS)
 ULONG _r_update_downloadupdate (
 	_In_ PR_UPDATE_INFO update_info,
 	_Inout_ PR_UPDATE_COMPONENT update_component
@@ -2321,11 +2353,9 @@ NTSTATUS NTAPI _r_update_downloadthread (
 {
 	PR_UPDATE_INFO update_info;
 	PR_UPDATE_COMPONENT update_component;
-
 	TASKDIALOG_COMMON_BUTTON_FLAGS buttons;
 	LPCWSTR str_content;
 	LPCWSTR main_icon;
-
 	ULONG update_flags;
 	ULONG status;
 
@@ -2963,7 +2993,7 @@ VOID _r_update_applyconfig ()
 	SendMessage (hwindow, RM_CONFIG_UPDATE, 0, 0);
 	SendMessage (hwindow, RM_INITIALIZE, 0, 0);
 
-	SendMessage (hwindow, RM_LOCALIZE, 0, 0);
+	PostMessage (hwindow, RM_LOCALIZE, 0, 0);
 }
 
 VOID _r_update_install (
@@ -4499,44 +4529,44 @@ HRESULT _r_skipuac_checkmodulepath (
 	IExecAction *exec_action = NULL;
 	BSTR task_path = NULL;
 	LONG count;
-	HRESULT status;
+	HRESULT hr;
 
-	status = IRegisteredTask_get_Definition (registered_task, &task_definition);
+	hr = IRegisteredTask_get_Definition (registered_task, &task_definition);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	status = ITaskDefinition_get_Actions (task_definition, &action_collection);
+	hr = ITaskDefinition_get_Actions (task_definition, &action_collection);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
 	// check actions count is equal to 1
-	status = IActionCollection_get_Count (action_collection, &count);
+	hr = IActionCollection_get_Count (action_collection, &count);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
 	if (count != 1)
 	{
-		status = SCHED_E_INVALID_TASK;
+		hr = SCHED_E_INVALID_TASK;
 
 		goto CleanupExit;
 	}
 
-	status = IActionCollection_get_Item (action_collection, 1, &action);
+	hr = IActionCollection_get_Item (action_collection, 1, &action);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	status = IAction_QueryInterface (action, &IID_IExecAction, &exec_action);
+	hr = IAction_QueryInterface (action, &IID_IExecAction, &exec_action);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	status = IExecAction_get_Path (exec_action, &task_path);
+	hr = IExecAction_get_Path (exec_action, &task_path);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
 	// check path is for current module
@@ -4544,7 +4574,7 @@ HRESULT _r_skipuac_checkmodulepath (
 
 	if (_r_str_compare (task_path, _r_sys_getimagepath ()) != 0)
 	{
-		status = SCHED_E_INVALID_TASK;
+		hr = SCHED_E_INVALID_TASK;
 
 		goto CleanupExit;
 	}
@@ -4566,7 +4596,7 @@ CleanupExit:
 	if (task_definition)
 		ITaskDefinition_Release (task_definition);
 
-	return status;
+	return hr;
 }
 
 BOOLEAN _r_skipuac_isenabled ()
@@ -4577,40 +4607,40 @@ BOOLEAN _r_skipuac_isenabled ()
 	IRegisteredTask *registered_task = NULL;
 	BSTR task_root = NULL;
 	BSTR task_name = NULL;
-	HRESULT status;
+	HRESULT hr;
 
 #ifndef APP_NO_DEPRECATIONS
 	if (_r_sys_isosversionlower (WINDOWS_VISTA))
 		return FALSE;
 #endif // APP_NO_DEPRECATIONS
 
-	status = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
+	hr = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	status = ITaskService_Connect (task_service, empty, empty, empty, empty);
+	hr = ITaskService_Connect (task_service, empty, empty, empty, empty);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
 	task_root = SysAllocString (L"\\");
 
-	status = ITaskService_GetFolder (task_service, task_root, &task_folder);
+	hr = ITaskService_GetFolder (task_service, task_root, &task_folder);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
 	task_name = SysAllocString (APP_SKIPUAC_NAME);
 
-	status = ITaskFolder_GetTask (task_folder, task_name, &registered_task);
+	hr = ITaskFolder_GetTask (task_folder, task_name, &registered_task);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	status = _r_skipuac_checkmodulepath (registered_task);
+	hr = _r_skipuac_checkmodulepath (registered_task);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
 CleanupExit:
@@ -4630,7 +4660,7 @@ CleanupExit:
 	if (task_service)
 		ITaskService_Release (task_service);
 
-	return SUCCEEDED (status);
+	return SUCCEEDED (hr);
 }
 
 HRESULT _r_skipuac_enable (
@@ -4658,7 +4688,7 @@ HRESULT _r_skipuac_enable (
 	BSTR task_path = NULL;
 	BSTR task_directory = NULL;
 	BSTR task_args = NULL;
-	HRESULT status;
+	HRESULT hr;
 
 #ifndef APP_NO_DEPRECATIONS
 	if (_r_sys_isosversionlower (WINDOWS_VISTA))
@@ -4674,35 +4704,35 @@ HRESULT _r_skipuac_enable (
 		}
 	}
 
-	status = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
+	hr = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	status = ITaskService_Connect (task_service, empty, empty, empty, empty);
+	hr = ITaskService_Connect (task_service, empty, empty, empty, empty);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
 	task_root = SysAllocString (L"\\");
 
-	status = ITaskService_GetFolder (task_service, task_root, &task_folder);
+	hr = ITaskService_GetFolder (task_service, task_root, &task_folder);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
 	task_name = SysAllocString (APP_SKIPUAC_NAME);
 
 	if (is_enable)
 	{
-		status = ITaskService_NewTask (task_service, 0, &task_definition);
+		hr = ITaskService_NewTask (task_service, 0, &task_definition);
 
-		if (FAILED (status))
+		if (FAILED (hr))
 			goto CleanupExit;
 
-		status = ITaskDefinition_get_RegistrationInfo (task_definition, &registration_info);
+		hr = ITaskDefinition_get_RegistrationInfo (task_definition, &registration_info);
 
-		if (FAILED (status))
+		if (FAILED (hr))
 			goto CleanupExit;
 
 		task_author = SysAllocString (_r_app_getauthor ());
@@ -4711,9 +4741,9 @@ HRESULT _r_skipuac_enable (
 		IRegistrationInfo_put_Author (registration_info, task_author);
 		IRegistrationInfo_put_URI (registration_info, task_url);
 
-		status = ITaskDefinition_get_Settings (task_definition, &task_settings);
+		hr = ITaskDefinition_get_Settings (task_definition, &task_settings);
 
-		if (FAILED (status))
+		if (FAILED (hr))
 			goto CleanupExit;
 
 		// Set task compatibility (win7+)
@@ -4726,16 +4756,16 @@ HRESULT _r_skipuac_enable (
 
 		for (INT i = TASK_COMPATIBILITY_V2_4; i != TASK_COMPATIBILITY_V2; --i)
 		{
-			status = ITaskSettings_put_Compatibility (task_settings, i);
+			hr = ITaskSettings_put_Compatibility (task_settings, i);
 
-			if (SUCCEEDED (status))
+			if (SUCCEEDED (hr))
 				break;
 		}
 
 		// Set task settings (win7+)
-		status = ITaskSettings_QueryInterface (task_settings, &IID_ITaskSettings2, &task_settings2);
+		hr = ITaskSettings_QueryInterface (task_settings, &IID_ITaskSettings2, &task_settings2);
 
-		if (SUCCEEDED (status))
+		if (SUCCEEDED (hr))
 		{
 			ITaskSettings2_put_UseUnifiedSchedulingEngine (task_settings2, VARIANT_TRUE);
 			ITaskSettings2_put_DisallowStartOnRemoteAppSession (task_settings2, VARIANT_TRUE);
@@ -4754,27 +4784,27 @@ HRESULT _r_skipuac_enable (
 		ITaskSettings_put_StopIfGoingOnBatteries (task_settings, VARIANT_FALSE);
 		//ITaskSettings_put_Priority (task_settings, 4); // NORMAL_PRIORITY_CLASS
 
-		status = ITaskDefinition_get_Principal (task_definition, &principal);
+		hr = ITaskDefinition_get_Principal (task_definition, &principal);
 
-		if (FAILED (status))
+		if (FAILED (hr))
 			goto CleanupExit;
 
 		IPrincipal_put_RunLevel (principal, TASK_RUNLEVEL_HIGHEST);
 		IPrincipal_put_LogonType (principal, TASK_LOGON_INTERACTIVE_TOKEN);
 
-		status = ITaskDefinition_get_Actions (task_definition, &action_collection);
+		hr = ITaskDefinition_get_Actions (task_definition, &action_collection);
 
-		if (FAILED (status))
+		if (FAILED (hr))
 			goto CleanupExit;
 
-		status = IActionCollection_Create (action_collection, TASK_ACTION_EXEC, &action);
+		hr = IActionCollection_Create (action_collection, TASK_ACTION_EXEC, &action);
 
-		if (FAILED (status))
+		if (FAILED (hr))
 			goto CleanupExit;
 
-		status = IAction_QueryInterface (action, &IID_IExecAction, &exec_action);
+		hr = IAction_QueryInterface (action, &IID_IExecAction, &exec_action);
 
-		if (FAILED (status))
+		if (FAILED (hr))
 			goto CleanupExit;
 
 		task_path = SysAllocString (_r_sys_getimagepath ());
@@ -4787,7 +4817,7 @@ HRESULT _r_skipuac_enable (
 
 		ITaskFolder_DeleteTask (task_folder, task_name, 0);
 
-		status = ITaskFolder_RegisterTaskDefinition (
+		hr = ITaskFolder_RegisterTaskDefinition (
 			task_folder,
 			task_name,
 			task_definition,
@@ -4801,10 +4831,10 @@ HRESULT _r_skipuac_enable (
 	}
 	else
 	{
-		status = ITaskFolder_DeleteTask (task_folder, task_name, 0);
+		hr = ITaskFolder_DeleteTask (task_folder, task_name, 0);
 
-		if (status == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND))
-			status = S_OK;
+		if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND))
+			hr = S_OK;
 	}
 
 CleanupExit:
@@ -4863,10 +4893,10 @@ CleanupExit:
 	if (task_service)
 		ITaskService_Release (task_service);
 
-	if (hwnd && FAILED (status))
-		_r_show_errormessage (hwnd, NULL, status, NULL);
+	if (hwnd && FAILED (hr))
+		_r_show_errormessage (hwnd, NULL, hr, NULL);
 
-	return status;
+	return hr;
 }
 
 BOOLEAN _r_skipuac_run ()
@@ -4885,40 +4915,40 @@ BOOLEAN _r_skipuac_run ()
 	ULONG attempts;
 	TASK_STATE state;
 	INT numargs;
-	HRESULT status;
+	HRESULT hr;
 
 #ifndef APP_NO_DEPRECATIONS
 	if (_r_sys_isosversionlower (WINDOWS_VISTA))
 		return FALSE;
 #endif // APP_NO_DEPRECATIONS
 
-	status = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
+	hr = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	status = ITaskService_Connect (task_service, empty, empty, empty, empty);
+	hr = ITaskService_Connect (task_service, empty, empty, empty, empty);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
 	task_root = SysAllocString (L"\\");
 
-	status = ITaskService_GetFolder (task_service, task_root, &task_folder);
+	hr = ITaskService_GetFolder (task_service, task_root, &task_folder);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
 	task_name = SysAllocString (APP_SKIPUAC_NAME);
 
-	status = ITaskFolder_GetTask (task_folder, task_name, &registered_task);
+	hr = ITaskFolder_GetTask (task_folder, task_name, &registered_task);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	status = _r_skipuac_checkmodulepath (registered_task);
+	hr = _r_skipuac_checkmodulepath (registered_task);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
 	// set arguments for task
@@ -4951,12 +4981,12 @@ BOOLEAN _r_skipuac_run ()
 		params = empty;
 	}
 
-	status = IRegisteredTask_RunEx (registered_task, params, TASK_RUN_AS_SELF, 0, NULL, &running_task);
+	hr = IRegisteredTask_RunEx (registered_task, params, TASK_RUN_AS_SELF, 0, NULL, &running_task);
 
-	if (FAILED (status))
+	if (FAILED (hr))
 		goto CleanupExit;
 
-	status = E_ABORT;
+	hr = E_ABORT;
 
 	// check if started succesfull
 	attempts = 6;
@@ -4969,12 +4999,12 @@ BOOLEAN _r_skipuac_run ()
 		{
 			if (state == TASK_STATE_DISABLED)
 			{
-				status = SCHED_S_TASK_DISABLED;
+				hr = SCHED_S_TASK_DISABLED;
 				break;
 			}
 			else if (state == TASK_STATE_RUNNING)
 			{
-				status = S_OK;
+				hr = S_OK;
 				break;
 			}
 		}
@@ -5006,6 +5036,6 @@ CleanupExit:
 	if (task_service)
 		ITaskService_Release (task_service);
 
-	return SUCCEEDED (status);
+	return SUCCEEDED (hr);
 }
 #endif // APP_HAVE_SKIPUAC
