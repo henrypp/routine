@@ -462,34 +462,21 @@ BOOLEAN _r_app_initialize ()
 
 PR_STRING _r_app_getdirectory ()
 {
+	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static PR_STRING cached_path = NULL;
 
-	PR_STRING current_path;
-	PR_STRING new_path;
 	R_STRINGREF sr;
 
-	current_path = InterlockedCompareExchangePointer (&cached_path, NULL, NULL);
-
-	if (!current_path)
+	if (_r_initonce_begin (&init_once))
 	{
 		_r_obj_initializestringrefconst (&sr, _r_sys_getimagepath ());
 
-		new_path = _r_path_getbasedirectory (&sr);
+		cached_path = _r_path_getbasedirectory (&sr);
 
-		current_path = InterlockedCompareExchangePointer (&cached_path, new_path, NULL);
-
-		if (!current_path)
-		{
-			current_path = new_path;
-		}
-		else
-		{
-			if (new_path)
-				_r_obj_dereference (new_path);
-		}
+		_r_initonce_end (&init_once);
 	}
 
-	return current_path;
+	return cached_path;
 }
 
 PR_STRING _r_app_getconfigpath ()
@@ -499,6 +486,7 @@ PR_STRING _r_app_getconfigpath ()
 
 	PR_STRING buffer;
 	PR_STRING string;
+	PR_STRING path;
 	PR_STRING new_result;
 	HANDLE hfile;
 
@@ -522,9 +510,11 @@ PR_STRING _r_app_getconfigpath ()
 				{
 					if (PathGetDriveNumber (buffer->buffer) == -1)
 					{
+						path = _r_app_getdirectory ();
+
 						string = _r_obj_concatstrings (
 							3,
-							_r_app_getdirectory ()->buffer,
+							path->buffer,
 							L"\\",
 							buffer->buffer
 						);
@@ -569,9 +559,11 @@ PR_STRING _r_app_getconfigpath ()
 		{
 			if (_r_app_isportable ())
 			{
+				path = _r_app_getdirectory ();
+
 				string = _r_obj_concatstrings (
 					4,
-					_r_app_getdirectory ()->buffer,
+					path->buffer,
 					L"\\",
 					_r_app_getnameshort (),
 					L".ini"
@@ -621,36 +613,27 @@ LPCWSTR _r_app_getcrashdirectory ()
 #if !defined(APP_CONSOLE)
 PR_STRING _r_app_getlocalepath ()
 {
+	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static PR_STRING cached_path = NULL;
 
-	PR_STRING current_path;
-	PR_STRING new_path;
+	PR_STRING path;
 
-	current_path = InterlockedCompareExchangePointer (&cached_path, NULL, NULL);
-
-	if (!current_path)
+	if (_r_initonce_begin (&init_once))
 	{
-		new_path = _r_obj_concatstrings (
-			4,
-			_r_app_getdirectory ()->buffer,
-			L"\\",
-			_r_app_getnameshort (),
-			L".lng"
+		path = _r_app_getdirectory ();
+
+		cached_path = _r_format_string (
+			L"%s\\%s.lng",
+			path->buffer,
+			_r_app_getnameshort ()
 		);
 
-		current_path = InterlockedCompareExchangePointer (&cached_path, new_path, NULL);
-
-		if (!current_path)
-		{
-			current_path = new_path;
-		}
-		else
-		{
-			_r_obj_dereference (new_path);
-		}
+		_r_initonce_end (&init_once);
 	}
 
-	return current_path;
+	path = _r_obj_reference (cached_path);
+
+	return path;
 }
 #endif // !APP_CONSOLE
 
@@ -701,7 +684,7 @@ PR_STRING _r_app_getprofiledirectory ()
 	{
 		if (_r_app_isportable ())
 		{
-			new_path = _r_obj_reference (_r_app_getdirectory ());
+			new_path = _r_app_getdirectory ();
 		}
 		else
 		{
@@ -1744,6 +1727,7 @@ VOID _r_config_setstring_ex (
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 
 	WCHAR section_string[128];
+	PR_STRING path;
 	PR_STRING section_string_full;
 	PR_OBJECT_POINTER object_ptr;
 	ULONG hash_code;
@@ -1802,28 +1786,25 @@ VOID _r_config_setstring_ex (
 		_r_queuedlock_releaseexclusive (&app_global.config.lock);
 	}
 
-	if (object_ptr)
-	{
-		if (value)
-		{
-			_r_obj_movereference (&object_ptr->object_body, _r_obj_createstring (value));
-		}
-		else
-		{
-			_r_obj_clearreference (&object_ptr->object_body);
-		}
+	if (!object_ptr)
+		return;
 
-		// write to configuration file
-		if (!_r_app_isreadonly ())
-		{
-			WritePrivateProfileString (
-				section_string,
-				key_name,
-				_r_obj_getstring (object_ptr->object_body),
-				_r_app_getconfigpath ()->buffer
-			);
-		}
+	if (value)
+	{
+		_r_obj_movereference (&object_ptr->object_body, _r_obj_createstring (value));
 	}
+	else
+	{
+		_r_obj_clearreference (&object_ptr->object_body);
+	}
+
+	// write to configuration file
+	if (_r_app_isreadonly ())
+		return;
+
+	path = _r_app_getconfigpath ();
+
+	WritePrivateProfileString (section_string, key_name, _r_obj_getstring (object_ptr->object_body), path->buffer);
 }
 
 //
@@ -1836,6 +1817,7 @@ VOID _r_locale_initialize ()
 	PR_HASHTABLE locale_table;
 	PR_LIST locale_names;
 	PR_STRING language_config;
+	PR_STRING language_path;
 
 	language_config = _r_config_getstring (L"Language", NULL);
 
@@ -1857,8 +1839,10 @@ VOID _r_locale_initialize ()
 		_r_obj_dereference (language_config);
 	}
 
+	language_path = _r_app_getlocalepath ();
+
 	locale_names = _r_obj_createlist (&_r_obj_dereference);
-	locale_table = _r_parseini (_r_app_getlocalepath (), locale_names);
+	locale_table = _r_parseini (language_path, locale_names);
 
 	_r_queuedlock_acquireexclusive (&app_global.locale.lock);
 
@@ -1866,6 +1850,8 @@ VOID _r_locale_initialize ()
 	_r_obj_movereference (&app_global.locale.available_list, locale_names);
 
 	_r_queuedlock_releaseexclusive (&app_global.locale.lock);
+
+	_r_obj_dereference (language_path);
 }
 
 VOID _r_locale_apply (
@@ -2157,12 +2143,24 @@ LPCWSTR _r_locale_getstring (
 
 LONG64 _r_locale_getversion ()
 {
+	PR_STRING path;
 	WCHAR timestamp_string[64];
 	R_STRINGREF string;
 	ULONG length;
 
+	path = _r_app_getlocalepath ();
+
 	// HACK!!! Use "Russian" section and default timestamp key (000) for compatibility with old releases...
-	length = GetPrivateProfileString (L"Russian", L"000", NULL, timestamp_string, RTL_NUMBER_OF (timestamp_string), _r_app_getlocalepath ()->buffer);
+	length = GetPrivateProfileString (
+		L"Russian",
+		L"000",
+		NULL,
+		timestamp_string,
+		RTL_NUMBER_OF (timestamp_string),
+		path->buffer
+	);
+
+	_r_obj_dereference (path);
 
 	if (!length)
 		return 0;
@@ -4279,7 +4277,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 		{
 			_r_wnd_message_dpichanged (hwnd, wparam, lparam);
 
-			SendMessage (hwnd, RM_LOCALIZE, 0, 0);
+			PostMessage (hwnd, RM_LOCALIZE, 0, 0);
 
 			break;
 		}
@@ -4458,13 +4456,16 @@ INT_PTR CALLBACK _r_settings_wndproc (
 				case IDC_RESET:
 				{
 					PR_SETTINGS_PAGE ptr_page;
+					PR_STRING path;
 					HWND hwindow;
 
 					if (_r_show_message (hwnd, MB_YESNO | MB_ICONWARNING, NULL, APP_QUESTION_RESET) != IDYES)
 						break;
 
 					// made backup of existing configuration
-					_r_path_makebackup (_r_app_getconfigpath (), TRUE);
+					path = _r_app_getconfigpath ();
+
+					_r_path_makebackup (path, TRUE);
 
 					// reinitialize configuration
 					_r_config_initialize (); // reload config
