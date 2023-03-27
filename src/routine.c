@@ -185,10 +185,7 @@ PR_STRING _r_format_string_v (
 
 	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
-#pragma warning(push)
-#pragma warning(disable: _UCRT_DISABLED_WARNINGS)
-	_vsnwprintf (string->buffer, length, format, arg_ptr);
-#pragma warning(pop)
+	_vsnwprintf_s (string->buffer, length, _TRUNCATE, format, arg_ptr);
 
 	return string;
 }
@@ -2914,14 +2911,9 @@ VOID _r_obj_appendstringbuilderformat_v (
 	if (sb->allocated_length < sb->string->length + length_in_bytes)
 		_r_obj_resizestringbuilder (sb, sb->string->length + length_in_bytes);
 
-#pragma warning(push)
-#pragma warning(disable: _UCRT_DISABLED_WARNINGS)
-
 	buffer = PTR_ADD_OFFSET (sb->string->buffer, sb->string->length);
 
-	_vsnwprintf (buffer, length, format, arg_ptr);
-
-#pragma warning(pop)
+	_vsnwprintf_s (buffer, length, _TRUNCATE, format, arg_ptr);
 
 	sb->string->length += length_in_bytes;
 
@@ -3046,10 +3038,7 @@ VOID _r_obj_insertstringbuilderformat_v (
 	if ((index * sizeof (WCHAR)) < builder->string->length)
 		RtlMoveMemory (&builder->string->buffer[index + length], &builder->string->buffer[index], builder->string->length - (index * sizeof (WCHAR)));
 
-#pragma warning(push)
-#pragma warning(disable: _UCRT_DISABLED_WARNINGS)
-	_vsnwprintf (&builder->string->buffer[index], length, format, arg_ptr);
-#pragma warning(pop)
+	_vsnwprintf_s (&builder->string->buffer[index], length, _TRUNCATE, format, arg_ptr);
 
 	builder->string->length += length_in_bytes;
 
@@ -6841,10 +6830,7 @@ VOID _r_str_printf_v (
 	// leave the last space for the null terminator
 	max_length = buffer_size - 1;
 
-#pragma warning(push)
-#pragma warning(disable: _UCRT_DISABLED_WARNINGS)
-	format_size = _vsnwprintf (buffer, max_length, format, arg_ptr);
-#pragma warning(pop)
+	format_size = _vsnwprintf_s (buffer, max_length, _TRUNCATE, format, arg_ptr);
 
 	if (format_size == -1 || (SIZE_T)format_size >= max_length)
 	{
