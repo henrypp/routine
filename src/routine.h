@@ -222,15 +222,7 @@ EXTERN_C_START
 // Debugging
 //
 
-FORCEINLINE VOID _r_debug (
-	_In_ LPCWSTR string,
-	...
-)
-{
-	OutputDebugString (string);
-}
-
-VOID _r_debug_v (
+VOID _r_debug (
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 );
@@ -248,8 +240,7 @@ VOID _r_error_initialize_ex (
 	_In_opt_ PEXCEPTION_POINTERS exception_ptr
 );
 
-#define RDBG(a) _r_debug ((a))
-#define RDBG2(a, ...) _r_debug_v ((a), __VA_ARGS__)
+#define RDBG(a, ...) _r_debug ((a), __VA_ARGS__)
 
 //
 // Synchronization: Auto-dereference pool

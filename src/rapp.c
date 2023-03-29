@@ -3119,7 +3119,7 @@ VOID _r_log (
 	level_string = _r_log_leveltostring (log_level);
 
 	// print log for debuggers
-	_r_debug_v (
+	_r_debug (
 		L"[%s],%s,0x%08" TEXT (PRIX32) L",%s\r\n",
 		level_string,
 		title,

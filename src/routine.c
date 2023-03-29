@@ -15,7 +15,7 @@ static R_QUEUED_LOCK _r_context_lock = PR_QUEUED_LOCK_INIT;
 // Debugging
 //
 
-VOID _r_debug_v (
+VOID _r_debug (
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 )
