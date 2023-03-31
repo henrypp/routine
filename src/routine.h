@@ -3589,9 +3589,11 @@ PR_STRING _r_res_queryversionstring (
 // Other
 //
 
-PR_HASHTABLE _r_parseini (
+_Success_ (return)
+BOOLEAN _r_parseini (
 	_In_ PR_STRING path,
-	_Inout_opt_ PR_LIST section_list
+	_Inout_opt_ PR_LIST section_list,
+	_Out_ PR_HASHTABLE_PTR out_buffer
 );
 
 //

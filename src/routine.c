@@ -27,7 +27,7 @@ VOID _r_debug (
 	_r_str_printf_v (string, RTL_NUMBER_OF (string), format, arg_ptr);
 	va_end (arg_ptr);
 
-	_r_debug (string);
+	OutputDebugString (string);
 }
 
 VOID _r_error_initialize (
@@ -14353,9 +14353,11 @@ CleanupExit:
 // Other
 //
 
-PR_HASHTABLE _r_parseini (
+_Success_ (return)
+BOOLEAN _r_parseini (
 	_In_ PR_STRING path,
-	_Inout_opt_ PR_LIST section_list
+	_Inout_opt_ PR_LIST section_list,
+	_Out_ PR_HASHTABLE_PTR out_buffer
 )
 {
 	static R_STRINGREF delimeter = PR_STRINGREF_INIT (L"\\");
@@ -14374,6 +14376,8 @@ PR_HASHTABLE _r_parseini (
 
 	hashtable = _r_obj_createhashtablepointer (16);
 
+	*out_buffer = hashtable;
+
 	// read section names
 	allocated_length = 0x0800; // maximum length for GetPrivateProfileSectionNames
 	sections_string = _r_obj_createstring_ex (NULL, allocated_length * sizeof (WCHAR));
@@ -14384,7 +14388,7 @@ PR_HASHTABLE _r_parseini (
 	{
 		_r_obj_dereference (sections_string);
 
-		return hashtable;
+		return FALSE;
 	}
 
 	_r_obj_setstringlength (sections_string, return_length * sizeof (WCHAR));
@@ -14423,7 +14427,7 @@ PR_HASHTABLE _r_parseini (
 				// skip comments
 				if (*values_iterator.buffer != L'#')
 				{
-					if (_r_str_splitatchar (&values_iterator, '=', &key_string, &value_string))
+					if (_r_str_splitatchar (&values_iterator, L'=', &key_string, &value_string))
 					{
 						// set hash code in table to "section\key" string
 						hash_string = _r_obj_concatstringrefs (
@@ -14465,7 +14469,7 @@ PR_HASHTABLE _r_parseini (
 	_r_obj_dereference (sections_string);
 	_r_obj_dereference (values_string);
 
-	return hashtable;
+	return TRUE;
 }
 
 //
