@@ -493,10 +493,10 @@ VOID _r_app_initialize_components ();
 #endif // !APP_CONSOLE
 
 #if !defined(APP_CONSOLE)
-BOOLEAN _r_app_initialize_controls ();
+VOID _r_app_initialize_controls ();
 #endif // !APP_CONSOLE
 
-BOOLEAN _r_app_initialize_dll ();
+VOID _r_app_initialize_dll ();
 
 #if !defined(APP_CONSOLE)
 VOID _r_app_initialize_locale ();
