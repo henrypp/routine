@@ -638,22 +638,18 @@ PR_STRING _r_app_getlocalepath ()
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static PR_STRING cached_path = NULL;
 
-	PR_STRING path;
-
 	if (_r_initonce_begin (&init_once))
 	{
-		path = _r_app_getdirectory ();
-
 		cached_path = _r_format_string (
 			L"%s\\%s.lng",
-			path->buffer,
+			_r_app_getdirectory ()->buffer,
 			_r_app_getnameshort ()
 		);
 
 		_r_initonce_end (&init_once);
 	}
 
-	return path;
+	return cached_path;
 }
 #endif // !APP_CONSOLE
 
@@ -3836,7 +3832,7 @@ VOID _r_window_restoreposition (
 	_In_ LPCWSTR window_name
 )
 {
-	R_RECTANGLE rectangle_new;
+	R_RECTANGLE rectangle_new = {0};
 	R_RECTANGLE rectangle_current;
 	LONG_PTR style;
 	LONG dpi_value;
