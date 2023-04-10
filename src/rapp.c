@@ -693,7 +693,8 @@ PR_STRING _r_app_getprofiledirectory ()
 		_r_initonce_end (&init_once);
 	}
 
-	_r_fs_mkdir (cached_path->buffer);
+	if (cached_path)
+		_r_fs_mkdir (cached_path->buffer);
 
 	return cached_path;
 }
@@ -1102,6 +1103,8 @@ VOID _r_config_initialize ()
 	PR_STRING path;
 
 	path = _r_app_getconfigpath ();
+
+	config_table = NULL;
 
 	_r_parseini (path, &config_table, NULL);
 
@@ -1822,6 +1825,8 @@ VOID _r_locale_initialize ()
 	PR_LIST locale_names;
 	PR_STRING language_config;
 	PR_STRING language_path;
+
+	locale_table = NULL;
 
 	language_config = _r_config_getstring (L"Language", NULL);
 
