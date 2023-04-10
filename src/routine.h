@@ -3894,6 +3894,38 @@ VOID _r_ctrl_setstringlength (
 	_In_ PR_STRINGREF string
 );
 
+FORCEINLINE VOID _r_ctrl_setreadonly (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ BOOLEAN is_readonly
+)
+{
+	if (ctrl_id)
+	{
+		SendDlgItemMessage (hwnd, ctrl_id, EM_SETREADONLY, is_readonly, 0);
+	}
+	else
+	{
+		SendMessage (hwnd, EM_SETREADONLY, is_readonly, 0);
+	}
+}
+
+FORCEINLINE VOID _r_ctrl_settextlimit (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ INT limit
+)
+{
+	if (ctrl_id)
+	{
+		SendDlgItemMessage (hwnd, ctrl_id, EM_LIMITTEXT, limit, 0);
+	}
+	else
+	{
+		SendMessage (hwnd, EM_LIMITTEXT, limit, 0);
+	}
+}
+
 _Ret_maybenull_
 HWND _r_ctrl_createtip (
 	_In_opt_ HWND hparent
