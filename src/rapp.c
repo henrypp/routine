@@ -693,8 +693,7 @@ PR_STRING _r_app_getprofiledirectory ()
 		_r_initonce_end (&init_once);
 	}
 
-	if (cached_path)
-		_r_fs_mkdir (cached_path->buffer);
+	_r_fs_mkdir (cached_path->buffer);
 
 	return cached_path;
 }
@@ -965,7 +964,11 @@ HWND _r_app_createwindow (
 	_r_app_sethwnd (hwnd);
 
 	if (!hwnd)
+	{
+		RtlRaiseStatus (GetLastError ());
+
 		return NULL;
+	}
 
 	// set window title
 	SetWindowText (hwnd, _r_app_getname ());
@@ -1102,9 +1105,9 @@ VOID _r_config_initialize ()
 	PR_HASHTABLE config_table;
 	PR_STRING path;
 
-	path = _r_app_getconfigpath ();
-
 	config_table = NULL;
+
+	path = _r_app_getconfigpath ();
 
 	_r_parseini (path, &config_table, NULL);
 
