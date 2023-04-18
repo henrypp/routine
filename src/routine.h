@@ -3194,7 +3194,7 @@ BOOLEAN _r_wnd_isvisible_ex (
 
 ULONG CALLBACK _r_wnd_message_callback (
 	_In_ HWND hmain_wnd,
-	_In_ LPCWSTR accelerator_table
+	_In_opt_ LPCWSTR accelerator_table
 );
 
 VOID CALLBACK _r_wnd_message_dpichanged (

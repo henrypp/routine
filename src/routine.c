@@ -12516,7 +12516,7 @@ BOOLEAN _r_wnd_isvisible_ex (
 
 ULONG CALLBACK _r_wnd_message_callback (
 	_In_ HWND hmain_wnd,
-	_In_ LPCWSTR accelerator_table
+	_In_opt_ LPCWSTR accelerator_table
 )
 {
 	MSG msg;
@@ -12525,10 +12525,17 @@ ULONG CALLBACK _r_wnd_message_callback (
 	INT result;
 	BOOLEAN is_processed;
 
-	haccelerator = LoadAccelerators (NULL, accelerator_table);
+	if (accelerator_table)
+	{
+		haccelerator = LoadAccelerators (NULL, accelerator_table);
 
-	if (!haccelerator)
-		return GetLastError ();
+		if (!haccelerator)
+			return GetLastError ();
+	}
+	else
+	{
+		haccelerator = NULL;
+	}
 
 	while (TRUE)
 	{
@@ -12553,8 +12560,11 @@ ULONG CALLBACK _r_wnd_message_callback (
 			}
 		}
 
-		if (TranslateAccelerator (hactive_wnd, haccelerator, &msg))
-			is_processed = TRUE;
+		if (haccelerator)
+		{
+			if (TranslateAccelerator (hactive_wnd, haccelerator, &msg))
+				is_processed = TRUE;
+		}
 
 		if (IsDialogMessage (hmain_wnd, &msg))
 			is_processed = TRUE;
