@@ -693,7 +693,8 @@ PR_STRING _r_app_getprofiledirectory ()
 		_r_initonce_end (&init_once);
 	}
 
-	_r_fs_mkdir (cached_path->buffer);
+	if (cached_path)
+		_r_fs_mkdir (cached_path->buffer);
 
 	return cached_path;
 }
