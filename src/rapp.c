@@ -106,7 +106,7 @@ LPCWSTR _r_app_getmutexname ()
 		_r_initonce_end (&init_once);
 	}
 
-	return current_name->buffer;
+	return cached_name->buffer;
 #else
 	return _r_app_getnameshort ();
 #endif // !APP_NO_MUTEX
