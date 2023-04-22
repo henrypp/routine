@@ -240,7 +240,8 @@ VOID _r_error_initialize_ex (
 	_In_opt_ PEXCEPTION_POINTERS exception_ptr
 );
 
-#define RDBG(a, ...) _r_debug ((a), __VA_ARGS__)
+#define RDBG(a) _r_debug ((a))
+#define RDBG2(a, ...) _r_debug_v ((a), __VA_ARGS__)
 
 //
 // Synchronization: Auto-dereference pool
@@ -498,12 +499,13 @@ FORCEINLINE VOID _r_queuedlock_acquireshared (
 	_Inout_ PR_QUEUED_LOCK queued_lock
 )
 {
-	PVOID ptr;
 	ULONG_PTR value;
 
-	ptr = IntToPtr (PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC);
-
-	value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, ptr, NULL);
+	value = (ULONG_PTR)InterlockedCompareExchangePointer (
+		(PVOID_PTR)&queued_lock->value,
+		IntToPtr (PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC),
+		IntToPtr (0)
+	);
 
 	if (value != 0)
 		_r_queuedlock_acquireshared_ex (queued_lock);
@@ -516,7 +518,10 @@ FORCEINLINE VOID _r_queuedlock_releaseexclusive (
 {
 	ULONG_PTR value;
 
-	value = (ULONG_PTR)InterlockedExchangeAddPointer ((PLONG_PTR)&queued_lock->value, -(LONG_PTR)PR_QUEUED_LOCK_OWNED);
+	value = (ULONG_PTR)InterlockedExchangeAddPointer (
+		(PLONG_PTR)&queued_lock->value,
+		-(LONG_PTR)PR_QUEUED_LOCK_OWNED
+	);
 
 	if ((value & (PR_QUEUED_LOCK_WAITERS | PR_QUEUED_LOCK_TRAVERSING)) == PR_QUEUED_LOCK_WAITERS)
 		_r_queuedlock_wakeforrelease (queued_lock, value - PR_QUEUED_LOCK_OWNED);
@@ -532,7 +537,11 @@ FORCEINLINE VOID _r_queuedlock_releaseshared (
 
 	value = PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC;
 
-	new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, NULL, (PVOID)value);
+	new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
+		(PVOID_PTR)&queued_lock->value,
+		IntToPtr (0),
+		(PVOID)value
+	);
 
 	if (new_value != value)
 		_r_queuedlock_releaseshared_ex (queued_lock);
@@ -621,7 +630,11 @@ FORCEINLINE BOOLEAN _r_protection_acquire (
 	ULONG_PTR new_value;
 
 	value = protection->value & ~PR_RUNDOWN_ACTIVE; // fail fast path when rundown is active
-	new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value + PR_RUNDOWN_REF_INC), (PVOID)value);
+	new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
+		(PVOID_PTR)&protection->value,
+		(PVOID)(value + PR_RUNDOWN_REF_INC),
+		(PVOID)value
+	);
 
 	if (new_value == value)
 	{
@@ -641,7 +654,11 @@ FORCEINLINE VOID _r_protection_release (
 	ULONG_PTR new_value;
 
 	value = protection->value & ~PR_RUNDOWN_ACTIVE; // Fail fast path when rundown is active
-	new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value - PR_RUNDOWN_REF_INC), (PVOID)value);
+	new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
+		(PVOID_PTR)&protection->value,
+		(PVOID)(value - PR_RUNDOWN_REF_INC),
+		(PVOID)value
+	);
 
 	if (new_value != value)
 		_r_protection_release_ex (protection);
@@ -653,7 +670,11 @@ FORCEINLINE VOID _r_protection_waitfor (
 {
 	ULONG_PTR value;
 
-	value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, IntToPtr (PR_RUNDOWN_ACTIVE), NULL);
+	value = (ULONG_PTR)InterlockedCompareExchangePointer (
+		(PVOID_PTR)&protection->value,
+		IntToPtr (PR_RUNDOWN_ACTIVE),
+		IntToPtr (0)
+	);
 
 	if (value != 0 && value != PR_RUNDOWN_ACTIVE)
 		_r_protection_waitfor_ex (protection);
@@ -674,15 +695,14 @@ VOID _r_workqueue_initialize (
 	_In_opt_ LPCWSTR thread_name
 );
 
-PR_WORKQUEUE_ITEM _r_workqueue_createitem (
-	_In_ PR_WORKQUEUE_FUNCTION base_address,
-	_In_opt_ PVOID context
-);
-
 VOID _r_workqueue_destroy (
 	_Inout_ PR_WORKQUEUE work_queue
 );
 
+PR_WORKQUEUE_ITEM _r_workqueue_createitem (
+	_In_ PR_WORKQUEUE_FUNCTION base_address,
+	_In_opt_ PVOID context
+);
 
 VOID _r_workqueue_destroyitem (
 	_In_ PR_WORKQUEUE_ITEM work_queue_item
@@ -824,7 +844,7 @@ FORCEINLINE VOID _r_obj_swapreference (
 		_r_obj_dereference (old_object);
 
 	if (new_object)
-		new_object = _r_obj_reference (new_object);
+		_r_obj_reference (new_object);
 }
 
 FORCEINLINE VOID _r_obj_movereference (
@@ -1038,13 +1058,13 @@ VOID _r_obj_initializebyteref3 (
 	_In_ PR_BYTEREF buffer
 );
 
-VOID _r_obj_initializebyterefempty (
-	_Out_ PR_BYTEREF string
-);
-
 VOID _r_obj_initializebyterefconst (
 	_Out_ PR_BYTEREF string,
 	_In_ LPCSTR buffer
+);
+
+VOID _r_obj_initializebyterefempty (
+	_Out_ PR_BYTEREF string
 );
 
 VOID _r_obj_initializebyteref_ex (
@@ -1077,13 +1097,13 @@ VOID _r_obj_initializestringref4 (
 	_In_ PUNICODE_STRING buffer
 );
 
-VOID _r_obj_initializestringrefempty (
-	_Out_ PR_STRINGREF string
-);
-
 VOID _r_obj_initializestringrefconst (
 	_Out_ PR_STRINGREF string,
 	_In_ LPCWSTR buffer
+);
+
+VOID _r_obj_initializestringrefempty (
+	_Out_ PR_STRINGREF string
 );
 
 VOID _r_obj_initializestringref_ex (
@@ -1126,16 +1146,12 @@ VOID _r_obj_initializestringbuilder_ex (
 	_In_ SIZE_T initial_capacity
 );
 
-VOID _r_obj_appendstringbuilderformat (
-	_Inout_ PR_STRINGBUILDER sb,
-	_In_ _Printf_format_string_ LPCWSTR format,
-	...
+VOID _r_obj_deletestringbuilder (
+	_Inout_ PR_STRINGBUILDER sb
 );
 
-VOID _r_obj_appendstringbuilderformat_v (
-	_Inout_ PR_STRINGBUILDER sb,
-	_In_ _Printf_format_string_ LPCWSTR format,
-	_In_ va_list arg_ptr
+PR_STRING _r_obj_finalstringbuilder (
+	_In_ PR_STRINGBUILDER sb
 );
 
 VOID _r_obj_appendstringbuilder (
@@ -1164,12 +1180,16 @@ VOID _r_obj_appendstringbuilder_ex (
 	_In_ SIZE_T length
 );
 
-VOID _r_obj_deletestringbuilder (
-	_Inout_ PR_STRINGBUILDER sb
+VOID _r_obj_appendstringbuilderformat (
+	_Inout_ PR_STRINGBUILDER sb,
+	_In_ _Printf_format_string_ LPCWSTR format,
+	...
 );
 
-PR_STRING _r_obj_finalstringbuilder (
-	_In_ PR_STRINGBUILDER sb
+VOID _r_obj_appendstringbuilderformat_v (
+	_Inout_ PR_STRINGBUILDER sb,
+	_In_ _Printf_format_string_ LPCWSTR format,
+	_In_ va_list arg_ptr
 );
 
 VOID _r_obj_insertstringbuilder (
@@ -1599,75 +1619,38 @@ LONG _r_calc_multipledivide (
 	_In_ ULONG denominator
 );
 
-FORCEINLINE LONG _r_calc_percentof (
+LONG _r_calc_percentof (
 	_In_ LONG length,
 	_In_ LONG total_length
-)
-{
-	LONG value;
+);
 
-	value = (LONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
-
-	return value;
-}
-
-FORCEINLINE LONG _r_calc_percentof64 (
+LONG _r_calc_percentof64 (
 	_In_ LONG64 length,
 	_In_ LONG64 total_length
-)
-{
-	LONG value;
+);
 
-	value = (LONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
-
-	return value;
-}
-
-FORCEINLINE LONG _r_calc_percentval (
+LONG _r_calc_percentval (
 	_In_ LONG percent,
 	_In_ LONG total_length
-)
-{
-	LONG value;
+);
 
-	value = (total_length * percent) / 100;
-
-	return value;
-}
-
-FORCEINLINE LONG64 _r_calc_percentval64 (
+LONG64 _r_calc_percentval64 (
 	_In_ LONG64 percent,
 	_In_ LONG64 total_length
-)
-{
-	LONG64 value;
+);
 
-	value = (total_length * percent) / 100;
-
-	return value;
-}
-
-FORCEINLINE LONG _r_calc_rectheight (
+LONG _r_calc_rectheight (
 	_In_ LPCRECT rect
-)
-{
-	return rect->bottom - rect->top;
-}
+);
 
-FORCEINLINE LONG _r_calc_rectwidth (
+LONG _r_calc_rectwidth (
 	_In_ LPCRECT rect
-)
-{
-	return rect->right - rect->left;
-}
+);
 
-FORCEINLINE ULONG64 _r_calc_roundnumber (
+ULONG64 _r_calc_roundnumber (
 	_In_ ULONG64 value,
 	_In_ ULONG64 granularity
-)
-{
-	return (value + granularity / 2) / granularity * granularity;
-}
+);
 
 FORCEINLINE LONG _r_calc_kilobytes2bytes (
 	_In_ LONG kilobytes
@@ -1744,21 +1727,13 @@ FORCEINLINE LONG _r_calc_days2seconds (
 // Modal dialogs
 //
 
-HRESULT CALLBACK _r_msg_callback (
-	_In_ HWND hwnd,
-	_In_ UINT msg,
-	_In_ WPARAM wparam,
-	_In_ LPARAM lparam,
-	_In_opt_ LONG_PTR lpdata
-);
-
 INT _r_msg (
 	_In_ HWND hwnd,
 	_In_ ULONG flags,
 	_In_opt_ LPCWSTR title,
 	_In_opt_ LPCWSTR main,
 	_In_opt_ LPCWSTR text,
-	...
+	_In_opt_ ...
 );
 
 // TaskDialogIndirect (vista+)
@@ -1768,6 +1743,14 @@ BOOLEAN _r_msg_taskdialog (
 	_Out_opt_ PINT button_ptr,
 	_Out_opt_ PINT radio_button_ptr,
 	_Out_opt_ LPBOOL is_flagchecked_ptr
+);
+
+HRESULT CALLBACK _r_msg_callback (
+	_In_ HWND hwnd,
+	_In_ UINT msg,
+	_In_ WPARAM wparam,
+	_In_ LPARAM lparam,
+	_In_opt_ LONG_PTR lpdata
 );
 
 //
@@ -1811,12 +1794,12 @@ NTSTATUS _r_fs_flushfile (
 );
 
 _Success_ (return != 0)
-LONG64 _r_fs_getsize (
+LONG64 _r_fs_getpos (
 	_In_ HANDLE hfile
 );
 
 _Success_ (return != 0)
-LONG64 _r_fs_getpos (
+LONG64 _r_fs_getsize (
 	_In_ HANDLE hfile
 );
 
@@ -2794,7 +2777,7 @@ VOID _r_unixtime_to_filetime (
 _Success_ (return)
 BOOLEAN _r_unixtime_to_systemtime (
 	_In_ LONG64 unixtime,
-	_Out_ LPSYSTEMTIME system_time
+	_Out_ PSYSTEMTIME system_time
 );
 
 //
@@ -3125,19 +3108,13 @@ BOOLEAN _r_wnd_getposition (
 	_Out_ PR_RECTANGLE rectangle
 );
 
-FORCEINLINE LONG_PTR _r_wnd_getstyle (
+LONG_PTR _r_wnd_getstyle (
 	_In_ HWND hwnd
-)
-{
-	return GetWindowLongPtr (hwnd, GWL_STYLE);
-}
+);
 
-FORCEINLINE LONG_PTR _r_wnd_getstyle_ex (
+LONG_PTR _r_wnd_getstyle_ex (
 	_In_ HWND hwnd
-)
-{
-	return GetWindowLongPtr (hwnd, GWL_EXSTYLE);
-}
+);
 
 BOOLEAN _r_wnd_isdesktop (
 	_In_ HWND hwnd
@@ -3181,12 +3158,9 @@ BOOLEAN _r_wnd_isundercursor (
 	_In_ HWND hwnd
 );
 
-FORCEINLINE BOOLEAN _r_wnd_isvisible (
+BOOLEAN _r_wnd_isvisible (
 	_In_ HWND hwnd
-)
-{
-	return !!IsWindowVisible (hwnd);
-}
+);
 
 BOOLEAN _r_wnd_isvisible_ex (
 	_In_ HWND hwnd
@@ -3219,15 +3193,11 @@ VOID _r_wnd_recttorectangle (
 	_In_ LPCRECT rect
 );
 
-FORCEINLINE VOID _r_wnd_seticon (
+VOID _r_wnd_seticon (
 	_In_ HWND hwnd,
 	_In_opt_ HICON hicon_small,
 	_In_opt_ HICON hicon_big
-)
-{
-	SendMessage (hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hicon_small);
-	SendMessage (hwnd, WM_SETICON, ICON_BIG, (LPARAM)hicon_big);
-}
+);
 
 VOID _r_wnd_setrectangle (
 	_Out_ PR_RECTANGLE rectangle,
@@ -3243,34 +3213,25 @@ VOID _r_wnd_setposition (
 	_In_opt_ PR_SIZE size
 );
 
-FORCEINLINE VOID _r_wnd_setstyle (
+VOID _r_wnd_setstyle (
 	_In_ HWND hwnd,
 	_In_ LONG_PTR style
-)
-{
-	SetWindowLongPtr (hwnd, GWL_STYLE, style);
-}
+);
 
-FORCEINLINE VOID _r_wnd_setstyle_ex (
+VOID _r_wnd_setstyle_ex (
 	_In_ HWND hwnd,
 	_In_ LONG_PTR ex_style
-)
-{
-	SetWindowLongPtr (hwnd, GWL_EXSTYLE, ex_style);
-}
+);
 
 VOID _r_wnd_toggle (
 	_In_ HWND hwnd,
 	_In_ BOOLEAN is_show
 );
 
-FORCEINLINE VOID _r_wnd_top (
+VOID _r_wnd_top (
 	_In_ HWND hwnd,
 	_In_ BOOLEAN is_enable
-)
-{
-	SetWindowPos (hwnd, is_enable ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
-}
+);
 
 ULONG _r_wnd_getcontext_hash (
 	_In_ HWND hwnd,
@@ -3437,11 +3398,11 @@ NTSTATUS _r_crypt_createcryptcontext (
 	_In_ LPCWSTR algorithm_id
 );
 
-PR_BYTE _r_crypt_getivblock (
+PR_BYTE _r_crypt_getkeyblock (
 	_Inout_ PR_CRYPT_CONTEXT crypt_context
 );
 
-PR_BYTE _r_crypt_getkeyblock (
+PR_BYTE _r_crypt_getivblock (
 	_Inout_ PR_CRYPT_CONTEXT crypt_context
 );
 
@@ -3449,6 +3410,14 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_generatekey (
 	_Inout_ PR_CRYPT_CONTEXT crypt_context,
 	_In_ PR_BYTEREF key
+);
+
+PR_BYTE _r_crypt_getivblock (
+	_Inout_ PR_CRYPT_CONTEXT crypt_context
+);
+
+PR_BYTE _r_crypt_getkeyblock (
+	_Inout_ PR_CRYPT_CONTEXT crypt_context
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -3827,14 +3796,11 @@ INT _r_ctrl_isradiochecked (
 	_In_ INT end_id
 );
 
-FORCEINLINE VOID _r_ctrl_checkbutton (
+VOID _r_ctrl_checkbutton (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ BOOLEAN is_check
-)
-{
-	CheckDlgButton (hwnd, ctrl_id, is_check ? BST_CHECKED : BST_UNCHECKED);
-}
+);
 
 VOID _r_ctrl_enable (
 	_In_ HWND hwnd,
@@ -3978,10 +3944,10 @@ FORCEINLINE ULONG _r_ctrl_getstringlength (
 FORCEINLINE VOID _r_ctrl_setstring (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
-	_In_opt_ LPCWSTR text
+	_In_ LPCWSTR text
 )
 {
-	SendDlgItemMessage (hwnd, ctrl_id, WM_SETTEXT, 0, (LPARAM)text);
+	SetDlgItemText (hwnd, ctrl_id, text);
 }
 
 //
