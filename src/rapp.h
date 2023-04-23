@@ -35,44 +35,52 @@ BOOLEAN _r_config_getboolean_ex (
 	_In_opt_ LPCWSTR section_name
 );
 
+_Success_ (return != 0)
 LONG _r_config_getlong (
 	_In_ LPCWSTR key_name,
 	_In_ LONG def_value
 );
 
+_Success_ (return != 0)
 LONG _r_config_getlong_ex (
 	_In_ LPCWSTR key_name,
 	_In_opt_ LONG def_value,
 	_In_opt_ LPCWSTR section_name
 );
 
+_Success_ (return != 0)
 LONG64 _r_config_getlong64 (
 	_In_ LPCWSTR key_name,
 	_In_ LONG64 def_value
 );
 
+_Success_ (return != 0)
 LONG64 _r_config_getlong64_ex (
 	_In_ LPCWSTR key_name,
 	_In_opt_ LONG64 def_value,
 	_In_opt_ LPCWSTR section_name
 );
 
+_Success_ (return != 0)
 ULONG _r_config_getulong (
 	_In_ LPCWSTR key_name,
 	_In_ ULONG def_value
 );
 
+_Success_ (return != 0)
 ULONG _r_config_getulong_ex (
 	_In_ LPCWSTR key_name,
 	_In_opt_ ULONG def_value,
 	_In_opt_ LPCWSTR section_name
 );
 
+_Success_ (return != 0)
 ULONG64 _r_config_getulong64 (
 	_In_ LPCWSTR key_name,
 	_In_ ULONG64 def_value
 );
 
+_Success_ (return != 0)
 ULONG64 _r_config_getulong64_ex (
 	_In_ LPCWSTR key_name,
 	_In_opt_ ULONG64 def_value,
