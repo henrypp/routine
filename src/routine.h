@@ -2867,7 +2867,7 @@ COLORREF _r_dc_getcolorshade (
 	_In_ ULONG percent
 );
 
-VOID _r_dc_getdefaultfont (
+BOOLEAN _r_dc_getdefaultfont (
 	_Inout_ PLOGFONT logfont,
 	_In_ LONG dpi_value,
 	_In_ BOOLEAN is_forced

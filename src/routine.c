@@ -10406,7 +10406,7 @@ COLORREF _r_dc_getcolorshade (
 	return RGB (r, g, b);
 }
 
-VOID _r_dc_getdefaultfont (
+BOOLEAN _r_dc_getdefaultfont (
 	_Inout_ PLOGFONT logfont,
 	_In_ LONG dpi_value,
 	_In_ BOOLEAN is_forced
@@ -10431,7 +10431,7 @@ VOID _r_dc_getdefaultfont (
 #endif // APP_NO_DEPRECATIONS
 
 	if (!_r_dc_getsystemparametersinfo (SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, dpi_value))
-		return;
+		return FALSE;
 
 	system_font = &ncm.lfMessageFont;
 
@@ -10443,6 +10443,8 @@ VOID _r_dc_getdefaultfont (
 
 	if (is_forced || !logfont->lfWeight)
 		logfont->lfWeight = system_font->lfWeight;
+
+	return TRUE;
 }
 
 LONG _r_dc_getdpi (
