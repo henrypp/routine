@@ -4702,7 +4702,17 @@ HRESULT _r_skipuac_enable (
 
 		ITaskFolder_DeleteTask (task_folder, task_name, 0);
 
-		status = ITaskFolder_RegisterTaskDefinition (task_folder, task_name, task_definition, TASK_CREATE_OR_UPDATE, empty, empty, TASK_LOGON_INTERACTIVE_TOKEN, empty, &registered_task);
+		status = ITaskFolder_RegisterTaskDefinition (
+			task_folder,
+			task_name,
+			task_definition,
+			TASK_CREATE_OR_UPDATE,
+			empty,
+			empty,
+			TASK_LOGON_INTERACTIVE_TOKEN,
+			empty,
+			&registered_task
+		);
 	}
 	else
 	{

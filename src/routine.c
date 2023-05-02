@@ -2855,20 +2855,6 @@ VOID _r_obj_initializestringref_ex (
 // Unicode string object
 //
 
-BOOLEAN _r_obj_initializeunicodestring_ex (
-	_Out_ PUNICODE_STRING string,
-	_In_opt_ LPWSTR buffer,
-	_In_opt_ USHORT length,
-	_In_opt_ USHORT max_length
-)
-{
-	string->Buffer = buffer;
-	string->Length = length;
-	string->MaximumLength = max_length;
-
-	return string->Length <= UNICODE_STRING_MAX_BYTES;
-}
-
 BOOLEAN _r_obj_initializeunicodestring2 (
 	_Out_ PUNICODE_STRING string,
 	_In_ PR_STRING buffer
@@ -2891,6 +2877,20 @@ BOOLEAN _r_obj_initializeunicodestring3 (
 	result = _r_obj_initializeunicodestring_ex (string, buffer->buffer, (USHORT)buffer->length, (USHORT)buffer->length + sizeof (UNICODE_NULL));
 
 	return result;
+}
+
+BOOLEAN _r_obj_initializeunicodestring_ex (
+	_Out_ PUNICODE_STRING string,
+	_In_opt_ LPWSTR buffer,
+	_In_opt_ USHORT length,
+	_In_opt_ USHORT max_length
+)
+{
+	string->Buffer = buffer;
+	string->Length = length;
+	string->MaximumLength = max_length;
+
+	return string->Length <= UNICODE_STRING_MAX_BYTES;
 }
 
 //
@@ -3972,7 +3972,7 @@ PR_OBJECT_POINTER _r_obj_addhashtablepointer (
 )
 {
 	PR_OBJECT_POINTER hashtable_entry;
-	R_OBJECT_POINTER object_ptr;
+	R_OBJECT_POINTER object_ptr = {0};
 
 	object_ptr.object_body = value;
 
@@ -4147,7 +4147,7 @@ INT _r_msg (
 			//}
 			//else
 			//{
-			//	//PR_PRINT_WARNING (L"Not working correctly!");
+			//	//Not working correctly!
 			//	//_r_str_appendformat (main);
 			//}
 		}
@@ -12385,7 +12385,8 @@ ULONG CALLBACK _r_wnd_message_callback (
 		}
 	}
 
-	DestroyAcceleratorTable (haccelerator);
+	if (haccelerator)
+		DestroyAcceleratorTable (haccelerator);
 
 	return ERROR_SUCCESS;
 }
