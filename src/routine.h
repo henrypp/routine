@@ -241,7 +241,7 @@ VOID _r_error_initialize_ex (
 );
 
 #define RDBG(a) _r_debug ((a))
-#define RDBG2(a, ...) _r_debug_v ((a), __VA_ARGS__)
+#define RDBG2(a, ...) _r_debug ((a), __VA_ARGS__)
 
 //
 // Synchronization: Auto-dereference pool
