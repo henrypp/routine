@@ -5103,7 +5103,7 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 	R_STRINGREF current_part;
 	R_STRINGREF arguments;
 	R_STRINGREF remaining_part;
-	R_STRINGREF temp;
+	R_STRINGREF temp = {0};
 	PR_STRING file_path_sr;
 	PR_STRING buffer;
 	WCHAR original_char;
@@ -5251,7 +5251,7 @@ PR_STRING _r_path_resolvedeviceprefix (
 )
 {
 	// device name prefixes
-	OBJECT_ATTRIBUTES object_attributes;
+	OBJECT_ATTRIBUTES object_attributes = {0};
 	UNICODE_STRING device_name;
 	UNICODE_STRING device_prefix;
 	R_STRINGREF device_prefix_sr;
@@ -5358,7 +5358,7 @@ PR_STRING _r_path_resolvedeviceprefix_workaround (
 	_In_ PR_STRING path
 )
 {
-	OBJECT_ATTRIBUTES object_attributes;
+	OBJECT_ATTRIBUTES object_attributes = {0};
 	UNICODE_STRING device_prefix;
 	R_STRINGREF device_prefix_sr;
 	WCHAR device_prefix_buffer[PR_DEVICE_PREFIX_LENGTH] = {0};
@@ -8735,7 +8735,7 @@ NTSTATUS _r_sys_getusernamefromsid (
 	_Out_ PR_STRING_PTR out_buffer
 )
 {
-	LSA_OBJECT_ATTRIBUTES object_attributes;
+	LSA_OBJECT_ATTRIBUTES object_attributes = {0};
 	LSA_HANDLE policy_handle;
 	PLSA_REFERENCED_DOMAIN_LIST referenced_domains;
 	PLSA_TRANSLATED_NAME names;
@@ -9247,8 +9247,8 @@ NTSTATUS _r_sys_openprocess (
 	_Out_ PHANDLE process_handle
 )
 {
-	OBJECT_ATTRIBUTES object_attributes;
-	CLIENT_ID client_id;
+	OBJECT_ATTRIBUTES object_attributes = {0};
+	CLIENT_ID client_id = {0};
 	NTSTATUS status;
 
 	InitializeObjectAttributes (&object_attributes, NULL, 0, NULL, NULL);
@@ -9511,7 +9511,7 @@ HICON _r_sys_loadsharedicon (
 	static PR_HASHTABLE shared_icons = NULL;
 
 	PR_OBJECT_POINTER object_ptr;
-	R_OBJECT_POINTER object_data;
+	R_OBJECT_POINTER object_data = {0};
 	HICON hicon;
 	ULONG hash_code;
 	ULONG name_hash;
@@ -9653,9 +9653,9 @@ VOID _r_sys_queryprocessenvironment (
 	_Out_ PR_ENVIRONMENT environment
 )
 {
-	IO_PRIORITY_HINT io_priority;
-	PROCESS_PRIORITY_CLASS priority_class;
-	PAGE_PRIORITY_INFORMATION page_priority;
+	IO_PRIORITY_HINT io_priority = {0};
+	PROCESS_PRIORITY_CLASS priority_class = {0};
+	PAGE_PRIORITY_INFORMATION page_priority = {0};
 	NTSTATUS status;
 
 	// query base priority
@@ -9700,9 +9700,9 @@ VOID _r_sys_querythreadenvironment (
 	_Out_ PR_ENVIRONMENT environment
 )
 {
-	KPRIORITY base_priority;
-	IO_PRIORITY_HINT io_priority;
-	PAGE_PRIORITY_INFORMATION page_priority;
+	KPRIORITY base_priority = 0;
+	IO_PRIORITY_HINT io_priority = {0};
+	PAGE_PRIORITY_INFORMATION page_priority = {0};
 	NTSTATUS status;
 
 	// query base priority
@@ -10924,7 +10924,7 @@ BOOLEAN _r_filedialog_initialize (
 	SIZE_T file_length;
 #endif // !APP_NO_DEPRECATIONS
 
-	IFileDialog *ifd;
+	IFileDialog *ifd = NULL;
 	HRESULT status;
 
 	status = CoCreateInstance (
@@ -12029,7 +12029,7 @@ BOOLEAN _r_wnd_isfocusassist ()
 	WNF_CHANGE_STAMP change_stamp;
 	WNF_STATE_NAME state_name = {0};
 	HINSTANCE hntdll;
-	ULONG buffer;
+	ULONG buffer = 0;
 	ULONG buffer_size;
 	NTSTATUS status;
 
@@ -12059,7 +12059,7 @@ BOOLEAN _r_wnd_isfocusassist ()
 	state_name.Data[0] = 0xA3BF1C75;
 	state_name.Data[1] = 0xD83063E;
 
-	buffer_size = sizeof (buffer);
+	buffer_size = sizeof (ULONG);
 
 	status = _NtQueryWnfStateData (&state_name, NULL, NULL, &change_stamp, &buffer, &buffer_size);
 
@@ -12642,7 +12642,7 @@ VOID _r_wnd_setcontext (
 )
 {
 	PR_HASHTABLE hashtable;
-	R_OBJECT_POINTER object_pointer;
+	R_OBJECT_POINTER object_pointer = {0};
 	ULONG hash_code;
 
 	hashtable = _r_wnd_getcontext_table ();
@@ -13016,7 +13016,7 @@ ULONG _r_inet_querystatuscode (
 	_In_ HINTERNET hrequest
 )
 {
-	ULONG status;
+	ULONG status = 0;
 	ULONG size;
 
 	size = sizeof (ULONG);
@@ -13550,7 +13550,7 @@ NTSTATUS _r_crypt_createcryptcontext (
 )
 {
 	ULONG query_size;
-	ULONG data_length;
+	ULONG data_length = 0;
 	NTSTATUS status;
 
 	_r_crypt_initialize (crypt_context, FALSE);
@@ -14103,7 +14103,7 @@ ULONG _r_res_querytranslation (
 	_In_ LPCVOID ver_block
 )
 {
-	PR_VERSION_TRANSLATION buffer;
+	PR_VERSION_TRANSLATION buffer = NULL;
 	UINT length;
 
 	if (VerQueryValue (ver_block, L"\\VarFileInfo\\Translation", &buffer, &length))
@@ -14151,6 +14151,8 @@ PR_STRING _r_res_queryversionstring (
 
 	if (!ver_info)
 		goto CleanupExit;
+
+	file_info = NULL;
 
 	ver_info = _r_res_queryversion (ver_block, &file_info);
 
