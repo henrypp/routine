@@ -200,6 +200,13 @@ BOOLEAN _r_format_bytesize64 (
 	_In_ ULONG64 bytes
 )
 {
+#if !defined(APP_NO_DEPRECATIONS)
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static SFBSE _StrFormatByteSizeEx = NULL;
+
+	HINSTANCE hshlwapi;
+#endif // !APP_NO_DEPRECATIONS
+
 	HRESULT status;
 
 #if defined(APP_NO_DEPRECATIONS)
@@ -209,11 +216,6 @@ BOOLEAN _r_format_bytesize64 (
 	if (status == S_OK)
 		return TRUE;
 #else
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static SFBSE _StrFormatByteSizeEx = NULL;
-
-	HINSTANCE hshlwapi;
-
 	if (_r_initonce_begin (&init_once))
 	{
 		hshlwapi = _r_sys_loadlibrary (L"shlwapi.dll");
@@ -628,7 +630,7 @@ VOID _r_autopool_setcurrentdata (
 }
 
 //
-// Synchronization: A fast event object.
+// Synchronization: A fast event object
 //
 
 VOID FASTCALL _r_event_intialize (
@@ -1056,9 +1058,7 @@ FORCEINLINE PR_QUEUED_WAIT_BLOCK _r_queuedlock_preparetowake (
 		}
 
 		// Unlink the relevant wait blocks and clear the traversing bit before we wake waiters.
-		if (!is_wakeall &&
-			(wait_block->flags & PR_QUEUED_WAITER_EXCLUSIVE) &&
-			(previous_wait_block = wait_block->previous_block))
+		if (!is_wakeall && (wait_block->flags & PR_QUEUED_WAITER_EXCLUSIVE) && (previous_wait_block = wait_block->previous_block))
 		{
 			// We have an exclusive waiter and there are multiple waiters. We'll only be waking this
 			// waiter.
@@ -1330,8 +1330,7 @@ VOID FASTCALL _r_queuedlock_acquireshared_ex (
 		//
 		// We want to prioritize exclusive acquires over shared acquires. There's currently no fast,
 		// safe way of finding the last wait block and incrementing the shared owners count here.
-		if (!(value & PR_QUEUED_LOCK_WAITERS) &&
-			(!(value & PR_QUEUED_LOCK_OWNED) || (_r_queuedlock_getsharedowners (value) > 0)))
+		if (!(value & PR_QUEUED_LOCK_WAITERS) && (!(value & PR_QUEUED_LOCK_OWNED) || (_r_queuedlock_getsharedowners (value) > 0)))
 		{
 			new_value = (value + PR_QUEUED_LOCK_SHARED_INC) | PR_QUEUED_LOCK_OWNED;
 
@@ -1532,11 +1531,7 @@ VOID FASTCALL _r_queuedlock_wakeforrelease (
 
 	new_value = value + PR_QUEUED_LOCK_TRAVERSING;
 
-	current_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-		(PVOID_PTR)&queued_lock->value,
-		(PVOID)new_value,
-		(PVOID)value
-	);
+	current_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
 
 	if (current_value == value)
 		_r_queuedlock_wake (queued_lock, new_value);
@@ -1604,11 +1599,7 @@ BOOLEAN FASTCALL _r_protection_acquire_ex (
 		if (value & PR_RUNDOWN_ACTIVE)
 			return FALSE;
 
-		new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-			(PVOID_PTR)&protection->value,
-			(PVOID)(value + PR_RUNDOWN_REF_INC),
-			(PVOID)value
-		);
+		new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value + PR_RUNDOWN_REF_INC), (PVOID)value);
 
 		if (new_value == value)
 			return TRUE;
@@ -1641,11 +1632,7 @@ VOID FASTCALL _r_protection_release_ex (
 		else
 		{
 			// Decrement the reference count normally.
-			new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-				(PVOID_PTR)&protection->value,
-				(PVOID)(value - PR_RUNDOWN_REF_INC),
-				(PVOID)value
-			);
+			new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value - PR_RUNDOWN_REF_INC), (PVOID)value);
 
 			if (new_value == value)
 				break;
@@ -1941,13 +1928,7 @@ VOID _r_workqueue_queueitem (
 		// Make sure the structure doesn't get deleted while the thread is running.
 		if (_r_protection_acquire (&work_queue->rundown_protect))
 		{
-			status = _r_sys_createthread (
-				&_r_workqueue_threadproc,
-				work_queue,
-				NULL,
-				&work_queue->environment,
-				_r_obj_getstring (work_queue->thread_name)
-			);
+			status = _r_sys_createthread (&_r_workqueue_threadproc, work_queue, NULL, &work_queue->environment, _r_obj_getstring (work_queue->thread_name));
 
 			if (NT_SUCCESS (status))
 			{
@@ -2669,11 +2650,7 @@ VOID _r_obj_removestring (
 	_In_ SIZE_T length
 )
 {
-	RtlMoveMemory (
-		&string->buffer[start_pos],
-		&string->buffer[start_pos + length],
-		string->length - (length + start_pos) * sizeof (WCHAR)
-	);
+	RtlMoveMemory (&string->buffer[start_pos], &string->buffer[start_pos + length], string->length - (length + start_pos) * sizeof (WCHAR));
 
 	string->length -= (length * sizeof (WCHAR));
 
@@ -3510,13 +3487,7 @@ VOID _r_obj_insertlistitems (
 	}
 
 	if (start_pos < list_node->count)
-	{
-		RtlMoveMemory (
-			&list_node->items[start_pos + count],
-			&list_node->items[start_pos],
-			(list_node->count - start_pos) * sizeof (PVOID)
-		);
-	}
+		RtlMoveMemory (&list_node->items[start_pos + count], &list_node->items[start_pos], (list_node->count - start_pos) * sizeof (PVOID));
 
 	RtlCopyMemory (&list_node->items[start_pos], list_items, count * sizeof (PVOID));
 
@@ -3551,11 +3522,7 @@ VOID _r_obj_removelistitems (
 		}
 	}
 
-	RtlMoveMemory (
-		&list_node->items[start_pos],
-		&list_node->items[start_pos + count],
-		(list_node->count - start_pos - count) * sizeof (PVOID)
-	);
+	RtlMoveMemory (&list_node->items[start_pos], &list_node->items[start_pos + count], (list_node->count - start_pos - count) * sizeof (PVOID));
 
 	list_node->count -= count;
 }
@@ -4062,7 +4029,7 @@ INT _r_msg (
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
 	{
 #endif // APP_NO_DEPRECATIONS
-		ZeroMemory (&tdc, sizeof (tdc));
+		RtlZeroMemory (&tdc, sizeof (tdc));
 
 		tdc.cbSize = sizeof (tdc);
 		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
@@ -4570,15 +4537,7 @@ ULONG _r_fs_mapfile (
 	}
 	else
 	{
-		hfile = CreateFile (
-			path,
-			FILE_GENERIC_READ,
-			FILE_SHARE_READ,
-			NULL,
-			OPEN_EXISTING,
-			FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN,
-			NULL
-		);
+		hfile = CreateFile (path, FILE_GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, NULL);
 
 		if (!_r_fs_isvalidhandle (hfile))
 			return GetLastError ();
@@ -4660,15 +4619,7 @@ HANDLE _r_fs_openfile (
 {
 	HANDLE hfile;
 
-	hfile = CreateFile (
-		path,
-		GENERIC_READ,
-		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-		NULL,
-		OPEN_EXISTING,
-		0,
-		NULL
-	);
+	hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
 
 	return hfile;
 }
@@ -5376,13 +5327,7 @@ PR_STRING _r_path_resolvedeviceprefix_workaround (
 
 	RtlInitUnicodeString (&device_prefix, L"\\GLOBAL??");
 
-	InitializeObjectAttributes (
-		&object_attributes,
-		&device_prefix,
-		OBJ_CASE_INSENSITIVE,
-		NULL,
-		NULL
-	);
+	InitializeObjectAttributes (&object_attributes, &device_prefix, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
 	status = NtOpenDirectoryObject (&directory_handle, DIRECTORY_QUERY, &object_attributes);
 
@@ -5464,8 +5409,7 @@ PR_STRING _r_path_resolvedeviceprefix_workaround (
 
 								// To ensure we match the longest prefix, make sure the next character is a
 								// backslash or the path is equal to the prefix.
-								if (path->length == device_prefix.Length ||
-									path->buffer[prefix_length] == OBJ_NAME_PATH_SEPARATOR)
+								if (path->length == device_prefix.Length || path->buffer[prefix_length] == OBJ_NAME_PATH_SEPARATOR)
 								{
 									// <letter>:path
 									string = _r_obj_createstring_ex (NULL, (2 * sizeof (WCHAR)) + path->length - device_prefix.Length);
@@ -5824,9 +5768,7 @@ NTSTATUS _r_path_ntpathfromdos (
 	{
 		*out_buffer = NULL;
 
-		status = RtlGetLastNtStatus ();
-
-		return status;
+		return RtlGetLastNtStatus ();
 	}
 
 	buffer_size = sizeof (OBJECT_NAME_INFORMATION) + (MAX_PATH * sizeof (WCHAR));
@@ -5952,14 +5894,7 @@ VOID _r_str_appendformat (
 	dest_length = _r_str_getlength_ex (buffer, buffer_size + 1);
 
 	va_start (arg_ptr, format);
-
-	_r_str_printf_v (
-		buffer + dest_length,
-		buffer_size - dest_length,
-		format,
-		arg_ptr
-	);
-
+	_r_str_printf_v (buffer + dest_length, buffer_size - dest_length, format, arg_ptr);
 	va_end (arg_ptr);
 }
 
@@ -6383,13 +6318,7 @@ ULONG _r_str_fromsecuritydescriptor (
 	ULONG length;
 	BOOL result;
 
-	result = ConvertSecurityDescriptorToStringSecurityDescriptor (
-		security_descriptor,
-		SDDL_REVISION,
-		security_information,
-		&security_string,
-		&length
-	);
+	result = ConvertSecurityDescriptorToStringSecurityDescriptor (security_descriptor, SDDL_REVISION, security_information, &security_string, &length);
 
 	if (!result)
 	{
@@ -6605,7 +6534,7 @@ BOOLEAN _r_str_isequal (
 				b2 = _mm_loadu_si128 ((__m128i *)buffer2);
 				b1 = _mm_cmpeq_epi32 (b1, b2);
 
-				if (_mm_movemask_epi8 (b1) != 0xffff)
+				if (_mm_movemask_epi8 (b1) != 0xFFFF)
 				{
 					if (!is_ignorecase)
 					{
@@ -7956,8 +7885,7 @@ ULONG _r_str_x65599 (
 	{
 		for (LPWSTR buffer = string->buffer; buffer != end_buffer; buffer++)
 		{
-			hash_code = ((65599 * (hash_code)) + (ULONG)(((*buffer) >= L'a' &&
-						 (*buffer) <= L'z') ? (*buffer) - L'a' + L'A' : (*buffer)));
+			hash_code = ((65599 * (hash_code)) + (ULONG)(((*buffer) >= L'a' && (*buffer) <= L'z') ? (*buffer) - L'a' + L'A' : (*buffer)));
 		}
 	}
 	else
@@ -8121,27 +8049,20 @@ BOOLEAN _r_sys_iswine ()
 	return is_wine;
 }
 
+#if !defined(_WIN64)
 BOOLEAN _r_sys_iswow64 ()
 {
-#if !defined(_WIN64)
 	ULONG_PTR iswow64;
 	NTSTATUS status;
 
-	status = NtQueryInformationProcess (
-		NtCurrentProcess (),
-		ProcessWow64Information,
-		&iswow64,
-		sizeof (ULONG_PTR),
-		NULL
-	);
+	status = NtQueryInformationProcess (NtCurrentProcess (), ProcessWow64Information, &iswow64, sizeof (ULONG_PTR), NULL);
 
 	if (NT_SUCCESS (status))
 		return !!iswow64;
 
-#endif // _WIN64
-
 	return FALSE;
 }
+#endif // !_WIN64
 
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_sys_formatmessage (
@@ -8333,96 +8254,71 @@ VOID _r_sys_getsystemroot (
 
 PR_STRING _r_sys_getsystemdirectory ()
 {
+	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static PR_STRING cached_path = NULL;
 
 	R_STRINGREF system_root;
 	R_STRINGREF system_path;
-	PR_STRING current_path;
-	PR_STRING new_path;
 
-	current_path = InterlockedCompareExchangePointer (&cached_path, NULL, NULL);
-
-	if (!current_path)
+	if (_r_initonce_begin (&init_once))
 	{
 		_r_sys_getsystemroot (&system_root);
 
 		_r_obj_initializestringref (&system_path, L"\\system32");
 
-		new_path = _r_obj_concatstringrefs (
+		cached_path = _r_obj_concatstringrefs (
 			2,
 			&system_root,
 			&system_path
 		);
 
-		current_path = InterlockedCompareExchangePointer (&cached_path, new_path, NULL);
-
-		if (!current_path)
-		{
-			current_path = new_path;
-		}
-		else
-		{
-			_r_obj_dereference (new_path);
-		}
+		_r_initonce_end (&init_once);
 	}
 
-	return current_path;
+	return cached_path;
 }
 
 PR_STRING _r_sys_gettempdirectory ()
 {
+	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static PR_STRING cached_path = NULL;
-
-	PR_STRING current_path;
-	PR_STRING new_path;
 
 	ULONG buffer_length;
 	ULONG return_length;
 
-	current_path = InterlockedCompareExchangePointer (&cached_path, NULL, NULL);
-
-	if (!current_path)
+	if (_r_initonce_begin (&init_once))
 	{
 		buffer_length = 256;
-		new_path = _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR));
+		cached_path = _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR));
 
-		return_length = GetTempPath (buffer_length, new_path->buffer);
+		return_length = GetTempPath (buffer_length, cached_path->buffer);
 
 		if (return_length > buffer_length)
 		{
 			buffer_length = return_length;
 
-			_r_obj_movereference (&new_path, _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR)));
+			_r_obj_movereference (&cached_path, _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR)));
 
-			return_length = GetTempPath (buffer_length, new_path->buffer);
+			return_length = GetTempPath (buffer_length, cached_path->buffer);
 		}
 
 		if (return_length)
 		{
 			// Remove trailing backslash
-			if (new_path->buffer[return_length - 1] == OBJ_NAME_PATH_SEPARATOR)
+			if (cached_path->buffer[return_length - 1] == OBJ_NAME_PATH_SEPARATOR)
 				return_length -= 1;
 
-			_r_obj_setstringlength (new_path, return_length * sizeof (WCHAR));
+			_r_obj_setstringlength (cached_path, return_length * sizeof (WCHAR));
 		}
 		else
 		{
-			_r_obj_clearreference (&new_path);
+			_r_obj_clearreference (&cached_path);
 		}
 
-		current_path = InterlockedCompareExchangePointer (&cached_path, new_path, NULL);
-
-		if (!current_path)
-		{
-			current_path = new_path;
-		}
-		else
-		{
-			_r_obj_dereference (new_path);
-		}
+		_r_initonce_end (&init_once);
 	}
 
-	return current_path;
+	return cached_path;
 }
 
 BOOLEAN _r_sys_getopt (
@@ -8485,9 +8381,7 @@ BOOLEAN _r_sys_getopt (
 
 		if (key_name.buffer[option_length] != UNICODE_NULL)
 		{
-			if (key_name.buffer[option_length] == L':' ||
-				key_name.buffer[option_length] == L'=' ||
-				key_name.buffer[option_length] == L' ')
+			if (key_name.buffer[option_length] == L':' || key_name.buffer[option_length] == L'=' || key_name.buffer[option_length] == L' ')
 			{
 				if (out_value)
 				{
@@ -8979,16 +8873,7 @@ NTSTATUS _r_sys_compressbuffer (
 
 	tmp_buffer = _r_obj_createbyte_ex (NULL, allocation_length);
 
-	status = RtlCompressBuffer (
-		format,
-		buffer->buffer,
-		(ULONG)buffer->length,
-		tmp_buffer->buffer,
-		allocation_length,
-		4096,
-		&return_length,
-		ws_buffer
-	);
+	status = RtlCompressBuffer (format, buffer->buffer, (ULONG)buffer->length, tmp_buffer->buffer, allocation_length, 4096, &return_length, ws_buffer);
 
 	if (NT_SUCCESS (status))
 	{
@@ -9032,14 +8917,7 @@ NTSTATUS _r_sys_decompressbuffer (
 
 	tmp_buffer = _r_obj_createbyte_ex (NULL, allocation_length);
 
-	status = RtlDecompressBuffer (
-		format,
-		tmp_buffer->buffer,
-		allocation_length,
-		buffer->buffer,
-		(ULONG)buffer->length,
-		&return_length
-	);
+	status = RtlDecompressBuffer (format, tmp_buffer->buffer, allocation_length, buffer->buffer, (ULONG)buffer->length, &return_length);
 
 	if (status == STATUS_BAD_COMPRESSION_BUFFER)
 	{
@@ -9057,14 +8935,7 @@ NTSTATUS _r_sys_decompressbuffer (
 
 			_r_obj_movereference (&tmp_buffer, _r_obj_createbyte_ex (NULL, allocation_length));
 
-			status = RtlDecompressBuffer (
-				format,
-				tmp_buffer->buffer,
-				allocation_length,
-				buffer->buffer,
-				(ULONG)buffer->length,
-				&return_length
-			);
+			status = RtlDecompressBuffer (format, tmp_buffer->buffer, allocation_length, buffer->buffer, (ULONG)buffer->length, &return_length);
 
 			if (status != STATUS_BAD_COMPRESSION_BUFFER)
 				break;
@@ -9244,7 +9115,7 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_openprocess (
 	_In_opt_ HANDLE process_id,
 	_In_ ACCESS_MASK desired_access,
-	_Out_ PHANDLE process_handle
+	_Outptr_ PHANDLE process_handle
 )
 {
 	OBJECT_ATTRIBUTES object_attributes = {0};
@@ -9935,10 +9806,9 @@ NTSTATUS _r_sys_setthreadname (
 	_In_ LPCWSTR thread_name
 )
 {
-	THREAD_NAME_INFORMATION tni;
+	THREAD_NAME_INFORMATION tni = {0};
 	NTSTATUS status;
 
-	RtlZeroMemory (&tni, sizeof (tni));
 	RtlInitUnicodeString (&tni.ThreadName, thread_name);
 
 	status = NtSetInformationThread (thread_handle, ThreadNameInformation, &tni, sizeof (tni));
@@ -10958,13 +10828,11 @@ BOOLEAN _r_filedialog_initialize (
 
 		if ((flags & PR_FILEDIALOG_OPENFILE))
 		{
-			ofn->Flags = OFN_DONTADDTORECENT | OFN_ENABLESIZING | OFN_EXPLORER | OFN_HIDEREADONLY |
-				OFN_LONGNAMES | OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+			ofn->Flags = OFN_DONTADDTORECENT | OFN_ENABLESIZING | OFN_EXPLORER | OFN_HIDEREADONLY | OFN_LONGNAMES | OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 		}
 		else
 		{
-			ofn->Flags = OFN_DONTADDTORECENT | OFN_ENABLESIZING | OFN_EXPLORER | OFN_HIDEREADONLY |
-				OFN_LONGNAMES | OFN_OVERWRITEPROMPT;
+			ofn->Flags = OFN_DONTADDTORECENT | OFN_ENABLESIZING | OFN_EXPLORER | OFN_HIDEREADONLY | OFN_LONGNAMES | OFN_OVERWRITEPROMPT;
 		}
 
 		file_dialog->u.ofn = ofn;
@@ -11186,10 +11054,7 @@ VOID _r_filedialog_setfilter (
 		if (ofn->lpstrFilter)
 			_r_mem_free ((PVOID)ofn->lpstrFilter);
 
-		ofn->lpstrFilter = _r_mem_allocateandcopy (
-			filter_string->buffer,
-			filter_string->length + sizeof (UNICODE_NULL)
-		);
+		ofn->lpstrFilter = _r_mem_allocateandcopy (filter_string->buffer, filter_string->length + sizeof (UNICODE_NULL));
 
 		_r_obj_dereference (filter_string);
 	}
@@ -11696,8 +11561,7 @@ VOID _r_wnd_addstyle (
 	style = (GetWindowLongPtr (htarget, index) & ~state_mask) | mask;
 	SetWindowLongPtr (htarget, index, style);
 
-	swp_flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE |
-		SWP_FRAMECHANGED | SWP_NOOWNERZORDER;
+	swp_flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER;
 
 	SetWindowPos (htarget, NULL, 0, 0, 0, 0, swp_flags);
 }
@@ -11771,8 +11635,7 @@ VOID _r_wnd_calculateoverlappedrect (
 		if (!GetWindowRect (hwnd_current, &rect_current))
 			continue;
 
-		if ((_r_wnd_ismenu (hwnd_current) || !(_r_wnd_getstyle_ex (hwnd_current) & WS_EX_TOPMOST)) &&
-			IntersectRect (&rect_intersection, window_rect, &rect_current))
+		if ((_r_wnd_ismenu (hwnd_current) || !(_r_wnd_getstyle_ex (hwnd_current) & WS_EX_TOPMOST)) && IntersectRect (&rect_intersection, window_rect, &rect_current))
 		{
 			if (rect_current.left < window_rect->left)
 				window_rect->left -= (window_rect->left - rect_current.left);
@@ -11868,21 +11731,21 @@ VOID _r_wnd_changemessagefilter (
 #else
 	huser32 = _r_sys_loadlibrary (L"user32.dll");
 
-	if (huser32)
+	if (!huser32)
+		return;
+
+	// win7+
+	_ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (huser32, "ChangeWindowMessageFilterEx");
+
+	if (!_ChangeWindowMessageFilterEx)
+		return;
+
+	for (SIZE_T i = 0; i < count; i++)
 	{
-		// win7+
-		_ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (huser32, "ChangeWindowMessageFilterEx");
-
-		if (!_ChangeWindowMessageFilterEx)
-			return;
-
-		for (SIZE_T i = 0; i < count; i++)
-		{
-			_ChangeWindowMessageFilterEx (hwnd, messages[i], action, NULL);
-		}
-
-		//FreeLibrary (huser32);
+		_ChangeWindowMessageFilterEx (hwnd, messages[i], action, NULL);
 	}
+
+	//FreeLibrary (huser32);
 #endif // APP_NO_DEPRECATIONS
 }
 
@@ -11909,13 +11772,7 @@ HWND _r_wnd_createwindow (
 	if (!_r_res_loadresource (hinstance, name, RT_DIALOG, &buffer))
 		return NULL;
 
-	hwnd = CreateDialogIndirectParam (
-		hinstance,
-		(LPDLGTEMPLATE)buffer.buffer,
-		hparent,
-		dlg_proc,
-		(LPARAM)lparam
-	);
+	hwnd = CreateDialogIndirectParam (hinstance, (LPDLGTEMPLATE)buffer.buffer, hparent, dlg_proc, (LPARAM)lparam);
 
 	return hwnd;
 }
@@ -11934,13 +11791,7 @@ INT_PTR _r_wnd_createmodalwindow (
 	if (!_r_res_loadresource (hinstance, name, RT_DIALOG, &buffer))
 		return 0;
 
-	result = DialogBoxIndirectParam (
-		hinstance,
-		(LPDLGTEMPLATE)buffer.buffer,
-		hparent,
-		dlg_proc,
-		(LPARAM)lparam
-	);
+	result = DialogBoxIndirectParam (hinstance, (LPDLGTEMPLATE)buffer.buffer, hparent, dlg_proc, (LPARAM)lparam);
 
 	return result;
 }
@@ -12177,8 +12028,7 @@ BOOLEAN _r_wnd_isfullscreenwindowmode (
 	style = _r_wnd_getstyle (hwnd);
 	ex_style = _r_wnd_getstyle_ex (hwnd);
 
-	return !((style & (WS_DLGFRAME | WS_THICKFRAME)) ||
-			 (ex_style & (WS_EX_WINDOWEDGE | WS_EX_TOOLWINDOW)));
+	return !((style & (WS_DLGFRAME | WS_THICKFRAME)) || (ex_style & (WS_EX_WINDOWEDGE | WS_EX_TOOLWINDOW)));
 }
 
 BOOLEAN _r_wnd_isfullscreenmode ()
@@ -12732,23 +12582,11 @@ HINTERNET _r_inet_createsession (
 		);
 
 		// enable compression feature
-		WinHttpSetOption (
-			hsession,
-			WINHTTP_OPTION_DECOMPRESSION,
-			&(ULONG){WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE},
-			sizeof (ULONG)
-		);
+		WinHttpSetOption (hsession, WINHTTP_OPTION_DECOMPRESSION, &(ULONG){WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE}, sizeof (ULONG));
 
 		// enable http2 protocol (win10+)
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_10))
-		{
-			WinHttpSetOption (
-				hsession,
-				WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL,
-				&(ULONG){WINHTTP_PROTOCOL_FLAG_HTTP2},
-				sizeof (ULONG)
-			);
-		}
+			WinHttpSetOption (hsession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &(ULONG){WINHTTP_PROTOCOL_FLAG_HTTP2}, sizeof (ULONG));
 	}
 
 	return hsession;
@@ -12777,11 +12615,7 @@ ULONG _r_inet_openurl (
 	if (total_length_ptr)
 		*total_length_ptr = 0;
 
-	status = _r_inet_queryurlparts (
-		url,
-		PR_URLPARTS_SCHEME | PR_URLPARTS_HOST | PR_URLPARTS_PORT | PR_URLPARTS_PATH,
-		&url_parts
-	);
+	status = _r_inet_queryurlparts (url, PR_URLPARTS_SCHEME | PR_URLPARTS_HOST | PR_URLPARTS_PORT | PR_URLPARTS_PATH, &url_parts);
 
 	if (status != ERROR_SUCCESS)
 		goto CleanupExit;
@@ -12800,15 +12634,7 @@ ULONG _r_inet_openurl (
 	if (url_parts.scheme == INTERNET_SCHEME_HTTPS)
 		flags |= WINHTTP_FLAG_SECURE;
 
-	hrequest = WinHttpOpenRequest (
-		hconnect,
-		NULL,
-		url_parts.path->buffer,
-		NULL,
-		WINHTTP_NO_REFERER,
-		WINHTTP_DEFAULT_ACCEPT_TYPES,
-		flags
-	);
+	hrequest = WinHttpOpenRequest (hconnect, NULL, url_parts.path->buffer, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
 
 	if (!hrequest)
 	{
@@ -12823,28 +12649,13 @@ ULONG _r_inet_openurl (
 #if !defined(APP_NO_DEPRECATIONS)
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_7))
 #endif // !APP_NO_DEPRECATIONS
-	{
-		WinHttpSetOption (
-			hrequest,
-			WINHTTP_OPTION_DISABLE_FEATURE,
-			&(ULONG){WINHTTP_DISABLE_KEEP_ALIVE},
-			sizeof (ULONG)
-		);
-	}
+		WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &(ULONG){WINHTTP_DISABLE_KEEP_ALIVE}, sizeof (ULONG));
 
 	attempts = 6;
 
 	do
 	{
-		result = WinHttpSendRequest (
-			hrequest,
-			WINHTTP_NO_ADDITIONAL_HEADERS,
-			0,
-			WINHTTP_NO_REQUEST_DATA,
-			0,
-			WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH,
-			0
-		);
+		result = WinHttpSendRequest (hrequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH, 0);
 
 		if (!result)
 		{
@@ -13503,13 +13314,9 @@ VOID _r_crypt_initialize (
 	_In_ BOOLEAN is_hashing
 )
 {
+	RtlZeroMemory (crypt_context, sizeof (R_CRYPT_CONTEXT));
+
 	crypt_context->is_hashing = is_hashing;
-
-	crypt_context->alg_handle = NULL;
-	crypt_context->u.hash_handle = NULL;
-
-	crypt_context->object_data = NULL;
-	crypt_context->block_data = NULL;
 }
 
 VOID _r_crypt_destroycryptcontext (
@@ -13766,7 +13573,7 @@ NTSTATUS _r_crypt_createhashcontext (
 	_In_ LPCWSTR algorithm_id
 )
 {
-	ULONG data_length;
+	ULONG data_length = 0;
 	ULONG query_size;
 	NTSTATUS status;
 
@@ -13839,12 +13646,7 @@ NTSTATUS _r_crypt_finalhashcontext_ex (
 {
 	NTSTATUS status;
 
-	status = BCryptFinishHash (
-		hash_context->u.hash_handle,
-		hash_context->block_data->buffer,
-		(ULONG)hash_context->block_data->length,
-		0
-	);
+	status = BCryptFinishHash (hash_context->u.hash_handle, hash_context->block_data->buffer, (ULONG)hash_context->block_data->length, 0);
 
 	if (NT_SUCCESS (status))
 	{
@@ -14233,20 +14035,11 @@ BOOLEAN _r_parseini (
 
 	while (!_r_str_isempty (sections_iterator.buffer))
 	{
-		return_length = GetPrivateProfileSection (
-			sections_iterator.buffer,
-			values_string->buffer,
-			allocated_length,
-			path->buffer
-		);
+		return_length = GetPrivateProfileSection (sections_iterator.buffer, values_string->buffer, allocated_length, path->buffer);
 
 		if (return_length)
 		{
-			_r_obj_setstringlength_ex (
-				values_string,
-				return_length * sizeof (WCHAR),
-				allocated_length * sizeof (WCHAR)
-			);
+			_r_obj_setstringlength_ex (values_string, return_length * sizeof (WCHAR), allocated_length * sizeof (WCHAR));
 
 			if (section_list)
 				_r_obj_addlistitem (section_list, _r_obj_createstring3 (&sections_iterator));
@@ -14315,33 +14108,31 @@ HRESULT _r_xml_initializelibrary (
 )
 {
 	HRESULT status;
+	PVOID object;
 
-	xml_library->hstream = NULL;
+	RtlZeroMemory (xml_library, sizeof (R_XML_LIBRARY));
+
 	xml_library->is_reader = is_reader;
 
 	if (is_reader)
 	{
-		status = CreateXmlReader (&IID_IXmlReader, (PVOID_PTR)&xml_library->reader, NULL);
+		status = CreateXmlReader (&IID_IXmlReader, &object, NULL);
 
 		if (FAILED (status))
-		{
-			xml_library->reader = NULL;
-
 			return status;
-		}
+
+		xml_library->reader = object;
 
 		IXmlReader_SetProperty (xml_library->reader, XmlReaderProperty_DtdProcessing, DtdProcessing_Prohibit);
 	}
 	else
 	{
-		status = CreateXmlWriter (&IID_IXmlWriter, (PVOID_PTR)&xml_library->writer, NULL);
+		status = CreateXmlWriter (&IID_IXmlWriter, &object, NULL);
 
 		if (FAILED (status))
-		{
-			xml_library->writer = NULL;
-
 			return status;
-		}
+
+		xml_library->writer = object;
 
 		IXmlWriter_SetProperty (xml_library->writer, XmlWriterProperty_Indent, TRUE);
 		IXmlWriter_SetProperty (xml_library->writer, XmlWriterProperty_CompactEmptyElement, TRUE);
@@ -14453,14 +14244,12 @@ HRESULT _r_xml_readstream (
 	ULONG readed;
 	HRESULT status;
 
+	*out_buffer = NULL;
+
 	status = IStream_Size (xml_library->hstream, &size);
 
 	if (FAILED (status))
-	{
-		*out_buffer = NULL;
-
 		return status;
-	}
 
 	// reset stream position to the beginning
 	IStream_Reset (xml_library->hstream);
@@ -14477,8 +14266,6 @@ HRESULT _r_xml_readstream (
 	}
 	else
 	{
-		*out_buffer = NULL;
-
 		_r_obj_dereference (bytes);
 	}
 

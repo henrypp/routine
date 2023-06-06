@@ -487,11 +487,9 @@ FORCEINLINE VOID _r_queuedlock_acquireexclusive (
 	_Inout_ PR_QUEUED_LOCK queued_lock
 )
 {
+	// Owned bit was already set. Slow path.
 	if (_InterlockedBitTestAndSetPointer ((PLONG_PTR)&queued_lock->value, PR_QUEUED_LOCK_OWNED_SHIFT))
-	{
-		// Owned bit was already set. Slow path.
 		_r_queuedlock_acquireexclusive_ex (queued_lock);
-	}
 }
 
 _Acquires_shared_lock_ (*queued_lock)
@@ -501,11 +499,7 @@ FORCEINLINE VOID _r_queuedlock_acquireshared (
 {
 	ULONG_PTR value;
 
-	value = (ULONG_PTR)InterlockedCompareExchangePointer (
-		(PVOID_PTR)&queued_lock->value,
-		IntToPtr (PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC),
-		IntToPtr (0)
-	);
+	value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, IntToPtr (PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC), NULL);
 
 	if (value != 0)
 		_r_queuedlock_acquireshared_ex (queued_lock);
@@ -518,10 +512,7 @@ FORCEINLINE VOID _r_queuedlock_releaseexclusive (
 {
 	ULONG_PTR value;
 
-	value = (ULONG_PTR)InterlockedExchangeAddPointer (
-		(PLONG_PTR)&queued_lock->value,
-		-(LONG_PTR)PR_QUEUED_LOCK_OWNED
-	);
+	value = (ULONG_PTR)InterlockedExchangeAddPointer ((PLONG_PTR)&queued_lock->value, -(LONG_PTR)PR_QUEUED_LOCK_OWNED);
 
 	if ((value & (PR_QUEUED_LOCK_WAITERS | PR_QUEUED_LOCK_TRAVERSING)) == PR_QUEUED_LOCK_WAITERS)
 		_r_queuedlock_wakeforrelease (queued_lock, value - PR_QUEUED_LOCK_OWNED);
@@ -537,11 +528,7 @@ FORCEINLINE VOID _r_queuedlock_releaseshared (
 
 	value = PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC;
 
-	new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-		(PVOID_PTR)&queued_lock->value,
-		IntToPtr (0),
-		(PVOID)value
-	);
+	new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, NULL, (PVOID)value);
 
 	if (new_value != value)
 		_r_queuedlock_releaseshared_ex (queued_lock);
@@ -630,11 +617,7 @@ FORCEINLINE BOOLEAN _r_protection_acquire (
 	ULONG_PTR new_value;
 
 	value = protection->value & ~PR_RUNDOWN_ACTIVE; // fail fast path when rundown is active
-	new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-		(PVOID_PTR)&protection->value,
-		(PVOID)(value + PR_RUNDOWN_REF_INC),
-		(PVOID)value
-	);
+	new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value + PR_RUNDOWN_REF_INC), (PVOID)value);
 
 	if (new_value == value)
 	{
@@ -654,11 +637,7 @@ FORCEINLINE VOID _r_protection_release (
 	ULONG_PTR new_value;
 
 	value = protection->value & ~PR_RUNDOWN_ACTIVE; // Fail fast path when rundown is active
-	new_value = (ULONG_PTR)InterlockedCompareExchangePointer (
-		(PVOID_PTR)&protection->value,
-		(PVOID)(value - PR_RUNDOWN_REF_INC),
-		(PVOID)value
-	);
+	new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value - PR_RUNDOWN_REF_INC), (PVOID)value);
 
 	if (new_value != value)
 		_r_protection_release_ex (protection);
@@ -670,11 +649,7 @@ FORCEINLINE VOID _r_protection_waitfor (
 {
 	ULONG_PTR value;
 
-	value = (ULONG_PTR)InterlockedCompareExchangePointer (
-		(PVOID_PTR)&protection->value,
-		IntToPtr (PR_RUNDOWN_ACTIVE),
-		IntToPtr (0)
-	);
+	value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, IntToPtr (PR_RUNDOWN_ACTIVE), NULL);
 
 	if (value != 0 && value != PR_RUNDOWN_ACTIVE)
 		_r_protection_waitfor_ex (protection);
@@ -2501,7 +2476,9 @@ BOOLEAN _r_sys_isprocessimmersive (
 
 BOOLEAN _r_sys_iswine ();
 
+#if !defined(_WIN64)
 BOOLEAN _r_sys_iswow64 ();
+#endif // !_WIN64
 
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_sys_formatmessage (
@@ -2604,7 +2581,7 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_openprocess (
 	_In_opt_ HANDLE process_id,
 	_In_ ACCESS_MASK desired_access,
-	_Out_ PHANDLE process_handle
+	_Outptr_ PHANDLE process_handle
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -3944,10 +3921,10 @@ FORCEINLINE ULONG _r_ctrl_getstringlength (
 FORCEINLINE VOID _r_ctrl_setstring (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
-	_In_ LPCWSTR text
+	_In_opt_ LPCWSTR string
 )
 {
-	SetDlgItemText (hwnd, ctrl_id, text);
+	SendDlgItemMessage (hwnd, ctrl_id, WM_SETTEXT, 0, (LPARAM)string);
 }
 
 //

@@ -126,6 +126,7 @@
 
 #define APP_FAILED_ADMIN_RIGHTS L"Administrative privileges are required!"
 #define APP_FAILED_COM_INITIALIZE L"COM library initialization failed!"
+
 #define APP_FAILED_KB2533623 L"Security update is not installed!"
 #define APP_FAILED_KB2533623_TEXT L"Install <a href=\"https://support.microsoft.com/kb/2533623\">KB2533623</a>."
 

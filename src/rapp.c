@@ -2932,11 +2932,8 @@ BOOLEAN _r_log_isenabled (
 	if (log_level == LOG_LEVEL_DISABLED)
 		return FALSE;
 
-	if (log_level_check != LOG_LEVEL_DISABLED)
-	{
-		if (log_level > log_level_check)
-			return FALSE;
-	}
+	if (log_level > log_level_check)
+		return FALSE;
 
 	return TRUE;
 }
