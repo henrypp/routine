@@ -26,7 +26,7 @@
 //
 
 #ifndef NT_FACILITY_MASK
-#define NT_FACILITY_MASK 0xfff
+#define NT_FACILITY_MASK 0xFFF
 #endif
 
 #ifndef NT_FACILITY_SHIFT
@@ -42,7 +42,7 @@
 #endif
 
 #ifndef WIN32_FROM_NTSTATUS
-#define WIN32_FROM_NTSTATUS(Status) (((ULONG)(Status)) & 0xffff)
+#define WIN32_FROM_NTSTATUS(Status) (((ULONG)(Status)) & 0xFFFF)
 #endif
 
 //
@@ -1044,6 +1044,12 @@ typedef struct _PROCESS_PRIORITY_CLASS
 	UCHAR PriorityClass;
 } PROCESS_PRIORITY_CLASS, *PPROCESS_PRIORITY_CLASS;
 
+typedef struct _SYSTEM_PROCESS_ID_INFORMATION
+{
+    HANDLE ProcessId;
+    UNICODE_STRING ImageName;
+} SYSTEM_PROCESS_ID_INFORMATION, *PSYSTEM_PROCESS_ID_INFORMATION;
+
 // WNF (win8+)
 typedef struct _WNF_STATE_NAME
 {
@@ -1097,6 +1103,15 @@ typedef struct _WNF_DELIVERY_DESCRIPTOR
 	WNF_TYPE_ID TypeId;
 	ULONG StateDataOffset;
 } WNF_DELIVERY_DESCRIPTOR, *PWNF_DELIVERY_DESCRIPTOR;
+
+typedef struct _SYSTEM_PROCESSOR_INFORMATION
+{
+    USHORT ProcessorArchitecture;
+    USHORT ProcessorLevel;
+    USHORT ProcessorRevision;
+    USHORT MaximumProcessors;
+    ULONG ProcessorFeatureBits;
+} SYSTEM_PROCESSOR_INFORMATION, *PSYSTEM_PROCESSOR_INFORMATION;
 
 typedef enum _FOCUS_ASSIST_INFO
 {
@@ -2571,6 +2586,36 @@ NtCreateFile (
 	_In_reads_bytes_opt_ (EaLength) PVOID EaBuffer,
 	_In_ ULONG EaLength
 );
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtReadFile(
+    _In_ HANDLE FileHandle,
+    _In_opt_ HANDLE Event,
+    _In_opt_ PVOID ApcRoutine,
+    _In_opt_ PVOID ApcContext,
+    _Out_ PIO_STATUS_BLOCK IoStatusBlock,
+    _Out_writes_bytes_(Length) PVOID Buffer,
+    _In_ ULONG Length,
+    _In_opt_ PLARGE_INTEGER ByteOffset,
+    _In_opt_ PULONG Key
+    );
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtWriteFile(
+    _In_ HANDLE FileHandle,
+    _In_opt_ HANDLE Event,
+    _In_opt_ PVOID ApcRoutine,
+    _In_opt_ PVOID ApcContext,
+    _Out_ PIO_STATUS_BLOCK IoStatusBlock,
+    _In_reads_bytes_(Length) PVOID Buffer,
+    _In_ ULONG Length,
+    _In_opt_ PLARGE_INTEGER ByteOffset,
+    _In_opt_ PULONG Key
+    );
 
 NTSYSCALLAPI
 NTSTATUS
