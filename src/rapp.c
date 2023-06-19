@@ -3809,7 +3809,7 @@ VOID _r_settings_createwindow (
 	size = ((sizeof (DLGTEMPLATEEX) + (sizeof (WORD) * 8)) +
 			((sizeof (DLGITEMTEMPLATEEX) + (sizeof (WORD) * 3)) * controls)) + 128;
 
-	buffer = _r_mem_allocatezero (size);
+	buffer = _r_mem_allocate (size);
 	buffer_ptr = buffer;
 
 	if (dlg_id)

@@ -724,14 +724,9 @@ PVOID NTAPI _r_mem_allocate (
 	_In_ SIZE_T bytes_count
 );
 
-_Post_writable_byte_size_ (bytes_count)
-PVOID NTAPI _r_mem_allocatezero (
-	_In_ SIZE_T bytes_count
-);
-
 _Ret_maybenull_
 _Post_writable_byte_size_ (bytes_count)
-PVOID NTAPI _r_mem_allocatezerosafe (
+PVOID NTAPI _r_mem_allocatesafe (
 	_In_ SIZE_T bytes_count
 );
 
@@ -750,15 +745,9 @@ PVOID NTAPI _r_mem_reallocate (
 	_In_ SIZE_T bytes_count
 );
 
-_Post_writable_byte_size_ (bytes_count)
-PVOID NTAPI _r_mem_reallocatezero (
-	_Frees_ptr_opt_ PVOID base_address,
-	_In_ SIZE_T bytes_count
-);
-
 _Ret_maybenull_
 _Post_writable_byte_size_ (bytes_count)
-PVOID NTAPI _r_mem_reallocatezerosafe (
+PVOID NTAPI _r_mem_reallocatesafe (
 	_Frees_ptr_opt_ PVOID base_address,
 	_In_ SIZE_T bytes_count
 );
@@ -1798,9 +1787,10 @@ ULONG _r_fs_mkdir (
 	_In_ LPCWSTR path
 );
 
-_Success_ (return != INVALID_HANDLE_VALUE)
-HANDLE _r_fs_openfile (
-	_In_ LPCWSTR path
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_readfile (
+	_In_ HANDLE hfile,
+	_Outptr_ PR_BYTE_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2553,6 +2543,26 @@ NTSTATUS _r_sys_decompressbuffer (
 	_In_ USHORT format,
 	_In_ PR_BYTEREF buffer,
 	_Out_ PR_BYTE_PTR out_buffer
+);
+
+#define R_FIRST_PROCESS(buffer) ((PSYSTEM_PROCESS_INFORMATION)(buffer))
+#define R_NEXT_PROCESS(buffer) ( \
+    ((PSYSTEM_PROCESS_INFORMATION)(buffer))->NextEntryOffset ? \
+    (PSYSTEM_PROCESS_INFORMATION)PTR_ADD_OFFSET((buffer), \
+    ((PSYSTEM_PROCESS_INFORMATION)(buffer))->NextEntryOffset) : \
+    NULL \
+    )
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_enumprocesses (
+	_Outptr_ PSYSTEM_PROCESS_INFORMATION_PTR out_buffer
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_getprocessimagepath (
+	_In_ HANDLE hprocess,
+	_Outptr_ PR_STRING_PTR out_buffer,
+	_In_ BOOLEAN is_ntpathtodos
 );
 
 _Ret_maybenull_
@@ -3419,16 +3429,11 @@ NTSTATUS _r_crypt_createhashcontext (
 	_In_ LPCWSTR algorithm_id
 );
 
-_Ret_maybenull_
-PR_STRING _r_crypt_finalhashcontext (
-	_In_ PR_CRYPT_CONTEXT hash_context,
-	_In_ BOOLEAN is_uppercase
-);
-
 _Success_ (NT_SUCCESS (return))
-NTSTATUS _r_crypt_finalhashcontext_ex (
+NTSTATUS _r_crypt_finalhashcontext (
 	_In_ PR_CRYPT_CONTEXT hash_context,
-	_Out_ PR_BYTE_PTR out_buffer
+	_Out_opt_ PR_STRING_PTR out_string,
+	_Out_opt_ PR_BYTE_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))

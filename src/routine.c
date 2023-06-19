@@ -840,7 +840,7 @@ PVOID _r_freelist_allocateitem (
 	}
 	else
 	{
-		entry = _r_mem_allocatezero (UFIELD_OFFSET (R_FREE_LIST_ENTRY, body) + free_list->size);
+		entry = _r_mem_allocate (UFIELD_OFFSET (R_FREE_LIST_ENTRY, body) + free_list->size);
 	}
 
 	return &entry->body;
@@ -2058,21 +2058,6 @@ PVOID NTAPI _r_mem_allocate (
 
 	heap_handle = _r_mem_getheap ();
 
-	base_address = RtlAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS, bytes_count);
-
-	return base_address;
-}
-
-_Post_writable_byte_size_ (bytes_count)
-PVOID NTAPI _r_mem_allocatezero (
-	_In_ SIZE_T bytes_count
-)
-{
-	HANDLE heap_handle;
-	PVOID base_address;
-
-	heap_handle = _r_mem_getheap ();
-
 	base_address = RtlAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, bytes_count);
 
 	return base_address;
@@ -2080,7 +2065,7 @@ PVOID NTAPI _r_mem_allocatezero (
 
 _Ret_maybenull_
 _Post_writable_byte_size_ (bytes_count)
-PVOID NTAPI _r_mem_allocatezerosafe (
+PVOID NTAPI _r_mem_allocatesafe (
 	_In_ SIZE_T bytes_count
 )
 {
@@ -2102,7 +2087,7 @@ PVOID NTAPI _r_mem_allocateandcopy (
 {
 	PVOID base_address;
 
-	base_address = _r_mem_allocatezero (bytes_count);
+	base_address = _r_mem_allocate (bytes_count);
 
 	RtlCopyMemory (base_address, src, bytes_count);
 
@@ -2125,22 +2110,6 @@ PVOID NTAPI _r_mem_reallocate (
 
 	heap_handle = _r_mem_getheap ();
 
-	new_address = RtlReAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS, base_address, bytes_count);
-
-	return new_address;
-}
-
-_Post_writable_byte_size_ (bytes_count)
-PVOID NTAPI _r_mem_reallocatezero (
-	_Frees_ptr_opt_ PVOID base_address,
-	_In_ SIZE_T bytes_count
-)
-{
-	HANDLE heap_handle;
-	PVOID new_address;
-
-	heap_handle = _r_mem_getheap ();
-
 	new_address = RtlReAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, base_address, bytes_count);
 
 	return new_address;
@@ -2148,7 +2117,7 @@ PVOID NTAPI _r_mem_reallocatezero (
 
 _Ret_maybenull_
 _Post_writable_byte_size_ (bytes_count)
-PVOID NTAPI _r_mem_reallocatezerosafe (
+PVOID NTAPI _r_mem_reallocatesafe (
 	_Frees_ptr_opt_ PVOID base_address,
 	_In_ SIZE_T bytes_count
 )
@@ -2215,7 +2184,7 @@ PVOID NTAPI _r_obj_allocate (
 {
 	PR_OBJECT_HEADER object_header;
 
-	object_header = _r_mem_allocatezero (UFIELD_OFFSET (R_OBJECT_HEADER, body) + bytes_count);
+	object_header = _r_mem_allocate (UFIELD_OFFSET (R_OBJECT_HEADER, body) + bytes_count);
 
 	InterlockedIncrement (&object_header->ref_count);
 
@@ -2248,7 +2217,6 @@ VOID NTAPI _r_obj_dereference_ex (
 )
 {
 	PR_OBJECT_HEADER object_header;
-
 	LONG old_count;
 	LONG new_count;
 
@@ -3179,7 +3147,7 @@ PR_ARRAY _r_obj_createarray_ex (
 	array_node->count = 0;
 
 	array_node->item_size = item_size;
-	array_node->items = _r_mem_allocatezero (initial_capacity * item_size);
+	array_node->items = _r_mem_allocate (initial_capacity * item_size);
 
 	return array_node;
 }
@@ -3345,7 +3313,7 @@ VOID _r_obj_resizearray (
 
 	array_node->allocated_count = new_capacity;
 
-	array_node->items = _r_mem_reallocatezero (array_node->items, array_node->allocated_count * array_node->item_size);
+	array_node->items = _r_mem_reallocate (array_node->items, array_node->allocated_count * array_node->item_size);
 }
 
 //
@@ -3368,7 +3336,7 @@ PR_LIST _r_obj_createlist_ex (
 	list_node->cleanup_callback = cleanup_callback;
 	list_node->count = 0;
 
-	list_node->items = _r_mem_allocatezero (list_node->allocated_count * sizeof (PVOID));
+	list_node->items = _r_mem_allocate (list_node->allocated_count * sizeof (PVOID));
 
 	return list_node;
 }
@@ -3537,7 +3505,7 @@ VOID _r_obj_resizelist (
 
 	list_node->allocated_count = new_capacity;
 
-	list_node->items = _r_mem_reallocatezero (list_node->items, list_node->allocated_count * sizeof (PVOID));
+	list_node->items = _r_mem_reallocate (list_node->items, list_node->allocated_count * sizeof (PVOID));
 }
 
 VOID _r_obj_setlistitem (
@@ -3585,14 +3553,14 @@ PR_HASHTABLE _r_obj_createhashtable_ex (
 
 	// Allocate the buckets.
 	hashtable->allocated_buckets = _r_math_rounduptopoweroftwo (initial_capacity);
-	hashtable->buckets = _r_mem_allocatezero (hashtable->allocated_buckets * sizeof (SIZE_T));
+	hashtable->buckets = _r_mem_allocate (hashtable->allocated_buckets * sizeof (SIZE_T));
 
 	// Set all bucket values to -1.
 	memset (hashtable->buckets, PR_HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
 
 	// Allocate the entries.
 	hashtable->allocated_entries = hashtable->allocated_buckets;
-	hashtable->entries = _r_mem_allocatezero (hashtable->allocated_entries * PR_HASHTABLE_ENTRY_SIZE (entry_size));
+	hashtable->entries = _r_mem_allocate (hashtable->allocated_entries * PR_HASHTABLE_ENTRY_SIZE (entry_size));
 
 	hashtable->count = 0;
 	hashtable->free_entry = SIZE_MAX;
@@ -3617,7 +3585,7 @@ FORCEINLINE PVOID _r_obj_addhashtableitem_ex (
 	_Out_opt_ PBOOLEAN is_added_ptr
 )
 {
-	PR_HASHTABLE_ENTRY hashtable_entry;
+	PR_HASHTABLE_ENTRY hashtable_entry = NULL;
 	SIZE_T index;
 	SIZE_T free_entry;
 	ULONG valid_hash;
@@ -3800,7 +3768,7 @@ PVOID _r_obj_findhashtable (
 	_In_ ULONG_PTR hash_code
 )
 {
-	PR_HASHTABLE_ENTRY hashtable_entry;
+	PR_HASHTABLE_ENTRY hashtable_entry = NULL;
 	SIZE_T index;
 	ULONG valid_hash;
 
@@ -3830,7 +3798,7 @@ BOOLEAN _r_obj_removehashtableitem (
 	_In_ ULONG_PTR hash_code
 )
 {
-	PR_HASHTABLE_ENTRY hashtable_entry;
+	PR_HASHTABLE_ENTRY hashtable_entry = NULL;
 	SIZE_T index;
 	SIZE_T previous_index;
 	ULONG valid_hash;
@@ -3887,7 +3855,7 @@ VOID _r_obj_resizehashtable (
 	// Re-allocate the buckets. Note that we don't need to keep the contents.
 	hashtable->allocated_buckets = _r_math_rounduptopoweroftwo (new_capacity);
 
-	hashtable->buckets = _r_mem_reallocatezero (hashtable->buckets, hashtable->allocated_buckets * sizeof (SIZE_T));
+	hashtable->buckets = _r_mem_reallocate (hashtable->buckets, hashtable->allocated_buckets * sizeof (SIZE_T));
 
 	// Set all bucket values to -1.
 	memset (hashtable->buckets, PR_HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
@@ -3895,7 +3863,7 @@ VOID _r_obj_resizehashtable (
 	// Re-allocate the entries.
 	hashtable->allocated_entries = hashtable->allocated_buckets;
 
-	hashtable->entries = _r_mem_reallocatezero (hashtable->entries, PR_HASHTABLE_ENTRY_SIZE (hashtable->entry_size) * hashtable->allocated_entries);
+	hashtable->entries = _r_mem_reallocate (hashtable->entries, PR_HASHTABLE_ENTRY_SIZE (hashtable->entry_size) * hashtable->allocated_entries);
 
 	// Re-distribute the entries among the buckets.
 
@@ -3956,7 +3924,7 @@ BOOLEAN _r_obj_enumhashtablepointer (
 	_Inout_ PSIZE_T enum_key
 )
 {
-	PR_OBJECT_POINTER object_ptr;
+	PR_OBJECT_POINTER object_ptr = NULL;
 	BOOLEAN is_success;
 
 	is_success = _r_obj_enumhashtable (hashtable, &object_ptr, hash_code_ptr, enum_key);
@@ -4569,11 +4537,11 @@ ULONG _r_fs_mapfile (
 		}
 		else
 		{
-#ifdef _WIN64
+#if defined(_WIN64)
 			*out_buffer = _r_obj_createbyte_ex (file_bytes, file_size.QuadPart);
 #else
 			*out_buffer = _r_obj_createbyte_ex (file_bytes, file_size.LowPart);
-#endif
+#endif // _WIN64
 
 			UnmapViewOfFile (file_bytes);
 
@@ -4612,16 +4580,62 @@ ULONG _r_fs_mkdir (
 	return status;
 }
 
-_Success_ (return != INVALID_HANDLE_VALUE)
-HANDLE _r_fs_openfile (
-	_In_ LPCWSTR path
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_readfile (
+	_In_ HANDLE hfile,
+	_Outptr_ PR_BYTE_PTR out_buffer
 )
 {
-	HANDLE hfile;
+	IO_STATUS_BLOCK isb;
+	PR_BYTE buffer;
+	LONG64 file_size;
+	SIZE_T return_length;
+	SIZE_T length;
+	NTSTATUS status;
 
-	hfile = CreateFile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
+	*out_buffer = NULL;
 
-	return hfile;
+	file_size = _r_fs_getsize (hfile);
+
+	if (!file_size || file_size > PR_SIZE_BUFFER_OVERFLOW)
+		return STATUS_INSUFFICIENT_RESOURCES;
+
+	buffer = _r_obj_createbyte_ex (NULL, file_size);
+
+	length = 0;
+
+	while (TRUE)
+	{
+		status = NtReadFile (hfile, NULL, NULL, NULL, &isb, buffer, PAGE_SIZE * 2, NULL, NULL);
+
+		if (!NT_SUCCESS (status))
+		{
+			_r_mem_free (buffer);
+
+			return status;
+		}
+
+		if (status == STATUS_END_OF_FILE)
+		{
+			status = STATUS_SUCCESS;
+			break;
+		}
+
+		return_length = (ULONG)isb.Information;
+
+		if (return_length == 0)
+			break;
+
+		RtlCopyMemory (PTR_ADD_OFFSET (buffer, length), buffer, return_length);
+
+		length += return_length;
+
+		_r_obj_setbytelength (buffer, length);
+	}
+
+	*out_buffer = buffer;
+
+	return status;
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -5134,7 +5148,7 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 	// Note that we do not trim whitespace in each part because filenames can contain trailing
 	// whitespace before the extension (e.g. "Internet  .exe").
 
-	temp.buffer = _r_mem_allocatezero (args_sr.length + sizeof (UNICODE_NULL));
+	temp.buffer = _r_mem_allocate (args_sr.length + sizeof (UNICODE_NULL));
 
 	RtlCopyMemory (temp.buffer, args_sr.buffer, args_sr.length);
 
@@ -5213,11 +5227,11 @@ PR_STRING _r_path_resolvedeviceprefix (
 	SIZE_T prefix_length;
 	NTSTATUS status;
 
-#ifndef _WIN64
+#if !defined(_WIN64)
 	PROCESS_DEVICEMAP_INFORMATION device_map = {0};
 #else
 	PROCESS_DEVICEMAP_INFORMATION_EX device_map = {0};
-#endif
+#endif // !_WIN64
 
 	status = NtQueryInformationProcess (NtCurrentProcess (), ProcessDeviceMap, &device_map, sizeof (device_map), NULL);
 
@@ -5334,7 +5348,7 @@ PR_STRING _r_path_resolvedeviceprefix_workaround (
 	if (NT_SUCCESS (status))
 	{
 		buffer_size = sizeof (OBJECT_DIRECTORY_INFORMATION) + (MAX_PATH * sizeof (WCHAR));
-		directory_entry = _r_mem_allocatezero (buffer_size);
+		directory_entry = _r_mem_allocate (buffer_size);
 
 		is_firsttime = TRUE;
 		query_context = 0;
@@ -5361,7 +5375,7 @@ PR_STRING _r_path_resolvedeviceprefix_workaround (
 
 				buffer_size *= 2;
 
-				directory_entry = _r_mem_reallocatezero (directory_entry, buffer_size);
+				directory_entry = _r_mem_reallocate (directory_entry, buffer_size);
 			}
 
 			if (!NT_SUCCESS (status))
@@ -5668,7 +5682,7 @@ PR_STRING _r_path_dospathfromnt (
 		return string;
 
 	}
-#ifdef _WIN64
+#if defined(_WIN64)
 	// "SysWOW64\" means "C:\Windows\SysWOW64\".
 	else if (_r_str_isstartswith2 (&path->sr, L"SysWOW64\\", TRUE))
 	{
@@ -5686,7 +5700,7 @@ PR_STRING _r_path_dospathfromnt (
 
 		return string;
 	}
-#endif
+#endif // _WIN64
 	else if (_r_str_isstartswith2 (&path->sr, L"\\device\\", TRUE))
 	{
 		// network share (win7+)
@@ -5772,7 +5786,7 @@ NTSTATUS _r_path_ntpathfromdos (
 	}
 
 	buffer_size = sizeof (OBJECT_NAME_INFORMATION) + (MAX_PATH * sizeof (WCHAR));
-	obj_name_info = _r_mem_allocatezero (buffer_size);
+	obj_name_info = _r_mem_allocate (buffer_size);
 
 	attempts = 6;
 
@@ -5788,7 +5802,7 @@ NTSTATUS _r_path_ntpathfromdos (
 				break;
 			}
 
-			obj_name_info = _r_mem_reallocatezero (obj_name_info, buffer_size);
+			obj_name_info = _r_mem_reallocate (obj_name_info, buffer_size);
 		}
 		else
 		{
@@ -6300,7 +6314,7 @@ PR_STRING _r_str_fromhex (
 	for (SIZE_T i = 0; i < length; i++)
 	{
 		string->buffer[i * sizeof (WCHAR)] = table[buffer[i] >> 4];
-		string->buffer[i * sizeof (WCHAR) + 1] = table[buffer[i] & 0xf];
+		string->buffer[i * sizeof (WCHAR) + 1] = table[buffer[i] & 0xF];
 	}
 
 	return string;
@@ -8135,7 +8149,7 @@ R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
 	HANDLE token_handle;
 	TOKEN_ELEVATION elevation = {0};
 	TOKEN_ELEVATION_TYPE elevation_type = 0;
-	PTOKEN_USER token_user;
+	PTOKEN_USER token_user = NULL;
 	ULONG return_length;
 	NTSTATUS status;
 
@@ -8570,7 +8584,7 @@ ULONG _r_sys_getsessioninfo (
 
 ULONG _r_sys_gettickcount ()
 {
-#ifdef _WIN64
+#if defined(_WIN64)
 
 	return (ULONG)((USER_SHARED_DATA->TickCountQuad * USER_SHARED_DATA->TickCountMultiplier) >> 24);
 
@@ -8593,14 +8607,14 @@ ULONG _r_sys_gettickcount ()
 				   UInt32x32To64 ((tick_count.HighPart << 8) & 0xffffffff,
 				   USER_SHARED_DATA->TickCountMultiplier));
 
-#endif
+#endif // _WIN64
 }
 
 ULONG64 _r_sys_gettickcount64 ()
 {
 	ULARGE_INTEGER tick_count = {0};
 
-#ifdef _WIN64
+#if defined(_WIN64)
 
 	tick_count.QuadPart = USER_SHARED_DATA->TickCountQuad;
 
@@ -8617,7 +8631,7 @@ ULONG64 _r_sys_gettickcount64 ()
 		YieldProcessor ();
 	}
 
-#endif
+#endif // _WIN64
 
 	return (UInt32x32To64 (tick_count.LowPart, USER_SHARED_DATA->TickCountMultiplier) >> 24) +
 		(UInt32x32To64 (tick_count.HighPart, USER_SHARED_DATA->TickCountMultiplier) << 8);
@@ -8858,16 +8872,14 @@ NTSTATUS _r_sys_compressbuffer (
 	ULONG return_length;
 	NTSTATUS status;
 
+	*out_buffer = NULL;
+
 	status = RtlGetCompressionWorkSpaceSize (format, &ws_buffer_length, &ws_fragment_length);
 
 	if (!NT_SUCCESS (status))
-	{
-		*out_buffer = NULL;
-
 		return status;
-	}
 
-	ws_buffer = _r_mem_allocatezero (ws_buffer_length);
+	ws_buffer = _r_mem_allocate (ws_buffer_length);
 
 	allocation_length = (ULONG)(buffer->length);
 
@@ -8883,8 +8895,6 @@ NTSTATUS _r_sys_compressbuffer (
 	}
 	else
 	{
-		*out_buffer = NULL;
-
 		_r_obj_dereference (tmp_buffer);
 	}
 
@@ -8906,14 +8916,12 @@ NTSTATUS _r_sys_decompressbuffer (
 	ULONG attempts;
 	NTSTATUS status;
 
+	*out_buffer = NULL;
+
 	allocation_length = (ULONG)(buffer->length) * 2;
 
 	if (allocation_length > PR_SIZE_BUFFER_OVERFLOW)
-	{
-		*out_buffer = NULL;
-
 		return STATUS_INSUFFICIENT_RESOURCES;
-	}
 
 	tmp_buffer = _r_obj_createbyte_ex (NULL, allocation_length);
 
@@ -8951,10 +8959,99 @@ NTSTATUS _r_sys_decompressbuffer (
 	}
 	else
 	{
-		*out_buffer = NULL;
-
 		_r_obj_dereference (tmp_buffer);
 	}
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_enumprocesses (
+	_Outptr_ PSYSTEM_PROCESS_INFORMATION_PTR out_buffer
+)
+{
+	PVOID buffer;
+	ULONG length;
+	NTSTATUS status;
+
+	*out_buffer = NULL;
+
+	length = 0x4000;
+	buffer = _r_mem_allocate (length);
+
+	while (TRUE)
+	{
+		status = NtQuerySystemInformation (SystemProcessInformation, buffer, length, &length);
+
+		if (status == STATUS_BUFFER_TOO_SMALL || status == STATUS_INFO_LENGTH_MISMATCH)
+		{
+			buffer = _r_mem_reallocate (buffer, length);
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	if (!NT_SUCCESS (status))
+	{
+		_r_mem_free (buffer);
+
+		return status;
+	}
+
+	*out_buffer = buffer;
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_getprocessimagepath (
+	_In_ HANDLE hprocess,
+	_Outptr_ PR_STRING_PTR out_buffer,
+	_In_ BOOLEAN is_ntpathtodos
+)
+{
+	SYSTEM_PROCESS_ID_INFORMATION data = {0};
+	PR_STRING path;
+	NTSTATUS status;
+
+	*out_buffer = NULL;
+
+	// On input, specify the PID and a buffer to hold the string.
+	data.ProcessId = hprocess;
+	data.ImageName.MaximumLength = 0x100;
+
+	do
+	{
+		data.ImageName.Buffer = _r_mem_allocate (data.ImageName.MaximumLength);
+
+		status = NtQuerySystemInformation (SystemProcessIdInformation, &data, sizeof (SYSTEM_PROCESS_ID_INFORMATION), NULL);
+
+		if (!NT_SUCCESS (status))
+			_r_mem_free (data.ImageName.Buffer);
+
+		// Repeat using the correct value the system put into MaximumLength
+	}
+	while (status == STATUS_INFO_LENGTH_MISMATCH);
+
+	if (!NT_SUCCESS (status))
+		return status;
+
+	path = _r_obj_createstring4 (&data.ImageName);
+
+	if (is_ntpathtodos)
+	{
+		*out_buffer = _r_path_dospathfromnt (path);
+
+		_r_obj_dereference (path);
+	}
+	else
+	{
+		*out_buffer = path;
+	}
+
+	_r_mem_free (data.ImageName.Buffer);
 
 	return status;
 }
@@ -9033,9 +9130,7 @@ NTSTATUS _r_sys_createprocess_ex (
 	}
 
 	if (command_line)
-	{
 		command_line_string = _r_obj_createstring (command_line);
-	}
 
 	if (file_name)
 	{
@@ -9156,7 +9251,7 @@ NTSTATUS _r_sys_queryprocessstring (
 		return status;
 	}
 
-	buffer = _r_mem_allocatezero (return_length);
+	buffer = _r_mem_allocate (return_length);
 
 	status = NtQueryInformationProcess (process_handle, info_class, buffer, return_length, &return_length);
 
@@ -9493,14 +9588,14 @@ NTSTATUS _r_sys_querytokeninformation (
 
 	return_length = 0;
 	buffer_length = 128;
-	buffer = _r_mem_allocatezero (buffer_length);
+	buffer = _r_mem_allocate (buffer_length);
 
 	status = NtQueryInformationToken (token_handle, token_class, buffer, buffer_length, &return_length);
 
 	if (status == STATUS_BUFFER_OVERFLOW || status == STATUS_BUFFER_TOO_SMALL)
 	{
 		buffer_length = return_length;
-		buffer = _r_mem_reallocatezero (buffer, buffer_length);
+		buffer = _r_mem_reallocate (buffer, buffer_length);
 
 		status = NtQueryInformationToken (token_handle, token_class, buffer, buffer_length, &return_length);
 	}
@@ -9631,7 +9726,7 @@ NTSTATUS _r_sys_setprocessprivilege (
 	if (!NT_SUCCESS (status))
 		return status;
 
-	privileges_buffer = _r_mem_allocatezero (FIELD_OFFSET (TOKEN_PRIVILEGES, Privileges) + (sizeof (LUID_AND_ATTRIBUTES) * count));
+	privileges_buffer = _r_mem_allocate (FIELD_OFFSET (TOKEN_PRIVILEGES, Privileges) + (sizeof (LUID_AND_ATTRIBUTES) * count));
 
 	token_privileges = privileges_buffer;
 	token_privileges->PrivilegeCount = count;
@@ -10820,11 +10915,11 @@ BOOLEAN _r_filedialog_initialize (
 
 		file_dialog->flags = flags;
 
-		ofn = _r_mem_allocatezero (struct_size);
+		ofn = _r_mem_allocate (struct_size);
 
 		ofn->lStructSize = (ULONG)struct_size;
 		ofn->nMaxFile = (ULONG)file_length + 1;
-		ofn->lpstrFile = _r_mem_allocatezero (file_length * sizeof (WCHAR));
+		ofn->lpstrFile = _r_mem_allocate (file_length * sizeof (WCHAR));
 
 		if ((flags & PR_FILEDIALOG_OPENFILE))
 		{
@@ -11005,7 +11100,7 @@ VOID _r_filedialog_setpath (
 			return;
 
 		ofn->nMaxFile = (ULONG)max (_r_str_getlength3 (&sr) + 1, 1024);
-		ofn->lpstrFile = _r_mem_reallocatezero (ofn->lpstrFile, ofn->nMaxFile * sizeof (WCHAR));
+		ofn->lpstrFile = _r_mem_reallocate (ofn->lpstrFile, ofn->nMaxFile * sizeof (WCHAR));
 
 		RtlCopyMemory (ofn->lpstrFile, sr.buffer, sr.length + sizeof (UNICODE_NULL));
 	}
@@ -11168,7 +11263,7 @@ PR_LAYOUT_ITEM _r_layout_additem (
 
 	flags |= _r_layout_getcontrolflags (hwnd);
 
-	layout_item = _r_mem_allocatezero (sizeof (R_LAYOUT_ITEM));
+	layout_item = _r_mem_allocate (sizeof (R_LAYOUT_ITEM));
 
 	layout_item->parent_item = parent_item;
 	layout_item->hwnd = hwnd;
@@ -13616,45 +13711,37 @@ CleanupExit:
 	return status;
 }
 
-_Ret_maybenull_
-PR_STRING _r_crypt_finalhashcontext (
-	_In_ PR_CRYPT_CONTEXT hash_context,
-	_In_ BOOLEAN is_uppercase
-)
-{
-	PR_BYTE bytes;
-	PR_STRING string;
-	NTSTATUS status;
-
-	status = _r_crypt_finalhashcontext_ex (hash_context, &bytes);
-
-	if (!NT_SUCCESS (status))
-		return NULL;
-
-	string = _r_str_fromhex (bytes->buffer, bytes->length, is_uppercase);
-
-	_r_obj_dereference (bytes);
-
-	return string;
-}
-
 _Success_ (NT_SUCCESS (return))
-NTSTATUS _r_crypt_finalhashcontext_ex (
+NTSTATUS _r_crypt_finalhashcontext (
 	_In_ PR_CRYPT_CONTEXT hash_context,
-	_Out_ PR_BYTE_PTR out_buffer
+	_Out_opt_ PR_STRING_PTR out_string,
+	_Out_opt_ PR_BYTE_PTR out_buffer
 )
 {
+	PR_STRING string;
 	NTSTATUS status;
 
 	status = BCryptFinishHash (hash_context->u.hash_handle, hash_context->block_data->buffer, (ULONG)hash_context->block_data->length, 0);
 
 	if (NT_SUCCESS (status))
 	{
-		*out_buffer = _r_obj_reference (hash_context->block_data);
+		if (out_string)
+		{
+			string = _r_str_fromhex (hash_context->block_data->buffer, hash_context->block_data->length, TRUE);
+
+			*out_string = string;
+		}
+
+		if (out_buffer)
+			*out_buffer = _r_obj_reference (hash_context->block_data);
 	}
 	else
 	{
-		*out_buffer = NULL;
+		if (out_string)
+			*out_string = NULL;
+
+		if (out_buffer)
+			*out_buffer = NULL;
 	}
 
 	return status;
@@ -13947,7 +14034,7 @@ PR_STRING _r_res_queryversionstring (
 	if (!ver_size)
 		return NULL;
 
-	ver_block = _r_mem_allocatezero (ver_size);
+	ver_block = _r_mem_allocate (ver_size);
 
 	ver_info = GetFileVersionInfo (path, 0, ver_size, ver_block);
 
@@ -14254,7 +14341,11 @@ HRESULT _r_xml_readstream (
 	// reset stream position to the beginning
 	IStream_Reset (xml_library->hstream);
 
+#if defined(_WIN64)
+	bytes = _r_obj_createbyte_ex (NULL, size.QuadPart);
+#else
 	bytes = _r_obj_createbyte_ex (NULL, size.LowPart);
+#endif // _WIN64
 
 	status = ISequentialStream_Read (xml_library->hstream, bytes->buffer, (ULONG)bytes->length, &readed);
 
