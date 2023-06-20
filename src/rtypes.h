@@ -1,7 +1,7 @@
 // rtypes.h
 // project sdk library
 //
-// Copyright (c) 2019-2022 Henry++
+// Copyright (c) 2019-2023 Henry++
 
 #pragma once
 
