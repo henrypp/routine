@@ -2545,13 +2545,13 @@ NTSTATUS _r_sys_decompressbuffer (
 	_Out_ PR_BYTE_PTR out_buffer
 );
 
-#define R_FIRST_PROCESS(buffer) ((PSYSTEM_PROCESS_INFORMATION)(buffer))
-#define R_NEXT_PROCESS(buffer) ( \
-    ((PSYSTEM_PROCESS_INFORMATION)(buffer))->NextEntryOffset ? \
-    (PSYSTEM_PROCESS_INFORMATION)PTR_ADD_OFFSET((buffer), \
-    ((PSYSTEM_PROCESS_INFORMATION)(buffer))->NextEntryOffset) : \
-    NULL \
-    )
+#define PR_FIRST_PROCESS(buffer) ((PSYSTEM_PROCESS_INFORMATION)(buffer))
+#define PR_NEXT_PROCESS(buffer) ( \
+	((PSYSTEM_PROCESS_INFORMATION)(buffer))->NextEntryOffset ? \
+	(PSYSTEM_PROCESS_INFORMATION)PTR_ADD_OFFSET((buffer), \
+	((PSYSTEM_PROCESS_INFORMATION)(buffer))->NextEntryOffset) : \
+	NULL \
+	)
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_enumprocesses (
