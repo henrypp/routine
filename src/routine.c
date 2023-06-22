@@ -4600,7 +4600,12 @@ NTSTATUS _r_fs_readfile (
 	if (!file_size || file_size > PR_SIZE_BUFFER_OVERFLOW)
 		return STATUS_INSUFFICIENT_RESOURCES;
 
+#if defined(_WIN64)
+
 	buffer = _r_obj_createbyte_ex (NULL, file_size);
+#else
+	buffer = _r_obj_createbyte_ex (NULL, (ULONG)file_size);
+#endif // _WIN64
 
 	length = 0;
 
@@ -5768,6 +5773,8 @@ NTSTATUS _r_path_ntpathfromdos (
 	ULONG attempts;
 	NTSTATUS status;
 
+	*out_buffer = NULL;
+
 	hfile = CreateFile (
 		path->buffer,
 		GENERIC_READ,
@@ -5779,11 +5786,7 @@ NTSTATUS _r_path_ntpathfromdos (
 	);
 
 	if (!_r_fs_isvalidhandle (hfile))
-	{
-		*out_buffer = NULL;
-
 		return RtlGetLastNtStatus ();
-	}
 
 	buffer_size = sizeof (OBJECT_NAME_INFORMATION) + (MAX_PATH * sizeof (WCHAR));
 	obj_name_info = _r_mem_allocate (buffer_size);
@@ -5818,10 +5821,6 @@ NTSTATUS _r_path_ntpathfromdos (
 		_r_str_tolower (&string->sr); // lower is important!
 
 		*out_buffer = string;
-	}
-	else
-	{
-		*out_buffer = NULL;
 	}
 
 	_r_mem_free (obj_name_info);
@@ -6259,6 +6258,8 @@ NTSTATUS _r_str_fromguid (
 	PR_STRING string;
 	NTSTATUS status;
 
+	*out_buffer = NULL;
+
 	status = RtlStringFromGUID ((LPGUID)guid, &us);
 
 	if (NT_SUCCESS (status))
@@ -6271,10 +6272,6 @@ NTSTATUS _r_str_fromguid (
 		*out_buffer = string;
 
 		RtlFreeUnicodeString (&us);
-	}
-	else
-	{
-		*out_buffer = NULL;
 	}
 
 	return status;
@@ -6332,14 +6329,12 @@ ULONG _r_str_fromsecuritydescriptor (
 	ULONG length;
 	BOOL result;
 
+	*out_buffer = NULL;
+
 	result = ConvertSecurityDescriptorToStringSecurityDescriptor (security_descriptor, SDDL_REVISION, security_information, &security_string, &length);
 
 	if (!result)
-	{
-		*out_buffer = NULL;
-
 		return GetLastError ();
-	}
 
 	string = _r_obj_createstring_ex (security_string, length * sizeof (WCHAR));
 
@@ -6360,6 +6355,8 @@ NTSTATUS _r_str_fromsid (
 	PR_STRING string;
 	NTSTATUS status;
 
+	*out_buffer = NULL;
+
 	string = _r_obj_createstring_ex (NULL, SECURITY_MAX_SID_STRING_CHARACTERS * sizeof (WCHAR));
 
 	_r_obj_initializeunicodestring2 (&us, string);
@@ -6374,8 +6371,6 @@ NTSTATUS _r_str_fromsid (
 	}
 	else
 	{
-		*out_buffer = NULL;
-
 		_r_obj_dereference (string);
 	}
 
@@ -7443,13 +7438,12 @@ NTSTATUS _r_str_multibyte2unicode (
 	ULONG output_size;
 	NTSTATUS status;
 
+	*out_buffer = NULL;
+
 	status = RtlMultiByteToUnicodeSize (&output_size, string->buffer, (ULONG)string->length);
 
 	if (!NT_SUCCESS (status))
-	{
-		*out_buffer = NULL;
 		return status;
-	}
 
 	out_string = _r_obj_createstring_ex (NULL, output_size);
 
@@ -7461,8 +7455,6 @@ NTSTATUS _r_str_multibyte2unicode (
 	}
 	else
 	{
-		*out_buffer = NULL;
-
 		_r_obj_dereference (out_string);
 	}
 
@@ -7479,13 +7471,12 @@ NTSTATUS _r_str_unicode2multibyte (
 	ULONG output_size;
 	NTSTATUS status;
 
+	*out_buffer = NULL;
+
 	status = RtlUnicodeToMultiByteSize (&output_size, string->buffer, (ULONG)string->length);
 
 	if (!NT_SUCCESS (status))
-	{
-		*out_buffer = NULL;
 		return status;
-	}
 
 	out_string = _r_obj_createbyte_ex (NULL, output_size);
 
@@ -7497,8 +7488,6 @@ NTSTATUS _r_str_unicode2multibyte (
 	}
 	else
 	{
-		*out_buffer = NULL;
-
 		_r_obj_dereference (out_string);
 	}
 
@@ -8098,6 +8087,8 @@ ULONG _r_sys_formatmessage (
 	allocated_length = 256;
 	string = _r_obj_createstring_ex (NULL, allocated_length * sizeof (WCHAR));
 
+	*out_buffer = NULL;
+
 	do
 	{
 		return_length = FormatMessage (FORMAT_MESSAGE_FROM_HMODULE | FORMAT_MESSAGE_IGNORE_INSERTS, hinstance, error_code, lang_id, string->buffer, allocated_length, NULL);
@@ -8135,8 +8126,6 @@ ULONG _r_sys_formatmessage (
 		}
 	}
 	while (--attempts);
-
-	*out_buffer = NULL;
 
 	return status;
 }
@@ -8463,6 +8452,8 @@ LONG _r_sys_getpackagepath (
 	UINT32 length;
 	LONG status;
 
+	*out_buffer = NULL;
+
 	if (_r_initonce_begin (&init_once))
 	{
 		hkernel32 = _r_sys_loadlibrary (L"kernel32.dll");
@@ -8479,22 +8470,14 @@ LONG _r_sys_getpackagepath (
 	}
 
 	if (!_GetStagedPackagePathByFullName)
-	{
-		*out_buffer = NULL;
-
 		return ERROR_NOT_SUPPORTED;
-	}
 
 	length = 0;
 
 	status = _GetStagedPackagePathByFullName (package_full_name->buffer, &length, NULL);
 
 	if (status != ERROR_INSUFFICIENT_BUFFER)
-	{
-		*out_buffer = NULL;
-
 		return status;
-	}
 
 	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
@@ -8506,8 +8489,6 @@ LONG _r_sys_getpackagepath (
 	}
 	else
 	{
-		*out_buffer = NULL;
-
 		_r_obj_dereference (string);
 	}
 
@@ -8524,6 +8505,8 @@ NTSTATUS _r_sys_getservicesid (
 	ULONG sid_length;
 	PR_BYTE sid;
 	NTSTATUS status;
+
+	*out_buffer = NULL;
 
 	_r_obj_initializeunicodestring3 (&service_name, name);
 
@@ -8543,14 +8526,8 @@ NTSTATUS _r_sys_getservicesid (
 		}
 		else
 		{
-			*out_buffer = NULL;
-
 			_r_obj_dereference (sid);
 		}
-	}
-	else
-	{
-		*out_buffer = NULL;
 	}
 
 	return status;
@@ -8566,12 +8543,10 @@ ULONG _r_sys_getsessioninfo (
 	LPWSTR buffer;
 	ULONG length;
 
-	if (!WTSQuerySessionInformation (WTS_CURRENT_SERVER_HANDLE, WTS_CURRENT_SESSION, info_class, &buffer, &length))
-	{
-		*out_buffer = NULL;
+	*out_buffer = NULL;
 
+	if (!WTSQuerySessionInformation (WTS_CURRENT_SERVER_HANDLE, WTS_CURRENT_SESSION, info_class, &buffer, &length))
 		return GetLastError ();
-	}
 
 	string = _r_obj_createstring_ex (buffer, length * sizeof (WCHAR));
 
@@ -8645,18 +8620,17 @@ NTSTATUS _r_sys_getusernamefromsid (
 {
 	LSA_OBJECT_ATTRIBUTES object_attributes = {0};
 	LSA_HANDLE policy_handle;
-	PLSA_REFERENCED_DOMAIN_LIST referenced_domains;
-	PLSA_TRANSLATED_NAME names;
+	PLSA_REFERENCED_DOMAIN_LIST referenced_domains = NULL;
+	PLSA_TRANSLATED_NAME names = NULL;
 	R_STRINGBUILDER sb = {0};
 	PLSA_TRUST_INFORMATION trust_info;
 	BOOLEAN is_hasdomain;
 	BOOLEAN is_hasname;
 	NTSTATUS status;
 
-	InitializeObjectAttributes (&object_attributes, NULL, 0, NULL, NULL);
+	*out_buffer = NULL;
 
-	referenced_domains = NULL;
-	names = NULL;
+	InitializeObjectAttributes (&object_attributes, NULL, 0, NULL, NULL);
 
 	status = LsaOpenPolicy (NULL, &object_attributes, POLICY_LOOKUP_NAMES, &policy_handle);
 
@@ -8703,8 +8677,6 @@ CleanupExit:
 	}
 	else
 	{
-		*out_buffer = NULL;
-
 		_r_obj_deletestringbuilder (&sb);
 	}
 
@@ -13505,7 +13477,7 @@ NTSTATUS _r_crypt_generatekey (
 		crypt_context->u.key_handle = NULL;
 	}
 
-	RtlSecureZeroMemory (crypt_context->object_data->buffer, crypt_context->object_data->length);
+	RtlZeroMemory (crypt_context->object_data->buffer, crypt_context->object_data->length);
 
 	status = BCryptGenerateSymmetricKey (
 		crypt_context->alg_handle,
@@ -13547,6 +13519,8 @@ NTSTATUS _r_crypt_encryptbuffer (
 	ULONG written;
 	NTSTATUS status;
 
+	*out_buffer = NULL;
+
 	status = BCryptEncrypt (
 		crypt_context->u.key_handle,
 		buffer,
@@ -13561,11 +13535,7 @@ NTSTATUS _r_crypt_encryptbuffer (
 	);
 
 	if (!NT_SUCCESS (status))
-	{
-		*out_buffer = NULL;
-
 		return status;
-	}
 
 	tmp_buffer = _r_obj_createbyte_ex (NULL, return_length);
 
@@ -13590,8 +13560,6 @@ NTSTATUS _r_crypt_encryptbuffer (
 	}
 	else
 	{
-		*out_buffer = NULL;
-
 		_r_obj_dereference (tmp_buffer);
 	}
 
@@ -13611,6 +13579,8 @@ NTSTATUS _r_crypt_decryptbuffer (
 	ULONG written;
 	NTSTATUS status;
 
+	*out_buffer = NULL;
+
 	status = BCryptDecrypt (
 		crypt_context->u.key_handle,
 		buffer,
@@ -13625,11 +13595,7 @@ NTSTATUS _r_crypt_decryptbuffer (
 	);
 
 	if (!NT_SUCCESS (status))
-	{
-		*out_buffer = NULL;
-
 		return status;
-	}
 
 	tmp_buffer = _r_obj_createbyte_ex (NULL, return_length);
 
@@ -13654,8 +13620,6 @@ NTSTATUS _r_crypt_decryptbuffer (
 	}
 	else
 	{
-		*out_buffer = NULL;
-
 		_r_obj_dereference (tmp_buffer);
 	}
 
