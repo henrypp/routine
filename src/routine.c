@@ -12241,7 +12241,7 @@ BOOLEAN _r_wnd_isvisible_ex (
 }
 
 ULONG CALLBACK _r_wnd_message_callback (
-	_In_ HWND hmain_wnd,
+	_In_ HWND hwnd,
 	_In_opt_ LPCWSTR accelerator_table
 )
 {
@@ -12282,7 +12282,7 @@ ULONG CALLBACK _r_wnd_message_callback (
 			}
 			else
 			{
-				hactive_wnd = hmain_wnd;
+				hactive_wnd = hwnd;
 			}
 		}
 
@@ -12292,7 +12292,7 @@ ULONG CALLBACK _r_wnd_message_callback (
 				is_processed = TRUE;
 		}
 
-		if (IsDialogMessage (hmain_wnd, &msg))
+		if (IsDialogMessage (hwnd, &msg))
 			is_processed = TRUE;
 
 		if (!is_processed)
