@@ -25,7 +25,7 @@ VOID _r_app_exceptionfilter_savedump (
 		dump_path,
 		RTL_NUMBER_OF (dump_path),
 		L"%s\\%s-%" TEXT (PR_LONG64) L".dmp",
-		_r_app_getcrashdirectory (),
+		_r_app_getcrashdirectory (TRUE),
 		_r_app_getnameshort (),
 		current_time
 	);
@@ -39,7 +39,15 @@ VOID _r_app_exceptionfilter_savedump (
 	minidump_info.ExceptionPointers = exception_ptr;
 	minidump_info.ClientPointers = FALSE;
 
-	MiniDumpWriteDump (NtCurrentProcess (), HandleToUlong (NtCurrentProcessId ()), hfile, MiniDumpNormal, &minidump_info, NULL, NULL);
+	MiniDumpWriteDump (
+		NtCurrentProcess (),
+		HandleToUlong (NtCurrentProcessId ()),
+		hfile,
+		MiniDumpNormal,
+		&minidump_info,
+		NULL,
+		NULL
+	);
 
 	NtClose (hfile);
 }
@@ -545,7 +553,9 @@ PR_STRING _r_app_getconfigpath ()
 	return cached_result;
 }
 
-LPCWSTR _r_app_getcachedirectory ()
+LPCWSTR _r_app_getcachedirectory (
+	_In_ BOOLEAN is_create
+)
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static WCHAR cached_path[512] = {0};
@@ -557,12 +567,15 @@ LPCWSTR _r_app_getcachedirectory ()
 		_r_initonce_end (&init_once);
 	}
 
-	_r_fs_mkdir (cached_path);
+	if (is_create)
+		_r_fs_mkdir (cached_path);
 
 	return cached_path;
 }
 
-LPCWSTR _r_app_getcrashdirectory ()
+LPCWSTR _r_app_getcrashdirectory (
+	_In_ BOOLEAN is_create
+)
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static WCHAR cached_path[512] = {0};
@@ -574,7 +587,8 @@ LPCWSTR _r_app_getcrashdirectory ()
 		_r_initonce_end (&init_once);
 	}
 
-	_r_fs_mkdir (cached_path);
+	if (is_create)
+		_r_fs_mkdir (cached_path);
 
 	return cached_path;
 }
@@ -2196,7 +2210,7 @@ ULONG _r_update_downloadupdate (
 	ULONG status;
 
 	// create cache directory
-	path = _r_app_getcachedirectory ();
+	path = _r_app_getcachedirectory (TRUE);
 
 	_r_fs_mkdir (path);
 
@@ -2859,7 +2873,7 @@ VOID _r_update_addcomponent (
 
 	update_component.cache_path = _r_obj_concatstrings (
 		7,
-		_r_app_getcachedirectory (),
+		_r_app_getcachedirectory (FALSE),
 		L"\\",
 		L"update-",
 		short_name,
@@ -3378,7 +3392,7 @@ VOID _r_show_errormessage (
 		{
 			if (command_id == IDYES)
 			{
-				path = _r_app_getcrashdirectory ();
+				path = _r_app_getcrashdirectory (FALSE);
 
 				_r_shell_opendefault (path);
 			}

@@ -520,9 +520,13 @@ PR_STRING _r_app_getdirectory ();
 
 PR_STRING _r_app_getconfigpath ();
 
-LPCWSTR _r_app_getcachedirectory ();
+LPCWSTR _r_app_getcachedirectory (
+	_In_ BOOLEAN is_create
+);
 
-LPCWSTR _r_app_getcrashdirectory ();
+LPCWSTR _r_app_getcrashdirectory (
+	_In_ BOOLEAN is_create
+);
 
 #if !defined(APP_CONSOLE)
 PR_STRING _r_app_getlocalepath ();
