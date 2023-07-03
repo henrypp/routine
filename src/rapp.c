@@ -910,7 +910,7 @@ HWND _r_app_createwindow (
 	}
 
 	// set window title
-	SetWindowText (hwnd, _r_app_getname ());
+	_r_ctrl_setstring (hwnd, 0, _r_app_getname ());
 
 	// set window icon
 	if (icon_name)
