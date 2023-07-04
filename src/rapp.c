@@ -995,6 +995,7 @@ VOID _r_app_restart (
 	_In_opt_ HWND hwnd
 )
 {
+	LARGE_INTEGER timeout;
 	HWND hmain;
 	NTSTATUS status;
 	BOOLEAN is_mutexdestroyed;
@@ -1021,7 +1022,9 @@ VOID _r_app_restart (
 	{
 		DestroyWindow (hmain);
 
-		WaitForSingleObjectEx (hmain, 4000, FALSE); // wait for exit
+		_r_calc_millisecondstolargeinteger (&timeout, 4000);
+
+		NtWaitForSingleObject (hmain, FALSE, &timeout); // wait for exit
 	}
 
 	_r_sys_exitprocess (STATUS_SUCCESS);
