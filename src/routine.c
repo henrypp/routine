@@ -1962,43 +1962,54 @@ VOID _r_workqueue_waitforfinish (
 // Synchronization: Mutex
 //
 
-_When_ (return != FALSE, _Acquires_lock_ (*hmutex))
-BOOLEAN _r_mutex_create (
-	_In_ LPCWSTR name,
-	_Out_ PHANDLE hmutex
+ULONG _r_sys_getsidlength (
+	_In_ PSID Sid
 )
 {
-	HANDLE original_mutex;
-
-	original_mutex = CreateMutex (NULL, FALSE, name);
-
-	*hmutex = original_mutex;
-
-	if (!original_mutex)
-		return FALSE;
-
-	return TRUE;
+	return UFIELD_OFFSET (SID, SubAuthority[((PISID)Sid)->SubAuthorityCount]);
 }
 
-_When_ (return != FALSE, _Releases_lock_ (*hmutex))
-BOOLEAN _r_mutex_destroy (
+_When_ (NT_SUCCESS (return), _Acquires_lock_ (*hmutex))
+NTSTATUS _r_mutex_create (
+	_In_ LPCWSTR name,
+	_Outptr_ PHANDLE hmutex
+)
+{
+	WCHAR buffer[128];
+	OBJECT_ATTRIBUTES oa = {0};
+	UNICODE_STRING us;
+	NTSTATUS status;
+
+	*hmutex = NULL;
+
+	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\BaseNamedObjects\\%s", name);
+
+	_r_obj_initializeunicodestring (&us, buffer);
+
+	InitializeObjectAttributes (&oa, &us, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+	status = NtCreateMutant (hmutex, MUTANT_ALL_ACCESS, &oa, TRUE);
+
+	return status;
+}
+
+_When_ (NT_SUCCESS (return), _Releases_lock_ (*hmutex))
+NTSTATUS _r_mutex_destroy (
 	_Inout_ PHANDLE hmutex
 )
 {
 	HANDLE original_mutex;
+	NTSTATUS status;
 
 	original_mutex = *hmutex;
+
 	*hmutex = NULL;
 
-	if (original_mutex)
-	{
-		ReleaseMutex (original_mutex);
-		NtClose (original_mutex);
+	status = NtReleaseMutant (original_mutex, NULL);
 
-		return TRUE;
-	}
+	NtClose (original_mutex);
 
-	return FALSE;
+	return status;
 }
 
 _Success_ (return)
@@ -2006,14 +2017,25 @@ BOOLEAN _r_mutex_isexists (
 	_In_ LPCWSTR name
 )
 {
+	WCHAR buffer[128];
+	OBJECT_ATTRIBUTES oa = {0};
+	UNICODE_STRING us;
 	HANDLE hmutex;
+	NTSTATUS status;
 
-	hmutex = OpenMutex (MUTANT_QUERY_STATE, FALSE, name);
+	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\BaseNamedObjects\\%s", name);
 
-	if (!hmutex)
+	_r_obj_initializeunicodestring (&us, buffer);
+
+	InitializeObjectAttributes (&oa, &us, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+	status = NtOpenMutant (&hmutex, MUTANT_QUERY_STATE, &oa);
+
+	if (NT_SUCCESS (status))
+		NtClose (hmutex);
+
+	if (status == STATUS_OBJECT_NAME_NOT_FOUND)
 		return FALSE;
-
-	NtClose (hmutex);
 
 	return TRUE;
 }
@@ -2799,6 +2821,21 @@ VOID _r_obj_initializestringref_ex (
 //
 // Unicode string object
 //
+
+BOOLEAN _r_obj_initializeunicodestring (
+	_Out_ PUNICODE_STRING string,
+	_In_ LPCWSTR buffer
+)
+{
+	ULONG length;
+	BOOLEAN result;
+
+	length = (ULONG)_r_str_getlength (buffer) * sizeof (WCHAR);
+
+	result = _r_obj_initializeunicodestring_ex (string, (LPWSTR)buffer, (USHORT)length, (USHORT)length + sizeof (UNICODE_NULL));
+
+	return result;
+}
 
 BOOLEAN _r_obj_initializeunicodestring2 (
 	_Out_ PUNICODE_STRING string,
@@ -3976,10 +4013,10 @@ INT _r_msg (
 )
 {
 #if !defined(APP_NO_DEPRECATIONS)
-	MSGBOXPARAMS mbp;
+	MSGBOXPARAMS mbp = {0};
 #endif // !APP_NO_DEPRECATIONS
 
-	TASKDIALOGCONFIG tdc;
+	TASKDIALOGCONFIG tdc = {0};
 	WCHAR buffer[1024];
 	va_list args;
 	INT result;
@@ -3997,8 +4034,6 @@ INT _r_msg (
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
 	{
 #endif // APP_NO_DEPRECATIONS
-		RtlZeroMemory (&tdc, sizeof (tdc));
-
 		tdc.cbSize = sizeof (tdc);
 		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
 		tdc.hwndParent = hwnd;
@@ -4086,8 +4121,6 @@ INT _r_msg (
 			//	//_r_str_appendformat (main);
 			//}
 		}
-
-		RtlZeroMemory (&mbp, sizeof (mbp));
 
 		mbp.cbSize = sizeof (mbp);
 		mbp.hwndOwner = hwnd;
@@ -5221,7 +5254,7 @@ PR_STRING _r_path_resolvedeviceprefix (
 )
 {
 	// device name prefixes
-	OBJECT_ATTRIBUTES object_attributes = {0};
+	OBJECT_ATTRIBUTES oa = {0};
 	UNICODE_STRING device_name;
 	UNICODE_STRING device_prefix;
 	R_STRINGREF device_prefix_sr;
@@ -5260,14 +5293,14 @@ PR_STRING _r_path_resolvedeviceprefix (
 			);
 
 			InitializeObjectAttributes (
-				&object_attributes,
+				&oa,
 				&device_name,
 				OBJ_CASE_INSENSITIVE | (_r_sys_isosversiongreaterorequal (WINDOWS_10) ? OBJ_DONT_REPARSE : 0),
 				NULL,
 				NULL
 			);
 
-			status = NtOpenSymbolicLinkObject (&link_handle, SYMBOLIC_LINK_QUERY, &object_attributes);
+			status = NtOpenSymbolicLinkObject (&link_handle, SYMBOLIC_LINK_QUERY, &oa);
 
 			if (NT_SUCCESS (status))
 			{
@@ -5328,7 +5361,7 @@ PR_STRING _r_path_resolvedeviceprefix_workaround (
 	_In_ PR_STRING path
 )
 {
-	OBJECT_ATTRIBUTES object_attributes = {0};
+	OBJECT_ATTRIBUTES oa = {0};
 	UNICODE_STRING device_prefix;
 	R_STRINGREF device_prefix_sr;
 	WCHAR device_prefix_buffer[PR_DEVICE_PREFIX_LENGTH] = {0};
@@ -5346,9 +5379,9 @@ PR_STRING _r_path_resolvedeviceprefix_workaround (
 
 	RtlInitUnicodeString (&device_prefix, L"\\GLOBAL??");
 
-	InitializeObjectAttributes (&object_attributes, &device_prefix, OBJ_CASE_INSENSITIVE, NULL, NULL);
+	InitializeObjectAttributes (&oa, &device_prefix, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
-	status = NtOpenDirectoryObject (&directory_handle, DIRECTORY_QUERY, &object_attributes);
+	status = NtOpenDirectoryObject (&directory_handle, DIRECTORY_QUERY, &oa);
 
 	if (NT_SUCCESS (status))
 	{
@@ -5398,14 +5431,14 @@ PR_STRING _r_path_resolvedeviceprefix_workaround (
 				if (directory_info->Name.Length == (2 * sizeof (WCHAR)) && directory_info->Name.Buffer[1] == L':')
 				{
 					InitializeObjectAttributes (
-						&object_attributes,
+						&oa,
 						&directory_info->Name,
 						OBJ_CASE_INSENSITIVE | (_r_sys_isosversiongreaterorequal (WINDOWS_10) ? OBJ_DONT_REPARSE : 0),
 						directory_handle,
 						NULL
 					);
 
-					status = NtOpenSymbolicLinkObject (&link_handle, SYMBOLIC_LINK_QUERY, &object_attributes);
+					status = NtOpenSymbolicLinkObject (&link_handle, SYMBOLIC_LINK_QUERY, &oa);
 
 					if (NT_SUCCESS (status))
 					{
@@ -5483,7 +5516,8 @@ PR_STRING _r_path_resolvenetworkprefix (
 	static R_STRINGREF services_part_sr = PR_STRINGREF_INIT (L"System\\CurrentControlSet\\Services\\");
 	static R_STRINGREF provider_part_sr = PR_STRINGREF_INIT (L"\\NetworkProvider");
 
-	HKEY hkey;
+	HANDLE hkey;
+	HANDLE hsvckey;
 	R_STRINGREF remaining_part;
 	R_STRINGREF first_part;
 	PR_STRING provider_order;
@@ -5491,22 +5525,16 @@ PR_STRING _r_path_resolvenetworkprefix (
 	PR_STRING device_name_string;
 	PR_STRING string;
 	SIZE_T prefix_length;
-	LSTATUS status;
+	NTSTATUS status;
 
-	status = RegOpenKeyEx (
-		HKEY_LOCAL_MACHINE,
-		L"System\\CurrentControlSet\\Control\\NetworkProvider\\Order",
-		0,
-		KEY_READ,
-		&hkey
-	);
+	status = _r_reg_openkey (HKEY_LOCAL_MACHINE, L"System\\CurrentControlSet\\Control\\NetworkProvider\\Order", KEY_READ, &hkey);
 
-	if (status != ERROR_SUCCESS)
+	if (!NT_SUCCESS (status))
 		return NULL;
 
-	provider_order = _r_reg_querystring (hkey, NULL, L"ProviderOrder");
+	status = _r_reg_querystring (hkey, L"ProviderOrder", &provider_order);
 
-	if (provider_order)
+	if (NT_SUCCESS (status))
 	{
 		_r_obj_initializestringref2 (&remaining_part, provider_order);
 
@@ -5523,13 +5551,13 @@ PR_STRING _r_path_resolvenetworkprefix (
 					&provider_part_sr
 				);
 
-				status = RegOpenKeyEx (HKEY_LOCAL_MACHINE, service_key->buffer, 0, KEY_READ, &hkey);
+				status = _r_reg_openkey (HKEY_LOCAL_MACHINE, service_key->buffer, KEY_READ, &hsvckey);
 
-				if (status == ERROR_SUCCESS)
+				if (NT_SUCCESS (status))
 				{
-					device_name_string = _r_reg_querystring (hkey, NULL, L"DeviceName");
+					status = _r_reg_querystring (hsvckey, L"DeviceName", &device_name_string);
 
-					if (device_name_string)
+					if (NT_SUCCESS (status))
 					{
 						if (_r_str_isstartswith (&path->sr, &device_name_string->sr, TRUE))
 						{
@@ -5538,8 +5566,7 @@ PR_STRING _r_path_resolvenetworkprefix (
 							// To ensure we match the longest prefix, make sure the next character is a
 							// backslash. Don't resolve if the name *is* the prefix. Otherwise, we will end
 							// up with a useless string like "\".
-							if (path->length != device_name_string->length &&
-								path->buffer[prefix_length] == OBJ_NAME_PATH_SEPARATOR)
+							if (path->length != device_name_string->length && path->buffer[prefix_length] == OBJ_NAME_PATH_SEPARATOR)
 							{
 								// \path
 								string = _r_obj_createstring_ex (NULL, sizeof (WCHAR) + path->length - device_name_string->length);
@@ -5554,7 +5581,8 @@ PR_STRING _r_path_resolvenetworkprefix (
 								_r_obj_dereference (service_key);
 								_r_obj_dereference (device_name_string);
 
-								RegCloseKey (hkey);
+								NtClose (hsvckey);
+								NtClose (hkey);
 
 								return string;
 							}
@@ -5562,8 +5590,6 @@ PR_STRING _r_path_resolvenetworkprefix (
 
 						_r_obj_dereference (device_name_string);
 					}
-
-					RegCloseKey (hkey);
 				}
 
 				_r_obj_dereference (service_key);
@@ -5573,7 +5599,7 @@ PR_STRING _r_path_resolvenetworkprefix (
 		_r_obj_dereference (provider_order);
 	}
 
-	RegCloseKey (hkey);
+	NtClose (hkey);
 
 	return NULL;
 }
@@ -5976,9 +6002,10 @@ VOID _r_str_copystring (
 	_r_str_copy (buffer, length, string->buffer);
 }
 
-_Ret_maybenull_
-PR_STRING _r_str_environmentexpandstring (
-	_In_ PR_STRINGREF string
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_str_environmentexpandstring (
+	_In_ PR_STRINGREF string,
+	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
 	UNICODE_STRING input_string;
@@ -5987,8 +6014,7 @@ PR_STRING _r_str_environmentexpandstring (
 	ULONG buffer_size;
 	NTSTATUS status;
 
-	if (!_r_obj_initializeunicodestring3 (&input_string, string))
-		return NULL;
+	_r_obj_initializeunicodestring3 (&input_string, string);
 
 	buffer_size = 512 * sizeof (WCHAR);
 
@@ -6011,12 +6037,18 @@ PR_STRING _r_str_environmentexpandstring (
 	{
 		_r_obj_setstringlength (buffer_string, output_string.Length); // terminate
 
-		return buffer_string;
+		*out_buffer = buffer_string;
+
+		return status;
+	}
+	else
+	{
+		*out_buffer = NULL;
 	}
 
 	_r_obj_dereference (buffer_string);
 
-	return NULL;
+	return status;
 }
 
 _Ret_maybenull_
@@ -6039,7 +6071,7 @@ PR_STRING _r_str_environmentunexpandstring (
 
 	_r_obj_dereference (buffer);
 
-	return _r_obj_createstring (string);
+	return NULL;
 }
 
 _Success_ (return != SIZE_MAX)
@@ -6345,7 +6377,7 @@ ULONG _r_str_fromsecuritydescriptor (
 	return ERROR_SUCCESS;
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_fromsid (
 	_In_ PSID sid,
 	_Out_ PR_STRING_PTR out_buffer
@@ -8052,10 +8084,9 @@ BOOLEAN _r_sys_iswine ()
 	return is_wine;
 }
 
-#if !defined(_WIN64)
 BOOLEAN _r_sys_iswow64 ()
 {
-	ULONG_PTR iswow64;
+	ULONG_PTR iswow64 = 0;
 	NTSTATUS status;
 
 	status = NtQueryInformationProcess (NtCurrentProcess (), ProcessWow64Information, &iswow64, sizeof (ULONG_PTR), NULL);
@@ -8065,7 +8096,6 @@ BOOLEAN _r_sys_iswow64 ()
 
 	return FALSE;
 }
-#endif // !_WIN64
 
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_sys_formatmessage (
@@ -8239,6 +8269,7 @@ VOID _r_sys_getsystemroot (
 	if (system_root.buffer)
 	{
 		*path = system_root;
+
 		return;
 	}
 
@@ -8372,6 +8403,7 @@ BOOLEAN _r_sys_getopt (
 		if (_r_str_isstartswith (&key_name, &name_sr, TRUE))
 		{
 			option_length = _r_str_getlength3 (&name_sr);
+
 			is_namefound = TRUE;
 		}
 		else
@@ -8389,6 +8421,7 @@ BOOLEAN _r_sys_getopt (
 				if (out_value)
 				{
 					_r_obj_initializestringref3 (&key_value, &key_name);
+
 					_r_obj_skipstringlength (&key_value, (option_length + 1) * sizeof (WCHAR));
 				}
 			}
@@ -8497,20 +8530,18 @@ LONG _r_sys_getpackagepath (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getservicesid (
-	_In_ PR_STRINGREF name,
+	_In_ LPCWSTR name,
 	_Out_ PR_BYTE_PTR out_buffer
 )
 {
 	UNICODE_STRING service_name;
-	ULONG sid_length;
+	ULONG sid_length = 0;
 	PR_BYTE sid;
 	NTSTATUS status;
 
 	*out_buffer = NULL;
 
-	_r_obj_initializeunicodestring3 (&service_name, name);
-
-	sid_length = 0;
+	_r_obj_initializeunicodestring (&service_name, name);
 
 	status = RtlCreateServiceSid (&service_name, NULL, &sid_length);
 
@@ -8565,7 +8596,7 @@ ULONG _r_sys_gettickcount ()
 
 #else
 
-	ULARGE_INTEGER tick_count;
+	ULARGE_INTEGER tick_count = {0};
 
 	while (TRUE)
 	{
@@ -8618,7 +8649,7 @@ NTSTATUS _r_sys_getusernamefromsid (
 	_Out_ PR_STRING_PTR out_buffer
 )
 {
-	LSA_OBJECT_ATTRIBUTES object_attributes = {0};
+	LSA_OBJECT_ATTRIBUTES oa = {0};
 	LSA_HANDLE policy_handle;
 	PLSA_REFERENCED_DOMAIN_LIST referenced_domains = NULL;
 	PLSA_TRANSLATED_NAME names = NULL;
@@ -8630,9 +8661,9 @@ NTSTATUS _r_sys_getusernamefromsid (
 
 	*out_buffer = NULL;
 
-	InitializeObjectAttributes (&object_attributes, NULL, 0, NULL, NULL);
+	InitializeObjectAttributes (&oa, NULL, 0, NULL, NULL);
 
-	status = LsaOpenPolicy (NULL, &object_attributes, POLICY_LOOKUP_NAMES, &policy_handle);
+	status = LsaOpenPolicy (NULL, &oa, POLICY_LOOKUP_NAMES, &policy_handle);
 
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
@@ -9185,16 +9216,16 @@ NTSTATUS _r_sys_openprocess (
 	_Outptr_ PHANDLE process_handle
 )
 {
-	OBJECT_ATTRIBUTES object_attributes = {0};
+	OBJECT_ATTRIBUTES oa = {0};
 	CLIENT_ID client_id = {0};
 	NTSTATUS status;
 
-	InitializeObjectAttributes (&object_attributes, NULL, 0, NULL, NULL);
+	InitializeObjectAttributes (&oa, NULL, 0, NULL, NULL);
 
 	client_id.UniqueProcess = process_id;
 	client_id.UniqueThread = NULL;
 
-	status = NtOpenProcess (process_handle, desired_access, &object_attributes, &client_id);
+	status = NtOpenProcess (process_handle, desired_access, &oa, &client_id);
 
 	return status;
 }
@@ -9910,7 +9941,14 @@ LONG64 _r_unixtime_from_filetime (
 	time_value.LowPart = file_time->dwLowDateTime;
 	time_value.HighPart = file_time->dwHighDateTime;
 
-	return (time_value.QuadPart - 116444736000000000LL) / 10000000LL;
+	return _r_unixtime_from_largeinteger (&time_value);
+}
+
+LONG64 _r_unixtime_from_largeinteger (
+	_In_ const PLARGE_INTEGER large_integer
+)
+{
+	return (large_integer->QuadPart - 116444736000000000LL) / 10000000LL;
 }
 
 LONG64 _r_unixtime_from_systemtime (
@@ -13147,227 +13185,411 @@ VOID _r_inet_destroyurlparts (
 // Registry
 //
 
-_Ret_maybenull_
-PR_BYTE _r_reg_querybinary (
-	_In_ HKEY hkey,
-	_In_opt_ LPCWSTR subkey,
-	_In_ LPCWSTR value_name
+HANDLE _r_reg_getroothandle (
+	_In_ HKEY hroot
+)
+{
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static HANDLE hkeyhkcr = NULL;
+	static HANDLE hkeyhkcu = NULL;
+	static HANDLE hkeyhklm = NULL;
+	static HANDLE hkeyhku = NULL;
+	static HANDLE hkeyhcc = NULL;
+
+	OBJECT_ATTRIBUTES oa = {0};
+	UNICODE_STRING us;
+	NTSTATUS status;
+
+	if (_r_initonce_begin (&init_once))
+	{
+		// HKEY_CLASSES_ROOT
+		_r_obj_initializeunicodestring (&us, L"\\Registry\\Machine\\Software\\CLASSES");
+
+		InitializeObjectAttributes (&oa, &us, OBJ_CASE_INSENSITIVE, NULL, NULL);
+		status = NtOpenKey (&hkeyhkcr, MAXIMUM_ALLOWED, &oa);
+
+		if (!NT_SUCCESS (status))
+			RtlRaiseStatus (status);
+
+		// HKEY_CURRENT_USER
+		status = RtlOpenCurrentUser (MAXIMUM_ALLOWED, &hkeyhkcu);
+
+		if (!NT_SUCCESS (status))
+			RtlRaiseStatus (status);
+
+		// HKEY_LOCAL_MACHINE
+		_r_obj_initializeunicodestring (&us, L"\\Registry\\Machine");
+
+		InitializeObjectAttributes (&oa, &us, OBJ_CASE_INSENSITIVE, NULL, NULL);
+		status = NtOpenKey (&hkeyhklm, MAXIMUM_ALLOWED, &oa);
+
+		if (!NT_SUCCESS (status))
+			RtlRaiseStatus (status);
+
+		// HKEY_USERS
+		_r_obj_initializeunicodestring (&us, L"\\Registry\\User");
+
+		InitializeObjectAttributes (&oa, &us, OBJ_CASE_INSENSITIVE, NULL, NULL);
+		status = NtOpenKey (&hkeyhku, MAXIMUM_ALLOWED, &oa);
+
+		if (!NT_SUCCESS (status))
+			RtlRaiseStatus (status);
+
+		// HKEY_CURRENT_CONFIG
+		_r_obj_initializeunicodestring (&us, L"\\Registry\\Machine\\System\\CurrentControlSet\\Hardware Profiles\\Current");
+
+		InitializeObjectAttributes (&oa, &us, OBJ_CASE_INSENSITIVE, NULL, NULL);
+		status = NtOpenKey (&hkeyhcc, MAXIMUM_ALLOWED, &oa);
+
+		if (!NT_SUCCESS (status))
+			RtlRaiseStatus (status);
+
+		_r_initonce_end (&init_once);
+	}
+
+	switch ((ULONG_PTR)hroot)
+	{
+		case HKEY_CLASSES_ROOT:
+		{
+			return hkeyhkcr;
+		}
+
+		case HKEY_CURRENT_USER:
+		{
+			return hkeyhkcu;
+		}
+
+		case HKEY_LOCAL_MACHINE:
+		{
+			return hkeyhklm;
+		}
+
+		case HKEY_USERS:
+		{
+			return hkeyhku;
+		}
+
+		case HKEY_CURRENT_CONFIG:
+		{
+			return hkeyhcc;
+		}
+	}
+
+	return NULL;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_openkey (
+	_In_ HANDLE hroot,
+	_In_ LPCWSTR path,
+	_In_ ACCESS_MASK desired_access,
+	_Out_ PHANDLE hkey
+)
+{
+	OBJECT_ATTRIBUTES oa = {0};
+	UNICODE_STRING us;
+	HANDLE hroot_handle;
+	NTSTATUS status;
+
+	hroot_handle = _r_reg_getroothandle (hroot);
+
+	_r_obj_initializeunicodestring (&us, path);
+
+	InitializeObjectAttributes (&oa, &us, OBJ_CASE_INSENSITIVE, hroot_handle, NULL);
+
+	status = NtOpenKey (hkey, desired_access, &oa);
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_deletevalue (
+	_In_ HANDLE hkey,
+	_In_ LPCWSTR path
+)
+{
+	UNICODE_STRING us;
+	NTSTATUS status;
+
+	_r_obj_initializeunicodestring (&us, path);
+
+	status = NtDeleteValueKey (hkey, &us);
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_enumkey (
+	_In_ HANDLE hkey,
+	_In_ ULONG index,
+	_Outptr_ PR_STRING_PTR name_ptr,
+	_Out_opt_ PLONG64 timestamp_ptr
+)
+{
+	PKEY_BASIC_INFORMATION basic_info;
+	ULONG buffer_size;
+	NTSTATUS status;
+
+	buffer_size = sizeof (0x100);
+
+	basic_info = _r_mem_allocate (buffer_size);
+
+	status = NtEnumerateKey (hkey, index, KeyBasicInformation, basic_info, buffer_size, &buffer_size);
+
+	if (status == STATUS_BUFFER_OVERFLOW || status == STATUS_BUFFER_TOO_SMALL)
+	{
+		basic_info = _r_mem_reallocate (basic_info, buffer_size);
+
+		status = NtEnumerateKey (hkey, index, KeyBasicInformation, basic_info, buffer_size, &buffer_size);
+	}
+
+	if (NT_SUCCESS (status))
+	{
+		*name_ptr = _r_obj_createstring_ex (basic_info->Name, basic_info->NameLength);
+
+		if (timestamp_ptr)
+			*timestamp_ptr = _r_unixtime_from_largeinteger (&basic_info->LastWriteTime);
+
+	}
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_queryinfo (
+	_In_ HANDLE hkey,
+	_Out_opt_ PULONG out_length,
+	_Out_opt_ PLONG64 out_timestamp
+)
+{
+	KEY_FULL_INFORMATION full_info = {0};
+	ULONG length = 0;
+	NTSTATUS status;
+
+	if (out_length)
+		*out_length = 0;
+
+	if (out_timestamp)
+		*out_timestamp = 0;
+
+	status = NtQueryKey (hkey, KeyFullInformation, &full_info, sizeof (KEY_FULL_INFORMATION), &length);
+
+	if (NT_SUCCESS (status))
+	{
+		if (out_length)
+			*out_length = full_info.MaxValueNameLength / sizeof (WCHAR);
+
+		if (out_timestamp)
+			*out_timestamp = _r_unixtime_from_largeinteger (&full_info.LastWriteTime);
+	}
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_querybinary (
+	_In_ HANDLE hkey,
+	_In_ LPCWSTR value_name,
+	_Outptr_ PR_BYTE_PTR out_buffer
 )
 {
 	PR_BYTE bytes;
 	ULONG type;
 	ULONG size;
-	LSTATUS status;
+	NTSTATUS status;
 
-	status = _r_reg_queryvalue (hkey, subkey, value_name, &type, NULL, &size);
+	status = _r_reg_queryvalue (hkey, value_name, NULL, &size, &type);
 
-	if (status != ERROR_SUCCESS)
-		return NULL;
+	if (!NT_SUCCESS (status))
+		return status;
 
 	if (type != REG_BINARY)
-		return NULL;
+		return STATUS_OBJECT_TYPE_MISMATCH;
 
 	bytes = _r_obj_createbyte_ex (NULL, size);
 
-	status = RegQueryValueEx (hkey, value_name, NULL, NULL, (PBYTE)bytes->buffer, &size);
+	status = _r_reg_queryvalue (hkey, value_name, bytes->buffer, &size, NULL);
 
-	if (status != ERROR_SUCCESS)
+	if (NT_SUCCESS (status))
 	{
-		_r_obj_dereference (bytes); // cleanup
-
-		return NULL;
-	}
-
-	return bytes;
-}
-
-_Ret_maybenull_
-PR_STRING _r_reg_querystring (
-	_In_ HKEY hkey,
-	_In_opt_ LPCWSTR subkey,
-	_In_opt_ LPCWSTR value_name
-)
-{
-	PR_STRING buffer;
-	PR_STRING expanded_string;
-	ULONG type;
-	ULONG size;
-	LSTATUS status;
-
-	status = _r_reg_queryvalue (hkey, subkey, value_name, &type, NULL, &size);
-
-	if (status != ERROR_SUCCESS)
-		return NULL;
-
-	if (type != REG_SZ && type != REG_EXPAND_SZ && type != REG_MULTI_SZ)
-		return NULL;
-
-	buffer = _r_obj_createstring_ex (NULL, size * sizeof (WCHAR));
-
-	size = (ULONG)buffer->length;
-	status = _r_reg_queryvalue (hkey, subkey, value_name, &type, (PBYTE)buffer->buffer, &size);
-
-	if (status == ERROR_MORE_DATA)
-	{
-		_r_obj_movereference (&buffer, _r_obj_createstring_ex (NULL, size * sizeof (WCHAR)));
-
-		size = (ULONG)buffer->length;
-		status = _r_reg_queryvalue (hkey, subkey, value_name, &type, (PBYTE)buffer->buffer, &size);
-	}
-
-	if (status != ERROR_SUCCESS)
-	{
-		_r_obj_dereference (buffer); // cleanup
-
-		return NULL;
-	}
-
-	_r_obj_trimstringtonullterminator (buffer);
-
-	if (type == REG_EXPAND_SZ)
-	{
-		expanded_string = _r_str_environmentexpandstring (&buffer->sr);
-
-		if (expanded_string)
-			_r_obj_movereference (&buffer, expanded_string);
-	}
-
-	return buffer;
-}
-
-ULONG _r_reg_queryulong (
-	_In_ HKEY hkey,
-	_In_opt_ LPCWSTR subkey,
-	_In_ LPCWSTR value_name
-)
-{
-	ULONG buffer;
-	ULONG type;
-	ULONG buffer_size;
-	LSTATUS status;
-
-	buffer_size = sizeof (ULONG);
-	buffer = 0;
-
-	status = _r_reg_queryvalue (hkey, subkey, value_name, &type, (PBYTE)&buffer, &buffer_size);
-
-	if (status != ERROR_SUCCESS)
-		return 0;
-
-	if (type != REG_DWORD)
-		return 0;
-
-	return buffer;
-}
-
-ULONG64 _r_reg_queryulong64 (
-	_In_ HKEY hkey,
-	_In_opt_ LPCWSTR subkey,
-	_In_ LPCWSTR value_name
-)
-{
-	ULONG64 buffer;
-	ULONG type;
-	ULONG buffer_size;
-	LSTATUS status;
-
-	buffer_size = sizeof (ULONG64);
-	buffer = 0;
-
-	status = _r_reg_queryvalue (hkey, subkey, value_name, &type, (PBYTE)&buffer, &buffer_size);
-
-	if (status != ERROR_SUCCESS)
-		return 0;
-
-	if (type != REG_QWORD)
-		return 0;
-
-	return buffer;
-}
-
-ULONG _r_reg_querysubkeylength (
-	_In_ HKEY hkey
-)
-{
-	ULONG max_length;
-	LSTATUS status;
-
-	status = RegQueryInfoKey (
-		hkey,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-		&max_length,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-		NULL
-	);
-
-	if (status != ERROR_SUCCESS)
-		return 0;
-
-	return max_length;
-}
-
-LONG64 _r_reg_querytimestamp (
-	_In_ HKEY hkey
-)
-{
-	FILETIME file_time;
-	LSTATUS status;
-
-	status = RegQueryInfoKey (
-		hkey,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-		&file_time
-	);
-
-	if (status != ERROR_SUCCESS)
-		return 0;
-
-	return _r_unixtime_from_filetime (&file_time);
-}
-
-LSTATUS _r_reg_queryvalue (
-	_In_ HKEY hkey,
-	_In_opt_ LPCWSTR subkey,
-	_In_opt_ LPCWSTR value_name,
-	_Out_opt_ PULONG type,
-	_Out_writes_bytes_to_opt_ (*buffer_length, *buffer_length) PBYTE buffer,
-	_When_ (buffer == NULL, _Out_opt_) _When_ (buffer != NULL, _Inout_opt_) PULONG buffer_length
-)
-{
-	HKEY hsubkey;
-	LSTATUS status;
-
-	if (subkey)
-	{
-		status = RegOpenKeyEx (hkey, subkey, 0, KEY_READ, &hsubkey);
-
-		if (status != ERROR_SUCCESS)
-			return status;
-
-		status = RegQueryValueEx (hsubkey, value_name, NULL, type, buffer, buffer_length);
-
-		RegCloseKey (hsubkey);
+		*out_buffer = bytes;
 	}
 	else
 	{
-		status = RegQueryValueEx (hkey, value_name, NULL, type, buffer, buffer_length);
+		_r_obj_dereference (bytes); // cleanup
 	}
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_querystring (
+	_In_ HANDLE hkey,
+	_In_opt_ LPCWSTR value_name,
+	_Outptr_ PR_STRING_PTR out_buffer
+)
+{
+	PR_STRING string;
+	PR_STRING expanded_string;
+	ULONG type;
+	ULONG size;
+	NTSTATUS status;
+
+	status = _r_reg_queryvalue (hkey, value_name, NULL, &size, &type);
+
+	if (!NT_SUCCESS (status))
+		return status;
+
+	if (type != REG_SZ && type != REG_EXPAND_SZ && type != REG_MULTI_SZ)
+		return STATUS_OBJECT_TYPE_MISMATCH;
+
+	string = _r_obj_createstring_ex (NULL, size * sizeof (WCHAR));
+
+	size = (ULONG)string->length;
+	status = _r_reg_queryvalue (hkey, value_name, string->buffer, &size, &type);
+
+	if (status == STATUS_BUFFER_TOO_SMALL)
+	{
+		_r_obj_movereference (&string, _r_obj_createstring_ex (NULL, size * sizeof (WCHAR)));
+
+		size = (ULONG)string->length;
+		status = _r_reg_queryvalue (hkey, value_name, string->buffer, &size, &type);
+	}
+
+	if (NT_SUCCESS (status))
+	{
+		_r_obj_trimstringtonullterminator (string);
+
+		if (type == REG_EXPAND_SZ)
+		{
+			status = _r_str_environmentexpandstring (&string->sr, &expanded_string);
+
+			if (NT_SUCCESS (status))
+				_r_obj_movereference (&string, expanded_string);
+		}
+
+		*out_buffer = string;
+	}
+	else
+	{
+		_r_obj_dereference (string); // cleanup
+	}
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_queryulong (
+	_In_ HANDLE hkey,
+	_In_ LPCWSTR value_name,
+	_Out_ PULONG out_buffer
+)
+{
+	ULONG buffer = 0;
+	ULONG type;
+	ULONG buffer_size;
+	NTSTATUS status;
+
+	*out_buffer = 0;
+
+	buffer_size = sizeof (ULONG);
+
+	status = _r_reg_queryvalue (hkey, value_name, &buffer, &buffer_size, &type);
+
+	if (!NT_SUCCESS (status))
+		return status;
+
+	if (type != REG_DWORD)
+		return STATUS_OBJECT_TYPE_MISMATCH;
+
+	*out_buffer = buffer;
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_queryulong64 (
+	_In_ HANDLE hkey,
+	_In_ LPCWSTR value_name,
+	_Out_ PULONG64 out_buffer
+)
+{
+	ULONG64 buffer = 0;
+	ULONG type;
+	ULONG buffer_size;
+	NTSTATUS status;
+
+	buffer_size = sizeof (ULONG64);
+
+	status = _r_reg_queryvalue (hkey, value_name, &buffer, &buffer_size, &type);
+
+	if (!NT_SUCCESS (status))
+		return status;
+
+	if (type != REG_QWORD)
+		return STATUS_OBJECT_TYPE_MISMATCH;
+
+	*out_buffer = buffer;
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_queryvalue (
+	_In_ HANDLE hkey,
+	_In_opt_ LPCWSTR value_name,
+	_Out_opt_ PVOID buffer,
+	_Out_opt_ PULONG buffer_length,
+	_Out_opt_ PULONG type
+)
+{
+	PKEY_VALUE_FULL_INFORMATION value_info;
+	UNICODE_STRING us = {0};
+	ULONG size;
+	NTSTATUS status;
+
+	if (value_name)
+		_r_obj_initializeunicodestring (&us, value_name);
+
+	status = NtQueryValueKey (hkey, &us, KeyValueFullInformation, NULL, 0, &size);
+
+	if (status != STATUS_BUFFER_TOO_SMALL)
+		return status;
+
+	value_info = _r_mem_allocate (size);
+
+	status = NtQueryValueKey (hkey, &us, KeyValueFullInformation, value_info, size, &size);
+
+	if (type)
+		*type = value_info->Type;
+
+	if (buffer_length)
+		*buffer_length = (value_info->DataLength + sizeof (UNICODE_NULL)) / sizeof (WCHAR);
+
+	if (buffer)
+		RtlCopyMemory (buffer, PTR_ADD_OFFSET (value_info, value_info->DataOffset), value_info->DataLength);
+
+	_r_mem_free (value_info);
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_setvalue (
+	_In_ HANDLE hkey,
+	_In_opt_ LPCWSTR value_name,
+	_In_ ULONG type,
+	_In_ PVOID buffer,
+	_In_ ULONG buffer_length
+)
+{
+	UNICODE_STRING us = {0};
+	NTSTATUS status;
+
+	if (value_name)
+		_r_obj_initializeunicodestring (&us, value_name);
+
+	status = NtSetValueKey (hkey, &us, 0, type, buffer, buffer_length);
 
 	return status;
 }

@@ -697,14 +697,14 @@ VOID _r_workqueue_waitforfinish (
 // Synchronization: Mutex
 //
 
-_When_ (return != FALSE, _Acquires_lock_ (*hmutex))
-BOOLEAN _r_mutex_create (
+_When_ (NT_SUCCESS (return), _Acquires_lock_ (*hmutex))
+NTSTATUS _r_mutex_create (
 	_In_ LPCWSTR name,
-	_Out_ PHANDLE hmutex
+	_Outptr_ PHANDLE hmutex
 );
 
-_When_ (return != FALSE, _Releases_lock_ (*hmutex))
-BOOLEAN _r_mutex_destroy (
+_When_ (NT_SUCCESS (return), _Releases_lock_ (*hmutex))
+NTSTATUS _r_mutex_destroy (
 	_Inout_ PHANDLE hmutex
 );
 
@@ -1079,6 +1079,11 @@ VOID _r_obj_initializestringref_ex (
 //
 // Unicode string object
 //
+
+BOOLEAN _r_obj_initializeunicodestring (
+	_Out_ PUNICODE_STRING string,
+	_In_ LPCWSTR buffer
+);
 
 BOOLEAN _r_obj_initializeunicodestring2 (
 	_Out_ PUNICODE_STRING string,
@@ -1644,6 +1649,13 @@ FORCEINLINE LONG64 _r_calc_megabytes2bytes64 (
 	return megabytes * 1048576LL;
 }
 
+FORCEINLINE LONG _r_calc_minutes2milliseconds (
+	_In_ LONG minutes
+)
+{
+	return minutes * 60LL * 1000LL;
+}
+
 FORCEINLINE LONG _r_calc_seconds2milliseconds (
 	_In_ LONG seconds
 )
@@ -2015,9 +2027,10 @@ VOID _r_str_copystring (
 	_In_ PR_STRINGREF string
 );
 
-_Ret_maybenull_
-PR_STRING _r_str_environmentexpandstring (
-	_In_ PR_STRINGREF string
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_str_environmentexpandstring (
+	_In_ PR_STRINGREF string,
+	_Outptr_ PR_STRING_PTR out_buffer
 );
 
 _Ret_maybenull_
@@ -2094,7 +2107,7 @@ ULONG _r_str_fromsecuritydescriptor (
 	_Out_ PR_STRING_PTR out_buffer
 );
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_fromsid (
 	_In_ PSID sid,
 	_Out_ PR_STRING_PTR out_buffer
@@ -2466,9 +2479,7 @@ BOOLEAN _r_sys_isprocessimmersive (
 
 BOOLEAN _r_sys_iswine ();
 
-#if !defined(_WIN64)
 BOOLEAN _r_sys_iswow64 ();
-#endif // !_WIN64
 
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_sys_formatmessage (
@@ -2509,7 +2520,7 @@ LONG _r_sys_getpackagepath (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getservicesid (
-	_In_ PR_STRINGREF name,
+	_In_ LPCWSTR name,
 	_Out_ PR_BYTE_PTR out_buffer
 );
 
@@ -2750,6 +2761,10 @@ LONG64 _r_unixtime_now ();
 
 LONG64 _r_unixtime_from_filetime (
 	_In_ const LPFILETIME file_time
+);
+
+LONG64 _r_unixtime_from_largeinteger (
+	_In_ const PLARGE_INTEGER large_integer
 );
 
 LONG64 _r_unixtime_from_systemtime (
@@ -3323,47 +3338,79 @@ VOID _r_inet_destroyurlparts (
 // Registry
 //
 
-_Ret_maybenull_
-PR_BYTE _r_reg_querybinary (
-	_In_ HKEY hkey,
-	_In_opt_ LPCWSTR subkey,
-	_In_ LPCWSTR value_name
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_openkey (
+	_In_ HANDLE hroot,
+	_In_ LPCWSTR path,
+	_In_ ACCESS_MASK desired_access,
+	_Out_ PHANDLE hkey
 );
 
-_Ret_maybenull_
-PR_STRING _r_reg_querystring (
-	_In_ HKEY hkey,
-	_In_opt_ LPCWSTR subkey,
-	_In_opt_ LPCWSTR value_name
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_deletevalue (
+	_In_ HANDLE hkey,
+	_In_ LPCWSTR path
 );
 
-ULONG _r_reg_queryulong (
-	_In_ HKEY hkey,
-	_In_opt_ LPCWSTR subkey,
-	_In_ LPCWSTR value_name
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_enumkey (
+	_In_ HANDLE hkey,
+	_In_ ULONG index,
+	_Outptr_ PR_STRING_PTR name_ptr,
+	_Out_opt_ PLONG64 timestamp_ptr
 );
 
-ULONG64 _r_reg_queryulong64 (
-	_In_ HKEY hkey,
-	_In_opt_ LPCWSTR subkey,
-	_In_ LPCWSTR value_name
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_queryinfo (
+	_In_ HANDLE hkey,
+	_Out_opt_ PULONG out_length,
+	_Out_opt_ PLONG64 out_timestamp
 );
 
-ULONG _r_reg_querysubkeylength (
-	_In_ HKEY hkey
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_querybinary (
+	_In_ HANDLE hkey,
+	_In_ LPCWSTR value_name,
+	_Outptr_ PR_BYTE_PTR out_buffer
 );
 
-LONG64 _r_reg_querytimestamp (
-	_In_ HKEY hkey
-);
-
-LSTATUS _r_reg_queryvalue (
-	_In_ HKEY hkey,
-	_In_opt_ LPCWSTR subkey,
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_querystring (
+	_In_ HANDLE hkey,
 	_In_opt_ LPCWSTR value_name,
-	_Out_opt_ PULONG type,
-	_Out_writes_bytes_to_opt_ (*buffer_length, *buffer_length) PBYTE buffer,
-	_When_ (buffer == NULL, _Out_opt_) _When_ (buffer != NULL, _Inout_opt_) PULONG buffer_length
+	_Outptr_ PR_STRING_PTR out_buffer
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_queryulong (
+	_In_ HANDLE hkey,
+	_In_ LPCWSTR value_name,
+	_Out_ PULONG out_buffer
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_queryulong64 (
+	_In_ HANDLE hkey,
+	_In_ LPCWSTR value_name,
+	_Out_ PULONG64 out_buffer
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_queryvalue (
+	_In_ HANDLE hkey,
+	_In_opt_ LPCWSTR value_name,
+	_Out_opt_ PVOID buffer,
+	_Out_opt_ PULONG buffer_length,
+	_Out_opt_ PULONG type
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_setvalue (
+	_In_ HANDLE hkey,
+	_In_opt_ LPCWSTR value_name,
+	_In_ ULONG type,
+	_In_ PVOID buffer,
+	_In_ ULONG buffer_length
 );
 
 //
@@ -3925,11 +3972,18 @@ FORCEINLINE ULONG _r_ctrl_getstringlength (
 
 FORCEINLINE VOID _r_ctrl_setstring (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_opt_ LPCWSTR string
 )
 {
-	SendDlgItemMessage (hwnd, ctrl_id, WM_SETTEXT, 0, (LPARAM)string);
+	if (ctrl_id)
+	{
+		SendDlgItemMessage (hwnd, ctrl_id, WM_SETTEXT, 0, (LPARAM)string);
+	}
+	else
+	{
+		SendMessage (hwnd, WM_SETTEXT, 0, (LPARAM)string);
+	}
 }
 
 //

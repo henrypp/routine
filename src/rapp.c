@@ -465,6 +465,7 @@ PR_STRING _r_app_getconfigpath ()
 	PR_STRING path;
 	PR_STRING new_result;
 	HANDLE hfile;
+	NTSTATUS status;
 
 	if (_r_initonce_begin (&init_once))
 	{
@@ -477,9 +478,9 @@ PR_STRING _r_app_getconfigpath ()
 			{
 				_r_str_trimstring2 (buffer, L".\\/\" ", 0);
 
-				string = _r_str_environmentexpandstring (&buffer->sr);
+				status = _r_str_environmentexpandstring (&buffer->sr, &string);
 
-				if (string)
+				if (NT_SUCCESS (status))
 					_r_obj_movereference (&buffer, string);
 
 				if (!_r_obj_isstringempty2 (buffer))
@@ -970,9 +971,7 @@ HWND _r_app_createwindow (
 
 BOOLEAN _r_app_runasadmin ()
 {
-	BOOLEAN is_mutexdestroyed;
-
-	is_mutexdestroyed = _r_mutex_destroy (&app_global.main.hmutex);
+	_r_mutex_destroy (&app_global.main.hmutex);
 
 #if defined(APP_HAVE_SKIPUAC)
 	if (_r_skipuac_run ())
@@ -983,8 +982,7 @@ BOOLEAN _r_app_runasadmin ()
 		return TRUE;
 
 	// restore mutex on error
-	if (is_mutexdestroyed)
-		_r_mutex_create (_r_app_getmutexname (), &app_global.main.hmutex);
+	_r_mutex_create (_r_app_getmutexname (), &app_global.main.hmutex);
 
 	_r_sys_sleep (500); // HACK!!! prevent loop
 
@@ -998,20 +996,18 @@ VOID _r_app_restart (
 	LARGE_INTEGER timeout;
 	HWND hmain;
 	NTSTATUS status;
-	BOOLEAN is_mutexdestroyed;
 
 	if (_r_show_message (hwnd, MB_YESNO | MB_ICONQUESTION, NULL, APP_QUESTION_RESTART) != IDYES)
 		return;
 
-	is_mutexdestroyed = _r_mutex_destroy (&app_global.main.hmutex);
+	_r_mutex_destroy (&app_global.main.hmutex);
 
 	status = _r_sys_createprocess_ex (_r_sys_getimagepath (), _r_sys_getimagecommandline (), _r_sys_getcurrentdirectory (), NULL, SW_SHOW, 0);
 
 	if (status != STATUS_SUCCESS)
 	{
 		// restore mutex on error
-		if (is_mutexdestroyed)
-			_r_mutex_create (_r_app_getmutexname (), &app_global.main.hmutex);
+		_r_mutex_create (_r_app_getmutexname (), &app_global.main.hmutex);
 
 		return;
 	}
@@ -1361,15 +1357,16 @@ PR_STRING _r_config_getstringexpand_ex (
 {
 	PR_STRING string;
 	PR_STRING config_value;
+	NTSTATUS status;
 
 	config_value = _r_config_getstring_ex (key_name, def_value, section_name);
 
 	if (!config_value)
 		return NULL;
 
-	string = _r_str_environmentexpandstring (&config_value->sr);
+	status = _r_str_environmentexpandstring (&config_value->sr, &string);
 
-	if (string)
+	if (NT_SUCCESS (status))
 	{
 		_r_obj_dereference (config_value);
 
@@ -2097,26 +2094,18 @@ LONG64 _r_locale_getversion ()
 #if defined(APP_HAVE_AUTORUN)
 BOOLEAN _r_autorun_isenabled ()
 {
-	HKEY hkey;
+	HANDLE hkey;
 	PR_STRING path;
-	LSTATUS status;
-	BOOLEAN is_enabled;
+	BOOLEAN is_enabled = FALSE;
+	NTSTATUS status;
 
-	is_enabled = FALSE;
+	status = _r_reg_openkey (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", KEY_READ, &hkey);
 
-	status = RegOpenKeyEx (
-		HKEY_CURRENT_USER,
-		L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-		0,
-		KEY_READ,
-		&hkey
-	);
-
-	if (status == ERROR_SUCCESS)
+	if (NT_SUCCESS (status))
 	{
-		path = _r_reg_querystring (hkey, NULL, _r_app_getname ());
+		status = _r_reg_querystring (hkey, _r_app_getname (), &path);
 
-		if (path)
+		if (NT_SUCCESS (status))
 		{
 			PathRemoveArgs (path->buffer);
 			PathUnquoteSpaces (path->buffer);
@@ -2129,7 +2118,7 @@ BOOLEAN _r_autorun_isenabled ()
 			_r_obj_dereference (path);
 		}
 
-		RegCloseKey (hkey);
+		NtClose (hkey);
 	}
 
 	return is_enabled;
@@ -2140,13 +2129,13 @@ BOOLEAN _r_autorun_enable (
 	_In_ BOOLEAN is_enable
 )
 {
-	HKEY hkey;
+	HANDLE hkey;
 	PR_STRING string;
-	LSTATUS status;
+	NTSTATUS status;
 
-	status = RegOpenKeyEx (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE, &hkey);
+	status = _r_reg_openkey (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", KEY_WRITE, &hkey);
 
-	if (status != ERROR_SUCCESS)
+	if (!NT_SUCCESS (status))
 		return FALSE;
 
 	if (is_enable)
@@ -2158,24 +2147,24 @@ BOOLEAN _r_autorun_enable (
 			L"\" -minimized"
 		);
 
-		status = RegSetValueEx (hkey, _r_app_getname (), 0, REG_SZ, (PBYTE)string->buffer, (ULONG)(string->length + sizeof (UNICODE_NULL)));
+		status = _r_reg_setvalue (hkey, _r_app_getname (), REG_SZ, string->buffer, (ULONG)(string->length + sizeof (UNICODE_NULL)));
 
 		_r_obj_dereference (string);
 	}
 	else
 	{
-		status = RegDeleteValue (hkey, _r_app_getname ());
+		status = _r_reg_deletevalue (hkey, _r_app_getname ());
 
-		if (status == ERROR_FILE_NOT_FOUND)
-			status = ERROR_SUCCESS;
+		if (status == STATUS_OBJECT_NAME_NOT_FOUND)
+			status = STATUS_SUCCESS;
 	}
 
-	RegCloseKey (hkey);
+	NtClose (hkey);
 
 	if (hwnd && status != ERROR_SUCCESS)
 		_r_show_errormessage (hwnd, NULL, status, NULL);
 
-	return (status == ERROR_SUCCESS);
+	return NT_SUCCESS (status);
 }
 #endif // APP_HAVE_AUTORUN
 
