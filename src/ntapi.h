@@ -795,6 +795,44 @@ typedef enum _OBJECT_INFORMATION_CLASS
 	MaxObjectInfoClass
 } OBJECT_INFORMATION_CLASS;
 
+typedef enum _KEY_INFORMATION_CLASS
+{
+	KeyBasicInformation, // KEY_BASIC_INFORMATION
+	KeyNodeInformation, // KEY_NODE_INFORMATION
+	KeyFullInformation, // KEY_FULL_INFORMATION
+	KeyNameInformation, // KEY_NAME_INFORMATION
+	KeyCachedInformation, // KEY_CACHED_INFORMATION
+	KeyFlagsInformation, // KEY_FLAGS_INFORMATION
+	KeyVirtualizationInformation, // KEY_VIRTUALIZATION_INFORMATION
+	KeyHandleTagsInformation, // KEY_HANDLE_TAGS_INFORMATION
+	KeyTrustInformation, // KEY_TRUST_INFORMATION
+	KeyLayerInformation, // KEY_LAYER_INFORMATION
+	MaxKeyInfoClass
+} KEY_INFORMATION_CLASS;
+
+typedef enum _KEY_SET_INFORMATION_CLASS
+{
+	KeyWriteTimeInformation, // KEY_WRITE_TIME_INFORMATION
+	KeyWow64FlagsInformation, // KEY_WOW64_FLAGS_INFORMATION
+	KeyControlFlagsInformation, // KEY_CONTROL_FLAGS_INFORMATION
+	KeySetVirtualizationInformation, // KEY_SET_VIRTUALIZATION_INFORMATION
+	KeySetDebugInformation,
+	KeySetHandleTagsInformation, // KEY_HANDLE_TAGS_INFORMATION
+	KeySetLayerInformation, // KEY_SET_LAYER_INFORMATION
+	MaxKeySetInfoClass
+} KEY_SET_INFORMATION_CLASS;
+
+typedef enum _KEY_VALUE_INFORMATION_CLASS
+{
+	KeyValueBasicInformation, // KEY_VALUE_BASIC_INFORMATION
+	KeyValueFullInformation, // KEY_VALUE_FULL_INFORMATION
+	KeyValuePartialInformation, // KEY_VALUE_PARTIAL_INFORMATION
+	KeyValueFullInformationAlign64,
+	KeyValuePartialInformationAlign64,  // KEY_VALUE_PARTIAL_INFORMATION_ALIGN64
+	KeyValueLayerInformation, // KEY_VALUE_LAYER_INFORMATION
+	MaxKeyValueInfoClass
+} KEY_VALUE_INFORMATION_CLASS;
+
 typedef enum _TAG_INFO_LEVEL
 {
 	TagInfoLevelNameFromTag = 1, // TAG_INFO_NAME_FROM_TAG
@@ -1046,9 +1084,52 @@ typedef struct _PROCESS_PRIORITY_CLASS
 
 typedef struct _SYSTEM_PROCESS_ID_INFORMATION
 {
-    HANDLE ProcessId;
-    UNICODE_STRING ImageName;
+	HANDLE ProcessId;
+	UNICODE_STRING ImageName;
 } SYSTEM_PROCESS_ID_INFORMATION, *PSYSTEM_PROCESS_ID_INFORMATION;
+
+typedef struct _KEY_BASIC_INFORMATION
+{
+	LARGE_INTEGER LastWriteTime;
+	ULONG TitleIndex;
+	ULONG NameLength;
+	_Field_size_bytes_ (NameLength) WCHAR Name[1];
+} KEY_BASIC_INFORMATION, *PKEY_BASIC_INFORMATION;
+
+typedef struct _KEY_VALUE_BASIC_INFORMATION
+{
+	ULONG TitleIndex;
+	ULONG Type;
+	ULONG NameLength;
+	_Field_size_bytes_ (NameLength) WCHAR Name[1];
+} KEY_VALUE_BASIC_INFORMATION, *PKEY_VALUE_BASIC_INFORMATION;
+
+typedef struct _KEY_FULL_INFORMATION
+{
+	LARGE_INTEGER LastWriteTime;
+	ULONG TitleIndex;
+	ULONG ClassOffset;
+	ULONG ClassLength;
+	ULONG SubKeys;
+	ULONG MaxNameLength;
+	ULONG MaxClassLength;
+	ULONG Values;
+	ULONG MaxValueNameLength;
+	ULONG MaxValueDataLength;
+	WCHAR Class[1];
+} KEY_FULL_INFORMATION, *PKEY_FULL_INFORMATION;
+
+typedef struct _KEY_VALUE_FULL_INFORMATION
+{
+	ULONG TitleIndex;
+	ULONG Type;
+	ULONG DataOffset;
+	ULONG DataLength;
+	ULONG NameLength;
+	_Field_size_bytes_ (NameLength) WCHAR Name[1];
+	// ...
+	// UCHAR Data[1];
+} KEY_VALUE_FULL_INFORMATION, *PKEY_VALUE_FULL_INFORMATION;
 
 // WNF (win8+)
 typedef struct _WNF_STATE_NAME
@@ -1106,11 +1187,11 @@ typedef struct _WNF_DELIVERY_DESCRIPTOR
 
 typedef struct _SYSTEM_PROCESSOR_INFORMATION
 {
-    USHORT ProcessorArchitecture;
-    USHORT ProcessorLevel;
-    USHORT ProcessorRevision;
-    USHORT MaximumProcessors;
-    ULONG ProcessorFeatureBits;
+	USHORT ProcessorArchitecture;
+	USHORT ProcessorLevel;
+	USHORT ProcessorRevision;
+	USHORT MaximumProcessors;
+	ULONG ProcessorFeatureBits;
 } SYSTEM_PROCESSOR_INFORMATION, *PSYSTEM_PROCESSOR_INFORMATION;
 
 typedef enum _FOCUS_ASSIST_INFO
@@ -2573,6 +2654,15 @@ NtImpersonateAnonymousToken (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
+NtCreateDirectoryObject (
+	_Out_ PHANDLE DirectoryHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
 NtCreateFile (
 	_Out_ PHANDLE FileHandle,
 	_In_ ACCESS_MASK DesiredAccess,
@@ -2590,32 +2680,32 @@ NtCreateFile (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-NtReadFile(
-    _In_ HANDLE FileHandle,
-    _In_opt_ HANDLE Event,
-    _In_opt_ PVOID ApcRoutine,
-    _In_opt_ PVOID ApcContext,
-    _Out_ PIO_STATUS_BLOCK IoStatusBlock,
-    _Out_writes_bytes_(Length) PVOID Buffer,
-    _In_ ULONG Length,
-    _In_opt_ PLARGE_INTEGER ByteOffset,
-    _In_opt_ PULONG Key
-    );
+NtReadFile (
+	_In_ HANDLE FileHandle,
+	_In_opt_ HANDLE Event,
+	_In_opt_ PVOID ApcRoutine,
+	_In_opt_ PVOID ApcContext,
+	_Out_ PIO_STATUS_BLOCK IoStatusBlock,
+	_Out_writes_bytes_ (Length) PVOID Buffer,
+	_In_ ULONG Length,
+	_In_opt_ PLARGE_INTEGER ByteOffset,
+	_In_opt_ PULONG Key
+);
 
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-NtWriteFile(
-    _In_ HANDLE FileHandle,
-    _In_opt_ HANDLE Event,
-    _In_opt_ PVOID ApcRoutine,
-    _In_opt_ PVOID ApcContext,
-    _Out_ PIO_STATUS_BLOCK IoStatusBlock,
-    _In_reads_bytes_(Length) PVOID Buffer,
-    _In_ ULONG Length,
-    _In_opt_ PLARGE_INTEGER ByteOffset,
-    _In_opt_ PULONG Key
-    );
+NtWriteFile (
+	_In_ HANDLE FileHandle,
+	_In_opt_ HANDLE Event,
+	_In_opt_ PVOID ApcRoutine,
+	_In_opt_ PVOID ApcContext,
+	_Out_ PIO_STATUS_BLOCK IoStatusBlock,
+	_In_reads_bytes_ (Length) PVOID Buffer,
+	_In_ ULONG Length,
+	_In_opt_ PLARGE_INTEGER ByteOffset,
+	_In_opt_ PULONG Key
+);
 
 NTSYSCALLAPI
 NTSTATUS
@@ -3352,6 +3442,201 @@ RtlDecompressFragmentEx (
 	_In_ ULONG UncompressedChunkSize,
 	_Out_ PULONG FinalUncompressedSize,
 	_In_ PVOID WorkSpace
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtOpenKey (
+	_Out_ PHANDLE KeyHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes
+);
+
+// win7+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtOpenKeyEx (
+	_Out_ PHANDLE KeyHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes,
+	_In_ ULONG OpenOptions
+);
+
+// win7+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtOpenKeyTransactedEx (
+	_Out_ PHANDLE KeyHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes,
+	_In_ ULONG OpenOptions,
+	_In_ HANDLE TransactionHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtDeleteKey (
+	_In_ HANDLE KeyHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtRenameKey (
+	_In_ HANDLE KeyHandle,
+	_In_ PUNICODE_STRING NewName
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtDeleteValueKey (
+	_In_ HANDLE KeyHandle,
+	_In_ PUNICODE_STRING ValueName
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtQueryKey (
+	_In_ HANDLE KeyHandle,
+	_In_ KEY_INFORMATION_CLASS KeyInformationClass,
+	_Out_writes_bytes_opt_ (Length) PVOID KeyInformation,
+	_In_ ULONG Length,
+	_Out_ PULONG ResultLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtSetInformationKey (
+	_In_ HANDLE KeyHandle,
+	_In_ KEY_SET_INFORMATION_CLASS KeySetInformationClass,
+	_In_reads_bytes_ (KeySetInformationLength) PVOID KeySetInformation,
+	_In_ ULONG KeySetInformationLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtQueryValueKey (
+	_In_ HANDLE KeyHandle,
+	_In_ PUNICODE_STRING ValueName,
+	_In_ KEY_VALUE_INFORMATION_CLASS KeyValueInformationClass,
+	_Out_writes_bytes_opt_ (Length) PVOID KeyValueInformation,
+	_In_ ULONG Length,
+	_Out_ PULONG ResultLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtSetValueKey (
+	_In_ HANDLE KeyHandle,
+	_In_ PUNICODE_STRING ValueName,
+	_In_opt_ ULONG TitleIndex,
+	_In_ ULONG Type,
+	_In_reads_bytes_opt_ (DataSize) PVOID Data,
+	_In_ ULONG DataSize
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtEnumerateKey (
+	_In_ HANDLE KeyHandle,
+	_In_ ULONG Index,
+	_In_ KEY_INFORMATION_CLASS KeyInformationClass,
+	_Out_writes_bytes_opt_ (Length) PVOID KeyInformation,
+	_In_ ULONG Length,
+	_Out_ PULONG ResultLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtEnumerateValueKey (
+	_In_ HANDLE KeyHandle,
+	_In_ ULONG Index,
+	_In_ KEY_VALUE_INFORMATION_CLASS KeyValueInformationClass,
+	_Out_writes_bytes_opt_ (Length) PVOID KeyValueInformation,
+	_In_ ULONG Length,
+	_Out_ PULONG ResultLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtFlushKey (
+	_In_ HANDLE KeyHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlOpenCurrentUser (
+	_In_ ACCESS_MASK DesiredAccess,
+	_Out_ PHANDLE CurrentUserKey
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtCreateMutant (
+	_Out_ PHANDLE MutantHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
+	_In_ BOOLEAN InitialOwner
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtOpenMutant (
+	_Out_ PHANDLE MutantHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtReleaseMutant (
+	_In_ HANDLE MutantHandle,
+	_Out_opt_ PLONG PreviousCount
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlCreateAcl (
+	_Out_writes_bytes_ (AclLength) PACL Acl,
+	_In_ ULONG AclLength,
+	_In_ ULONG AclRevision
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlAddAccessAllowedAce (
+	_Inout_ PACL Acl,
+	_In_ ULONG AceRevision,
+	_In_ ACCESS_MASK AccessMask,
+	_In_ PSID Sid
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlSetDaclSecurityDescriptor (
+	_Inout_ PSECURITY_DESCRIPTOR SecurityDescriptor,
+	_In_ BOOLEAN DaclPresent,
+	_In_opt_ PACL Dacl,
+	_In_ BOOLEAN DaclDefaulted
 );
 
 // win7+
