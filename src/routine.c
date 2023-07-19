@@ -13581,7 +13581,7 @@ NTSTATUS _r_reg_queryvalue (
 	_Out_opt_ PULONG type
 )
 {
-	PKEY_VALUE_FULL_INFORMATION value_info;
+	PKEY_VALUE_PARTIAL_INFORMATION value_info;
 	UNICODE_STRING us = {0};
 	ULONG size;
 	NTSTATUS status;
@@ -13589,23 +13589,23 @@ NTSTATUS _r_reg_queryvalue (
 	if (value_name)
 		_r_obj_initializeunicodestring (&us, value_name);
 
-	status = NtQueryValueKey (hkey, &us, KeyValueFullInformation, NULL, 0, &size);
+	status = NtQueryValueKey (hkey, &us, KeyValuePartialInformation, NULL, 0, &size);
 
 	if (status != STATUS_BUFFER_TOO_SMALL)
 		return status;
 
 	value_info = _r_mem_allocate (size);
 
-	status = NtQueryValueKey (hkey, &us, KeyValueFullInformation, value_info, size, &size);
+	status = NtQueryValueKey (hkey, &us, KeyValuePartialInformation, value_info, size, &size);
 
-	if (type)
-		*type = value_info->Type;
+	if (buffer)
+		RtlCopyMemory (buffer, value_info->Data, value_info->DataLength);
 
 	if (buffer_length)
 		*buffer_length = (value_info->DataLength + sizeof (UNICODE_NULL)) / sizeof (WCHAR);
 
-	if (buffer)
-		RtlCopyMemory (buffer, PTR_ADD_OFFSET (value_info, value_info->DataOffset), value_info->DataLength);
+	if (type)
+		*type = value_info->Type;
 
 	_r_mem_free (value_info);
 
