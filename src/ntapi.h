@@ -1104,6 +1104,14 @@ typedef struct _KEY_VALUE_BASIC_INFORMATION
 	_Field_size_bytes_ (NameLength) WCHAR Name[1];
 } KEY_VALUE_BASIC_INFORMATION, *PKEY_VALUE_BASIC_INFORMATION;
 
+typedef struct _KEY_VALUE_PARTIAL_INFORMATION
+{
+	ULONG TitleIndex;
+	ULONG Type;
+	ULONG DataLength;
+	_Field_size_bytes_ (DataLength) UCHAR Data[1];
+} KEY_VALUE_PARTIAL_INFORMATION, *PKEY_VALUE_PARTIAL_INFORMATION;
+
 typedef struct _KEY_FULL_INFORMATION
 {
 	LARGE_INTEGER LastWriteTime;
