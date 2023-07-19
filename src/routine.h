@@ -2498,6 +2498,13 @@ ULONG _r_sys_getlocaleinfo (
 	_Out_ PR_STRING_PTR out_buffer
 );
 
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_getprocessorinformation (
+	_Out_opt_ PUSHORT out_architecture,
+	_Out_opt_ PUSHORT out_revision,
+	_Out_opt_ PULONG out_features
+);
+
 VOID _r_sys_getsystemroot (
 	_Out_ PR_STRINGREF path
 );

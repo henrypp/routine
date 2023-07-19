@@ -8258,6 +8258,44 @@ ULONG _r_sys_getlocaleinfo (
 	return status;
 }
 
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_getprocessorinformation (
+	_Out_opt_ PUSHORT out_architecture,
+	_Out_opt_ PUSHORT out_revision,
+	_Out_opt_ PULONG out_features
+)
+{
+	SYSTEM_PROCESSOR_INFORMATION cpu_info = {0};
+	NTSTATUS status;
+
+	status = NtQuerySystemInformation (SystemProcessorInformation, &cpu_info, sizeof (cpu_info), NULL);
+
+	if (NT_SUCCESS (status))
+	{
+		if (out_architecture)
+			*out_architecture = cpu_info.ProcessorArchitecture;
+
+		if (out_revision)
+			*out_revision = cpu_info.ProcessorRevision;
+
+		if (out_features)
+			*out_features = cpu_info.ProcessorFeatureBits;
+	}
+	else
+	{
+		if (out_architecture)
+			*out_architecture = 0;
+
+		if (out_revision)
+			*out_revision = 0;
+
+		if (out_features)
+			*out_features = 0;
+	}
+
+	return status;
+}
+
 VOID _r_sys_getsystemroot (
 	_Out_ PR_STRINGREF path
 )
