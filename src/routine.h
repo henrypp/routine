@@ -808,7 +808,7 @@ FORCEINLINE VOID _r_obj_swapreference (
 		_r_obj_dereference (old_object);
 
 	if (new_object)
-		_r_obj_reference (new_object);
+		new_object = _r_obj_reference (new_object);
 }
 
 FORCEINLINE VOID _r_obj_movereference (
