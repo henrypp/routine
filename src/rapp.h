@@ -304,7 +304,8 @@ FORCEINLINE HWND _r_settings_getwindow ()
 #if defined(APP_HAVE_AUTORUN)
 BOOLEAN _r_autorun_isenabled ();
 
-BOOLEAN _r_autorun_enable (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_autorun_enable (
 	_In_opt_ HWND hwnd,
 	_In_ BOOLEAN is_enable
 );

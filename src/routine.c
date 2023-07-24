@@ -13025,6 +13025,7 @@ ULONG _r_inet_begindownload (
 	_Inout_ PR_DOWNLOAD_INFO download_info
 )
 {
+	IO_STATUS_BLOCK isb;
 	R_STRINGBUILDER sb;
 	HINTERNET hconnect;
 	HINTERNET hrequest;
@@ -13034,7 +13035,6 @@ ULONG _r_inet_begindownload (
 	ULONG total_readed;
 	ULONG total_length;
 	ULONG readed_length;
-	ULONG unused;
 	LONG status;
 
 	status = _r_inet_openurl (hsession, url, &hconnect, &hrequest, &total_length);
@@ -13058,24 +13058,22 @@ ULONG _r_inet_begindownload (
 
 		if (download_info->is_savetofile)
 		{
-			if (!WriteFile (download_info->u.hfile, content_bytes->buffer, readed_length, &unused, NULL))
-			{
-				status = GetLastError ();
+			status = NtWriteFile (download_info->u.hfile, NULL, NULL, NULL, &isb, content_bytes->buffer, readed_length, NULL, NULL);
+
+			if (!NT_SUCCESS (status))
 				break;
-			}
 		}
 		else
 		{
 			status = _r_str_multibyte2unicode (&content_bytes->sr, &string);
 
-			if (status == STATUS_SUCCESS)
+			if (NT_SUCCESS (status))
 			{
 				_r_obj_appendstringbuilder2 (&sb, string);
 				_r_obj_dereference (string);
 			}
 			else
 			{
-				status = RtlNtStatusToDosError (status);
 				break;
 			}
 		}
@@ -13084,7 +13082,7 @@ ULONG _r_inet_begindownload (
 		{
 			if (!download_info->download_callback (total_readed, max (total_readed, total_length), download_info->lparam))
 			{
-				status = ERROR_CANCELLED;
+				status = STATUS_CANCELLED;
 				break;
 			}
 		}

@@ -2124,7 +2124,8 @@ BOOLEAN _r_autorun_isenabled ()
 	return is_enabled;
 }
 
-BOOLEAN _r_autorun_enable (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_autorun_enable (
 	_In_opt_ HWND hwnd,
 	_In_ BOOLEAN is_enable
 )
@@ -2136,7 +2137,7 @@ BOOLEAN _r_autorun_enable (
 	status = _r_reg_openkey (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", KEY_WRITE, &hkey);
 
 	if (!NT_SUCCESS (status))
-		return FALSE;
+		return status;
 
 	if (is_enable)
 	{
@@ -2164,7 +2165,7 @@ BOOLEAN _r_autorun_enable (
 	if (hwnd && status != ERROR_SUCCESS)
 		_r_show_errormessage (hwnd, NULL, status, NULL);
 
-	return NT_SUCCESS (status);
+	return status;
 }
 #endif // APP_HAVE_AUTORUN
 
@@ -2201,10 +2202,7 @@ ULONG _r_update_downloadupdate (
 	HANDLE hfile;
 	ULONG status;
 
-	// create cache directory
 	path = _r_app_getcachedirectory (TRUE);
-
-	_r_fs_mkdir (path);
 
 	hfile = CreateFile (
 		update_component->cache_path->buffer,
@@ -2258,39 +2256,32 @@ NTSTATUS NTAPI _r_update_downloadthread (
 	_In_ PVOID arglist
 )
 {
-	PR_UPDATE_INFO update_info;
+	PR_UPDATE_INFO update_info = arglist;
 	PR_UPDATE_COMPONENT update_component;
 	TASKDIALOG_COMMON_BUTTON_FLAGS buttons;
 	LPCWSTR str_content;
-	LPCWSTR main_icon;
-	ULONG update_flags;
-	ULONG status;
-
-	update_info = arglist;
-	update_flags = 0;
-
-	status = ERROR_SUCCESS;
+	LPCWSTR main_icon = NULL;
+	ULONG update_flags = 0;
+	ULONG status = ERROR_SUCCESS;
 
 	for (SIZE_T i = 0; i < _r_obj_getarraysize (update_info->components); i++)
 	{
 		update_component = _r_obj_getarrayitem (update_info->components, i);
 
-		if (update_component->flags & PR_UPDATE_FLAG_AVAILABLE)
-		{
-			status = _r_update_downloadupdate (update_info, update_component);
+		if (!(update_component->flags & PR_UPDATE_FLAG_AVAILABLE))
+			continue;
 
-			if (status != ERROR_SUCCESS)
-				break;
+		status = _r_update_downloadupdate (update_info, update_component);
 
-			update_flags |= update_component->flags;
-		}
+		if (status != ERROR_SUCCESS)
+			break;
+
+		update_flags |= update_component->flags;
 	}
 
 	// set result text and navigate taskdialog
 	if (status == ERROR_SUCCESS && update_flags)
 	{
-		main_icon = NULL;
-
 		if (update_flags & PR_UPDATE_FLAG_FILE)
 			_r_update_applyconfig ();
 
@@ -2351,7 +2342,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 	R_STRINGREF remaining_part;
 	R_STRINGREF new_version_sr;
 	R_STRINGREF new_url_sr;
-	SIZE_T downloads_count;
+	SIZE_T downloads_count = 0;
 	ULONG hash_code;
 	ULONG status;
 
@@ -2379,8 +2370,6 @@ NTSTATUS NTAPI _r_update_checkthread (
 
 		goto CleanupExit;
 	}
-
-	downloads_count = 0;
 
 	string_table = _r_str_unserialize (&download_info.u.string->sr, L';', L'=');
 
@@ -2600,13 +2589,13 @@ BOOLEAN _r_update_check (
 	if (InterlockedCompareExchange (&update_info->lock, 0, 0) != 0)
 		return FALSE;
 
-	_r_sys_setenvironment (&environment, THREAD_PRIORITY_LOWEST, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
-
 	if (!update_info->hsession)
 		update_info->hsession = _r_inet_createsession (_r_app_getuseragent ());
 
 	if (!update_info->hsession)
 		return FALSE;
+
+	_r_sys_setenvironment (&environment, THREAD_PRIORITY_LOWEST, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
 
 	status = _r_sys_createthread (&_r_update_checkthread, update_info, &hthread, &environment, L"UpdateThread");
 
@@ -2639,6 +2628,7 @@ BOOLEAN _r_update_check (
 	else
 	{
 		NtResumeThread (hthread, NULL);
+
 		NtClose (hthread);
 	}
 
@@ -2689,17 +2679,7 @@ HRESULT CALLBACK _r_update_pagecallback (
 			LPCWSTR str_content;
 			NTSTATUS status;
 
-			if (wparam == IDCANCEL)
-			{
-				if (update_info->hthread)
-				{
-					NtTerminateThread (update_info->hthread, STATUS_CANCELLED);
-					NtClose (update_info->hthread);
-
-					update_info->hthread = NULL;
-				}
-			}
-			else if (wparam == IDYES)
+			if (wparam == IDYES)
 			{
 				_r_sys_setenvironment (&environment, THREAD_PRIORITY_LOWEST, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
 
@@ -2735,6 +2715,16 @@ HRESULT CALLBACK _r_update_pagecallback (
 					if (update_component->flags & (PR_UPDATE_FLAG_INSTALLER | PR_UPDATE_FLAG_AVAILABLE))
 						_r_update_install (update_component);
 				}
+			}
+			else if (wparam == IDCANCEL)
+			{
+				if (!update_info->hthread)
+					break;
+
+				NtTerminateThread (update_info->hthread, STATUS_CANCELLED);
+				NtClose (update_info->hthread);
+
+				update_info->hthread = NULL;
 			}
 
 			break;
@@ -2888,20 +2878,20 @@ VOID _r_update_addcomponent (
 
 VOID _r_update_applyconfig ()
 {
-	HWND hwindow;
+	HWND hwnd;
 
 	_r_config_initialize (); // reload config
 	_r_locale_initialize (); // reload locale
 
-	hwindow = _r_app_gethwnd ();
+	hwnd = _r_app_gethwnd ();
 
-	if (!hwindow)
+	if (!hwnd)
 		return;
 
-	SendMessage (hwindow, RM_CONFIG_UPDATE, 0, 0);
-	SendMessage (hwindow, RM_INITIALIZE, 0, 0);
+	SendMessage (hwnd, RM_CONFIG_UPDATE, 0, 0);
+	SendMessage (hwnd, RM_INITIALIZE, 0, 0);
 
-	PostMessage (hwindow, RM_LOCALIZE, 0, 0);
+	PostMessage (hwnd, RM_LOCALIZE, 0, 0);
 }
 
 VOID _r_update_install (
@@ -2951,9 +2941,9 @@ HANDLE _r_log_getfilehandle ()
 	static HANDLE hfile = NULL;
 
 	BYTE bom[] = {0xFF, 0xFE};
+	IO_STATUS_BLOCK isb;
 	PR_STRING string;
 	LONG64 file_size;
-	ULONG unused;
 
 	// write to file only when readonly mode is not specified
 	if (_r_app_isreadonly ())
@@ -2984,16 +2974,10 @@ HANDLE _r_log_getfilehandle ()
 				if (GetLastError () != ERROR_ALREADY_EXISTS)
 				{
 					// write utf-16 le byte order mask
-					WriteFile (hfile, bom, sizeof (bom), &unused, NULL);
+					NtWriteFile (hfile, NULL, NULL, NULL, &isb, bom, sizeof (bom), NULL, NULL);
 
 					// adds csv header
-					WriteFile (
-						hfile,
-						PR_DEBUG_HEADER,
-						(ULONG)(_r_str_getlength (PR_DEBUG_HEADER) * sizeof (WCHAR)),
-						&unused,
-						NULL
-					);
+					NtWriteFile (hfile, NULL, NULL, NULL, &isb, PR_DEBUG_HEADER, (ULONG)(_r_str_getlength (PR_DEBUG_HEADER) * sizeof (WCHAR)), NULL, NULL);
 				}
 				else
 				{
@@ -3021,6 +3005,7 @@ VOID _r_log (
 	PR_STRING error_string;
 	PR_STRING date_string;
 	LPCWSTR level_string;
+	IO_STATUS_BLOCK isb;
 	LONG64 current_timestamp;
 	HANDLE hfile;
 	ULONG number;
@@ -3053,7 +3038,7 @@ VOID _r_log (
 			NtCurrentPeb ()->OSBuildNumber
 		);
 
-		WriteFile (hfile, error_string->buffer, (ULONG)error_string->length, &number, NULL);
+		NtWriteFile (hfile, NULL, NULL, NULL, &isb, error_string->buffer, (ULONG)error_string->length, NULL, NULL);
 
 		_r_obj_dereference (error_string);
 	}
