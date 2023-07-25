@@ -3006,9 +3006,9 @@ VOID _r_log (
 	PR_STRING date_string;
 	LPCWSTR level_string;
 	IO_STATUS_BLOCK isb;
+	ULONG number;
 	LONG64 current_timestamp;
 	HANDLE hfile;
-	ULONG number;
 
 	if (!_r_log_isenabled (log_level))
 		return;
