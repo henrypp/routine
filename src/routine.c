@@ -13590,20 +13590,43 @@ NTSTATUS _r_reg_queryvalue (
 	status = NtQueryValueKey (hkey, &us, KeyValuePartialInformation, NULL, 0, &size);
 
 	if (status != STATUS_BUFFER_TOO_SMALL)
+	{
+		if (buffer)
+			RtlZeroMemory (buffer, sizeof (WCHAR));
+
+		if (buffer_length)
+			*buffer_length = 0;
+
+		if (type)
+			*type = 0;
+
 		return status;
+	}
 
 	value_info = _r_mem_allocate (size);
 
 	status = NtQueryValueKey (hkey, &us, KeyValuePartialInformation, value_info, size, &size);
 
-	if (buffer)
-		RtlCopyMemory (buffer, value_info->Data, value_info->DataLength);
+	if (NT_SUCCESS (status))
+	{
+		if (buffer)
+			RtlCopyMemory (buffer, value_info->Data, value_info->DataLength);
 
-	if (buffer_length)
-		*buffer_length = (value_info->DataLength + sizeof (UNICODE_NULL)) / sizeof (WCHAR);
+		if (buffer_length)
+		{
+			if (value_info->Type == REG_SZ || value_info->Type == REG_EXPAND_SZ || value_info->Type == REG_MULTI_SZ)
+			{
+				*buffer_length = (value_info->DataLength + sizeof (UNICODE_NULL)) / sizeof (WCHAR);
+			}
+			else
+			{
+				*buffer_length = value_info->DataLength;
+			}
+		}
 
-	if (type)
-		*type = value_info->Type;
+		if (type)
+			*type = value_info->Type;
+	}
 
 	_r_mem_free (value_info);
 
