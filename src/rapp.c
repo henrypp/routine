@@ -18,6 +18,7 @@ VOID _r_app_exceptionfilter_savedump (
 	WCHAR dump_path[512];
 	LONG64 current_time;
 	HANDLE hfile;
+	NTSTATUS status;
 
 	current_time = _r_unixtime_now ();
 
@@ -30,7 +31,7 @@ VOID _r_app_exceptionfilter_savedump (
 		current_time
 	);
 
-	hfile = CreateFile (dump_path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	status = _r_fs_createfile (dump_path, GENERIC_WRITE, FILE_SHARE_READ, FILE_OVERWRITE_IF, FILE_ATTRIBUTE_NORMAL, 0, NULL, &hfile);
 
 	if (!_r_fs_isvalidhandle (hfile))
 		return;
@@ -506,15 +507,15 @@ PR_STRING _r_app_getconfigpath ()
 					// trying to create file
 					if (!_r_fs_exists (new_result->buffer))
 					{
-						hfile = CreateFile (new_result->buffer, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+						status = _r_fs_createfile (new_result->buffer, GENERIC_WRITE, FILE_SHARE_READ, FILE_OPEN_IF, FILE_ATTRIBUTE_NORMAL, 0, NULL, &hfile);
 
-						if (!_r_fs_isvalidhandle (hfile))
+						if (NT_SUCCESS (status))
 						{
-							_r_obj_clearreference (&new_result);
+							NtClose (hfile);
 						}
 						else
 						{
-							NtClose (hfile);
+							_r_obj_clearreference (&new_result);
 						}
 					}
 				}
@@ -2200,22 +2201,23 @@ ULONG _r_update_downloadupdate (
 	R_DOWNLOAD_INFO download_info;
 	LPCWSTR path;
 	HANDLE hfile;
-	ULONG status;
+	NTSTATUS status;
 
 	path = _r_app_getcachedirectory (TRUE);
 
-	hfile = CreateFile (
+	status = _r_fs_createfile (
 		update_component->cache_path->buffer,
 		GENERIC_WRITE,
 		FILE_SHARE_READ,
-		NULL,
-		CREATE_ALWAYS,
+		FILE_OVERWRITE_IF,
 		FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_TEMPORARY,
-		NULL
+		0,
+		NULL,
+		&hfile
 	);
 
-	if (!_r_fs_isvalidhandle (hfile))
-		return GetLastError ();
+	if (!NT_SUCCESS (status))
+		return status;
 
 	_r_inet_initializedownload_ex (&download_info, hfile, &_r_update_downloadcallback, update_info);
 
@@ -2940,10 +2942,11 @@ HANDLE _r_log_getfilehandle ()
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static HANDLE hfile = NULL;
 
+	LARGE_INTEGER file_size;
 	BYTE bom[] = {0xFF, 0xFE};
 	IO_STATUS_BLOCK isb;
 	PR_STRING string;
-	LONG64 file_size;
+	NTSTATUS status;
 
 	// write to file only when readonly mode is not specified
 	if (_r_app_isreadonly ())
@@ -2955,35 +2958,24 @@ HANDLE _r_log_getfilehandle ()
 
 		if (string)
 		{
-			hfile = CreateFile (
-				string->buffer,
-				GENERIC_WRITE,
-				FILE_SHARE_READ,
-				NULL,
-				OPEN_ALWAYS,
-				FILE_ATTRIBUTE_NORMAL,
-				NULL
-			);
+			status = _r_fs_createfile (string->buffer, GENERIC_WRITE, FILE_SHARE_READ, FILE_OPEN_IF, FILE_ATTRIBUTE_NORMAL, 0, NULL, &hfile);
 
-			if (!_r_fs_isvalidhandle (hfile))
+			if (status == STATUS_OBJECT_NAME_COLLISION)
 			{
-				hfile = NULL;
+				// write utf-16 le byte order mask
+				NtWriteFile (hfile, NULL, NULL, NULL, &isb, bom, sizeof (bom), NULL, NULL);
+
+				// adds csv header
+				NtWriteFile (hfile, NULL, NULL, NULL, &isb, PR_DEBUG_HEADER, (ULONG)(_r_str_getlength (PR_DEBUG_HEADER) * sizeof (WCHAR)), NULL, NULL);
 			}
 			else
 			{
-				if (GetLastError () != ERROR_ALREADY_EXISTS)
+				if (NT_SUCCESS (status))
 				{
-					// write utf-16 le byte order mask
-					NtWriteFile (hfile, NULL, NULL, NULL, &isb, bom, sizeof (bom), NULL, NULL);
+					status = _r_fs_getsize (hfile, &file_size);
 
-					// adds csv header
-					NtWriteFile (hfile, NULL, NULL, NULL, &isb, PR_DEBUG_HEADER, (ULONG)(_r_str_getlength (PR_DEBUG_HEADER) * sizeof (WCHAR)), NULL, NULL);
-				}
-				else
-				{
-					file_size = _r_fs_getsize (hfile);
-
-					_r_fs_setpos (hfile, file_size);
+					if (NT_SUCCESS (status))
+						_r_fs_setpos (hfile, &file_size);
 				}
 			}
 		}
@@ -3376,6 +3368,7 @@ VOID _r_show_errormessage (
 			else if (command_id == IDNO)
 			{
 				_r_obj_initializestringref (&sr, str_content);
+
 				_r_clipboard_set (NULL, &sr);
 			}
 		}

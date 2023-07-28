@@ -4332,10 +4332,71 @@ VOID _r_fs_clearfile (
 	_In_ HANDLE hfile
 )
 {
-	_r_fs_setpos (hfile, 0);
-	_r_fs_setsize (hfile, 0);
+	LARGE_INTEGER size = {0};
+
+	_r_fs_setsize (hfile, &size);
+	_r_fs_setpos (hfile, &size);
 
 	_r_fs_flushfile (hfile);
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_createfile (
+	_In_ LPCWSTR path,
+	_In_ ACCESS_MASK desired_access,
+	_In_ ULONG share_access,
+	_In_ ULONG create_disposition,
+	_In_ ULONG file_attributes,
+	_In_ ULONG create_option,
+	_In_opt_ PLARGE_INTEGER allocation_size,
+	_Outptr_ PHANDLE out_buffer
+)
+{
+	OBJECT_ATTRIBUTES oa = {0};
+	IO_STATUS_BLOCK io;
+	UNICODE_STRING nt_path;
+	HANDLE hfile;
+	NTSTATUS status;
+
+	status = RtlDosPathNameToNtPathName_U_WithStatus (path, &nt_path, NULL, NULL);
+
+	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
+		return status;
+	}
+
+	InitializeObjectAttributes (&oa, &nt_path, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+	desired_access |= SYNCHRONIZE | FILE_READ_ATTRIBUTES;
+
+	status = NtCreateFile (
+		&hfile,
+		desired_access,
+		&oa,
+		&io,
+		NULL,
+		file_attributes,
+		share_access,
+		create_disposition,
+		FILE_SYNCHRONOUS_IO_NONALERT | FILE_NON_DIRECTORY_FILE | create_option,
+		NULL,
+		0
+	);
+
+	if (NT_SUCCESS (status))
+	{
+		*out_buffer = hfile;
+	}
+	else
+	{
+		*out_buffer = NULL;
+	}
+
+	RtlFreeUnicodeString (&nt_path);
+
+	return status;
 }
 
 _Success_ (return == ERROR_SUCCESS)
@@ -4442,9 +4503,10 @@ NTSTATUS _r_fs_getattributes (
 	return status;
 }
 
-_Success_ (return != 0)
-LONG64 _r_fs_getpos (
-	_In_ HANDLE hfile
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_getpos (
+	_In_ HANDLE hfile,
+	_Out_ PLONG64 out_buffer
 )
 {
 	FILE_POSITION_INFORMATION info = {0};
@@ -4453,15 +4515,15 @@ LONG64 _r_fs_getpos (
 
 	status = NtQueryInformationFile (hfile, &io, &info, sizeof (info), FilePositionInformation);
 
-	if (!NT_SUCCESS (status))
-		return 0;
+	*out_buffer = info.CurrentByteOffset.QuadPart;
 
-	return info.CurrentByteOffset.QuadPart;
+	return status;
 }
 
-_Success_ (return != 0)
-LONG64 _r_fs_getsize (
-	_In_ HANDLE hfile
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_getsize (
+	_In_ HANDLE hfile,
+	_Out_ PLARGE_INTEGER out_buffer
 )
 {
 	FILE_STANDARD_INFORMATION info = {0};
@@ -4470,10 +4532,9 @@ LONG64 _r_fs_getsize (
 
 	status = NtQueryInformationFile (hfile, &io, &info, sizeof (info), FileStandardInformation);
 
-	if (!NT_SUCCESS (status))
-		return 0;
+	RtlCopyMemory (out_buffer, &info.EndOfFile, sizeof (LARGE_INTEGER));
 
-	return info.EndOfFile.QuadPart;
+	return status;
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -4523,7 +4584,7 @@ ULONG _r_fs_mapfile (
 	HANDLE hfile;
 	HANDLE hmap;
 	BOOLEAN is_extfile;
-	ULONG status;
+	NTSTATUS status;
 
 	*out_buffer = NULL;
 
@@ -4538,16 +4599,16 @@ ULONG _r_fs_mapfile (
 	}
 	else
 	{
-		hfile = CreateFile (path, FILE_GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, NULL);
+		status = _r_fs_createfile (path, FILE_GENERIC_READ, FILE_SHARE_READ, FILE_OPEN, FILE_ATTRIBUTE_NORMAL, FILE_SEQUENTIAL_ONLY, NULL, &hfile);
 
-		if (!_r_fs_isvalidhandle (hfile))
-			return GetLastError ();
+		if (!NT_SUCCESS (status))
+			return status;
 	}
 
-	if (!GetFileSizeEx (hfile, &file_size))
-	{
-		status = GetLastError ();
+	status = _r_fs_getsize (hfile, &file_size);
 
+	if (!NT_SUCCESS (status))
+	{
 		if (!is_extfile)
 			NtClose (hfile);
 
@@ -4619,25 +4680,28 @@ NTSTATUS _r_fs_readfile (
 	_Outptr_ PR_BYTE_PTR out_buffer
 )
 {
+	LARGE_INTEGER file_size;
 	IO_STATUS_BLOCK isb;
 	PR_BYTE buffer;
-	LONG64 file_size;
 	SIZE_T return_length;
 	SIZE_T length;
 	NTSTATUS status;
 
 	*out_buffer = NULL;
 
-	file_size = _r_fs_getsize (hfile);
+	status = _r_fs_getsize (hfile, &file_size);
 
-	if (!file_size || file_size > PR_SIZE_BUFFER_OVERFLOW)
+	if (!NT_SUCCESS (status))
+		return status;
+
+	if (!file_size.QuadPart || file_size.QuadPart > PR_SIZE_BUFFER_OVERFLOW)
 		return STATUS_INSUFFICIENT_RESOURCES;
 
 #if defined(_WIN64)
 
-	buffer = _r_obj_createbyte_ex (NULL, file_size);
+	buffer = _r_obj_createbyte_ex (NULL, file_size.QuadPart);
 #else
-	buffer = _r_obj_createbyte_ex (NULL, (ULONG)file_size);
+	buffer = _r_obj_createbyte_ex (NULL, (ULONG)file_size.LowPart);
 #endif // _WIN64
 
 	length = 0;
@@ -4679,14 +4743,14 @@ NTSTATUS _r_fs_readfile (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_setpos (
 	_In_ HANDLE hfile,
-	_In_ LONG64 new_pos
+	_In_ PLARGE_INTEGER new_pos
 )
 {
 	FILE_POSITION_INFORMATION info = {0};
 	IO_STATUS_BLOCK io;
 	NTSTATUS status;
 
-	info.CurrentByteOffset.QuadPart = new_pos;
+	RtlCopyMemory (&info.CurrentByteOffset, new_pos, sizeof (LARGE_INTEGER));
 
 	status = NtSetInformationFile (hfile, &io, &info, sizeof (info), FilePositionInformation);
 
@@ -4696,14 +4760,14 @@ NTSTATUS _r_fs_setpos (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_setsize (
 	_In_ HANDLE hfile,
-	_In_ LONG64 new_size
+	_In_ PLARGE_INTEGER new_size
 )
 {
 	FILE_END_OF_FILE_INFORMATION info = {0};
 	IO_STATUS_BLOCK io;
 	NTSTATUS status;
 
-	info.EndOfFile.QuadPart = new_size;
+	RtlCopyMemory (&info.EndOfFile, new_size, sizeof (LARGE_INTEGER));
 
 	status = NtSetInformationFile (hfile, &io, &info, sizeof (info), FileEndOfFileInformation);
 
@@ -5786,7 +5850,7 @@ PR_STRING _r_path_dospathfromnt (
 	return _r_obj_reference (path);
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_ntpathfromdos (
 	_In_ PR_STRING path,
 	_Out_ PR_STRING_PTR out_buffer
@@ -5801,18 +5865,19 @@ NTSTATUS _r_path_ntpathfromdos (
 
 	*out_buffer = NULL;
 
-	hfile = CreateFile (
+	status = _r_fs_createfile (
 		path->buffer,
 		GENERIC_READ,
 		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+		FILE_OPEN,
+		FILE_ATTRIBUTE_NORMAL,
+		FILE_OPEN_FOR_BACKUP_INTENT | FILE_OPEN_REPARSE_POINT,
 		NULL,
-		OPEN_EXISTING,
-		FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
-		NULL
+		&hfile
 	);
 
-	if (!_r_fs_isvalidhandle (hfile))
-		return RtlGetLastNtStatus ();
+	if (!NT_SUCCESS (status))
+		return status;
 
 	buffer_size = sizeof (OBJECT_NAME_INFORMATION) + (MAX_PATH * sizeof (WCHAR));
 	obj_name_info = _r_mem_allocate (buffer_size);
@@ -5828,6 +5893,7 @@ NTSTATUS _r_path_ntpathfromdos (
 			if (buffer_size > PR_SIZE_BUFFER_OVERFLOW)
 			{
 				status = STATUS_INSUFFICIENT_RESOURCES;
+
 				break;
 			}
 
@@ -5840,7 +5906,7 @@ NTSTATUS _r_path_ntpathfromdos (
 	}
 	while (--attempts);
 
-	if (status == STATUS_SUCCESS)
+	if (NT_SUCCESS (status))
 	{
 		string = _r_obj_createstring4 (&obj_name_info->Name);
 
@@ -8108,13 +8174,11 @@ ULONG _r_sys_formatmessage (
 	static R_STRINGREF whitespace_sr = PR_STRINGREF_INIT (L"\r\n ");
 
 	PR_STRING string;
-	ULONG allocated_length;
+	ULONG allocated_length = 256;
 	ULONG return_length;
-	ULONG attempts;
+	ULONG attempts = 6;
 	ULONG status;
 
-	attempts = 6;
-	allocated_length = 256;
 	string = _r_obj_createstring_ex (NULL, allocated_length * sizeof (WCHAR));
 
 	*out_buffer = NULL;

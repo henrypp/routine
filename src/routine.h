@@ -1751,6 +1751,18 @@ VOID _r_fs_clearfile (
 	_In_ HANDLE hfile
 );
 
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_createfile (
+	_In_ LPCWSTR path,
+	_In_ ACCESS_MASK desired_access,
+	_In_ ULONG share_access,
+	_In_ ULONG create_disposition,
+	_In_ ULONG file_attributes,
+	_In_ ULONG create_option,
+	_In_opt_ PLARGE_INTEGER allocation_size,
+	_Outptr_ PHANDLE out_buffer
+);
+
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_fs_deletedirectory (
 	_In_ LPCWSTR path,
@@ -1769,14 +1781,16 @@ NTSTATUS _r_fs_flushfile (
 	_In_ HANDLE hfile
 );
 
-_Success_ (return != 0)
-LONG64 _r_fs_getpos (
-	_In_ HANDLE hfile
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_getpos (
+	_In_ HANDLE hfile,
+	_Out_ PLONG64 out_buffer
 );
 
-_Success_ (return != 0)
-LONG64 _r_fs_getsize (
-	_In_ HANDLE hfile
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_getsize (
+	_In_ HANDLE hfile,
+	_Out_ PLARGE_INTEGER out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -1808,13 +1822,13 @@ NTSTATUS _r_fs_readfile (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_setpos (
 	_In_ HANDLE hfile,
-	_In_ LONG64 new_pos
+	_In_ PLARGE_INTEGER new_pos
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_setsize (
 	_In_ HANDLE hfile,
-	_In_ LONG64 new_size
+	_In_ PLARGE_INTEGER new_size
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -1949,7 +1963,7 @@ PR_STRING _r_path_dospathfromnt (
 	_In_ PR_STRING path
 );
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_ntpathfromdos (
 	_In_ PR_STRING path,
 	_Out_ PR_STRING_PTR out_buffer
