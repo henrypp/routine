@@ -1185,6 +1185,29 @@ typedef struct _KEY_VALUE_FULL_INFORMATION
 	// UCHAR Data[1];
 } KEY_VALUE_FULL_INFORMATION, *PKEY_VALUE_FULL_INFORMATION;
 
+typedef struct _TIME_FIELDS
+{
+	short Year; // 1601...
+	short Month; // 1..12
+	short Day; // 1..31
+	short Hour; // 0..23
+	short Minute; // 0..59
+	short Second; // 0..59
+	short Milliseconds; // 0..999
+	short Weekday; // 0..6 = Sunday..Saturday
+} TIME_FIELDS, *PTIME_FIELDS;
+
+typedef struct _RTL_TIME_ZONE_INFORMATION
+{
+	LONG Bias;
+	WCHAR StandardName[32];
+	TIME_FIELDS StandardStart;
+	LONG StandardBias;
+	WCHAR DaylightName[32];
+	TIME_FIELDS DaylightStart;
+	LONG DaylightBias;
+} RTL_TIME_ZONE_INFORMATION, *PRTL_TIME_ZONE_INFORMATION;
+
 // WNF (win8+)
 typedef struct _WNF_STATE_NAME
 {
@@ -2284,6 +2307,15 @@ typedef struct _IO_STATUS_BLOCK
 //
 
 EXTERN_C_START
+
+NTSYSCALLAPI
+LONG
+WINAPI
+GetStagedPackagePathByFullName (
+	_In_ PCWSTR packageFullName,
+	_Inout_ UINT32 *pathLength,
+	_Out_opt_ PWSTR  path
+);
 
 NTSYSCALLAPI
 NTSTATUS
