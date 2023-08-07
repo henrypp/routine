@@ -200,45 +200,12 @@ BOOLEAN _r_format_bytesize64 (
 	_In_ ULONG64 bytes
 )
 {
-#if !defined(APP_NO_DEPRECATIONS)
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static SFBSE _StrFormatByteSizeEx = NULL;
-
-	HINSTANCE hshlwapi;
-#endif // !APP_NO_DEPRECATIONS
-
 	HRESULT status;
 
-#if defined(APP_NO_DEPRECATIONS)
-	// vista (sp1)+
 	status = StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, buffer_size);
 
 	if (status == S_OK)
 		return TRUE;
-#else
-	if (_r_initonce_begin (&init_once))
-	{
-		hshlwapi = _r_sys_loadlibrary (L"shlwapi.dll");
-
-		if (hshlwapi)
-		{
-			// vista (sp1+)
-			_StrFormatByteSizeEx = (SFBSE)GetProcAddress (hshlwapi, "StrFormatByteSizeEx");
-
-			//FreeLibrary (hshlwapi);
-		}
-
-		_r_initonce_end (&init_once);
-	}
-
-	if (_StrFormatByteSizeEx)
-	{
-		status = _StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, buffer_size);
-
-		if (status == S_OK)
-			return TRUE;
-	}
-#endif // APP_NO_DEPRECATIONS
 
 	if (StrFormatByteSize64 (bytes, buffer, buffer_size)) // fallback
 		return TRUE;
@@ -739,7 +706,6 @@ BOOLEAN FASTCALL _r_event_wait_ex (
 // Synchronization: One-time initialization
 //
 
-#if defined(APP_NO_DEPRECATIONS)
 BOOLEAN _r_initonce_begin (
 	_Inout_ PR_INITONCE init_once
 )
@@ -755,36 +721,6 @@ BOOLEAN _r_initonce_begin (
 
 	return (status == STATUS_PENDING);
 }
-#else
-BOOLEAN FASTCALL _r_initonce_begin (
-	_Inout_ PR_INITONCE init_once
-)
-{
-	if (_r_event_test (&init_once->event_object))
-		return FALSE;
-
-	return _r_initonce_begin_ex (init_once);
-}
-
-BOOLEAN FASTCALL _r_initonce_begin_ex (
-	_Inout_ PR_INITONCE init_once
-)
-{
-	if (!_InterlockedBitTestAndSetPointer (&init_once->event_object.value, PR_INITONCE_INITIALIZING_SHIFT))
-		return TRUE;
-
-	_r_event_wait (&init_once->event_object, NULL);
-
-	return FALSE;
-}
-
-VOID FASTCALL _r_initonce_end (
-	_Inout_ PR_INITONCE init_once
-)
-{
-	_r_event_set (&init_once->event_object);
-}
-#endif // APP_NO_DEPRECATIONS
 
 //
 // Synchronization: Free list
@@ -1963,10 +1899,10 @@ VOID _r_workqueue_waitforfinish (
 //
 
 ULONG _r_sys_getsidlength (
-	_In_ PSID Sid
+	_In_ PSID sid
 )
 {
-	return UFIELD_OFFSET (SID, SubAuthority[((PISID)Sid)->SubAuthorityCount]);
+	return UFIELD_OFFSET (SID, SubAuthority[((PISID)sid)->SubAuthorityCount]);
 }
 
 _When_ (NT_SUCCESS (return), _Acquires_lock_ (*hmutex))
@@ -4012,10 +3948,6 @@ INT _r_msg (
 	_In_opt_ ...
 )
 {
-#if !defined(APP_NO_DEPRECATIONS)
-	MSGBOXPARAMS mbp = {0};
-#endif // !APP_NO_DEPRECATIONS
-
 	TASKDIALOGCONFIG tdc = {0};
 	WCHAR buffer[1024];
 	va_list args;
@@ -4030,123 +3962,80 @@ INT _r_msg (
 		va_end (args);
 	}
 
-#ifndef APP_NO_DEPRECATIONS
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
+	tdc.cbSize = sizeof (tdc);
+	tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
+	tdc.hwndParent = hwnd;
+	tdc.hInstance = _r_sys_getimagebase ();
+	tdc.pfCallback = &_r_msg_callback;
+	tdc.pszWindowTitle = title;
+	tdc.pszMainInstruction = main;
+
+	if (text && buffer[0])
+		tdc.pszContent = buffer;
+
+	// default buttons
+	if ((flags & MB_DEFMASK) == MB_DEFBUTTON2)
+		tdc.nDefaultButton = IDNO;
+
+	// buttons
+	if ((flags & MB_TYPEMASK) == MB_YESNO)
 	{
-#endif // APP_NO_DEPRECATIONS
-		tdc.cbSize = sizeof (tdc);
-		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
-		tdc.hwndParent = hwnd;
-		tdc.hInstance = _r_sys_getimagebase ();
-		tdc.pfCallback = &_r_msg_callback;
-		tdc.pszWindowTitle = title;
-		tdc.pszMainInstruction = main;
-
-		if (text && buffer[0])
-			tdc.pszContent = buffer;
-
-		// default buttons
-		if ((flags & MB_DEFMASK) == MB_DEFBUTTON2)
-			tdc.nDefaultButton = IDNO;
-
-		// buttons
-		if ((flags & MB_TYPEMASK) == MB_YESNO)
-		{
-			tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
-		}
-		else if ((flags & MB_TYPEMASK) == MB_YESNOCANCEL)
-		{
-			tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON | TDCBF_CANCEL_BUTTON;
-		}
-		else if ((flags & MB_TYPEMASK) == MB_OKCANCEL)
-		{
-			tdc.dwCommonButtons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
-		}
-		else if ((flags & MB_TYPEMASK) == MB_RETRYCANCEL)
-		{
-			tdc.dwCommonButtons = TDCBF_RETRY_BUTTON | TDCBF_CANCEL_BUTTON;
-		}
-		else
-		{
-			tdc.dwCommonButtons = TDCBF_OK_BUTTON;
-		}
-
-		// icons
-		if ((flags & MB_ICONMASK) == MB_USERICON)
-		{
-#ifdef IDI_MAIN
-			tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
-#else
-			tdc.pszMainIcon = MAKEINTRESOURCE (100);
-#endif // IDI_MAIN
-		}
-		else if ((flags & MB_ICONMASK) == MB_ICONASTERISK)
-		{
-			tdc.pszMainIcon = TD_INFORMATION_ICON;
-		}
-		else if ((flags & MB_ICONMASK) == MB_ICONEXCLAMATION)
-		{
-			tdc.pszMainIcon = TD_WARNING_ICON;
-		}
-		else if ((flags & MB_ICONMASK) == MB_ICONQUESTION)
-		{
-			tdc.pszMainIcon = TD_INFORMATION_ICON;
-		}
-		else if ((flags & MB_ICONMASK) == MB_ICONHAND)
-		{
-			tdc.pszMainIcon = TD_ERROR_ICON;
-		}
-
-		if ((flags & MB_TOPMOST) != 0)
-			tdc.lpCallbackData = MAKELONG (0, TRUE);
-
-		if (_r_msg_taskdialog (&tdc, &result, NULL, NULL))
-			return result;
-#ifndef APP_NO_DEPRECATIONS
+		tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
 	}
-#endif // APP_NO_DEPRECATIONS
-
-#ifndef APP_NO_DEPRECATIONS
-	if (!result)
+	else if ((flags & MB_TYPEMASK) == MB_YESNOCANCEL)
 	{
-		if (main)
-		{
-			//if (!buffer[0])
-			//{
-			//	//buffer = main;
-			//}
-			//else
-			//{
-			//	//Not working correctly!
-			//	//_r_str_appendformat (main);
-			//}
-		}
-
-		mbp.cbSize = sizeof (mbp);
-		mbp.hwndOwner = hwnd;
-		mbp.hInstance = _r_sys_getimagebase ();
-		mbp.dwStyle = flags;
-		mbp.lpszCaption = title;
-		mbp.lpszText = buffer;
-
-		if ((flags & MB_ICONMASK) == MB_USERICON)
-		{
-#ifdef IDI_MAIN
-			mbp.lpszIcon = MAKEINTRESOURCE (IDI_MAIN);
-#else
-			tdc.pszMainIcon = MAKEINTRESOURCE (100);
-#endif // IDI_MAIN
-		}
-
-		return MessageBoxIndirect (&mbp);
+		tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON | TDCBF_CANCEL_BUTTON;
 	}
-#endif // APP_NO_DEPRECATIONS
+	else if ((flags & MB_TYPEMASK) == MB_OKCANCEL)
+	{
+		tdc.dwCommonButtons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
+	}
+	else if ((flags & MB_TYPEMASK) == MB_RETRYCANCEL)
+	{
+		tdc.dwCommonButtons = TDCBF_RETRY_BUTTON | TDCBF_CANCEL_BUTTON;
+	}
+	else
+	{
+		tdc.dwCommonButtons = TDCBF_OK_BUTTON;
+	}
+
+	// icons
+	if ((flags & MB_ICONMASK) == MB_USERICON)
+	{
+#ifdef IDI_MAIN
+		tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
+#else
+		tdc.pszMainIcon = MAKEINTRESOURCE (100);
+#endif // IDI_MAIN
+	}
+	else if ((flags & MB_ICONMASK) == MB_ICONASTERISK)
+	{
+		tdc.pszMainIcon = TD_INFORMATION_ICON;
+	}
+	else if ((flags & MB_ICONMASK) == MB_ICONEXCLAMATION)
+	{
+		tdc.pszMainIcon = TD_WARNING_ICON;
+	}
+	else if ((flags & MB_ICONMASK) == MB_ICONQUESTION)
+	{
+		tdc.pszMainIcon = TD_INFORMATION_ICON;
+	}
+	else if ((flags & MB_ICONMASK) == MB_ICONHAND)
+	{
+		tdc.pszMainIcon = TD_ERROR_ICON;
+	}
+
+	if ((flags & MB_TOPMOST) != 0)
+		tdc.lpCallbackData = MAKELONG (0, TRUE);
+
+	if (SUCCEEDED (_r_msg_taskdialog (&tdc, &result, NULL, NULL)))
+		return result;
 
 	return 0;
 }
 
-_Success_ (return)
-BOOLEAN _r_msg_taskdialog (
+_Success_ (SUCCEEDED (return))
+HRESULT _r_msg_taskdialog (
 	_In_ const LPTASKDIALOGCONFIG task_dialog,
 	_Out_opt_ PINT button_ptr,
 	_Out_opt_ PINT radio_button_ptr,
@@ -4155,39 +4044,9 @@ BOOLEAN _r_msg_taskdialog (
 {
 	HRESULT status;
 
-#if !defined(APP_NO_DEPRECATIONS)
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static TDI _TaskDialogIndirect = NULL;
-
-	HINSTANCE hcomctl32;
-
-	if (_r_initonce_begin (&init_once))
-	{
-		hcomctl32 = _r_sys_loadlibrary (L"comctl32.dll");
-
-		if (hcomctl32)
-		{
-			// vista+
-			_TaskDialogIndirect = (TDI)GetProcAddress (hcomctl32, "TaskDialogIndirect");
-
-			// FreeLibrary (hcomctl32);
-		}
-
-		_r_initonce_end (&init_once);
-	}
-
-	if (!_TaskDialogIndirect)
-		return FALSE;
-
-	status = _TaskDialogIndirect (task_dialog, button_ptr, radio_button_ptr, is_flagchecked_ptr);
-
-#else
-
 	status = TaskDialogIndirect (task_dialog, button_ptr, radio_button_ptr, is_flagchecked_ptr);
 
-#endif // APP_NO_DEPRECATIONS
-
-	return (status == S_OK);
+	return status;
 }
 
 HRESULT CALLBACK _r_msg_callback (
@@ -4343,11 +4202,12 @@ VOID _r_fs_clearfile (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_createfile (
 	_In_ LPCWSTR path,
+	_In_ ULONG create_disposition,
 	_In_ ACCESS_MASK desired_access,
 	_In_ ULONG share_access,
-	_In_ ULONG create_disposition,
 	_In_ ULONG file_attributes,
 	_In_ ULONG create_option,
+	_In_ BOOLEAN is_directory,
 	_In_opt_ PLARGE_INTEGER allocation_size,
 	_Outptr_ PHANDLE out_buffer
 )
@@ -4358,18 +4218,18 @@ NTSTATUS _r_fs_createfile (
 	HANDLE hfile;
 	NTSTATUS status;
 
+	*out_buffer = NULL;
+
 	status = RtlDosPathNameToNtPathName_U_WithStatus (path, &nt_path, NULL, NULL);
 
 	if (!NT_SUCCESS (status))
-	{
-		*out_buffer = NULL;
-
 		return status;
-	}
 
 	InitializeObjectAttributes (&oa, &nt_path, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
 	desired_access |= SYNCHRONIZE | FILE_READ_ATTRIBUTES;
+
+	create_option |= is_directory ? FILE_DIRECTORY_FILE : FILE_NON_DIRECTORY_FILE;
 
 	status = NtCreateFile (
 		&hfile,
@@ -4380,90 +4240,284 @@ NTSTATUS _r_fs_createfile (
 		file_attributes,
 		share_access,
 		create_disposition,
-		FILE_SYNCHRONOUS_IO_NONALERT | FILE_NON_DIRECTORY_FILE | create_option,
+		FILE_SYNCHRONOUS_IO_NONALERT | create_option,
 		NULL,
 		0
 	);
 
 	if (NT_SUCCESS (status))
-	{
 		*out_buffer = hfile;
-	}
-	else
-	{
-		*out_buffer = NULL;
-	}
 
 	RtlFreeUnicodeString (&nt_path);
 
 	return status;
 }
 
-_Success_ (return == ERROR_SUCCESS)
-ULONG _r_fs_deletedirectory (
-	_In_ LPCWSTR path,
-	_In_ BOOLEAN is_forced,
-	_In_ BOOLEAN is_recurse
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_copyfile (
+	_In_ LPCWSTR path_from,
+	_In_ LPCWSTR path_to
 )
 {
-	SHFILEOPSTRUCT shfop = {0};
-	PR_STRING string;
-	SIZE_T length;
-	ULONG attributes;
-	ULONG status;
+	PBYTE buffer;
+	IO_STATUS_BLOCK isb;
+	HANDLE hfile1;
+	HANDLE hfile2;
+	ULONG length;
+	NTSTATUS status;
 
-	attributes = GetFileAttributes (path);
+	status = _r_fs_createfile (
+		path_from,
+		FILE_OPEN,
+		FILE_GENERIC_READ,
+		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+		FILE_ATTRIBUTE_NORMAL,
+		FILE_SEQUENTIAL_ONLY,
+		FALSE,
+		NULL,
+		&hfile1
+	);
 
-	if (attributes == INVALID_FILE_ATTRIBUTES)
-		return ERROR_FILE_NOT_FOUND; // not found
+	if (!NT_SUCCESS (status))
+		return status;
 
-	if (!(attributes & FILE_ATTRIBUTE_DIRECTORY))
-		return ERROR_BAD_PATHNAME; // not a directory
+	status = _r_fs_createfile (
+		path_to,
+		FILE_OVERWRITE_IF,
+		FILE_GENERIC_WRITE,
+		FILE_SHARE_READ,
+		FILE_ATTRIBUTE_NORMAL,
+		FILE_SEQUENTIAL_ONLY,
+		FALSE,
+		NULL,
+		&hfile2
+	);
 
-	if (is_forced)
-		SetFileAttributes (path, FILE_ATTRIBUTE_NORMAL);
+	if (!NT_SUCCESS (status))
+	{
+		NtClose (hfile1);
 
-	length = _r_str_getlength (path) + 1;
+		return status;
+	}
 
-	// required to set 2 nulls at end
-	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
+	length = 0x4000;
+	buffer = _r_mem_allocate (length);
 
-	_r_str_copy (string->buffer, length, path);
+	while (TRUE)
+	{
+		status = NtReadFile (hfile1, NULL, NULL, NULL, &isb, buffer, length, NULL, NULL);
 
-	shfop.wFunc = FO_DELETE;
-	shfop.fFlags = FOF_NO_UI;
-	shfop.pFrom = string->buffer;
+		if (!NT_SUCCESS (status) || isb.Information == 0)
+			break;
 
-	if (!is_recurse)
-		shfop.fFlags |= FOF_NORECURSION;
+		status = NtWriteFile (hfile2, NULL, NULL, NULL, &isb, buffer, (ULONG)isb.Information, NULL, NULL);
 
-	status = SHFileOperation (&shfop);
+		if (!NT_SUCCESS (status) || isb.Information == 0)
+			break;
+	}
 
-	_r_obj_dereference (string);
+	if (status == STATUS_END_OF_FILE)
+		status = STATUS_SUCCESS;
+
+	_r_mem_free (buffer);
+
+	NtClose (hfile1);
+	NtClose (hfile2);
 
 	return status;
 }
 
-_Success_ (return)
-BOOLEAN _r_fs_deletefile (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_deletedirectory (
+	_In_ LPCWSTR path,
+	_In_ BOOLEAN is_recurse
+)
+{
+	FILE_DISPOSITION_INFORMATION fdi = {0};
+	FILE_DISPOSITION_INFO_EX fdi_ex = {0};
+	OBJECT_ATTRIBUTES oa = {0};
+	UNICODE_STRING nt_path;
+	IO_STATUS_BLOCK isb;
+	HANDLE hdirectory;
+	NTSTATUS status;
+
+	status = RtlDosPathNameToNtPathName_U_WithStatus (path, &nt_path, NULL, NULL);
+
+	if (!NT_SUCCESS (status))
+		return status;
+
+	InitializeObjectAttributes (&oa, &nt_path, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+	status = NtOpenFile (
+		&hdirectory,
+		DELETE | SYNCHRONIZE | FAILED_ACCESS_ACE_FLAG,
+		&oa,
+		&isb,
+		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+		FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT |
+		FILE_OPEN_FOR_BACKUP_INTENT | FILE_OPEN_REPARSE_POINT
+	);
+
+	if (!NT_SUCCESS (status))
+		return status;
+
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1809))
+	{
+		fdi_ex.Flags = FILE_DISPOSITION_FLAG_DELETE | FILE_DISPOSITION_FLAG_POSIX_SEMANTICS | FILE_DISPOSITION_FLAG_IGNORE_READONLY_ATTRIBUTE;
+
+		status = NtSetInformationFile (hdirectory, &isb, &fdi, sizeof (FILE_DISPOSITION_INFO_EX), FileDispositionInformationEx);
+	}
+
+	_r_fs_setattributes (path, NULL, FILE_ATTRIBUTE_NORMAL);
+
+	fdi.DeleteFile = TRUE;
+
+	status = NtSetInformationFile (hdirectory, &isb, &fdi, sizeof (FILE_DISPOSITION_INFORMATION), FileDispositionInformation);
+
+	RtlFreeUnicodeString (&nt_path);
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_deletefile (
 	_In_ LPCWSTR path,
 	_In_ BOOLEAN is_forced
 )
 {
-	ULONG attributes;
+	OBJECT_ATTRIBUTES oa = {0};
+	UNICODE_STRING nt_path;
+	NTSTATUS status;
 
-	attributes = GetFileAttributes (path);
+	status = RtlDosPathNameToNtPathName_U_WithStatus (path, &nt_path, NULL, NULL);
 
-	if (attributes == INVALID_FILE_ATTRIBUTES)
-		return FALSE; // not found
-
-	if (attributes & FILE_ATTRIBUTE_DIRECTORY)
-		return FALSE; // not a file
+	if (!NT_SUCCESS (status))
+		return status;
 
 	if (is_forced)
 		SetFileAttributes (path, FILE_ATTRIBUTE_NORMAL);
 
-	return !!DeleteFile (path);
+	InitializeObjectAttributes (&oa, &nt_path, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+	status = NtDeleteFile (&oa);
+
+	RtlFreeUnicodeString (&nt_path);
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_enumfiles (
+	_In_opt_ LPCWSTR path,
+	_In_opt_ HANDLE hdirectory,
+	_In_opt_ LPCWSTR search_pattern,
+	_In_ PR_FILE_ENUM_CALLBACK callback
+)
+{
+	PFILE_DIRECTORY_INFORMATION information;
+	UNICODE_STRING pattern = {0};
+	IO_STATUS_BLOCK isb;
+	HANDLE hdirectory_new = NULL;
+	PVOID buffer;
+	ULONG buffer_size = 0x400;
+	ULONG i = 0;
+	BOOLEAN is_firsttime = FALSE;
+	NTSTATUS status;
+
+	if (!path && !hdirectory)
+		return STATUS_INVALID_PARAMETER;
+
+	if (path)
+	{
+		status = _r_fs_createfile (
+			path,
+			FILE_OPEN,
+			FILE_LIST_DIRECTORY,
+			FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+			FILE_ATTRIBUTE_NORMAL,
+			0,
+			TRUE,
+			NULL,
+			&hdirectory_new
+		);
+
+		if (!NT_SUCCESS (status))
+			return status;
+
+		hdirectory = hdirectory_new;
+	}
+
+	if (search_pattern)
+		_r_obj_initializeunicodestring (&pattern, search_pattern);
+
+	buffer = _r_mem_allocate (buffer_size);
+
+	while (TRUE)
+	{
+		// Query the directory, doubling the buffer each time NtQueryDirectoryFile fails.
+		while (TRUE)
+		{
+			status = NtQueryDirectoryFile (hdirectory, NULL, NULL, NULL, &isb, buffer, buffer_size, FileDirectoryInformation, FALSE, &pattern, is_firsttime);
+
+			// Our ISB is on the stack, so we have to wait for the operation to complete before continuing.
+			if (status == STATUS_PENDING)
+			{
+				status = NtWaitForSingleObject (hdirectory, FALSE, NULL);
+
+				if (NT_SUCCESS (status))
+					status = isb.Status;
+			}
+
+			if (status == STATUS_BUFFER_OVERFLOW || status == STATUS_INFO_LENGTH_MISMATCH)
+			{
+				buffer_size *= 2;
+
+				buffer = _r_mem_reallocate (buffer, buffer_size);
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		// If we don't have any entries to read, exit.
+		if (status == STATUS_NO_MORE_FILES)
+		{
+			status = STATUS_SUCCESS;
+
+			break;
+		}
+
+		if (!NT_SUCCESS (status))
+			break;
+
+		// Read the batch and execute the callback function for each file.
+		while (TRUE)
+		{
+			information = PTR_ADD_OFFSET (buffer, i);
+
+			if (_r_str_compare (information->FileName, L".") != 0 && _r_str_compare (information->FileName, L"..") != 0)
+				callback (information);
+
+			if (information->NextEntryOffset != 0)
+			{
+				i += information->NextEntryOffset;
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		is_firsttime = FALSE;
+	}
+
+	_r_mem_free (buffer);
+
+	if (hdirectory_new)
+		NtClose (hdirectory_new);
+
+	return status;
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -4572,104 +4626,85 @@ NTSTATUS _r_fs_gettimestamp (
 	return status;
 }
 
-_Success_ (return == ERROR_SUCCESS)
-ULONG _r_fs_mapfile (
-	_In_opt_ LPCWSTR path,
-	_In_opt_ HANDLE hfile_in,
-	_Out_ PR_BYTE_PTR out_buffer
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_mkdir (
+	_In_ LPCWSTR path
 )
 {
-	LARGE_INTEGER file_size;
-	PVOID file_bytes;
-	HANDLE hfile;
-	HANDLE hmap;
-	BOOLEAN is_extfile;
+	HANDLE hdirectory;
 	NTSTATUS status;
 
-	*out_buffer = NULL;
+	status = _r_fs_createfile (
+		path,
+		FILE_CREATE,
+		FILE_LIST_DIRECTORY,
+		FILE_SHARE_READ | FILE_SHARE_WRITE,
+		FILE_ATTRIBUTE_NORMAL,
+		FILE_OPEN_FOR_BACKUP_INTENT,
+		TRUE,
+		NULL,
+		&hdirectory
+	);
 
-	is_extfile = _r_fs_isvalidhandle (hfile_in);
-
-	if (!is_extfile && !path)
-		return ERROR_INVALID_PARAMETER;
-
-	if (is_extfile)
-	{
-		hfile = hfile_in;
-	}
-	else
-	{
-		status = _r_fs_createfile (path, FILE_GENERIC_READ, FILE_SHARE_READ, FILE_OPEN, FILE_ATTRIBUTE_NORMAL, FILE_SEQUENTIAL_ONLY, NULL, &hfile);
-
-		if (!NT_SUCCESS (status))
-			return status;
-	}
-
-	status = _r_fs_getsize (hfile, &file_size);
-
-	if (!NT_SUCCESS (status))
-	{
-		if (!is_extfile)
-			NtClose (hfile);
-
-		return status;
-	}
-
-	hmap = CreateFileMapping (hfile, NULL, PAGE_READONLY, file_size.HighPart, file_size.LowPart, NULL);
-
-	if (!hmap)
-	{
-		status = GetLastError ();
-	}
-	else
-	{
-		file_bytes = MapViewOfFile (hmap, FILE_MAP_READ, 0, 0, 0);
-
-		if (!file_bytes)
-		{
-			status = GetLastError ();
-		}
-		else
-		{
-#if defined(_WIN64)
-			*out_buffer = _r_obj_createbyte_ex (file_bytes, file_size.QuadPart);
-#else
-			*out_buffer = _r_obj_createbyte_ex (file_bytes, file_size.LowPart);
-#endif // _WIN64
-
-			UnmapViewOfFile (file_bytes);
-
-			status = ERROR_SUCCESS;
-		}
-
-		NtClose (hmap);
-	}
-
-	if (!is_extfile)
-		NtClose (hfile);
+	if (NT_SUCCESS (status))
+		NtClose (hdirectory);
 
 	return status;
 }
 
-_Success_ (return == ERROR_SUCCESS)
-ULONG _r_fs_mkdir (
-	_In_ LPCWSTR path
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_movefile (
+	_In_ LPCWSTR path_from,
+	_In_ LPCWSTR path_to
 )
 {
-	ULONG attributes;
-	ULONG status;
+	PFILE_RENAME_INFORMATION rename_info;
+	UNICODE_STRING nt_path;
+	IO_STATUS_BLOCK isb;
+	HANDLE hfile;
+	ULONG length;
+	NTSTATUS status;
 
-	attributes = GetFileAttributes (path);
+	status = _r_fs_createfile (
+		path_from,
+		FILE_OPEN,
+		FILE_GENERIC_READ,
+		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+		FILE_ATTRIBUTE_NORMAL,
+		FILE_SEQUENTIAL_ONLY,
+		FALSE,
+		NULL,
+		&hfile
+	);
 
-	if (attributes != INVALID_FILE_ATTRIBUTES)
+	if (!NT_SUCCESS (status))
+		return status;
+
+	status = RtlDosPathNameToNtPathName_U_WithStatus (path_to, &nt_path, NULL, NULL);
+
+	if (!NT_SUCCESS (status))
+		return status;
+
+	length = sizeof (FILE_RENAME_INFORMATION) + nt_path.Length + sizeof (UNICODE_NULL);
+
+	rename_info = _r_mem_allocate (length);
+
+	rename_info->ReplaceIfExists = TRUE;
+	rename_info->RootDirectory = NULL;
+	rename_info->FileNameLength = nt_path.Length;
+
+	RtlCopyMemory (rename_info->FileName, nt_path.Buffer, nt_path.Length);
+
+	status = NtSetInformationFile (hfile, &isb, rename_info, length, FileRenameInformation);
+
+	if (status == STATUS_NOT_SAME_DEVICE)
 	{
-		if (attributes & FILE_ATTRIBUTE_DIRECTORY) // already exists
-			return TRUE;
+		status = _r_fs_copyfile (path_from, path_to);
 
-		_r_fs_deletefile (path, TRUE);
+		_r_fs_deletefile (path_from, TRUE);
 	}
 
-	status = SHCreateDirectoryEx (NULL, path, NULL);
+	RtlFreeUnicodeString (&nt_path);
 
 	return status;
 }
@@ -4683,8 +4718,8 @@ NTSTATUS _r_fs_readfile (
 	LARGE_INTEGER file_size;
 	IO_STATUS_BLOCK isb;
 	PR_BYTE buffer;
-	SIZE_T return_length;
-	SIZE_T length;
+	PVOID memory;
+	SIZE_T length = 0;
 	NTSTATUS status;
 
 	*out_buffer = NULL;
@@ -4698,44 +4733,90 @@ NTSTATUS _r_fs_readfile (
 		return STATUS_INSUFFICIENT_RESOURCES;
 
 #if defined(_WIN64)
-
 	buffer = _r_obj_createbyte_ex (NULL, file_size.QuadPart);
 #else
 	buffer = _r_obj_createbyte_ex (NULL, (ULONG)file_size.LowPart);
 #endif // _WIN64
 
-	length = 0;
+	memory = _r_mem_allocate (0x4000);
 
 	while (TRUE)
 	{
-		status = NtReadFile (hfile, NULL, NULL, NULL, &isb, buffer, PAGE_SIZE * 2, NULL, NULL);
-
-		if (!NT_SUCCESS (status))
-		{
-			_r_mem_free (buffer);
-
-			return status;
-		}
+		status = NtReadFile (hfile, NULL, NULL, NULL, &isb, memory, 0x4000, NULL, NULL);
 
 		if (status == STATUS_END_OF_FILE)
 		{
 			status = STATUS_SUCCESS;
+
 			break;
 		}
 
-		return_length = (ULONG)isb.Information;
+		if (!NT_SUCCESS (status))
+		{
+			_r_mem_free (buffer);
+			_r_mem_free (memory);
 
-		if (return_length == 0)
+			return status;
+		}
+
+		if (!isb.Information)
 			break;
 
-		RtlCopyMemory (PTR_ADD_OFFSET (buffer, length), buffer, return_length);
+		RtlCopyMemory (PTR_ADD_OFFSET (buffer->buffer, length), memory, isb.Information);
 
-		length += return_length;
-
-		_r_obj_setbytelength (buffer, length);
+		length += isb.Information;
 	}
 
+	_r_obj_setbytelength (buffer, length);
+
+	_r_mem_free (memory);
+
 	*out_buffer = buffer;
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_setattributes (
+	_In_opt_ LPCWSTR path,
+	_In_opt_ HANDLE hfile,
+	_In_ ULONG attributes
+)
+{
+	FILE_BASIC_INFORMATION info = {0};
+	IO_STATUS_BLOCK io;
+	HANDLE hfile_new = NULL;
+	NTSTATUS status;
+
+	if (!path && !hfile)
+		return STATUS_INVALID_PARAMETER;
+
+	if (path)
+	{
+		status = _r_fs_createfile (
+			path,
+			FILE_OPEN,
+			FILE_WRITE_ATTRIBUTES,
+			FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+			FILE_ATTRIBUTE_NORMAL,
+			FILE_OPEN_REPARSE_POINT | FILE_OPEN_FOR_BACKUP_INTENT | FILE_SYNCHRONOUS_IO_NONALERT,
+			FALSE,
+			NULL,
+			&hfile_new
+		);
+
+		if (!NT_SUCCESS (status))
+			return status;
+
+		hfile = hfile_new;
+	}
+
+	info.FileAttributes = attributes;
+
+	status = NtSetInformationFile (hfile, &io, &info, sizeof (info), FileBasicInformation);
+
+	if (hfile_new)
+		NtClose (hfile_new);
 
 	return status;
 }
@@ -5098,7 +5179,8 @@ BOOLEAN _r_path_issecurelocation (
 	return !is_writeable;
 }
 
-BOOLEAN _r_path_makebackup (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_path_makebackup (
 	_In_ PR_STRING path,
 	_In_ BOOLEAN is_removesourcefile
 )
@@ -5109,7 +5191,7 @@ BOOLEAN _r_path_makebackup (
 	R_STRINGREF directory_part;
 	R_STRINGREF basename_part;
 	PR_STRING directory;
-	BOOLEAN is_success;
+	NTSTATUS status;
 
 	_r_obj_initializestringref2 (&directory_part, path);
 
@@ -5136,20 +5218,24 @@ BOOLEAN _r_path_makebackup (
 
 	if (is_removesourcefile)
 	{
-		is_success = _r_fs_movefile (path->buffer, new_path->buffer, 0);
+		status = _r_fs_movefile (path->buffer, new_path->buffer);
 
-		if (!is_success)
-			is_success = _r_fs_movefile (path->buffer, new_path->buffer, MOVEFILE_COPY_ALLOWED);
+		if (!NT_SUCCESS (status))
+		{
+			status = _r_fs_copyfile (path->buffer, new_path->buffer);
+
+			_r_fs_deletefile (path->buffer, TRUE);
+		}
 	}
 	else
 	{
-		is_success = _r_fs_copyfile (path->buffer, new_path->buffer, 0);
+		status = _r_fs_copyfile (path->buffer, new_path->buffer);
 	}
 
 	_r_obj_dereference (directory);
 	_r_obj_dereference (new_path);
 
-	return is_success;
+	return status;
 }
 
 // Parses a command line string. If the string does not contain quotation marks
@@ -5867,11 +5953,12 @@ NTSTATUS _r_path_ntpathfromdos (
 
 	status = _r_fs_createfile (
 		path->buffer,
+		FILE_OPEN,
 		GENERIC_READ,
 		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-		FILE_OPEN,
 		FILE_ATTRIBUTE_NORMAL,
 		FILE_OPEN_FOR_BACKUP_INTENT | FILE_OPEN_REPARSE_POINT,
+		FALSE,
 		NULL,
 		&hfile
 	);
@@ -5931,7 +6018,6 @@ VOID _r_shell_showfile (
 )
 {
 	LPITEMIDLIST item;
-	PR_STRING string;
 	SFGAOF attributes;
 	HRESULT status;
 
@@ -5945,21 +6031,6 @@ VOID _r_shell_showfile (
 
 		if (SUCCEEDED (status))
 			return;
-	}
-
-	// try using windows explorer arguments
-	if (_r_fs_exists (path))
-	{
-		string = _r_obj_concatstrings (
-			3,
-			L"\"explorer.exe\" /select,\"",
-			path,
-			L"\""
-		);
-
-		_r_sys_createprocess (NULL, string->buffer, NULL);
-
-		_r_obj_dereference (string);
 	}
 }
 
@@ -8032,31 +8103,7 @@ DOUBLE _r_perf_getexecutionfinal (
 
 BOOLEAN _r_sys_iselevated ()
 {
-#if defined(APP_NO_DEPRECATIONS)
 	return !!_r_sys_getcurrenttoken ().is_elevated;
-#else
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static BOOLEAN is_elevated = FALSE;
-
-	if (_r_initonce_begin (&init_once))
-	{
-		// winxp compatibility
-		if (_r_sys_isosversionlower (WINDOWS_VISTA))
-		{
-			is_elevated = !!IsUserAnAdmin ();
-
-			_r_initonce_end (&init_once);
-
-			return is_elevated;
-		}
-
-		is_elevated = !!_r_sys_getcurrenttoken ().is_elevated;
-
-		_r_initonce_end (&init_once);
-	}
-
-	return is_elevated;
-#endif // !APP_NO_DEPRECATIONS
 }
 
 BOOLEAN _r_sys_isosversionequal (
@@ -8107,47 +8154,25 @@ BOOLEAN _r_sys_isprocessimmersive (
 	_In_ HANDLE hprocess
 )
 {
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static IIP _IsImmersiveProcess = NULL;
-
-	HINSTANCE huser32;
-
-	if (_r_initonce_begin (&init_once))
-	{
-		huser32 = _r_sys_loadlibrary (L"user32.dll");
-
-		if (huser32)
-		{
-			// win8+
-			_IsImmersiveProcess = (IIP)GetProcAddress (huser32, "IsImmersiveProcess");
-
-			//FreeLibrary (huser32);
-		}
-
-		_r_initonce_end (&init_once);
-	}
-
-	if (!_IsImmersiveProcess)
-		return FALSE;
-
-	return !!_IsImmersiveProcess (hprocess);
+	return IsImmersiveProcess (hprocess);
 }
 
 BOOLEAN _r_sys_iswine ()
 {
-	HINSTANCE hntdll;
-	BOOLEAN is_wine;
+	PVOID procedure;
+	PVOID hntdll;
+	NTSTATUS status;
 
-	hntdll = _r_sys_loadlibrary (L"ntdll.dll");
+	status = _r_sys_loadlibrary (L"ntdll.dll", &hntdll);
 
-	if (!hntdll)
+	if (!NT_SUCCESS (status))
 		return FALSE;
 
-	is_wine = (GetProcAddress (hntdll, "wine_get_version") != NULL);
+	status = _r_sys_getprocaddress (hntdll, "wine_get_version", &procedure);
 
 	FreeLibrary (hntdll);
 
-	return is_wine;
+	return NT_SUCCESS (status);
 }
 
 BOOLEAN _r_sys_iswow64 ()
@@ -8179,9 +8204,9 @@ ULONG _r_sys_formatmessage (
 	ULONG attempts = 6;
 	ULONG status;
 
-	string = _r_obj_createstring_ex (NULL, allocated_length * sizeof (WCHAR));
-
 	*out_buffer = NULL;
+
+	string = _r_obj_createstring_ex (NULL, allocated_length * sizeof (WCHAR));
 
 	do
 	{
@@ -8579,44 +8604,20 @@ LONG _r_sys_getpackagepath (
 	_Out_ PR_STRING_PTR out_buffer
 )
 {
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static GSPPBF _GetStagedPackagePathByFullName = NULL;
-
-	HINSTANCE hkernel32;
 	PR_STRING string;
-	UINT32 length;
+	UINT32 length = 0;
 	LONG status;
 
 	*out_buffer = NULL;
 
-	if (_r_initonce_begin (&init_once))
-	{
-		hkernel32 = _r_sys_loadlibrary (L"kernel32.dll");
-
-		if (hkernel32)
-		{
-			// win81+
-			_GetStagedPackagePathByFullName = (GSPPBF)GetProcAddress (hkernel32, "GetStagedPackagePathByFullName");
-
-			//FreeLibrary (hkernel32);
-		}
-
-		_r_initonce_end (&init_once);
-	}
-
-	if (!_GetStagedPackagePathByFullName)
-		return ERROR_NOT_SUPPORTED;
-
-	length = 0;
-
-	status = _GetStagedPackagePathByFullName (package_full_name->buffer, &length, NULL);
+	status = GetStagedPackagePathByFullName (package_full_name->buffer, &length, NULL);
 
 	if (status != ERROR_INSUFFICIENT_BUFFER)
 		return status;
 
 	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
-	status = _GetStagedPackagePathByFullName (package_full_name->buffer, &length, string->buffer);
+	status = GetStagedPackagePathByFullName (package_full_name->buffer, &length, string->buffer);
 
 	if (status == ERROR_SUCCESS)
 	{
@@ -8877,7 +8878,11 @@ ULONG _r_sys_getwindowsversion ()
 			}
 			else if (version_info.dwMajorVersion == 10 && version_info.dwMinorVersion == 0)
 			{
-				if (version_info.dwBuildNumber >= 22621)
+				if (version_info.dwBuildNumber >= 22631)
+				{
+					windows_version = WINDOWS_11_23H2;
+				}
+				else if (version_info.dwBuildNumber >= 22621)
 				{
 					windows_version = WINDOWS_11_22H2;
 				}
@@ -9111,6 +9116,41 @@ NTSTATUS _r_sys_enumprocesses (
 }
 
 _Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_getprocaddress (
+	_In_ PVOID hmodule,
+	_In_ LPCSTR procedure,
+	_Out_ PVOID_PTR out_buffer
+)
+{
+	ANSI_STRING procedure_name = {0};
+	PVOID proc_address;
+	ULONG ordinal = 0;
+	NTSTATUS status;
+
+	if ((ULONG_PTR)procedure >> 16)
+	{
+		RtlInitAnsiString (&procedure_name, (LPSTR)procedure);
+	}
+	else
+	{
+		ordinal = PtrToUlong (procedure);
+	}
+
+	status = LdrGetProcedureAddress (hmodule, &procedure_name, ordinal, &proc_address);
+
+	if (NT_SUCCESS (status))
+	{
+		*out_buffer = proc_address;
+	}
+	else
+	{
+		*out_buffer = NULL;
+	}
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getprocessimagepath (
 	_In_ HANDLE hprocess,
 	_Outptr_ PR_STRING_PTR out_buffer,
@@ -9161,152 +9201,111 @@ NTSTATUS _r_sys_getprocessimagepath (
 	return status;
 }
 
-_Ret_maybenull_
-HINSTANCE _r_sys_loadlibrary (
-	_In_ LPCWSTR lib_name
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_loadlibrary (
+	_In_ LPCWSTR lib_name,
+	_Outptr_ PVOID_PTR out_buffer
 )
 {
-	HINSTANCE hlib;
+	UNICODE_STRING us;
+	LPWSTR load_path;
+	LPWSTR dummy;
+	PVOID hmodule;
 	ULONG flags;
-
-#if defined(APP_NO_DEPRECATIONS)
-	flags = LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32;
-#else
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
-	{
-		flags = LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32;
-	}
-	else
-	{
-		flags = 0;
-	}
-#endif // APP_NO_DEPRECATIONS
-
-	hlib = LoadLibraryEx (lib_name, NULL, flags);
-
-	return hlib;
-}
-
-_Success_ (return == STATUS_SUCCESS)
-NTSTATUS _r_sys_createprocess (
-	_In_opt_ LPCWSTR file_name,
-	_In_opt_ LPCWSTR command_line,
-	_In_opt_ LPCWSTR current_directory
-)
-{
 	NTSTATUS status;
 
-	status = _r_sys_createprocess_ex (file_name, command_line, current_directory, NULL, SW_SHOWDEFAULT, 0);
+	flags = LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32;
+
+	status = LdrGetDllPath (lib_name, flags, &load_path, &dummy);
+
+	if (!NT_SUCCESS (status))
+		return status;
+
+	_r_obj_initializeunicodestring (&us, lib_name);
+
+	status = LdrLoadDll (load_path, &flags, &us, &hmodule);
+
+	if (NT_SUCCESS (status))
+		*out_buffer = hmodule;
 
 	return status;
 }
 
-_Success_ (return == STATUS_SUCCESS)
-NTSTATUS _r_sys_createprocess_ex (
-	_In_opt_ LPCWSTR file_name,
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_createprocess (
+	_In_ LPCWSTR file_name,
 	_In_opt_ LPCWSTR command_line,
-	_In_opt_ LPCWSTR current_directory,
-	_In_opt_ LPSTARTUPINFO startup_info_ptr,
-	_In_ WORD show_state,
-	_In_ ULONG flags
+	_In_opt_ LPCWSTR current_directory
 )
 {
-	STARTUPINFO startup_info = {0};
-	PROCESS_INFORMATION process_info = {0};
-	PR_STRING file_name_string = NULL;
-	PR_STRING command_line_string = NULL;
-	PR_STRING current_directory_string = NULL;
+	PRTL_USER_PROCESS_PARAMETERS upi = NULL;
+	RTL_USER_PROCESS_INFORMATION process_info = {0};
+	UNICODE_STRING filename_nt;
+	UNICODE_STRING command_line_nt = {0};
+	UNICODE_STRING current_directory_nt = {0};
+	PR_STRING file_name_string;
 	PR_STRING new_path;
-	LPWSTR *arga;
-	INT numargs;
 	NTSTATUS status;
 
-	if (!startup_info_ptr)
-	{
-		startup_info_ptr = &startup_info;
+	file_name_string = _r_obj_createstring (file_name);
 
-		startup_info_ptr->cb = sizeof (startup_info);
+	if (!_r_fs_exists (file_name))
+	{
+		new_path = _r_path_search (file_name, L".exe", FALSE);
+
+		if (new_path)
+			_r_obj_movereference (&file_name_string, new_path);
 	}
 
-	if (show_state != SW_SHOWDEFAULT)
-	{
-		startup_info_ptr->dwFlags |= STARTF_USESHOWWINDOW;
-		startup_info_ptr->wShowWindow = show_state;
-	}
+	status = RtlDosPathNameToNtPathName_U_WithStatus (file_name_string->buffer, &filename_nt, NULL, NULL);
+
+	if (!NT_SUCCESS (status))
+		goto CleanupExit;
 
 	if (command_line)
-		command_line_string = _r_obj_createstring (command_line);
-
-	if (file_name)
-	{
-		file_name_string = _r_obj_createstring (file_name);
-	}
-	else
-	{
-		if (command_line_string)
-		{
-			arga = CommandLineToArgvW (command_line_string->buffer, &numargs);
-
-			if (arga)
-			{
-				file_name_string = _r_obj_createstring (arga[0]);
-
-				LocalFree (arga);
-			}
-		}
-	}
-
-	if (file_name_string && !_r_fs_exists (file_name_string->buffer))
-	{
-		// The user typed a name without a path so attempt to locate the executable. (dmex)
-		new_path = _r_path_search (file_name_string->buffer, L".exe", FALSE);
-
-		_r_obj_movereference (&file_name_string, new_path); // clear or set
-	}
+		_r_obj_initializeunicodestring (&command_line_nt, command_line);
 
 	if (current_directory)
-	{
-		current_directory_string = _r_obj_createstring (current_directory);
-	}
-	else
-	{
-		if (!_r_obj_isstringempty (file_name_string))
-			current_directory_string = _r_path_getbasedirectory (&file_name_string->sr);
-	}
+		_r_obj_initializeunicodestring (&current_directory_nt, current_directory);
 
-	if (CreateProcess (
-		_r_obj_getstring (file_name_string),
-		command_line_string ? command_line_string->buffer : NULL,
+	status = RtlCreateProcessParameters (
+		&upi,
+		&filename_nt,
+		NULL,
+		current_directory_nt.Length ? &current_directory_nt : NULL,
+		command_line_nt.Length ? &command_line_nt : &filename_nt,
+		NULL,
+		&filename_nt,
 		NULL,
 		NULL,
-		FALSE,
-		flags,
-		NULL,
-		_r_obj_getstring (current_directory_string),
-		startup_info_ptr,
-		&process_info))
+		NULL
+	);
+
+	if (!NT_SUCCESS (status))
+		goto CleanupExit;
+
+	status = RtlCreateUserProcess (&filename_nt, OBJ_CASE_INSENSITIVE, upi, NULL, NULL, NULL, FALSE, NULL, NULL, &process_info);
+
+	if (NT_SUCCESS (status))
 	{
-		status = STATUS_SUCCESS;
+		if (process_info.ThreadHandle)
+			NtResumeThread (process_info.ThreadHandle, NULL);
+
+		if (process_info.ProcessHandle)
+			NtClose (process_info.ProcessHandle);
+
+		if (process_info.ThreadHandle)
+			NtClose (process_info.ThreadHandle);
 	}
-	else
-	{
-		status = RtlGetLastNtStatus ();
-	}
 
-	if (process_info.hProcess)
-		NtClose (process_info.hProcess);
+CleanupExit:
 
-	if (process_info.hThread)
-		NtClose (process_info.hThread);
+	_r_obj_dereference (file_name_string);
 
-	if (file_name_string)
-		_r_obj_dereference (file_name_string);
+	if (upi)
+		RtlDestroyProcessParameters (upi);
 
-	if (command_line_string)
-		_r_obj_dereference (command_line_string);
-
-	if (current_directory_string)
-		_r_obj_dereference (current_directory_string);
+	RtlFreeUnicodeString (&filename_nt);
 
 	return status;
 }
@@ -9343,31 +9342,21 @@ NTSTATUS _r_sys_queryprocessstring (
 	ULONG return_length;
 	NTSTATUS status;
 
+	*out_buffer = NULL;
+
 	return_length = 0;
 
 	status = NtQueryInformationProcess (process_handle, info_class, NULL, 0, &return_length);
 
-	if (status != STATUS_BUFFER_OVERFLOW &&
-		status != STATUS_BUFFER_TOO_SMALL &&
-		status != STATUS_INFO_LENGTH_MISMATCH)
-	{
-		*out_buffer = NULL;
-
+	if (status != STATUS_BUFFER_OVERFLOW && status != STATUS_BUFFER_TOO_SMALL && status != STATUS_INFO_LENGTH_MISMATCH)
 		return status;
-	}
 
 	buffer = _r_mem_allocate (return_length);
 
 	status = NtQueryInformationProcess (process_handle, info_class, buffer, return_length, &return_length);
 
 	if (NT_SUCCESS (status))
-	{
 		*out_buffer = _r_obj_createstring4 (buffer);
-	}
-	else
-	{
-		*out_buffer = NULL;
-	}
 
 	_r_mem_free (buffer);
 
@@ -9393,18 +9382,22 @@ BOOLEAN _r_sys_runasadmin (
 	return !!ShellExecuteEx (&shex);
 }
 
-VOID _r_sys_sleep (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_sleep (
 	_In_ ULONG milliseconds
 )
 {
 	LARGE_INTEGER timeout;
+	NTSTATUS status;
 
 	if (milliseconds == 0 || milliseconds == INFINITE)
-		return;
+		return STATUS_INVALID_PARAMETER_1;
 
 	_r_calc_millisecondstolargeinteger (&timeout, milliseconds);
 
-	NtDelayExecution (FALSE, &timeout);
+	status = NtDelayExecution (FALSE, &timeout);
+
+	return status;
 }
 
 NTSTATUS NTAPI _r_sys_basethreadstart (
@@ -9502,6 +9495,7 @@ NTSTATUS _r_sys_createthread (
 		else
 		{
 			NtResumeThread (hthread, NULL);
+
 			NtClose (hthread);
 		}
 	}
@@ -9526,46 +9520,10 @@ HICON _r_sys_loadicon (
 	HICON hicon;
 	HRESULT status;
 
-#if defined(APP_NO_DEPRECATIONS)
-
 	status = LoadIconWithScaleDown (hinstance, icon_name, icon_size, icon_size, &hicon);
 
 	if (status == S_OK)
 		return hicon;
-
-#else
-
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static LIWSD _LoadIconWithScaleDown = NULL;
-
-	HINSTANCE hcomctl32;
-
-	if (_r_initonce_begin (&init_once))
-	{
-		hcomctl32 = _r_sys_loadlibrary (L"comctl32.dll");
-
-		if (hcomctl32)
-		{
-			// vista+
-			_LoadIconWithScaleDown = (LIWSD)GetProcAddress (hcomctl32, "LoadIconWithScaleDown");
-
-			//FreeLibrary (hcomctl32);
-		}
-
-		_r_initonce_end (&init_once);
-	}
-
-	if (_LoadIconWithScaleDown)
-	{
-		status = _LoadIconWithScaleDown (hinstance, icon_name, icon_size, icon_size, &hicon);
-
-		if (status == S_OK)
-			return hicon;
-	}
-
-#endif // APP_NO_DEPRECATIONS
-
-	hicon = (HICON)LoadImage (hinstance, icon_name, IMAGE_ICON, icon_size, icon_size, 0);
 
 	return hicon;
 }
@@ -9643,15 +9601,16 @@ PR_STRING _r_sys_querytaginformation (
 
 	TAG_INFO_NAME_FROM_TAG tag_query = {0};
 	PR_STRING service_name_string;
-	HINSTANCE hadvapi32;
+	PVOID hadvapi32;
+	NTSTATUS status;
 
 	if (_r_initonce_begin (&init_once))
 	{
-		hadvapi32 = _r_sys_loadlibrary (L"advapi32.dll");
+		status = _r_sys_loadlibrary (L"advapi32.dll", &hadvapi32);
 
-		if (hadvapi32)
+		if (NT_SUCCESS (status))
 		{
-			_I_QueryTagInformation = (IQTI)GetProcAddress (hadvapi32, "I_QueryTagInformation");
+			status = _r_sys_getprocaddress (hadvapi32, "I_QueryTagInformation", (PVOID_PTR)&_I_QueryTagInformation);
 
 			//FreeLibrary (hadvapi32);
 		}
@@ -9688,10 +9647,9 @@ NTSTATUS _r_sys_querytokeninformation (
 {
 	PVOID buffer;
 	ULONG buffer_length;
-	ULONG return_length;
+	ULONG return_length = 0;
 	NTSTATUS status;
 
-	return_length = 0;
 	buffer_length = 128;
 	buffer = _r_mem_allocate (buffer_length);
 
@@ -9920,11 +9878,6 @@ VOID _r_sys_setprocessenvironment (
 		NtSetInformationProcess (process_handle, ProcessPriorityClass, &priority_class, sizeof (priority_class));
 	}
 
-#if !defined(APP_NO_DEPRECATIONS)
-	if (_r_sys_isosversionlower (WINDOWS_VISTA))
-		return;
-#endif // !APP_NO_DEPRECATIONS
-
 	// set i/o priority
 	if (current_environment.io_priority != new_environment->io_priority)
 	{
@@ -9962,11 +9915,6 @@ VOID _r_sys_setthreadenvironment (
 		NtSetInformationThread (thread_handle, ThreadBasePriority, &base_priority, sizeof (base_priority));
 	}
 
-#if !defined(APP_NO_DEPRECATIONS)
-	if (_r_sys_isosversionlower (WINDOWS_VISTA))
-		return;
-#endif // !APP_NO_DEPRECATIONS
-
 	// set i/o priority
 	if (current_environment.io_priority != new_environment->io_priority)
 	{
@@ -9984,20 +9932,17 @@ VOID _r_sys_setthreadenvironment (
 	}
 }
 
-_Success_ (return != 0)
-EXECUTION_STATE _r_sys_setthreadexecutionstate (
-	_In_ EXECUTION_STATE new_state
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_setthreadexecutionstate (
+	_In_ EXECUTION_STATE new_flag
 )
 {
-	EXECUTION_STATE old_state;
+	EXECUTION_STATE old_flag;
 	NTSTATUS status;
 
-	status = NtSetThreadExecutionState (new_state, &old_state);
+	status = NtSetThreadExecutionState (new_flag, &old_flag);
 
-	if (NT_SUCCESS (status))
-		return old_state;
-
-	return 0;
+	return status;
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -10110,17 +10055,18 @@ BOOLEAN _r_dc_adjustwindowrect (
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static AWRFD _AdjustWindowRectExForDpi = NULL;
 
-	HINSTANCE huser32;
+	PVOID huser32;
+	NTSTATUS status;
 
 	// initialize library calls
 	if (_r_initonce_begin (&init_once))
 	{
-		huser32 = _r_sys_loadlibrary (L"user32.dll");
+		status = _r_sys_loadlibrary (L"user32.dll", &huser32);
 
-		if (huser32)
+		if (NT_SUCCESS (status))
 		{
 			// win10rs1+
-			_AdjustWindowRectExForDpi = (AWRFD)GetProcAddress (huser32, "AdjustWindowRectExForDpi");
+			status = _r_sys_getprocaddress (huser32, "AdjustWindowRectExForDpi", (PVOID_PTR)&_AdjustWindowRectExForDpi);
 
 			//FreeLibrary (huser32);
 		}
@@ -10494,18 +10440,7 @@ BOOLEAN _r_dc_getdefaultfont (
 
 	RtlZeroMemory (&ncm, sizeof (ncm));
 
-#if defined(APP_NO_DEPRECATIONS)
 	ncm.cbSize = sizeof (ncm);
-#else
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
-	{
-		ncm.cbSize = sizeof (ncm);
-	}
-	else
-	{
-		ncm.cbSize = RTL_SIZEOF_THROUGH_FIELD (NONCLIENTMETRICS, lfMessageFont); // xp support
-	}
-#endif // APP_NO_DEPRECATIONS
 
 	if (!_r_dc_getsystemparametersinfo (SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, dpi_value))
 		return FALSE;
@@ -10538,40 +10473,29 @@ LONG _r_dc_getdpivalue (
 )
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static GDFM _GetDpiForMonitor = NULL; // win81+
 	static GDFW _GetDpiForWindow = NULL; // win10rs1+
 	static GDFS _GetDpiForSystem = NULL; // win10rs1+
 
 	HMONITOR hmonitor;
-	HINSTANCE hshcore;
-	HINSTANCE huser32;
+	PVOID huser32;
 	HDC hdc;
 	LONG dpi_value;
 	UINT dpi_x;
 	UINT dpi_y;
-	HRESULT status;
+	NTSTATUS status;
 
 	// initialize library calls
 	if (_r_initonce_begin (&init_once))
 	{
-		hshcore = _r_sys_loadlibrary (L"shcore.dll");
-		huser32 = _r_sys_loadlibrary (L"user32.dll");
+		status = _r_sys_loadlibrary (L"user32.dll", &huser32);
 
-		if (hshcore)
-		{
-			// win81+
-			_GetDpiForMonitor = (GDFM)GetProcAddress (hshcore, "GetDpiForMonitor");
-
-			//FreeLibrary (hshcore);
-		}
-
-		if (huser32)
+		if (NT_SUCCESS (status))
 		{
 			// win10rs1+
-			_GetDpiForWindow = (GDFW)GetProcAddress (huser32, "GetDpiForWindow");
+			status = _r_sys_getprocaddress (huser32, "GetDpiForWindow", (PVOID_PTR)&_GetDpiForWindow);
 
 			// win10rs1+
-			_GetDpiForSystem = (GDFS)GetProcAddress (huser32, "GetDpiForSystem");
+			status = _r_sys_getprocaddress (huser32, "GetDpiForSystem", (PVOID_PTR)&_GetDpiForSystem);
 
 			//FreeLibrary (huser32);
 		}
@@ -10594,22 +10518,19 @@ LONG _r_dc_getdpivalue (
 		}
 
 		// win81+
-		if (_GetDpiForMonitor)
+		if (rect)
 		{
-			if (rect)
-			{
-				hmonitor = MonitorFromRect (rect, MONITOR_DEFAULTTONEAREST);
-			}
-			else
-			{
-				hmonitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
-			}
-
-			status = _GetDpiForMonitor (hmonitor, MDT_EFFECTIVE_DPI, &dpi_x, &dpi_y);
-
-			if (SUCCEEDED (status))
-				return dpi_x;
+			hmonitor = MonitorFromRect (rect, MONITOR_DEFAULTTONEAREST);
 		}
+		else
+		{
+			hmonitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+		}
+
+		status = GetDpiForMonitor (hmonitor, MDT_EFFECTIVE_DPI, &dpi_x, &dpi_y);
+
+		if (SUCCEEDED (status))
+			return dpi_x;
 	}
 
 	// win10rs1+
@@ -10687,19 +10608,21 @@ LONG _r_dc_getsystemmetrics (
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static GSMFD _GetSystemMetricsForDpi = NULL;
 
-	HINSTANCE huser32;
+	PVOID huser32;
+	NTSTATUS status;
 
 	// initialize library calls
 	if (_r_initonce_begin (&init_once))
 	{
-		huser32 = _r_sys_loadlibrary (L"user32.dll");
+		status = _r_sys_loadlibrary (L"user32.dll", &huser32);
 
-		if (huser32)
+		if (NT_SUCCESS (status))
 		{
 			// win10rs1+
-			_GetSystemMetricsForDpi = (GSMFD)GetProcAddress (huser32, "GetSystemMetricsForDpi");
+			status = _r_sys_getprocaddress (huser32, "GetSystemMetricsForDpi", (PVOID_PTR)&_GetSystemMetricsForDpi);
 
 			//FreeLibrary (huser32);
+
 		}
 
 		_r_initonce_end (&init_once);
@@ -10723,17 +10646,18 @@ BOOLEAN _r_dc_getsystemparametersinfo (
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static SPIFP _SystemParametersInfoForDpi = NULL;
 
-	HINSTANCE huser32;
+	PVOID huser32;
+	NTSTATUS status;
 
 	// initialize library calls
 	if (_r_initonce_begin (&init_once))
 	{
-		huser32 = _r_sys_loadlibrary (L"user32.dll");
+		status = _r_sys_loadlibrary (L"user32.dll", &huser32);
 
-		if (huser32)
+		if (NT_SUCCESS (status))
 		{
 			// win10rs1+
-			_SystemParametersInfoForDpi = (SPIFP)GetProcAddress (huser32, "SystemParametersInfoForDpi");
+			status = _r_sys_getprocaddress (huser32, "SystemParametersInfoForDpi", (PVOID_PTR)&_SystemParametersInfoForDpi);
 
 			//FreeLibrary (huser32);
 		}
@@ -10995,12 +10919,6 @@ BOOLEAN _r_filedialog_initialize (
 	_In_ ULONG flags
 )
 {
-#if !defined(APP_NO_DEPRECATIONS)
-	LPOPENFILENAME ofn;
-	SIZE_T struct_size;
-	SIZE_T file_length;
-#endif // !APP_NO_DEPRECATIONS
-
 	IFileDialog *ifd = NULL;
 	HRESULT status;
 
@@ -11019,34 +10937,6 @@ BOOLEAN _r_filedialog_initialize (
 
 		return TRUE;
 	}
-#if !defined(APP_NO_DEPRECATIONS)
-	else
-	{
-		struct_size = sizeof (OPENFILENAME);
-		file_length = 1024;
-
-		file_dialog->flags = flags;
-
-		ofn = _r_mem_allocate (struct_size);
-
-		ofn->lStructSize = (ULONG)struct_size;
-		ofn->nMaxFile = (ULONG)file_length + 1;
-		ofn->lpstrFile = _r_mem_allocate (file_length * sizeof (WCHAR));
-
-		if ((flags & PR_FILEDIALOG_OPENFILE))
-		{
-			ofn->Flags = OFN_DONTADDTORECENT | OFN_ENABLESIZING | OFN_EXPLORER | OFN_HIDEREADONLY | OFN_LONGNAMES | OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
-		}
-		else
-		{
-			ofn->Flags = OFN_DONTADDTORECENT | OFN_ENABLESIZING | OFN_EXPLORER | OFN_HIDEREADONLY | OFN_LONGNAMES | OFN_OVERWRITEPROMPT;
-		}
-
-		file_dialog->u.ofn = ofn;
-
-		return TRUE;
-	}
-#endif // !APP_NO_DEPRECATIONS
 
 	return FALSE;
 }
@@ -11057,44 +10947,18 @@ BOOLEAN _r_filedialog_show (
 	_In_ PR_FILE_DIALOG file_dialog
 )
 {
-#if !defined(APP_NO_DEPRECATIONS)
-	LPOPENFILENAME ofn;
-#endif // !APP_NO_DEPRECATIONS
-
 	FILEOPENDIALOGOPTIONS options = 0;
 
-#if !defined(APP_NO_DEPRECATIONS)
-	if ((file_dialog->flags & PR_FILEDIALOG_ISIFILEDIALOG))
-#endif // !APP_NO_DEPRECATIONS
-	{
-		IFileDialog_SetDefaultExtension (file_dialog->u.ifd, L"");
+	IFileDialog_SetDefaultExtension (file_dialog->u.ifd, L"");
 
-		IFileDialog_GetOptions (file_dialog->u.ifd, &options);
+	IFileDialog_GetOptions (file_dialog->u.ifd, &options);
 
-		if ((file_dialog->flags & PR_FILEDIALOG_OPENDIR))
-			options |= FOS_PICKFOLDERS;
+	if ((file_dialog->flags & PR_FILEDIALOG_OPENDIR))
+		options |= FOS_PICKFOLDERS;
 
-		IFileDialog_SetOptions (file_dialog->u.ifd, options | FOS_DONTADDTORECENT);
+	IFileDialog_SetOptions (file_dialog->u.ifd, options | FOS_DONTADDTORECENT);
 
-		return SUCCEEDED (IFileDialog_Show (file_dialog->u.ifd, hwnd));
-	}
-#if !defined(APP_NO_DEPRECATIONS)
-	else
-	{
-		ofn = file_dialog->u.ofn;
-
-		ofn->hwndOwner = hwnd;
-
-		if ((file_dialog->flags & PR_FILEDIALOG_OPENFILE))
-		{
-			return !!GetOpenFileName (ofn);
-		}
-		else
-		{
-			return !!GetSaveFileName (ofn);
-		}
-	}
-#endif // !APP_NO_DEPRECATIONS
+	return SUCCEEDED (IFileDialog_Show (file_dialog->u.ifd, hwnd));
 }
 
 PR_STRING _r_filedialog_getpath (
@@ -11106,44 +10970,33 @@ PR_STRING _r_filedialog_getpath (
 	LPWSTR name;
 	HRESULT status;
 
-#if !defined(APP_NO_DEPRECATIONS)
-	if ((file_dialog->flags & PR_FILEDIALOG_ISIFILEDIALOG))
-#endif // APP_NO_DEPRECATIONS
+	status = IFileDialog_GetResult (file_dialog->u.ifd, &result);
+
+	if (SUCCEEDED (status))
 	{
-		status = IFileDialog_GetResult (file_dialog->u.ifd, &result);
+		status = IShellItem_GetDisplayName (result, SIGDN_FILESYSPATH, &name);
 
 		if (SUCCEEDED (status))
 		{
-			status = IShellItem_GetDisplayName (result, SIGDN_FILESYSPATH, &name);
+			file_name = _r_obj_createstring (name);
 
-			if (SUCCEEDED (status))
-			{
-				file_name = _r_obj_createstring (name);
-
-				CoTaskMemFree (name);
-			}
-
-			IShellItem_Release (result);
+			CoTaskMemFree (name);
 		}
 
-		if (!file_name)
-		{
-			status = IFileDialog_GetFileName (file_dialog->u.ifd, &name);
-
-			if (SUCCEEDED (status))
-			{
-				file_name = _r_obj_createstring (name);
-
-				CoTaskMemFree (name);
-			}
-		}
+		IShellItem_Release (result);
 	}
-#if !defined(APP_NO_DEPRECATIONS)
-	else
+
+	if (!file_name)
 	{
-		file_name = _r_obj_createstring (file_dialog->u.ofn->lpstrFile);
+		status = IFileDialog_GetFileName (file_dialog->u.ifd, &name);
+
+		if (SUCCEEDED (status))
+		{
+			file_name = _r_obj_createstring (name);
+
+			CoTaskMemFree (name);
+		}
 	}
-#endif // !APP_NO_DEPRECATIONS
 
 	return file_name;
 }
@@ -11153,10 +11006,6 @@ VOID _r_filedialog_setpath (
 	_In_ LPCWSTR path
 )
 {
-#if !defined(APP_NO_DEPRECATIONS)
-	LPOPENFILENAME ofn;
-#endif // !APP_NO_DEPRECATIONS
-
 	IShellItem *shell_item = NULL;
 	R_STRINGREF directory_part;
 	R_STRINGREF basename_part;
@@ -11168,55 +11017,33 @@ VOID _r_filedialog_setpath (
 
 	_r_obj_initializestringrefconst (&sr, path);
 
-#if !defined(APP_NO_DEPRECATIONS)
-	if ((file_dialog->flags & PR_FILEDIALOG_ISIFILEDIALOG))
-#endif // !APP_NO_DEPRECATIONS
+	if (_r_path_getpathinfo (&sr, &directory_part, &basename_part))
 	{
-		if (_r_path_getpathinfo (&sr, &directory_part, &basename_part))
+		directory = _r_obj_createstring3 (&directory_part);
+
+		status = SHParseDisplayName (directory->buffer, NULL, &item, 0, &attributes);
+
+		if (SUCCEEDED (status))
 		{
-			directory = _r_obj_createstring3 (&directory_part);
+			SHCreateShellItem (NULL, NULL, item, &shell_item);
 
-			status = SHParseDisplayName (directory->buffer, NULL, &item, 0, &attributes);
-
-			if (SUCCEEDED (status))
-			{
-				SHCreateShellItem (NULL, NULL, item, &shell_item);
-
-				CoTaskMemFree (item);
-			}
-
-			_r_obj_dereference (directory);
+			CoTaskMemFree (item);
 		}
 
-		if (shell_item)
-		{
-			IFileDialog_SetFolder (file_dialog->u.ifd, shell_item);
-			IFileDialog_SetFileName (file_dialog->u.ifd, basename_part.buffer);
-
-			IShellItem_Release (shell_item);
-		}
-		else
-		{
-			IFileDialog_SetFileName (file_dialog->u.ifd, path);
-		}
+		_r_obj_dereference (directory);
 	}
-#if !defined(APP_NO_DEPRECATIONS)
+
+	if (shell_item)
+	{
+		IFileDialog_SetFolder (file_dialog->u.ifd, shell_item);
+		IFileDialog_SetFileName (file_dialog->u.ifd, basename_part.buffer);
+
+		IShellItem_Release (shell_item);
+	}
 	else
 	{
-		ofn = file_dialog->u.ofn;
-
-		if (_r_str_findchar (&sr, L'/', FALSE) != SIZE_MAX)
-			return;
-
-		if (_r_str_findchar (&sr, L'\"', FALSE) != SIZE_MAX)
-			return;
-
-		ofn->nMaxFile = (ULONG)max (_r_str_getlength3 (&sr) + 1, 1024);
-		ofn->lpstrFile = _r_mem_reallocate (ofn->lpstrFile, ofn->nMaxFile * sizeof (WCHAR));
-
-		RtlCopyMemory (ofn->lpstrFile, sr.buffer, sr.length + sizeof (UNICODE_NULL));
+		IFileDialog_SetFileName (file_dialog->u.ifd, path);
 	}
-#endif // !APP_NO_DEPRECATIONS
 }
 
 VOID _r_filedialog_setfilter (
@@ -11225,77 +11052,14 @@ VOID _r_filedialog_setfilter (
 	_In_ ULONG count
 )
 {
-#if !defined(APP_NO_DEPRECATIONS)
-	LPOPENFILENAME ofn;
-	PR_STRING filter_string;
-	R_STRINGBUILDER sb;
-#endif // !APP_NO_DEPRECATIONS
-
-#if !defined(APP_NO_DEPRECATIONS)
-	if ((file_dialog->flags & PR_FILEDIALOG_ISIFILEDIALOG))
-#endif // !APP_NO_DEPRECATIONS
-	{
-		IFileDialog_SetFileTypes (file_dialog->u.ifd, count, filters);
-	}
-#if !defined(APP_NO_DEPRECATIONS)
-	else
-	{
-		ofn = file_dialog->u.ofn;
-
-		_r_obj_initializestringbuilder (&sb);
-
-		for (ULONG i = 0; i < count; i++)
-		{
-			_r_obj_appendstringbuilderformat (
-				&sb,
-				L"%s%c%s%c",
-				filters[i].pszName,
-				UNICODE_NULL,
-				filters[i].pszSpec,
-				UNICODE_NULL
-			);
-		}
-
-		filter_string = _r_obj_finalstringbuilder (&sb);
-
-		if (ofn->lpstrFilter)
-			_r_mem_free ((PVOID)ofn->lpstrFilter);
-
-		ofn->lpstrFilter = _r_mem_allocateandcopy (filter_string->buffer, filter_string->length + sizeof (UNICODE_NULL));
-
-		_r_obj_dereference (filter_string);
-	}
-#endif // !APP_NO_DEPRECATIONS
+	IFileDialog_SetFileTypes (file_dialog->u.ifd, count, filters);
 }
 
 VOID _r_filedialog_destroy (
 	_In_ PR_FILE_DIALOG file_dialog
 )
 {
-#if !defined(APP_NO_DEPRECATIONS)
-	LPOPENFILENAME ofn;
-#endif // !APP_NO_DEPRECATIONS
-
-#if !defined(APP_NO_DEPRECATIONS)
-	if ((file_dialog->flags & PR_FILEDIALOG_ISIFILEDIALOG))
-#endif // !APP_NO_DEPRECATIONS
-	{
-		IFileDialog_Release (file_dialog->u.ifd);
-	}
-#if !defined(APP_NO_DEPRECATIONS)
-	else
-	{
-		ofn = file_dialog->u.ofn;
-
-		if (ofn->lpstrFilter)
-			_r_mem_free ((PVOID)ofn->lpstrFilter);
-
-		if (ofn->lpstrFile)
-			_r_mem_free (ofn->lpstrFile);
-
-		_r_mem_free (ofn);
-	}
-#endif // !APP_NO_DEPRECATIONS
+	IFileDialog_Release (file_dialog->u.ifd);
 }
 
 //
@@ -11925,35 +11689,10 @@ VOID _r_wnd_changemessagefilter (
 	_In_ ULONG action
 )
 {
-#if !defined(APP_NO_DEPRECATIONS)
-	HINSTANCE huser32;
-	CWMFEX _ChangeWindowMessageFilterEx;
-#endif // !APP_NO_DEPRECATIONS
-
-#if defined(APP_NO_DEPRECATIONS)
 	for (SIZE_T i = 0; i < count; i++)
 	{
 		ChangeWindowMessageFilterEx (hwnd, messages[i], action, NULL); // win7+
 	}
-#else
-	huser32 = _r_sys_loadlibrary (L"user32.dll");
-
-	if (!huser32)
-		return;
-
-	// win7+
-	_ChangeWindowMessageFilterEx = (CWMFEX)GetProcAddress (huser32, "ChangeWindowMessageFilterEx");
-
-	if (!_ChangeWindowMessageFilterEx)
-		return;
-
-	for (SIZE_T i = 0; i < count; i++)
-	{
-		_ChangeWindowMessageFilterEx (hwnd, messages[i], action, NULL);
-	}
-
-	//FreeLibrary (huser32);
-#endif // APP_NO_DEPRECATIONS
 }
 
 VOID _r_wnd_copyrectangle (
@@ -12081,33 +11820,11 @@ BOOLEAN _r_wnd_isdialog (
 
 BOOLEAN _r_wnd_isfocusassist ()
 {
-	static R_INITONCE init_once = {0};
-	static NTQWNFSD _NtQueryWnfStateData = NULL;
-
 	WNF_CHANGE_STAMP change_stamp;
 	WNF_STATE_NAME state_name = {0};
-	HINSTANCE hntdll;
 	ULONG buffer = 0;
 	ULONG buffer_size;
 	NTSTATUS status;
-
-	if (_r_initonce_begin (&init_once))
-	{
-		hntdll = _r_sys_loadlibrary (L"ntdll.dll");
-
-		if (hntdll)
-		{
-			// win10rs3+
-			_NtQueryWnfStateData = (NTQWNFSD)GetProcAddress (hntdll, "NtQueryWnfStateData");
-
-			//FreeLibrary (hntdll);
-		}
-
-		_r_initonce_end (&init_once);
-	}
-
-	if (!_NtQueryWnfStateData)
-		return FALSE;
 
 	// WNF_SHEL_QUIETHOURS_ACTIVE_PROFILE_CHANGED
 	// This wnf is signaled whenever active quiet hours profile / mode changes.
@@ -12119,7 +11836,7 @@ BOOLEAN _r_wnd_isfocusassist ()
 
 	buffer_size = sizeof (ULONG);
 
-	status = _NtQueryWnfStateData (&state_name, NULL, NULL, &change_stamp, &buffer, &buffer_size);
+	status = NtQueryWnfStateData (&state_name, NULL, NULL, &change_stamp, &buffer, &buffer_size);
 
 	if (NT_SUCCESS (status))
 	{
@@ -12154,41 +11871,10 @@ BOOLEAN _r_wnd_isfullscreenconsolemode (
 
 BOOLEAN _r_wnd_isfullscreenusermode ()
 {
-	QUERY_USER_NOTIFICATION_STATE state = 0;
+	QUERY_USER_NOTIFICATION_STATE state = QUNS_NOT_PRESENT;
 
-#if !defined(APP_NO_DEPRECATIONS)
-	HINSTANCE hshell32;
-	SHQUNS _SHQueryUserNotificationState;
-#endif // !APP_NO_DEPRECATIONS
-
-	// SHQueryUserNotificationState is only available for Vista+
-#if defined(APP_NO_DEPRECATIONS)
 	if (SHQueryUserNotificationState (&state) != S_OK)
 		return FALSE;
-#else
-
-	if (_r_sys_isosversionlower (WINDOWS_VISTA))
-		return FALSE;
-
-	hshell32 = _r_sys_loadlibrary (L"shell32.dll");
-
-	if (hshell32)
-	{
-		// vista+
-		_SHQueryUserNotificationState = (SHQUNS)GetProcAddress (hshell32, "SHQueryUserNotificationState");
-
-		if (_SHQueryUserNotificationState)
-		{
-			if (_SHQueryUserNotificationState (&state) != S_OK)
-			{
-				FreeLibrary (hshell32);
-				return FALSE;
-			}
-		}
-
-		FreeLibrary (hshell32);
-	}
-#endif // APP_NO_DEPRECATIONS
 
 	return (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
 }
@@ -12853,10 +12539,7 @@ ULONG _r_inet_openurl (
 	}
 
 	// disable "keep-alive" feature (win7+)
-#if !defined(APP_NO_DEPRECATIONS)
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_7))
-#endif // !APP_NO_DEPRECATIONS
-		WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &(ULONG){WINHTTP_DISABLE_KEEP_ALIVE}, sizeof (ULONG));
+	WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &(ULONG){WINHTTP_DISABLE_KEEP_ALIVE}, sizeof (ULONG));
 
 	attempts = 6;
 
@@ -13096,10 +12779,10 @@ ULONG _r_inet_begindownload (
 	PR_STRING string;
 	PR_BYTE content_bytes;
 	ULONG allocated_length;
-	ULONG total_readed;
+	ULONG total_readed = 0;
 	ULONG total_length;
 	ULONG readed_length;
-	LONG status;
+	NTSTATUS status;
 
 	status = _r_inet_openurl (hsession, url, &hconnect, &hrequest, &total_length);
 
@@ -13111,8 +12794,6 @@ ULONG _r_inet_begindownload (
 
 	allocated_length = PR_SIZE_INET_READ_BUFFER;
 	content_bytes = _r_obj_createbyte_ex (NULL, allocated_length);
-
-	total_readed = 0;
 
 	while (_r_inet_readrequest (hrequest, content_bytes->buffer, allocated_length, &readed_length, &total_readed))
 	{
@@ -13134,6 +12815,7 @@ ULONG _r_inet_begindownload (
 			if (NT_SUCCESS (status))
 			{
 				_r_obj_appendstringbuilder2 (&sb, string);
+
 				_r_obj_dereference (string);
 			}
 			else
@@ -13147,6 +12829,7 @@ ULONG _r_inet_begindownload (
 			if (!download_info->download_callback (total_readed, max (total_readed, total_length), download_info->lparam))
 			{
 				status = STATUS_CANCELLED;
+
 				break;
 			}
 		}
@@ -13154,7 +12837,7 @@ ULONG _r_inet_begindownload (
 
 	if (!download_info->is_savetofile)
 	{
-		if (status == ERROR_SUCCESS)
+		if (NT_SUCCESS (status))
 		{
 			string = _r_obj_finalstringbuilder (&sb);
 
@@ -13286,7 +12969,7 @@ VOID _r_inet_destroyurlparts (
 //
 
 HANDLE _r_reg_getroothandle (
-	_In_ HKEY hroot
+	_In_ HANDLE hroot
 )
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
@@ -13405,13 +13088,13 @@ NTSTATUS _r_reg_openkey (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_deletevalue (
 	_In_ HANDLE hkey,
-	_In_ LPCWSTR path
+	_In_ LPCWSTR value_name
 )
 {
 	UNICODE_STRING us;
 	NTSTATUS status;
 
-	_r_obj_initializeunicodestring (&us, path);
+	_r_obj_initializeunicodestring (&us, value_name);
 
 	status = NtDeleteValueKey (hkey, &us);
 
@@ -13449,7 +13132,6 @@ NTSTATUS _r_reg_enumkey (
 
 		if (timestamp_ptr)
 			*timestamp_ptr = _r_unixtime_from_largeinteger (&basic_info->LastWriteTime);
-
 	}
 
 	return status;
@@ -13593,7 +13275,6 @@ NTSTATUS _r_reg_queryulong (
 	*out_buffer = 0;
 
 	buffer_size = sizeof (ULONG);
-
 	status = _r_reg_queryvalue (hkey, value_name, &buffer, &buffer_size, &type);
 
 	if (!NT_SUCCESS (status))
@@ -13620,7 +13301,6 @@ NTSTATUS _r_reg_queryulong64 (
 	NTSTATUS status;
 
 	buffer_size = sizeof (ULONG64);
-
 	status = _r_reg_queryvalue (hkey, value_name, &buffer, &buffer_size, &type);
 
 	if (!NT_SUCCESS (status))
@@ -13653,7 +13333,7 @@ NTSTATUS _r_reg_queryvalue (
 
 	status = NtQueryValueKey (hkey, &us, KeyValuePartialInformation, NULL, 0, &size);
 
-	if (status != STATUS_BUFFER_TOO_SMALL)
+	if (!NT_SUCCESS (status) && status != STATUS_BUFFER_OVERFLOW && status != STATUS_BUFFER_TOO_SMALL)
 	{
 		if (buffer)
 			RtlZeroMemory (buffer, sizeof (WCHAR));
@@ -14988,13 +14668,7 @@ VOID _r_tray_initialize (
 {
 	ULONG hash_code;
 
-#if !defined(APP_NO_DEPRECATIONS)
-	BOOLEAN is_vistaorlater;
-#endif // APP_NO_DEPRECATIONS
-
 	hash_code = _r_str_gethash (_r_sys_getimagepath (), TRUE);
-
-#if defined(APP_NO_DEPRECATIONS)
 
 	nid->cbSize = sizeof (NOTIFYICONDATA);
 
@@ -15011,51 +14685,14 @@ VOID _r_tray_initialize (
 	// the existing icon was registered. Once that information is removed, you can move
 	// the binary file to a new location and reregister it with a new GUID.
 
-	nid->guidItem.Data1 ^= hash_code; // HACK!!!
-
-#else
-
-	is_vistaorlater = _r_sys_isosversiongreaterorequal (WINDOWS_VISTA);
-
-	nid->cbSize = (is_vistaorlater ? sizeof (NOTIFYICONDATA) : NOTIFYICONDATA_V3_SIZE);
-	nid->hWnd = hwnd;
-	nid->uID = guid->Data2;
-
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_7))
-	{
-		nid->uFlags |= NIF_GUID;
-
-		RtlCopyMemory (&nid->guidItem, guid, sizeof (GUID));
-
-		// The path of the binary file is included in the registration of the icon's GUID
-		// and cannot be changed. Settings associated with the icon are preserved through
-		// an upgrade only if the file path and GUID are unchanged. If the path must be
-		// changed, the application should remove any GUID information that was added when
-		// the existing icon was registered. Once that information is removed, you can move
-		// the binary file to a new location and reregister it with a new GUID.
-
-		nid->guidItem.Data1 ^= hash_code; // HACK!!!
-	}
-#endif // APP_NO_DEPRECATIONS
+	nid->guidItem.Data1 |= hash_code; // HACK!!!
 }
 
 VOID _r_tray_setversion (
 	_Inout_ PNOTIFYICONDATA nid
 )
 {
-#if defined(APP_NO_DEPRECATIONS)
-
 	nid->uVersion = NOTIFYICON_VERSION_4;
-
-#else
-
-	BOOLEAN is_vistaorlater;
-
-	is_vistaorlater = _r_sys_isosversiongreaterorequal (WINDOWS_VISTA);
-
-	nid->uVersion = (is_vistaorlater ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION);
-
-#endif // APP_NO_DEPRECATIONS
 
 	Shell_NotifyIcon (NIM_SETVERSION, nid);
 }
@@ -15086,14 +14723,7 @@ BOOLEAN _r_tray_create (
 
 	if (tooltip)
 	{
-#if defined(APP_NO_DEPRECATIONS)
 		nid.uFlags |= NIF_SHOWTIP | NIF_TIP;
-#else
-		nid.uFlags |= NIF_TIP;
-
-		if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
-			nid.uFlags |= NIF_SHOWTIP;
-#endif // APP_NO_DEPRECATIONS
 
 		_r_str_copy (nid.szTip, RTL_NUMBER_OF (nid.szTip), tooltip);
 	}
@@ -15140,12 +14770,7 @@ BOOLEAN _r_tray_popup (
 
 	_r_tray_initialize (&nid, hwnd, guid);
 
-#if defined(APP_NO_DEPRECATIONS)
 	nid.uFlags |= NIF_REALTIME;
-#else
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
-		nid.uFlags |= NIF_REALTIME;
-#endif // APP_NO_DEPRECATIONS
 
 	if (icon_id)
 	{
@@ -15205,14 +14830,7 @@ BOOLEAN _r_tray_setinfo (
 
 	if (tooltip)
 	{
-#if defined(APP_NO_DEPRECATIONS)
 		nid.uFlags |= NIF_SHOWTIP | NIF_TIP;
-#else
-		nid.uFlags |= NIF_TIP;
-
-		if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
-			nid.uFlags |= NIF_SHOWTIP;
-#endif // APP_NO_DEPRECATIONS
 
 		_r_str_copy (nid.szTip, RTL_NUMBER_OF (nid.szTip), tooltip);
 	}

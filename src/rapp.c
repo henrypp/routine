@@ -31,7 +31,7 @@ VOID _r_app_exceptionfilter_savedump (
 		current_time
 	);
 
-	status = _r_fs_createfile (dump_path, GENERIC_WRITE, FILE_SHARE_READ, FILE_OVERWRITE_IF, FILE_ATTRIBUTE_NORMAL, 0, NULL, &hfile);
+	status = _r_fs_createfile (dump_path, FILE_OVERWRITE_IF, GENERIC_WRITE, FILE_SHARE_READ, FILE_ATTRIBUTE_NORMAL, 0, FALSE, NULL, &hfile);
 
 	if (!_r_fs_isvalidhandle (hfile))
 		return;
@@ -244,57 +244,15 @@ VOID _r_app_initialize_controls ()
 
 VOID _r_app_initialize_dll ()
 {
-#if !defined(APP_NO_DEPRECATIONS)
-	R_ERROR_INFO error_info;
-	HINSTANCE hkernel32;
-	SSPM _SetSearchPathMode;
-	SDDD _SetDefaultDllDirectories;
-#endif // !APP_NO_DEPRECATIONS
-
 	// Safe DLL loading
 	// This prevents DLL planting in the application directory.
 
 	SetDllDirectory (L"");
 
-#if defined(APP_NO_DEPRECATIONS)
 	// win7+
 	SetSearchPathMode (BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
 
 	SetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
-#else
-	hkernel32 = _r_sys_loadlibrary (L"kernel32.dll");
-
-	if (!hkernel32)
-		return;
-
-	_SetSearchPathMode = (SSPM)GetProcAddress (hkernel32, "SetSearchPathMode");
-
-	if (_SetSearchPathMode)
-		_SetSearchPathMode (BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
-
-	// Check for SetDefaultDllDirectories since it requires KB2533623.
-	_SetDefaultDllDirectories = (SDDD)GetProcAddress (hkernel32, "SetDefaultDllDirectories");
-
-	if (_SetDefaultDllDirectories)
-	{
-		_SetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
-	}
-	else
-	{
-		if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
-		{
-#if defined(APP_CONSOLE)
-			_r_console_writestringformat (APP_FAILED_KB2533623 L" 0x%08X\r\n", ERROR_DLL_INIT_FAILED);
-#else
-			_r_error_initialize (&error_info, NULL, APP_FAILED_KB2533623_TEXT);
-
-			_r_show_errormessage (NULL, APP_FAILED_KB2533623, ERROR_DLL_INIT_FAILED, &error_info);
-#endif // APP_CONSOLE
-		}
-	}
-
-	//FreeLibrary (hkernel32);
-#endif // APP_NO_DEPRECATIONS
 }
 
 #if !defined(APP_CONSOLE)
@@ -314,12 +272,6 @@ VOID _r_app_initialize_locale ()
 #if !defined(_DEBUG)
 VOID _r_app_initialize_seh ()
 {
-#if !defined(APP_NO_DEPRECATIONS)
-	HINSTANCE hntdll;
-	RSUEF _RtlSetUnhandledExceptionFilter;
-	BOOLEAN is_set;
-#endif // !APP_NO_DEPRECATIONS
-
 	ULONG error_mode = 0;
 	NTSTATUS status;
 
@@ -332,33 +284,7 @@ VOID _r_app_initialize_seh ()
 		NtSetInformationProcess (NtCurrentProcess (), ProcessDefaultHardErrorMode, &error_mode, sizeof (ULONG));
 	}
 
-#if defined(APP_NO_DEPRECATIONS)
 	RtlSetUnhandledExceptionFilter (&_r_app_exceptionfilter_callback);
-#else
-	is_set = FALSE;
-
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
-	{
-		hntdll = _r_sys_loadlibrary (L"ntdll.dll");
-
-		if (hntdll)
-		{
-			_RtlSetUnhandledExceptionFilter = (RSUEF)GetProcAddress (hntdll, "RtlSetUnhandledExceptionFilter");
-
-			if (_RtlSetUnhandledExceptionFilter)
-			{
-				_RtlSetUnhandledExceptionFilter (&_r_app_exceptionfilter_callback);
-
-				is_set = TRUE;
-			}
-
-			FreeLibrary (hntdll);
-		}
-	}
-
-	if (!is_set)
-		SetUnhandledExceptionFilter (&_r_app_exceptionfilter_callback);
-#endif // APP_NO_DEPRECATIONS
 }
 #endif // !_DEBUG
 
@@ -507,7 +433,7 @@ PR_STRING _r_app_getconfigpath ()
 					// trying to create file
 					if (!_r_fs_exists (new_result->buffer))
 					{
-						status = _r_fs_createfile (new_result->buffer, GENERIC_WRITE, FILE_SHARE_READ, FILE_OPEN_IF, FILE_ATTRIBUTE_NORMAL, 0, NULL, &hfile);
+						status = _r_fs_createfile (new_result->buffer, FILE_OPEN_IF, GENERIC_WRITE, FILE_SHARE_READ, FILE_ATTRIBUTE_NORMAL, 0, FALSE, NULL, &hfile);
 
 						if (NT_SUCCESS (status))
 						{
@@ -939,10 +865,7 @@ HWND _r_app_createwindow (
 	_r_wnd_center (hwnd, NULL);
 
 	// enable messages bypass uipi (win7+)
-#if !defined(APP_NO_DEPRECATIONS)
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_7))
-#endif // !APP_NO_DEPRECATIONS
-		_r_wnd_changemessagefilter (hwnd, messages, RTL_NUMBER_OF (messages), MSGFLT_ALLOW);
+	_r_wnd_changemessagefilter (hwnd, messages, RTL_NUMBER_OF (messages), MSGFLT_ALLOW);
 
 	// subclass window
 	app_global.main.wnd_proc = (WNDPROC)GetWindowLongPtr (hwnd, DWLP_DLGPROC);
@@ -1003,9 +926,9 @@ VOID _r_app_restart (
 
 	_r_mutex_destroy (&app_global.main.hmutex);
 
-	status = _r_sys_createprocess_ex (_r_sys_getimagepath (), _r_sys_getimagecommandline (), _r_sys_getcurrentdirectory (), NULL, SW_SHOW, 0);
+	status = _r_sys_createprocess (_r_sys_getimagepath (), _r_sys_getimagecommandline (), _r_sys_getcurrentdirectory ());
 
-	if (status != STATUS_SUCCESS)
+	if (!NT_SUCCESS (status))
 	{
 		// restore mutex on error
 		_r_mutex_create (_r_app_getmutexname (), &app_global.main.hmutex);
@@ -2207,11 +2130,12 @@ ULONG _r_update_downloadupdate (
 
 	status = _r_fs_createfile (
 		update_component->cache_path->buffer,
+		FILE_OVERWRITE_IF,
 		GENERIC_WRITE,
 		FILE_SHARE_READ,
-		FILE_OVERWRITE_IF,
 		FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_TEMPORARY,
 		0,
+		FALSE,
 		NULL,
 		&hfile
 	);
@@ -2235,8 +2159,10 @@ ULONG _r_update_downloadupdate (
 			_r_fs_deletefile (update_component->target_path->buffer, TRUE);
 
 		// move target files
-		if (!_r_fs_movefile (update_component->cache_path->buffer, update_component->target_path->buffer, 0))
-			_r_fs_movefile (update_component->cache_path->buffer, update_component->target_path->buffer, MOVEFILE_COPY_ALLOWED);
+		status = _r_fs_movefile (update_component->cache_path->buffer, update_component->target_path->buffer);
+
+		if (!NT_SUCCESS (status))
+			_r_fs_copyfile (update_component->cache_path->buffer, update_component->target_path->buffer);
 
 		// remove if it exists
 		if (_r_fs_exists (update_component->cache_path->buffer))
@@ -2566,22 +2492,6 @@ BOOLEAN _r_update_check (
 	LPCWSTR str_content;
 	HANDLE hthread;
 	NTSTATUS status;
-
-	// Security note:
-	//
-	// Windows Vista and lower are unsafe for establish internet connections,
-	// because it does not support required TLS 1.3 standart which is used
-	// on the www.github.com update webpage.
-
-#if !defined(APP_NO_DEPRECATIONS)
-	if (_r_sys_isosversionlowerorequal (WINDOWS_VISTA))
-	{
-		if (hparent)
-			_r_show_message (hparent, MB_OK | MB_ICONWARNING, APP_SECURITY_TITLE, APP_WARNING_UPDATE_TEXT);
-
-		return FALSE;
-	}
-#endif // !APP_NO_DEPRECATIONS
 
 	update_info = &app_global.update.info;
 
@@ -2958,7 +2868,7 @@ HANDLE _r_log_getfilehandle ()
 
 		if (string)
 		{
-			status = _r_fs_createfile (string->buffer, GENERIC_WRITE, FILE_SHARE_READ, FILE_OPEN_IF, FILE_ATTRIBUTE_NORMAL, 0, NULL, &hfile);
+			status = _r_fs_createfile (string->buffer, FILE_OPEN_IF, GENERIC_WRITE, FILE_SHARE_READ, FILE_ATTRIBUTE_NORMAL, 0, FALSE, NULL, &hfile);
 
 			if (status == STATUS_OBJECT_NAME_COLLISION)
 			{
@@ -2998,7 +2908,7 @@ VOID _r_log (
 	PR_STRING date_string;
 	LPCWSTR level_string;
 	IO_STATUS_BLOCK isb;
-	ULONG number;
+	ULONG number = 0;
 	LONG64 current_timestamp;
 	HANDLE hfile;
 
@@ -3138,10 +3048,6 @@ VOID _r_show_aboutmessage (
 {
 	static BOOLEAN is_opened = FALSE;
 
-#if !defined(APP_NO_DEPRECATIONS)
-	MSGBOXPARAMS mbp = {0};
-#endif // APP_NO_DEPRECATIONS
-
 	TASKDIALOGCONFIG tdc = {0};
 	TASKDIALOG_BUTTON td_buttons[2] = {0};
 	LPCWSTR str_title;
@@ -3160,103 +3066,65 @@ VOID _r_show_aboutmessage (
 #pragma PR_PRINT_WARNING(IDS_ABOUT)
 #endif
 
-#if !defined(APP_NO_DEPRECATIONS)
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
-#endif // !APP_NO_DEPRECATIONS
-	{
-		_r_str_printf (
-			str_content, RTL_NUMBER_OF (str_content),
-			L"Version %s %s, %" TEXT (PR_LONG) L"-bit (Unicode)\r\n%s\r\n\r\n" \
-			L"<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>",
-			_r_app_getversion (),
-			_r_app_getversiontype (),
-			_r_app_getarch (),
-			_r_app_getcopyright (),
-			_r_app_getwebsite_url (),
-			_r_app_getwebsite_url () + 8,
-			_r_app_getsources_url (),
-			_r_app_getsources_url () + 8
-		);
+	_r_str_printf (
+		str_content, RTL_NUMBER_OF (str_content),
+		L"Version %s %s, %" TEXT (PR_LONG) L"-bit (Unicode)\r\n%s\r\n\r\n" \
+		L"<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>",
+		_r_app_getversion (),
+		_r_app_getversiontype (),
+		_r_app_getarch (),
+		_r_app_getcopyright (),
+		_r_app_getwebsite_url (),
+		_r_app_getwebsite_url () + 8,
+		_r_app_getsources_url (),
+		_r_app_getsources_url () + 8
+	);
 
-		tdc.cbSize = sizeof (tdc);
-		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
-		tdc.hwndParent = hwnd;
-		tdc.hInstance = _r_sys_getimagebase ();
-		tdc.pszFooterIcon = TD_INFORMATION_ICON;
-		tdc.nDefaultButton = IDCLOSE;
-		tdc.pszWindowTitle = str_title;
-		tdc.pszMainInstruction = _r_app_getname ();
-		tdc.pszContent = str_content;
-		tdc.pfCallback = &_r_msg_callback;
-		tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
+	tdc.cbSize = sizeof (tdc);
+	tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
+	tdc.hwndParent = hwnd;
+	tdc.hInstance = _r_sys_getimagebase ();
+	tdc.pszFooterIcon = TD_INFORMATION_ICON;
+	tdc.nDefaultButton = IDCLOSE;
+	tdc.pszWindowTitle = str_title;
+	tdc.pszMainInstruction = _r_app_getname ();
+	tdc.pszContent = str_content;
+	tdc.pfCallback = &_r_msg_callback;
+	tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
 
-		tdc.pButtons = td_buttons;
-		tdc.cButtons = RTL_NUMBER_OF (td_buttons);
+	tdc.pButtons = td_buttons;
+	tdc.cButtons = RTL_NUMBER_OF (td_buttons);
 
-		td_buttons[0].nButtonID = IDOK;
-		td_buttons[1].nButtonID = IDCLOSE;
+	td_buttons[0].nButtonID = IDOK;
+	td_buttons[1].nButtonID = IDCLOSE;
 
 #if defined(IDI_MAIN)
-		tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
+	tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
 #else
 #pragma PR_PRINT_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
 
 #if defined(IDS_DONATE)
-		td_buttons[0].pszButtonText = _r_locale_getstring (IDS_DONATE);
+	td_buttons[0].pszButtonText = _r_locale_getstring (IDS_DONATE);
 #else
-		td_buttons[0].pszButtonText = L"Give thanks!";
+	td_buttons[0].pszButtonText = L"Give thanks!";
 #pragma PR_PRINT_WARNING(IDS_DONATE)
 #endif // IDS_DONATE
 
 #if defined(IDS_CLOSE)
-		td_buttons[1].pszButtonText = _r_locale_getstring (IDS_CLOSE);
+	td_buttons[1].pszButtonText = _r_locale_getstring (IDS_CLOSE);
 #else
-		td_buttons[1].pszButtonText = L"Close";
+	td_buttons[1].pszButtonText = L"Close";
 #pragma PR_PRINT_WARNING(IDS_CLOSE)
 #endif // IDS_CLOSE
 
-		tdc.pszFooter = APP_ABOUT_FOOTER;
+	tdc.pszFooter = APP_ABOUT_FOOTER;
 
-		if (_r_msg_taskdialog (&tdc, &command_id, NULL, NULL))
-		{
-			if (command_id == td_buttons[0].nButtonID)
-				_r_shell_opendefault (_r_app_getdonate_url ());
-		}
-	}
-#if !defined(APP_NO_DEPRECATIONS)
-	else
+	if (SUCCEEDED (_r_msg_taskdialog (&tdc, &command_id, NULL, NULL)))
 	{
-		_r_str_printf (
-			str_content, RTL_NUMBER_OF (str_content),
-			L"%s\r\n\r\nVersion %s %s, %" TEXT (PR_LONG) L"-bit (Unicode)\r\n%s\r\n\r\n" \
-			L"%s | %s\r\n\r\n%s",
-			_r_app_getname (),
-			_r_app_getversion (),
-			_r_app_getversiontype (),
-			_r_app_getarch (),
-			_r_app_getcopyright (),
-			_r_app_getwebsite_url () + 8,
-			_r_app_getsources_url () + 8,
-			APP_ABOUT_FOOTER_CLEAN
-		);
-
-		mbp.cbSize = sizeof (mbp);
-		mbp.dwStyle = MB_OK | MB_TOPMOST | MB_USERICON;
-		mbp.hwndOwner = hwnd;
-		mbp.hInstance = _r_sys_getimagebase ();
-		mbp.lpszCaption = str_title;
-		mbp.lpszText = str_content;
-
-#if defined(IDI_MAIN)
-		mbp.lpszIcon = MAKEINTRESOURCE (IDI_MAIN);
-#else
-#pragma PR_PRINT_WARNING(IDI_MAIN)
-#endif // IDI_MAIN
-
-		MessageBoxIndirect (&mbp);
+		if (command_id == td_buttons[0].nButtonID)
+			_r_shell_opendefault (_r_app_getdonate_url ());
 	}
-#endif // !APP_NO_DEPRECATIONS
 
 	is_opened = FALSE;
 }
@@ -3268,11 +3136,7 @@ VOID _r_show_errormessage (
 	_In_opt_ PR_ERROR_INFO error_info_ptr
 )
 {
-#if !defined(APP_NO_DEPRECATIONS)
-	WCHAR buffer[1024];
-#endif // !APP_NO_DEPRECATIONS
-
-	TASKDIALOGCONFIG tdc;
+	TASKDIALOGCONFIG tdc = {0};
 	TASKDIALOG_BUTTON td_buttons[3] = {0};
 	WCHAR str_content[1024];
 	LPCWSTR str_main;
@@ -3281,7 +3145,7 @@ VOID _r_show_errormessage (
 	PR_STRING string;
 	HINSTANCE hinstance;
 	INT command_id;
-	UINT btn_cnt;
+	UINT btn_cnt = 0;
 	ULONG status;
 
 	if (error_info_ptr && error_info_ptr->hinst)
@@ -3295,7 +3159,7 @@ VOID _r_show_errormessage (
 
 	status = _r_sys_formatmessage (error_code, hinstance, 0, &string);
 
-	if (status == ERROR_MR_MID_NOT_FOUND)
+	if (status == ERROR_MR_MID_NOT_FOUND || status == ERROR_RESOURCE_TYPE_NOT_FOUND)
 		_r_sys_formatmessage (error_code, GetModuleHandle (L"ntdll.dll"), 0, &string);
 
 	str_main = main ? main : APP_FAILED_MESSAGE_TITLE;
@@ -3311,76 +3175,59 @@ VOID _r_show_errormessage (
 		}
 	}
 
-#if !defined(APP_NO_DEPRECATIONS)
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
-#endif // !APP_NO_DEPRECATIONS
+	tdc.cbSize = sizeof (tdc);
+	tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_ENABLE_HYPERLINKS | TDF_NO_SET_FOREGROUND | TDF_SIZE_TO_CONTENT;
+	tdc.hwndParent = hwnd;
+	tdc.hInstance = _r_sys_getimagebase ();
+	tdc.pszFooterIcon = TD_WARNING_ICON;
+	tdc.pszWindowTitle = _r_app_getname ();
+	tdc.pszMainInstruction = str_main;
+	tdc.pszContent = str_content;
+	tdc.pszFooter = APP_FAILED_MESSAGE_FOOTER;
+	tdc.pfCallback = &_r_msg_callback;
+	tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
+
+	if (error_info_ptr && error_info_ptr->exception_ptr)
 	{
-		RtlZeroMemory (&tdc, sizeof (tdc));
-
-		tdc.cbSize = sizeof (tdc);
-		tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_ENABLE_HYPERLINKS | TDF_NO_SET_FOREGROUND | TDF_SIZE_TO_CONTENT;
-		tdc.hwndParent = hwnd;
-		tdc.hInstance = _r_sys_getimagebase ();
-		tdc.pszFooterIcon = TD_WARNING_ICON;
-		tdc.pszWindowTitle = _r_app_getname ();
-		tdc.pszMainInstruction = str_main;
-		tdc.pszContent = str_content;
-		tdc.pszFooter = APP_FAILED_MESSAGE_FOOTER;
-		tdc.pfCallback = &_r_msg_callback;
-		tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
-
-		btn_cnt = 0;
-
-		if (error_info_ptr && error_info_ptr->exception_ptr)
-		{
-			// add "Crash dumps" button
-			td_buttons[btn_cnt].pszButtonText = L"Crash dumps";
-			td_buttons[btn_cnt].nButtonID = IDYES;
-
-			btn_cnt += 1;
-		}
-
-		// add "Copy" button
-		td_buttons[btn_cnt].pszButtonText = L"Copy";
-		td_buttons[btn_cnt].nButtonID = IDNO;
+		// add "Crash dumps" button
+		td_buttons[btn_cnt].pszButtonText = L"Crash dumps";
+		td_buttons[btn_cnt].nButtonID = IDYES;
 
 		btn_cnt += 1;
+	}
 
-		// add "Close" button
-		td_buttons[btn_cnt].pszButtonText = L"Close";
-		td_buttons[btn_cnt].nButtonID = IDCLOSE;
+	// add "Copy" button
+	td_buttons[btn_cnt].pszButtonText = L"Copy";
+	td_buttons[btn_cnt].nButtonID = IDNO;
 
-		btn_cnt += 1;
+	btn_cnt += 1;
 
-		tdc.pButtons = td_buttons;
-		tdc.cButtons = btn_cnt;
+	// add "Close" button
+	td_buttons[btn_cnt].pszButtonText = L"Close";
+	td_buttons[btn_cnt].nButtonID = IDCLOSE;
 
-		tdc.nDefaultButton = IDCLOSE;
+	btn_cnt += 1;
 
-		if (_r_msg_taskdialog (&tdc, &command_id, NULL, NULL))
+	tdc.pButtons = td_buttons;
+	tdc.cButtons = btn_cnt;
+
+	tdc.nDefaultButton = IDCLOSE;
+
+	if (SUCCEEDED (_r_msg_taskdialog (&tdc, &command_id, NULL, NULL)))
+	{
+		if (command_id == IDYES)
 		{
-			if (command_id == IDYES)
-			{
-				path = _r_app_getcrashdirectory (FALSE);
+			path = _r_app_getcrashdirectory (FALSE);
 
-				_r_shell_opendefault (path);
-			}
-			else if (command_id == IDNO)
-			{
-				_r_obj_initializestringref (&sr, str_content);
+			_r_shell_opendefault (path);
+		}
+		else if (command_id == IDNO)
+		{
+			_r_obj_initializestringref (&sr, str_content);
 
-				_r_clipboard_set (NULL, &sr);
-			}
+			_r_clipboard_set (NULL, &sr);
 		}
 	}
-#if !defined(APP_NO_DEPRECATIONS)
-	else
-	{
-		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%s\r\n\r\n%s\r\n\r\n%s", main ? main : APP_FAILED_MESSAGE_TITLE, str_content, APP_FAILED_MESSAGE_FOOTER);
-
-		MessageBox (hwnd, buffer, _r_app_getname (), MB_OK | MB_ICONWARNING | MB_TOPMOST);
-	}
-#endif // !APP_NO_DEPRECATIONS
 
 	if (string)
 		_r_obj_dereference (string);
@@ -3393,56 +3240,40 @@ BOOLEAN _r_show_confirmmessage (
 	_In_opt_ LPCWSTR config_key
 )
 {
-	TASKDIALOGCONFIG tdc;
-	INT command_id;
-	BOOL is_flagchecked;
+	TASKDIALOGCONFIG tdc = {0};
+	INT command_id = 0;
+	BOOL is_flagchecked = FALSE;
 
 	if (config_key && !_r_config_getboolean (config_key, TRUE))
 		return TRUE;
 
-	command_id = 0;
-	is_flagchecked = FALSE;
+	tdc.cbSize = sizeof (tdc);
+	tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
+	tdc.hwndParent = hwnd;
+	tdc.hInstance = _r_sys_getimagebase ();
+	tdc.pszMainIcon = TD_WARNING_ICON;
+	tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
+	tdc.pszWindowTitle = _r_app_getname ();
+	tdc.pfCallback = &_r_msg_callback;
+	tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
 
-#if !defined(APP_NO_DEPRECATIONS)
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
-#endif // !APP_NO_DEPRECATIONS
+	if (config_key)
 	{
-		RtlZeroMemory (&tdc, sizeof (tdc));
-
-		tdc.cbSize = sizeof (tdc);
-		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
-		tdc.hwndParent = hwnd;
-		tdc.hInstance = _r_sys_getimagebase ();
-		tdc.pszMainIcon = TD_WARNING_ICON;
-		tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
-		tdc.pszWindowTitle = _r_app_getname ();
-		tdc.pfCallback = &_r_msg_callback;
-		tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
-
-		if (config_key)
-		{
 #ifdef IDS_QUESTION_FLAG_CHK
-			tdc.pszVerificationText = _r_locale_getstring (IDS_QUESTION_FLAG_CHK);
+		tdc.pszVerificationText = _r_locale_getstring (IDS_QUESTION_FLAG_CHK);
 #else
-			tdc.pszVerificationText = L"Do not ask again";
+		tdc.pszVerificationText = L"Do not ask again";
 #pragma PR_PRINT_WARNING(IDS_QUESTION_FLAG_CHK)
 #endif // IDS_QUESTION_FLAG_CHK
-		}
-
-		if (main)
-			tdc.pszMainInstruction = main;
-
-		if (content)
-			tdc.pszContent = content;
-
-		_r_msg_taskdialog (&tdc, &command_id, NULL, &is_flagchecked);
 	}
-#if !defined(APP_NO_DEPRECATIONS)
-	else
-	{
-		command_id = MessageBox (hwnd, content, _r_app_getname (), MB_YESNO | MB_ICONWARNING | MB_TOPMOST);
-	}
-#endif // !APP_NO_DEPRECATIONS
+
+	if (main)
+		tdc.pszMainInstruction = main;
+
+	if (content)
+		tdc.pszContent = content;
+
+	_r_msg_taskdialog (&tdc, &command_id, NULL, &is_flagchecked);
 
 	if (command_id == IDYES)
 	{
@@ -3462,106 +3293,72 @@ INT _r_show_message (
 	_In_ LPCWSTR content
 )
 {
-#if !defined(APP_NO_DEPRECATIONS)
-	PR_STRING string;
-#endif // !APP_NO_DEPRECATIONS
-
-	TASKDIALOGCONFIG tdc;
+	TASKDIALOGCONFIG tdc = {0};
 	INT command_id;
 
-#if !defined(APP_NO_DEPRECATIONS)
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_VISTA))
-#endif // !APP_NO_DEPRECATIONS
+	tdc.cbSize = sizeof (tdc);
+	tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
+	tdc.hwndParent = hwnd;
+	tdc.hInstance = _r_sys_getimagebase ();
+	tdc.pfCallback = &_r_msg_callback;
+	tdc.pszWindowTitle = _r_app_getname ();
+	tdc.pszMainInstruction = main;
+	tdc.pszContent = content;
+
+	// set icons
+	if ((flags & MB_ICONMASK) == MB_USERICON)
 	{
-		RtlZeroMemory (&tdc, sizeof (tdc));
-
-		tdc.cbSize = sizeof (tdc);
-		tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
-		tdc.hwndParent = hwnd;
-		tdc.hInstance = _r_sys_getimagebase ();
-		tdc.pfCallback = &_r_msg_callback;
-		tdc.pszWindowTitle = _r_app_getname ();
-		tdc.pszMainInstruction = main;
-		tdc.pszContent = content;
-
-		// set icons
-		if ((flags & MB_ICONMASK) == MB_USERICON)
-		{
 #ifdef IDI_MAIN
-			tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
+		tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
 #else
-			tdc.pszMainIcon = TD_INFORMATION_ICON;
+		tdc.pszMainIcon = TD_INFORMATION_ICON;
 #pragma PR_PRINT_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
-		}
-		else if ((flags & MB_ICONMASK) == MB_ICONWARNING)
-		{
-			tdc.pszMainIcon = TD_WARNING_ICON;
-		}
-		else if ((flags & MB_ICONMASK) == MB_ICONERROR)
-		{
-			tdc.pszMainIcon = TD_ERROR_ICON;
-		}
-		else if ((flags & MB_ICONMASK) == MB_ICONINFORMATION || (flags & MB_ICONMASK) == MB_ICONQUESTION)
-		{
-			tdc.pszMainIcon = TD_INFORMATION_ICON;
-		}
-
-		// set buttons
-		if ((flags & MB_TYPEMASK) == MB_YESNO)
-		{
-			tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
-		}
-		else if ((flags & MB_TYPEMASK) == MB_YESNOCANCEL)
-		{
-			tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON | TDCBF_CANCEL_BUTTON;
-		}
-		else if ((flags & MB_TYPEMASK) == MB_OKCANCEL)
-		{
-			tdc.dwCommonButtons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
-		}
-		else if ((flags & MB_TYPEMASK) == MB_RETRYCANCEL)
-		{
-			tdc.dwCommonButtons = TDCBF_RETRY_BUTTON | TDCBF_CANCEL_BUTTON;
-		}
-		else
-		{
-			tdc.dwCommonButtons = TDCBF_OK_BUTTON;
-		}
-
-		// set default buttons
-		//if ((flags & MB_DEFMASK) == MB_DEFBUTTON2)
-		//	tdc.nDefaultButton = IDNO;
-
-		// set options
-		if (flags & MB_TOPMOST)
-			tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
-
-		_r_msg_taskdialog (&tdc, &command_id, NULL, NULL);
 	}
-#if !defined(APP_NO_DEPRECATIONS)
+	else if ((flags & MB_ICONMASK) == MB_ICONWARNING)
+	{
+		tdc.pszMainIcon = TD_WARNING_ICON;
+	}
+	else if ((flags & MB_ICONMASK) == MB_ICONERROR)
+	{
+		tdc.pszMainIcon = TD_ERROR_ICON;
+	}
+	else if ((flags & MB_ICONMASK) == MB_ICONINFORMATION || (flags & MB_ICONMASK) == MB_ICONQUESTION)
+	{
+		tdc.pszMainIcon = TD_INFORMATION_ICON;
+	}
+
+	// set buttons
+	if ((flags & MB_TYPEMASK) == MB_YESNO)
+	{
+		tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
+	}
+	else if ((flags & MB_TYPEMASK) == MB_YESNOCANCEL)
+	{
+		tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON | TDCBF_CANCEL_BUTTON;
+	}
+	else if ((flags & MB_TYPEMASK) == MB_OKCANCEL)
+	{
+		tdc.dwCommonButtons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
+	}
+	else if ((flags & MB_TYPEMASK) == MB_RETRYCANCEL)
+	{
+		tdc.dwCommonButtons = TDCBF_RETRY_BUTTON | TDCBF_CANCEL_BUTTON;
+	}
 	else
 	{
-		string = NULL;
-
-		if (main)
-		{
-			string = _r_obj_concatstrings (
-				3,
-				main,
-				L"\r\n\r\n",
-				content
-			);
-
-			content = string->buffer;
-		}
-
-		command_id = MessageBox (hwnd, content, _r_app_getname (), flags);
-
-		if (string)
-			_r_obj_dereference (string);
+		tdc.dwCommonButtons = TDCBF_OK_BUTTON;
 	}
-#endif // !APP_NO_DEPRECATIONS
+
+	// set default buttons
+	//if ((flags & MB_DEFMASK) == MB_DEFBUTTON2)
+	//	tdc.nDefaultButton = IDNO;
+
+	// set options
+	if (flags & MB_TOPMOST)
+		tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
+
+	_r_msg_taskdialog (&tdc, &command_id, NULL, NULL);
 
 	return command_id;
 }
@@ -3621,15 +3418,13 @@ VOID _r_window_saveposition (
 	_In_ LPCWSTR window_name
 )
 {
-	WINDOWPLACEMENT placement;
-	MONITORINFO monitor_info;
+	WINDOWPLACEMENT placement = {0};
+	MONITORINFO monitor_info = {0};
 	R_RECTANGLE rectangle;
 	HMONITOR hmonitor;
 	LONG_PTR style;
 	LONG dpi_value;
 	BOOLEAN is_maximized;
-
-	RtlZeroMemory (&placement, sizeof (placement));
 
 	placement.length = sizeof (placement);
 
@@ -3646,8 +3441,6 @@ VOID _r_window_saveposition (
 	_r_wnd_recttorectangle (&rectangle, &placement.rcNormalPosition);
 
 	hmonitor = MonitorFromRect (&placement.rcNormalPosition, MONITOR_DEFAULTTOPRIMARY);
-
-	RtlZeroMemory (&monitor_info, sizeof (monitor_info));
 
 	monitor_info.cbSize = sizeof (monitor_info);
 
@@ -4475,11 +4268,6 @@ BOOLEAN _r_skipuac_isenabled ()
 	BSTR task_name = NULL;
 	HRESULT status;
 
-#ifndef APP_NO_DEPRECATIONS
-	if (_r_sys_isosversionlower (WINDOWS_VISTA))
-		return FALSE;
-#endif // APP_NO_DEPRECATIONS
-
 	status = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
 
 	if (FAILED (status))
@@ -4555,11 +4343,6 @@ HRESULT _r_skipuac_enable (
 	BSTR task_directory = NULL;
 	BSTR task_args = NULL;
 	HRESULT status;
-
-#ifndef APP_NO_DEPRECATIONS
-	if (_r_sys_isosversionlower (WINDOWS_VISTA))
-		return E_NOTIMPL;
-#endif // APP_NO_DEPRECATIONS
 
 	if (hwnd && is_enable)
 	{
@@ -4782,11 +4565,6 @@ BOOLEAN _r_skipuac_run ()
 	TASK_STATE state;
 	INT numargs;
 	HRESULT status;
-
-#ifndef APP_NO_DEPRECATIONS
-	if (_r_sys_isosversionlower (WINDOWS_VISTA))
-		return FALSE;
-#endif // APP_NO_DEPRECATIONS
 
 	status = CoCreateInstance (&CLSID_TaskScheduler, NULL, CLSCTX_INPROC_SERVER, &IID_ITaskService, &task_service);
 

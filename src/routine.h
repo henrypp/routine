@@ -331,8 +331,6 @@ FORCEINLINE VOID _r_event_dereference (
 // Synchronization: One-time initialization
 //
 
-#if defined(APP_NO_DEPRECATIONS)
-
 BOOLEAN _r_initonce_begin (
 	_Inout_ PR_INITONCE init_once
 );
@@ -343,22 +341,6 @@ FORCEINLINE VOID _r_initonce_end (
 {
 	RtlRunOnceComplete (init_once, 0, NULL);
 }
-
-#else
-
-BOOLEAN FASTCALL _r_initonce_begin (
-	_Inout_ PR_INITONCE init_once
-);
-
-BOOLEAN FASTCALL _r_initonce_begin_ex (
-	_Inout_ PR_INITONCE init_once
-);
-
-VOID FASTCALL _r_initonce_end (
-	_Inout_ PR_INITONCE init_once
-);
-
-#endif // APP_NO_DEPRECATIONS
 
 //
 // Synchronization: Free list
@@ -1713,8 +1695,8 @@ INT _r_msg (
 );
 
 // TaskDialogIndirect (vista+)
-_Success_ (return)
-BOOLEAN _r_msg_taskdialog (
+_Success_ (SUCCEEDED (return))
+HRESULT _r_msg_taskdialog (
 	_In_ const LPTASKDIALOGCONFIG task_dialog,
 	_Out_opt_ PINT button_ptr,
 	_Out_opt_ PINT radio_button_ptr,
@@ -1747,6 +1729,10 @@ BOOLEAN _r_clipboard_set (
 // Filesystem
 //
 
+typedef VOID (NTAPI *PR_FILE_ENUM_CALLBACK) (
+	_In_ PFILE_DIRECTORY_INFORMATION info
+	);
+
 VOID _r_fs_clearfile (
 	_In_ HANDLE hfile
 );
@@ -1754,26 +1740,40 @@ VOID _r_fs_clearfile (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_createfile (
 	_In_ LPCWSTR path,
+	_In_ ULONG create_disposition,
 	_In_ ACCESS_MASK desired_access,
 	_In_ ULONG share_access,
-	_In_ ULONG create_disposition,
 	_In_ ULONG file_attributes,
 	_In_ ULONG create_option,
+	_In_ BOOLEAN is_directory,
 	_In_opt_ PLARGE_INTEGER allocation_size,
 	_Outptr_ PHANDLE out_buffer
 );
 
-_Success_ (return == ERROR_SUCCESS)
-ULONG _r_fs_deletedirectory (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_copyfile (
+	_In_ LPCWSTR path_from,
+	_In_ LPCWSTR path_to
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_deletedirectory (
 	_In_ LPCWSTR path,
-	_In_ BOOLEAN is_forced,
 	_In_ BOOLEAN is_recurse
 );
 
-_Success_ (return)
-BOOLEAN _r_fs_deletefile (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_deletefile (
 	_In_ LPCWSTR path,
 	_In_ BOOLEAN is_forced
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_enumfiles (
+	_In_opt_ LPCWSTR path,
+	_In_opt_ HANDLE hdirectory,
+	_In_opt_ LPCWSTR search_pattern,
+	_In_ PR_FILE_ENUM_CALLBACK callback
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -1801,22 +1801,28 @@ NTSTATUS _r_fs_gettimestamp (
 	_Out_opt_ LPFILETIME write_time
 );
 
-_Success_ (return == ERROR_SUCCESS)
-ULONG _r_fs_mapfile (
-	_In_opt_ LPCWSTR path,
-	_In_opt_ HANDLE hfile_in,
-	_Out_ PR_BYTE_PTR out_buffer
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_mkdir (
+	_In_ LPCWSTR path
 );
 
-_Success_ (return == ERROR_SUCCESS)
-ULONG _r_fs_mkdir (
-	_In_ LPCWSTR path
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_movefile (
+	_In_ LPCWSTR path_from,
+	_In_ LPCWSTR path_to
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_readfile (
 	_In_ HANDLE hfile,
 	_Outptr_ PR_BYTE_PTR out_buffer
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_setattributes (
+	_In_opt_ LPCWSTR path,
+	_In_opt_ HANDLE hfile,
+	_In_ ULONG attributes
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -1847,24 +1853,6 @@ FORCEINLINE BOOLEAN _r_fs_exists (
 )
 {
 	return RtlDoesFileExists_U (path);
-}
-
-FORCEINLINE BOOLEAN _r_fs_copyfile (
-	_In_ LPCWSTR path_from,
-	_In_ LPCWSTR path_to,
-	_In_ ULONG flags
-)
-{
-	return !!CopyFileEx (path_from, path_to, NULL, NULL, NULL, flags);
-}
-
-FORCEINLINE BOOLEAN _r_fs_movefile (
-	_In_ LPCWSTR path_from,
-	_In_opt_ LPCWSTR path_to,
-	_In_ ULONG flags
-)
-{
-	return !!MoveFileEx (path_from, path_to, flags);
 }
 
 //
@@ -1925,7 +1913,8 @@ BOOLEAN _r_path_issecurelocation (
 	_In_ LPCWSTR file_path
 );
 
-BOOLEAN _r_path_makebackup (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_path_makebackup (
 	_In_ PR_STRING path,
 	_In_ BOOLEAN is_removesourcefile
 );
@@ -2429,32 +2418,22 @@ ULONG _r_str_x65599 (
 
 FORCEINLINE LONG64 _r_perf_querycounter ()
 {
-	LARGE_INTEGER counter;
+	LARGE_INTEGER counter = {0};
 
-#if defined(APP_NO_DEPRECATIONS)
 	// win7+
 	if (!RtlQueryPerformanceCounter (&counter))
 		return 0;
-#else
-	if (!QueryPerformanceCounter (&counter))
-		return 0;
-#endif // APP_NO_DEPRECATIONS
 
 	return counter.QuadPart;
 }
 
 FORCEINLINE LONG64 _r_perf_queryfrequency ()
 {
-	LARGE_INTEGER frequency;
+	LARGE_INTEGER frequency = {0};
 
-#if defined(APP_NO_DEPRECATIONS)
 	// win7+
 	if (!RtlQueryPerformanceFrequency (&frequency))
 		return 0;
-#else
-	if (!QueryPerformanceFrequency (&frequency))
-		return 0;
-#endif // APP_NO_DEPRECATIONS
 
 	return frequency.QuadPart;
 };
@@ -2591,32 +2570,30 @@ NTSTATUS _r_sys_enumprocesses (
 );
 
 _Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_getprocaddress (
+	_In_ PVOID hmodule,
+	_In_ LPCSTR procedure,
+	_Out_ PVOID_PTR out_buffer
+);
+
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getprocessimagepath (
 	_In_ HANDLE hprocess,
 	_Outptr_ PR_STRING_PTR out_buffer,
 	_In_ BOOLEAN is_ntpathtodos
 );
 
-_Ret_maybenull_
-HINSTANCE _r_sys_loadlibrary (
-	_In_ LPCWSTR lib_name
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_loadlibrary (
+	_In_ LPCWSTR lib_name,
+	_Outptr_ PVOID_PTR out_buffer
 );
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_createprocess (
-	_In_opt_ LPCWSTR file_name,
+	_In_ LPCWSTR file_name,
 	_In_opt_ LPCWSTR command_line,
 	_In_opt_ LPCWSTR current_directory
-);
-
-_Success_ (return == STATUS_SUCCESS)
-NTSTATUS _r_sys_createprocess_ex (
-	_In_opt_ LPCWSTR file_name,
-	_In_opt_ LPCWSTR command_line,
-	_In_opt_ LPCWSTR current_directory,
-	_In_opt_ LPSTARTUPINFO startup_info_ptr,
-	_In_ WORD show_state,
-	_In_ ULONG flags
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2639,7 +2616,8 @@ BOOLEAN _r_sys_runasadmin (
 	_In_opt_ LPCWSTR current_directory
 );
 
-VOID _r_sys_sleep (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_sleep (
 	_In_ ULONG milliseconds
 );
 
@@ -2727,8 +2705,8 @@ VOID _r_sys_setthreadenvironment (
 	_In_ PR_ENVIRONMENT new_environment
 );
 
-_Success_ (return != 0)
-EXECUTION_STATE _r_sys_setthreadexecutionstate (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_setthreadexecutionstate (
 	_In_ EXECUTION_STATE new_state
 );
 
@@ -2738,11 +2716,7 @@ NTSTATUS _r_sys_setthreadname (
 	_In_ LPCWSTR thread_name
 );
 
-#if defined(APP_NO_DEPRECATIONS)
 #define _r_sys_exitprocess RtlExitUserProcess
-#else
-#define _r_sys_exitprocess ExitProcess
-#endif // APP_NO_DEPRECATIONS
 
 FORCEINLINE HINSTANCE _r_sys_getimagebase ()
 {
@@ -3370,7 +3344,7 @@ NTSTATUS _r_reg_openkey (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_deletevalue (
 	_In_ HANDLE hkey,
-	_In_ LPCWSTR path
+	_In_ LPCWSTR value_name
 );
 
 _Success_ (NT_SUCCESS (return))
