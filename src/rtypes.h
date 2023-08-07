@@ -30,105 +30,6 @@ typedef ULONG (NTAPI *IQTI) (
 	_Inout_ PTAG_INFO_NAME_FROM_TAG TagInfo
 	);
 
-// VerQueryValue
-typedef BOOL (WINAPI *VQV) (
-	_In_ LPCVOID pBlock,
-	_In_ LPCWSTR lpSubBlock,
-	_Outptr_ PVOID_PTR lplpBuffer,
-	_Out_ PUINT puLen
-	);
-
-// RtlSetUnhandledExceptionFilter (vista+)
-typedef VOID (NTAPI *RSUEF) (
-	_In_ PRTLP_UNHANDLED_EXCEPTION_FILTER UnhandledExceptionFilter
-	);
-
-// LoadIconWithScaleDown (vista+)
-typedef HRESULT (WINAPI *LIWSD)(
-	_In_opt_ HINSTANCE hinst,
-	_In_ LPCWSTR pszName,
-	_In_ INT cx,
-	_In_ INT cy,
-	_Out_ HICON *phico
-	);
-
-// SHQueryUserNotificationState (vista+)
-typedef HRESULT (WINAPI *SHQUNS)(
-	_Out_ QUERY_USER_NOTIFICATION_STATE *pquns
-	);
-
-// StrFormatByteSizeEx (vista+)
-typedef HRESULT (WINAPI *SFBSE)(
-	ULONG64 ull,
-	SFBS_FLAGS flags,
-	_Out_writes_ (cchBuf) LPWSTR pszBuf,
-	_In_range_ (> , 0) UINT cchBuf
-	);
-
-// TaskDialogIndirect (vista+)
-typedef HRESULT (WINAPI *TDI)(
-	_In_ const TASKDIALOGCONFIG *pTaskConfig,
-	_Out_opt_ PINT pnButton,
-	_Out_opt_ PINT pnRadioButton,
-	_Out_opt_ LPBOOL pfVerificationFlagChecked
-	);
-
-// ChangeWindowMessageFilterEx (win7+)
-typedef BOOL (WINAPI *CWMFEX)(
-	_In_ HWND hwnd,
-	_In_ UINT message,
-	_In_ ULONG action,
-	_Inout_opt_ PCHANGEFILTERSTRUCT pChangeFilterStruct
-	);
-
-// GetLocaleInfoEx (win7+)
-typedef INT (WINAPI *GLIEX)(
-	_In_opt_ LPCWSTR lpLocaleName,
-	_In_ LCTYPE LCType,
-	_Out_writes_to_opt_ (cchData, return) LPWSTR lpLCData,
-	_In_ INT cchData
-	);
-
-// SetSearchPathMode (win7+)
-typedef BOOL (WINAPI *SSPM)(
-	_In_ ULONG Flags
-	);
-
-// SetDefaultDllDirectories (win7sp1+)
-typedef BOOL (WINAPI *SDDD)(
-	_In_ ULONG DirectoryFlags
-	);
-
-// IsImmersiveProcess (win8+)
-typedef BOOL (WINAPI *IIP) (
-	_In_ HANDLE hProcess
-	);
-
-// NtQueryWnfStateData (win8+)
-typedef NTSTATUS (NTAPI *NTQWNFSD) (
-	_In_ PCWNF_STATE_NAME StateName,
-	_In_opt_ PCWNF_TYPE_ID TypeId,
-	_In_opt_ const VOID *ExplicitScope,
-	_Out_ PWNF_CHANGE_STAMP ChangeStamp,
-	_Out_writes_bytes_to_opt_ (*BufferSize, *BufferSize) PVOID Buffer,
-	_Inout_ PULONG BufferSize
-	);
-
-// GetDpiForMonitor (win81+)
-typedef HRESULT (WINAPI *GDFM)(
-	_In_ HMONITOR hmonitor,
-	_In_ MONITOR_DPI_TYPE dpiType,
-	_Out_ PUINT dpiX,
-	_Out_ PUINT dpiY
-	);
-
-// GetStagedPackagePathByFullName (win81+)
-typedef LONG (WINAPI *GSPPBF)(
-	_In_ PCWSTR packageFullName,
-	_Inout_ UINT32 *pathLength,
-	_Out_opt_ PWSTR  path
-	);
-
 // AdjustWindowRectExForDpi (win10rs1+)
 typedef BOOL (WINAPI *AWRFD)(
 	_Inout_ LPRECT lpRect,
@@ -270,29 +171,10 @@ C_ASSERT (sizeof (R_EVENT) == sizeof (ULONG_PTR) + sizeof (HANDLE));
 // Synchronization: One-time initialization
 //
 
-#if defined(APP_NO_DEPRECATIONS)
-
 #define R_INITONCE RTL_RUN_ONCE
 #define PR_INITONCE PRTL_RUN_ONCE
 
 #define PR_INITONCE_INIT RTL_RUN_ONCE_INIT
-
-#else
-
-typedef struct _R_INITONCE
-{
-	R_EVENT event_object;
-} R_INITONCE, *PR_INITONCE;
-
-#define PR_INITONCE_SHIFT 31
-#define PR_INITONCE_INITIALIZING (0x1 << PR_INITONCE_SHIFT)
-#define PR_INITONCE_INITIALIZING_SHIFT PR_INITONCE_SHIFT
-
-#define PR_INITONCE_INIT { PR_EVENT_INIT }
-
-C_ASSERT (PR_INITONCE_SHIFT >= FIELD_OFFSET (R_EVENT, available_for_use) * 8);
-
-#endif // APP_NO_DEPRECATIONS
 
 //
 // Synchronization: Auto-dereference pool
@@ -742,18 +624,10 @@ typedef struct _R_TOKEN_ATTRIBUTES
 
 typedef struct _R_FILE_DIALOG
 {
-#if defined(APP_NO_DEPRECATIONS)
 	struct
 	{
 		IFileDialog *ifd; // vista+
 	} u;
-#else
-	union
-	{
-		IFileDialog *ifd; // vista+
-		LPOPENFILENAME ofn;
-	} u;
-#endif // APP_NO_DEPRECATIONS
 
 	ULONG flags;
 } R_FILE_DIALOG, *PR_FILE_DIALOG;
