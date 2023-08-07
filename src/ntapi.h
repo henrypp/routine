@@ -2206,6 +2206,25 @@ C_ASSERT (FIELD_OFFSET (TEB, LastStatusValue) == 0x0BF4);
 // Heaps
 //
 
+#define PROCESS_CREATE_FLAGS_BREAKAWAY 0x00000001 // NtCreateProcessEx & NtCreateUserProcess
+#define PROCESS_CREATE_FLAGS_NO_DEBUG_INHERIT 0x00000002 // NtCreateProcessEx & NtCreateUserProcess
+#define PROCESS_CREATE_FLAGS_INHERIT_HANDLES 0x00000004 // NtCreateProcessEx & NtCreateUserProcess
+#define PROCESS_CREATE_FLAGS_OVERRIDE_ADDRESS_SPACE 0x00000008 // NtCreateProcessEx only
+#define PROCESS_CREATE_FLAGS_LARGE_PAGES 0x00000010 // NtCreateProcessEx only, requires SeLockMemory
+#define PROCESS_CREATE_FLAGS_LARGE_PAGE_SYSTEM_DLL 0x00000020 // NtCreateProcessEx only, requires SeLockMemory
+#define PROCESS_CREATE_FLAGS_PROTECTED_PROCESS 0x00000040 // NtCreateUserProcess only
+#define PROCESS_CREATE_FLAGS_CREATE_SESSION 0x00000080 // NtCreateProcessEx & NtCreateUserProcess, requires SeLoadDriver
+#define PROCESS_CREATE_FLAGS_INHERIT_FROM_PARENT 0x00000100 // NtCreateProcessEx & NtCreateUserProcess
+#define PROCESS_CREATE_FLAGS_SUSPENDED 0x00000200 // NtCreateProcessEx & NtCreateUserProcess
+#define PROCESS_CREATE_FLAGS_FORCE_BREAKAWAY 0x00000400 // NtCreateProcessEx & NtCreateUserProcess, requires SeTcb
+#define PROCESS_CREATE_FLAGS_MINIMAL_PROCESS 0x00000800 // NtCreateProcessEx only
+#define PROCESS_CREATE_FLAGS_RELEASE_SECTION 0x00001000 // NtCreateProcessEx & NtCreateUserProcess
+#define PROCESS_CREATE_FLAGS_CLONE_MINIMAL 0x00002000 // NtCreateProcessEx only
+#define PROCESS_CREATE_FLAGS_CLONE_MINIMAL_REDUCED_COMMIT 0x00004000 //
+#define PROCESS_CREATE_FLAGS_AUXILIARY_PROCESS 0x00008000 // NtCreateProcessEx & NtCreateUserProcess, requires SeTcb
+#define PROCESS_CREATE_FLAGS_CREATE_STORE 0x00020000 // NtCreateProcessEx & NtCreateUserProcess
+#define PROCESS_CREATE_FLAGS_USE_PROTECTED_ENVIRONMENT 0x00040000 // NtCreateProcessEx & NtCreateUserProcess
+
 typedef NTSTATUS (NTAPI *PRTL_HEAP_COMMIT_ROUTINE)(
 	_In_ PVOID Base,
 	_Inout_ PVOID *CommitAddress,
@@ -2255,6 +2274,63 @@ typedef NTSTATUS (NTAPI *PUSER_THREAD_START_ROUTINE)(
 	_In_ PVOID ThreadParameter
 	);
 
+typedef struct _SECTION_IMAGE_INFORMATION
+{
+	PVOID TransferAddress;
+	ULONG ZeroBits;
+	SIZE_T MaximumStackSize;
+	SIZE_T CommittedStackSize;
+	ULONG SubSystemType;
+	union
+	{
+		struct
+		{
+			USHORT SubSystemMinorVersion;
+			USHORT SubSystemMajorVersion;
+		};
+		ULONG SubSystemVersion;
+	};
+	union
+	{
+		struct
+		{
+			USHORT MajorOperatingSystemVersion;
+			USHORT MinorOperatingSystemVersion;
+		};
+		ULONG OperatingSystemVersion;
+	};
+	USHORT ImageCharacteristics;
+	USHORT DllCharacteristics;
+	USHORT Machine;
+	BOOLEAN ImageContainsCode;
+	union
+	{
+		UCHAR ImageFlags;
+		struct
+		{
+			UCHAR ComPlusNativeReady : 1;
+			UCHAR ComPlusILOnly : 1;
+			UCHAR ImageDynamicallyRelocated : 1;
+			UCHAR ImageMappedFlat : 1;
+			UCHAR BaseBelow4gb : 1;
+			UCHAR ComPlusPrefer32bit : 1;
+			UCHAR Reserved : 2;
+		};
+	};
+	ULONG LoaderFlags;
+	ULONG ImageFileSize;
+	ULONG CheckSum;
+} SECTION_IMAGE_INFORMATION, *PSECTION_IMAGE_INFORMATION;
+
+typedef struct _RTL_USER_PROCESS_INFORMATION
+{
+	ULONG Length;
+	HANDLE ProcessHandle;
+	HANDLE ThreadHandle;
+	CLIENT_ID ClientId;
+	SECTION_IMAGE_INFORMATION ImageInformation;
+} RTL_USER_PROCESS_INFORMATION, *PRTL_USER_PROCESS_INFORMATION;
+
 typedef struct _OBJECT_DIRECTORY_INFORMATION
 {
 	UNICODE_STRING Name;
@@ -2301,6 +2377,20 @@ typedef struct _IO_STATUS_BLOCK
 	};
 	ULONG_PTR Information;
 } IO_STATUS_BLOCK, *PIO_STATUS_BLOCK;
+
+typedef struct _FILE_RENAME_INFORMATION
+{
+	BOOLEAN ReplaceIfExists;
+	HANDLE RootDirectory;
+	ULONG FileNameLength;
+	_Field_size_bytes_ (FileNameLength) WCHAR FileName[1];
+} FILE_RENAME_INFORMATION, *PFILE_RENAME_INFORMATION;
+
+typedef enum _SECTION_INHERIT
+{
+	ViewShare = 1,
+	ViewUnmap = 2
+} SECTION_INHERIT;
 
 //
 // nt functions
@@ -2544,6 +2634,45 @@ NtQuerySystemInformation (
 	_Out_writes_bytes_opt_ (SystemInformationLength) PVOID SystemInformation,
 	_In_ ULONG SystemInformationLength,
 	_Out_opt_ PULONG ReturnLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlCreateProcessParameters (
+	_Out_ PRTL_USER_PROCESS_PARAMETERS *pProcessParameters,
+	_In_ PUNICODE_STRING ImagePathName,
+	_In_opt_ PUNICODE_STRING DllPath,
+	_In_opt_ PUNICODE_STRING CurrentDirectory,
+	_In_opt_ PUNICODE_STRING CommandLine,
+	_In_opt_ PVOID Environment,
+	_In_opt_ PUNICODE_STRING WindowTitle,
+	_In_opt_ PUNICODE_STRING DesktopInfo,
+	_In_opt_ PUNICODE_STRING ShellInfo,
+	_In_opt_ PUNICODE_STRING RuntimeData
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlDestroyProcessParameters (
+	_In_ _Post_invalid_ PRTL_USER_PROCESS_PARAMETERS ProcessParameters
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlCreateUserProcess (
+	_In_ PUNICODE_STRING NtImagePathName,
+	_In_ ULONG AttributesDeprecated,
+	_In_ PRTL_USER_PROCESS_PARAMETERS ProcessParameters,
+	_In_opt_ PSECURITY_DESCRIPTOR ProcessSecurityDescriptor,
+	_In_opt_ PSECURITY_DESCRIPTOR ThreadSecurityDescriptor,
+	_In_opt_ HANDLE ParentProcess,
+	_In_ BOOLEAN InheritHandles,
+	_In_opt_ HANDLE DebugPort,
+	_In_opt_ HANDLE TokenHandle, // used to be ExceptionPort
+	_Out_ PRTL_USER_PROCESS_INFORMATION ProcessInformation
 );
 
 NTSYSCALLAPI
