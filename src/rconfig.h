@@ -33,7 +33,6 @@
 
 //#define APP_NO_APPDATA // use portable builds
 //#define APP_NO_CONFIG // do not save configuration
-//#define APP_NO_DEPRECATIONS // disable deprecated windows version support (support only win7+)
 //#define APP_NO_GUEST // disable "guest" mode, running without admin rights; see APP_HAVE_SKIPUAC
 //#define APP_NO_MUTEX // disable mutex
 
@@ -126,9 +125,6 @@
 
 #define APP_FAILED_ADMIN_RIGHTS L"Administrative privileges are required!"
 #define APP_FAILED_COM_INITIALIZE L"COM library initialization failed!"
-
-#define APP_FAILED_KB2533623 L"Security update is not installed!"
-#define APP_FAILED_KB2533623_TEXT L"Install <a href=\"https://support.microsoft.com/kb/2533623\">KB2533623</a>."
 
 #define APP_WARNING_WOW64_TITLE L"WoW64 warning!"
 #define APP_WARNING_WOW64_TEXT L"This application was not designed to run under WoW64. Do not run " \
