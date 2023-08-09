@@ -918,6 +918,21 @@ typedef enum _KTHREAD_STATE
 // structs
 //
 
+typedef struct _FILE_DIRECTORY_INFORMATION
+{
+	ULONG NextEntryOffset;
+	ULONG FileIndex;
+	LARGE_INTEGER CreationTime;
+	LARGE_INTEGER LastAccessTime;
+	LARGE_INTEGER LastWriteTime;
+	LARGE_INTEGER ChangeTime;
+	LARGE_INTEGER EndOfFile;
+	LARGE_INTEGER AllocationSize;
+	ULONG FileAttributes;
+	ULONG FileNameLength;
+	_Field_size_bytes_ (FileNameLength) WCHAR FileName[1];
+} FILE_DIRECTORY_INFORMATION, *PFILE_DIRECTORY_INFORMATION;
+
 typedef struct _FILE_BASIC_INFORMATION
 {
 	LARGE_INTEGER CreationTime;
@@ -966,6 +981,11 @@ typedef struct _FILE_POSITION_INFORMATION
 {
 	LARGE_INTEGER CurrentByteOffset;
 } FILE_POSITION_INFORMATION, *PFILE_POSITION_INFORMATION;
+
+typedef struct _FILE_DISPOSITION_INFORMATION
+{
+	BOOLEAN DeleteFile;
+} FILE_DISPOSITION_INFORMATION, *PFILE_DISPOSITION_INFORMATION;
 
 typedef struct _FILE_END_OF_FILE_INFORMATION
 {
@@ -2368,6 +2388,13 @@ typedef enum _RTL_PATH_TYPE
 	RtlPathTypeRootLocalDevice
 } RTL_PATH_TYPE;
 
+typedef struct _STRING
+{
+	USHORT Length;
+	USHORT MaximumLength;
+	_Field_size_bytes_part_opt_ (MaximumLength, Length) PCHAR Buffer;
+} ANSI_STRING, *PANSI_STRING;
+
 typedef struct _IO_STATUS_BLOCK
 {
 	union
@@ -2392,11 +2419,47 @@ typedef enum _SECTION_INHERIT
 	ViewUnmap = 2
 } SECTION_INHERIT;
 
+typedef VOID (NTAPI *PIO_APC_ROUTINE)(
+	_In_ PVOID ApcContext,
+	_In_ PIO_STATUS_BLOCK IoStatusBlock,
+	_In_ ULONG Reserved
+	);
+
 //
 // nt functions
 //
 
 EXTERN_C_START
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+LdrLoadDll (
+	_In_opt_ PWSTR DllPath,
+	_In_opt_ PULONG DllCharacteristics,
+	_In_ PUNICODE_STRING DllName,
+	_Out_ PVOID *DllHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+LdrGetProcedureAddress (
+	_In_ PVOID DllHandle,
+	_In_opt_ PANSI_STRING ProcedureName,
+	_In_opt_ ULONG ProcedureNumber,
+	_Out_ PVOID *ProcedureAddress
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+LdrGetDllPath (
+	_In_  PCWSTR DllName,
+	_In_  ULONG  Flags, // LOAD_LIBRARY_SEARCH_*
+	_Out_ PWSTR* DllPath,
+	_Out_ PWSTR* SearchPaths
+);
 
 NTSYSCALLAPI
 LONG
@@ -2895,6 +2958,18 @@ NtCreateFile (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
+NtOpenFile (
+	_Out_ PHANDLE FileHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes,
+	_Out_ PIO_STATUS_BLOCK IoStatusBlock,
+	_In_ ULONG ShareAccess,
+	_In_ ULONG OpenOptions
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
 NtReadFile (
 	_In_ HANDLE FileHandle,
 	_In_opt_ HANDLE Event,
@@ -2962,6 +3037,23 @@ NtSetInformationFile (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
+NtQueryDirectoryFile (
+	_In_ HANDLE FileHandle,
+	_In_opt_ HANDLE Event,
+	_In_opt_ PIO_APC_ROUTINE ApcRoutine,
+	_In_opt_ PVOID ApcContext,
+	_Out_ PIO_STATUS_BLOCK IoStatusBlock,
+	_Out_writes_bytes_ (Length) PVOID FileInformation,
+	_In_ ULONG Length,
+	_In_ FILE_INFORMATION_CLASS FileInformationClass,
+	_In_ BOOLEAN ReturnSingleEntry,
+	_In_opt_ PUNICODE_STRING FileName,
+	_In_ BOOLEAN RestartScan
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
 NtClose (
 	_In_ HANDLE Handle
 );
@@ -3016,6 +3108,14 @@ VOID
 NTAPI
 RtlReleaseRelativeName (
 	_Inout_ PRTL_RELATIVE_NAME_U RelativeName
+);
+
+NTSYSCALLAPI
+VOID
+NTAPI
+RtlInitAnsiString (
+	_Out_ PANSI_STRING DestinationString,
+	_In_opt_ PCSTR SourceString
 );
 
 NTSYSCALLAPI
