@@ -2454,6 +2454,14 @@ LdrGetProcedureAddress (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
+LdrGetDllFullName(
+    _In_ PVOID DllHandle,
+    _Out_ PUNICODE_STRING FullDllName
+    );
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
 LdrGetDllPath (
 	_In_  PCWSTR DllName,
 	_In_  ULONG  Flags, // LOAD_LIBRARY_SEARCH_*
