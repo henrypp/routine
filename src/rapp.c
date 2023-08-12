@@ -53,7 +53,7 @@ VOID _r_app_exceptionfilter_savedump (
 	NtClose (hfile);
 }
 
-LONG NTAPI _r_app_exceptionfilter_callback (
+ULONG NTAPI _r_app_exceptionfilter_callback (
 	_In_ PEXCEPTION_POINTERS exception_ptr
 )
 {

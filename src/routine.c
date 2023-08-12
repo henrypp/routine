@@ -193,8 +193,8 @@ PR_STRING _r_format_string_v (
 	return string;
 }
 
-_Success_ (return)
-BOOLEAN _r_format_bytesize64 (
+_Success_ (SUCCEEDED (return))
+HRESULT _r_format_bytesize64 (
 	_Out_writes_ (buffer_size) LPWSTR buffer,
 	_In_ UINT buffer_size,
 	_In_ ULONG64 bytes
@@ -204,15 +204,10 @@ BOOLEAN _r_format_bytesize64 (
 
 	status = StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, buffer_size);
 
-	if (status == S_OK)
-		return TRUE;
+	if (FAILED (status))
+		*buffer = UNICODE_NULL;
 
-	if (StrFormatByteSize64 (bytes, buffer, buffer_size)) // fallback
-		return TRUE;
-
-	*buffer = UNICODE_NULL;
-
-	return FALSE;
+	return status;
 }
 
 _Ret_maybenull_
@@ -9496,11 +9491,12 @@ NTSTATUS _r_sys_createthread (
 	return status;
 }
 
-_Ret_maybenull_
-HICON _r_sys_loadicon (
+_Success_ (SUCCEEDED (return))
+HRESULT _r_sys_loadicon (
 	_In_opt_ HINSTANCE hinstance,
 	_In_ LPCWSTR icon_name,
-	_In_ LONG icon_size
+	_In_ LONG icon_size,
+	_Outptr_ HICON_PTR out_buffer
 )
 {
 	HICON hicon;
@@ -9508,10 +9504,16 @@ HICON _r_sys_loadicon (
 
 	status = LoadIconWithScaleDown (hinstance, icon_name, icon_size, icon_size, &hicon);
 
-	if (status == S_OK)
-		return hicon;
+	if (SUCCEEDED (status))
+	{
+		*out_buffer = hicon;
+	}
+	else
+	{
+		*out_buffer = NULL;
+	}
 
-	return hicon;
+	return status;
 }
 
 _Ret_maybenull_
@@ -9530,6 +9532,7 @@ HICON _r_sys_loadsharedicon (
 	HICON hicon;
 	ULONG hash_code;
 	ULONG name_hash;
+	HRESULT status;
 
 	if (_r_initonce_begin (&init_once))
 	{
@@ -9561,9 +9564,9 @@ HICON _r_sys_loadsharedicon (
 	else
 	{
 		// add new shared icon entry
-		hicon = _r_sys_loadicon (hinstance, icon_name, icon_size);
+		status = _r_sys_loadicon (hinstance, icon_name, icon_size, &hicon);
 
-		if (hicon)
+		if (SUCCEEDED (status))
 		{
 			object_data.object_body = hicon;
 
@@ -10600,7 +10603,6 @@ LONG _r_dc_getsystemmetrics (
 			status = _r_sys_getprocaddress (huser32, "GetSystemMetricsForDpi", (PVOID_PTR)&_GetSystemMetricsForDpi);
 
 			//FreeLibrary (huser32);
-
 		}
 
 		_r_initonce_end (&init_once);
@@ -11846,8 +11848,11 @@ BOOLEAN _r_wnd_isfullscreenconsolemode (
 BOOLEAN _r_wnd_isfullscreenusermode ()
 {
 	QUERY_USER_NOTIFICATION_STATE state = QUNS_NOT_PRESENT;
+	HRESULT status;
 
-	if (SHQueryUserNotificationState (&state) != S_OK)
+	status = SHQueryUserNotificationState (&state);
+
+	if (FAILED (status))
 		return FALSE;
 
 	return (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);

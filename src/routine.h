@@ -1504,8 +1504,8 @@ PR_STRING _r_format_string_v (
 	_In_ va_list arg_ptr
 );
 
-_Success_ (return)
-BOOLEAN _r_format_bytesize64 (
+_Success_ (SUCCEEDED (return))
+HRESULT _r_format_bytesize64 (
 	_Out_writes_ (buffer_size) LPWSTR buffer,
 	_In_ UINT buffer_size,
 	_In_ ULONG64 bytes
@@ -2639,11 +2639,12 @@ NTSTATUS _r_sys_createthread (
 	_In_opt_ LPCWSTR thread_name
 );
 
-_Ret_maybenull_
-HICON _r_sys_loadicon (
+_Success_ (SUCCEEDED (return))
+HRESULT _r_sys_loadicon (
 	_In_opt_ HINSTANCE hinstance,
 	_In_ LPCWSTR icon_name,
-	_In_ LONG icon_size
+	_In_ LONG icon_size,
+	_Outptr_ HICON_PTR out_buffer
 );
 
 _Ret_maybenull_
