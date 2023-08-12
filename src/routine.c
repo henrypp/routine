@@ -4361,18 +4361,20 @@ NTSTATUS _r_fs_deletedirectory (
 	if (!NT_SUCCESS (status))
 		return status;
 
+	_r_fs_setattributes (path, NULL, FILE_ATTRIBUTE_NORMAL);
+
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1809))
 	{
 		fdi_ex.Flags = FILE_DISPOSITION_FLAG_DELETE | FILE_DISPOSITION_FLAG_POSIX_SEMANTICS | FILE_DISPOSITION_FLAG_IGNORE_READONLY_ATTRIBUTE;
 
 		status = NtSetInformationFile (hdirectory, &isb, &fdi, sizeof (FILE_DISPOSITION_INFO_EX), FileDispositionInformationEx);
 	}
+	else
+	{
+		fdi.DeleteFile = TRUE;
 
-	_r_fs_setattributes (path, NULL, FILE_ATTRIBUTE_NORMAL);
-
-	fdi.DeleteFile = TRUE;
-
-	status = NtSetInformationFile (hdirectory, &isb, &fdi, sizeof (FILE_DISPOSITION_INFORMATION), FileDispositionInformation);
+		status = NtSetInformationFile (hdirectory, &isb, &fdi, sizeof (FILE_DISPOSITION_INFORMATION), FileDispositionInformation);
+	}
 
 	RtlFreeUnicodeString (&nt_path);
 
@@ -5051,24 +5053,26 @@ PR_STRING _r_path_getfullpath (
 	return NULL;
 }
 
-_Ret_maybenull_
-PR_STRING _r_path_getknownfolder (
-	_In_ ULONG folder,
-	_In_opt_ LPCWSTR append
+_Success_ (SUCCEEDED (return))
+HRESULT _r_path_getknownfolder (
+	_In_ LPCGUID rfid,
+	_In_opt_ LPCWSTR append,
+	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
 	PR_STRING string;
+	LPWSTR buffer;
 	SIZE_T append_length;
 	HRESULT status;
 
-	append_length = append ? _r_str_getlength (append) * sizeof (WCHAR) : 0;
+	status = SHGetKnownFolderPath (rfid, KF_FLAG_DONT_VERIFY, NULL, &buffer);
 
-	string = _r_obj_createstring_ex (NULL, (256 * sizeof (WCHAR)) + append_length);
-
-	status = SHGetFolderPath (NULL, folder, NULL, SHGFP_TYPE_CURRENT, string->buffer);
-
-	if (status == S_OK)
+	if (SUCCEEDED (status))
 	{
+		append_length = append ? _r_str_getlength (append) * sizeof (WCHAR) : 0;
+
+		string = _r_obj_createstring_ex (buffer, (_r_str_getlength (buffer) * sizeof (WCHAR)) + append_length);
+
 		_r_obj_trimstringtonullterminator (string);
 
 		if (append)
@@ -5078,55 +5082,52 @@ PR_STRING _r_path_getknownfolder (
 			string->length += append_length;
 		}
 
-		return string;
+		*out_buffer = string;
+
+		CoTaskMemFree (buffer);
+
+		//_r_obj_dereference (string);
+	}
+	else
+	{
+		*out_buffer = NULL;
 	}
 
-	_r_obj_dereference (string);
-
-	return NULL;
+	return status;
 }
 
-_Ret_maybenull_
-PR_STRING _r_path_getmodulepath (
-	_In_opt_ HINSTANCE hinstance
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_path_getmodulepath (
+	_In_ PVOID hinstance,
+	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
+	UNICODE_STRING name = {0};
 	PR_STRING string;
-	ULONG allocated_length;
-	ULONG return_length;
-	ULONG attempts;
+	ULONG allocated_length = 256;
+	ULONG attempts = 6;
+	NTSTATUS status;
 
-	attempts = 6;
-	allocated_length = 256;
+	string = _r_obj_createstring_ex (NULL, allocated_length * sizeof (WCHAR));
 
-	do
+	name.Buffer = string->buffer;
+	name.MaximumLength = (USHORT)string->length;
+
+	status = LdrGetDllFullName (hinstance, &name);
+
+	if (NT_SUCCESS (status))
 	{
-		string = _r_obj_createstring_ex (NULL, allocated_length * sizeof (WCHAR));
-
-		return_length = GetModuleFileName (hinstance, string->buffer, allocated_length);
-
-		if (!return_length)
-		{
-			_r_obj_dereference (string);
-			break;
-		}
-
-		if (return_length < allocated_length)
-		{
-			_r_obj_setstringlength (string, return_length * sizeof (WCHAR));
-			return string;
-		}
-
-		allocated_length *= 2;
+		*out_buffer = string;
+	}
+	else
+	{
+		*out_buffer = NULL;
 
 		_r_obj_dereference (string);
-
-		if (allocated_length > PR_SIZE_BUFFER_OVERFLOW)
-			break;
 	}
-	while (--attempts);
 
-	return NULL;
+
+	return status;
 }
 
 BOOLEAN _r_path_issecurelocation (
@@ -5415,10 +5416,10 @@ PR_STRING _r_path_resolvedeviceprefix (
 	SIZE_T prefix_length;
 	NTSTATUS status;
 
-#if !defined(_WIN64)
-	PROCESS_DEVICEMAP_INFORMATION device_map = {0};
-#else
+#if defined(_WIN64)
 	PROCESS_DEVICEMAP_INFORMATION_EX device_map = {0};
+#else
+	PROCESS_DEVICEMAP_INFORMATION device_map = {0};
 #endif // !_WIN64
 
 	status = NtQueryInformationProcess (NtCurrentProcess (), ProcessDeviceMap, &device_map, sizeof (device_map), NULL);
@@ -8254,7 +8255,6 @@ R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static R_TOKEN_ATTRIBUTES attributes = {0};
 
-	HANDLE token_handle;
 	TOKEN_ELEVATION elevation = {0};
 	TOKEN_ELEVATION_TYPE elevation_type = 0;
 	PTOKEN_USER token_user = NULL;
@@ -8264,39 +8264,25 @@ R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
 	if (_r_initonce_begin (&init_once))
 	{
 		attributes.elevation_type = TokenElevationTypeDefault;
+		attributes.token_handle = NtCurrentProcessToken ();
 
-		if (_r_sys_isosversiongreaterorequal (WINDOWS_8_1))
+		status = NtQueryInformationToken (attributes.token_handle, TokenElevation, &elevation, sizeof (elevation), &return_length);
+
+		if (NT_SUCCESS (status))
+			attributes.is_elevated = !!elevation.TokenIsElevated;
+
+		status = NtQueryInformationToken (attributes.token_handle, TokenElevationType, &elevation_type, sizeof (elevation_type), &return_length);
+
+		if (NT_SUCCESS (status))
+			attributes.elevation_type = elevation_type;
+
+		status = _r_sys_querytokeninformation (attributes.token_handle, TokenUser, &token_user);
+
+		if (NT_SUCCESS (status))
 		{
-			attributes.token_handle = NtCurrentProcessToken ();
-		}
-		else
-		{
-			status = NtOpenProcessToken (NtCurrentProcess (), TOKEN_QUERY, &token_handle);
+			attributes.token_sid = _r_mem_allocateandcopy (token_user->User.Sid, RtlLengthSid (token_user->User.Sid));
 
-			if (NT_SUCCESS (status))
-				attributes.token_handle = token_handle;
-		}
-
-		if (attributes.token_handle)
-		{
-			status = NtQueryInformationToken (attributes.token_handle, TokenElevation, &elevation, sizeof (elevation), &return_length);
-
-			if (NT_SUCCESS (status))
-				attributes.is_elevated = !!elevation.TokenIsElevated;
-
-			status = NtQueryInformationToken (attributes.token_handle, TokenElevationType, &elevation_type, sizeof (elevation_type), &return_length);
-
-			if (NT_SUCCESS (status))
-				attributes.elevation_type = elevation_type;
-
-			status = _r_sys_querytokeninformation (attributes.token_handle, TokenUser, &token_user);
-
-			if (NT_SUCCESS (status))
-			{
-				attributes.token_sid = _r_mem_allocateandcopy (token_user->User.Sid, RtlLengthSid (token_user->User.Sid));
-
-				_r_mem_free (token_user);
-			}
+			_r_mem_free (token_user);
 		}
 
 		_r_initonce_end (&init_once);
@@ -9838,19 +9824,13 @@ NTSTATUS _r_sys_setenvironmentvariable (
 )
 {
 	UNICODE_STRING name_us;
-	UNICODE_STRING value_us;
+	UNICODE_STRING value_us = {0};
 	NTSTATUS status;
 
 	_r_obj_initializeunicodestring3 (&name_us, name_sr);
 
 	if (value_sr)
-	{
 		_r_obj_initializeunicodestring3 (&value_us, value_sr);
-	}
-	else
-	{
-		RtlZeroMemory (&value_us, sizeof (value_us));
-	}
 
 	status = RtlSetEnvironmentVariable (environment, &name_us, &value_us);
 
@@ -10435,10 +10415,8 @@ BOOLEAN _r_dc_getdefaultfont (
 	_In_ BOOLEAN is_forced
 )
 {
-	NONCLIENTMETRICS ncm;
+	NONCLIENTMETRICS ncm = {0};
 	PLOGFONT system_font;
-
-	RtlZeroMemory (&ncm, sizeof (ncm));
 
 	ncm.cbSize = sizeof (ncm);
 
@@ -10492,10 +10470,10 @@ LONG _r_dc_getdpivalue (
 		if (NT_SUCCESS (status))
 		{
 			// win10rs1+
-			status = _r_sys_getprocaddress (huser32, "GetDpiForWindow", (PVOID_PTR)&_GetDpiForWindow);
+			_r_sys_getprocaddress (huser32, "GetDpiForWindow", (PVOID_PTR)&_GetDpiForWindow);
 
 			// win10rs1+
-			status = _r_sys_getprocaddress (huser32, "GetDpiForSystem", (PVOID_PTR)&_GetDpiForSystem);
+			_r_sys_getprocaddress (huser32, "GetDpiForSystem", (PVOID_PTR)&_GetDpiForSystem);
 
 			//FreeLibrary (huser32);
 		}
@@ -11560,7 +11538,7 @@ VOID _r_wnd_adjustrectangletoworkingarea (
 	_In_opt_ HWND hwnd
 )
 {
-	MONITORINFO monitor_info;
+	MONITORINFO monitor_info = {0};
 	HMONITOR hmonitor;
 	R_RECTANGLE bounds;
 	RECT rect;
@@ -11575,8 +11553,6 @@ VOID _r_wnd_adjustrectangletoworkingarea (
 
 		hmonitor = MonitorFromRect (&rect, MONITOR_DEFAULTTONEAREST);
 	}
-
-	RtlZeroMemory (&monitor_info, sizeof (monitor_info));
 
 	monitor_info.cbSize = sizeof (monitor_info);
 
@@ -11629,7 +11605,7 @@ BOOLEAN _r_wnd_center (
 	_In_opt_ HWND hparent
 )
 {
-	MONITORINFO monitor_info;
+	MONITORINFO monitor_info = {0};
 	R_RECTANGLE rectangle;
 	R_RECTANGLE parent_rect;
 	HMONITOR hmonitor;
@@ -11652,8 +11628,6 @@ BOOLEAN _r_wnd_center (
 
 		return TRUE;
 	}
-
-	RtlZeroMemory (&monitor_info, sizeof (monitor_info));
 
 	monitor_info.cbSize = sizeof (monitor_info);
 
@@ -11883,7 +11857,7 @@ BOOLEAN _r_wnd_isfullscreenwindowmode (
 	_In_ HWND hwnd
 )
 {
-	MONITORINFO monitor_info;
+	MONITORINFO monitor_info = {0};
 	RECT wnd_rect;
 	HMONITOR hmonitor;
 	LONG_PTR style;
@@ -11897,8 +11871,6 @@ BOOLEAN _r_wnd_isfullscreenwindowmode (
 
 	if (!hmonitor)
 		return FALSE;
-
-	RtlZeroMemory (&monitor_info, sizeof (monitor_info));
 
 	monitor_info.cbSize = sizeof (monitor_info);
 
@@ -12233,16 +12205,15 @@ VOID _r_wnd_setposition (
 	_In_opt_ PR_SIZE size
 )
 {
-	R_RECTANGLE rectangle;
+	R_RECTANGLE rectangle = {0};
 	UINT swp_flags;
 
 	if (position && size)
 	{
 		MoveWindow (hwnd, position->cx, position->cy, size->cx, size->cy, TRUE);
+
 		return;
 	}
-
-	RtlZeroMemory (&rectangle, sizeof (rectangle));
 
 	swp_flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER;
 
@@ -12424,20 +12395,10 @@ HINTERNET _r_inet_createsession (
 )
 {
 	HINTERNET hsession;
-	ULONG access_type;
-
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_8_1))
-	{
-		access_type = WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY;
-	}
-	else
-	{
-		access_type = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
-	}
 
 	hsession = WinHttpOpen (
 		_r_obj_getstring (useragent),
-		access_type,
+		WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
 		WINHTTP_NO_PROXY_NAME,
 		WINHTTP_NO_PROXY_BYPASS,
 		0
@@ -12446,41 +12407,28 @@ HINTERNET _r_inet_createsession (
 	if (!hsession)
 		return NULL;
 
-	if (_r_sys_isosversionlowerorequal (WINDOWS_8))
-	{
-		// enable secure protocols
-		WinHttpSetOption (
-			hsession,
-			WINHTTP_OPTION_SECURE_PROTOCOLS,
-			&(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2},
-			sizeof (ULONG)
-		);
-	}
-	else
-	{
-		// enable secure protocols
-		WinHttpSetOption (
-			hsession,
-			WINHTTP_OPTION_SECURE_PROTOCOLS,
-			&(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3},
-			sizeof (ULONG)
-		);
+	// enable secure protocols
+	WinHttpSetOption (
+		hsession,
+		WINHTTP_OPTION_SECURE_PROTOCOLS,
+		&(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3},
+		sizeof (ULONG)
+	);
 
-		// disable redirect from https to http
-		WinHttpSetOption (
-			hsession,
-			WINHTTP_OPTION_REDIRECT_POLICY,
-			&(ULONG){WINHTTP_OPTION_REDIRECT_POLICY_DISALLOW_HTTPS_TO_HTTP},
-			sizeof (ULONG)
-		);
+	// disable redirect from https to http
+	WinHttpSetOption (
+		hsession,
+		WINHTTP_OPTION_REDIRECT_POLICY,
+		&(ULONG){WINHTTP_OPTION_REDIRECT_POLICY_DISALLOW_HTTPS_TO_HTTP},
+		sizeof (ULONG)
+	);
 
-		// enable compression feature
-		WinHttpSetOption (hsession, WINHTTP_OPTION_DECOMPRESSION, &(ULONG){WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE}, sizeof (ULONG));
+	// enable compression feature
+	WinHttpSetOption (hsession, WINHTTP_OPTION_DECOMPRESSION, &(ULONG){WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE}, sizeof (ULONG));
 
-		// enable http2 protocol (win10+)
-		if (_r_sys_isosversiongreaterorequal (WINDOWS_10))
-			WinHttpSetOption (hsession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &(ULONG){WINHTTP_PROTOCOL_FLAG_HTTP2}, sizeof (ULONG));
-	}
+	// enable http2 protocol (win10+)
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_10))
+		WinHttpSetOption (hsession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &(ULONG){WINHTTP_PROTOCOL_FLAG_HTTP2}, sizeof (ULONG));
 
 	return hsession;
 }
@@ -14066,7 +14014,7 @@ CleanupExit:
 _Success_ (return)
 BOOLEAN _r_parseini (
 	_In_ PR_STRING path,
-	_Out_ PR_HASHTABLE_PTR out_buffer,
+	_Outptr_ PR_HASHTABLE_PTR out_buffer,
 	_Inout_opt_ PR_LIST section_list
 )
 {
@@ -14115,12 +14063,12 @@ BOOLEAN _r_parseini (
 
 		if (return_length)
 		{
-			_r_obj_setstringlength_ex (values_string, return_length * sizeof (WCHAR), allocated_length * sizeof (WCHAR));
-
 			if (section_list)
 				_r_obj_addlistitem (section_list, _r_obj_createstring3 (&sections_iterator));
 
 			// initialize values iterator
+			_r_obj_setstringlength_ex (values_string, return_length * sizeof (WCHAR), allocated_length * sizeof (WCHAR));
+
 			_r_obj_initializestringref (&values_iterator, values_string->buffer);
 
 			while (!_r_str_isempty (values_iterator.buffer))
@@ -15387,9 +15335,7 @@ VOID _r_menu_additem_ex (
 	_In_opt_ UINT state
 )
 {
-	MENUITEMINFO mii;
-
-	RtlZeroMemory (&mii, sizeof (mii));
+	MENUITEMINFO mii = {0};
 
 	mii.cbSize = sizeof (mii);
 	mii.fMask = MIIM_FTYPE;
@@ -15430,9 +15376,7 @@ VOID _r_menu_addsubmenu (
 	_In_opt_ LPCWSTR text
 )
 {
-	MENUITEMINFO mii;
-
-	RtlZeroMemory (&mii, sizeof (mii));
+	MENUITEMINFO mii = {0};
 
 	mii.cbSize = sizeof (mii);
 	mii.fMask = MIIM_FTYPE | MIIM_SUBMENU;

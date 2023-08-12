@@ -56,6 +56,7 @@
 #include <dbghelp.h>
 #include <dde.h>
 #include <dwmapi.h>
+#include <knownfolders.h>
 #include <ntsecapi.h>
 #include <psapi.h>
 #include <sddl.h>
@@ -1898,15 +1899,17 @@ PR_STRING _r_path_getfullpath (
 	_In_ LPCWSTR path
 );
 
-_Ret_maybenull_
-PR_STRING _r_path_getknownfolder (
-	_In_ ULONG folder,
-	_In_opt_ LPCWSTR append
+_Success_ (SUCCEEDED (return))
+HRESULT _r_path_getknownfolder (
+	_In_ LPCGUID rfid,
+	_In_opt_ LPCWSTR append,
+	_Outptr_ PR_STRING_PTR out_buffer
 );
 
-_Ret_maybenull_
-PR_STRING _r_path_getmodulepath (
-	_In_opt_ HINSTANCE hinstance
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_path_getmodulepath (
+	_In_ PVOID hinstance,
+	_Outptr_ PR_STRING_PTR out_buffer
 );
 
 BOOLEAN _r_path_issecurelocation (
@@ -3585,7 +3588,7 @@ PR_STRING _r_res_queryversionstring (
 _Success_ (return)
 BOOLEAN _r_parseini (
 	_In_ PR_STRING path,
-	_Out_ PR_HASHTABLE_PTR out_buffer,
+	_Outptr_ PR_HASHTABLE_PTR out_buffer,
 	_Inout_opt_ PR_LIST section_list
 );
 

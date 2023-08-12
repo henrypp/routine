@@ -387,93 +387,30 @@ PR_STRING _r_app_getconfigpath ()
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static PR_STRING cached_result = NULL;
 
-	PR_STRING buffer;
 	PR_STRING string;
 	PR_STRING path;
-	PR_STRING new_result;
-	HANDLE hfile;
-	NTSTATUS status;
 
 	if (_r_initonce_begin (&init_once))
 	{
-		new_result = NULL;
-
-		// parse config path from arguments
-		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"ini", &buffer))
-		{
-			if (buffer)
-			{
-				_r_str_trimstring2 (buffer, L".\\/\" ", 0);
-
-				status = _r_str_environmentexpandstring (&buffer->sr, &string);
-
-				if (NT_SUCCESS (status))
-					_r_obj_movereference (&buffer, string);
-
-				if (!_r_obj_isstringempty2 (buffer))
-				{
-					if (PathGetDriveNumber (buffer->buffer) == -1)
-					{
-						path = _r_app_getdirectory ();
-
-						string = _r_obj_concatstrings (
-							3,
-							path->buffer,
-							L"\\",
-							buffer->buffer
-						);
-
-						_r_obj_movereference (&new_result, string);
-					}
-					else
-					{
-						_r_obj_swapreference (&new_result, buffer);
-					}
-
-					// trying to create file
-					if (!_r_fs_exists (new_result->buffer))
-					{
-						status = _r_fs_createfile (new_result->buffer, FILE_OPEN_IF, GENERIC_WRITE, FILE_SHARE_READ, FILE_ATTRIBUTE_NORMAL, 0, FALSE, NULL, &hfile);
-
-						if (NT_SUCCESS (status))
-						{
-							NtClose (hfile);
-						}
-						else
-						{
-							_r_obj_clearreference (&new_result);
-						}
-					}
-				}
-
-				_r_obj_dereference (buffer);
-			}
-		}
-
 		// get configuration path
-		if (!new_result || !_r_fs_exists (new_result->buffer))
+		if (_r_app_isportable ())
 		{
-			if (_r_app_isportable ())
-			{
-				path = _r_app_getdirectory ();
+			path = _r_app_getdirectory ();
 
-				string = _r_obj_concatstrings (
-					4,
-					path->buffer,
-					L"\\",
-					_r_app_getnameshort (),
-					L".ini"
-				);
-			}
-			else
-			{
-				string = _r_path_getknownfolder (CSIDL_APPDATA, L"\\" APP_AUTHOR L"\\" APP_NAME L"\\" APP_NAME_SHORT L".ini");
-			}
-
-			_r_obj_movereference (&new_result, string);
+			string = _r_obj_concatstrings (
+				4,
+				path->buffer,
+				L"\\",
+				_r_app_getnameshort (),
+				L".ini"
+			);
+		}
+		else
+		{
+			_r_path_getknownfolder (&FOLDERID_RoamingAppData, L"\\" APP_AUTHOR L"\\" APP_NAME L"\\" APP_NAME_SHORT L".ini", &string);
 		}
 
-		cached_result = new_result;
+		cached_result = string;
 
 		_r_initonce_end (&init_once);
 	}
@@ -572,7 +509,7 @@ PR_STRING _r_app_getprofiledirectory ()
 		}
 		else
 		{
-			cached_path = _r_path_getknownfolder (CSIDL_APPDATA, L"\\" APP_AUTHOR L"\\" APP_NAME);
+			_r_path_getknownfolder (&FOLDERID_RoamingAppData, L"\\" APP_AUTHOR L"\\" APP_NAME, &cached_path);
 		}
 
 		_r_initonce_end (&init_once);
@@ -959,8 +896,6 @@ VOID _r_config_initialize ()
 {
 	PR_HASHTABLE config_table;
 	PR_STRING path;
-
-	config_table = NULL;
 
 	path = _r_app_getconfigpath ();
 
