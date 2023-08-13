@@ -918,6 +918,8 @@ typedef enum _KTHREAD_STATE
 // structs
 //
 
+typedef const UNICODE_STRING *PCUNICODE_STRING;
+
 typedef struct _FILE_DIRECTORY_INFORMATION
 {
 	ULONG NextEntryOffset;
@@ -2454,10 +2456,10 @@ LdrGetProcedureAddress (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-LdrGetDllFullName(
-    _In_ PVOID DllHandle,
-    _Out_ PUNICODE_STRING FullDllName
-    );
+LdrGetDllFullName (
+	_In_ PVOID DllHandle,
+	_Out_ PUNICODE_STRING FullDllName
+);
 
 NTSYSCALLAPI
 NTSTATUS
@@ -3073,6 +3075,25 @@ RtlGetVersion (
 	_Out_ PRTL_OSVERSIONINFOEXW VersionInformation // PRTL_OSVERSIONINFOW
 );
 
+#define RTL_DOS_SEARCH_PATH_FLAG_APPLY_ISOLATION_REDIRECTION 0x00000001
+#define RTL_DOS_SEARCH_PATH_FLAG_DISALLOW_DOT_RELATIVE_PATH_SEARCH 0x00000002
+#define RTL_DOS_SEARCH_PATH_FLAG_APPLY_DEFAULT_EXTENSION_WHEN_NOT_RELATIVE_PATH_EVEN_IF_FILE_HAS_EXTENSION 0x00000004
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlDosSearchPath_Ustr (
+	_In_ ULONG Flags,
+	_In_ PUNICODE_STRING Path,
+	_In_ PUNICODE_STRING FileName,
+	_In_opt_ PUNICODE_STRING DefaultExtension,
+	_Out_opt_ PUNICODE_STRING StaticString,
+	_Out_opt_ PUNICODE_STRING DynamicString,
+	_Out_opt_ PCUNICODE_STRING *FullFileNameOut,
+	_Out_opt_ SIZE_T *FilePartPrefixCch,
+	_Out_opt_ SIZE_T *BytesRequired
+);
+
 NTSYSCALLAPI
 BOOLEAN
 NTAPI
@@ -3081,13 +3102,21 @@ RtlDoesFileExists_U (
 );
 
 NTSYSCALLAPI
-ULONG
+NTSTATUS
 NTAPI
-RtlGetFullPathName_U (
+RtlGetSearchPath (
+	_Out_ PWSTR *SearchPath
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlGetFullPathName_UEx (
 	_In_ PCWSTR FileName,
 	_In_ ULONG BufferLength,
 	_Out_writes_bytes_ (BufferLength) PWSTR Buffer,
-	_Out_opt_ PWSTR *FilePart
+	_Out_opt_ PWSTR *FilePart,
+	_Out_opt_ ULONG *BytesRequired
 );
 
 NTSYSCALLAPI
