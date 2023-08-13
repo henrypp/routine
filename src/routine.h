@@ -1065,7 +1065,7 @@ VOID _r_obj_initializestringref_ex (
 
 BOOLEAN _r_obj_initializeunicodestring (
 	_Out_ PUNICODE_STRING string,
-	_In_ LPCWSTR buffer
+	_In_opt_ LPCWSTR buffer
 );
 
 BOOLEAN _r_obj_initializeunicodestring2 (
@@ -1944,11 +1944,11 @@ PR_STRING _r_path_resolvenetworkprefix (
 	_In_ PR_STRING path
 );
 
-_Ret_maybenull_
-PR_STRING _r_path_search (
-	_In_ LPCWSTR path,
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_path_search (
+	_In_ LPCWSTR filename,
 	_In_opt_ LPCWSTR extension,
-	_In_ BOOLEAN is_dontcheckattributes
+	_Outptr_ PR_STRING_PTR out_buffer
 );
 
 PR_STRING _r_path_dospathfromnt (

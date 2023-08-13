@@ -2755,7 +2755,7 @@ VOID _r_obj_initializestringref_ex (
 
 BOOLEAN _r_obj_initializeunicodestring (
 	_Out_ PUNICODE_STRING string,
-	_In_ LPCWSTR buffer
+	_In_opt_ LPCWSTR buffer
 )
 {
 	ULONG length;
@@ -5257,6 +5257,7 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 	PR_STRING buffer;
 	WCHAR original_char;
 	BOOLEAN is_found;
+	NTSTATUS status;
 
 	args_sr = *args;
 
@@ -5302,9 +5303,9 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 		{
 			buffer = _r_obj_createstring3 (&args_sr);
 
-			file_path_sr = _r_path_search (buffer->buffer, L".exe", FALSE);
+			status = _r_path_search (buffer->buffer, L".exe", &file_path_sr);
 
-			if (file_path_sr)
+			if (NT_SUCCESS (status))
 			{
 				*full_file_name = file_path_sr;
 			}
@@ -5353,12 +5354,12 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 			*(remaining_part.buffer - 1) = UNICODE_NULL;
 		}
 
-		file_path_sr = _r_path_search (temp.buffer, L".exe", FALSE);
+		status = _r_path_search (temp.buffer, L".exe", &file_path_sr);
 
 		if (is_found)
 			*(remaining_part.buffer - 1) = original_char;
 
-		if (file_path_sr)
+		if (NT_SUCCESS (status))
 		{
 			path->buffer = args_sr.buffer;
 			path->length = (SIZE_T)PTR_SUB_OFFSET (current_part.buffer, temp.buffer) + current_part.length;
@@ -5750,60 +5751,62 @@ PR_STRING _r_path_resolvenetworkprefix (
 	return NULL;
 }
 
-_Ret_maybenull_
-PR_STRING _r_path_search (
-	_In_ LPCWSTR path,
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_path_search (
+	_In_ LPCWSTR filename,
 	_In_opt_ LPCWSTR extension,
-	_In_ BOOLEAN is_dontcheckattributes
+	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
-	PR_STRING full_path;
-	ULONG buffer_length;
-	ULONG return_length;
-	ULONG attributes;
+	UNICODE_STRING path_us;
+	UNICODE_STRING filename_us;
+	UNICODE_STRING extension_us;
+	UNICODE_STRING buffer = {0};
+	PR_STRING full_path = NULL;
+	LPWSTR path;
+	SIZE_T return_length;
+	NTSTATUS status;
 
-	buffer_length = 256;
-	full_path = _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR));
+	status = RtlGetSearchPath (&path);
 
-	return_length = SearchPath (NULL, path, extension, buffer_length, full_path->buffer, NULL);
+	_r_obj_initializeunicodestring (&path_us, path);
+	_r_obj_initializeunicodestring (&filename_us, filename);
+	_r_obj_initializeunicodestring (&extension_us, extension);
 
-	if (return_length == 0 && return_length <= buffer_length)
-		goto CleanupExit;
+	status = RtlDosSearchPath_Ustr (
+		RTL_DOS_SEARCH_PATH_FLAG_DISALLOW_DOT_RELATIVE_PATH_SEARCH | RTL_DOS_SEARCH_PATH_FLAG_APPLY_DEFAULT_EXTENSION_WHEN_NOT_RELATIVE_PATH_EVEN_IF_FILE_HAS_EXTENSION,
+		&path_us,
+		&filename_us,
+		&extension_us,
+		NULL,
+		NULL,
+		NULL,
+		NULL,
+		&return_length
+	);
 
-	if (return_length > buffer_length)
+	if (status == STATUS_BUFFER_TOO_SMALL)
 	{
-		buffer_length = return_length;
+		full_path = _r_obj_createstring_ex (NULL, return_length * sizeof (WCHAR));
 
-		_r_obj_movereference (&full_path, _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR)));
+		_r_obj_initializeunicodestring_ex (&buffer, full_path->buffer, 0, (USHORT)full_path->length);
 
-		return_length = SearchPath (NULL, path, extension, buffer_length, full_path->buffer, NULL);
+		status = RtlDosSearchPath_Ustr (
+			RTL_DOS_SEARCH_PATH_FLAG_DISALLOW_DOT_RELATIVE_PATH_SEARCH | RTL_DOS_SEARCH_PATH_FLAG_APPLY_DEFAULT_EXTENSION_WHEN_NOT_RELATIVE_PATH_EVEN_IF_FILE_HAS_EXTENSION,
+			&path_us,
+			&filename_us,
+			&extension_us,
+			&buffer,
+			NULL,
+			NULL,
+			NULL,
+			NULL
+		);
 	}
 
-	if (return_length == 0 && return_length <= buffer_length)
-		goto CleanupExit;
+	*out_buffer = full_path;
 
-	_r_obj_setstringlength (full_path, return_length * sizeof (WCHAR));
-
-	if (!is_dontcheckattributes)
-	{
-		attributes = GetFileAttributes (full_path->buffer);
-
-		// Make sure this file is exists.
-		if (attributes == INVALID_FILE_ATTRIBUTES)
-			goto CleanupExit;
-
-		// Make sure this is not a directory.
-		if (attributes & FILE_ATTRIBUTE_DIRECTORY)
-			goto CleanupExit;
-	}
-
-	return full_path;
-
-CleanupExit:
-
-	_r_obj_dereference (full_path);
-
-	return NULL;
+	return status;
 }
 
 PR_STRING _r_path_dospathfromnt (
@@ -9232,9 +9235,9 @@ NTSTATUS _r_sys_createprocess (
 
 	if (!_r_fs_exists (file_name))
 	{
-		new_path = _r_path_search (file_name, L".exe", FALSE);
+		status = _r_path_search (file_name, L".exe", &new_path);
 
-		if (new_path)
+		if (NT_SUCCESS (status))
 			_r_obj_movereference (&file_name_string, new_path);
 	}
 
@@ -9257,9 +9260,9 @@ NTSTATUS _r_sys_createprocess (
 		command_line_nt.Length ? &command_line_nt : &filename_nt,
 		NULL,
 		&filename_nt,
-		NULL,
-		NULL,
-		NULL
+		&NtCurrentPeb ()->ProcessParameters->DesktopInfo,
+		&NtCurrentPeb ()->ProcessParameters->ShellInfo,
+		&NtCurrentPeb ()->ProcessParameters->RuntimeData
 	);
 
 	if (!NT_SUCCESS (status))
