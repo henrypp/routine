@@ -32,23 +32,23 @@ VOID _r_debug (
 
 VOID _r_error_initialize (
 	_Out_ PR_ERROR_INFO error_info,
-	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ PVOID hinst,
 	_In_opt_ LPCWSTR description
 )
 {
-	_r_error_initialize_ex (error_info, hinstance, description, NULL);
+	_r_error_initialize_ex (error_info, hinst, description, NULL);
 }
 
 VOID _r_error_initialize_ex (
 	_Out_ PR_ERROR_INFO error_info,
-	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ PVOID hinst,
 	_In_opt_ LPCWSTR description,
 	_In_opt_ PEXCEPTION_POINTERS exception_ptr
 )
 {
 	error_info->description = description;
 	error_info->exception_ptr = exception_ptr;
-	error_info->hinst = hinstance;
+	error_info->hinst = hinst;
 }
 
 //
@@ -2758,10 +2758,11 @@ BOOLEAN _r_obj_initializeunicodestring (
 	_In_opt_ LPCWSTR buffer
 )
 {
-	ULONG length;
+	ULONG length = 0;
 	BOOLEAN result;
 
-	length = (ULONG)_r_str_getlength (buffer) * sizeof (WCHAR);
+	if (buffer)
+		length = (ULONG)_r_str_getlength (buffer) * sizeof (WCHAR);
 
 	result = _r_obj_initializeunicodestring_ex (string, (LPWSTR)buffer, (USHORT)length, (USHORT)length + sizeof (UNICODE_NULL));
 
@@ -5013,19 +5014,30 @@ PR_STRING _r_path_getextensionstring (
 	return _r_obj_createstring3 (&extension_part);
 }
 
-_Ret_maybenull_
-PR_STRING _r_path_getfullpath (
-	_In_ LPCWSTR path
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_path_getfullpath (
+	_In_ LPCWSTR filename,
+	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
 	PR_STRING full_path;
 	ULONG buffer_length;
 	ULONG return_length;
+	NTSTATUS status;
 
 	buffer_length = 256;
 	full_path = _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR));
 
-	return_length = RtlGetFullPathName_U (path, buffer_length, full_path->buffer, NULL);
+	status = RtlGetFullPathName_UEx (filename, buffer_length, full_path->buffer, NULL, &return_length);
+
+	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
+		_r_obj_dereference (full_path);
+
+		return status;
+	}
 
 	if (return_length > buffer_length)
 	{
@@ -5033,19 +5045,23 @@ PR_STRING _r_path_getfullpath (
 
 		_r_obj_movereference (&full_path, _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR)));
 
-		return_length = RtlGetFullPathName_U (path, buffer_length, full_path->buffer, NULL);
+		status = RtlGetFullPathName_UEx (filename, buffer_length, full_path->buffer, NULL, &return_length);
 	}
 
-	if (return_length)
+	if (NT_SUCCESS (status))
 	{
-		_r_obj_setstringlength (full_path, return_length);
+		_r_obj_trimstringtonullterminator (full_path);
 
-		return full_path;
+		*out_buffer = full_path;
+	}
+	else
+	{
+		*out_buffer = NULL;
+
+		_r_obj_dereference (full_path);
 	}
 
-	_r_obj_dereference (full_path);
-
-	return NULL;
+	return status;
 }
 
 _Success_ (SUCCEEDED (return))
@@ -5395,9 +5411,10 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 	return FALSE;
 }
 
-_Ret_maybenull_
-PR_STRING _r_path_resolvedeviceprefix (
-	_In_ PR_STRING path
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_path_resolvedeviceprefix (
+	_In_ PR_STRING path,
+	_Outptr_result_maybenull_ PR_STRING_PTR out_buffer
 )
 {
 	// device name prefixes
@@ -5417,6 +5434,8 @@ PR_STRING _r_path_resolvedeviceprefix (
 #else
 	PROCESS_DEVICEMAP_INFORMATION device_map = {0};
 #endif // !_WIN64
+
+	*out_buffer = NULL;
 
 	status = NtQueryInformationProcess (NtCurrentProcess (), ProcessDeviceMap, &device_map, sizeof (device_map), NULL);
 
@@ -5482,9 +5501,11 @@ PR_STRING _r_path_resolvedeviceprefix (
 
 							_r_obj_trimstringtonullterminator (string);
 
-							NtClose (link_handle);
-
-							return string;
+							*out_buffer = string;
+						}
+						else
+						{
+							status = STATUS_OBJECT_NAME_NOT_FOUND;
 						}
 					}
 				}
@@ -5494,7 +5515,7 @@ PR_STRING _r_path_resolvedeviceprefix (
 		}
 	}
 
-	return NULL;
+	return status;
 }
 
 // Device map link resolution does not resolve custom FS.
@@ -5503,9 +5524,10 @@ PR_STRING _r_path_resolvedeviceprefix (
 // https://github.com/henrypp/simplewall/issues/817
 // https://github.com/maharmstone/btrfs/issues/324
 
-_Ret_maybenull_
-PR_STRING _r_path_resolvedeviceprefix_workaround (
-	_In_ PR_STRING path
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_path_resolvedeviceprefix_workaround (
+	_In_ PR_STRING path,
+	_Outptr_result_maybenull_ PR_STRING_PTR out_buffer
 )
 {
 	OBJECT_ATTRIBUTES oa = {0};
@@ -5523,6 +5545,8 @@ PR_STRING _r_path_resolvedeviceprefix_workaround (
 	ULONG buffer_size;
 	BOOLEAN is_firsttime;
 	NTSTATUS status;
+
+	*out_buffer = NULL;
 
 	RtlInitUnicodeString (&device_prefix, L"\\GLOBAL??");
 
@@ -5555,6 +5579,7 @@ PR_STRING _r_path_resolvedeviceprefix_workaround (
 				if (buffer_size > PR_SIZE_BUFFER_OVERFLOW)
 				{
 					status = STATUS_INSUFFICIENT_RESOURCES;
+
 					break;
 				}
 
@@ -5622,11 +5647,12 @@ PR_STRING _r_path_resolvedeviceprefix_workaround (
 
 									_r_mem_free (directory_entry);
 
-									NtClose (link_handle);
-									NtClose (directory_handle);
-
-									return string;
+									*out_buffer = string;
 								}
+							}
+							else
+							{
+								status = STATUS_OBJECT_NAME_NOT_FOUND;
 							}
 						}
 
@@ -5649,15 +5675,16 @@ PR_STRING _r_path_resolvedeviceprefix_workaround (
 		NtClose (directory_handle);
 	}
 
-	return NULL;
+	return status;
 }
 
 // network share prefixes
 // https://docs.microsoft.com/en-us/windows-hardware/drivers/ifs/support-for-unc-naming-and-mup
 
-_Ret_maybenull_
-PR_STRING _r_path_resolvenetworkprefix (
-	_In_ PR_STRING path
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_path_resolvenetworkprefix (
+	_In_ PR_STRING path,
+	_Outptr_result_maybenull_ PR_STRING_PTR out_buffer
 )
 {
 	static R_STRINGREF services_part_sr = PR_STRINGREF_INIT (L"System\\CurrentControlSet\\Services\\");
@@ -5674,10 +5701,12 @@ PR_STRING _r_path_resolvenetworkprefix (
 	SIZE_T prefix_length;
 	NTSTATUS status;
 
+	*out_buffer = NULL;
+
 	status = _r_reg_openkey (HKEY_LOCAL_MACHINE, L"System\\CurrentControlSet\\Control\\NetworkProvider\\Order", KEY_READ, &hkey);
 
 	if (!NT_SUCCESS (status))
-		return NULL;
+		return status;
 
 	status = _r_reg_querystring (hkey, L"ProviderOrder", &provider_order);
 
@@ -5728,15 +5757,18 @@ PR_STRING _r_path_resolvenetworkprefix (
 								_r_obj_dereference (service_key);
 								_r_obj_dereference (device_name_string);
 
-								NtClose (hsvckey);
-								NtClose (hkey);
-
-								return string;
+								*out_buffer = string;
 							}
+						}
+						else
+						{
+							status = STATUS_OBJECT_NAME_NOT_FOUND;
 						}
 
 						_r_obj_dereference (device_name_string);
 					}
+
+					NtClose (hsvckey);
 				}
 
 				_r_obj_dereference (service_key);
@@ -5748,7 +5780,7 @@ PR_STRING _r_path_resolvenetworkprefix (
 
 	NtClose (hkey);
 
-	return NULL;
+	return status;
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -5762,7 +5794,7 @@ NTSTATUS _r_path_search (
 	UNICODE_STRING filename_us;
 	UNICODE_STRING extension_us;
 	UNICODE_STRING buffer = {0};
-	PR_STRING full_path = NULL;
+	PR_STRING full_path;
 	LPWSTR path;
 	SIZE_T return_length;
 	NTSTATUS status;
@@ -5802,9 +5834,23 @@ NTSTATUS _r_path_search (
 			NULL,
 			NULL
 		);
+
+		if (!NT_SUCCESS (status))
+			_r_obj_dereference (full_path);
+	}
+	else
+	{
+		full_path = NULL;
 	}
 
-	*out_buffer = full_path;
+	if (NT_SUCCESS (status))
+	{
+		*out_buffer = full_path;
+	}
+	else
+	{
+		*out_buffer = NULL;
+	}
 
 	return status;
 }
@@ -5817,6 +5863,7 @@ PR_STRING _r_path_dospathfromnt (
 	PR_STRING string;
 	LPWSTR ptr;
 	SIZE_T path_length;
+	NTSTATUS status;
 
 	path_length = _r_str_getlength2 (path);
 
@@ -5915,19 +5962,19 @@ PR_STRING _r_path_dospathfromnt (
 		}
 		else
 		{
-			string = _r_path_resolvedeviceprefix (path);
+			status = _r_path_resolvedeviceprefix (path, &string);
 
-			if (string)
+			if (NT_SUCCESS (status))
 				return string;
 
-			string = _r_path_resolvedeviceprefix_workaround (path);
+			status = _r_path_resolvedeviceprefix_workaround (path, &string);
 
-			if (string)
+			if (NT_SUCCESS (status))
 				return string;
 
-			string = _r_path_resolvenetworkprefix (path);
+			status = _r_path_resolvenetworkprefix (path, &string);
 
-			if (string)
+			if (NT_SUCCESS (status))
 				return string;
 		}
 	}
@@ -8187,63 +8234,50 @@ BOOLEAN _r_sys_iswow64 ()
 	return FALSE;
 }
 
-_Success_ (return == ERROR_SUCCESS)
-ULONG _r_sys_formatmessage (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_formatmessage (
 	_In_ ULONG error_code,
-	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ PVOID hinst,
 	_In_opt_ ULONG lang_id,
-	_Out_ PR_STRING_PTR out_buffer
+	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
 	static R_STRINGREF whitespace_sr = PR_STRINGREF_INIT (L"\r\n ");
 
+	PMESSAGE_RESOURCE_ENTRY entry;
 	PR_STRING string;
+	LCID locale_id = LOCALE_SYSTEM_DEFAULT;
 	ULONG allocated_length = 256;
-	ULONG return_length;
 	ULONG attempts = 6;
-	ULONG status;
-
-	*out_buffer = NULL;
+	NTSTATUS status;
 
 	string = _r_obj_createstring_ex (NULL, allocated_length * sizeof (WCHAR));
 
-	do
+	status = RtlFindMessage (hinst, 11, lang_id, error_code, &entry);
+
+	// Try using the system LANGID.
+	if (!NT_SUCCESS (status))
 	{
-		return_length = FormatMessage (FORMAT_MESSAGE_FROM_HMODULE | FORMAT_MESSAGE_IGNORE_INSERTS, hinstance, error_code, lang_id, string->buffer, allocated_length, NULL);
-
-		if (return_length)
-		{
-			_r_obj_setstringlength (string, return_length * sizeof (WCHAR));
-
-			_r_str_trimstring (string, &whitespace_sr, 0);
-
-			*out_buffer = string;
-
-			return ERROR_SUCCESS;
-		}
-
-		status = GetLastError ();
-
-		_r_obj_dereference (string);
-
-		if (status == ERROR_INSUFFICIENT_BUFFER)
-		{
-			allocated_length *= 2;
-
-			if (allocated_length > PR_SIZE_BUFFER_OVERFLOW)
-				break;
-
-			string = _r_obj_createstring_ex (NULL, allocated_length * sizeof (WCHAR));
-		}
-		else
-		{
-			if (lang_id)
-				return _r_sys_formatmessage (error_code, hinstance, 0, out_buffer);
-
-			break;
-		}
+		if (NT_SUCCESS (NtQueryDefaultLocale (FALSE, &locale_id)))
+			status = RtlFindMessage (hinst, 11, locale_id, error_code, &entry);
 	}
-	while (--attempts);
+
+	// Try using U.S. English.
+	if (!NT_SUCCESS (status))
+		status = RtlFindMessage (hinst, 11, MAKELANGID (LANG_ENGLISH, SUBLANG_ENGLISH_US), error_code, &entry);
+
+	if (NT_SUCCESS (status))
+	{
+		string = _r_obj_createstring_ex ((LPCWSTR)entry->Text, entry->Length);
+
+		_r_str_trimstring (string, &whitespace_sr, 0);
+
+		*out_buffer = string;
+	}
+	else
+	{
+		*out_buffer = NULL;
+	}
 
 	return status;
 }
@@ -8326,6 +8360,32 @@ ULONG _r_sys_getlocaleinfo (
 		*out_buffer = string;
 
 		status = ERROR_SUCCESS;
+	}
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_getmodulehandle (
+	_In_ LPCWSTR name,
+	_Out_ PVOID_PTR out_buffer
+)
+{
+	UNICODE_STRING us;
+	PVOID result;
+	NTSTATUS status;
+
+	_r_obj_initializeunicodestring (&us, name);
+
+	status = LdrGetDllHandleEx (LDR_GET_DLL_HANDLE_EX_UNCHANGED_REFCOUNT, NULL, NULL, &us, &result);
+
+	if (NT_SUCCESS (status))
+	{
+		*out_buffer = result;
+	}
+	else
+	{
+		*out_buffer = NULL;
 	}
 
 	return status;
@@ -9496,7 +9556,7 @@ NTSTATUS _r_sys_createthread (
 
 _Success_ (SUCCEEDED (return))
 HRESULT _r_sys_loadicon (
-	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ PVOID hinst,
 	_In_ LPCWSTR icon_name,
 	_In_ LONG icon_size,
 	_Outptr_ HICON_PTR out_buffer
@@ -9505,7 +9565,7 @@ HRESULT _r_sys_loadicon (
 	HICON hicon;
 	HRESULT status;
 
-	status = LoadIconWithScaleDown (hinstance, icon_name, icon_size, icon_size, &hicon);
+	status = LoadIconWithScaleDown (hinst, icon_name, icon_size, icon_size, &hicon);
 
 	if (SUCCEEDED (status))
 	{
@@ -9521,7 +9581,7 @@ HRESULT _r_sys_loadicon (
 
 _Ret_maybenull_
 HICON _r_sys_loadsharedicon (
-	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ PVOID hinst,
 	_In_ LPCWSTR icon_name,
 	_In_ LONG icon_size
 )
@@ -9553,7 +9613,7 @@ HICON _r_sys_loadsharedicon (
 		name_hash = _r_str_gethash (icon_name, TRUE);
 	}
 
-	hash_code = (name_hash ^ (PtrToUlong (hinstance) >> 5) ^ (icon_size << 3) ^ icon_size);
+	hash_code = (name_hash ^ (PtrToUlong (hinst) >> 5) ^ (icon_size << 3) ^ icon_size);
 
 	_r_queuedlock_acquireshared (&queued_lock);
 	object_ptr = _r_obj_findhashtable (shared_icons, hash_code);
@@ -9567,7 +9627,7 @@ HICON _r_sys_loadsharedicon (
 	else
 	{
 		// add new shared icon entry
-		status = _r_sys_loadicon (hinstance, icon_name, icon_size, &hicon);
+		status = _r_sys_loadicon (hinst, icon_name, icon_size, &hicon);
 
 		if (SUCCEEDED (status))
 		{
@@ -13812,7 +13872,7 @@ SIZE_T _r_math_rounduptopoweroftwo (
 //
 
 BOOLEAN _r_res_loadresource (
-	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ PVOID hinst,
 	_In_ LPCWSTR name,
 	_In_ LPCWSTR type,
 	_Out_ PR_BYTEREF out_buffer
@@ -13822,11 +13882,11 @@ BOOLEAN _r_res_loadresource (
 	HGLOBAL hloaded;
 	PVOID hlock;
 
-	hres = FindResource (hinstance, name, type);
+	hres = FindResource (hinst, name, type);
 
 	if (hres)
 	{
-		hloaded = LoadResource (hinstance, hres);
+		hloaded = LoadResource (hinst, hres);
 
 		if (hloaded)
 		{
@@ -13834,7 +13894,7 @@ BOOLEAN _r_res_loadresource (
 
 			if (hlock)
 			{
-				_r_obj_initializebyteref_ex (out_buffer, hlock, SizeofResource (hinstance, hres));
+				_r_obj_initializebyteref_ex (out_buffer, hlock, SizeofResource (hinst, hres));
 
 				return TRUE;
 			}
@@ -13848,17 +13908,15 @@ BOOLEAN _r_res_loadresource (
 
 _Ret_maybenull_
 PR_STRING _r_res_loadstring (
-	_In_opt_ HINSTANCE hinstance,
-	_In_ UINT string_id
+	_In_opt_ PVOID hinst,
+	_In_ ULONG string_id
 )
 {
 	PR_STRING string;
-	LPWSTR buffer;
-	ULONG return_length;
+	LPWSTR buffer = NULL;
+	USHORT return_length;
 
-	buffer = NULL;
-
-	return_length = LoadString (hinstance, string_id, (LPWSTR)&buffer, 0);
+	return_length = LoadString (hinst, string_id, (LPWSTR)&buffer, 0);
 
 	if (!return_length)
 		return NULL;

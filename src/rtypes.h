@@ -131,7 +131,7 @@ typedef struct _R_ERROR_INFO
 {
 	LPCWSTR description;
 	PEXCEPTION_POINTERS exception_ptr;
-	HINSTANCE hinst;
+	PVOID hinst;
 } R_ERROR_INFO, *PR_ERROR_INFO;
 
 //

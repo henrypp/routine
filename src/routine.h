@@ -230,13 +230,13 @@ VOID _r_debug (
 
 VOID _r_error_initialize (
 	_Out_ PR_ERROR_INFO error_info,
-	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ PVOID hinst,
 	_In_opt_ LPCWSTR description
 );
 
 VOID _r_error_initialize_ex (
 	_Out_ PR_ERROR_INFO error_info,
-	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ PVOID hinst,
 	_In_opt_ LPCWSTR description,
 	_In_opt_ PEXCEPTION_POINTERS exception_ptr
 );
@@ -1894,9 +1894,10 @@ PR_STRING _r_path_getextensionstring (
 	_In_ PR_STRINGREF path
 );
 
-_Ret_maybenull_
-PR_STRING _r_path_getfullpath (
-	_In_ LPCWSTR path
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_path_getfullpath (
+	_In_ LPCWSTR filename,
+	_Outptr_ PR_STRING_PTR out_buffer
 );
 
 _Success_ (SUCCEEDED (return))
@@ -1929,19 +1930,22 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 	_Out_opt_ PR_STRING_PTR full_file_name
 );
 
-_Ret_maybenull_
-PR_STRING _r_path_resolvedeviceprefix (
-	_In_ PR_STRING path
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_path_resolvedeviceprefix (
+	_In_ PR_STRING path,
+	_Outptr_result_maybenull_ PR_STRING_PTR out_buffer
 );
 
-_Ret_maybenull_
-PR_STRING _r_path_resolvedeviceprefix_workaround (
-	_In_ PR_STRING path
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_path_resolvedeviceprefix_workaround (
+	_In_ PR_STRING path,
+	_Outptr_result_maybenull_ PR_STRING_PTR out_buffer
 );
 
-_Ret_maybenull_
-PR_STRING _r_path_resolvenetworkprefix (
-	_In_ PR_STRING path
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_path_resolvenetworkprefix (
+	_In_ PR_STRING path,
+	_Outptr_result_maybenull_ PR_STRING_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2477,12 +2481,12 @@ BOOLEAN _r_sys_iswine ();
 
 BOOLEAN _r_sys_iswow64 ();
 
-_Success_ (return == ERROR_SUCCESS)
-ULONG _r_sys_formatmessage (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_formatmessage (
 	_In_ ULONG error_code,
-	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ PVOID hinst,
 	_In_opt_ ULONG lang_id,
-	_Out_ PR_STRING_PTR out_buffer
+	_Outptr_ PR_STRING_PTR out_buffer
 );
 
 R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ();
@@ -2492,6 +2496,12 @@ ULONG _r_sys_getlocaleinfo (
 	_In_ LCID locale_id,
 	_In_ LCTYPE locale_type,
 	_Out_ PR_STRING_PTR out_buffer
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_getmodulehandle (
+	_In_ LPCWSTR name,
+	_Out_ PVOID_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2641,7 +2651,7 @@ NTSTATUS _r_sys_createthread (
 
 _Success_ (SUCCEEDED (return))
 HRESULT _r_sys_loadicon (
-	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ PVOID hinst,
 	_In_ LPCWSTR icon_name,
 	_In_ LONG icon_size,
 	_Outptr_ HICON_PTR out_buffer
@@ -2649,7 +2659,7 @@ HRESULT _r_sys_loadicon (
 
 _Ret_maybenull_
 HICON _r_sys_loadsharedicon (
-	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ PVOID hinst,
 	_In_ LPCWSTR icon_name,
 	_In_ LONG icon_size
 );
@@ -3541,7 +3551,7 @@ FORCEINLINE LONG _r_math_createguid (
 //
 
 BOOLEAN _r_res_loadresource (
-	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ PVOID hinst,
 	_In_ LPCWSTR name,
 	_In_ LPCWSTR type,
 	_Out_ PR_BYTEREF out_buffer
@@ -3549,8 +3559,8 @@ BOOLEAN _r_res_loadresource (
 
 _Ret_maybenull_
 PR_STRING _r_res_loadstring (
-	_In_opt_ HINSTANCE hinstance,
-	_In_ UINT string_id
+	_In_opt_ PVOID hinst,
+	_In_ ULONG string_id
 );
 
 _Ret_maybenull_
