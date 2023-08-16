@@ -2461,6 +2461,20 @@ LdrGetDllFullName (
 	_Out_ PUNICODE_STRING FullDllName
 );
 
+#define LDR_GET_DLL_HANDLE_EX_UNCHANGED_REFCOUNT 0x00000001
+#define LDR_GET_DLL_HANDLE_EX_PIN 0x00000002
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+LdrGetDllHandleEx (
+	_In_ ULONG Flags,
+	_In_opt_ PWSTR DllPath,
+	_In_opt_ PULONG DllCharacteristics,
+	_In_ PUNICODE_STRING DllName,
+	_Out_ PVOID *DllHandle
+);
+
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -2478,6 +2492,14 @@ GetStagedPackagePathByFullName (
 	_In_ PCWSTR packageFullName,
 	_Inout_ UINT32 *pathLength,
 	_Out_opt_ PWSTR  path
+);
+
+NTSYSCALLAPI
+NTSTATUS
+WINAPI
+NtQueryDefaultLocale (
+	_In_ BOOLEAN UserProfile,
+	_Inout_ PLCID DefaultLocaleId
 );
 
 NTSYSCALLAPI
@@ -2669,6 +2691,17 @@ RtlSetHeapInformation (
 	_In_ HEAP_INFORMATION_CLASS HeapInformationClass,
 	_In_opt_ PVOID HeapInformation,
 	_In_opt_ SIZE_T HeapInformationLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlFindMessage (
+	_In_ PVOID DllHandle,
+	_In_ ULONG MessageTableId,
+	_In_ ULONG MessageLanguageId,
+	_In_ ULONG MessageId,
+	_Out_ PMESSAGE_RESOURCE_ENTRY *MessageEntry
 );
 
 NTSYSCALLAPI
