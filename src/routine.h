@@ -1952,7 +1952,7 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_search (
 	_In_ LPCWSTR filename,
 	_In_opt_ LPCWSTR extension,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Outptr_result_maybenull_ PR_STRING_PTR out_buffer
 );
 
 PR_STRING _r_path_dospathfromnt (
@@ -1962,7 +1962,7 @@ PR_STRING _r_path_dospathfromnt (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_ntpathfromdos (
 	_In_ PR_STRING path,
-	_Out_ PR_STRING_PTR out_buffer
+	_Outptr_ PR_STRING_PTR out_buffer
 );
 
 //
@@ -2101,7 +2101,7 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_fromguid (
 	_In_ LPCGUID guid,
 	_In_ BOOLEAN is_uppercase,
-	_Out_ PR_STRING_PTR out_buffer
+	_Outptr_ PR_STRING_PTR out_buffer
 );
 
 PR_STRING _r_str_fromhex (
@@ -2120,7 +2120,7 @@ ULONG _r_str_fromsecuritydescriptor (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_fromsid (
 	_In_ PSID sid,
-	_Out_ PR_STRING_PTR out_buffer
+	_Outptr_ PR_STRING_PTR out_buffer
 );
 
 VOID _r_str_generaterandom (
@@ -2267,7 +2267,7 @@ BOOLEAN _r_str_splitatlastchar (
 	_Out_ PR_STRINGREF second_part
 );
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_toguid (
 	_In_ PR_STRINGREF string,
 	_Out_ LPGUID guid
@@ -2423,6 +2423,12 @@ ULONG _r_str_x65599 (
 // Performance
 //
 
+LONG64 _r_perf_getexecutionstart ();
+
+DOUBLE _r_perf_getexecutionfinal (
+	_In_ LONG64 start_time
+);
+
 FORCEINLINE LONG64 _r_perf_querycounter ()
 {
 	LARGE_INTEGER counter = {0};
@@ -2444,12 +2450,6 @@ FORCEINLINE LONG64 _r_perf_queryfrequency ()
 
 	return frequency.QuadPart;
 };
-
-LONG64 _r_perf_getexecutionstart ();
-
-DOUBLE _r_perf_getexecutionfinal (
-	_In_ LONG64 start_time
-);
 
 //
 // System information
@@ -2484,12 +2484,12 @@ BOOLEAN _r_sys_iswow64 ();
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_formatmessage (
 	_In_ ULONG error_code,
-	_In_opt_ PVOID hinst,
+	_In_ PVOID hinst,
 	_In_opt_ ULONG lang_id,
 	_Outptr_ PR_STRING_PTR out_buffer
 );
 
-R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ();
+PR_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ();
 
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_sys_getlocaleinfo (
@@ -2841,15 +2841,10 @@ VOID _r_dc_fillrect (
 	_In_ COLORREF clr
 );
 
-VOID _r_dc_fixcontrolfont (
+VOID _r_dc_fixfont (
 	_In_ HDC hdc,
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
-);
-
-VOID _r_dc_fixwindowfont (
-	_In_ HDC hdc,
-	_In_ HWND hwnd
+	_In_opt_ INT ctrl_id
 );
 
 LONG _r_dc_fontheighttosize (

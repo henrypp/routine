@@ -4214,12 +4214,14 @@ NTSTATUS _r_fs_createfile (
 	HANDLE hfile;
 	NTSTATUS status;
 
-	*out_buffer = NULL;
-
 	status = RtlDosPathNameToNtPathName_U_WithStatus (path, &nt_path, NULL, NULL);
 
 	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
 		return status;
+	}
 
 	InitializeObjectAttributes (&oa, &nt_path, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
@@ -4242,7 +4244,13 @@ NTSTATUS _r_fs_createfile (
 	);
 
 	if (NT_SUCCESS (status))
+	{
 		*out_buffer = hfile;
+	}
+	else
+	{
+		*out_buffer = NULL;
+	}
 
 	RtlFreeUnicodeString (&nt_path);
 
@@ -4716,19 +4724,25 @@ NTSTATUS _r_fs_readfile (
 	LARGE_INTEGER file_size;
 	IO_STATUS_BLOCK isb;
 	PR_BYTE buffer;
-	PVOID memory;
+	PVOID pmemory;
 	SIZE_T length = 0;
 	NTSTATUS status;
-
-	*out_buffer = NULL;
 
 	status = _r_fs_getsize (hfile, &file_size);
 
 	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
 		return status;
+	}
 
 	if (!file_size.QuadPart || file_size.QuadPart > PR_SIZE_BUFFER_OVERFLOW)
+	{
+		*out_buffer = NULL;
+
 		return STATUS_INSUFFICIENT_RESOURCES;
+	}
 
 #if defined(_WIN64)
 	buffer = _r_obj_createbyte_ex (NULL, file_size.QuadPart);
@@ -4736,11 +4750,11 @@ NTSTATUS _r_fs_readfile (
 	buffer = _r_obj_createbyte_ex (NULL, (ULONG)file_size.LowPart);
 #endif // _WIN64
 
-	memory = _r_mem_allocate (0x4000);
+	pmemory = _r_mem_allocate (0x4000);
 
 	while (TRUE)
 	{
-		status = NtReadFile (hfile, NULL, NULL, NULL, &isb, memory, 0x4000, NULL, NULL);
+		status = NtReadFile (hfile, NULL, NULL, NULL, &isb, pmemory, 0x4000, NULL, NULL);
 
 		if (status == STATUS_END_OF_FILE)
 		{
@@ -4750,26 +4764,31 @@ NTSTATUS _r_fs_readfile (
 		}
 
 		if (!NT_SUCCESS (status))
-		{
-			_r_mem_free (buffer);
-			_r_mem_free (memory);
-
-			return status;
-		}
+			break;
 
 		if (!isb.Information)
 			break;
 
-		RtlCopyMemory (PTR_ADD_OFFSET (buffer->buffer, length), memory, isb.Information);
+		RtlCopyMemory (PTR_ADD_OFFSET (buffer->buffer, length), pmemory, isb.Information);
 
 		length += isb.Information;
 	}
 
-	_r_obj_setbytelength (buffer, length);
+	if (NT_SUCCESS (status))
+	{
+		_r_obj_setbytelength (buffer, length);
 
-	_r_mem_free (memory);
+		_r_mem_free (pmemory);
 
-	*out_buffer = buffer;
+		*out_buffer = buffer;
+	}
+	else
+	{
+		_r_mem_free (pmemory);
+		_r_mem_free (buffer);
+
+		*out_buffer = NULL;
+	}
 
 	return status;
 }
@@ -5165,7 +5184,7 @@ BOOLEAN _r_path_issecurelocation (
 	}
 	else
 	{
-		current_user_sid = _r_sys_getcurrenttoken ().token_sid;
+		current_user_sid = _r_sys_getcurrenttoken ()->token_sid;
 
 		for (WORD ace_index = 0; ace_index < dacl->AceCount; ace_index++)
 		{
@@ -5390,7 +5409,8 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 			}
 			else
 			{
-				_r_obj_dereference (file_path_sr);
+				if (file_path_sr)
+					_r_obj_dereference (file_path_sr);
 			}
 
 			_r_mem_free (temp.buffer);
@@ -5417,7 +5437,12 @@ NTSTATUS _r_path_resolvedeviceprefix (
 	_Outptr_result_maybenull_ PR_STRING_PTR out_buffer
 )
 {
-	// device name prefixes
+#if defined(_WIN64)
+	PROCESS_DEVICEMAP_INFORMATION_EX device_map = {0};
+#else
+	PROCESS_DEVICEMAP_INFORMATION device_map = {0};
+#endif // !_WIN64
+
 	OBJECT_ATTRIBUTES oa = {0};
 	UNICODE_STRING device_name;
 	UNICODE_STRING device_prefix;
@@ -5427,91 +5452,92 @@ NTSTATUS _r_path_resolvedeviceprefix (
 	PR_STRING string;
 	HANDLE link_handle;
 	SIZE_T prefix_length;
+	ULONG flags;
 	NTSTATUS status;
 
-#if defined(_WIN64)
-	PROCESS_DEVICEMAP_INFORMATION_EX device_map = {0};
-#else
-	PROCESS_DEVICEMAP_INFORMATION device_map = {0};
-#endif // !_WIN64
-
-	*out_buffer = NULL;
+	flags = OBJ_CASE_INSENSITIVE | (_r_sys_isosversiongreaterorequal (WINDOWS_10) ? OBJ_DONT_REPARSE : 0);
 
 	status = NtQueryInformationProcess (NtCurrentProcess (), ProcessDeviceMap, &device_map, sizeof (device_map), NULL);
 
-	if (NT_SUCCESS (status))
+	if (!NT_SUCCESS (status))
 	{
-		for (ULONG i = 0; i < PR_DEVICE_COUNT; i++)
+		*out_buffer = NULL;
+
+		return status;
+	}
+
+	for (ULONG i = 0; i < PR_DEVICE_COUNT; i++)
+	{
+		if (device_map.Query.DriveMap)
 		{
-			if (device_map.Query.DriveMap)
-			{
-				if (!(device_map.Query.DriveMap & (0x01 << i)))
-					continue;
-			}
+			if (!(device_map.Query.DriveMap & (0x01 << i)))
+				continue;
+		}
 
-			device_name_buffer[4] = L'A' + (WCHAR)i;
+		device_name_buffer[4] = L'A' + (WCHAR)i;
 
+		_r_obj_initializeunicodestring_ex (
+			&device_name,
+			device_name_buffer,
+			(RTL_NUMBER_OF (device_name_buffer) - 1) * sizeof (WCHAR),
+			RTL_NUMBER_OF (device_name_buffer) * sizeof (WCHAR)
+		);
+
+		InitializeObjectAttributes (&oa, &device_name, flags, NULL, NULL);
+
+		status = NtOpenSymbolicLinkObject (&link_handle, SYMBOLIC_LINK_QUERY, &oa);
+
+		if (NT_SUCCESS (status))
+		{
 			_r_obj_initializeunicodestring_ex (
-				&device_name,
-				device_name_buffer,
-				(RTL_NUMBER_OF (device_name_buffer) - 1) * sizeof (WCHAR),
-				RTL_NUMBER_OF (device_name_buffer) * sizeof (WCHAR)
+				&device_prefix,
+				device_prefix_buffer,
+				0,
+				RTL_NUMBER_OF (device_prefix_buffer) * sizeof (WCHAR)
 			);
 
-			InitializeObjectAttributes (
-				&oa,
-				&device_name,
-				OBJ_CASE_INSENSITIVE | (_r_sys_isosversiongreaterorequal (WINDOWS_10) ? OBJ_DONT_REPARSE : 0),
-				NULL,
-				NULL
-			);
-
-			status = NtOpenSymbolicLinkObject (&link_handle, SYMBOLIC_LINK_QUERY, &oa);
+			status = NtQuerySymbolicLinkObject (link_handle, &device_prefix, NULL);
 
 			if (NT_SUCCESS (status))
 			{
-				_r_obj_initializeunicodestring_ex (
-					&device_prefix,
-					device_prefix_buffer,
-					0,
-					RTL_NUMBER_OF (device_prefix_buffer) * sizeof (WCHAR)
-				);
+				_r_obj_initializestringref4 (&device_prefix_sr, &device_prefix);
 
-				status = NtQuerySymbolicLinkObject (link_handle, &device_prefix, NULL);
-
-				if (NT_SUCCESS (status))
+				if (_r_str_isstartswith (&path->sr, &device_prefix_sr, TRUE))
 				{
-					_r_obj_initializestringref4 (&device_prefix_sr, &device_prefix);
+					prefix_length = _r_str_getlength4 (&device_prefix);
 
-					if (_r_str_isstartswith (&path->sr, &device_prefix_sr, TRUE))
+					// To ensure we match the longest prefix, make sure the next character is a
+					// backslash or the path is equal to the prefix.
+					if (path->length == device_prefix.Length || path->buffer[prefix_length] == OBJ_NAME_PATH_SEPARATOR)
 					{
-						prefix_length = _r_str_getlength4 (&device_prefix);
+						// <letter>:path
+						string = _r_obj_createstring_ex (NULL, (2 * sizeof (WCHAR)) + path->length - device_prefix.Length);
 
-						// To ensure we match the longest prefix, make sure the next character is a
-						// backslash or the path is equal to the prefix.
-						if (path->length == device_prefix.Length || path->buffer[prefix_length] == OBJ_NAME_PATH_SEPARATOR)
-						{
-							// <letter>:path
-							string = _r_obj_createstring_ex (NULL, (2 * sizeof (WCHAR)) + path->length - device_prefix.Length);
+						string->buffer[0] = L'A' + (WCHAR)i;
+						string->buffer[1] = L':';
 
-							string->buffer[0] = L'A' + (WCHAR)i;
-							string->buffer[1] = L':';
+						RtlCopyMemory (&string->buffer[2], &path->buffer[prefix_length], path->length - device_prefix.Length);
 
-							RtlCopyMemory (&string->buffer[2], &path->buffer[prefix_length], path->length - device_prefix.Length);
+						_r_obj_trimstringtonullterminator (string);
 
-							_r_obj_trimstringtonullterminator (string);
+						*out_buffer = string;
 
-							*out_buffer = string;
-						}
-						else
-						{
-							status = STATUS_OBJECT_NAME_NOT_FOUND;
-						}
+						break;
+					}
+					else
+					{
+						status = STATUS_OBJECT_NAME_NOT_FOUND;
+
+						*out_buffer = NULL;
 					}
 				}
-
-				NtClose (link_handle);
 			}
+			else
+			{
+				*out_buffer = NULL;
+			}
+
+			NtClose (link_handle);
 		}
 	}
 
@@ -5538,12 +5564,13 @@ NTSTATUS _r_path_resolvedeviceprefix_workaround (
 	HANDLE link_handle;
 	HANDLE directory_handle;
 	SIZE_T prefix_length;
-	ULONG query_context;
+	ULONG query_context = 0;
 	POBJECT_DIRECTORY_INFORMATION directory_entry;
 	POBJECT_DIRECTORY_INFORMATION directory_info;
 	ULONG i;
 	ULONG buffer_size;
-	BOOLEAN is_firsttime;
+	ULONG flags;
+	BOOLEAN is_firsttime = TRUE;
 	NTSTATUS status;
 
 	*out_buffer = NULL;
@@ -5554,126 +5581,118 @@ NTSTATUS _r_path_resolvedeviceprefix_workaround (
 
 	status = NtOpenDirectoryObject (&directory_handle, DIRECTORY_QUERY, &oa);
 
-	if (NT_SUCCESS (status))
+	if (!NT_SUCCESS (status))
+		return status;
+
+	flags = OBJ_CASE_INSENSITIVE | (_r_sys_isosversiongreaterorequal (WINDOWS_10) ? OBJ_DONT_REPARSE : 0);
+
+	buffer_size = sizeof (OBJECT_DIRECTORY_INFORMATION) + (MAX_PATH * sizeof (WCHAR));
+	directory_entry = _r_mem_allocate (buffer_size);
+
+	while (TRUE)
 	{
-		buffer_size = sizeof (OBJECT_DIRECTORY_INFORMATION) + (MAX_PATH * sizeof (WCHAR));
-		directory_entry = _r_mem_allocate (buffer_size);
-
-		is_firsttime = TRUE;
-		query_context = 0;
-
 		while (TRUE)
 		{
-			while (TRUE)
-			{
-				status = NtQueryDirectoryObject (directory_handle, directory_entry, buffer_size, FALSE, is_firsttime, &query_context, NULL);
-
-				if (status != STATUS_MORE_ENTRIES)
-					break;
-
-				// Check if we have at least one entry. If not, we'll double the buffer size and try again.
-				if (directory_entry[0].Name.Buffer)
-					break;
-
-				// Make sure we don't use too much memory.
-				if (buffer_size > PR_SIZE_BUFFER_OVERFLOW)
-				{
-					status = STATUS_INSUFFICIENT_RESOURCES;
-
-					break;
-				}
-
-				buffer_size *= 2;
-
-				directory_entry = _r_mem_reallocate (directory_entry, buffer_size);
-			}
-
-			if (!NT_SUCCESS (status))
-				break;
-
-			i = 0;
-
-			while (TRUE)
-			{
-				directory_info = &directory_entry[i];
-
-				if (!directory_info->Name.Buffer)
-					break;
-
-				if (directory_info->Name.Length == (2 * sizeof (WCHAR)) && directory_info->Name.Buffer[1] == L':')
-				{
-					InitializeObjectAttributes (
-						&oa,
-						&directory_info->Name,
-						OBJ_CASE_INSENSITIVE | (_r_sys_isosversiongreaterorequal (WINDOWS_10) ? OBJ_DONT_REPARSE : 0),
-						directory_handle,
-						NULL
-					);
-
-					status = NtOpenSymbolicLinkObject (&link_handle, SYMBOLIC_LINK_QUERY, &oa);
-
-					if (NT_SUCCESS (status))
-					{
-						_r_obj_initializeunicodestring_ex (
-							&device_prefix,
-							device_prefix_buffer,
-							0,
-							RTL_NUMBER_OF (device_prefix_buffer) * sizeof (WCHAR)
-						);
-
-						status = NtQuerySymbolicLinkObject (link_handle, &device_prefix, NULL);
-
-						if (NT_SUCCESS (status))
-						{
-							_r_obj_initializestringref4 (&device_prefix_sr, &device_prefix);
-
-							if (_r_str_isstartswith (&path->sr, &device_prefix_sr, TRUE))
-							{
-								prefix_length = _r_str_getlength4 (&device_prefix);
-
-								// To ensure we match the longest prefix, make sure the next character is a
-								// backslash or the path is equal to the prefix.
-								if (path->length == device_prefix.Length || path->buffer[prefix_length] == OBJ_NAME_PATH_SEPARATOR)
-								{
-									// <letter>:path
-									string = _r_obj_createstring_ex (NULL, (2 * sizeof (WCHAR)) + path->length - device_prefix.Length);
-
-									string->buffer[0] = directory_info->Name.Buffer[0];
-									string->buffer[1] = L':';
-
-									RtlCopyMemory (&string->buffer[2], &path->buffer[prefix_length], path->length - device_prefix.Length);
-
-									_r_obj_trimstringtonullterminator (string);
-
-									_r_mem_free (directory_entry);
-
-									*out_buffer = string;
-								}
-							}
-							else
-							{
-								status = STATUS_OBJECT_NAME_NOT_FOUND;
-							}
-						}
-
-						NtClose (link_handle);
-					}
-				}
-
-				i += 1;
-			}
+			status = NtQueryDirectoryObject (directory_handle, directory_entry, buffer_size, FALSE, is_firsttime, &query_context, NULL);
 
 			if (status != STATUS_MORE_ENTRIES)
 				break;
 
-			is_firsttime = FALSE;
+			// Check if we have at least one entry. If not, we'll double the buffer size and try again.
+			if (directory_entry[0].Name.Buffer)
+				break;
+
+			buffer_size *= 2;
+
+			// Make sure we don't use too much memory.
+			if (buffer_size > PR_SIZE_BUFFER_OVERFLOW)
+			{
+				status = STATUS_INSUFFICIENT_RESOURCES;
+
+				break;
+			}
+
+			directory_entry = _r_mem_reallocate (directory_entry, buffer_size);
 		}
 
-		if (directory_entry)
-			_r_mem_free (directory_entry);
+		if (!NT_SUCCESS (status))
+			break;
 
-		NtClose (directory_handle);
+		i = 0;
+
+		while (TRUE)
+		{
+			directory_info = &directory_entry[i];
+
+			if (!directory_info->Name.Buffer)
+				break;
+
+			if (directory_info->Name.Length == (2 * sizeof (WCHAR)) && directory_info->Name.Buffer[1] == L':')
+			{
+				InitializeObjectAttributes (&oa, &directory_info->Name, flags, directory_handle, NULL);
+
+				status = NtOpenSymbolicLinkObject (&link_handle, SYMBOLIC_LINK_QUERY, &oa);
+
+				if (NT_SUCCESS (status))
+				{
+					_r_obj_initializeunicodestring_ex (&device_prefix, device_prefix_buffer, 0, RTL_NUMBER_OF (device_prefix_buffer) * sizeof (WCHAR));
+
+					status = NtQuerySymbolicLinkObject (link_handle, &device_prefix, NULL);
+
+					if (NT_SUCCESS (status))
+					{
+						_r_obj_initializestringref4 (&device_prefix_sr, &device_prefix);
+
+						if (_r_str_isstartswith (&path->sr, &device_prefix_sr, TRUE))
+						{
+							prefix_length = _r_str_getlength4 (&device_prefix);
+
+							// To ensure we match the longest prefix, make sure the next character is a
+							// backslash or the path is equal to the prefix.
+							if (path->length == device_prefix.Length || path->buffer[prefix_length] == OBJ_NAME_PATH_SEPARATOR)
+							{
+								// <letter>:path
+								string = _r_obj_createstring_ex (NULL, (2 * sizeof (WCHAR)) + path->length - device_prefix.Length);
+
+								string->buffer[0] = directory_info->Name.Buffer[0];
+								string->buffer[1] = L':';
+
+								RtlCopyMemory (&string->buffer[2], &path->buffer[prefix_length], path->length - device_prefix.Length);
+
+								_r_obj_trimstringtonullterminator (string);
+
+								_r_mem_free (directory_entry);
+
+								NtClose (link_handle);
+
+								*out_buffer = string;
+
+								break;
+							}
+						}
+						else
+						{
+							status = STATUS_OBJECT_NAME_NOT_FOUND;
+						}
+					}
+
+					NtClose (link_handle);
+				}
+			}
+
+			i += 1;
+		}
+
+		if (status != STATUS_MORE_ENTRIES)
+			break;
+
+		is_firsttime = FALSE;
 	}
+
+	if (directory_entry)
+		_r_mem_free (directory_entry);
+
+	NtClose (directory_handle);
 
 	return status;
 }
@@ -5753,11 +5772,15 @@ NTSTATUS _r_path_resolvenetworkprefix (
 
 								_r_obj_trimstringtonullterminator (string);
 
+								_r_obj_dereference (device_name_string);
 								_r_obj_dereference (provider_order);
 								_r_obj_dereference (service_key);
-								_r_obj_dereference (device_name_string);
+
+								NtClose (hsvckey);
 
 								*out_buffer = string;
+
+								break;
 							}
 						}
 						else
@@ -5787,7 +5810,7 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_search (
 	_In_ LPCWSTR filename,
 	_In_opt_ LPCWSTR extension,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Outptr_result_maybenull_ PR_STRING_PTR out_buffer
 )
 {
 	UNICODE_STRING path_us;
@@ -5800,6 +5823,13 @@ NTSTATUS _r_path_search (
 	NTSTATUS status;
 
 	status = RtlGetSearchPath (&path);
+
+	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
+		return status;
+	}
 
 	_r_obj_initializeunicodestring (&path_us, path);
 	_r_obj_initializeunicodestring (&filename_us, filename);
@@ -5985,7 +6015,7 @@ PR_STRING _r_path_dospathfromnt (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_ntpathfromdos (
 	_In_ PR_STRING path,
-	_Out_ PR_STRING_PTR out_buffer
+	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
 	POBJECT_NAME_INFORMATION obj_name_info;
@@ -5994,8 +6024,6 @@ NTSTATUS _r_path_ntpathfromdos (
 	ULONG buffer_size;
 	ULONG attempts;
 	NTSTATUS status;
-
-	*out_buffer = NULL;
 
 	status = _r_fs_createfile (
 		path->buffer,
@@ -6010,7 +6038,11 @@ NTSTATUS _r_path_ntpathfromdos (
 	);
 
 	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
 		return status;
+	}
 
 	buffer_size = sizeof (OBJECT_NAME_INFORMATION) + (MAX_PATH * sizeof (WCHAR));
 	obj_name_info = _r_mem_allocate (buffer_size);
@@ -6047,6 +6079,10 @@ NTSTATUS _r_path_ntpathfromdos (
 
 		*out_buffer = string;
 	}
+	else
+	{
+		*out_buffer = NULL;
+	}
 
 	_r_mem_free (obj_name_info);
 
@@ -6074,9 +6110,6 @@ VOID _r_shell_showfile (
 		status = SHOpenFolderAndSelectItems (item, 0, NULL, 0);
 
 		CoTaskMemFree (item);
-
-		if (SUCCEEDED (status))
-			return;
 	}
 }
 
@@ -6466,14 +6499,12 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_fromguid (
 	_In_ LPCGUID guid,
 	_In_ BOOLEAN is_uppercase,
-	_Out_ PR_STRING_PTR out_buffer
+	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
 	UNICODE_STRING us;
 	PR_STRING string;
 	NTSTATUS status;
-
-	*out_buffer = NULL;
 
 	status = RtlStringFromGUID ((LPGUID)guid, &us);
 
@@ -6487,6 +6518,10 @@ NTSTATUS _r_str_fromguid (
 		*out_buffer = string;
 
 		RtlFreeUnicodeString (&us);
+	}
+	else
+	{
+		*out_buffer = NULL;
 	}
 
 	return status;
@@ -6544,12 +6579,14 @@ ULONG _r_str_fromsecuritydescriptor (
 	ULONG length;
 	BOOL result;
 
-	*out_buffer = NULL;
-
 	result = ConvertSecurityDescriptorToStringSecurityDescriptor (security_descriptor, SDDL_REVISION, security_information, &security_string, &length);
 
 	if (!result)
+	{
+		*out_buffer = NULL;
+
 		return GetLastError ();
+	}
 
 	string = _r_obj_createstring_ex (security_string, length * sizeof (WCHAR));
 
@@ -6563,14 +6600,12 @@ ULONG _r_str_fromsecuritydescriptor (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_fromsid (
 	_In_ PSID sid,
-	_Out_ PR_STRING_PTR out_buffer
+	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
 	UNICODE_STRING us;
 	PR_STRING string;
 	NTSTATUS status;
-
-	*out_buffer = NULL;
 
 	string = _r_obj_createstring_ex (NULL, SECURITY_MAX_SID_STRING_CHARACTERS * sizeof (WCHAR));
 
@@ -6578,7 +6613,7 @@ NTSTATUS _r_str_fromsid (
 
 	status = RtlConvertSidToUnicodeString (&us, sid, FALSE);
 
-	if (status == STATUS_SUCCESS)
+	if (NT_SUCCESS (status))
 	{
 		_r_obj_setstringlength (string, us.Length); // terminate
 
@@ -6587,6 +6622,8 @@ NTSTATUS _r_str_fromsid (
 	else
 	{
 		_r_obj_dereference (string);
+
+		*out_buffer = NULL;
 	}
 
 	return status;
@@ -7094,6 +7131,7 @@ BOOLEAN _r_str_splitatchar (
 )
 {
 	R_STRINGREF input;
+	LPWSTR buffer;
 	SIZE_T index;
 
 	input = *string;
@@ -7109,11 +7147,9 @@ BOOLEAN _r_str_splitatchar (
 
 	_r_obj_initializestringref_ex (first_part, input.buffer, index * sizeof (WCHAR));
 
-	_r_obj_initializestringref_ex (
-		second_part,
-		PTR_ADD_OFFSET (input.buffer, index * sizeof (WCHAR) + sizeof (UNICODE_NULL)),
-		input.length - index * sizeof (WCHAR) - sizeof (UNICODE_NULL)
-	);
+	buffer = PTR_ADD_OFFSET (input.buffer, index * sizeof (WCHAR) + sizeof (UNICODE_NULL));
+
+	_r_obj_initializestringref_ex (second_part, buffer, input.length - index * sizeof (WCHAR) - sizeof (UNICODE_NULL));
 
 	return TRUE;
 }
@@ -7126,6 +7162,7 @@ BOOLEAN _r_str_splitatlastchar (
 )
 {
 	R_STRINGREF input;
+	LPWSTR buffer;
 	SIZE_T index;
 
 	input = *string;
@@ -7141,16 +7178,14 @@ BOOLEAN _r_str_splitatlastchar (
 
 	_r_obj_initializestringref_ex (first_part, input.buffer, index * sizeof (WCHAR));
 
-	_r_obj_initializestringref_ex (
-		second_part,
-		PTR_ADD_OFFSET (input.buffer, index * sizeof (WCHAR) + sizeof (UNICODE_NULL)),
-		input.length - index * sizeof (WCHAR) - sizeof (UNICODE_NULL)
-	);
+	buffer = PTR_ADD_OFFSET (input.buffer, index * sizeof (WCHAR) + sizeof (UNICODE_NULL));
+
+	_r_obj_initializestringref_ex (second_part, buffer, input.length - index * sizeof (WCHAR) - sizeof (UNICODE_NULL));
 
 	return TRUE;
 }
 
-_Success_ (return == STATUS_SUCCESS)
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_toguid (
 	_In_ PR_STRINGREF string,
 	_Out_ LPGUID guid
@@ -7398,7 +7433,7 @@ BOOLEAN _r_str_touinteger64 (
 	};
 
 	LPWSTR buffer;
-	ULONG64 result;
+	ULONG64 result = 0;
 	SIZE_T length;
 	ULONG value;
 	BOOLEAN is_valid;
@@ -7406,7 +7441,6 @@ BOOLEAN _r_str_touinteger64 (
 	buffer = string->buffer;
 	length = _r_str_getlength3 (string);
 
-	result = 0;
 	is_valid = TRUE;
 
 	if (length)
@@ -7653,12 +7687,14 @@ NTSTATUS _r_str_multibyte2unicode (
 	ULONG output_size;
 	NTSTATUS status;
 
-	*out_buffer = NULL;
-
 	status = RtlMultiByteToUnicodeSize (&output_size, string->buffer, (ULONG)string->length);
 
 	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
 		return status;
+	}
 
 	out_string = _r_obj_createstring_ex (NULL, output_size);
 
@@ -7670,6 +7706,8 @@ NTSTATUS _r_str_multibyte2unicode (
 	}
 	else
 	{
+		*out_buffer = NULL;
+
 		_r_obj_dereference (out_string);
 	}
 
@@ -7686,12 +7724,14 @@ NTSTATUS _r_str_unicode2multibyte (
 	ULONG output_size;
 	NTSTATUS status;
 
-	*out_buffer = NULL;
-
 	status = RtlUnicodeToMultiByteSize (&output_size, string->buffer, (ULONG)string->length);
 
 	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
 		return status;
+	}
 
 	out_string = _r_obj_createbyte_ex (NULL, output_size);
 
@@ -7703,6 +7743,8 @@ NTSTATUS _r_str_unicode2multibyte (
 	}
 	else
 	{
+		*out_buffer = NULL;
+
 		_r_obj_dereference (out_string);
 	}
 
@@ -8149,7 +8191,7 @@ DOUBLE _r_perf_getexecutionfinal (
 
 BOOLEAN _r_sys_iselevated ()
 {
-	return !!_r_sys_getcurrenttoken ().is_elevated;
+	return !!_r_sys_getcurrenttoken ()->is_elevated;
 }
 
 BOOLEAN _r_sys_isosversionequal (
@@ -8237,7 +8279,7 @@ BOOLEAN _r_sys_iswow64 ()
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_formatmessage (
 	_In_ ULONG error_code,
-	_In_opt_ PVOID hinst,
+	_In_ PVOID hinst,
 	_In_opt_ ULONG lang_id,
 	_Outptr_ PR_STRING_PTR out_buffer
 )
@@ -8247,11 +8289,7 @@ NTSTATUS _r_sys_formatmessage (
 	PMESSAGE_RESOURCE_ENTRY entry;
 	PR_STRING string;
 	LCID locale_id = LOCALE_SYSTEM_DEFAULT;
-	ULONG allocated_length = 256;
-	ULONG attempts = 6;
 	NTSTATUS status;
-
-	string = _r_obj_createstring_ex (NULL, allocated_length * sizeof (WCHAR));
 
 	status = RtlFindMessage (hinst, 11, lang_id, error_code, &entry);
 
@@ -8282,7 +8320,7 @@ NTSTATUS _r_sys_formatmessage (
 	return status;
 }
 
-R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
+PR_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static R_TOKEN_ATTRIBUTES attributes = {0};
@@ -8320,7 +8358,7 @@ R_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
 		_r_initonce_end (&init_once);
 	}
 
-	return attributes;
+	return &attributes;
 }
 
 _Success_ (return == ERROR_SUCCESS)
@@ -8347,19 +8385,20 @@ ULONG _r_sys_getlocaleinfo (
 
 	return_length = GetLocaleInfo (locale_id, locale_type, string->buffer, return_length);
 
-	if (!return_length)
+	if (return_length)
+	{
+		*out_buffer = string;
+
+		status = ERROR_SUCCESS;
+
+	}
+	else
 	{
 		*out_buffer = NULL;
 
 		status = GetLastError ();
 
 		_r_obj_dereference (string);
-	}
-	else
-	{
-		*out_buffer = string;
-
-		status = ERROR_SUCCESS;
 	}
 
 	return status;
@@ -8652,12 +8691,14 @@ LONG _r_sys_getpackagepath (
 	UINT32 length = 0;
 	LONG status;
 
-	*out_buffer = NULL;
-
 	status = GetStagedPackagePathByFullName (package_full_name->buffer, &length, NULL);
 
 	if (status != ERROR_INSUFFICIENT_BUFFER)
+	{
+		*out_buffer = NULL;
+
 		return status;
+	}
 
 	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
@@ -8669,6 +8710,8 @@ LONG _r_sys_getpackagepath (
 	}
 	else
 	{
+		*out_buffer = NULL;
+
 		_r_obj_dereference (string);
 	}
 
@@ -8721,10 +8764,12 @@ ULONG _r_sys_getsessioninfo (
 	LPWSTR buffer;
 	ULONG length;
 
-	*out_buffer = NULL;
-
 	if (!WTSQuerySessionInformation (WTS_CURRENT_SERVER_HANDLE, WTS_CURRENT_SESSION, info_class, &buffer, &length))
+	{
+		*out_buffer = NULL;
+
 		return GetLastError ();
+	}
 
 	string = _r_obj_createstring_ex (buffer, length * sizeof (WCHAR));
 
@@ -8806,8 +8851,6 @@ NTSTATUS _r_sys_getusernamefromsid (
 	BOOLEAN is_hasname;
 	NTSTATUS status;
 
-	*out_buffer = NULL;
-
 	InitializeObjectAttributes (&oa, NULL, 0, NULL, NULL);
 
 	status = LsaOpenPolicy (NULL, &oa, POLICY_LOOKUP_NAMES, &policy_handle);
@@ -8823,6 +8866,7 @@ NTSTATUS _r_sys_getusernamefromsid (
 	if (names[0].Use == SidTypeInvalid || names[0].Use == SidTypeUnknown)
 	{
 		status = STATUS_SOME_NOT_MAPPED;
+
 		goto CleanupExit;
 	}
 
@@ -8855,6 +8899,8 @@ CleanupExit:
 	}
 	else
 	{
+		*out_buffer = NULL;
+
 		_r_obj_deletestringbuilder (&sb);
 	}
 
@@ -8875,13 +8921,11 @@ ULONG _r_sys_getwindowsversion ()
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static ULONG windows_version = 0;
 
-	RTL_OSVERSIONINFOEXW version_info;
+	RTL_OSVERSIONINFOEXW version_info = {0};
 	NTSTATUS status;
 
 	if (_r_initonce_begin (&init_once))
 	{
-		RtlZeroMemory (&version_info, sizeof (version_info));
-
 		version_info.dwOSVersionInfoSize = sizeof (version_info);
 
 		status = RtlGetVersion (&version_info);
@@ -9026,12 +9070,14 @@ NTSTATUS _r_sys_compressbuffer (
 	ULONG return_length;
 	NTSTATUS status;
 
-	*out_buffer = NULL;
-
 	status = RtlGetCompressionWorkSpaceSize (format, &ws_buffer_length, &ws_fragment_length);
 
 	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
 		return status;
+	}
 
 	ws_buffer = _r_mem_allocate (ws_buffer_length);
 
@@ -9049,6 +9095,8 @@ NTSTATUS _r_sys_compressbuffer (
 	}
 	else
 	{
+		*out_buffer = NULL;
+
 		_r_obj_dereference (tmp_buffer);
 	}
 
@@ -9070,12 +9118,14 @@ NTSTATUS _r_sys_decompressbuffer (
 	ULONG attempts;
 	NTSTATUS status;
 
-	*out_buffer = NULL;
-
 	allocation_length = (ULONG)(buffer->length) * 2;
 
 	if (allocation_length > PR_SIZE_BUFFER_OVERFLOW)
+	{
+		*out_buffer = NULL;
+
 		return STATUS_INSUFFICIENT_RESOURCES;
+	}
 
 	tmp_buffer = _r_obj_createbyte_ex (NULL, allocation_length);
 
@@ -9113,6 +9163,8 @@ NTSTATUS _r_sys_decompressbuffer (
 	}
 	else
 	{
+		*out_buffer = NULL;
+
 		_r_obj_dereference (tmp_buffer);
 	}
 
@@ -9127,8 +9179,6 @@ NTSTATUS _r_sys_enumprocesses (
 	PVOID buffer;
 	ULONG length;
 	NTSTATUS status;
-
-	*out_buffer = NULL;
 
 	length = 0x4000;
 	buffer = _r_mem_allocate (length);
@@ -9147,14 +9197,18 @@ NTSTATUS _r_sys_enumprocesses (
 		}
 	}
 
-	if (!NT_SUCCESS (status))
+	if (NT_SUCCESS (status))
 	{
-		_r_mem_free (buffer);
+		*out_buffer = buffer;
 
-		return status;
+	}
+	else
+	{
+		*out_buffer = NULL;
+
+		_r_mem_free (buffer);
 	}
 
-	*out_buffer = buffer;
 
 	return status;
 }
@@ -9205,8 +9259,6 @@ NTSTATUS _r_sys_getprocessimagepath (
 	PR_STRING path;
 	NTSTATUS status;
 
-	*out_buffer = NULL;
-
 	// On input, specify the PID and a buffer to hold the string.
 	data.ProcessId = hprocess;
 	data.ImageName.MaximumLength = 0x100;
@@ -9224,23 +9276,27 @@ NTSTATUS _r_sys_getprocessimagepath (
 	}
 	while (status == STATUS_INFO_LENGTH_MISMATCH);
 
-	if (!NT_SUCCESS (status))
-		return status;
-
-	path = _r_obj_createstring4 (&data.ImageName);
-
-	if (is_ntpathtodos)
+	if (NT_SUCCESS (status))
 	{
-		*out_buffer = _r_path_dospathfromnt (path);
+		path = _r_obj_createstring4 (&data.ImageName);
 
-		_r_obj_dereference (path);
+		if (is_ntpathtodos)
+		{
+			*out_buffer = _r_path_dospathfromnt (path);
+
+			_r_obj_dereference (path);
+		}
+		else
+		{
+			*out_buffer = path;
+		}
+
+		_r_mem_free (data.ImageName.Buffer);
 	}
 	else
 	{
-		*out_buffer = path;
+		*out_buffer = NULL;
 	}
-
-	_r_mem_free (data.ImageName.Buffer);
 
 	return status;
 }
@@ -9325,9 +9381,6 @@ NTSTATUS _r_sys_createprocess (
 		&NtCurrentPeb ()->ProcessParameters->RuntimeData
 	);
 
-	if (!NT_SUCCESS (status))
-		goto CleanupExit;
-
 	status = RtlCreateUserProcess (&filename_nt, OBJ_CASE_INSENSITIVE, upi, NULL, NULL, NULL, FALSE, NULL, NULL, &process_info);
 
 	if (NT_SUCCESS (status))
@@ -9368,7 +9421,6 @@ NTSTATUS _r_sys_openprocess (
 	InitializeObjectAttributes (&oa, NULL, 0, NULL, NULL);
 
 	client_id.UniqueProcess = process_id;
-	client_id.UniqueThread = NULL;
 
 	status = NtOpenProcess (process_handle, desired_access, &oa, &client_id);
 
@@ -9383,24 +9435,30 @@ NTSTATUS _r_sys_queryprocessstring (
 )
 {
 	PVOID buffer;
-	ULONG return_length;
+	ULONG return_length = 0;
 	NTSTATUS status;
-
-	*out_buffer = NULL;
-
-	return_length = 0;
 
 	status = NtQueryInformationProcess (process_handle, info_class, NULL, 0, &return_length);
 
 	if (status != STATUS_BUFFER_OVERFLOW && status != STATUS_BUFFER_TOO_SMALL && status != STATUS_INFO_LENGTH_MISMATCH)
+	{
+		*out_buffer = NULL;
+
 		return status;
+	}
 
 	buffer = _r_mem_allocate (return_length);
 
 	status = NtQueryInformationProcess (process_handle, info_class, buffer, return_length, &return_length);
 
 	if (NT_SUCCESS (status))
+	{
 		*out_buffer = _r_obj_createstring4 (buffer);
+	}
+	else
+	{
+		*out_buffer = NULL;
+	}
 
 	_r_mem_free (buffer);
 
@@ -10141,12 +10199,10 @@ HBITMAP _r_dc_bitmapfromicon (
 	HPAINTBUFFER hpaint_buffer;
 	HGDIOBJ old_bitmap;
 	PVOID memory_bits;
-	HBITMAP hbitmap;
+	HBITMAP hbitmap = NULL;
 	HDC buffer_hdc;
 	HDC screen_hdc;
 	HDC hdc;
-
-	hbitmap = NULL;
 
 	hdc = GetDC (NULL);
 
@@ -10232,6 +10288,7 @@ HICON _r_dc_bitmaptoicon (
 	if (!hmask)
 	{
 		ReleaseDC (NULL, hdc);
+
 		return NULL;
 	}
 
@@ -10351,28 +10408,22 @@ VOID _r_dc_fillrect (
 	SetBkColor (hdc, clr_prev);
 }
 
-VOID _r_dc_fixcontrolfont (
+VOID _r_dc_fixfont (
 	_In_ HDC hdc,
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	HFONT hfont;
 
-	hfont = (HFONT)SendDlgItemMessage (hwnd, ctrl_id, WM_GETFONT, 0, 0);
-
-	if (hfont)
-		SelectObject (hdc, hfont);
-}
-
-VOID _r_dc_fixwindowfont (
-	_In_ HDC hdc,
-	_In_ HWND hwnd
-)
-{
-	HFONT hfont;
-
-	hfont = (HFONT)SendMessage (hwnd, WM_GETFONT, 0, 0);
+	if (ctrl_id)
+	{
+		hfont = (HFONT)SendDlgItemMessage (hwnd, ctrl_id, WM_GETFONT, 0, 0);
+	}
+	else
+	{
+		hfont = (HFONT)SendMessage (hwnd, WM_GETFONT, 0, 0);
+	}
 
 	if (hfont)
 		SelectObject (hdc, hfont);
@@ -10581,7 +10632,7 @@ LONG _r_dc_getdpivalue (
 	if (_GetDpiForSystem)
 		return _GetDpiForSystem ();
 
-	// win8 and lower fallback
+	// fallback
 	hdc = GetDC (NULL);
 
 	if (hdc)
@@ -10864,6 +10915,7 @@ HBITMAP _r_dc_imagetobitmap (
 	if (!hdc)
 	{
 		status = E_FAIL;
+
 		goto CleanupExit;
 	}
 
@@ -10872,6 +10924,7 @@ HBITMAP _r_dc_imagetobitmap (
 	if (!hdc_buffer)
 	{
 		status = E_FAIL;
+
 		goto CleanupExit;
 	}
 
@@ -10880,6 +10933,7 @@ HBITMAP _r_dc_imagetobitmap (
 	if (!hbitmap)
 	{
 		status = E_FAIL;
+
 		goto CleanupExit;
 	}
 
@@ -12056,11 +12110,8 @@ BOOLEAN _r_wnd_isoverlapped (
 		if (!GetWindowRect (hwnd_current, &rect_current))
 			continue;
 
-		if (!(_r_wnd_getstyle_ex (hwnd_current) & WS_EX_TOPMOST) &&
-			IntersectRect (&rect_intersection, &rect_original, &rect_current))
-		{
+		if (!(_r_wnd_getstyle_ex (hwnd_current) & WS_EX_TOPMOST) && IntersectRect (&rect_intersection, &rect_original, &rect_current))
 			return TRUE;
-		}
 	}
 
 	return FALSE;
@@ -12464,13 +12515,7 @@ HINTERNET _r_inet_createsession (
 {
 	HINTERNET hsession;
 
-	hsession = WinHttpOpen (
-		_r_obj_getstring (useragent),
-		WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
-		WINHTTP_NO_PROXY_NAME,
-		WINHTTP_NO_PROXY_BYPASS,
-		0
-	);
+	hsession = WinHttpOpen (_r_obj_getstring (useragent), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
 
 	if (!hsession)
 		return NULL;
@@ -12576,8 +12621,7 @@ ULONG _r_inet_openurl (
 				result = WinHttpSetOption (
 					hsession,
 					WINHTTP_OPTION_SECURE_PROTOCOLS,
-					&(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 |
-					WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2
+					&(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2
 				},
 					sizeof (ULONG)
 				);
@@ -12617,6 +12661,7 @@ ULONG _r_inet_openurl (
 				if (_r_inet_querystatuscode (hrequest) != HTTP_STATUS_OK)
 				{
 					status = ERROR_WINHTTP_INVALID_SERVER_RESPONSE;
+
 					break;
 				}
 
@@ -13560,8 +13605,6 @@ NTSTATUS _r_crypt_encryptbuffer (
 	ULONG written;
 	NTSTATUS status;
 
-	*out_buffer = NULL;
-
 	status = BCryptEncrypt (
 		crypt_context->u.key_handle,
 		buffer,
@@ -13576,7 +13619,11 @@ NTSTATUS _r_crypt_encryptbuffer (
 	);
 
 	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
 		return status;
+	}
 
 	tmp_buffer = _r_obj_createbyte_ex (NULL, return_length);
 
@@ -13602,6 +13649,8 @@ NTSTATUS _r_crypt_encryptbuffer (
 	else
 	{
 		_r_obj_dereference (tmp_buffer);
+
+		*out_buffer = NULL;
 	}
 
 	return status;
@@ -13620,8 +13669,6 @@ NTSTATUS _r_crypt_decryptbuffer (
 	ULONG written;
 	NTSTATUS status;
 
-	*out_buffer = NULL;
-
 	status = BCryptDecrypt (
 		crypt_context->u.key_handle,
 		buffer,
@@ -13636,7 +13683,11 @@ NTSTATUS _r_crypt_decryptbuffer (
 	);
 
 	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
 		return status;
+	}
 
 	tmp_buffer = _r_obj_createbyte_ex (NULL, return_length);
 
@@ -13662,6 +13713,8 @@ NTSTATUS _r_crypt_decryptbuffer (
 	else
 	{
 		_r_obj_dereference (tmp_buffer);
+
+		*out_buffer = NULL;
 	}
 
 	return status;
@@ -14334,12 +14387,14 @@ HRESULT _r_xml_readstream (
 	ULONG readed;
 	HRESULT status;
 
-	*out_buffer = NULL;
-
 	status = IStream_Size (xml_library->hstream, &size);
 
 	if (FAILED (status))
+	{
+		*out_buffer = NULL;
+
 		return status;
+	}
 
 	// reset stream position to the beginning
 	IStream_Reset (xml_library->hstream);
@@ -14360,6 +14415,8 @@ HRESULT _r_xml_readstream (
 	}
 	else
 	{
+		*out_buffer = NULL;
+
 		_r_obj_dereference (bytes);
 	}
 
@@ -15146,8 +15203,8 @@ VOID _r_ctrl_settablestring (
 	hdc1 = GetDC (hctrl1);
 	hdc2 = GetDC (hctrl2);
 
-	_r_dc_fixwindowfont (hdc1, hctrl1); // fix
-	_r_dc_fixwindowfont (hdc2, hctrl2); // fix
+	_r_dc_fixfont (hdc1, hctrl1, 0); // fix
+	_r_dc_fixfont (hdc2, hctrl2, 0); // fix
 
 	ctrl1_width = _r_dc_getfontwidth (hdc1, text1) + wnd_spacing;
 	ctrl2_width = _r_dc_getfontwidth (hdc2, text2) + wnd_spacing;
@@ -15495,6 +15552,7 @@ VOID _r_menu_clearitems (
 		if (!DeleteMenu (hmenu, 0, MF_BYPOSITION))
 		{
 			DeleteMenu (hmenu, 0, MF_BYPOSITION); // delete separator
+
 			break;
 		}
 	}
@@ -15565,6 +15623,7 @@ INT _r_menu_popup (
 	if (!point)
 	{
 		GetCursorPos (&pt);
+
 		point = &pt;
 	}
 
