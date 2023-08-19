@@ -5,7 +5,6 @@ routine library for my projects.
 List of arguments for compiled binary with `routine` library:
 
 ~~~
--ini:"path" - set custom configuration path.
 -minimized - start application with minimized/hidden window.
 -portable - set force portable mode.
 -readonly - set force readonly mode (no settings will be written).
