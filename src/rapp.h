@@ -439,7 +439,8 @@ VOID _r_show_aboutmessage (
 	_In_opt_ HWND hwnd
 );
 
-VOID _r_show_errormessage (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_show_errormessage (
 	_In_opt_ HWND hwnd,
 	_In_opt_ LPCWSTR main,
 	_In_ ULONG error_code,
@@ -515,7 +516,20 @@ VOID _r_app_initialize_locale ();
 VOID _r_app_initialize_seh ();
 #endif // !_DEBUG
 
-BOOLEAN _r_app_initialize ();
+typedef enum _R_CMDLINE_INFO_CLASS
+{
+	CmdlineHelp,
+	CmdlineInstall,
+	CmdlineUninstall,
+} R_CMDLINE_INFO_CLASS;
+
+typedef BOOLEAN (NTAPI *PR_CMDLINE_CALLBACK) (
+	_In_ R_CMDLINE_INFO_CLASS info_class
+	);
+
+BOOLEAN _r_app_initialize (
+	_In_opt_ PR_CMDLINE_CALLBACK cmd_callback
+);
 
 PR_STRING _r_app_getdirectory ();
 
@@ -549,7 +563,7 @@ LRESULT CALLBACK _r_app_maindlgproc (
 
 _Ret_maybenull_
 HWND _r_app_createwindow (
-	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ PVOID hinst,
 	_In_ LPCWSTR dlg_name,
 	_In_opt_ LPCWSTR icon_name,
 	_In_ DLGPROC dlg_proc

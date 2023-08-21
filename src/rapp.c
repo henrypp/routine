@@ -288,7 +288,9 @@ VOID _r_app_initialize_seh ()
 }
 #endif // !_DEBUG
 
-BOOLEAN _r_app_initialize ()
+BOOLEAN _r_app_initialize (
+	_In_opt_ PR_CMDLINE_CALLBACK cmd_callback
+)
 {
 #if !defined(APP_CONSOLE)
 	R_STRINGREF sr;
@@ -359,6 +361,40 @@ BOOLEAN _r_app_initialize ()
 	// if profile directory does not exist, we cannot save configuration
 	if (!_r_app_isreadonly ())
 		_r_app_getprofiledirectory (); // create profile directory if it does not exists
+
+	if (cmd_callback)
+	{
+		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"help", NULL))
+		{
+			if (cmd_callback (CmdlineHelp))
+				return FALSE;
+		}
+		else if (_r_sys_getopt (_r_sys_getimagecommandline (), L"install", NULL))
+		{
+			if (cmd_callback (CmdlineInstall))
+				return FALSE;
+		}
+		else if (_r_sys_getopt (_r_sys_getimagecommandline (), L"uninstall", NULL))
+		{
+			if (cmd_callback (CmdlineUninstall))
+				return FALSE;
+		}
+	}
+	else
+	{
+		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"help", NULL))
+		{
+			return FALSE;
+		}
+		else if (_r_sys_getopt (_r_sys_getimagecommandline (), L"install", NULL))
+		{
+			return FALSE;
+		}
+		else if (_r_sys_getopt (_r_sys_getimagecommandline (), L"uninstall", NULL))
+		{
+			return FALSE;
+		}
+	}
 
 	return TRUE;
 }
@@ -432,7 +468,7 @@ LPCWSTR _r_app_getcachedirectory (
 		_r_initonce_end (&init_once);
 	}
 
-	if (is_create)
+	if (is_create && !_r_fs_exists (cached_path))
 		_r_fs_mkdir (cached_path);
 
 	return cached_path;
@@ -452,7 +488,7 @@ LPCWSTR _r_app_getcrashdirectory (
 		_r_initonce_end (&init_once);
 	}
 
-	if (is_create)
+	if (is_create && !_r_fs_exists (cached_path))
 		_r_fs_mkdir (cached_path);
 
 	return cached_path;
@@ -732,7 +768,7 @@ ULONG _r_app_getshowcode (
 
 _Ret_maybenull_
 HWND _r_app_createwindow (
-	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ PVOID hinst,
 	_In_ LPCWSTR dlg_name,
 	_In_opt_ LPCWSTR icon_name,
 	_In_ DLGPROC dlg_proc
@@ -763,7 +799,7 @@ HWND _r_app_createwindow (
 #endif // APP_HAVE_UPDATES
 
 	// create main window
-	hwnd = _r_wnd_createwindow (hinstance, dlg_name, NULL, dlg_proc, NULL);
+	hwnd = _r_wnd_createwindow (hinst, dlg_name, NULL, dlg_proc, NULL);
 
 	_r_app_sethwnd (hwnd);
 
@@ -787,8 +823,8 @@ HWND _r_app_createwindow (
 
 		_r_wnd_seticon (
 			hwnd,
-			_r_sys_loadsharedicon (hinstance, icon_name, icon_small),
-			_r_sys_loadsharedicon (hinstance, icon_name, icon_large)
+			_r_sys_loadsharedicon (hinst, icon_name, icon_small),
+			_r_sys_loadsharedicon (hinst, icon_name, icon_large)
 		);
 	}
 
@@ -3064,7 +3100,8 @@ VOID _r_show_aboutmessage (
 	is_opened = FALSE;
 }
 
-VOID _r_show_errormessage (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_show_errormessage (
 	_In_opt_ HWND hwnd,
 	_In_opt_ LPCWSTR main,
 	_In_ ULONG error_code,
@@ -3078,34 +3115,47 @@ VOID _r_show_errormessage (
 	LPCWSTR path;
 	R_STRINGREF sr;
 	PR_STRING string;
-	HINSTANCE hinstance;
+	PVOID hinst;
 	INT command_id;
 	UINT btn_cnt = 0;
-	ULONG status;
+	NTSTATUS status;
 
 	if (error_info_ptr && error_info_ptr->hinst)
 	{
-		hinstance = error_info_ptr->hinst;
+		hinst = error_info_ptr->hinst;
 	}
 	else
 	{
-		hinstance = GetModuleHandle (L"kernel32.dll");
+		status = _r_sys_getmodulehandle (L"kernel32.dll", &hinst);
+
+		if (!NT_SUCCESS (status))
+			return status;
 	}
 
-	status = _r_sys_formatmessage (error_code, hinstance, 0, &string);
+	status = _r_sys_formatmessage (error_code, hinst, 0, &string);
 
-	if (status == ERROR_MR_MID_NOT_FOUND || status == ERROR_RESOURCE_TYPE_NOT_FOUND)
-		_r_sys_formatmessage (error_code, GetModuleHandle (L"ntdll.dll"), 0, &string);
+	if (status == STATUS_MESSAGE_NOT_FOUND)
+	{
+		if (NT_SUCCESS (_r_sys_getmodulehandle (L"ntdll.dll", &hinst)))
+			status = _r_sys_formatmessage (error_code, hinst, 0, &string);
+	}
 
 	str_main = main ? main : APP_FAILED_MESSAGE_TITLE;
 
-	_r_str_printf (str_content, RTL_NUMBER_OF (str_content), L"%s (0x%08" TEXT (PRIX32) L")", _r_obj_getstringordefault (string, L"n/a"), error_code);
+	_r_str_printf (
+		str_content,
+		RTL_NUMBER_OF (str_content),
+		L"%s (0x%08" TEXT (PRIX32) L")",
+		_r_obj_getstringordefault (string, L"n/a"),
+		error_code
+	);
 
 	if (error_info_ptr)
 	{
 		if (error_info_ptr->description)
 		{
 			_r_str_append (str_content, RTL_NUMBER_OF (str_content), L"\r\n\r\n");
+
 			_r_str_append (str_content, RTL_NUMBER_OF (str_content), error_info_ptr->description);
 		}
 	}
@@ -3152,7 +3202,7 @@ VOID _r_show_errormessage (
 	{
 		if (command_id == IDYES)
 		{
-			path = _r_app_getcrashdirectory (FALSE);
+			path = _r_app_getcrashdirectory (TRUE);
 
 			_r_shell_opendefault (path);
 		}
@@ -3166,6 +3216,8 @@ VOID _r_show_errormessage (
 
 	if (string)
 		_r_obj_dereference (string);
+
+	return status;
 }
 
 BOOLEAN _r_show_confirmmessage (
