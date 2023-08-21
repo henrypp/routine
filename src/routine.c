@@ -1911,8 +1911,6 @@ NTSTATUS _r_mutex_create (
 	UNICODE_STRING us;
 	NTSTATUS status;
 
-	*hmutex = NULL;
-
 	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\BaseNamedObjects\\%s", name);
 
 	_r_obj_initializeunicodestring (&us, buffer);
@@ -1920,6 +1918,9 @@ NTSTATUS _r_mutex_create (
 	InitializeObjectAttributes (&oa, &us, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
 	status = NtCreateMutant (hmutex, MUTANT_ALL_ACCESS, &oa, TRUE);
+
+	if (!NT_SUCCESS (status))
+		*hmutex = NULL;
 
 	return status;
 }
@@ -4371,7 +4372,7 @@ NTSTATUS _r_fs_deletedirectory (
 	{
 		fdi_ex.Flags = FILE_DISPOSITION_FLAG_DELETE | FILE_DISPOSITION_FLAG_POSIX_SEMANTICS | FILE_DISPOSITION_FLAG_IGNORE_READONLY_ATTRIBUTE;
 
-		status = NtSetInformationFile (hdirectory, &isb, &fdi, sizeof (FILE_DISPOSITION_INFO_EX), FileDispositionInformationEx);
+		status = NtSetInformationFile (hdirectory, &isb, &fdi_ex, sizeof (FILE_DISPOSITION_INFO_EX), FileDispositionInformationEx);
 	}
 	else
 	{
@@ -5556,17 +5557,17 @@ NTSTATUS _r_path_resolvedeviceprefix_workaround (
 	_Outptr_result_maybenull_ PR_STRING_PTR out_buffer
 )
 {
+	WCHAR device_prefix_buffer[PR_DEVICE_PREFIX_LENGTH] = {0};
+	POBJECT_DIRECTORY_INFORMATION directory_entry = NULL;
+	POBJECT_DIRECTORY_INFORMATION directory_info;
 	OBJECT_ATTRIBUTES oa = {0};
 	UNICODE_STRING device_prefix;
 	R_STRINGREF device_prefix_sr;
-	WCHAR device_prefix_buffer[PR_DEVICE_PREFIX_LENGTH] = {0};
 	PR_STRING string;
 	HANDLE link_handle;
 	HANDLE directory_handle;
 	SIZE_T prefix_length;
 	ULONG query_context = 0;
-	POBJECT_DIRECTORY_INFORMATION directory_entry;
-	POBJECT_DIRECTORY_INFORMATION directory_info;
 	ULONG i;
 	ULONG buffer_size;
 	ULONG flags;
@@ -13867,9 +13868,13 @@ ULONG64 _r_math_exponentiate64 (
 
 ULONG _r_math_getrandom ()
 {
-	static ULONG seed = 0; // save seed
+	static ULONG seed = {0}; // save seed
 
-	return RtlRandomEx (&seed);
+	ULONG value;
+
+	value = RtlRandomEx (&seed);
+
+	return value;
 }
 
 ULONG _r_math_getrandomrange (
