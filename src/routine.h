@@ -1909,7 +1909,7 @@ HRESULT _r_path_getknownfolder (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_getmodulepath (
-	_In_ PVOID hinstance,
+	_In_ PVOID hinst,
 	_Outptr_ PR_STRING_PTR out_buffer
 );
 
@@ -2599,6 +2599,7 @@ NTSTATUS _r_sys_getprocessimagepath (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_loadlibrary (
 	_In_ LPCWSTR lib_name,
+	_In_opt_ ULONG lib_flags,
 	_Outptr_ PVOID_PTR out_buffer
 );
 
@@ -3087,7 +3088,7 @@ VOID _r_wnd_copyrectangle (
 
 _Ret_maybenull_
 HWND _r_wnd_createwindow (
-	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ PVOID hinst,
 	_In_ LPCWSTR name,
 	_In_opt_ HWND hparent,
 	_In_ DLGPROC dlg_proc,
@@ -3095,7 +3096,7 @@ HWND _r_wnd_createwindow (
 );
 
 INT_PTR _r_wnd_createmodalwindow (
-	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ PVOID hinst,
 	_In_ LPCWSTR name,
 	_In_opt_ HWND hparent,
 	_In_ DLGPROC dlg_proc,

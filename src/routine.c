@@ -5129,7 +5129,7 @@ HRESULT _r_path_getknownfolder (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_getmodulepath (
-	_In_ PVOID hinstance,
+	_In_ PVOID hinst,
 	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
@@ -5144,7 +5144,7 @@ NTSTATUS _r_path_getmodulepath (
 	name.Buffer = string->buffer;
 	name.MaximumLength = (USHORT)string->length;
 
-	status = LdrGetDllFullName (hinstance, &name);
+	status = LdrGetDllFullName (hinst, &name);
 
 	if (NT_SUCCESS (status))
 	{
@@ -8252,7 +8252,7 @@ BOOLEAN _r_sys_iswine ()
 	PVOID hntdll;
 	NTSTATUS status;
 
-	status = _r_sys_loadlibrary (L"ntdll.dll", &hntdll);
+	status = _r_sys_loadlibrary (L"ntdll.dll", 0, &hntdll);
 
 	if (!NT_SUCCESS (status))
 		return FALSE;
@@ -8289,7 +8289,7 @@ NTSTATUS _r_sys_formatmessage (
 
 	PMESSAGE_RESOURCE_ENTRY entry;
 	PR_STRING string;
-	LCID locale_id = LOCALE_SYSTEM_DEFAULT;
+	LCID locale_id;
 	NTSTATUS status;
 
 	status = RtlFindMessage (hinst, 11, lang_id, error_code, &entry);
@@ -8412,16 +8412,16 @@ NTSTATUS _r_sys_getmodulehandle (
 )
 {
 	UNICODE_STRING us;
-	PVOID result;
+	PVOID dll_handle;
 	NTSTATUS status;
 
 	_r_obj_initializeunicodestring (&us, name);
 
-	status = LdrGetDllHandleEx (LDR_GET_DLL_HANDLE_EX_UNCHANGED_REFCOUNT, NULL, NULL, &us, &result);
+	status = LdrGetDllHandleEx (LDR_GET_DLL_HANDLE_EX_UNCHANGED_REFCOUNT, NULL, NULL, &us, &dll_handle);
 
 	if (NT_SUCCESS (status))
 	{
-		*out_buffer = result;
+		*out_buffer = dll_handle;
 	}
 	else
 	{
@@ -9305,6 +9305,7 @@ NTSTATUS _r_sys_getprocessimagepath (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_loadlibrary (
 	_In_ LPCWSTR lib_name,
+	_In_opt_ ULONG lib_flags,
 	_Outptr_ PVOID_PTR out_buffer
 )
 {
@@ -9315,19 +9316,36 @@ NTSTATUS _r_sys_loadlibrary (
 	ULONG flags;
 	NTSTATUS status;
 
-	flags = LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32;
+	if (lib_flags)
+	{
+		flags = lib_flags;
+	}
+	else
+	{
+		flags = LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32;
+	}
 
 	status = LdrGetDllPath (lib_name, flags, &load_path, &dummy);
 
 	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
 		return status;
+	}
 
 	_r_obj_initializeunicodestring (&us, lib_name);
 
 	status = LdrLoadDll (load_path, &flags, &us, &hmodule);
 
 	if (NT_SUCCESS (status))
+	{
 		*out_buffer = hmodule;
+	}
+	else
+	{
+		*out_buffer = NULL;
+	}
 
 	return status;
 }
@@ -9717,7 +9735,7 @@ PR_STRING _r_sys_querytaginformation (
 
 	if (_r_initonce_begin (&init_once))
 	{
-		status = _r_sys_loadlibrary (L"advapi32.dll", &hadvapi32);
+		status = _r_sys_loadlibrary (L"advapi32.dll", 0, &hadvapi32);
 
 		if (NT_SUCCESS (status))
 		{
@@ -10166,7 +10184,7 @@ BOOLEAN _r_dc_adjustwindowrect (
 	// initialize library calls
 	if (_r_initonce_begin (&init_once))
 	{
-		status = _r_sys_loadlibrary (L"user32.dll", &huser32);
+		status = _r_sys_loadlibrary (L"user32.dll", 0, &huser32);
 
 		if (NT_SUCCESS (status))
 		{
@@ -10583,7 +10601,7 @@ LONG _r_dc_getdpivalue (
 	// initialize library calls
 	if (_r_initonce_begin (&init_once))
 	{
-		status = _r_sys_loadlibrary (L"user32.dll", &huser32);
+		status = _r_sys_loadlibrary (L"user32.dll", 0, &huser32);
 
 		if (NT_SUCCESS (status))
 		{
@@ -10710,7 +10728,7 @@ LONG _r_dc_getsystemmetrics (
 	// initialize library calls
 	if (_r_initonce_begin (&init_once))
 	{
-		status = _r_sys_loadlibrary (L"user32.dll", &huser32);
+		status = _r_sys_loadlibrary (L"user32.dll", 0, &huser32);
 
 		if (NT_SUCCESS (status))
 		{
@@ -10747,7 +10765,7 @@ BOOLEAN _r_dc_getsystemparametersinfo (
 	// initialize library calls
 	if (_r_initonce_begin (&init_once))
 	{
-		status = _r_sys_loadlibrary (L"user32.dll", &huser32);
+		status = _r_sys_loadlibrary (L"user32.dll", 0, &huser32);
 
 		if (NT_SUCCESS (status))
 		{
@@ -11799,7 +11817,7 @@ VOID _r_wnd_copyrectangle (
 
 _Ret_maybenull_
 HWND _r_wnd_createwindow (
-	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ PVOID hinst,
 	_In_ LPCWSTR name,
 	_In_opt_ HWND hparent,
 	_In_ DLGPROC dlg_proc,
@@ -11809,16 +11827,16 @@ HWND _r_wnd_createwindow (
 	R_BYTEREF buffer;
 	HWND hwnd;
 
-	if (!_r_res_loadresource (hinstance, name, RT_DIALOG, &buffer))
+	if (!_r_res_loadresource (hinst, name, RT_DIALOG, &buffer))
 		return NULL;
 
-	hwnd = CreateDialogIndirectParam (hinstance, (LPDLGTEMPLATE)buffer.buffer, hparent, dlg_proc, (LPARAM)lparam);
+	hwnd = CreateDialogIndirectParam (hinst, (LPDLGTEMPLATE)buffer.buffer, hparent, dlg_proc, (LPARAM)lparam);
 
 	return hwnd;
 }
 
 INT_PTR _r_wnd_createmodalwindow (
-	_In_opt_ HINSTANCE hinstance,
+	_In_opt_ PVOID hinst,
 	_In_ LPCWSTR name,
 	_In_opt_ HWND hparent,
 	_In_ DLGPROC dlg_proc,
@@ -11828,10 +11846,10 @@ INT_PTR _r_wnd_createmodalwindow (
 	R_BYTEREF buffer;
 	INT_PTR result;
 
-	if (!_r_res_loadresource (hinstance, name, RT_DIALOG, &buffer))
+	if (!_r_res_loadresource (hinst, name, RT_DIALOG, &buffer))
 		return 0;
 
-	result = DialogBoxIndirectParam (hinstance, (LPDLGTEMPLATE)buffer.buffer, hparent, dlg_proc, (LPARAM)lparam);
+	result = DialogBoxIndirectParam (hinst, (LPDLGTEMPLATE)buffer.buffer, hparent, dlg_proc, (LPARAM)lparam);
 
 	return result;
 }
