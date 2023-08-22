@@ -849,7 +849,7 @@ typedef struct _R_UPDATE_INFO
 
 typedef struct _R_SHARED_IMAGE
 {
-	HINSTANCE hinst;
+	PVOID hinst;
 	HICON hicon;
 	INT icon_id;
 	INT icon_size;
