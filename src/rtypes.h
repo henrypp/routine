@@ -12,6 +12,7 @@
 typedef PVOID *PVOID_PTR;
 typedef PBYTE *PBYTE_PTR;
 typedef HICON *HICON_PTR;
+typedef HBITMAP *HBITMAP_PTR;
 typedef HDWP *HDWP_PTR;
 typedef PSYSTEM_PROCESS_INFORMATION *PSYSTEM_PROCESS_INFORMATION_PTR;
 
@@ -528,6 +529,16 @@ typedef struct _R_OBJECT_POINTER
 {
 	PVOID object_body;
 } R_OBJECT_POINTER, *PR_OBJECT_POINTER;
+
+//
+// Pointer storage
+//
+
+typedef struct _R_STORAGE
+{
+	ULONG length;
+	PVOID buffer;
+} R_STORAGE, *PR_STORAGE;
 
 //
 // Strings
