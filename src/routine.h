@@ -834,6 +834,10 @@ PR_BYTE _r_obj_createbyte3 (
 	_In_ PR_BYTEREF string
 );
 
+PR_BYTE _r_obj_createbyte4 (
+	_In_ PR_STORAGE string
+);
+
 PR_BYTE _r_obj_createbyte_ex (
 	_In_opt_ LPCSTR buffer,
 	_In_ SIZE_T length
@@ -1083,6 +1087,16 @@ BOOLEAN _r_obj_initializeunicodestring_ex (
 	_In_opt_ LPWSTR buffer,
 	_In_opt_ USHORT length,
 	_In_opt_ USHORT max_length
+);
+
+//
+// Pointer storage
+//
+
+VOID _r_obj_initializestorage (
+	_Out_ PR_STORAGE memory,
+	_In_opt_ PVOID buffer,
+	_In_opt_ ULONG length
 );
 
 //
@@ -2584,7 +2598,7 @@ NTSTATUS _r_sys_enumprocesses (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getprocaddress (
-	_In_ PVOID hmodule,
+	_In_ PVOID hinst,
 	_In_ LPCSTR procedure,
 	_Out_ PVOID_PTR out_buffer
 );
@@ -2925,13 +2939,14 @@ LONG _r_dc_getwindowdpi (
 	_In_ HWND hwnd
 );
 
-_Ret_maybenull_
-HBITMAP _r_dc_imagetobitmap (
+_Success_ (SUCCEEDED (return))
+HRESULT _r_dc_imagetobitmap (
 	_In_ LPCGUID format,
 	_In_ WICInProcPointer buffer,
 	_In_ ULONG buffer_length,
 	_In_ LONG x,
-	_In_ LONG y
+	_In_ LONG y,
+	_Outptr_ HBITMAP_PTR out_buffer
 );
 
 BOOLEAN _r_dc_isfontexists (
@@ -3088,7 +3103,7 @@ VOID _r_wnd_copyrectangle (
 
 _Ret_maybenull_
 HWND _r_wnd_createwindow (
-	_In_opt_ PVOID hinst,
+	_In_ PVOID hinst,
 	_In_ LPCWSTR name,
 	_In_opt_ HWND hparent,
 	_In_ DLGPROC dlg_proc,
@@ -3096,7 +3111,7 @@ HWND _r_wnd_createwindow (
 );
 
 INT_PTR _r_wnd_createmodalwindow (
-	_In_opt_ PVOID hinst,
+	_In_ PVOID hinst,
 	_In_ LPCWSTR name,
 	_In_opt_ HWND hparent,
 	_In_ DLGPROC dlg_proc,
@@ -3546,17 +3561,19 @@ FORCEINLINE LONG _r_math_createguid (
 // Resources
 //
 
-BOOLEAN _r_res_loadresource (
-	_In_opt_ PVOID hinst,
-	_In_ LPCWSTR name,
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_res_loadresource (
+	_In_ PVOID hinst,
 	_In_ LPCWSTR type,
-	_Out_ PR_BYTEREF out_buffer
+	_In_ LPCWSTR name,
+	_Out_ PR_STORAGE out_buffer
 );
 
-_Ret_maybenull_
-PR_STRING _r_res_loadstring (
-	_In_opt_ PVOID hinst,
-	_In_ ULONG string_id
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_res_loadstring (
+	_In_ PVOID hinst,
+	_In_ ULONG string_id,
+	_Outptr_ PR_STRING_PTR out_buffer
 );
 
 _Ret_maybenull_
@@ -3580,7 +3597,7 @@ ULONG _r_res_querytranslation (
 _Success_ (return)
 BOOLEAN _r_res_queryversion (
 	_In_ LPCVOID ver_block,
-	_Out_ PVOID_PTR file_info
+	_Out_ PVOID_PTR out_buffer
 );
 
 _Ret_maybenull_

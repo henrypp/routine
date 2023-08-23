@@ -768,7 +768,7 @@ ULONG _r_app_getshowcode (
 
 _Ret_maybenull_
 HWND _r_app_createwindow (
-	_In_opt_ PVOID hinst,
+	_In_ PVOID hinst,
 	_In_ LPCWSTR dlg_name,
 	_In_opt_ LPCWSTR icon_name,
 	_In_ DLGPROC dlg_proc
@@ -1883,6 +1883,7 @@ PR_STRING _r_locale_getstring_ex (
 	PR_STRING hash_string;
 	PR_STRING value_string;
 	ULONG hash_code;
+	NTSTATUS status;
 
 	if (_r_initonce_begin (&init_once))
 	{
@@ -1926,9 +1927,9 @@ PR_STRING _r_locale_getstring_ex (
 
 			if (!value_string)
 			{
-				value_string = _r_res_loadstring (_r_sys_getimagebase (), uid);
+				status = _r_res_loadstring (_r_sys_getimagebase (), uid, &value_string);
 
-				if (value_string)
+				if (NT_SUCCESS (status))
 				{
 					_r_queuedlock_acquireexclusive (&app_global.locale.lock);
 
@@ -3100,8 +3101,7 @@ VOID _r_show_aboutmessage (
 	is_opened = FALSE;
 }
 
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_show_errormessage (
+VOID _r_show_errormessage (
 	_In_opt_ HWND hwnd,
 	_In_opt_ LPCWSTR main,
 	_In_ ULONG error_code,
@@ -3111,10 +3111,10 @@ NTSTATUS _r_show_errormessage (
 	TASKDIALOGCONFIG tdc = {0};
 	TASKDIALOG_BUTTON td_buttons[3] = {0};
 	WCHAR str_content[1024];
+	PR_STRING string;
+	R_STRINGREF sr;
 	LPCWSTR str_main;
 	LPCWSTR path;
-	R_STRINGREF sr;
-	PR_STRING string;
 	PVOID hinst;
 	INT command_id;
 	UINT btn_cnt = 0;
@@ -3129,7 +3129,7 @@ NTSTATUS _r_show_errormessage (
 		status = _r_sys_getmodulehandle (L"kernel32.dll", &hinst);
 
 		if (!NT_SUCCESS (status))
-			return status;
+			return;
 	}
 
 	status = _r_sys_formatmessage (error_code, hinst, 0, &string);
@@ -3198,7 +3198,9 @@ NTSTATUS _r_show_errormessage (
 
 	tdc.nDefaultButton = IDCLOSE;
 
-	if (SUCCEEDED (_r_msg_taskdialog (&tdc, &command_id, NULL, NULL)))
+	status = _r_msg_taskdialog (&tdc, &command_id, NULL, NULL);
+
+	if (SUCCEEDED (status))
 	{
 		if (command_id == IDYES)
 		{
@@ -3216,8 +3218,6 @@ NTSTATUS _r_show_errormessage (
 
 	if (string)
 		_r_obj_dereference (string);
-
-	return status;
 }
 
 BOOLEAN _r_show_confirmmessage (
@@ -3514,17 +3514,19 @@ VOID _r_settings_createwindow (
 
 	PVOID buffer;
 	PBYTE buffer_ptr;
-	R_BYTEREF dlg_buffer;
+	R_STORAGE dlg_buffer;
 	LPDLGTEMPLATEEX dlg_template;
 	PR_SETTINGS_PAGE ptr_page;
 	SIZE_T size;
 	WORD controls;
+	NTSTATUS status;
 
 	assert (!_r_obj_isarrayempty (app_global.settings.page_list));
 
 	if (_r_settings_getwindow ())
 	{
 		_r_wnd_toggle (_r_settings_getwindow (), TRUE);
+
 		return;
 	}
 
@@ -3538,7 +3540,9 @@ VOID _r_settings_createwindow (
 			if (!ptr_page->dlg_id)
 				continue;
 
-			if (!_r_res_loadresource (_r_sys_getimagebase (), MAKEINTRESOURCE (ptr_page->dlg_id), RT_DIALOG, &dlg_buffer))
+			status = _r_res_loadresource (_r_sys_getimagebase (), RT_DIALOG, MAKEINTRESOURCE (ptr_page->dlg_id), &dlg_buffer);
+
+			if (!NT_SUCCESS (status))
 				continue;
 
 			dlg_template = (LPDLGTEMPLATEEX)dlg_buffer.buffer;

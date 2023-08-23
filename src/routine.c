@@ -2244,6 +2244,13 @@ PR_BYTE _r_obj_createbyte3 (
 	return _r_obj_createbyte_ex (string->buffer, string->length);
 }
 
+PR_BYTE _r_obj_createbyte4 (
+	_In_ PR_STORAGE string
+)
+{
+	return _r_obj_createbyte_ex (string->buffer, string->length);
+}
+
 PR_BYTE _r_obj_createbyte_ex (
 	_In_opt_ LPCSTR buffer,
 	_In_ SIZE_T length
@@ -2806,6 +2813,20 @@ BOOLEAN _r_obj_initializeunicodestring_ex (
 	string->MaximumLength = max_length;
 
 	return string->Length <= UNICODE_STRING_MAX_BYTES;
+}
+
+//
+// Pointer storage
+//
+
+VOID _r_obj_initializestorage (
+	_Out_ PR_STORAGE memory,
+	_In_opt_ PVOID buffer,
+	_In_opt_ ULONG length
+)
+{
+	memory->buffer = buffer;
+	memory->length = length;
 }
 
 //
@@ -4402,7 +4423,7 @@ NTSTATUS _r_fs_deletefile (
 		return status;
 
 	if (is_forced)
-		SetFileAttributes (path, FILE_ATTRIBUTE_NORMAL);
+		_r_fs_setattributes (path, NULL, FILE_ATTRIBUTE_NORMAL);
 
 	InitializeObjectAttributes (&oa, &nt_path, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
@@ -5116,8 +5137,6 @@ HRESULT _r_path_getknownfolder (
 		*out_buffer = string;
 
 		CoTaskMemFree (buffer);
-
-		//_r_obj_dereference (string);
 	}
 	else
 	{
@@ -5136,7 +5155,6 @@ NTSTATUS _r_path_getmodulepath (
 	UNICODE_STRING name = {0};
 	PR_STRING string;
 	ULONG allocated_length = 256;
-	ULONG attempts = 6;
 	NTSTATUS status;
 
 	string = _r_obj_createstring_ex (NULL, allocated_length * sizeof (WCHAR));
@@ -8289,7 +8307,7 @@ NTSTATUS _r_sys_formatmessage (
 
 	PMESSAGE_RESOURCE_ENTRY entry;
 	PR_STRING string;
-	LCID locale_id;
+	LCID locale_id = LOCALE_SYSTEM_DEFAULT;
 	NTSTATUS status;
 
 	status = RtlFindMessage (hinst, 11, lang_id, error_code, &entry);
@@ -9216,7 +9234,7 @@ NTSTATUS _r_sys_enumprocesses (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getprocaddress (
-	_In_ PVOID hmodule,
+	_In_ PVOID hinst,
 	_In_ LPCSTR procedure,
 	_Out_ PVOID_PTR out_buffer
 )
@@ -9235,7 +9253,7 @@ NTSTATUS _r_sys_getprocaddress (
 		ordinal = PtrToUlong (procedure);
 	}
 
-	status = LdrGetProcedureAddress (hmodule, &procedure_name, ordinal, &proc_address);
+	status = LdrGetProcedureAddressEx (hinst, &procedure_name, ordinal, &proc_address, 0);
 
 	if (NT_SUCCESS (status))
 	{
@@ -9346,6 +9364,8 @@ NTSTATUS _r_sys_loadlibrary (
 	{
 		*out_buffer = NULL;
 	}
+
+	RtlReleasePath (load_path);
 
 	return status;
 }
@@ -10809,13 +10829,14 @@ LONG _r_dc_getwindowdpi (
 	return _r_dc_getdpivalue (NULL, &rect);
 }
 
-_Ret_maybenull_
-HBITMAP _r_dc_imagetobitmap (
+_Success_ (SUCCEEDED (return))
+HRESULT _r_dc_imagetobitmap (
 	_In_ LPCGUID format,
 	_In_ WICInProcPointer buffer,
 	_In_ ULONG buffer_length,
 	_In_ LONG x,
-	_In_ LONG y
+	_In_ LONG y,
+	_Outptr_ HBITMAP_PTR out_buffer
 )
 {
 	BITMAPINFO bmi = {0};
@@ -10997,15 +11018,20 @@ CleanupExit:
 	if (wicFactory)
 		IWICImagingFactory_Release (wicFactory);
 
-	if (FAILED (status))
+	if (SUCCEEDED (status))
+	{
+		*out_buffer = hbitmap;
+	}
+	else
 	{
 		if (hbitmap)
 			DeleteObject (hbitmap);
 
-		return NULL;
+		*out_buffer = NULL;
 	}
 
-	return hbitmap;
+
+	return status;
 }
 
 BOOLEAN _r_dc_isfontexists (
@@ -11817,39 +11843,45 @@ VOID _r_wnd_copyrectangle (
 
 _Ret_maybenull_
 HWND _r_wnd_createwindow (
-	_In_opt_ PVOID hinst,
+	_In_ PVOID hinst,
 	_In_ LPCWSTR name,
 	_In_opt_ HWND hparent,
 	_In_ DLGPROC dlg_proc,
 	_In_opt_ PVOID lparam
 )
 {
-	R_BYTEREF buffer;
+	R_STORAGE buffer;
 	HWND hwnd;
+	NTSTATUS status;
 
-	if (!_r_res_loadresource (hinst, name, RT_DIALOG, &buffer))
+	status = _r_res_loadresource (hinst, RT_DIALOG, name, &buffer);
+
+	if (!NT_SUCCESS (status))
 		return NULL;
 
-	hwnd = CreateDialogIndirectParam (hinst, (LPDLGTEMPLATE)buffer.buffer, hparent, dlg_proc, (LPARAM)lparam);
+	hwnd = CreateDialogIndirectParam (hinst, (LPCDLGTEMPLATE)buffer.buffer, hparent, dlg_proc, (LPARAM)lparam);
 
 	return hwnd;
 }
 
 INT_PTR _r_wnd_createmodalwindow (
-	_In_opt_ PVOID hinst,
+	_In_ PVOID hinst,
 	_In_ LPCWSTR name,
 	_In_opt_ HWND hparent,
 	_In_ DLGPROC dlg_proc,
 	_In_opt_ PVOID lparam
 )
 {
-	R_BYTEREF buffer;
+	R_STORAGE buffer;
 	INT_PTR result;
+	NTSTATUS status;
 
-	if (!_r_res_loadresource (hinst, name, RT_DIALOG, &buffer))
+	status = _r_res_loadresource (hinst, RT_DIALOG, name, &buffer);
+
+	if (!NT_SUCCESS (status))
 		return 0;
 
-	result = DialogBoxIndirectParam (hinst, (LPDLGTEMPLATE)buffer.buffer, hparent, dlg_proc, (LPARAM)lparam);
+	result = DialogBoxIndirectParam (hinst, (LPCDLGTEMPLATE)buffer.buffer, hparent, dlg_proc, (LPARAM)lparam);
 
 	return result;
 }
@@ -13947,59 +13979,91 @@ SIZE_T _r_math_rounduptopoweroftwo (
 // Resources
 //
 
-BOOLEAN _r_res_loadresource (
-	_In_opt_ PVOID hinst,
-	_In_ LPCWSTR name,
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_res_loadresource (
+	_In_ PVOID hinst,
 	_In_ LPCWSTR type,
-	_Out_ PR_BYTEREF out_buffer
+	_In_ LPCWSTR name,
+	_Out_ PR_STORAGE out_buffer
 )
 {
-	HRSRC hres;
-	HGLOBAL hloaded;
-	PVOID hlock;
+	PIMAGE_RESOURCE_DATA_ENTRY resource_data;
+	LDR_RESOURCE_INFO resource_info = {0};
+	ULONG length;
+	PVOID buffer;
+	NTSTATUS status;
 
-	hres = FindResource (hinst, name, type);
+	resource_info.Type = (ULONG_PTR)type;
+	resource_info.Name = (ULONG_PTR)name;
+	resource_info.Language = MAKELANGID (LANG_NEUTRAL, SUBLANG_NEUTRAL);
 
-	if (hres)
+	status = LdrFindResource_U (hinst, &resource_info, RESOURCE_DATA_LEVEL, &resource_data);
+
+	if (!NT_SUCCESS (status))
 	{
-		hloaded = LoadResource (hinst, hres);
+		_r_obj_initializestorage (out_buffer, NULL, 0);
 
-		if (hloaded)
-		{
-			hlock = LockResource (hloaded);
-
-			if (hlock)
-			{
-				_r_obj_initializebyteref_ex (out_buffer, hlock, SizeofResource (hinst, hres));
-
-				return TRUE;
-			}
-		}
+		return status;
 	}
 
-	_r_obj_initializebyterefempty (out_buffer);
+	status = LdrAccessResource (hinst, resource_data, &buffer, &length);
 
-	return FALSE;
+	if (NT_SUCCESS (status))
+	{
+		_r_obj_initializestorage (out_buffer, buffer, length);
+	}
+	else
+	{
+		_r_obj_initializestorage (out_buffer, NULL, 0);
+	}
+
+	return status;
 }
 
-_Ret_maybenull_
-PR_STRING _r_res_loadstring (
-	_In_opt_ PVOID hinst,
-	_In_ ULONG string_id
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_res_loadstring (
+	_In_ PVOID hinst,
+	_In_ ULONG string_id,
+	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
+	PIMAGE_RESOURCE_DIR_STRING_U string_buffer;
 	PR_STRING string;
-	LPWSTR buffer = NULL;
-	USHORT return_length;
+	R_STORAGE buffer;
+	ULONG string_num;
+	NTSTATUS status;
 
-	return_length = LoadString (hinst, string_id, (LPWSTR)&buffer, 0);
+	status = _r_res_loadresource (hinst, RT_STRING, MAKEINTRESOURCE ((LOWORD (string_id) >> 4) + 1), &buffer);
 
-	if (!return_length)
-		return NULL;
+	if (NT_SUCCESS (status))
+	{
+		string_buffer = buffer.buffer;
+		string_num = string_id & 0x000F;
 
-	string = _r_obj_createstring_ex (buffer, return_length * sizeof (WCHAR));
+		for (ULONG i = 0; i < string_num; i++)
+		{
+			string_buffer = PTR_ADD_OFFSET (string_buffer, (string_buffer->Length + sizeof (ANSI_NULL)) * sizeof (WCHAR));
+		}
 
-	return string;
+		if (string_buffer->Length > 0 && string_buffer->Length < UNICODE_STRING_MAX_BYTES)
+		{
+			string = _r_obj_createstring_ex (string_buffer->NameString, string_buffer->Length * sizeof (WCHAR));
+
+			*out_buffer = string;
+		}
+		else
+		{
+			status = STATUS_BUFFER_OVERFLOW;
+
+			*out_buffer = NULL;
+		}
+	}
+	else
+	{
+		*out_buffer = NULL;
+	}
+
+	return status;
 }
 
 _Ret_maybenull_
@@ -14038,11 +14102,9 @@ PR_STRING _r_res_querystring_ex (
 )
 {
 	WCHAR entry[128];
-	PVOID buffer;
+	PVOID buffer = NULL;
 	PR_STRING string;
 	UINT length;
-
-	buffer = NULL;
 
 	_r_str_printf (
 		entry,
@@ -14083,15 +14145,15 @@ ULONG _r_res_querytranslation (
 _Success_ (return)
 BOOLEAN _r_res_queryversion (
 	_In_ LPCVOID ver_block,
-	_Out_ PVOID_PTR file_info
+	_Out_ PVOID_PTR out_buffer
 )
 {
 	UINT length;
 	BOOL result;
 
-	*file_info = NULL;
+	*out_buffer = NULL;
 
-	result = VerQueryValue (ver_block, L"\\", file_info, &length);
+	result = VerQueryValue (ver_block, L"\\", out_buffer, &length);
 
 	return !!result;
 }
@@ -14101,7 +14163,7 @@ PR_STRING _r_res_queryversionstring (
 	_In_ LPCWSTR path
 )
 {
-	VS_FIXEDFILEINFO *file_info;
+	VS_FIXEDFILEINFO *file_info = NULL;
 	PR_STRING string;
 	PVOID ver_block;
 	ULONG ver_size;
@@ -14119,8 +14181,6 @@ PR_STRING _r_res_queryversionstring (
 
 	if (!ver_info)
 		goto CleanupExit;
-
-	file_info = NULL;
 
 	ver_info = _r_res_queryversion (ver_block, &file_info);
 
@@ -14629,7 +14689,7 @@ BOOLEAN _r_xml_findchildbytagname (
 {
 	R_STRINGREF sr1;
 	R_STRINGREF sr2;
-	LPWSTR buffer;
+	LPWSTR buffer = NULL;
 	UINT buffer_length;
 	XmlNodeType node_type;
 	HRESULT status;
@@ -14653,8 +14713,6 @@ BOOLEAN _r_xml_findchildbytagname (
 			// do not return empty elements
 			if (IXmlReader_IsEmptyElement (xml_library->reader))
 				continue;
-
-			buffer = NULL;
 
 			status = IXmlReader_GetLocalName (xml_library->reader, &buffer, &buffer_length);
 

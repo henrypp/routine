@@ -439,8 +439,7 @@ VOID _r_show_aboutmessage (
 	_In_opt_ HWND hwnd
 );
 
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_show_errormessage (
+VOID _r_show_errormessage (
 	_In_opt_ HWND hwnd,
 	_In_opt_ LPCWSTR main,
 	_In_ ULONG error_code,
@@ -563,7 +562,7 @@ LRESULT CALLBACK _r_app_maindlgproc (
 
 _Ret_maybenull_
 HWND _r_app_createwindow (
-	_In_opt_ PVOID hinst,
+	_In_ PVOID hinst,
 	_In_ LPCWSTR dlg_name,
 	_In_opt_ LPCWSTR icon_name,
 	_In_ DLGPROC dlg_proc
