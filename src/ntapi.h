@@ -2415,6 +2415,13 @@ typedef struct _FILE_RENAME_INFORMATION
 	_Field_size_bytes_ (FileNameLength) WCHAR FileName[1];
 } FILE_RENAME_INFORMATION, *PFILE_RENAME_INFORMATION;
 
+typedef struct _LDR_RESOURCE_INFO
+{
+	ULONG_PTR Type;
+	ULONG_PTR Name;
+	ULONG_PTR Language;
+} LDR_RESOURCE_INFO, *PLDR_RESOURCE_INFO;
+
 typedef enum _SECTION_INHERIT
 {
 	ViewShare = 1,
@@ -2426,6 +2433,16 @@ typedef VOID (NTAPI *PIO_APC_ROUTINE)(
 	_In_ PIO_STATUS_BLOCK IoStatusBlock,
 	_In_ ULONG Reserved
 	);
+
+#define RESOURCE_TYPE_LEVEL 0
+#define RESOURCE_NAME_LEVEL 1
+#define RESOURCE_LANGUAGE_LEVEL 2
+#define RESOURCE_DATA_LEVEL 3
+
+#define LDR_GET_DLL_HANDLE_EX_UNCHANGED_REFCOUNT 0x00000001
+#define LDR_GET_DLL_HANDLE_EX_PIN 0x00000002
+
+#define LDR_GET_PROCEDURE_ADDRESS_DONT_RECORD_FORWARDER 0x00000001
 
 //
 // nt functions
@@ -2446,11 +2463,12 @@ LdrLoadDll (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-LdrGetProcedureAddress (
+LdrGetProcedureAddressEx (
 	_In_ PVOID DllHandle,
 	_In_opt_ PANSI_STRING ProcedureName,
 	_In_opt_ ULONG ProcedureNumber,
-	_Out_ PVOID *ProcedureAddress
+	_Out_ PVOID *ProcedureAddress,
+	_In_ ULONG Flags
 );
 
 NTSYSCALLAPI
@@ -2461,10 +2479,7 @@ LdrGetDllFullName (
 	_Out_ PUNICODE_STRING FullDllName
 );
 
-#define LDR_GET_DLL_HANDLE_EX_UNCHANGED_REFCOUNT 0x00000001
-#define LDR_GET_DLL_HANDLE_EX_PIN 0x00000002
-
-NTSYSAPI
+NTSYSCALLAPI
 NTSTATUS
 NTAPI
 LdrGetDllHandleEx (
@@ -2483,6 +2498,33 @@ LdrGetDllPath (
 	_In_  ULONG  Flags, // LOAD_LIBRARY_SEARCH_*
 	_Out_ PWSTR* DllPath,
 	_Out_ PWSTR* SearchPaths
+);
+
+NTSYSCALLAPI
+VOID
+NTAPI
+RtlReleasePath (
+	_In_ PWSTR Path
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+LdrAccessResource (
+	_In_ PVOID DllHandle,
+	_In_ PIMAGE_RESOURCE_DATA_ENTRY ResourceDataEntry,
+	_Out_opt_ PVOID *ResourceBuffer,
+	_Out_opt_ ULONG *ResourceLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+LdrFindResource_U (
+	_In_ PVOID DllHandle,
+	_In_ PLDR_RESOURCE_INFO ResourceInfo,
+	_In_ ULONG Level,
+	_Out_ PIMAGE_RESOURCE_DATA_ENTRY *ResourceDataEntry
 );
 
 NTSYSCALLAPI
