@@ -33,15 +33,6 @@ VOID _r_debug (
 VOID _r_error_initialize (
 	_Out_ PR_ERROR_INFO error_info,
 	_In_opt_ PVOID hinst,
-	_In_opt_ LPCWSTR description
-)
-{
-	_r_error_initialize_ex (error_info, hinst, description, NULL);
-}
-
-VOID _r_error_initialize_ex (
-	_Out_ PR_ERROR_INFO error_info,
-	_In_opt_ PVOID hinst,
 	_In_opt_ LPCWSTR description,
 	_In_opt_ PEXCEPTION_POINTERS exception_ptr
 )
@@ -205,7 +196,9 @@ HRESULT _r_format_bytesize64 (
 	status = StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, buffer_size);
 
 	if (FAILED (status))
+	{
 		*buffer = UNICODE_NULL;
+	}
 
 	return status;
 }
@@ -503,10 +496,7 @@ VOID _r_autopool_initialize (
 	_Out_ PR_AUTO_POOL auto_pool
 )
 {
-	auto_pool->static_count = 0;
-	auto_pool->dynamic_count = 0;
-	auto_pool->dynamic_allocated = 0;
-	auto_pool->dynamic_objects = NULL;
+	RtlZeroMemory (auto_pool, sizeof (R_AUTO_POOL));
 
 	// Add the pool to the stack.
 	auto_pool->next_pool = _r_autopool_getcurrentdata ();
@@ -537,6 +527,7 @@ VOID _r_autopool_drain (
 	if (auto_pool->static_count)
 	{
 		_r_obj_dereferencelist (auto_pool->static_objects, auto_pool->static_count);
+
 		auto_pool->static_count = 0;
 	}
 
@@ -1920,7 +1911,9 @@ NTSTATUS _r_mutex_create (
 	status = NtCreateMutant (hmutex, MUTANT_ALL_ACCESS, &oa, TRUE);
 
 	if (!NT_SUCCESS (status))
+	{
 		*hmutex = NULL;
+	}
 
 	return status;
 }
@@ -2497,10 +2490,9 @@ PR_STRING _r_obj_concatstringrefs_v (
 	PR_STRINGREF arg;
 	PR_STRING string;
 	LPWSTR ptr;
-	SIZE_T total_length;
+	SIZE_T total_length = 0;
 
 	argptr = arg_ptr;
-	total_length = 0;
 
 	for (SIZE_T i = 0; i < count; i++)
 	{
@@ -2514,8 +2506,8 @@ PR_STRING _r_obj_concatstringrefs_v (
 
 	string = _r_obj_createstring_ex (NULL, total_length);
 
-	argptr = arg_ptr;
 	total_length = 0;
+	argptr = arg_ptr;
 
 	for (SIZE_T i = 0; i < count; i++)
 	{
@@ -2834,13 +2826,6 @@ VOID _r_obj_initializestorage (
 //
 
 VOID _r_obj_initializestringbuilder (
-	_Out_ PR_STRINGBUILDER sb
-)
-{
-	_r_obj_initializestringbuilder_ex (sb, 256 * sizeof (WCHAR));
-}
-
-VOID _r_obj_initializestringbuilder_ex (
 	_Out_ PR_STRINGBUILDER sb,
 	_In_ SIZE_T initial_capacity
 )
@@ -3605,6 +3590,7 @@ FORCEINLINE PVOID _r_obj_addhashtableitem_ex (
 	{
 		free_entry = hashtable->free_entry;
 		hashtable_entry = PR_HASHTABLE_GET_ENTRY (hashtable, free_entry);
+
 		hashtable->free_entry = hashtable_entry->next;
 	}
 	else
@@ -4076,6 +4062,7 @@ HRESULT CALLBACK _r_msg_callback (
 )
 {
 	UNREFERENCED_PARAMETER (wparam);
+	UNREFERENCED_PARAMETER (lparam);
 
 	switch (msg)
 	{
@@ -4353,6 +4340,21 @@ NTSTATUS _r_fs_copyfile (
 	return status;
 }
 
+VOID _r_fs_recursivedirectorydelete_callback (
+	_In_ LPCWSTR path,
+	_In_ PFILE_DIRECTORY_INFORMATION directory_info
+)
+{
+	if (directory_info->FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+	{
+		_r_fs_deletedirectory (path, TRUE);
+	}
+	else
+	{
+		_r_fs_deletefile (path, TRUE);
+	}
+}
+
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_deletedirectory (
 	_In_ LPCWSTR path,
@@ -4362,32 +4364,29 @@ NTSTATUS _r_fs_deletedirectory (
 	FILE_DISPOSITION_INFORMATION fdi = {0};
 	FILE_DISPOSITION_INFO_EX fdi_ex = {0};
 	OBJECT_ATTRIBUTES oa = {0};
-	UNICODE_STRING nt_path;
 	IO_STATUS_BLOCK isb;
 	HANDLE hdirectory;
 	NTSTATUS status;
 
-	status = RtlDosPathNameToNtPathName_U_WithStatus (path, &nt_path, NULL, NULL);
-
-	if (!NT_SUCCESS (status))
-		return status;
-
-	InitializeObjectAttributes (&oa, &nt_path, OBJ_CASE_INSENSITIVE, NULL, NULL);
-
-	status = NtOpenFile (
-		&hdirectory,
-		DELETE | SYNCHRONIZE | FAILED_ACCESS_ACE_FLAG,
-		&oa,
-		&isb,
+	status = _r_fs_createfile (
+		path,
+		FILE_OPEN,
+		FILE_LIST_DIRECTORY | DELETE,
 		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-		FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT |
-		FILE_OPEN_FOR_BACKUP_INTENT | FILE_OPEN_REPARSE_POINT
+		FILE_ATTRIBUTE_NORMAL,
+		FILE_OPEN_FOR_BACKUP_INTENT | FILE_OPEN_REPARSE_POINT,
+		TRUE,
+		NULL,
+		&hdirectory
 	);
 
 	if (!NT_SUCCESS (status))
 		return status;
 
-	_r_fs_setattributes (path, NULL, FILE_ATTRIBUTE_NORMAL);
+	_r_fs_setattributes (path, hdirectory, FILE_ATTRIBUTE_NORMAL);
+
+	if (is_recurse)
+		_r_fs_enumfiles (path, hdirectory, NULL, &_r_fs_recursivedirectorydelete_callback);
 
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1809))
 	{
@@ -4401,8 +4400,6 @@ NTSTATUS _r_fs_deletedirectory (
 
 		status = NtSetInformationFile (hdirectory, &isb, &fdi, sizeof (FILE_DISPOSITION_INFORMATION), FileDispositionInformation);
 	}
-
-	RtlFreeUnicodeString (&nt_path);
 
 	return status;
 }
@@ -4436,26 +4433,24 @@ NTSTATUS _r_fs_deletefile (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_enumfiles (
-	_In_opt_ LPCWSTR path,
+	_In_ LPCWSTR path,
 	_In_opt_ HANDLE hdirectory,
 	_In_opt_ LPCWSTR search_pattern,
 	_In_ PR_FILE_ENUM_CALLBACK callback
 )
 {
-	PFILE_DIRECTORY_INFORMATION information;
+	PFILE_DIRECTORY_INFORMATION directory_info;
 	UNICODE_STRING pattern = {0};
 	IO_STATUS_BLOCK isb;
 	HANDLE hdirectory_new = NULL;
+	PR_STRING path_full;
 	PVOID buffer;
 	ULONG buffer_size = 0x400;
 	ULONG i = 0;
 	BOOLEAN is_firsttime = FALSE;
 	NTSTATUS status;
 
-	if (!path && !hdirectory)
-		return STATUS_INVALID_PARAMETER;
-
-	if (path)
+	if (!hdirectory)
 	{
 		status = _r_fs_createfile (
 			path,
@@ -4522,14 +4517,20 @@ NTSTATUS _r_fs_enumfiles (
 		// Read the batch and execute the callback function for each file.
 		while (TRUE)
 		{
-			information = PTR_ADD_OFFSET (buffer, i);
+			directory_info = PTR_ADD_OFFSET (buffer, i);
 
-			if (_r_str_compare (information->FileName, L".") != 0 && _r_str_compare (information->FileName, L"..") != 0)
-				callback (information);
-
-			if (information->NextEntryOffset != 0)
+			if (_r_str_compare (directory_info->FileName, L".") != 0 && _r_str_compare (directory_info->FileName, L"..") != 0)
 			{
-				i += information->NextEntryOffset;
+				path_full = _r_format_string (L"%s\\%s", path, directory_info->FileName);
+
+				callback (path_full->buffer, directory_info);
+
+				_r_obj_dereference (path_full);
+			}
+
+			if (directory_info->NextEntryOffset != 0)
+			{
+				i += directory_info->NextEntryOffset;
 			}
 			else
 			{
@@ -4579,7 +4580,7 @@ NTSTATUS _r_fs_getattributes (
 	}
 	else
 	{
-		*attributes_ptr = INVALID_FILE_ATTRIBUTES;
+		*attributes_ptr = 0;
 	}
 
 	return status;
@@ -4597,7 +4598,14 @@ NTSTATUS _r_fs_getpos (
 
 	status = NtQueryInformationFile (hfile, &io, &info, sizeof (info), FilePositionInformation);
 
-	*out_buffer = info.CurrentByteOffset.QuadPart;
+	if (NT_SUCCESS (status))
+	{
+		*out_buffer = info.CurrentByteOffset.QuadPart;
+	}
+	else
+	{
+		*out_buffer = 0;
+	}
 
 	return status;
 }
@@ -4614,7 +4622,14 @@ NTSTATUS _r_fs_getsize (
 
 	status = NtQueryInformationFile (hfile, &io, &info, sizeof (info), FileStandardInformation);
 
-	RtlCopyMemory (out_buffer, &info.EndOfFile, sizeof (LARGE_INTEGER));
+	if (NT_SUCCESS (status))
+	{
+		RtlCopyMemory (out_buffer, &info.EndOfFile, sizeof (LARGE_INTEGER));
+	}
+	else
+	{
+		RtlZeroMemory (out_buffer, sizeof (LARGE_INTEGER));
+	}
 
 	return status;
 }
@@ -4633,22 +4648,36 @@ NTSTATUS _r_fs_gettimestamp (
 
 	status = NtQueryInformationFile (hfile, &io, &info, sizeof (info), FileBasicInformation);
 
-	if (creation_time)
+	if (NT_SUCCESS (status))
 	{
-		creation_time->dwHighDateTime = info.CreationTime.HighPart;
-		creation_time->dwLowDateTime = info.CreationTime.LowPart;
-	}
+		if (creation_time)
+		{
+			creation_time->dwHighDateTime = info.CreationTime.HighPart;
+			creation_time->dwLowDateTime = info.CreationTime.LowPart;
+		}
 
-	if (access_time)
-	{
-		access_time->dwHighDateTime = info.LastAccessTime.HighPart;
-		access_time->dwLowDateTime = info.LastAccessTime.LowPart;
-	}
+		if (access_time)
+		{
+			access_time->dwHighDateTime = info.LastAccessTime.HighPart;
+			access_time->dwLowDateTime = info.LastAccessTime.LowPart;
+		}
 
-	if (write_time)
+		if (write_time)
+		{
+			write_time->dwHighDateTime = info.LastWriteTime.HighPart;
+			write_time->dwLowDateTime = info.LastWriteTime.LowPart;
+		}
+	}
+	else
 	{
-		write_time->dwHighDateTime = info.LastWriteTime.HighPart;
-		write_time->dwLowDateTime = info.LastWriteTime.LowPart;
+		if (creation_time)
+			RtlZeroMemory (creation_time, sizeof (FILETIME));
+
+		if (access_time)
+			RtlZeroMemory (access_time, sizeof (FILETIME));
+
+		if (write_time)
+			RtlZeroMemory (write_time, sizeof (FILETIME));
 	}
 
 	return status;
@@ -4798,18 +4827,18 @@ NTSTATUS _r_fs_readfile (
 
 	if (NT_SUCCESS (status))
 	{
+		*out_buffer = buffer;
+
 		_r_obj_setbytelength (buffer, length);
 
 		_r_mem_free (pmemory);
-
-		*out_buffer = buffer;
 	}
 	else
 	{
+		*out_buffer = NULL;
+
 		_r_mem_free (pmemory);
 		_r_mem_free (buffer);
-
-		*out_buffer = NULL;
 	}
 
 	return status;
@@ -4830,7 +4859,7 @@ NTSTATUS _r_fs_setattributes (
 	if (!path && !hfile)
 		return STATUS_INVALID_PARAMETER;
 
-	if (path)
+	if (path && !hfile)
 	{
 		status = _r_fs_createfile (
 			path,
@@ -4838,7 +4867,7 @@ NTSTATUS _r_fs_setattributes (
 			FILE_WRITE_ATTRIBUTES,
 			FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
 			FILE_ATTRIBUTE_NORMAL,
-			FILE_OPEN_REPARSE_POINT | FILE_OPEN_FOR_BACKUP_INTENT | FILE_SYNCHRONOUS_IO_NONALERT,
+			FILE_OPEN_FOR_BACKUP_INTENT | FILE_OPEN_REPARSE_POINT,
 			FALSE,
 			NULL,
 			&hfile_new
@@ -4957,6 +4986,7 @@ PR_STRING _r_path_compact (
 	return _r_obj_reference (path);
 }
 
+_Success_ (return)
 BOOLEAN _r_path_getpathinfo (
 	_In_ PR_STRINGREF path,
 	_Out_opt_ PR_STRINGREF directory,
@@ -5293,6 +5323,7 @@ NTSTATUS _r_path_makebackup (
 //
 // Source: https://github.com/processhacker2/processhacker
 
+_Success_ (return)
 BOOLEAN _r_path_parsecommandlinefuzzy (
 	_In_ PR_STRINGREF args,
 	_Out_ PR_STRINGREF path,
@@ -5313,7 +5344,7 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 	BOOLEAN is_found;
 	NTSTATUS status;
 
-	args_sr = *args;
+	_r_obj_initializestringref3 (&args_sr, args);
 
 	_r_str_trimstringref (&args_sr, &whitespace, 0);
 
@@ -5350,8 +5381,8 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 
 		_r_str_trimstringref (&arguments, &whitespace, PR_TRIM_START_ONLY);
 
-		*path = args_sr;
-		*command_line = arguments;
+		_r_obj_initializestringref3 (path, &args_sr);
+		_r_obj_initializestringref3 (command_line, &arguments);
 
 		if (full_file_name)
 		{
@@ -5440,8 +5471,7 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 
 	_r_mem_free (temp.buffer);
 
-	*path = *args;
-
+	_r_obj_initializestringref3 (path, args);
 	_r_obj_initializestringrefempty (command_line);
 
 	if (full_file_name)
@@ -5474,16 +5504,14 @@ NTSTATUS _r_path_resolvedeviceprefix (
 	ULONG flags;
 	NTSTATUS status;
 
+	*out_buffer = NULL;
+
 	flags = OBJ_CASE_INSENSITIVE | (_r_sys_isosversiongreaterorequal (WINDOWS_10) ? OBJ_DONT_REPARSE : 0);
 
 	status = NtQueryInformationProcess (NtCurrentProcess (), ProcessDeviceMap, &device_map, sizeof (device_map), NULL);
 
 	if (!NT_SUCCESS (status))
-	{
-		*out_buffer = NULL;
-
 		return status;
-	}
 
 	for (ULONG i = 0; i < PR_DEVICE_COUNT; i++)
 	{
@@ -5546,14 +5574,8 @@ NTSTATUS _r_path_resolvedeviceprefix (
 					else
 					{
 						status = STATUS_OBJECT_NAME_NOT_FOUND;
-
-						*out_buffer = NULL;
 					}
 				}
-			}
-			else
-			{
-				*out_buffer = NULL;
 			}
 
 			NtClose (link_handle);
@@ -5605,7 +5627,7 @@ NTSTATUS _r_path_resolvedeviceprefix_workaround (
 
 	flags = OBJ_CASE_INSENSITIVE | (_r_sys_isosversiongreaterorequal (WINDOWS_10) ? OBJ_DONT_REPARSE : 0);
 
-	buffer_size = sizeof (OBJECT_DIRECTORY_INFORMATION) + (MAX_PATH * sizeof (WCHAR));
+	buffer_size = sizeof (OBJECT_DIRECTORY_INFORMATION) + (512 * sizeof (WCHAR));
 	directory_entry = _r_mem_allocate (buffer_size);
 
 	while (TRUE)
@@ -5894,6 +5916,9 @@ NTSTATUS _r_path_search (
 
 	if (NT_SUCCESS (status))
 	{
+		if (full_path)
+			_r_obj_setstringlength (full_path, full_path->length / sizeof (WCHAR));
+
 		*out_buffer = full_path;
 	}
 	else
@@ -6276,10 +6301,6 @@ NTSTATUS _r_str_environmentexpandstring (
 
 		return status;
 	}
-	else
-	{
-		*out_buffer = NULL;
-	}
 
 	_r_obj_dereference (buffer_string);
 
@@ -6538,10 +6559,6 @@ NTSTATUS _r_str_fromguid (
 
 		RtlFreeUnicodeString (&us);
 	}
-	else
-	{
-		*out_buffer = NULL;
-	}
 
 	return status;
 }
@@ -6590,7 +6607,7 @@ _Success_ (return == ERROR_SUCCESS)
 ULONG _r_str_fromsecuritydescriptor (
 	_In_ PSECURITY_DESCRIPTOR security_descriptor,
 	_In_ SECURITY_INFORMATION security_information,
-	_Out_ PR_STRING_PTR out_buffer
+	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
 	LPWSTR security_string;
@@ -6634,15 +6651,15 @@ NTSTATUS _r_str_fromsid (
 
 	if (NT_SUCCESS (status))
 	{
-		_r_obj_setstringlength (string, us.Length); // terminate
-
 		*out_buffer = string;
+
+		_r_obj_setstringlength (string, us.Length); // terminate
 	}
 	else
 	{
-		_r_obj_dereference (string);
-
 		*out_buffer = NULL;
+
+		_r_obj_dereference (string);
 	}
 
 	return status;
@@ -7082,6 +7099,7 @@ VOID _r_str_printf (
 	if (buffer_size > PR_SIZE_MAX_STRING_LENGTH)
 	{
 		*buffer = UNICODE_NULL;
+
 		return;
 	}
 
@@ -7103,6 +7121,7 @@ VOID _r_str_printf_v (
 	if (buffer_size > PR_SIZE_MAX_STRING_LENGTH)
 	{
 		*buffer = UNICODE_NULL;
+
 		return;
 	}
 
@@ -7153,7 +7172,8 @@ BOOLEAN _r_str_splitatchar (
 	LPWSTR buffer;
 	SIZE_T index;
 
-	input = *string;
+	_r_obj_initializestringref3 (&input, string);
+
 	index = _r_str_findchar (string, separator, FALSE);
 
 	if (index == SIZE_MAX)
@@ -7329,7 +7349,7 @@ BOOLEAN _r_str_tointeger64 (
 	R_STRINGREF input;
 	ULONG64 result;
 	ULONG base_used;
-	BOOLEAN is_negative;
+	BOOLEAN is_negative = FALSE;
 	BOOLEAN is_valid;
 
 	if (new_base_ptr)
@@ -7343,8 +7363,7 @@ BOOLEAN _r_str_tointeger64 (
 	if (base > 69)
 		return FALSE;
 
-	input = *string;
-	is_negative = FALSE;
+	_r_obj_initializestringref3 (&input, string);
 
 	if ((input.buffer[0] == L'-' || input.buffer[0] == L'+'))
 	{
@@ -7455,12 +7474,10 @@ BOOLEAN _r_str_touinteger64 (
 	ULONG64 result = 0;
 	SIZE_T length;
 	ULONG value;
-	BOOLEAN is_valid;
+	BOOLEAN is_valid = TRUE;
 
 	buffer = string->buffer;
 	length = _r_str_getlength3 (string);
-
-	is_valid = TRUE;
 
 	if (length)
 	{
@@ -7699,7 +7716,7 @@ VOID _r_str_trimstringref2 (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_multibyte2unicode (
 	_In_ PR_BYTEREF string,
-	_Out_ PR_STRING_PTR out_buffer
+	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
 	PR_STRING out_string;
@@ -7736,7 +7753,7 @@ NTSTATUS _r_str_multibyte2unicode (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_unicode2multibyte (
 	_In_ PR_STRINGREF string,
-	_Out_ PR_BYTE_PTR out_buffer
+	_Outptr_ PR_BYTE_PTR out_buffer
 )
 {
 	PR_BYTE out_string;
@@ -8339,6 +8356,121 @@ NTSTATUS _r_sys_formatmessage (
 	return status;
 }
 
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_getbinarytype (
+	_In_ LPCWSTR path,
+	_Out_ PULONG out_type
+)
+{
+	SECTION_IMAGE_INFORMATION image_info = {0};
+	HANDLE hfile;
+	HANDLE hmapping;
+	NTSTATUS status;
+
+	*out_type = 0;
+
+	status = _r_fs_createfile (
+		path,
+		FILE_OPEN,
+		GENERIC_READ,
+		FILE_SHARE_READ | FILE_SHARE_DELETE,
+		FILE_ATTRIBUTE_NORMAL,
+		0,
+		FALSE,
+		NULL,
+		&hfile
+	);
+
+	if (!NT_SUCCESS (status))
+		return status;
+
+	status = NtCreateSection (&hmapping, SECTION_QUERY | SECTION_MAP_READ | SECTION_MAP_EXECUTE, NULL, NULL, PAGE_READONLY, SEC_IMAGE, hfile);
+
+	if (!NT_SUCCESS (status))
+		return status;
+
+	status = NtQuerySection (hmapping, SectionImageInformation, &image_info, sizeof (image_info), NULL);
+
+	switch (status)
+	{
+		case STATUS_SUCCESS:
+		{
+			switch (image_info.Machine)
+			{
+				case IMAGE_FILE_MACHINE_I386:
+				case IMAGE_FILE_MACHINE_ARMNT:
+				{
+					*out_type = SCS_32BIT_BINARY;
+
+					break;
+				}
+
+				case IMAGE_FILE_MACHINE_IA64:
+				case IMAGE_FILE_MACHINE_AMD64:
+				case IMAGE_FILE_MACHINE_ARM64:
+				{
+					*out_type = SCS_64BIT_BINARY;
+
+					break;
+				}
+			}
+
+			break;
+		}
+
+		case STATUS_INVALID_IMAGE_WIN_16:
+		{
+			*out_type = SCS_WOW_BINARY;
+
+			status = STATUS_SUCCESS;
+
+			break;
+
+		}
+
+		case STATUS_INVALID_IMAGE_WIN_32:
+		{
+			*out_type = SCS_32BIT_BINARY;
+
+			status = STATUS_SUCCESS;
+
+			break;
+		}
+
+		case STATUS_INVALID_IMAGE_WIN_64:
+		{
+			*out_type = SCS_64BIT_BINARY;
+
+			status = STATUS_SUCCESS;
+
+			break;
+		}
+
+		case STATUS_INVALID_IMAGE_NE_FORMAT:
+		{
+			*out_type = SCS_OS216_BINARY;
+
+			status = STATUS_SUCCESS;
+
+			break;
+		}
+
+		case STATUS_INVALID_IMAGE_PROTECT:
+		{
+			*out_type = SCS_DOS_BINARY;
+
+			status = STATUS_SUCCESS;
+
+			break;
+		}
+	}
+
+	NtClose (hmapping);
+	NtClose (hfile);
+
+	return status;
+}
+
 PR_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
@@ -8384,12 +8516,11 @@ _Success_ (return == ERROR_SUCCESS)
 ULONG _r_sys_getlocaleinfo (
 	_In_ LCID locale_id,
 	_In_ LCTYPE locale_type,
-	_Out_ PR_STRING_PTR out_buffer
+	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
 	PR_STRING string;
 	ULONG return_length;
-	ULONG status;
 
 	return_length = GetLocaleInfo (locale_id, locale_type, NULL, 0);
 
@@ -8408,25 +8539,23 @@ ULONG _r_sys_getlocaleinfo (
 	{
 		*out_buffer = string;
 
-		status = ERROR_SUCCESS;
-
 	}
 	else
 	{
 		*out_buffer = NULL;
 
-		status = GetLastError ();
-
 		_r_obj_dereference (string);
+
+		return GetLastError ();
 	}
 
-	return status;
+	return ERROR_SUCCESS;
 }
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getmodulehandle (
 	_In_ LPCWSTR name,
-	_Out_ PVOID_PTR out_buffer
+	_Outptr_ PVOID_PTR out_buffer
 )
 {
 	UNICODE_STRING us;
@@ -8471,17 +8600,6 @@ NTSTATUS _r_sys_getprocessorinformation (
 
 		if (out_features)
 			*out_features = cpu_info.ProcessorFeatureBits;
-	}
-	else
-	{
-		if (out_architecture)
-			*out_architecture = 0;
-
-		if (out_revision)
-			*out_revision = 0;
-
-		if (out_features)
-			*out_features = 0;
 	}
 
 	return status;
@@ -8597,7 +8715,7 @@ BOOLEAN _r_sys_getopt (
 	LPWSTR buffer;
 	SIZE_T option_length;
 	INT numargs;
-	BOOLEAN is_namefound;
+	BOOLEAN is_namefound = FALSE;
 
 	arga = CommandLineToArgvW (args, &numargs);
 
@@ -8606,8 +8724,6 @@ BOOLEAN _r_sys_getopt (
 
 	if (!arga)
 		return FALSE;
-
-	is_namefound = FALSE;
 
 	_r_obj_initializestringrefconst (&name_sr, name);
 
@@ -8748,26 +8864,30 @@ NTSTATUS _r_sys_getservicesid (
 	PR_BYTE sid;
 	NTSTATUS status;
 
-	*out_buffer = NULL;
-
 	_r_obj_initializeunicodestring (&service_name, name);
 
 	status = RtlCreateServiceSid (&service_name, NULL, &sid_length);
 
-	if (status == STATUS_BUFFER_TOO_SMALL)
+	if (status != STATUS_BUFFER_TOO_SMALL)
 	{
-		sid = _r_obj_createbyte_ex (NULL, sid_length);
+		*out_buffer = NULL;
 
-		status = RtlCreateServiceSid (&service_name, sid->buffer, &sid_length);
+		return status;
+	}
 
-		if (NT_SUCCESS (status))
-		{
-			*out_buffer = sid;
-		}
-		else
-		{
-			_r_obj_dereference (sid);
-		}
+	sid = _r_obj_createbyte_ex (NULL, sid_length);
+
+	status = RtlCreateServiceSid (&service_name, sid->buffer, &sid_length);
+
+	if (NT_SUCCESS (status))
+	{
+		*out_buffer = sid;
+	}
+	else
+	{
+		*out_buffer = NULL;
+
+		_r_obj_dereference (sid);
 	}
 
 	return status;
@@ -8776,7 +8896,7 @@ NTSTATUS _r_sys_getservicesid (
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_sys_getsessioninfo (
 	_In_ WTS_INFO_CLASS info_class,
-	_Out_ PR_STRING_PTR out_buffer
+	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
 	PR_STRING string;
@@ -8857,7 +8977,7 @@ ULONG64 _r_sys_gettickcount64 ()
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getusernamefromsid (
 	_In_ PSID sid,
-	_Out_ PR_STRING_PTR out_buffer
+	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
 	LSA_OBJECT_ATTRIBUTES oa = {0};
@@ -8889,7 +9009,7 @@ NTSTATUS _r_sys_getusernamefromsid (
 		goto CleanupExit;
 	}
 
-	_r_obj_initializestringbuilder (&sb);
+	_r_obj_initializestringbuilder (&sb, 256);
 
 	is_hasdomain = (referenced_domains && names[0].DomainIndex >= 0);
 	is_hasname = (names[0].Name.Buffer != NULL);
@@ -9078,7 +9198,7 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_compressbuffer (
 	_In_ USHORT format,
 	_In_ PR_BYTEREF buffer,
-	_Out_ PR_BYTE_PTR out_buffer
+	_Outptr_ PR_BYTE_PTR out_buffer
 )
 {
 	PR_BYTE tmp_buffer;
@@ -9128,7 +9248,7 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_decompressbuffer (
 	_In_ USHORT format,
 	_In_ PR_BYTEREF buffer,
-	_Out_ PR_BYTE_PTR out_buffer
+	_Outptr_ PR_BYTE_PTR out_buffer
 )
 {
 	PR_BYTE tmp_buffer;
@@ -9270,8 +9390,8 @@ NTSTATUS _r_sys_getprocaddress (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getprocessimagepath (
 	_In_ HANDLE hprocess,
-	_Outptr_ PR_STRING_PTR out_buffer,
-	_In_ BOOLEAN is_ntpathtodos
+	_In_ BOOLEAN is_ntpathtodos,
+	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
 	SYSTEM_PROCESS_ID_INFORMATION data = {0};
@@ -9377,11 +9497,13 @@ NTSTATUS _r_sys_createprocess (
 	_In_opt_ LPCWSTR current_directory
 )
 {
-	PRTL_USER_PROCESS_PARAMETERS upi = NULL;
 	RTL_USER_PROCESS_INFORMATION process_info = {0};
-	UNICODE_STRING filename_nt;
-	UNICODE_STRING command_line_nt = {0};
+	PRTL_USER_PROCESS_PARAMETERS upi = NULL;
+	PRTL_USER_PROCESS_PARAMETERS myparam;
 	UNICODE_STRING current_directory_nt = {0};
+	UNICODE_STRING command_line_nt = {0};
+	UNICODE_STRING filename_nt;
+	PR_STRING directory_string = NULL;
 	PR_STRING file_name_string;
 	PR_STRING new_path;
 	NTSTATUS status;
@@ -9405,7 +9527,18 @@ NTSTATUS _r_sys_createprocess (
 		_r_obj_initializeunicodestring (&command_line_nt, command_line);
 
 	if (current_directory)
+	{
 		_r_obj_initializeunicodestring (&current_directory_nt, current_directory);
+	}
+	else
+	{
+		directory_string = _r_path_getbasedirectory (&file_name_string->sr);
+
+		if (directory_string)
+			_r_obj_initializeunicodestring2 (&current_directory_nt, directory_string);
+	}
+
+	myparam = NtCurrentPeb ()->ProcessParameters;
 
 	status = RtlCreateProcessParameters (
 		&upi,
@@ -9415,9 +9548,9 @@ NTSTATUS _r_sys_createprocess (
 		command_line_nt.Length ? &command_line_nt : &filename_nt,
 		NULL,
 		&filename_nt,
-		&NtCurrentPeb ()->ProcessParameters->DesktopInfo,
-		&NtCurrentPeb ()->ProcessParameters->ShellInfo,
-		&NtCurrentPeb ()->ProcessParameters->RuntimeData
+		&myparam->DesktopInfo,
+		&myparam->ShellInfo,
+		&myparam->RuntimeData
 	);
 
 	status = RtlCreateUserProcess (&filename_nt, OBJ_CASE_INSENSITIVE, upi, NULL, NULL, NULL, FALSE, NULL, NULL, &process_info);
@@ -9438,6 +9571,9 @@ CleanupExit:
 
 	_r_obj_dereference (file_name_string);
 
+	if (directory_string)
+		_r_obj_dereference (directory_string);
+
 	if (upi)
 		RtlDestroyProcessParameters (upi);
 
@@ -9450,7 +9586,7 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_openprocess (
 	_In_opt_ HANDLE process_id,
 	_In_ ACCESS_MASK desired_access,
-	_Outptr_ PHANDLE process_handle
+	_Outptr_ PHANDLE out_buffer
 )
 {
 	OBJECT_ATTRIBUTES oa = {0};
@@ -9461,7 +9597,7 @@ NTSTATUS _r_sys_openprocess (
 
 	client_id.UniqueProcess = process_id;
 
-	status = NtOpenProcess (process_handle, desired_access, &oa, &client_id);
+	status = NtOpenProcess (out_buffer, desired_access, &oa, &client_id);
 
 	return status;
 }
@@ -9642,9 +9778,6 @@ NTSTATUS _r_sys_createthread (
 	}
 	else
 	{
-		if (thread_handle)
-			*thread_handle = NULL;
-
 		_r_freelist_deleteitem (free_list, context);
 	}
 
@@ -9818,8 +9951,6 @@ NTSTATUS _r_sys_querytokeninformation (
 	}
 	else
 	{
-		*token_info = NULL;
-
 		_r_mem_free (buffer);
 	}
 
@@ -10836,7 +10967,7 @@ HRESULT _r_dc_imagetobitmap (
 	_In_ ULONG buffer_length,
 	_In_ LONG x,
 	_In_ LONG y,
-	_Outptr_ HBITMAP_PTR out_buffer
+	_Outptr_result_maybenull_ HBITMAP_PTR out_buffer
 )
 {
 	BITMAPINFO bmi = {0};
@@ -11024,12 +11155,11 @@ CleanupExit:
 	}
 	else
 	{
+		*out_buffer = NULL;
+
 		if (hbitmap)
 			DeleteObject (hbitmap);
-
-		*out_buffer = NULL;
 	}
-
 
 	return status;
 }
@@ -12614,12 +12744,6 @@ ULONG _r_inet_openurl (
 	ULONG status;
 	BOOL result;
 
-	*hconnect_ptr = NULL;
-	*hrequest_ptr = NULL;
-
-	if (total_length_ptr)
-		*total_length_ptr = 0;
-
 	status = _r_inet_queryurlparts (url, PR_URLPARTS_SCHEME | PR_URLPARTS_HOST | PR_URLPARTS_PORT | PR_URLPARTS_PATH, &url_parts);
 
 	if (status != ERROR_SUCCESS)
@@ -12752,19 +12876,10 @@ BOOLEAN _r_inet_readrequest (
 	ULONG readed;
 
 	if (!WinHttpReadData (hrequest, buffer, buffer_size, &readed))
-	{
-		if (readed_ptr)
-			*readed_ptr = 0;
-
 		return FALSE;
-	}
 
 	if (readed_ptr && !readed)
-	{
-		*readed_ptr = 0;
-
 		return FALSE;
-	}
 
 	if (readed_ptr)
 		*readed_ptr = readed;
@@ -12849,13 +12964,6 @@ ULONG _r_inet_querystatuscode (
 }
 
 VOID _r_inet_initializedownload (
-	_Out_ PR_DOWNLOAD_INFO download_info
-)
-{
-	_r_inet_initializedownload_ex (download_info, NULL, NULL, NULL);
-}
-
-VOID _r_inet_initializedownload_ex (
 	_Out_ PR_DOWNLOAD_INFO download_info,
 	_In_opt_ HANDLE hfile,
 	_In_opt_ PR_INET_DOWNLOAD_CALLBACK download_callback,
@@ -12902,7 +13010,7 @@ ULONG _r_inet_begindownload (
 		return status;
 
 	if (!download_info->is_savetofile)
-		_r_obj_initializestringbuilder (&sb);
+		_r_obj_initializestringbuilder (&sb, 0x4000);
 
 	allocated_length = PR_SIZE_INET_READ_BUFFER;
 	content_bytes = _r_obj_createbyte_ex (NULL, allocated_length);
@@ -13226,7 +13334,6 @@ NTSTATUS _r_reg_enumkey (
 	NTSTATUS status;
 
 	buffer_size = sizeof (0x100);
-
 	basic_info = _r_mem_allocate (buffer_size);
 
 	status = NtEnumerateKey (hkey, index, KeyBasicInformation, basic_info, buffer_size, &buffer_size);
@@ -13259,12 +13366,6 @@ NTSTATUS _r_reg_queryinfo (
 	KEY_FULL_INFORMATION full_info = {0};
 	ULONG length = 0;
 	NTSTATUS status;
-
-	if (out_length)
-		*out_length = 0;
-
-	if (out_timestamp)
-		*out_timestamp = 0;
 
 	status = NtQueryKey (hkey, KeyFullInformation, &full_info, sizeof (KEY_FULL_INFORMATION), &length);
 
@@ -13384,8 +13485,6 @@ NTSTATUS _r_reg_queryulong (
 	ULONG buffer_size;
 	NTSTATUS status;
 
-	*out_buffer = 0;
-
 	buffer_size = sizeof (ULONG);
 	status = _r_reg_queryvalue (hkey, value_name, &buffer, &buffer_size, &type);
 
@@ -13446,18 +13545,7 @@ NTSTATUS _r_reg_queryvalue (
 	status = NtQueryValueKey (hkey, &us, KeyValuePartialInformation, NULL, 0, &size);
 
 	if (!NT_SUCCESS (status) && status != STATUS_BUFFER_OVERFLOW && status != STATUS_BUFFER_TOO_SMALL)
-	{
-		if (buffer)
-			RtlZeroMemory (buffer, sizeof (WCHAR));
-
-		if (buffer_length)
-			*buffer_length = 0;
-
-		if (type)
-			*type = 0;
-
 		return status;
-	}
 
 	value_info = _r_mem_allocate (size);
 
@@ -13670,11 +13758,7 @@ NTSTATUS _r_crypt_encryptbuffer (
 	);
 
 	if (!NT_SUCCESS (status))
-	{
-		*out_buffer = NULL;
-
 		return status;
-	}
 
 	tmp_buffer = _r_obj_createbyte_ex (NULL, return_length);
 
@@ -13700,8 +13784,6 @@ NTSTATUS _r_crypt_encryptbuffer (
 	else
 	{
 		_r_obj_dereference (tmp_buffer);
-
-		*out_buffer = NULL;
 	}
 
 	return status;
@@ -13734,11 +13816,7 @@ NTSTATUS _r_crypt_decryptbuffer (
 	);
 
 	if (!NT_SUCCESS (status))
-	{
-		*out_buffer = NULL;
-
 		return status;
-	}
 
 	tmp_buffer = _r_obj_createbyte_ex (NULL, return_length);
 
@@ -13764,8 +13842,6 @@ NTSTATUS _r_crypt_decryptbuffer (
 	else
 	{
 		_r_obj_dereference (tmp_buffer);
-
-		*out_buffer = NULL;
 	}
 
 	return status;
@@ -13844,14 +13920,95 @@ NTSTATUS _r_crypt_finalhashcontext (
 		if (out_buffer)
 			*out_buffer = _r_obj_reference (hash_context->block_data);
 	}
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_crypt_getfilehash (
+	_In_ LPCWSTR algorithm_id,
+	_In_opt_ LPCWSTR path,
+	_In_opt_ HANDLE hfile,
+	_Outptr_ PR_STRING_PTR out_buffer
+)
+{
+	R_CRYPT_CONTEXT hash_context;
+	IO_STATUS_BLOCK isb;
+	HANDLE hfile_new;
+	PVOID buffer;
+	PR_STRING string;
+	ULONG buffer_size;
+	NTSTATUS status;
+
+	if (!path && !hfile)
+		return STATUS_INVALID_PARAMETER;
+
+	if (path && !hfile)
+	{
+		status = _r_fs_createfile (
+			path,
+			FILE_OPEN,
+			GENERIC_READ,
+			FILE_SHARE_READ | FILE_SHARE_DELETE,
+			FILE_ATTRIBUTE_NORMAL,
+			0,
+			FALSE,
+			NULL,
+			&hfile_new
+		);
+
+		if (!NT_SUCCESS (status))
+		{
+			*out_buffer = NULL;
+
+			return status;
+		}
+
+		hfile = hfile_new;
+	}
+
+	status = _r_crypt_createhashcontext (&hash_context, algorithm_id);
+
+	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
+		return status;
+	}
+
+	buffer_size = 0x4000;
+	buffer = _r_mem_allocate (buffer_size);
+
+	while (TRUE)
+	{
+		status = NtReadFile (hfile, NULL, NULL, NULL, &isb, buffer, buffer_size, NULL, NULL);
+
+		if (!NT_SUCCESS (status))
+			break;
+
+		if (isb.Information == 0)
+			break;
+
+		status = _r_crypt_hashbuffer (&hash_context, buffer, (ULONG)isb.Information);
+
+		if (!NT_SUCCESS (status))
+			break;
+	}
+
+	status = _r_crypt_finalhashcontext (&hash_context, &string, NULL);
+
+	if (NT_SUCCESS (status))
+	{
+		*out_buffer = string;
+	}
 	else
 	{
-		if (out_string)
-			*out_string = NULL;
-
-		if (out_buffer)
-			*out_buffer = NULL;
+		*out_buffer = NULL;
 	}
+
+	_r_crypt_destroycryptcontext (&hash_context);
+
+	_r_mem_free (buffer);
 
 	return status;
 }
@@ -14035,32 +14192,32 @@ NTSTATUS _r_res_loadstring (
 
 	status = _r_res_loadresource (hinst, RT_STRING, MAKEINTRESOURCE ((LOWORD (string_id) >> 4) + 1), &buffer);
 
-	if (NT_SUCCESS (status))
+	if (!NT_SUCCESS (status))
 	{
-		string_buffer = buffer.buffer;
-		string_num = string_id & 0x000F;
+		*out_buffer = NULL;
 
-		for (ULONG i = 0; i < string_num; i++)
-		{
-			string_buffer = PTR_ADD_OFFSET (string_buffer, (string_buffer->Length + sizeof (ANSI_NULL)) * sizeof (WCHAR));
-		}
+		return status;
+	}
 
-		if (string_buffer->Length > 0 && string_buffer->Length < UNICODE_STRING_MAX_BYTES)
-		{
-			string = _r_obj_createstring_ex (string_buffer->NameString, string_buffer->Length * sizeof (WCHAR));
+	string_buffer = buffer.buffer;
+	string_num = string_id & 0x000F;
 
-			*out_buffer = string;
-		}
-		else
-		{
-			status = STATUS_BUFFER_OVERFLOW;
+	for (ULONG i = 0; i < string_num; i++)
+	{
+		string_buffer = PTR_ADD_OFFSET (string_buffer, (string_buffer->Length + sizeof (ANSI_NULL)) * sizeof (WCHAR));
+	}
 
-			*out_buffer = NULL;
-		}
+	if (string_buffer->Length > 0 && string_buffer->Length < UNICODE_STRING_MAX_BYTES)
+	{
+		string = _r_obj_createstring_ex (string_buffer->NameString, string_buffer->Length * sizeof (WCHAR));
+
+		*out_buffer = string;
 	}
 	else
 	{
 		*out_buffer = NULL;
+
+		status = STATUS_BUFFER_OVERFLOW;
 	}
 
 	return status;
@@ -14145,13 +14302,11 @@ ULONG _r_res_querytranslation (
 _Success_ (return)
 BOOLEAN _r_res_queryversion (
 	_In_ LPCVOID ver_block,
-	_Out_ PVOID_PTR out_buffer
+	_Outptr_ PVOID_PTR out_buffer
 )
 {
 	UINT length;
 	BOOL result;
-
-	*out_buffer = NULL;
 
 	result = VerQueryValue (ver_block, L"\\", out_buffer, &length);
 
@@ -14462,7 +14617,7 @@ HRESULT _r_xml_parsestring (
 _Success_ (SUCCEEDED (return))
 HRESULT _r_xml_readstream (
 	_Inout_ PR_XML_LIBRARY xml_library,
-	_Out_ PR_BYTE_PTR out_buffer
+	_Outptr_ PR_BYTE_PTR out_buffer
 )
 {
 	ULARGE_INTEGER size;
@@ -14520,7 +14675,11 @@ BOOLEAN _r_xml_getattribute (
 	status = IXmlReader_MoveToAttributeByName (xml_library->reader, attrib_name, NULL);
 
 	if (FAILED (status))
+	{
+		_r_obj_initializestringrefempty (value);
+
 		return FALSE;
+	}
 
 	status = IXmlReader_GetValue (xml_library->reader, &value_string, &value_length);
 
@@ -14528,7 +14687,11 @@ BOOLEAN _r_xml_getattribute (
 	IXmlReader_MoveToElement (xml_library->reader);
 
 	if (FAILED (status) || _r_str_isempty (value_string) || !value_length)
+	{
+		_r_obj_initializestringrefempty (value);
+
 		return FALSE;
+	}
 
 	_r_obj_initializestringref_ex (value, (LPWSTR)value_string, value_length * sizeof (WCHAR));
 

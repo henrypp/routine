@@ -69,7 +69,7 @@ ULONG NTAPI _r_app_exceptionfilter_callback (
 		exception_ptr->ExceptionRecord->ExceptionCode
 	);
 #else
-	_r_error_initialize_ex (&error_info, NULL, NULL, exception_ptr);
+	_r_error_initialize (&error_info, NULL, NULL, exception_ptr);
 
 	_r_show_errormessage (NULL, APP_EXCEPTION_TITLE, exception_ptr->ExceptionRecord->ExceptionCode, &error_info);
 #endif // APP_CONSOLE
@@ -425,6 +425,7 @@ PR_STRING _r_app_getconfigpath ()
 
 	PR_STRING string;
 	PR_STRING path;
+	HRESULT status;
 
 	if (_r_initonce_begin (&init_once))
 	{
@@ -440,13 +441,19 @@ PR_STRING _r_app_getconfigpath ()
 				_r_app_getnameshort (),
 				L".ini"
 			);
+
+			cached_result = string;
 		}
 		else
 		{
-			_r_path_getknownfolder (&FOLDERID_RoamingAppData, L"\\" APP_AUTHOR L"\\" APP_NAME L"\\" APP_NAME_SHORT L".ini", &string);
+			status = _r_path_getknownfolder (&FOLDERID_RoamingAppData, L"\\" APP_AUTHOR L"\\" APP_NAME L"\\" APP_NAME_SHORT L".ini", &string);
+
+			if (SUCCEEDED (status))
+			{
+				cached_result = string;
+			}
 		}
 
-		cached_result = string;
 
 		_r_initonce_end (&init_once);
 	}
@@ -2115,7 +2122,7 @@ ULONG _r_update_downloadupdate (
 	if (!NT_SUCCESS (status))
 		return status;
 
-	_r_inet_initializedownload_ex (&download_info, hfile, &_r_update_downloadcallback, update_info);
+	_r_inet_initializedownload (&download_info, hfile, &_r_update_downloadcallback, update_info);
 
 	status = _r_inet_begindownload (update_info->hsession, update_component->url, &download_info);
 
@@ -2250,7 +2257,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 
 	update_url = _r_obj_createstring (_r_app_getupdate_url ());
 
-	_r_inet_initializedownload (&download_info);
+	_r_inet_initializedownload (&download_info, NULL, NULL, NULL);
 
 	status = _r_inet_begindownload (update_info->hsession, update_url, &download_info);
 
@@ -2792,7 +2799,7 @@ VOID _r_update_install (
 
 	if (!_r_sys_runasadmin (update_component->cache_path->buffer, cmd_string->buffer, NULL))
 	{
-		_r_error_initialize (&error_info, NULL, update_component->cache_path->buffer);
+		_r_error_initialize (&error_info, NULL, update_component->cache_path->buffer, NULL);
 
 		_r_show_errormessage (NULL, NULL, GetLastError (), &error_info);
 	}
@@ -2821,48 +2828,39 @@ BOOLEAN _r_log_isenabled (
 _Ret_maybenull_
 HANDLE _r_log_getfilehandle ()
 {
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static HANDLE hfile = NULL;
 
 	LARGE_INTEGER file_size;
 	BYTE bom[] = {0xFF, 0xFE};
 	IO_STATUS_BLOCK isb;
 	PR_STRING string;
+	HANDLE hfile;
 	NTSTATUS status;
 
 	// write to file only when readonly mode is not specified
 	if (_r_app_isreadonly ())
 		return NULL;
 
-	if (_r_initonce_begin (&init_once))
+	string = _r_app_getlogpath ();
+
+	if (!string)
+		return NULL;
+
+	status = _r_fs_createfile (string->buffer, FILE_OPEN_IF, GENERIC_WRITE, FILE_SHARE_READ, FILE_ATTRIBUTE_NORMAL, 0, FALSE, NULL, &hfile);
+
+	if (status == STATUS_OBJECT_NAME_COLLISION)
 	{
-		string = _r_app_getlogpath ();
+		// write utf-16 le byte order mask
+		NtWriteFile (hfile, NULL, NULL, NULL, &isb, bom, sizeof (bom), NULL, NULL);
 
-		if (string)
-		{
-			status = _r_fs_createfile (string->buffer, FILE_OPEN_IF, GENERIC_WRITE, FILE_SHARE_READ, FILE_ATTRIBUTE_NORMAL, 0, FALSE, NULL, &hfile);
+		// adds csv header
+		NtWriteFile (hfile, NULL, NULL, NULL, &isb, PR_DEBUG_HEADER, (ULONG)(_r_str_getlength (PR_DEBUG_HEADER) * sizeof (WCHAR)), NULL, NULL);
+	}
+	else if (NT_SUCCESS (status))
+	{
+		status = _r_fs_getsize (hfile, &file_size);
 
-			if (status == STATUS_OBJECT_NAME_COLLISION)
-			{
-				// write utf-16 le byte order mask
-				NtWriteFile (hfile, NULL, NULL, NULL, &isb, bom, sizeof (bom), NULL, NULL);
-
-				// adds csv header
-				NtWriteFile (hfile, NULL, NULL, NULL, &isb, PR_DEBUG_HEADER, (ULONG)(_r_str_getlength (PR_DEBUG_HEADER) * sizeof (WCHAR)), NULL, NULL);
-			}
-			else
-			{
-				if (NT_SUCCESS (status))
-				{
-					status = _r_fs_getsize (hfile, &file_size);
-
-					if (NT_SUCCESS (status))
-						_r_fs_setpos (hfile, &file_size);
-				}
-			}
-		}
-
-		_r_initonce_end (&init_once);
+		if (NT_SUCCESS (status))
+			_r_fs_setpos (hfile, &file_size);
 	}
 
 	return hfile;
@@ -2913,6 +2911,8 @@ VOID _r_log (
 		);
 
 		NtWriteFile (hfile, NULL, NULL, NULL, &isb, error_string->buffer, (ULONG)error_string->length, NULL, NULL);
+
+		NtClose (hfile);
 
 		_r_obj_dereference (error_string);
 	}

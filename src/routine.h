@@ -231,12 +231,6 @@ VOID _r_debug (
 VOID _r_error_initialize (
 	_Out_ PR_ERROR_INFO error_info,
 	_In_opt_ PVOID hinst,
-	_In_opt_ LPCWSTR description
-);
-
-VOID _r_error_initialize_ex (
-	_Out_ PR_ERROR_INFO error_info,
-	_In_opt_ PVOID hinst,
 	_In_opt_ LPCWSTR description,
 	_In_opt_ PEXCEPTION_POINTERS exception_ptr
 );
@@ -1104,10 +1098,6 @@ VOID _r_obj_initializestorage (
 //
 
 VOID _r_obj_initializestringbuilder (
-	_Out_ PR_STRINGBUILDER sb
-);
-
-VOID _r_obj_initializestringbuilder_ex (
 	_Out_ PR_STRINGBUILDER sb,
 	_In_ SIZE_T initial_capacity
 );
@@ -1745,7 +1735,8 @@ BOOLEAN _r_clipboard_set (
 //
 
 typedef VOID (NTAPI *PR_FILE_ENUM_CALLBACK) (
-	_In_ PFILE_DIRECTORY_INFORMATION info
+	_In_ LPCWSTR path,
+	_In_ PFILE_DIRECTORY_INFORMATION directory_info
 	);
 
 VOID _r_fs_clearfile (
@@ -1785,7 +1776,7 @@ NTSTATUS _r_fs_deletefile (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_enumfiles (
-	_In_opt_ LPCWSTR path,
+	_In_ LPCWSTR path,
 	_In_opt_ HANDLE hdirectory,
 	_In_opt_ LPCWSTR search_pattern,
 	_In_ PR_FILE_ENUM_CALLBACK callback
@@ -1879,6 +1870,7 @@ PR_STRING _r_path_compact (
 	_In_ ULONG length
 );
 
+_Success_ (return)
 BOOLEAN _r_path_getpathinfo (
 	_In_ PR_STRINGREF path,
 	_Out_opt_ PR_STRINGREF directory,
@@ -1937,6 +1929,7 @@ NTSTATUS _r_path_makebackup (
 	_In_ BOOLEAN is_removesourcefile
 );
 
+_Success_ (return)
 BOOLEAN _r_path_parsecommandlinefuzzy (
 	_In_ PR_STRINGREF args,
 	_Out_ PR_STRINGREF path,
@@ -2128,7 +2121,7 @@ _Success_ (return == ERROR_SUCCESS)
 ULONG _r_str_fromsecuritydescriptor (
 	_In_ PSECURITY_DESCRIPTOR security_descriptor,
 	_In_ SECURITY_INFORMATION security_information,
-	_Out_ PR_STRING_PTR out_buffer
+	_Outptr_ PR_STRING_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2364,13 +2357,13 @@ VOID _r_str_trimstringref2 (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_multibyte2unicode (
 	_In_ PR_BYTEREF string,
-	_Out_ PR_STRING_PTR out_buffer
+	_Outptr_ PR_STRING_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_unicode2multibyte (
 	_In_ PR_STRINGREF string,
-	_Out_ PR_BYTE_PTR out_buffer
+	_Outptr_ PR_BYTE_PTR out_buffer
 );
 
 _Ret_maybenull_
@@ -2503,19 +2496,25 @@ NTSTATUS _r_sys_formatmessage (
 	_Outptr_ PR_STRING_PTR out_buffer
 );
 
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_getbinarytype (
+	_In_ LPCWSTR path,
+	_Out_ PULONG out_type
+);
+
 PR_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ();
 
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_sys_getlocaleinfo (
 	_In_ LCID locale_id,
 	_In_ LCTYPE locale_type,
-	_Out_ PR_STRING_PTR out_buffer
+	_Outptr_ PR_STRING_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getmodulehandle (
 	_In_ LPCWSTR name,
-	_Out_ PVOID_PTR out_buffer
+	_Outptr_ PVOID_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2554,7 +2553,7 @@ NTSTATUS _r_sys_getservicesid (
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_sys_getsessioninfo (
 	_In_ WTS_INFO_CLASS info_class,
-	_Out_ PR_STRING_PTR out_buffer
+	_Outptr_ PR_STRING_PTR out_buffer
 );
 
 ULONG _r_sys_gettickcount ();
@@ -2564,7 +2563,7 @@ ULONG64 _r_sys_gettickcount64 ();
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getusernamefromsid (
 	_In_ PSID sid,
-	_Out_ PR_STRING_PTR out_buffer
+	_Outptr_ PR_STRING_PTR out_buffer
 );
 
 ULONG _r_sys_getwindowsversion ();
@@ -2573,14 +2572,14 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_compressbuffer (
 	_In_ USHORT format,
 	_In_ PR_BYTEREF buffer,
-	_Out_ PR_BYTE_PTR out_buffer
+	_Outptr_ PR_BYTE_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_decompressbuffer (
 	_In_ USHORT format,
 	_In_ PR_BYTEREF buffer,
-	_Out_ PR_BYTE_PTR out_buffer
+	_Outptr_ PR_BYTE_PTR out_buffer
 );
 
 #define PR_FIRST_PROCESS(buffer) ((PSYSTEM_PROCESS_INFORMATION)(buffer))
@@ -2606,8 +2605,8 @@ NTSTATUS _r_sys_getprocaddress (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getprocessimagepath (
 	_In_ HANDLE hprocess,
-	_Outptr_ PR_STRING_PTR out_buffer,
-	_In_ BOOLEAN is_ntpathtodos
+	_In_ BOOLEAN is_ntpathtodos,
+	_Outptr_ PR_STRING_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2628,7 +2627,7 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_openprocess (
 	_In_opt_ HANDLE process_id,
 	_In_ ACCESS_MASK desired_access,
-	_Outptr_ PHANDLE process_handle
+	_Outptr_ PHANDLE out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2946,7 +2945,7 @@ HRESULT _r_dc_imagetobitmap (
 	_In_ ULONG buffer_length,
 	_In_ LONG x,
 	_In_ LONG y,
-	_Outptr_ HBITMAP_PTR out_buffer
+	_Outptr_result_maybenull_ HBITMAP_PTR out_buffer
 );
 
 BOOLEAN _r_dc_isfontexists (
@@ -3320,10 +3319,6 @@ ULONG _r_inet_querystatuscode (
 );
 
 VOID _r_inet_initializedownload (
-	_Out_ PR_DOWNLOAD_INFO download_info
-);
-
-VOID _r_inet_initializedownload_ex (
 	_Out_ PR_DOWNLOAD_INFO download_info,
 	_In_opt_ HANDLE hfile,
 	_In_opt_ PR_INET_DOWNLOAD_CALLBACK download_callback,
@@ -3504,6 +3499,14 @@ NTSTATUS _r_crypt_finalhashcontext (
 );
 
 _Success_ (NT_SUCCESS (return))
+NTSTATUS _r_crypt_getfilehash (
+	_In_ LPCWSTR algorithm_id,
+	_In_opt_ LPCWSTR path,
+	_In_opt_ HANDLE hfile,
+	_Outptr_ PR_STRING_PTR out_buffer
+);
+
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_hashbuffer (
 	_In_ PR_CRYPT_CONTEXT hash_context,
 	_In_reads_bytes_ (buffer_length) PVOID buffer,
@@ -3597,7 +3600,7 @@ ULONG _r_res_querytranslation (
 _Success_ (return)
 BOOLEAN _r_res_queryversion (
 	_In_ LPCVOID ver_block,
-	_Out_ PVOID_PTR out_buffer
+	_Outptr_ PVOID_PTR out_buffer
 );
 
 _Ret_maybenull_
@@ -3661,7 +3664,7 @@ HRESULT _r_xml_parsestring (
 _Success_ (SUCCEEDED (return))
 HRESULT _r_xml_readstream (
 	_Inout_ PR_XML_LIBRARY xml_library,
-	_Out_ PR_BYTE_PTR out_buffer
+	_Outptr_ PR_BYTE_PTR out_buffer
 );
 
 _Success_ (return)
