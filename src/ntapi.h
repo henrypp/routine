@@ -914,11 +914,61 @@ typedef enum _KTHREAD_STATE
 	MaximumThreadState
 } KTHREAD_STATE, *PKTHREAD_STATE;
 
+typedef enum _FSINFOCLASS
+{
+	FileFsVolumeInformation = 1, // q: FILE_FS_VOLUME_INFORMATION
+	FileFsLabelInformation, // s: FILE_FS_LABEL_INFORMATION (requires FILE_WRITE_DATA to volume)
+	FileFsSizeInformation, // q: FILE_FS_SIZE_INFORMATION
+	FileFsDeviceInformation, // q: FILE_FS_DEVICE_INFORMATION
+	FileFsAttributeInformation, // q: FILE_FS_ATTRIBUTE_INFORMATION
+	FileFsControlInformation, // q, s: FILE_FS_CONTROL_INFORMATION  (q: requires FILE_READ_DATA; s: requires FILE_WRITE_DATA to volume)
+	FileFsFullSizeInformation, // q: FILE_FS_FULL_SIZE_INFORMATION
+	FileFsObjectIdInformation, // q; s: FILE_FS_OBJECTID_INFORMATION (s: requires FILE_WRITE_DATA to volume)
+	FileFsDriverPathInformation, // q: FILE_FS_DRIVER_PATH_INFORMATION
+	FileFsVolumeFlagsInformation, // q; s: FILE_FS_VOLUME_FLAGS_INFORMATION (q: requires FILE_READ_ATTRIBUTES; s: requires FILE_WRITE_ATTRIBUTES to volume) // 10
+	FileFsSectorSizeInformation, // q: FILE_FS_SECTOR_SIZE_INFORMATION // since WIN8
+	FileFsDataCopyInformation, // q: FILE_FS_DATA_COPY_INFORMATION
+	FileFsMetadataSizeInformation, // q: FILE_FS_METADATA_SIZE_INFORMATION // since THRESHOLD
+	FileFsFullSizeInformationEx, // q: FILE_FS_FULL_SIZE_INFORMATION_EX // since REDSTONE5
+	FileFsMaximumInformation
+} FSINFOCLASS, *PFSINFOCLASS;
+
 //
 // structs
 //
 
 typedef const UNICODE_STRING *PCUNICODE_STRING;
+
+typedef struct _FILE_FS_SIZE_INFORMATION
+{
+	LARGE_INTEGER TotalAllocationUnits;
+	LARGE_INTEGER AvailableAllocationUnits;
+	ULONG SectorsPerAllocationUnit;
+	ULONG BytesPerSector;
+} FILE_FS_SIZE_INFORMATION, *PFILE_FS_SIZE_INFORMATION;
+
+typedef struct _FILE_FS_VOLUME_INFORMATION
+{
+	LARGE_INTEGER VolumeCreationTime;
+	ULONG VolumeSerialNumber;
+	ULONG VolumeLabelLength;
+	BOOLEAN SupportsObjects;
+	_Field_size_bytes_ (VolumeLabelLength) WCHAR VolumeLabel[1];
+} FILE_FS_VOLUME_INFORMATION, *PFILE_FS_VOLUME_INFORMATION;
+
+typedef struct _FILE_FS_ATTRIBUTE_INFORMATION
+{
+	ULONG FileSystemAttributes;
+	LONG MaximumComponentNameLength;
+	ULONG FileSystemNameLength;
+	_Field_size_bytes_ (FileSystemNameLength) WCHAR FileSystemName[1];
+} FILE_FS_ATTRIBUTE_INFORMATION, *PFILE_FS_ATTRIBUTE_INFORMATION;
+
+typedef struct _FILE_FS_DEVICE_INFORMATION
+{
+	ULONG DeviceType;
+	ULONG Characteristics;
+} FILE_FS_DEVICE_INFORMATION, *PFILE_FS_DEVICE_INFORMATION;
 
 typedef struct _FILE_DIRECTORY_INFORMATION
 {
@@ -2268,6 +2318,16 @@ typedef struct _RTL_HEAP_PARAMETERS
 	SIZE_T Reserved[2];
 } RTL_HEAP_PARAMETERS, *PRTL_HEAP_PARAMETERS;
 
+typedef enum _SECTION_INFORMATION_CLASS
+{
+	SectionBasicInformation, // q; SECTION_BASIC_INFORMATION
+	SectionImageInformation, // q; SECTION_IMAGE_INFORMATION
+	SectionRelocationInformation, // q; PVOID RelocationAddress // name:wow64:whNtQuerySection_SectionRelocationInformation // since WIN7
+	SectionOriginalBaseInformation, // PVOID BaseAddress
+	SectionInternalImageInformation, // SECTION_INTERNAL_IMAGE_INFORMATION // since REDSTONE2
+	MaxSectionInfoClass
+} SECTION_INFORMATION_CLASS;
+
 typedef enum _HEAP_COMPATIBILITY_MODE
 {
 	HEAP_COMPATIBILITY_STANDARD = 0UL,
@@ -3111,6 +3171,14 @@ NtQueryInformationFile (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
+NtQueryAttributesFile (
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes,
+	_Out_ PFILE_BASIC_INFORMATION FileInformation
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
 NtSetInformationFile (
 	_In_ HANDLE FileHandle,
 	_Out_ PIO_STATUS_BLOCK IoStatusBlock,
@@ -3141,6 +3209,28 @@ NTSTATUS
 NTAPI
 NtClose (
 	_In_ HANDLE Handle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtQueryVolumeInformationFile (
+	_In_ HANDLE FileHandle,
+	_Out_ PIO_STATUS_BLOCK IoStatusBlock,
+	_Out_writes_bytes_ (Length) PVOID FsInformation,
+	_In_ ULONG Length,
+	_In_ FSINFOCLASS FsInformationClass
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtSetVolumeInformationFile (
+	_In_ HANDLE FileHandle,
+	_Out_ PIO_STATUS_BLOCK IoStatusBlock,
+	_In_reads_bytes_ (Length) PVOID FsInformation,
+	_In_ ULONG Length,
+	_In_ FSINFOCLASS FsInformationClass
 );
 
 NTSYSCALLAPI
@@ -4035,6 +4125,71 @@ NTAPI
 NtReleaseMutant (
 	_In_ HANDLE MutantHandle,
 	_Out_opt_ PLONG PreviousCount
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtCreateSection (
+	_Out_ PHANDLE SectionHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
+	_In_opt_ PLARGE_INTEGER MaximumSize,
+	_In_ ULONG SectionPageProtection,
+	_In_ ULONG AllocationAttributes,
+	_In_opt_ HANDLE FileHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtOpenSection (
+	_Out_ PHANDLE SectionHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtMapViewOfSection (
+	_In_ HANDLE SectionHandle,
+	_In_ HANDLE ProcessHandle,
+	_Inout_ _At_ (*BaseAddress, _Readable_bytes_ (*ViewSize) _Writable_bytes_ (*ViewSize) _Post_readable_byte_size_ (*ViewSize)) PVOID *BaseAddress,
+	_In_ ULONG_PTR ZeroBits,
+	_In_ SIZE_T CommitSize,
+	_Inout_opt_ PLARGE_INTEGER SectionOffset,
+	_Inout_ PSIZE_T ViewSize,
+	_In_ SECTION_INHERIT InheritDisposition,
+	_In_ ULONG AllocationType,
+	_In_ ULONG Win32Protect
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtUnmapViewOfSection (
+	_In_ HANDLE ProcessHandle,
+	_In_opt_ PVOID BaseAddress
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtExtendSection (
+	_In_ HANDLE SectionHandle,
+	_Inout_ PLARGE_INTEGER NewSectionSize
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtQuerySection (
+	_In_ HANDLE SectionHandle,
+	_In_ SECTION_INFORMATION_CLASS SectionInformationClass,
+	_Out_writes_bytes_ (SectionInformationLength) PVOID SectionInformation,
+	_In_ SIZE_T SectionInformationLength,
+	_Out_opt_ PSIZE_T ReturnLength
 );
 
 NTSYSCALLAPI
