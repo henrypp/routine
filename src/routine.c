@@ -1479,7 +1479,7 @@ VOID FASTCALL _r_condition_waitfor (
 	R_QUEUED_WAIT_BLOCK wait_block;
 	ULONG_PTR value;
 	ULONG_PTR current_value;
-	BOOLEAN is_optimize;
+	BOOLEAN is_optimize = FALSE;
 
 	value = condition->value;
 
@@ -1746,6 +1746,7 @@ NTSTATUS _r_workqueue_threadproc (
 			if (work_queue->current_threads > work_queue->minimum_threads)
 			{
 				work_queue->current_threads -= 1;
+
 				is_terminate = TRUE;
 			}
 
@@ -1799,10 +1800,10 @@ NTSTATUS _r_workqueue_threadproc (
 			// terminating, or some error occurred. Terminate the thread.
 			_r_queuedlock_acquireexclusive (&work_queue->state_lock);
 
-			if (work_queue->is_terminating ||
-				work_queue->current_threads > work_queue->minimum_threads)
+			if (work_queue->is_terminating || work_queue->current_threads > work_queue->minimum_threads)
 			{
 				work_queue->current_threads -= 1;
+
 				is_terminate = TRUE;
 			}
 
@@ -1841,8 +1842,7 @@ VOID _r_workqueue_queueitem (
 	NtReleaseSemaphore (work_queue->semaphore_handle, 1, NULL);
 
 	// Check if all worker threads are currently busy, and if we can create more threads.
-	if (work_queue->busy_count >= work_queue->current_threads &&
-		work_queue->current_threads < work_queue->maximum_threads)
+	if (work_queue->busy_count >= work_queue->current_threads && work_queue->current_threads < work_queue->maximum_threads)
 	{
 		// Lock and re-check.
 		_r_queuedlock_acquireexclusive (&work_queue->state_lock);
@@ -4205,6 +4205,33 @@ VOID _r_fs_clearfile (
 }
 
 _Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_createdirectory (
+	_In_ LPCWSTR path,
+	_In_ ULONG file_attributes
+)
+{
+	HANDLE hdirectory;
+	NTSTATUS status;
+
+	status = _r_fs_createfile (
+		path,
+		FILE_CREATE,
+		GENERIC_READ,
+		FILE_SHARE_READ,
+		file_attributes,
+		0,
+		TRUE,
+		NULL,
+		&hdirectory
+	);
+
+	if (NT_SUCCESS (status))
+		NtClose (hdirectory);
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_createfile (
 	_In_ LPCWSTR path,
 	_In_ ULONG create_disposition,
@@ -4234,17 +4261,15 @@ NTSTATUS _r_fs_createfile (
 
 	InitializeObjectAttributes (&oa, &nt_path, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
-	desired_access |= SYNCHRONIZE | FILE_READ_ATTRIBUTES;
-
 	create_option |= is_directory ? FILE_DIRECTORY_FILE : FILE_NON_DIRECTORY_FILE;
 
 	status = NtCreateFile (
 		&hfile,
-		desired_access,
+		desired_access | SYNCHRONIZE | FILE_READ_ATTRIBUTES,
 		&oa,
 		&io,
-		NULL,
-		file_attributes,
+		allocation_size,
+		file_attributes | FILE_ATTRIBUTE_NORMAL,
 		share_access,
 		create_disposition,
 		FILE_SYNCHRONOUS_IO_NONALERT | create_option,
@@ -4345,14 +4370,20 @@ VOID _r_fs_recursivedirectorydelete_callback (
 	_In_ PFILE_DIRECTORY_INFORMATION directory_info
 )
 {
+	PR_STRING string;
+
+	string = _r_format_string (L"\\\\?\\%s", path);
+
 	if (directory_info->FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
 	{
-		_r_fs_deletedirectory (path, TRUE);
+		_r_fs_deletedirectory (string->buffer, TRUE);
 	}
 	else
 	{
-		_r_fs_deletefile (path, TRUE);
+		_r_fs_deletefile (string->buffer, TRUE);
 	}
+
+	_r_obj_dereference (string);
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -4371,7 +4402,7 @@ NTSTATUS _r_fs_deletedirectory (
 	status = _r_fs_createfile (
 		path,
 		FILE_OPEN,
-		FILE_LIST_DIRECTORY | DELETE,
+		FILE_WRITE_ATTRIBUTES | FILE_READ_ATTRIBUTES | FILE_LIST_DIRECTORY | DELETE,
 		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
 		FILE_ATTRIBUTE_NORMAL,
 		FILE_OPEN_FOR_BACKUP_INTENT | FILE_OPEN_REPARSE_POINT,
@@ -4383,7 +4414,7 @@ NTSTATUS _r_fs_deletedirectory (
 	if (!NT_SUCCESS (status))
 		return status;
 
-	_r_fs_setattributes (path, hdirectory, FILE_ATTRIBUTE_NORMAL);
+	_r_fs_setattributes (NULL, hdirectory, FILE_ATTRIBUTE_NORMAL);
 
 	if (is_recurse)
 		_r_fs_enumfiles (path, hdirectory, NULL, &_r_fs_recursivedirectorydelete_callback);
@@ -4395,6 +4426,11 @@ NTSTATUS _r_fs_deletedirectory (
 		status = NtSetInformationFile (hdirectory, &isb, &fdi_ex, sizeof (FILE_DISPOSITION_INFO_EX), FileDispositionInformationEx);
 	}
 	else
+	{
+		status = STATUS_UNSUCCESSFUL;
+	}
+
+	if (!NT_SUCCESS (status))
 	{
 		fdi.DeleteFile = TRUE;
 
@@ -4564,24 +4600,167 @@ NTSTATUS _r_fs_flushfile (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getattributes (
-	_In_ HANDLE hfile,
-	_Out_ PULONG attributes_ptr
+	_In_ LPCWSTR path,
+	_Out_ PULONG out_buffer
 )
 {
 	FILE_BASIC_INFORMATION info = {0};
-	IO_STATUS_BLOCK io;
+	OBJECT_ATTRIBUTES oa = {0};
+	UNICODE_STRING nt_path;
 	NTSTATUS status;
 
-	status = NtQueryInformationFile (hfile, &io, &info, sizeof (info), FileBasicInformation);
+	status = RtlDosPathNameToNtPathName_U_WithStatus (path, &nt_path, NULL, NULL);
+
+	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = 0;
+
+		return status;
+	}
+
+	InitializeObjectAttributes (&oa, &nt_path, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+	status = NtQueryAttributesFile (&oa, &info);
 
 	if (NT_SUCCESS (status))
 	{
-		*attributes_ptr = info.FileAttributes;
+		*out_buffer = info.FileAttributes;
 	}
 	else
 	{
-		*attributes_ptr = 0;
+		*out_buffer = 0;
 	}
+
+	RtlFreeUnicodeString (&nt_path);
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_getdiskinformation (
+	_In_ LPCWSTR path,
+	_Out_opt_ PR_STRING_PTR label_ptr,
+	_Out_opt_ PR_STRING_PTR filesystem_ptr,
+	_Out_opt_ PULONG serialnumber_ptr
+)
+{
+	PFILE_FS_ATTRIBUTE_INFORMATION attribute_info;
+	PFILE_FS_VOLUME_INFORMATION volume_info;
+	IO_STATUS_BLOCK io;
+	ULONG length;
+	HANDLE hfile;
+	NTSTATUS status;
+
+	status = _r_fs_createfile (
+		path,
+		FILE_OPEN,
+		FILE_GENERIC_READ,
+		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+		FILE_ATTRIBUTE_NORMAL,
+		0,
+		TRUE,
+		NULL,
+		&hfile
+	);
+
+	if (!NT_SUCCESS (status))
+		return status;
+
+	length = sizeof (FILE_FS_VOLUME_INFORMATION) + MAX_PATH * sizeof (WCHAR);
+	volume_info = _r_mem_allocate (length);
+
+	status = NtQueryVolumeInformationFile (hfile, &io, volume_info, length, FileFsVolumeInformation);
+
+	if (NT_SUCCESS (status))
+	{
+		if (label_ptr)
+			*label_ptr = _r_obj_createstring_ex (volume_info->VolumeLabel, volume_info->VolumeLabelLength * sizeof (WCHAR));
+
+		if (serialnumber_ptr)
+			*serialnumber_ptr = volume_info->VolumeSerialNumber;
+	}
+	else
+	{
+		if (label_ptr)
+			*label_ptr = NULL;
+
+		if (serialnumber_ptr)
+			*serialnumber_ptr = 0;
+	}
+
+	length = sizeof (FILE_FS_VOLUME_INFORMATION) + MAX_PATH * sizeof (WCHAR);
+	attribute_info = _r_mem_reallocate (volume_info, length);
+
+	status = NtQueryVolumeInformationFile (hfile, &io, attribute_info, length, FileFsAttributeInformation);
+
+	if (NT_SUCCESS (status))
+	{
+		if (filesystem_ptr)
+			*filesystem_ptr = _r_obj_createstring_ex (attribute_info->FileSystemName, attribute_info->FileSystemNameLength * sizeof (WCHAR));
+	}
+	else
+	{
+		if (filesystem_ptr)
+			*filesystem_ptr = NULL;
+	}
+
+	_r_mem_free (attribute_info);
+
+	NtClose (hfile);
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_getdiskspace (
+	_In_ LPCWSTR path,
+	_Out_ PLARGE_INTEGER freespace_ptr,
+	_Out_ PLARGE_INTEGER totalspace_ptr
+)
+{
+	FILE_FS_SIZE_INFORMATION info = {0};
+	IO_STATUS_BLOCK io;
+	HANDLE hfile;
+	ULONG units;
+	NTSTATUS status;
+
+	status = _r_fs_createfile (
+		path,
+		FILE_OPEN,
+		FILE_GENERIC_READ,
+		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+		FILE_ATTRIBUTE_NORMAL,
+		0,
+		TRUE,
+		NULL,
+		&hfile
+	);
+
+	if (!NT_SUCCESS (status))
+		return status;
+
+	status = NtQueryVolumeInformationFile (hfile, &io, &info, sizeof (info), FileFsSizeInformation);
+
+	if (NT_SUCCESS (status))
+	{
+		RtlCopyMemory (freespace_ptr, &info.AvailableAllocationUnits, sizeof (LARGE_INTEGER));
+		RtlCopyMemory (totalspace_ptr, &info.TotalAllocationUnits, sizeof (LARGE_INTEGER));
+
+		units = info.SectorsPerAllocationUnit * info.BytesPerSector;
+
+		if (freespace_ptr)
+			freespace_ptr->QuadPart = info.AvailableAllocationUnits.QuadPart * units;
+
+		if (totalspace_ptr)
+			totalspace_ptr->QuadPart = info.TotalAllocationUnits.QuadPart * units;
+	}
+	else
+	{
+		RtlZeroMemory (freespace_ptr, sizeof (LARGE_INTEGER));
+		RtlZeroMemory (totalspace_ptr, sizeof (LARGE_INTEGER));
+	}
+
+	NtClose (hfile);
 
 	return status;
 }
@@ -4879,7 +5058,7 @@ NTSTATUS _r_fs_setattributes (
 		hfile = hfile_new;
 	}
 
-	info.FileAttributes = attributes;
+	info.FileAttributes = attributes | FILE_ATTRIBUTE_NORMAL;
 
 	status = NtSetInformationFile (hfile, &io, &info, sizeof (info), FileBasicInformation);
 
@@ -5480,10 +5659,9 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 	return FALSE;
 }
 
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_path_resolvedeviceprefix (
-	_In_ PR_STRING path,
-	_Outptr_result_maybenull_ PR_STRING_PTR out_buffer
+_Ret_maybenull_
+PR_STRING _r_path_resolvedeviceprefix (
+	_In_ PR_STRING path
 )
 {
 #if defined(_WIN64)
@@ -5504,14 +5682,12 @@ NTSTATUS _r_path_resolvedeviceprefix (
 	ULONG flags;
 	NTSTATUS status;
 
-	*out_buffer = NULL;
-
-	flags = OBJ_CASE_INSENSITIVE | (_r_sys_isosversiongreaterorequal (WINDOWS_10) ? OBJ_DONT_REPARSE : 0);
-
 	status = NtQueryInformationProcess (NtCurrentProcess (), ProcessDeviceMap, &device_map, sizeof (device_map), NULL);
 
 	if (!NT_SUCCESS (status))
-		return status;
+		return NULL;
+
+	flags = OBJ_CASE_INSENSITIVE | (_r_sys_isosversiongreaterorequal (WINDOWS_10) ? OBJ_DONT_REPARSE : 0);
 
 	for (ULONG i = 0; i < PR_DEVICE_COUNT; i++)
 	{
@@ -5536,12 +5712,7 @@ NTSTATUS _r_path_resolvedeviceprefix (
 
 		if (NT_SUCCESS (status))
 		{
-			_r_obj_initializeunicodestring_ex (
-				&device_prefix,
-				device_prefix_buffer,
-				0,
-				RTL_NUMBER_OF (device_prefix_buffer) * sizeof (WCHAR)
-			);
+			_r_obj_initializeunicodestring_ex (&device_prefix, device_prefix_buffer, 0, RTL_NUMBER_OF (device_prefix_buffer) * sizeof (WCHAR));
 
 			status = NtQuerySymbolicLinkObject (link_handle, &device_prefix, NULL);
 
@@ -5567,13 +5738,9 @@ NTSTATUS _r_path_resolvedeviceprefix (
 
 						_r_obj_trimstringtonullterminator (string);
 
-						*out_buffer = string;
+						NtClose (link_handle);
 
-						break;
-					}
-					else
-					{
-						status = STATUS_OBJECT_NAME_NOT_FOUND;
+						return string;
 					}
 				}
 			}
@@ -5582,7 +5749,7 @@ NTSTATUS _r_path_resolvedeviceprefix (
 		}
 	}
 
-	return status;
+	return NULL;
 }
 
 // Device map link resolution does not resolve custom FS.
@@ -5591,14 +5758,13 @@ NTSTATUS _r_path_resolvedeviceprefix (
 // https://github.com/henrypp/simplewall/issues/817
 // https://github.com/maharmstone/btrfs/issues/324
 
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_path_resolvedeviceprefix_workaround (
-	_In_ PR_STRING path,
-	_Outptr_result_maybenull_ PR_STRING_PTR out_buffer
+_Ret_maybenull_
+PR_STRING _r_path_resolvedeviceprefix_workaround (
+	_In_ PR_STRING path
 )
 {
 	WCHAR device_prefix_buffer[PR_DEVICE_PREFIX_LENGTH] = {0};
-	POBJECT_DIRECTORY_INFORMATION directory_entry = NULL;
+	POBJECT_DIRECTORY_INFORMATION directory_entry;
 	POBJECT_DIRECTORY_INFORMATION directory_info;
 	OBJECT_ATTRIBUTES oa = {0};
 	UNICODE_STRING device_prefix;
@@ -5614,8 +5780,6 @@ NTSTATUS _r_path_resolvedeviceprefix_workaround (
 	BOOLEAN is_firsttime = TRUE;
 	NTSTATUS status;
 
-	*out_buffer = NULL;
-
 	RtlInitUnicodeString (&device_prefix, L"\\GLOBAL??");
 
 	InitializeObjectAttributes (&oa, &device_prefix, OBJ_CASE_INSENSITIVE, NULL, NULL);
@@ -5623,7 +5787,7 @@ NTSTATUS _r_path_resolvedeviceprefix_workaround (
 	status = NtOpenDirectoryObject (&directory_handle, DIRECTORY_QUERY, &oa);
 
 	if (!NT_SUCCESS (status))
-		return status;
+		return NULL;
 
 	flags = OBJ_CASE_INSENSITIVE | (_r_sys_isosversiongreaterorequal (WINDOWS_10) ? OBJ_DONT_REPARSE : 0);
 
@@ -5643,8 +5807,6 @@ NTSTATUS _r_path_resolvedeviceprefix_workaround (
 			if (directory_entry[0].Name.Buffer)
 				break;
 
-			buffer_size *= 2;
-
 			// Make sure we don't use too much memory.
 			if (buffer_size > PR_SIZE_BUFFER_OVERFLOW)
 			{
@@ -5652,6 +5814,8 @@ NTSTATUS _r_path_resolvedeviceprefix_workaround (
 
 				break;
 			}
+
+			buffer_size *= 2;
 
 			directory_entry = _r_mem_reallocate (directory_entry, buffer_size);
 		}
@@ -5705,15 +5869,10 @@ NTSTATUS _r_path_resolvedeviceprefix_workaround (
 								_r_mem_free (directory_entry);
 
 								NtClose (link_handle);
+								NtClose (directory_handle);
 
-								*out_buffer = string;
-
-								break;
+								return string;
 							}
-						}
-						else
-						{
-							status = STATUS_OBJECT_NAME_NOT_FOUND;
 						}
 					}
 
@@ -5735,16 +5894,15 @@ NTSTATUS _r_path_resolvedeviceprefix_workaround (
 
 	NtClose (directory_handle);
 
-	return status;
+	return NULL;
 }
 
 // network share prefixes
 // https://docs.microsoft.com/en-us/windows-hardware/drivers/ifs/support-for-unc-naming-and-mup
 
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_path_resolvenetworkprefix (
-	_In_ PR_STRING path,
-	_Outptr_result_maybenull_ PR_STRING_PTR out_buffer
+_Ret_maybenull_
+PR_STRING _r_path_resolvenetworkprefix (
+	_In_ PR_STRING path
 )
 {
 	static R_STRINGREF services_part_sr = PR_STRINGREF_INIT (L"System\\CurrentControlSet\\Services\\");
@@ -5761,12 +5919,10 @@ NTSTATUS _r_path_resolvenetworkprefix (
 	SIZE_T prefix_length;
 	NTSTATUS status;
 
-	*out_buffer = NULL;
-
 	status = _r_reg_openkey (HKEY_LOCAL_MACHINE, L"System\\CurrentControlSet\\Control\\NetworkProvider\\Order", KEY_READ, &hkey);
 
 	if (!NT_SUCCESS (status))
-		return status;
+		return NULL;
 
 	status = _r_reg_querystring (hkey, L"ProviderOrder", &provider_order);
 
@@ -5818,15 +5974,10 @@ NTSTATUS _r_path_resolvenetworkprefix (
 								_r_obj_dereference (service_key);
 
 								NtClose (hsvckey);
+								NtClose (hkey);
 
-								*out_buffer = string;
-
-								break;
+								return string;
 							}
-						}
-						else
-						{
-							status = STATUS_OBJECT_NAME_NOT_FOUND;
 						}
 
 						_r_obj_dereference (device_name_string);
@@ -5844,7 +5995,7 @@ NTSTATUS _r_path_resolvenetworkprefix (
 
 	NtClose (hkey);
 
-	return status;
+	return NULL;
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -5937,7 +6088,6 @@ PR_STRING _r_path_dospathfromnt (
 	PR_STRING string;
 	LPWSTR ptr;
 	SIZE_T path_length;
-	NTSTATUS status;
 
 	path_length = _r_str_getlength2 (path);
 
@@ -6036,19 +6186,19 @@ PR_STRING _r_path_dospathfromnt (
 		}
 		else
 		{
-			status = _r_path_resolvedeviceprefix (path, &string);
+			string = _r_path_resolvedeviceprefix (path);
 
-			if (NT_SUCCESS (status))
+			if (string)
 				return string;
 
-			status = _r_path_resolvedeviceprefix_workaround (path, &string);
+			string = _r_path_resolvedeviceprefix_workaround (path);
 
-			if (NT_SUCCESS (status))
+			if (string)
 				return string;
 
-			status = _r_path_resolvenetworkprefix (path, &string);
+			string = _r_path_resolvenetworkprefix (path);
 
-			if (NT_SUCCESS (status))
+			if (string)
 				return string;
 		}
 	}
@@ -6066,8 +6216,11 @@ NTSTATUS _r_path_ntpathfromdos (
 	HANDLE hfile;
 	PR_STRING string;
 	ULONG buffer_size;
+	ULONG attributes;
 	ULONG attempts;
 	NTSTATUS status;
+
+	_r_fs_getattributes (path->buffer, &attributes);
 
 	status = _r_fs_createfile (
 		path->buffer,
@@ -6076,7 +6229,7 @@ NTSTATUS _r_path_ntpathfromdos (
 		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
 		FILE_ATTRIBUTE_NORMAL,
 		FILE_OPEN_FOR_BACKUP_INTENT | FILE_OPEN_REPARSE_POINT,
-		FALSE,
+		attributes & FILE_ATTRIBUTE_DIRECTORY ? TRUE : FALSE,
 		NULL,
 		&hfile
 	);
@@ -6088,7 +6241,7 @@ NTSTATUS _r_path_ntpathfromdos (
 		return status;
 	}
 
-	buffer_size = sizeof (OBJECT_NAME_INFORMATION) + (MAX_PATH * sizeof (WCHAR));
+	buffer_size = sizeof (OBJECT_NAME_INFORMATION) + (512 * sizeof (WCHAR));
 	obj_name_info = _r_mem_allocate (buffer_size);
 
 	attempts = 6;
@@ -6139,7 +6292,7 @@ NTSTATUS _r_path_ntpathfromdos (
 // Shell
 //
 
-VOID _r_shell_showfile (
+HRESULT _r_shell_showfile (
 	_In_ LPCWSTR path
 )
 {
@@ -6155,6 +6308,8 @@ VOID _r_shell_showfile (
 
 		CoTaskMemFree (item);
 	}
+
+	return status;
 }
 
 //
@@ -6298,11 +6453,13 @@ NTSTATUS _r_str_environmentexpandstring (
 		_r_obj_setstringlength (buffer_string, output_string.Length); // terminate
 
 		*out_buffer = buffer_string;
-
-		return status;
 	}
+	else
+	{
+		*out_buffer = NULL;
 
-	_r_obj_dereference (buffer_string);
+		_r_obj_dereference (buffer_string);
+	}
 
 	return status;
 }
@@ -8387,7 +8544,11 @@ NTSTATUS _r_sys_getbinarytype (
 	status = NtCreateSection (&hmapping, SECTION_QUERY | SECTION_MAP_READ | SECTION_MAP_EXECUTE, NULL, NULL, PAGE_READONLY, SEC_IMAGE, hfile);
 
 	if (!NT_SUCCESS (status))
+	{
+		NtClose (hfile);
+
 		return status;
+	}
 
 	status = NtQuerySection (hmapping, SectionImageInformation, &image_info, sizeof (image_info), NULL);
 
@@ -10276,12 +10437,22 @@ LONG64 _r_unixtime_from_systemtime (
 	_In_ const LPSYSTEMTIME system_time
 )
 {
-	FILETIME file_time;
+	FILETIME file_time = {0};
+	TIME_FIELDS tf = {0};
+	LONG64 timestamp = 0;
 
-	if (SystemTimeToFileTime (system_time, &file_time))
-		return _r_unixtime_from_filetime (&file_time);
+	tf.Year = system_time->wYear;
+	tf.Month = system_time->wMonth;
+	tf.Day = system_time->wDay;
+	tf.Hour = system_time->wHour;
+	tf.Minute = system_time->wMinute;
+	tf.Second = system_time->wSecond;
+	tf.Milliseconds = system_time->wMilliseconds;
 
-	return 0;
+	if (RtlTimeFieldsToTime (&tf, (PLARGE_INTEGER)&file_time))
+		timestamp = _r_unixtime_from_filetime (&file_time);
+
+	return timestamp;
 }
 
 VOID _r_unixtime_to_filetime (
@@ -10297,20 +10468,29 @@ VOID _r_unixtime_to_filetime (
 	file_time->dwLowDateTime = time_value.LowPart;
 }
 
-_Success_ (return)
-BOOLEAN _r_unixtime_to_systemtime (
+VOID _r_unixtime_to_systemtime (
 	_In_ LONG64 unixtime,
 	_Out_ PSYSTEMTIME system_time
 )
 {
+	TIME_FIELDS tf = {0};
 	FILETIME file_time;
-	BOOL result;
+	PLARGE_INTEGER li;
 
 	_r_unixtime_to_filetime (unixtime, &file_time);
 
-	result = FileTimeToSystemTime (&file_time, system_time);
+	li = (PLARGE_INTEGER)&file_time;
 
-	return !!result;
+	RtlTimeToTimeFields (li, &tf);
+
+	system_time->wYear = tf.Year;
+	system_time->wMonth = tf.Month;
+	system_time->wDay = tf.Day;
+	system_time->wHour = tf.Hour;
+	system_time->wMinute = tf.Minute;
+	system_time->wSecond = tf.Second;
+	system_time->wMilliseconds = tf.Milliseconds;
+	system_time->wDayOfWeek = tf.Weekday;
 }
 
 //
@@ -12702,23 +12882,13 @@ HINTERNET _r_inet_createsession (
 		return NULL;
 
 	// enable secure protocols
-	WinHttpSetOption (
-		hsession,
-		WINHTTP_OPTION_SECURE_PROTOCOLS,
-		&(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3},
-		sizeof (ULONG)
-	);
+	WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3}, sizeof (ULONG));
 
 	// disable redirect from https to http
-	WinHttpSetOption (
-		hsession,
-		WINHTTP_OPTION_REDIRECT_POLICY,
-		&(ULONG){WINHTTP_OPTION_REDIRECT_POLICY_DISALLOW_HTTPS_TO_HTTP},
-		sizeof (ULONG)
-	);
+	WinHttpSetOption (hsession, WINHTTP_OPTION_REDIRECT_POLICY, &(ULONG){WINHTTP_OPTION_REDIRECT_POLICY_DISALLOW_HTTPS_TO_HTTP}, sizeof (ULONG));
 
 	// enable compression feature
-	WinHttpSetOption (hsession, WINHTTP_OPTION_DECOMPRESSION, &(ULONG){WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE}, sizeof (ULONG));
+	WinHttpSetOption (hsession, WINHTTP_OPTION_DECOMPRESSION, &(ULONG){WINHTTP_DECOMPRESSION_FLAG_ALL}, sizeof (ULONG));
 
 	// enable http2 protocol (win10+)
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_10))
@@ -12793,25 +12963,14 @@ ULONG _r_inet_openurl (
 			}
 			else if (status == ERROR_WINHTTP_CONNECTION_ERROR)
 			{
-				result = WinHttpSetOption (
-					hsession,
-					WINHTTP_OPTION_SECURE_PROTOCOLS,
-					&(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2
-				},
-					sizeof (ULONG)
-				);
+				result = WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2}, sizeof (ULONG));
 
 				if (!result)
 					break;
 			}
 			else if (status == ERROR_WINHTTP_SECURE_FAILURE)
 			{
-				result = WinHttpSetOption (
-					hrequest,
-					WINHTTP_OPTION_SECURITY_FLAGS,
-					&(ULONG){SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE},
-					sizeof (ULONG)
-				);
+				result = WinHttpSetOption (hrequest, WINHTTP_OPTION_SECURITY_FLAGS, &(ULONG){SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE}, sizeof (ULONG));
 
 				if (!result)
 					break;
@@ -12895,11 +13054,10 @@ ULONG _r_inet_querycontentlength (
 	_In_ HINTERNET hrequest
 )
 {
-	ULONG content_length;
+	ULONG content_length = 0;
 	ULONG size;
 
 	size = sizeof (ULONG);
-	content_length = 0;
 
 	if (WinHttpQueryHeaders (
 		hrequest,

@@ -581,7 +581,7 @@ PR_STRING _r_app_getuseragent ()
 				L"/",
 				_r_app_getversion (),
 				L" (+",
-				_r_app_getwebsite_url (),
+				_r_app_getsources_url (),
 				L")"
 			);
 		}
@@ -867,7 +867,7 @@ HWND _r_app_createwindow (
 
 #if defined(APP_HAVE_UPDATES)
 	if (_r_update_isenabled (TRUE))
-		_r_update_check (hwnd);
+		_r_update_check (NULL);
 #endif // APP_HAVE_UPDATES
 
 	return hwnd;
@@ -2237,14 +2237,14 @@ NTSTATUS NTAPI _r_update_checkthread (
 	_In_ PVOID arglist
 )
 {
-	PR_UPDATE_INFO update_info;
 	PR_UPDATE_COMPONENT update_component;
+	PR_UPDATE_INFO update_info;
 	WCHAR str_updates[256] = {0};
 	LPCWSTR str_content;
 	R_DOWNLOAD_INFO download_info;
 	PR_HASHTABLE string_table;
+	PR_STRING string_value = NULL;
 	PR_STRING update_url;
-	PR_STRING string_value;
 	PR_STRING string;
 	R_STRINGREF remaining_part;
 	R_STRINGREF new_version_sr;
@@ -2282,8 +2282,6 @@ NTSTATUS NTAPI _r_update_checkthread (
 
 	if (string_table)
 	{
-		string_value = NULL;
-
 		for (SIZE_T i = 0; i < _r_obj_getarraysize (update_info->components); i++)
 		{
 			update_component = _r_obj_getarrayitem (update_info->components, i);
@@ -3041,13 +3039,11 @@ VOID _r_show_aboutmessage (
 	_r_str_printf (
 		str_content, RTL_NUMBER_OF (str_content),
 		L"Version %s %s, %" TEXT (PR_LONG) L"-bit (Unicode)\r\n%s\r\n\r\n" \
-		L"<a href=\"%s\">%s</a> | <a href=\"%s\">%s</a>",
+		L"<a href=\"%s\">%s</a>",
 		_r_app_getversion (),
 		_r_app_getversiontype (),
 		_r_app_getarch (),
 		_r_app_getcopyright (),
-		_r_app_getwebsite_url (),
-		_r_app_getwebsite_url () + 8,
 		_r_app_getsources_url (),
 		_r_app_getsources_url () + 8
 	);
@@ -3963,11 +3959,6 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 			_r_wnd_top (_r_app_gethwnd (), _r_config_getboolean (L"AlwaysOnTop", FALSE));
 
-#ifdef APP_HAVE_UPDATES
-			if (_r_update_isenabled (TRUE))
-				_r_update_check (NULL);
-#endif // APP_HAVE_UPDATES
-
 			break;
 		}
 
@@ -4376,7 +4367,7 @@ HRESULT _r_skipuac_enable (
 			goto CleanupExit;
 
 		task_author = SysAllocString (_r_app_getauthor ());
-		task_url = SysAllocString (_r_app_getwebsite_url ());
+		task_url = SysAllocString (_r_app_getsources_url ());
 
 		IRegistrationInfo_put_Author (registration_info, task_author);
 		IRegistrationInfo_put_URI (registration_info, task_url);

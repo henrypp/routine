@@ -625,11 +625,6 @@ FORCEINLINE LPCWSTR _r_app_getsources_url ()
 	return L"https://github.com/henrypp";
 }
 
-FORCEINLINE LPCWSTR _r_app_getwebsite_url ()
-{
-	return L"https://www.henrypp.org";
-}
-
 FORCEINLINE LPCWSTR _r_app_getupdate_url ()
 {
 	return L"https://raw.githubusercontent.com/henrypp/" APP_NAME_SHORT L"/master/VERSION";
@@ -646,7 +641,7 @@ FORCEINLINE LPCWSTR _r_app_getversiontype ()
 
 FORCEINLINE LONG _r_app_getarch ()
 {
-#ifdef _WIN64
+#if defined(_WIN64)
 	return 64L;
 #else
 	return 32L;

@@ -1744,6 +1744,12 @@ VOID _r_fs_clearfile (
 );
 
 _Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_createdirectory (
+	_In_ LPCWSTR path,
+	_In_ ULONG file_attributes
+);
+
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_createfile (
 	_In_ LPCWSTR path,
 	_In_ ULONG create_disposition,
@@ -1785,6 +1791,27 @@ NTSTATUS _r_fs_enumfiles (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_flushfile (
 	_In_ HANDLE hfile
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_getattributes (
+	_In_ LPCWSTR path,
+	_Out_ PULONG out_buffer
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_getdiskinformation (
+	_In_ LPCWSTR path,
+	_Out_opt_ PR_STRING_PTR label_ptr,
+	_Out_opt_ PR_STRING_PTR filesystem_ptr,
+	_Out_opt_ PULONG serialnumber_ptr
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_getdiskspace (
+	_In_ LPCWSTR path,
+	_Out_ PLARGE_INTEGER freespace_ptr,
+	_Out_ PLARGE_INTEGER totalspace_ptr
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -1937,22 +1964,19 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 	_Out_opt_ PR_STRING_PTR full_file_name
 );
 
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_path_resolvedeviceprefix (
-	_In_ PR_STRING path,
-	_Outptr_result_maybenull_ PR_STRING_PTR out_buffer
+_Ret_maybenull_
+PR_STRING _r_path_resolvedeviceprefix (
+	_In_ PR_STRING path
 );
 
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_path_resolvedeviceprefix_workaround (
-	_In_ PR_STRING path,
-	_Outptr_result_maybenull_ PR_STRING_PTR out_buffer
+_Ret_maybenull_
+PR_STRING _r_path_resolvedeviceprefix_workaround (
+	_In_ PR_STRING path
 );
 
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_path_resolvenetworkprefix (
-	_In_ PR_STRING path,
-	_Outptr_result_maybenull_ PR_STRING_PTR out_buffer
+_Ret_maybenull_
+PR_STRING _r_path_resolvenetworkprefix (
+	_In_ PR_STRING path
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -1976,7 +2000,7 @@ NTSTATUS _r_path_ntpathfromdos (
 // Shell
 //
 
-VOID _r_shell_showfile (
+HRESULT _r_shell_showfile (
 	_In_ LPCWSTR path
 );
 
@@ -2799,8 +2823,7 @@ VOID _r_unixtime_to_filetime (
 	_Out_ LPFILETIME file_time
 );
 
-_Success_ (return)
-BOOLEAN _r_unixtime_to_systemtime (
+VOID _r_unixtime_to_systemtime (
 	_In_ LONG64 unixtime,
 	_Out_ PSYSTEMTIME system_time
 );
