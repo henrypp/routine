@@ -2511,6 +2511,22 @@ typedef VOID (NTAPI *PIO_APC_ROUTINE)(
 EXTERN_C_START
 
 NTSYSCALLAPI
+VOID
+NTAPI
+RtlTimeToTimeFields (
+	_In_ PLARGE_INTEGER Time,
+	_Out_ PTIME_FIELDS TimeFields
+);
+
+NTSYSCALLAPI
+BOOLEAN
+NTAPI
+RtlTimeFieldsToTime (
+	_In_ PTIME_FIELDS TimeFields, // Weekday is ignored
+	_Out_ PLARGE_INTEGER Time
+);
+
+NTSYSCALLAPI
 NTSTATUS
 NTAPI
 LdrLoadDll (
