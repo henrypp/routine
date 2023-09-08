@@ -2539,30 +2539,17 @@ BOOLEAN _r_obj_isstringnullterminated (
 
 PR_STRING _r_obj_referenceemptystring ()
 {
-	static PR_STRING cached_string = NULL;
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static PR_STRING string = NULL;
 
-	PR_STRING current_string;
-	PR_STRING new_string;
-
-	current_string = InterlockedCompareExchangePointer (&cached_string, NULL, NULL);
-
-	if (!current_string)
+	if (_r_initonce_begin (&init_once))
 	{
-		new_string = _r_obj_createstring_ex (NULL, 0);
+		string = _r_obj_createstring_ex (NULL, 0);
 
-		current_string = InterlockedCompareExchangePointer (&cached_string, new_string, NULL);
-
-		if (!current_string)
-		{
-			current_string = new_string;
-		}
-		else
-		{
-			_r_obj_dereference (new_string);
-		}
+		_r_initonce_end (&init_once);
 	}
 
-	return _r_obj_reference (current_string);
+	return _r_obj_reference (string);
 }
 
 VOID _r_obj_removestring (
