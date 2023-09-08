@@ -3100,7 +3100,7 @@ VOID _r_show_aboutmessage (
 VOID _r_show_errormessage (
 	_In_opt_ HWND hwnd,
 	_In_opt_ LPCWSTR main,
-	_In_ ULONG error_code,
+	_In_ LONG error_code,
 	_In_opt_ PR_ERROR_INFO error_info_ptr
 )
 {
