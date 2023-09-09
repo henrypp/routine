@@ -5362,6 +5362,8 @@ NTSTATUS _r_path_getmodulepath (
 
 	if (NT_SUCCESS (status))
 	{
+		_r_obj_setstringlength (string, name.Length);
+
 		*out_buffer = string;
 	}
 	else
@@ -5370,7 +5372,6 @@ NTSTATUS _r_path_getmodulepath (
 
 		_r_obj_dereference (string);
 	}
-
 
 	return status;
 }
