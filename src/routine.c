@@ -714,7 +714,7 @@ BOOLEAN _r_initonce_begin (
 
 VOID _r_freelist_initialize (
 	_Out_ PR_FREE_LIST free_list,
-	_In_ SIZE_T size,
+	_In_ ULONG_PTR size,
 	_In_ ULONG maximum_count
 )
 {
@@ -1997,7 +1997,7 @@ HANDLE NTAPI _r_mem_getheap ()
 
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_allocate (
-	_In_ SIZE_T bytes_count
+	_In_ ULONG_PTR bytes_count
 )
 {
 	HANDLE heap_handle;
@@ -2013,7 +2013,7 @@ PVOID NTAPI _r_mem_allocate (
 _Ret_maybenull_
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_allocatesafe (
-	_In_ SIZE_T bytes_count
+	_In_ ULONG_PTR bytes_count
 )
 {
 	HANDLE heap_handle;
@@ -2029,7 +2029,7 @@ PVOID NTAPI _r_mem_allocatesafe (
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_allocateandcopy (
 	_In_ LPCVOID src,
-	_In_ SIZE_T bytes_count
+	_In_ ULONG_PTR bytes_count
 )
 {
 	PVOID base_address;
@@ -2049,7 +2049,7 @@ PVOID NTAPI _r_mem_allocateandcopy (
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_reallocate (
 	_Frees_ptr_opt_ PVOID base_address,
-	_In_ SIZE_T bytes_count
+	_In_ ULONG_PTR bytes_count
 )
 {
 	HANDLE heap_handle;
@@ -2066,7 +2066,7 @@ _Ret_maybenull_
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_reallocatesafe (
 	_Frees_ptr_opt_ PVOID base_address,
-	_In_ SIZE_T bytes_count
+	_In_ ULONG_PTR bytes_count
 )
 {
 	HANDLE heap_handle;
@@ -2096,7 +2096,7 @@ BOOLEAN _r_mem_frobnicate (
 )
 {
 	LPSTR buffer;
-	SIZE_T length;
+	ULONG_PTR length;
 	BYTE chr;
 
 	if (!bytes->length)
@@ -2125,7 +2125,7 @@ BOOLEAN _r_mem_frobnicate (
 
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_obj_allocate (
-	_In_ SIZE_T bytes_count,
+	_In_ ULONG_PTR bytes_count,
 	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 )
 {
@@ -2149,10 +2149,10 @@ VOID NTAPI _r_obj_dereference (
 
 VOID NTAPI _r_obj_dereferencelist (
 	_In_reads_ (objects_count) PVOID_PTR objects_list,
-	_In_ SIZE_T objects_count
+	_In_ ULONG_PTR objects_count
 )
 {
-	for (SIZE_T i = 0; i < objects_count; i++)
+	for (ULONG_PTR i = 0; i < objects_count; i++)
 	{
 		_r_obj_dereference (objects_list[i]);
 	}
@@ -2246,7 +2246,7 @@ PR_BYTE _r_obj_createbyte4 (
 
 PR_BYTE _r_obj_createbyte_ex (
 	_In_opt_ LPCSTR buffer,
-	_In_ SIZE_T length
+	_In_ ULONG_PTR length
 )
 {
 	PR_BYTE bytes;
@@ -2282,7 +2282,7 @@ BOOLEAN _r_obj_isbytenullterminated (
 
 VOID _r_obj_setbytelength (
 	_Inout_ PR_BYTE string,
-	_In_ SIZE_T new_length
+	_In_ ULONG_PTR new_length
 )
 {
 	_r_obj_setbytelength_ex (string, new_length, string->length);
@@ -2290,8 +2290,8 @@ VOID _r_obj_setbytelength (
 
 VOID _r_obj_setbytelength_ex (
 	_Inout_ PR_BYTE string,
-	_In_ SIZE_T new_length,
-	_In_ SIZE_T allocated_length
+	_In_ ULONG_PTR new_length,
+	_In_ ULONG_PTR allocated_length
 )
 {
 	if (allocated_length < new_length)
@@ -2304,7 +2304,7 @@ VOID _r_obj_setbytelength_ex (
 
 VOID _r_obj_skipbytelength (
 	_Inout_ PR_BYTEREF string,
-	_In_ SIZE_T length
+	_In_ ULONG_PTR length
 )
 {
 	string->buffer = (LPSTR)PTR_ADD_OFFSET (string->buffer, length);
@@ -2361,7 +2361,7 @@ PR_STRING _r_obj_createstring4 (
 
 PR_STRING _r_obj_createstring_ex (
 	_In_opt_ LPCWSTR buffer,
-	_In_ SIZE_T length
+	_In_ ULONG_PTR length
 )
 {
 	PR_STRING string;
@@ -2391,7 +2391,7 @@ PR_STRING _r_obj_createstring_ex (
 }
 
 PR_STRING _r_obj_concatstrings (
-	_In_ SIZE_T count,
+	_In_ ULONG_PTR count,
 	...
 )
 {
@@ -2406,7 +2406,7 @@ PR_STRING _r_obj_concatstrings (
 }
 
 PR_STRING _r_obj_concatstrings_v (
-	_In_ SIZE_T count,
+	_In_ ULONG_PTR count,
 	_In_ va_list arg_ptr
 )
 {
@@ -2414,14 +2414,14 @@ PR_STRING _r_obj_concatstrings_v (
 	PR_STRING string;
 	LPCWSTR arg;
 	LPWSTR ptr;
-	SIZE_T cached_length[PR_SIZE_CONCAT_LENGTH_CACHE] = {0};
-	SIZE_T total_length;
-	SIZE_T string_length;
+	ULONG_PTR cached_length[PR_SIZE_CONCAT_LENGTH_CACHE] = {0};
+	ULONG_PTR total_length;
+	ULONG_PTR string_length;
 
 	argptr = arg_ptr;
 	total_length = 0;
 
-	for (SIZE_T i = 0; i < count; i++)
+	for (ULONG_PTR i = 0; i < count; i++)
 	{
 		arg = va_arg (argptr, LPCWSTR);
 
@@ -2440,7 +2440,7 @@ PR_STRING _r_obj_concatstrings_v (
 	argptr = arg_ptr;
 	total_length = 0;
 
-	for (SIZE_T i = 0; i < count; i++)
+	for (ULONG_PTR i = 0; i < count; i++)
 	{
 		arg = va_arg (argptr, LPCWSTR);
 
@@ -2467,7 +2467,7 @@ PR_STRING _r_obj_concatstrings_v (
 }
 
 PR_STRING _r_obj_concatstringrefs (
-	_In_ SIZE_T count,
+	_In_ ULONG_PTR count,
 	...
 )
 {
@@ -2482,7 +2482,7 @@ PR_STRING _r_obj_concatstringrefs (
 }
 
 PR_STRING _r_obj_concatstringrefs_v (
-	_In_ SIZE_T count,
+	_In_ ULONG_PTR count,
 	_In_ va_list arg_ptr
 )
 {
@@ -2490,11 +2490,11 @@ PR_STRING _r_obj_concatstringrefs_v (
 	PR_STRINGREF arg;
 	PR_STRING string;
 	LPWSTR ptr;
-	SIZE_T total_length = 0;
+	ULONG_PTR total_length = 0;
 
 	argptr = arg_ptr;
 
-	for (SIZE_T i = 0; i < count; i++)
+	for (ULONG_PTR i = 0; i < count; i++)
 	{
 		arg = va_arg (argptr, PR_STRINGREF);
 
@@ -2509,7 +2509,7 @@ PR_STRING _r_obj_concatstringrefs_v (
 	total_length = 0;
 	argptr = arg_ptr;
 
-	for (SIZE_T i = 0; i < count; i++)
+	for (ULONG_PTR i = 0; i < count; i++)
 	{
 		arg = va_arg (argptr, PR_STRINGREF);
 
@@ -2530,7 +2530,7 @@ BOOLEAN _r_obj_isstringnullterminated (
 	_In_ PR_STRINGREF string
 )
 {
-	SIZE_T length;
+	ULONG_PTR length;
 
 	length = _r_str_getlength3 (string);
 
@@ -2554,8 +2554,8 @@ PR_STRING _r_obj_referenceemptystring ()
 
 VOID _r_obj_removestring (
 	_In_ PR_STRING string,
-	_In_ SIZE_T start_pos,
-	_In_ SIZE_T length
+	_In_ ULONG_PTR start_pos,
+	_In_ ULONG_PTR length
 )
 {
 	RtlMoveMemory (&string->buffer[start_pos], &string->buffer[start_pos + length], string->length - (length + start_pos) * sizeof (WCHAR));
@@ -2567,7 +2567,7 @@ VOID _r_obj_removestring (
 
 VOID _r_obj_setstringlength (
 	_Inout_ PR_STRING string,
-	_In_ SIZE_T new_length
+	_In_ ULONG_PTR new_length
 )
 {
 	_r_obj_setstringlength_ex (string, new_length, string->length);
@@ -2575,8 +2575,8 @@ VOID _r_obj_setstringlength (
 
 VOID _r_obj_setstringlength_ex (
 	_Inout_ PR_STRING string,
-	_In_ SIZE_T new_length,
-	_In_ SIZE_T allocated_length
+	_In_ ULONG_PTR new_length,
+	_In_ ULONG_PTR allocated_length
 )
 {
 	if (allocated_length < new_length)
@@ -2592,7 +2592,7 @@ VOID _r_obj_setstringlength_ex (
 
 VOID _r_obj_skipstringlength (
 	_Inout_ PR_STRINGREF string,
-	_In_ SIZE_T length
+	_In_ ULONG_PTR length
 )
 {
 	assert (!(length & 0x01));
@@ -2666,7 +2666,7 @@ VOID _r_obj_initializebyterefempty (
 VOID _r_obj_initializebyteref_ex (
 	_Out_ PR_BYTEREF string,
 	_In_opt_ LPSTR buffer,
-	_In_opt_ SIZE_T length
+	_In_opt_ ULONG_PTR length
 )
 {
 	string->buffer = buffer;
@@ -2727,7 +2727,7 @@ VOID _r_obj_initializestringrefempty (
 VOID _r_obj_initializestringref_ex (
 	_Out_ PR_STRINGREF string,
 	_In_opt_ LPWSTR buffer,
-	_In_opt_ SIZE_T length
+	_In_opt_ ULONG_PTR length
 )
 {
 	assert (!(length & 0x01));
@@ -2814,7 +2814,7 @@ VOID _r_obj_initializestorage (
 
 VOID _r_obj_initializestringbuilder (
 	_Out_ PR_STRINGBUILDER sb,
-	_In_ SIZE_T initial_capacity
+	_In_ ULONG_PTR initial_capacity
 )
 {
 	// Make sure the initial capacity is even, as required for all string objects.
@@ -2887,7 +2887,7 @@ VOID _r_obj_appendstringbuilder4 (
 VOID _r_obj_appendstringbuilder_ex (
 	_Inout_ PR_STRINGBUILDER sb,
 	_In_ LPCWSTR string,
-	_In_ SIZE_T length
+	_In_ ULONG_PTR length
 )
 {
 	LPWSTR ptr;
@@ -2926,7 +2926,7 @@ VOID _r_obj_appendstringbuilderformat_v (
 )
 {
 	LPWSTR buffer;
-	SIZE_T length_in_bytes;
+	ULONG_PTR length_in_bytes;
 	LONG length;
 
 	length = _vscwprintf (format, arg_ptr);
@@ -2954,7 +2954,7 @@ VOID _r_obj_appendstringbuilderformat_v (
 
 VOID _r_obj_insertstringbuilder (
 	_Inout_ PR_STRINGBUILDER sb,
-	_In_ SIZE_T index,
+	_In_ ULONG_PTR index,
 	_In_ LPCWSTR string
 )
 {
@@ -2963,7 +2963,7 @@ VOID _r_obj_insertstringbuilder (
 
 VOID _r_obj_insertstringbuilder2 (
 	_Inout_ PR_STRINGBUILDER sb,
-	_In_ SIZE_T index,
+	_In_ ULONG_PTR index,
 	_In_ PR_STRING string
 )
 {
@@ -2972,7 +2972,7 @@ VOID _r_obj_insertstringbuilder2 (
 
 VOID _r_obj_insertstringbuilder3 (
 	_Inout_ PR_STRINGBUILDER sb,
-	_In_ SIZE_T index,
+	_In_ ULONG_PTR index,
 	_In_ PR_STRINGREF string
 )
 {
@@ -2981,7 +2981,7 @@ VOID _r_obj_insertstringbuilder3 (
 
 VOID _r_obj_insertstringbuilder4 (
 	_Inout_ PR_STRINGBUILDER sb,
-	_In_ SIZE_T index,
+	_In_ ULONG_PTR index,
 	_In_ PUNICODE_STRING string
 )
 {
@@ -2990,9 +2990,9 @@ VOID _r_obj_insertstringbuilder4 (
 
 VOID _r_obj_insertstringbuilder_ex (
 	_Inout_ PR_STRINGBUILDER sb,
-	_In_ SIZE_T index,
+	_In_ ULONG_PTR index,
 	_In_ LPCWSTR string,
-	_In_ SIZE_T length
+	_In_ ULONG_PTR length
 )
 {
 	// See if we need to re-allocate the string.
@@ -3013,7 +3013,7 @@ VOID _r_obj_insertstringbuilder_ex (
 
 VOID _r_obj_insertstringbuilderformat (
 	_Inout_ PR_STRINGBUILDER sb,
-	_In_ SIZE_T index,
+	_In_ ULONG_PTR index,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 )
@@ -3027,12 +3027,12 @@ VOID _r_obj_insertstringbuilderformat (
 
 VOID _r_obj_insertstringbuilderformat_v (
 	_Inout_ PR_STRINGBUILDER sb,
-	_In_ SIZE_T index,
+	_In_ ULONG_PTR index,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	_In_ va_list arg_ptr
 )
 {
-	SIZE_T length_in_bytes;
+	ULONG_PTR length_in_bytes;
 	LONG length;
 
 	length = _vscwprintf (format, arg_ptr);
@@ -3060,11 +3060,11 @@ VOID _r_obj_insertstringbuilderformat_v (
 
 VOID _r_obj_resizestringbuilder (
 	_Inout_ PR_STRINGBUILDER sb,
-	_In_ SIZE_T new_capacity
+	_In_ ULONG_PTR new_capacity
 )
 {
 	PR_STRING new_string;
-	SIZE_T new_size;
+	ULONG_PTR new_size;
 
 	// Double the string size. If that still isn't enough room, just use the new length.
 	new_size = sb->allocated_length * 2;
@@ -3093,8 +3093,8 @@ VOID _r_obj_resizestringbuilder (
 //
 
 PR_ARRAY _r_obj_createarray_ex (
-	_In_ SIZE_T item_size,
-	_In_ SIZE_T initial_capacity,
+	_In_ ULONG_PTR item_size,
+	_In_ ULONG_PTR initial_capacity,
 	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 )
 {
@@ -3116,7 +3116,7 @@ PR_ARRAY _r_obj_createarray_ex (
 }
 
 PR_ARRAY _r_obj_createarray (
-	_In_ SIZE_T item_size,
+	_In_ ULONG_PTR item_size,
 	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 )
 {
@@ -3130,7 +3130,7 @@ PVOID _r_obj_addarrayitem_ex (
 )
 {
 	PVOID ptr;
-	SIZE_T new_index;
+	ULONG_PTR new_index;
 
 	if (array_node->count == array_node->allocated_count)
 		_r_obj_resizearray (array_node, array_node->allocated_count * 2);
@@ -3167,7 +3167,7 @@ PVOID _r_obj_addarrayitem (
 VOID _r_obj_addarrayitems (
 	_Inout_ PR_ARRAY array_node,
 	_In_ LPCVOID array_items,
-	_In_ SIZE_T count
+	_In_ ULONG_PTR count
 )
 {
 	PVOID ptr;
@@ -3194,7 +3194,7 @@ VOID _r_obj_cleararray (
 )
 {
 	PVOID array_item;
-	SIZE_T count;
+	ULONG_PTR count;
 
 	if (!array_node->count)
 		return;
@@ -3204,7 +3204,7 @@ VOID _r_obj_cleararray (
 
 	if (array_node->cleanup_callback)
 	{
-		for (SIZE_T i = 0; i < count; i++)
+		for (ULONG_PTR i = 0; i < count; i++)
 		{
 			array_item = PTR_ADD_OFFSET (array_node->items, i * array_node->item_size);
 
@@ -3217,13 +3217,13 @@ VOID _r_obj_cleararray (
 
 PVOID _r_obj_getarrayitem (
 	_In_ PR_ARRAY array_node,
-	_In_ SIZE_T index
+	_In_ ULONG_PTR index
 )
 {
 	return PTR_ADD_OFFSET (array_node->items, index * array_node->item_size);
 }
 
-SIZE_T _r_obj_getarraysize (
+ULONG_PTR _r_obj_getarraysize (
 	_In_ PR_ARRAY array_node
 )
 {
@@ -3232,7 +3232,7 @@ SIZE_T _r_obj_getarraysize (
 
 VOID _r_obj_removearrayitem (
 	_In_ PR_ARRAY array_node,
-	_In_ SIZE_T index
+	_In_ ULONG_PTR index
 )
 {
 	_r_obj_removearrayitems (array_node, index, 1);
@@ -3240,8 +3240,8 @@ VOID _r_obj_removearrayitem (
 
 VOID _r_obj_removearrayitems (
 	_Inout_ PR_ARRAY array_node,
-	_In_ SIZE_T start_pos,
-	_In_ SIZE_T count
+	_In_ ULONG_PTR start_pos,
+	_In_ ULONG_PTR count
 )
 {
 	PVOID dst;
@@ -3253,7 +3253,7 @@ VOID _r_obj_removearrayitems (
 
 	if (array_node->cleanup_callback)
 	{
-		for (SIZE_T i = start_pos; i < (start_pos + count); i++)
+		for (ULONG_PTR i = start_pos; i < (start_pos + count); i++)
 		{
 			array_item = PTR_ADD_OFFSET (array_node->items, i * array_node->item_size);
 
@@ -3268,7 +3268,7 @@ VOID _r_obj_removearrayitems (
 
 VOID _r_obj_resizearray (
 	_Inout_ PR_ARRAY array_node,
-	_In_ SIZE_T new_capacity
+	_In_ ULONG_PTR new_capacity
 )
 {
 	if (array_node->count > new_capacity)
@@ -3284,7 +3284,7 @@ VOID _r_obj_resizearray (
 //
 
 PR_LIST _r_obj_createlist_ex (
-	_In_ SIZE_T initial_capacity,
+	_In_ ULONG_PTR initial_capacity,
 	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 )
 {
@@ -3317,7 +3317,7 @@ VOID _r_obj_addlistitem_ex (
 	_Out_opt_ PSIZE_T new_index_ptr
 )
 {
-	SIZE_T new_index;
+	ULONG_PTR new_index;
 
 	if (list_node->count == list_node->allocated_count)
 		_r_obj_resizelist (list_node, list_node->allocated_count * 2);
@@ -3345,7 +3345,7 @@ VOID _r_obj_clearlist (
 )
 {
 	PVOID list_item;
-	SIZE_T count;
+	ULONG_PTR count;
 
 	if (!list_node->count)
 		return;
@@ -3355,7 +3355,7 @@ VOID _r_obj_clearlist (
 
 	if (list_node->cleanup_callback)
 	{
-		for (SIZE_T i = 0; i < count; i++)
+		for (ULONG_PTR i = 0; i < count; i++)
 		{
 			list_item = list_node->items[i];
 
@@ -3368,12 +3368,12 @@ VOID _r_obj_clearlist (
 }
 
 _Success_ (return != SIZE_MAX)
-SIZE_T _r_obj_findlistitem (
+ULONG_PTR _r_obj_findlistitem (
 	_In_ PR_LIST list_node,
 	_In_opt_ LPCVOID list_item
 )
 {
-	for (SIZE_T i = 0; i < list_node->count; i++)
+	for (ULONG_PTR i = 0; i < list_node->count; i++)
 	{
 		if (list_node->items[i] == list_item)
 			return i;
@@ -3385,13 +3385,13 @@ SIZE_T _r_obj_findlistitem (
 _Ret_maybenull_
 PVOID _r_obj_getlistitem (
 	_In_ PR_LIST list_node,
-	_In_ SIZE_T index
+	_In_ ULONG_PTR index
 )
 {
 	return list_node->items[index];
 }
 
-SIZE_T _r_obj_getlistsize (
+ULONG_PTR _r_obj_getlistsize (
 	_In_ PR_LIST list_node
 )
 {
@@ -3400,12 +3400,12 @@ SIZE_T _r_obj_getlistsize (
 
 VOID _r_obj_insertlistitems (
 	_Inout_ PR_LIST list_node,
-	_In_ SIZE_T start_pos,
+	_In_ ULONG_PTR start_pos,
 	_In_ PVOID_PTR list_items,
-	_In_ SIZE_T count
+	_In_ ULONG_PTR count
 )
 {
-	SIZE_T new_count;
+	ULONG_PTR new_count;
 
 	if (list_node->allocated_count < list_node->count + count)
 	{
@@ -3427,7 +3427,7 @@ VOID _r_obj_insertlistitems (
 
 VOID _r_obj_removelistitem (
 	_Inout_ PR_LIST list_node,
-	_In_ SIZE_T index
+	_In_ ULONG_PTR index
 )
 {
 	_r_obj_removelistitems (list_node, index, 1);
@@ -3435,13 +3435,13 @@ VOID _r_obj_removelistitem (
 
 VOID _r_obj_removelistitems (
 	_Inout_ PR_LIST list_node,
-	_In_ SIZE_T start_pos,
-	_In_ SIZE_T count
+	_In_ ULONG_PTR start_pos,
+	_In_ ULONG_PTR count
 )
 {
 	PVOID list_item;
 
-	for (SIZE_T i = start_pos; i < (start_pos + count); i++)
+	for (ULONG_PTR i = start_pos; i < (start_pos + count); i++)
 	{
 		list_item = list_node->items[i];
 		list_node->items[i] = NULL;
@@ -3460,7 +3460,7 @@ VOID _r_obj_removelistitems (
 
 VOID _r_obj_resizelist (
 	_Inout_ PR_LIST list_node,
-	_In_ SIZE_T new_capacity
+	_In_ ULONG_PTR new_capacity
 )
 {
 	if (list_node->count > new_capacity)
@@ -3473,7 +3473,7 @@ VOID _r_obj_resizelist (
 
 VOID _r_obj_setlistitem (
 	_Inout_ PR_LIST list_node,
-	_In_ SIZE_T index,
+	_In_ ULONG_PTR index,
 	_In_opt_ PVOID list_item
 )
 {
@@ -3498,8 +3498,8 @@ VOID _r_obj_setlistitem (
 // idea to store pointers to objects as entries, as opposed to the objects themselves.
 
 PR_HASHTABLE _r_obj_createhashtable_ex (
-	_In_ SIZE_T entry_size,
-	_In_ SIZE_T initial_capacity,
+	_In_ ULONG_PTR entry_size,
+	_In_ ULONG_PTR initial_capacity,
 	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 )
 {
@@ -3516,10 +3516,10 @@ PR_HASHTABLE _r_obj_createhashtable_ex (
 
 	// Allocate the buckets.
 	hashtable->allocated_buckets = _r_math_rounduptopoweroftwo (initial_capacity);
-	hashtable->buckets = _r_mem_allocate (hashtable->allocated_buckets * sizeof (SIZE_T));
+	hashtable->buckets = _r_mem_allocate (hashtable->allocated_buckets * sizeof (ULONG_PTR));
 
 	// Set all bucket values to -1.
-	memset (hashtable->buckets, PR_HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
+	memset (hashtable->buckets, PR_HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (ULONG_PTR));
 
 	// Allocate the entries.
 	hashtable->allocated_entries = hashtable->allocated_buckets;
@@ -3533,7 +3533,7 @@ PR_HASHTABLE _r_obj_createhashtable_ex (
 }
 
 PR_HASHTABLE _r_obj_createhashtable (
-	_In_ SIZE_T entry_size,
+	_In_ ULONG_PTR entry_size,
 	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 )
 {
@@ -3549,8 +3549,8 @@ FORCEINLINE PVOID _r_obj_addhashtableitem_ex (
 )
 {
 	PR_HASHTABLE_ENTRY hashtable_entry = NULL;
-	SIZE_T index;
-	SIZE_T free_entry;
+	ULONG_PTR index;
+	ULONG_PTR free_entry;
 	ULONG valid_hash;
 
 	valid_hash = _r_obj_validatehash (hash_code);
@@ -3558,7 +3558,7 @@ FORCEINLINE PVOID _r_obj_addhashtableitem_ex (
 
 	if (is_checkduplicates)
 	{
-		for (SIZE_T i = hashtable->buckets[index]; i != SIZE_MAX; i = hashtable_entry->next)
+		for (ULONG_PTR i = hashtable->buckets[index]; i != SIZE_MAX; i = hashtable_entry->next)
 		{
 			hashtable_entry = PR_HASHTABLE_GET_ENTRY (hashtable, i);
 
@@ -3661,15 +3661,15 @@ VOID _r_obj_clearhashtable (
 )
 {
 	PR_HASHTABLE_ENTRY hashtable_entry;
-	SIZE_T next_entry;
-	SIZE_T index;
+	ULONG_PTR next_entry;
+	ULONG_PTR index;
 
 	if (!hashtable->count)
 		return;
 
 	next_entry = hashtable->next_entry;
 
-	memset (hashtable->buckets, PR_HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
+	memset (hashtable->buckets, PR_HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (ULONG_PTR));
 
 	hashtable->count = 0;
 	hashtable->free_entry = SIZE_MAX;
@@ -3733,13 +3733,13 @@ PVOID _r_obj_findhashtable (
 )
 {
 	PR_HASHTABLE_ENTRY hashtable_entry = NULL;
-	SIZE_T index;
+	ULONG_PTR index;
 	ULONG valid_hash;
 
 	valid_hash = _r_obj_validatehash (hash_code);
 	index = _r_obj_indexfromhash (hashtable, valid_hash);
 
-	for (SIZE_T i = hashtable->buckets[index]; i != SIZE_MAX; i = hashtable_entry->next)
+	for (ULONG_PTR i = hashtable->buckets[index]; i != SIZE_MAX; i = hashtable_entry->next)
 	{
 		hashtable_entry = PR_HASHTABLE_GET_ENTRY (hashtable, i);
 
@@ -3750,7 +3750,7 @@ PVOID _r_obj_findhashtable (
 	return NULL;
 }
 
-SIZE_T _r_obj_gethashtablesize (
+ULONG_PTR _r_obj_gethashtablesize (
 	_In_ PR_HASHTABLE hashtable
 )
 {
@@ -3763,8 +3763,8 @@ BOOLEAN _r_obj_removehashtableitem (
 )
 {
 	PR_HASHTABLE_ENTRY hashtable_entry = NULL;
-	SIZE_T index;
-	SIZE_T previous_index;
+	ULONG_PTR index;
+	ULONG_PTR previous_index;
 	ULONG valid_hash;
 
 	valid_hash = _r_obj_validatehash (hash_code);
@@ -3772,7 +3772,7 @@ BOOLEAN _r_obj_removehashtableitem (
 
 	previous_index = SIZE_MAX;
 
-	for (SIZE_T i = hashtable->buckets[index]; i != SIZE_MAX; i = hashtable_entry->next)
+	for (ULONG_PTR i = hashtable->buckets[index]; i != SIZE_MAX; i = hashtable_entry->next)
 	{
 		hashtable_entry = PR_HASHTABLE_GET_ENTRY (hashtable, i);
 
@@ -3810,19 +3810,19 @@ BOOLEAN _r_obj_removehashtableitem (
 
 VOID _r_obj_resizehashtable (
 	_Inout_ PR_HASHTABLE hashtable,
-	_In_ SIZE_T new_capacity
+	_In_ ULONG_PTR new_capacity
 )
 {
 	PR_HASHTABLE_ENTRY hashtable_entry;
-	SIZE_T index;
+	ULONG_PTR index;
 
 	// Re-allocate the buckets. Note that we don't need to keep the contents.
 	hashtable->allocated_buckets = _r_math_rounduptopoweroftwo (new_capacity);
 
-	hashtable->buckets = _r_mem_reallocate (hashtable->buckets, hashtable->allocated_buckets * sizeof (SIZE_T));
+	hashtable->buckets = _r_mem_reallocate (hashtable->buckets, hashtable->allocated_buckets * sizeof (ULONG_PTR));
 
 	// Set all bucket values to -1.
-	memset (hashtable->buckets, PR_HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (SIZE_T));
+	memset (hashtable->buckets, PR_HASHTABLE_INIT_VALUE, hashtable->allocated_buckets * sizeof (ULONG_PTR));
 
 	// Re-allocate the entries.
 	hashtable->allocated_entries = hashtable->allocated_buckets;
@@ -3834,7 +3834,7 @@ VOID _r_obj_resizehashtable (
 	// PR_HASHTABLE_GET_ENTRY is quite slow (it involves a multiply), so we use a pointer here.
 	hashtable_entry = hashtable->entries;
 
-	for (SIZE_T i = 0; i < hashtable->next_entry; i++)
+	for (ULONG_PTR i = 0; i < hashtable->next_entry; i++)
 	{
 		if (hashtable_entry->hash_code != SIZE_MAX)
 		{
@@ -3853,7 +3853,7 @@ VOID _r_obj_resizehashtable (
 //
 
 PR_HASHTABLE _r_obj_createhashtablepointer (
-	_In_ SIZE_T initial_capacity
+	_In_ ULONG_PTR initial_capacity
 )
 {
 	PR_HASHTABLE hashtable;
@@ -4107,7 +4107,7 @@ PR_STRING _r_clipboard_get (
 	PR_STRING string;
 	HANDLE hdata;
 	PVOID base_address;
-	SIZE_T length;
+	ULONG_PTR length;
 
 	if (!OpenClipboard (hwnd))
 		return NULL;
@@ -4942,7 +4942,7 @@ NTSTATUS _r_fs_readfile (
 	IO_STATUS_BLOCK isb;
 	PR_BYTE buffer;
 	PVOID pmemory;
-	SIZE_T length = 0;
+	ULONG_PTR length = 0;
 	NTSTATUS status;
 
 	status = _r_fs_getsize (hfile, &file_size);
@@ -5310,7 +5310,7 @@ HRESULT _r_path_getknownfolder (
 {
 	PR_STRING string;
 	LPWSTR buffer;
-	SIZE_T append_length;
+	ULONG_PTR append_length;
 	HRESULT status;
 
 	status = SHGetKnownFolderPath (rfid, KF_FLAG_DONT_VERIFY, NULL, &buffer);
@@ -5613,7 +5613,7 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 		if (NT_SUCCESS (status))
 		{
 			path->buffer = args_sr.buffer;
-			path->length = (SIZE_T)PTR_SUB_OFFSET (current_part.buffer, temp.buffer) + current_part.length;
+			path->length = (ULONG_PTR)PTR_SUB_OFFSET (current_part.buffer, temp.buffer) + current_part.length;
 
 			_r_str_trimstringref (&remaining_part, &whitespace, PR_TRIM_START_ONLY);
 
@@ -5665,7 +5665,7 @@ PR_STRING _r_path_resolvedeviceprefix (
 	WCHAR device_prefix_buffer[PR_DEVICE_PREFIX_LENGTH] = {0};
 	PR_STRING string;
 	HANDLE link_handle;
-	SIZE_T prefix_length;
+	ULONG_PTR prefix_length;
 	ULONG flags;
 	NTSTATUS status;
 
@@ -5759,7 +5759,7 @@ PR_STRING _r_path_resolvedeviceprefix_workaround (
 	PR_STRING string;
 	HANDLE link_handle;
 	HANDLE directory_handle;
-	SIZE_T prefix_length;
+	ULONG_PTR prefix_length;
 	ULONG query_context = 0;
 	ULONG i;
 	ULONG buffer_size;
@@ -5903,7 +5903,7 @@ PR_STRING _r_path_resolvenetworkprefix (
 	PR_STRING service_key;
 	PR_STRING device_name_string;
 	PR_STRING string;
-	SIZE_T prefix_length;
+	ULONG_PTR prefix_length;
 	NTSTATUS status;
 
 	status = _r_reg_openkey (HKEY_LOCAL_MACHINE, L"System\\CurrentControlSet\\Control\\NetworkProvider\\Order", KEY_READ, &hkey);
@@ -5998,7 +5998,7 @@ NTSTATUS _r_path_search (
 	UNICODE_STRING buffer = {0};
 	PR_STRING full_path;
 	LPWSTR path;
-	SIZE_T return_length;
+	ULONG_PTR return_length;
 	NTSTATUS status;
 
 	status = RtlGetSearchPath (&path);
@@ -6074,7 +6074,7 @@ PR_STRING _r_path_dospathfromnt (
 	R_STRINGREF system_root;
 	PR_STRING string;
 	LPWSTR ptr;
-	SIZE_T path_length;
+	ULONG_PTR path_length;
 
 	path_length = _r_str_getlength2 (path);
 
@@ -6305,11 +6305,11 @@ HRESULT _r_shell_showfile (
 
 VOID _r_str_append (
 	_Inout_updates_z_ (buffer_size) LPWSTR buffer,
-	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) SIZE_T buffer_size,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_size,
 	_In_ LPCWSTR string
 )
 {
-	SIZE_T dest_length;
+	ULONG_PTR dest_length;
 
 	if (buffer_size <= PR_SIZE_MAX_STRING_LENGTH)
 	{
@@ -6321,13 +6321,13 @@ VOID _r_str_append (
 
 VOID _r_str_appendformat (
 	_Inout_updates_z_ (buffer_size) LPWSTR buffer,
-	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) SIZE_T buffer_size,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_size,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 )
 {
 	va_list arg_ptr;
-	SIZE_T dest_length;
+	ULONG_PTR dest_length;
 
 	if (buffer_size > PR_SIZE_MAX_STRING_LENGTH)
 		return;
@@ -6352,7 +6352,7 @@ _Check_return_
 INT _r_str_compare_length (
 	_In_ LPCWSTR string1,
 	_In_ LPCWSTR string2,
-	_In_ SIZE_T length
+	_In_ ULONG_PTR length
 )
 {
 	return _wcsnicmp (string1, string2, length);
@@ -6369,7 +6369,7 @@ INT _r_str_compare_logical (
 
 VOID _r_str_copy (
 	_Out_writes_z_ (buffer_size) LPWSTR buffer,
-	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) SIZE_T buffer_size,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_size,
 	_In_ LPCWSTR string
 )
 {
@@ -6390,11 +6390,11 @@ VOID _r_str_copy (
 
 VOID _r_str_copystring (
 	_Out_writes_z_ (buffer_size) LPWSTR buffer,
-	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) SIZE_T buffer_size,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_size,
 	_In_ PR_STRINGREF string
 )
 {
-	SIZE_T length;
+	ULONG_PTR length;
 
 	length = _r_str_getlength3 (string) + 1;
 
@@ -6475,14 +6475,14 @@ PR_STRING _r_str_environmentunexpandstring (
 }
 
 _Success_ (return != SIZE_MAX)
-SIZE_T _r_str_findchar (
+ULONG_PTR _r_str_findchar (
 	_In_ PR_STRINGREF string,
 	_In_ WCHAR character,
 	_In_ BOOLEAN is_ignorecase
 )
 {
 	LPWSTR buffer;
-	SIZE_T length;
+	ULONG_PTR length;
 	WCHAR chr;
 
 	if (!string->length)
@@ -6516,14 +6516,14 @@ SIZE_T _r_str_findchar (
 }
 
 _Success_ (return != SIZE_MAX)
-SIZE_T _r_str_findlastchar (
+ULONG_PTR _r_str_findlastchar (
 	_In_ PR_STRINGREF string,
 	_In_ WCHAR character,
 	_In_ BOOLEAN is_ignorecase
 )
 {
 	LPWSTR buffer;
-	SIZE_T length;
+	ULONG_PTR length;
 	WCHAR chr;
 
 	if (!string->length)
@@ -6559,7 +6559,7 @@ SIZE_T _r_str_findlastchar (
 }
 
 _Success_ (return != SIZE_MAX)
-SIZE_T _r_str_findstring (
+ULONG_PTR _r_str_findstring (
 	_In_ PR_STRINGREF string,
 	_In_ PR_STRINGREF sub_string,
 	_In_ BOOLEAN is_ignorecase
@@ -6567,8 +6567,8 @@ SIZE_T _r_str_findstring (
 {
 	R_STRINGREF sr1;
 	R_STRINGREF sr2;
-	SIZE_T length1;
-	SIZE_T length2;
+	ULONG_PTR length1;
+	ULONG_PTR length2;
 	WCHAR chr1;
 	WCHAR chr2;
 
@@ -6595,7 +6595,7 @@ SIZE_T _r_str_findstring (
 		chr2 = *sr2.buffer++;
 	}
 
-	for (SIZE_T i = length1 - length2 + 1; i != 0; i--)
+	for (ULONG_PTR i = length1 - length2 + 1; i != 0; i--)
 	{
 		if (is_ignorecase)
 		{
@@ -6609,7 +6609,7 @@ SIZE_T _r_str_findstring (
 		if (chr2 == chr1)
 		{
 			if (_r_str_isequal (&sr1, &sr2, is_ignorecase))
-				return (SIZE_T)(sr1.buffer - string->buffer - 1);
+				return (ULONG_PTR)(sr1.buffer - string->buffer - 1);
 		}
 	}
 
@@ -6645,7 +6645,7 @@ PR_STRING _r_str_formatversion (
 
 VOID _r_str_fromlong (
 	_Out_writes_ (buffer_size) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
+	_In_ ULONG_PTR buffer_size,
 	_In_ LONG value
 )
 {
@@ -6654,7 +6654,7 @@ VOID _r_str_fromlong (
 
 VOID _r_str_fromlong64 (
 	_Out_writes_ (buffer_size) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
+	_In_ ULONG_PTR buffer_size,
 	_In_ LONG64 value
 )
 {
@@ -6663,7 +6663,7 @@ VOID _r_str_fromlong64 (
 
 VOID _r_str_fromulong (
 	_Out_writes_ (buffer_size) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
+	_In_ ULONG_PTR buffer_size,
 	_In_ ULONG value
 )
 {
@@ -6672,7 +6672,7 @@ VOID _r_str_fromulong (
 
 VOID _r_str_fromulong64 (
 	_Out_writes_ (buffer_size) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
+	_In_ ULONG_PTR buffer_size,
 	_In_ ULONG64 value
 )
 {
@@ -6709,7 +6709,7 @@ NTSTATUS _r_str_fromguid (
 
 PR_STRING _r_str_fromhex (
 	_In_reads_bytes_ (length) PUCHAR buffer,
-	_In_ SIZE_T length,
+	_In_ ULONG_PTR length,
 	_In_ BOOLEAN is_uppercase
 )
 {
@@ -6738,7 +6738,7 @@ PR_STRING _r_str_fromhex (
 
 	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR) * 2);
 
-	for (SIZE_T i = 0; i < length; i++)
+	for (ULONG_PTR i = 0; i < length; i++)
 	{
 		string->buffer[i * sizeof (WCHAR)] = table[buffer[i] >> 4];
 		string->buffer[i * sizeof (WCHAR) + 1] = table[buffer[i] & 0xF];
@@ -6811,7 +6811,7 @@ NTSTATUS _r_str_fromsid (
 
 VOID _r_str_generaterandom (
 	_Out_writes_z_ (buffer_size) LPWSTR buffer,
-	_In_ SIZE_T buffer_size,
+	_In_ ULONG_PTR buffer_size,
 	_In_ BOOLEAN is_uppercase
 )
 {
@@ -6819,7 +6819,7 @@ VOID _r_str_generaterandom (
 
 	chr = is_uppercase ? L'A' : L'a';
 
-	for (SIZE_T i = 0; i < buffer_size - 1; i++)
+	for (ULONG_PTR i = 0; i < buffer_size - 1; i++)
 	{
 		buffer[i] = chr + (_r_math_getrandom () % 26);
 	}
@@ -6855,14 +6855,14 @@ ULONG _r_str_gethash3 (
 	return _r_str_x65599 (string, is_ignorecase);
 }
 
-SIZE_T _r_str_getlength (
+ULONG_PTR _r_str_getlength (
 	_In_ LPCWSTR string
 )
 {
 	return _r_str_getlength_ex (string, PR_SIZE_MAX_STRING_LENGTH);
 }
 
-SIZE_T _r_str_getlength2 (
+ULONG_PTR _r_str_getlength2 (
 	_In_ PR_STRING string
 )
 {
@@ -6871,7 +6871,7 @@ SIZE_T _r_str_getlength2 (
 	return string->length / sizeof (WCHAR);
 }
 
-SIZE_T _r_str_getlength3 (
+ULONG_PTR _r_str_getlength3 (
 	_In_ PR_STRINGREF string
 )
 {
@@ -6880,7 +6880,7 @@ SIZE_T _r_str_getlength3 (
 	return string->length / sizeof (WCHAR);
 }
 
-SIZE_T _r_str_getlength4 (
+ULONG_PTR _r_str_getlength4 (
 	_In_ PUNICODE_STRING string
 )
 {
@@ -6889,38 +6889,38 @@ SIZE_T _r_str_getlength4 (
 	return string->Length / sizeof (WCHAR);
 }
 
-SIZE_T _r_str_getlength_ex (
+ULONG_PTR _r_str_getlength_ex (
 	_In_reads_or_z_ (max_count) LPCWSTR string,
-	_In_ SIZE_T max_count
+	_In_ ULONG_PTR max_count
 )
 {
 	return wcsnlen_s (string, max_count);
 }
 
-SIZE_T _r_str_getbytelength (
+ULONG_PTR _r_str_getbytelength (
 	_In_ LPCSTR string
 )
 {
 	return _r_str_getbytelength_ex (string, PR_SIZE_MAX_STRING_LENGTH);
 }
 
-SIZE_T _r_str_getbytelength2 (
+ULONG_PTR _r_str_getbytelength2 (
 	_In_ PR_BYTE string
 )
 {
 	return string->length;
 }
 
-SIZE_T _r_str_getbytelength3 (
+ULONG_PTR _r_str_getbytelength3 (
 	_In_ PR_BYTEREF string
 )
 {
 	return string->length;
 }
 
-SIZE_T _r_str_getbytelength_ex (
+ULONG_PTR _r_str_getbytelength_ex (
 	_In_reads_or_z_ (max_count) LPCSTR string,
-	_In_ SIZE_T max_count
+	_In_ ULONG_PTR max_count
 )
 {
 	return strnlen_s (string, max_count);
@@ -6941,9 +6941,9 @@ BOOLEAN _r_str_isequal (
 {
 	LPCWSTR buffer1;
 	LPCWSTR buffer2;
-	SIZE_T length1;
-	SIZE_T length2;
-	SIZE_T length;
+	ULONG_PTR length1;
+	ULONG_PTR length2;
+	ULONG_PTR length;
 	WCHAR chr1;
 	WCHAR chr2;
 
@@ -7080,14 +7080,14 @@ BOOLEAN _r_str_isnumeric (
 	_In_ PR_STRINGREF string
 )
 {
-	SIZE_T length;
+	ULONG_PTR length;
 
 	if (!string->length)
 		return FALSE;
 
 	length = _r_str_getlength3 (string);
 
-	for (SIZE_T i = 0; i < length; i++)
+	for (ULONG_PTR i = 0; i < length; i++)
 	{
 		if (!_r_str_isdigit (string->buffer[i]))
 			return FALSE;
@@ -7233,7 +7233,7 @@ StarCheck:
 
 VOID _r_str_printf (
 	_Out_writes_z_ (buffer_size) LPWSTR buffer,
-	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) SIZE_T buffer_size,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_size,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 )
@@ -7254,12 +7254,12 @@ VOID _r_str_printf (
 
 VOID _r_str_printf_v (
 	_Out_writes_z_ (buffer_size) LPWSTR buffer,
-	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) SIZE_T buffer_size,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_size,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	_In_ va_list arg_ptr
 )
 {
-	SIZE_T max_length;
+	ULONG_PTR max_length;
 	LONG format_size;
 
 	if (buffer_size > PR_SIZE_MAX_STRING_LENGTH)
@@ -7277,7 +7277,7 @@ VOID _r_str_printf_v (
 	format_size = _vsnwprintf (buffer, max_length, format, arg_ptr);
 #pragma warning(pop)
 
-	if (format_size == -1 || (SIZE_T)format_size >= max_length)
+	if (format_size == -1 || (ULONG_PTR)format_size >= max_length)
 	{
 		// need to null terminate the string
 		buffer += max_length;
@@ -7291,14 +7291,14 @@ VOID _r_str_replacechar (
 	_In_ WCHAR char_to
 )
 {
-	SIZE_T length;
+	ULONG_PTR length;
 
 	if (!string->length)
 		return;
 
 	length = _r_str_getlength3 (string);
 
-	for (SIZE_T i = 0; i < length; i++)
+	for (ULONG_PTR i = 0; i < length; i++)
 	{
 		if (string->buffer[i] == char_from)
 			string->buffer[i] = char_to;
@@ -7314,7 +7314,7 @@ BOOLEAN _r_str_splitatchar (
 {
 	R_STRINGREF input;
 	LPWSTR buffer;
-	SIZE_T index;
+	ULONG_PTR index;
 
 	_r_obj_initializestringref3 (&input, string);
 
@@ -7346,7 +7346,7 @@ BOOLEAN _r_str_splitatlastchar (
 {
 	R_STRINGREF input;
 	LPWSTR buffer;
-	SIZE_T index;
+	ULONG_PTR index;
 
 	input = *string;
 	index = _r_str_findlastchar (string, separator, FALSE);
@@ -7616,7 +7616,7 @@ BOOLEAN _r_str_touinteger64 (
 
 	LPWSTR buffer;
 	ULONG64 result = 0;
-	SIZE_T length;
+	ULONG_PTR length;
 	ULONG value;
 	BOOLEAN is_valid = TRUE;
 
@@ -7652,14 +7652,14 @@ VOID _r_str_tolower (
 	_Inout_ PR_STRINGREF string
 )
 {
-	SIZE_T length;
+	ULONG_PTR length;
 
 	if (!string->length)
 		return;
 
 	length = _r_str_getlength3 (string);
 
-	for (SIZE_T i = 0; i < length; i++)
+	for (ULONG_PTR i = 0; i < length; i++)
 	{
 		string->buffer[i] = _r_str_lower (string->buffer[i]);
 	}
@@ -7669,14 +7669,14 @@ VOID _r_str_toupper (
 	_Inout_ PR_STRINGREF string
 )
 {
-	SIZE_T length;
+	ULONG_PTR length;
 
 	if (!string->length)
 		return;
 
 	length = _r_str_getlength3 (string);
 
-	for (SIZE_T i = 0; i < length; i++)
+	for (ULONG_PTR i = 0; i < length; i++)
 	{
 		string->buffer[i] = _r_str_upper (string->buffer[i]);
 	}
@@ -7712,9 +7712,9 @@ VOID _r_str_trimstringref (
 {
 	LPCWSTR charset_buff;
 	LPCWSTR buffer;
-	SIZE_T charset_count;
-	SIZE_T trim_count;
-	SIZE_T count;
+	ULONG_PTR charset_count;
+	ULONG_PTR trim_count;
+	ULONG_PTR count;
 	USHORT chr;
 	BOOLEAN charset_table[256];
 	BOOLEAN charset_table_complete;
@@ -7772,7 +7772,7 @@ VOID _r_str_trimstringref (
 
 	charset_table_complete = TRUE;
 
-	for (SIZE_T i = 0; i < charset_count; i++)
+	for (ULONG_PTR i = 0; i < charset_count; i++)
 	{
 		chr = charset_buff[i];
 		charset_table[chr & 0xFF] = TRUE;
@@ -7796,7 +7796,7 @@ VOID _r_str_trimstringref (
 
 			if (!charset_table_complete)
 			{
-				for (SIZE_T i = 0; i < charset_count; i++)
+				for (ULONG_PTR i = 0; i < charset_count; i++)
 				{
 					if (charset_buff[i] == chr)
 						goto CharFound;
@@ -7827,7 +7827,7 @@ CharFound:
 
 			if (!charset_table_complete)
 			{
-				for (SIZE_T i = 0; i < charset_count; i++)
+				for (ULONG_PTR i = 0; i < charset_count; i++)
 				{
 					if (charset_buff[i] == chr)
 						goto CharFound2;
@@ -8861,7 +8861,7 @@ BOOLEAN _r_sys_getopt (
 	R_STRINGREF name_sr;
 	LPWSTR *arga;
 	LPWSTR buffer;
-	SIZE_T option_length;
+	ULONG_PTR option_length;
 	INT numargs;
 	BOOLEAN is_namefound = FALSE;
 
@@ -11701,7 +11701,7 @@ BOOLEAN _r_layout_resize (
 	_r_wnd_copyrectangle (&layout_manager->root_item.prev_rect, &layout_manager->root_item.rect);
 	_r_wnd_copyrectangle (&layout_manager->root_item.rect, &rect);
 
-	for (SIZE_T i = 0; i < _r_obj_getlistsize (layout_manager->list); i++)
+	for (ULONG_PTR i = 0; i < _r_obj_getlistsize (layout_manager->list); i++)
 	{
 		layout_item = _r_obj_getlistitem (layout_manager->list, i);
 
@@ -11715,7 +11715,7 @@ BOOLEAN _r_layout_resize (
 			_r_layout_resizeitem (layout_manager, layout_item);
 	}
 
-	for (SIZE_T i = 0; i < _r_obj_getlistsize (layout_manager->list); i++)
+	for (ULONG_PTR i = 0; i < _r_obj_getlistsize (layout_manager->list); i++)
 	{
 		layout_item = _r_obj_getlistitem (layout_manager->list, i);
 
@@ -11924,7 +11924,7 @@ BOOLEAN _r_layout_setwindowanchor (
 {
 	PR_LAYOUT_ITEM layout_item;
 
-	for (SIZE_T i = 0; i < _r_obj_getlistsize (layout_manager->list); i++)
+	for (ULONG_PTR i = 0; i < _r_obj_getlistsize (layout_manager->list); i++)
 	{
 		layout_item = _r_obj_getlistitem (layout_manager->list, i);
 
@@ -12120,11 +12120,11 @@ VOID _r_wnd_centerwindowrect (
 VOID _r_wnd_changemessagefilter (
 	_In_ HWND hwnd,
 	_In_reads_ (count) PUINT messages,
-	_In_ SIZE_T count,
+	_In_ ULONG_PTR count,
 	_In_ ULONG action
 )
 {
-	for (SIZE_T i = 0; i < count; i++)
+	for (ULONG_PTR i = 0; i < count; i++)
 	{
 		ChangeWindowMessageFilterEx (hwnd, messages[i], action, NULL); // win7+
 	}
@@ -14262,8 +14262,8 @@ ULONG _r_math_hashinteger64 (
 	return (ULONG)value;
 }
 
-SIZE_T _r_math_rounduptopoweroftwo (
-	_In_ SIZE_T number
+ULONG_PTR _r_math_rounduptopoweroftwo (
+	_In_ ULONG_PTR number
 )
 {
 	number -= 1;
@@ -14385,7 +14385,7 @@ PR_STRING _r_res_querystring (
 
 	PR_STRING string;
 
-	for (SIZE_T i = 0; i < RTL_NUMBER_OF (lcid_arr); i++)
+	for (ULONG_PTR i = 0; i < RTL_NUMBER_OF (lcid_arr); i++)
 	{
 		string = _r_res_querystring_ex (ver_block, entry_name, lcid_arr[i]);
 
@@ -17317,7 +17317,7 @@ VOID _r_util_templatewritestring (
 	_In_ LPCWSTR string
 )
 {
-	SIZE_T length;
+	ULONG_PTR length;
 
 	length = _r_str_getlength (string) * sizeof (WCHAR);
 
@@ -17337,7 +17337,7 @@ VOID _r_util_templatewriteulong (
 VOID _r_util_templatewrite_ex (
 	_Inout_ PBYTE_PTR ptr,
 	_In_bytecount_ (size) LPCVOID data,
-	_In_ SIZE_T size
+	_In_ ULONG_PTR size
 )
 {
 	RtlCopyMemory (*ptr, data, size);

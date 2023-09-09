@@ -248,7 +248,7 @@ VOID _r_locale_enum (
 	_In_opt_ UINT menu_id
 );
 
-SIZE_T _r_locale_getcount ();
+ULONG_PTR _r_locale_getcount ();
 
 _Ret_maybenull_
 PR_STRING _r_locale_getstring_ex (

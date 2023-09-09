@@ -131,7 +131,7 @@ BOOLEAN _r_app_isportable ()
 		{
 			directory = _r_app_getdirectory ();
 
-			for (SIZE_T i = 0; i < RTL_NUMBER_OF (file_names); i++)
+			for (ULONG_PTR i = 0; i < RTL_NUMBER_OF (file_names); i++)
 			{
 				string = _r_obj_concatstrings (
 					5,
@@ -1703,7 +1703,7 @@ VOID _r_locale_apply (
 )
 {
 	PR_STRING locale_name;
-	SIZE_T locale_index;
+	ULONG_PTR locale_index;
 	HWND hwindow;
 
 #if defined(APP_HAVE_SETTINGS)
@@ -1775,7 +1775,7 @@ VOID _r_locale_enum (
 {
 	PR_STRING locale_name;
 	HMENU hsubmenu;
-	SIZE_T locale_count;
+	ULONG_PTR locale_count;
 	UINT index;
 	UINT menu_index;
 	BOOLEAN is_current;
@@ -1834,7 +1834,7 @@ VOID _r_locale_enum (
 
 	_r_queuedlock_acquireshared (&app_global.locale.lock);
 
-	for (SIZE_T i = 0; i < locale_count; i++)
+	for (ULONG_PTR i = 0; i < locale_count; i++)
 	{
 		locale_name = _r_obj_getlistitem (app_global.locale.available_list, i);
 
@@ -1869,9 +1869,9 @@ VOID _r_locale_enum (
 	_r_queuedlock_releaseshared (&app_global.locale.lock);
 }
 
-SIZE_T _r_locale_getcount ()
+ULONG_PTR _r_locale_getcount ()
 {
-	SIZE_T count;
+	ULONG_PTR count;
 
 	_r_queuedlock_acquireshared (&app_global.locale.lock);
 	count = _r_obj_getlistsize (app_global.locale.available_list);
@@ -2171,7 +2171,7 @@ NTSTATUS NTAPI _r_update_downloadthread (
 	ULONG update_flags = 0;
 	ULONG status = ERROR_SUCCESS;
 
-	for (SIZE_T i = 0; i < _r_obj_getarraysize (update_info->components); i++)
+	for (ULONG_PTR i = 0; i < _r_obj_getarraysize (update_info->components); i++)
 	{
 		update_component = _r_obj_getarrayitem (update_info->components, i);
 
@@ -2249,7 +2249,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 	R_STRINGREF remaining_part;
 	R_STRINGREF new_version_sr;
 	R_STRINGREF new_url_sr;
-	SIZE_T downloads_count = 0;
+	ULONG_PTR downloads_count = 0;
 	ULONG hash_code;
 	ULONG status;
 
@@ -2282,7 +2282,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 
 	if (string_table)
 	{
-		for (SIZE_T i = 0; i < _r_obj_getarraysize (update_info->components); i++)
+		for (ULONG_PTR i = 0; i < _r_obj_getarraysize (update_info->components); i++)
 		{
 			update_component = _r_obj_getarrayitem (update_info->components, i);
 
@@ -2597,7 +2597,7 @@ HRESULT CALLBACK _r_update_pagecallback (
 			}
 			else if (wparam == IDOK)
 			{
-				for (SIZE_T i = 0; i < _r_obj_getarraysize (update_info->components); i++)
+				for (ULONG_PTR i = 0; i < _r_obj_getarraysize (update_info->components); i++)
 				{
 					update_component = _r_obj_getarrayitem (update_info->components, i);
 
@@ -3513,7 +3513,7 @@ VOID _r_settings_createwindow (
 	R_STORAGE dlg_buffer;
 	LPDLGTEMPLATEEX dlg_template;
 	PR_SETTINGS_PAGE ptr_page;
-	SIZE_T size;
+	ULONG_PTR size;
 	WORD controls;
 	NTSTATUS status;
 
@@ -3529,7 +3529,7 @@ VOID _r_settings_createwindow (
 	// calculate maximum dialog size
 	if (_r_initonce_begin (&init_once))
 	{
-		for (SIZE_T i = 0; i < _r_obj_getarraysize (app_global.settings.page_list); i++)
+		for (ULONG_PTR i = 0; i < _r_obj_getarraysize (app_global.settings.page_list); i++)
 		{
 			ptr_page = _r_obj_getarrayitem (app_global.settings.page_list, i);
 
@@ -3773,7 +3773,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 			// configure navigation control
 			dlg_id = _r_config_getlong (L"SettingsLastPage", 0);
 
-			for (SIZE_T i = 0; i < _r_obj_getarraysize (app_global.settings.page_list); i++)
+			for (ULONG_PTR i = 0; i < _r_obj_getarraysize (app_global.settings.page_list); i++)
 			{
 				ptr_page = _r_obj_getarrayitem (app_global.settings.page_list, i);
 
@@ -3944,7 +3944,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 		{
 			PR_SETTINGS_PAGE ptr_page;
 
-			for (SIZE_T i = 0; i < _r_obj_getarraysize (app_global.settings.page_list); i++)
+			for (ULONG_PTR i = 0; i < _r_obj_getarraysize (app_global.settings.page_list); i++)
 			{
 				ptr_page = _r_obj_getarrayitem (app_global.settings.page_list, i);
 
@@ -4133,7 +4133,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 					}
 
 					// reinitialize settings
-					for (SIZE_T i = 0; i < _r_obj_getarraysize (app_global.settings.page_list); i++)
+					for (ULONG_PTR i = 0; i < _r_obj_getarraysize (app_global.settings.page_list); i++)
 					{
 						ptr_page = _r_obj_getarrayitem (app_global.settings.page_list, i);
 
