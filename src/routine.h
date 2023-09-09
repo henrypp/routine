@@ -1804,6 +1804,7 @@ NTSTATUS _r_fs_getdiskinformation (
 	_In_ LPCWSTR path,
 	_Out_opt_ PR_STRING_PTR label_ptr,
 	_Out_opt_ PR_STRING_PTR filesystem_ptr,
+	_Out_opt_ PULONG flags_ptr,
 	_Out_opt_ PULONG serialnumber_ptr
 );
 

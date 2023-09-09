@@ -4628,6 +4628,7 @@ NTSTATUS _r_fs_getdiskinformation (
 	_In_ LPCWSTR path,
 	_Out_opt_ PR_STRING_PTR label_ptr,
 	_Out_opt_ PR_STRING_PTR filesystem_ptr,
+	_Out_opt_ PULONG flags_ptr,
 	_Out_opt_ PULONG serialnumber_ptr
 )
 {
@@ -4653,7 +4654,7 @@ NTSTATUS _r_fs_getdiskinformation (
 	if (!NT_SUCCESS (status))
 		return status;
 
-	length = sizeof (FILE_FS_VOLUME_INFORMATION) + MAX_PATH * sizeof (WCHAR);
+	length = sizeof (FILE_FS_VOLUME_INFORMATION) + 512 * sizeof (WCHAR);
 	volume_info = _r_mem_allocate (length);
 
 	status = NtQueryVolumeInformationFile (hfile, &io, volume_info, length, FileFsVolumeInformation);
@@ -4675,7 +4676,7 @@ NTSTATUS _r_fs_getdiskinformation (
 			*serialnumber_ptr = 0;
 	}
 
-	length = sizeof (FILE_FS_VOLUME_INFORMATION) + MAX_PATH * sizeof (WCHAR);
+	length = sizeof (FILE_FS_VOLUME_INFORMATION) + 512 * sizeof (WCHAR);
 	attribute_info = _r_mem_reallocate (volume_info, length);
 
 	status = NtQueryVolumeInformationFile (hfile, &io, attribute_info, length, FileFsAttributeInformation);
@@ -4684,11 +4685,17 @@ NTSTATUS _r_fs_getdiskinformation (
 	{
 		if (filesystem_ptr)
 			*filesystem_ptr = _r_obj_createstring_ex (attribute_info->FileSystemName, attribute_info->FileSystemNameLength * sizeof (WCHAR));
+
+		if (flags_ptr)
+			*flags_ptr = attribute_info->FileSystemAttributes;
 	}
 	else
 	{
 		if (filesystem_ptr)
 			*filesystem_ptr = NULL;
+
+		if (flags_ptr)
+			*flags_ptr = 0;
 	}
 
 	_r_mem_free (attribute_info);
@@ -6044,9 +6051,6 @@ NTSTATUS _r_path_search (
 			NULL,
 			NULL
 		);
-
-		if (!NT_SUCCESS (status))
-			_r_obj_dereference (full_path);
 	}
 	else
 	{
@@ -6062,6 +6066,9 @@ NTSTATUS _r_path_search (
 	}
 	else
 	{
+		if (full_path)
+			_r_obj_dereference (full_path);
+
 		*out_buffer = NULL;
 	}
 
