@@ -244,15 +244,19 @@ VOID _r_app_initialize_controls ()
 
 VOID _r_app_initialize_dll ()
 {
+	UNICODE_STRING us;
+
 	// Safe DLL loading
 	// This prevents DLL planting in the application directory.
 
-	SetDllDirectory (L"");
+	_r_obj_initializeunicodestring (&us, L"");
+
+	LdrSetDllDirectory (&us);
 
 	// win7+
-	SetSearchPathMode (BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
+	RtlSetSearchPathMode (BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
 
-	SetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+	LdrSetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 }
 
 #if !defined(APP_CONSOLE)
