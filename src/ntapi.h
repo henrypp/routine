@@ -2511,6 +2511,27 @@ typedef VOID (NTAPI *PIO_APC_ROUTINE)(
 EXTERN_C_START
 
 NTSYSCALLAPI
+NTSTATUS
+NTAPI
+LdrSetDllDirectory (
+	_In_ PUNICODE_STRING DllDirectory
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlSetSearchPathMode (
+	_In_ ULONG Flags
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+LdrSetDefaultDllDirectories (
+	_In_ ULONG DirectoryFlags
+);
+
+NTSYSCALLAPI
 VOID
 NTAPI
 RtlTimeToTimeFields (
