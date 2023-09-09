@@ -4941,7 +4941,7 @@ NTSTATUS _r_fs_readfile (
 	LARGE_INTEGER file_size;
 	IO_STATUS_BLOCK isb;
 	PR_BYTE buffer;
-	PVOID pmemory;
+	PVOID memory;
 	ULONG_PTR length = 0;
 	NTSTATUS status;
 
@@ -4964,14 +4964,14 @@ NTSTATUS _r_fs_readfile (
 #if defined(_WIN64)
 	buffer = _r_obj_createbyte_ex (NULL, file_size.QuadPart);
 #else
-	buffer = _r_obj_createbyte_ex (NULL, (ULONG)file_size.LowPart);
+	buffer = _r_obj_createbyte_ex (NULL, (ULONG_PTR)file_size.LowPart);
 #endif // _WIN64
 
-	pmemory = _r_mem_allocate (0x4000);
+	memory = _r_mem_allocate (0x4000);
 
 	while (TRUE)
 	{
-		status = NtReadFile (hfile, NULL, NULL, NULL, &isb, pmemory, 0x4000, NULL, NULL);
+		status = NtReadFile (hfile, NULL, NULL, NULL, &isb, memory, 0x4000, NULL, NULL);
 
 		if (status == STATUS_END_OF_FILE)
 		{
@@ -4986,7 +4986,7 @@ NTSTATUS _r_fs_readfile (
 		if (!isb.Information)
 			break;
 
-		RtlCopyMemory (PTR_ADD_OFFSET (buffer->buffer, length), pmemory, isb.Information);
+		RtlCopyMemory (PTR_ADD_OFFSET (buffer->buffer, length), memory, isb.Information);
 
 		length += isb.Information;
 	}
@@ -4997,14 +4997,14 @@ NTSTATUS _r_fs_readfile (
 
 		_r_obj_setbytelength (buffer, length);
 
-		_r_mem_free (pmemory);
+		_r_mem_free (memory);
 	}
 	else
 	{
 		*out_buffer = NULL;
 
-		_r_mem_free (pmemory);
-		_r_mem_free (buffer);
+		_r_obj_dereference (buffer);
+		_r_mem_free (memory);
 	}
 
 	return status;
