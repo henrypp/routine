@@ -9097,7 +9097,7 @@ ULONG _r_sys_gettickcount ()
 	}
 
 	return (ULONG)((UInt32x32To64 (tick_count.LowPart, USER_SHARED_DATA->TickCountMultiplier) >> 24) +
-				   UInt32x32To64 ((tick_count.HighPart << 8) & 0xffffffff,
+				   UInt32x32To64 ((tick_count.HighPart << 8) & 0xFFFFFFFF,
 				   USER_SHARED_DATA->TickCountMultiplier));
 
 #endif // _WIN64
@@ -10220,7 +10220,7 @@ NTSTATUS _r_sys_setprocessprivilege (
 	PTOKEN_PRIVILEGES token_privileges;
 	NTSTATUS status;
 
-	status = NtOpenProcessToken (process_handle, TOKEN_ADJUST_PRIVILEGES, &token_handle);
+	status = NtOpenProcessTokenEx (process_handle, TOKEN_ADJUST_PRIVILEGES, OBJ_KERNEL_HANDLE, &token_handle);
 
 	if (!NT_SUCCESS (status))
 		return status;
@@ -10232,7 +10232,6 @@ NTSTATUS _r_sys_setprocessprivilege (
 
 	for (ULONG i = 0; i < count; i++)
 	{
-		//token_privileges->Privileges[i].Luid.HighPart = 0;
 		token_privileges->Privileges[i].Luid.LowPart = privileges[i];
 
 		if (is_enable)
