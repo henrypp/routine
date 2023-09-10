@@ -3013,15 +3013,6 @@ NtCreateToken (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-NtOpenProcessToken (
-	_In_ HANDLE ProcessHandle,
-	_In_ ACCESS_MASK DesiredAccess,
-	_Out_ PHANDLE TokenHandle
-);
-
-NTSYSCALLAPI
-NTSTATUS
-NTAPI
 NtOpenProcessTokenEx (
 	_In_ HANDLE ProcessHandle,
 	_In_ ACCESS_MASK DesiredAccess,
