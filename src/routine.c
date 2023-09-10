@@ -10220,7 +10220,7 @@ NTSTATUS _r_sys_setprocessprivilege (
 	PTOKEN_PRIVILEGES token_privileges;
 	NTSTATUS status;
 
-	status = NtOpenProcessTokenEx (process_handle, TOKEN_ADJUST_PRIVILEGES, OBJ_KERNEL_HANDLE, &token_handle);
+	status = NtOpenProcessTokenEx (process_handle, TOKEN_ADJUST_PRIVILEGES, 0, &token_handle);
 
 	if (!NT_SUCCESS (status))
 		return status;
