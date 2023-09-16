@@ -577,12 +577,6 @@ typedef struct _R_CRYPT_CONTEXT
 // System information
 //
 
-#define WINDOWS_2000 0x0500
-#define WINDOWS_XP 0x0501
-#define WINDOWS_XP_64 0x0502
-#define WINDOWS_VISTA 0x0600
-#define WINDOWS_7 0x0601
-#define WINDOWS_8 0x0602
 #define WINDOWS_8_1 0x0603
 #define WINDOWS_10 0x0A00
 #define WINDOWS_10_1507 WINDOWS_10 // build 10240 [TH1]
@@ -619,7 +613,7 @@ typedef struct _R_TOKEN_ATTRIBUTES
 	struct
 	{
 		ULONG is_elevated : 1;
-		ULONG elevation_type : 2;
+		TOKEN_ELEVATION_TYPE elevation_type : 2;
 		ULONG spare_bits : 29;
 	};
 

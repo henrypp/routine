@@ -412,7 +412,7 @@ PR_STRING _r_app_getdirectory ()
 
 	if (_r_initonce_begin (&init_once))
 	{
-		_r_obj_initializestringrefconst (&sr, _r_sys_getimagepath ());
+		_r_obj_initializestringref (&sr, _r_sys_getimagepath ());
 
 		cached_path = _r_path_getbasedirectory (&sr);
 
@@ -480,7 +480,7 @@ LPCWSTR _r_app_getcachedirectory (
 	}
 
 	if (is_create && !_r_fs_exists (cached_path))
-		_r_fs_mkdir (cached_path);
+		_r_fs_createdirectory (cached_path, FILE_ATTRIBUTE_NORMAL);
 
 	return cached_path;
 }
@@ -500,7 +500,7 @@ LPCWSTR _r_app_getcrashdirectory (
 	}
 
 	if (is_create && !_r_fs_exists (cached_path))
-		_r_fs_mkdir (cached_path);
+		_r_fs_createdirectory (cached_path, FILE_ATTRIBUTE_NORMAL);
 
 	return cached_path;
 }
@@ -563,7 +563,7 @@ PR_STRING _r_app_getprofiledirectory ()
 	}
 
 	if (cached_path)
-		_r_fs_mkdir (cached_path->buffer);
+		_r_fs_createdirectory (cached_path->buffer, FILE_ATTRIBUTE_NORMAL);
 
 	return cached_path;
 }
@@ -781,7 +781,7 @@ _Ret_maybenull_
 HWND _r_app_createwindow (
 	_In_ PVOID hinst,
 	_In_ LPCWSTR dlg_name,
-	_In_opt_ LPCWSTR icon_name,
+	_In_opt_ LPWSTR icon_name,
 	_In_ DLGPROC dlg_proc
 )
 {
@@ -799,7 +799,7 @@ HWND _r_app_createwindow (
 	LONG icon_small;
 	LONG icon_large;
 
-#ifdef APP_HAVE_UPDATES
+#if defined(APP_HAVE_UPDATES)
 	// configure components
 	WCHAR locale_version[64];
 
@@ -1065,7 +1065,7 @@ LONG64 _r_config_getlong64_ex (
 _Success_ (return != 0)
 ULONG _r_config_getulong (
 	_In_ LPCWSTR key_name,
-	_In_ ULONG def_value
+	_In_opt_ ULONG def_value
 )
 {
 	ULONG value;
@@ -1103,7 +1103,7 @@ ULONG _r_config_getulong_ex (
 _Success_ (return != 0)
 ULONG64 _r_config_getulong64 (
 	_In_ LPCWSTR key_name,
-	_In_ ULONG64 def_value
+	_In_opt_ ULONG64 def_value
 )
 {
 	ULONG64 value;
@@ -1188,12 +1188,6 @@ VOID _r_config_getfont_ex (
 	logfont->lfCharSet = DEFAULT_CHARSET;
 	logfont->lfQuality = DEFAULT_QUALITY;
 	logfont->lfPitchAndFamily = DEFAULT_PITCH;
-
-	if (!_r_str_isempty2 (logfont->lfFaceName) && !_r_dc_isfontexists (logfont))
-		logfont->lfFaceName[0] = UNICODE_NULL;
-
-	if (!_r_str_isempty2 (logfont->lfFaceName) && logfont->lfHeight && logfont->lfWeight)
-		return;
 
 	// fill missed font values
 	_r_dc_getdefaultfont (logfont, dpi_value, FALSE);
@@ -1546,13 +1540,19 @@ VOID _r_config_setstringexpand_ex (
 	}
 	else
 	{
-		string = NULL;
+		if (value)
+		{
+			string = _r_obj_createstring (value);
+		}
+		else
+		{
+			string = _r_obj_referenceemptystring ();
+		}
 	}
 
-	_r_config_setstring_ex (key_name, _r_obj_getstring (string), section_name);
+	_r_config_setstring_ex (key_name, string->buffer, section_name);
 
-	if (string)
-		_r_obj_dereference (string);
+	_r_obj_dereference (string);
 }
 
 VOID _r_config_setstring (
@@ -2139,7 +2139,7 @@ ULONG _r_update_downloadupdate (
 	{
 		// copy required files
 		if (_r_fs_exists (update_component->target_path->buffer))
-			_r_fs_deletefile (update_component->target_path->buffer, TRUE);
+			_r_fs_deletefile (update_component->target_path->buffer);
 
 		// move target files
 		status = _r_fs_movefile (update_component->cache_path->buffer, update_component->target_path->buffer);
@@ -2149,7 +2149,7 @@ ULONG _r_update_downloadupdate (
 
 		// remove if it exists
 		if (_r_fs_exists (update_component->cache_path->buffer))
-			_r_fs_deletefile (update_component->cache_path->buffer, TRUE);
+			_r_fs_deletefile (update_component->cache_path->buffer);
 
 		update_component->flags &= ~PR_UPDATE_FLAG_AVAILABLE;
 
@@ -2200,7 +2200,7 @@ NTSTATUS NTAPI _r_update_downloadthread (
 		{
 			buttons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
 
-#ifdef IDS_UPDATE_INSTALL
+#if defined(IDS_UPDATE_INSTALL)
 			str_content = _r_locale_getstring (IDS_UPDATE_INSTALL);
 #else
 			str_content = L"Update available. Do you want to install it now?";
@@ -2211,7 +2211,7 @@ NTSTATUS NTAPI _r_update_downloadthread (
 		{
 			buttons = TDCBF_CLOSE_BUTTON;
 
-#ifdef IDS_UPDATE_DONE
+#if defined(IDS_UPDATE_DONE)
 			str_content = _r_locale_getstring (IDS_UPDATE_DONE);
 #else
 			str_content = L"Downloading update finished.";
@@ -2224,7 +2224,7 @@ NTSTATUS NTAPI _r_update_downloadthread (
 		main_icon = TD_WARNING_ICON;
 		buttons = TDCBF_CLOSE_BUTTON;
 
-#ifdef IDS_UPDATE_ERROR
+#if defined(IDS_UPDATE_ERROR)
 		str_content = _r_locale_getstring (IDS_UPDATE_ERROR);
 #else
 		str_content = L"Update server connection error.";
@@ -2269,7 +2269,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 	{
 		if (update_info->hparent)
 		{
-#ifdef IDS_UPDATE_ERROR
+#if defined(IDS_UPDATE_ERROR)
 			str_content = _r_locale_getstring (IDS_UPDATE_ERROR);
 #else
 			str_content = L"Update server connection error.";
@@ -2355,7 +2355,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 	{
 		_r_str_trim (str_updates, L"\r\n ");
 
-#ifdef IDS_UPDATE_YES
+#if defined(IDS_UPDATE_YES)
 		str_content = _r_locale_getstring (IDS_UPDATE_YES);
 #else
 		str_content = L"Update available. Download and install now?";
@@ -2370,7 +2370,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 		{
 			if (status != ERROR_SUCCESS)
 			{
-#ifdef IDS_UPDATE_ERROR
+#if defined(IDS_UPDATE_ERROR)
 				str_content = _r_locale_getstring (IDS_UPDATE_ERROR);
 #else
 				str_content = L"Update server connection error.";
@@ -2381,7 +2381,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 			{
 				if (downloads_count)
 				{
-#ifdef IDS_UPDATE_DONE
+#if defined(IDS_UPDATE_DONE)
 					str_content = _r_locale_getstring (IDS_UPDATE_DONE);
 #else
 					str_content = L"Downloading update finished.";
@@ -2390,7 +2390,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 				}
 				else
 				{
-#ifdef IDS_UPDATE_NO
+#if defined(IDS_UPDATE_NO)
 					str_content = _r_locale_getstring (IDS_UPDATE_NO);
 #else
 					str_content = L"No updates available.";
@@ -2507,7 +2507,7 @@ BOOLEAN _r_update_check (
 
 	if (hparent)
 	{
-#ifdef IDS_UPDATE_INIT
+#if defined(IDS_UPDATE_INIT)
 		str_content = _r_locale_getstring (IDS_UPDATE_INIT);
 #else
 		str_content = L"Checking for new releases...";
@@ -2587,7 +2587,7 @@ HRESULT CALLBACK _r_update_pagecallback (
 						update_info->is_clicked = FALSE;
 					}
 
-#ifdef IDS_UPDATE_DOWNLOAD
+#if defined(IDS_UPDATE_DOWNLOAD)
 					str_content = _r_locale_getstring (IDS_UPDATE_DOWNLOAD);
 #else
 					str_content = L"Downloading update...";
@@ -2709,7 +2709,7 @@ VOID _r_update_navigate (
 	{
 		if (update_info->flags & PR_UPDATE_FLAG_FILE)
 		{
-#ifdef IDS_UPDATE_AUTOINSTALL
+#if defined(IDS_UPDATE_AUTOINSTALL)
 			tdc.pszVerificationText = _r_locale_getstring (IDS_UPDATE_AUTOINSTALL);
 #else
 			tdc.pszVerificationText = L"Automatically install non-executable updates";
@@ -3033,7 +3033,7 @@ VOID _r_show_aboutmessage (
 
 	is_opened = TRUE;
 
-#ifdef IDS_ABOUT
+#if defined(IDS_ABOUT)
 	str_title = _r_locale_getstring (IDS_ABOUT);
 #else
 	str_title = L"About";
@@ -3126,7 +3126,7 @@ VOID _r_show_errormessage (
 	}
 	else
 	{
-		status = _r_sys_getmodulehandle (L"kernel32.dll", &hinst);
+		status = _r_sys_getmodulehandle (L"ntdll.dll", &hinst);
 
 		if (!NT_SUCCESS (status))
 			return;
@@ -3136,7 +3136,7 @@ VOID _r_show_errormessage (
 
 	if (status == STATUS_MESSAGE_NOT_FOUND)
 	{
-		if (NT_SUCCESS (_r_sys_getmodulehandle (L"ntdll.dll", &hinst)))
+		if (NT_SUCCESS (_r_sys_getmodulehandle (L"kernel32.dll", &hinst)))
 			status = _r_sys_formatmessage (error_code, hinst, 0, &string);
 	}
 
@@ -3145,7 +3145,7 @@ VOID _r_show_errormessage (
 	_r_str_printf (
 		str_content,
 		RTL_NUMBER_OF (str_content),
-		L"%s (0x%08" TEXT (PRIX32) L")",
+		L"%s\r\nStatus: 0x%08" TEXT (PRIX32),
 		_r_obj_getstringordefault (string, L"n/a"),
 		error_code
 	);
@@ -3246,7 +3246,7 @@ BOOLEAN _r_show_confirmmessage (
 
 	if (config_key)
 	{
-#ifdef IDS_QUESTION_FLAG_CHK
+#if defined(IDS_QUESTION_FLAG_CHK)
 		tdc.pszVerificationText = _r_locale_getstring (IDS_QUESTION_FLAG_CHK);
 #else
 		tdc.pszVerificationText = L"Do not ask again";
@@ -3295,7 +3295,7 @@ INT _r_show_message (
 	// set icons
 	if ((flags & MB_ICONMASK) == MB_USERICON)
 	{
-#ifdef IDI_MAIN
+#if defined(IDI_MAIN)
 		tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
 #else
 		tdc.pszMainIcon = TD_INFORMATION_ICON;
@@ -3390,7 +3390,7 @@ VOID _r_window_restoreposition (
 	if (style & WS_MAXIMIZEBOX)
 	{
 		// HACK!!! Do not maximize main window!
-		if (_r_str_compare (window_name, L"window") != 0)
+		if (_r_str_compare (window_name, 0, L"window", 0) != 0)
 		{
 			is_maximized = _r_config_getboolean_ex (L"IsMaximized", FALSE, window_name);
 
@@ -3744,7 +3744,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 #if !defined(APP_HAVE_SETTINGS_TABS)
 			HTREEITEM hitem;
 #endif // !APP_HAVE_SETTINGS_TABS
-#ifdef IDI_MAIN
+#if defined(IDI_MAIN)
 			LONG dpi_value;
 			LONG icon_small;
 			LONG icon_large;
@@ -3756,7 +3756,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 			app_global.settings.hwnd = hwnd;
 
-#ifdef IDI_MAIN
+#if defined( IDI_MAIN)
 			dpi_value = _r_dc_getwindowdpi (hwnd);
 
 			icon_small = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
@@ -3831,10 +3831,10 @@ INT_PTR CALLBACK _r_settings_wndproc (
 #endif // !APP_HAVE_SETTINGS_TABS
 
 			// localize window
-#ifdef IDS_SETTINGS
-			SetWindowText (hwnd, _r_locale_getstring (IDS_SETTINGS));
+#if defined(IDS_SETTINGS)
+			_r_ctrl_setstring (hwnd, 0, _r_locale_getstring (IDS_SETTINGS));
 #else
-			SetWindowText (hwnd, L"Settings");
+			_r_ctrl_setstring (hwnd, 0, L"Settings");
 #pragma PR_PRINT_WARNING(IDS_SETTINGS)
 #endif // IDS_SETTINGS
 
@@ -3885,8 +3885,8 @@ INT_PTR CALLBACK _r_settings_wndproc (
 #endif // APP_HAVE_SETTINGS_TABS
 
 			// localize buttons
-#ifdef IDC_RESET
-#ifdef IDS_RESET
+#if defined(IDC_RESET)
+#if defined(IDS_RESET)
 			_r_ctrl_setstring (hwnd, IDC_RESET, _r_locale_getstring (IDS_RESET));
 #else
 			_r_ctrl_setstring (hwnd, IDC_RESET, L"Reset");
@@ -3897,8 +3897,8 @@ INT_PTR CALLBACK _r_settings_wndproc (
 #endif // IDC_RESET
 
 #if defined(APP_HAVE_SETTINGS_TABS)
-#ifdef IDC_SAVE
-#ifdef IDS_SAVE
+#if defined(IDC_SAVE)
+#if defined(IDS_SAVE)
 			_r_ctrl_setstring (hwnd, IDC_SAVE, _r_locale_getstring (IDS_SAVE));
 #else
 			_r_ctrl_setstring (hwnd, IDC_SAVE, L"OK");
@@ -3909,8 +3909,8 @@ INT_PTR CALLBACK _r_settings_wndproc (
 #endif // IDC_SAVE
 #endif // APP_HAVE_SETTINGS_TABS
 
-#ifdef IDC_CLOSE
-#ifdef IDS_CLOSE
+#if defined(IDC_CLOSE)
+#if defined(IDS_CLOSE)
 			_r_ctrl_setstring (hwnd, IDC_CLOSE, _r_locale_getstring (IDS_CLOSE));
 #else
 			_r_ctrl_setstring (hwnd, IDC_CLOSE, L"Close");
@@ -4096,7 +4096,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 					break;
 				}
 
-#ifdef IDC_RESET
+#if defined(IDC_RESET)
 				case IDC_RESET:
 				{
 					PR_SETTINGS_PAGE ptr_page;
@@ -4115,11 +4115,11 @@ INT_PTR CALLBACK _r_settings_wndproc (
 					_r_config_initialize (); // reload config
 					_r_locale_initialize (); // reload locale
 
-#ifdef APP_HAVE_AUTORUN
+#if defined(APP_HAVE_AUTORUN)
 					_r_autorun_enable (NULL, FALSE);
 #endif // APP_HAVE_AUTORUN
 
-#ifdef APP_HAVE_SKIPUAC
+#if defined(APP_HAVE_SKIPUAC)
 					_r_skipuac_enable (NULL, FALSE);
 #endif // APP_HAVE_SKIPUAC
 
@@ -4217,7 +4217,7 @@ HRESULT _r_skipuac_checkmodulepath (
 	// check path is for current module
 	PathUnquoteSpaces (task_path);
 
-	if (_r_str_compare (task_path, _r_sys_getimagepath ()) != 0)
+	if (_r_str_compare (task_path, 0, _r_sys_getimagepath (), 0) != 0)
 	{
 		status = SCHED_E_INVALID_TASK;
 

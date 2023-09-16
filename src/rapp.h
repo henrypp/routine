@@ -64,7 +64,7 @@ LONG64 _r_config_getlong64_ex (
 _Success_ (return != 0)
 ULONG _r_config_getulong (
 	_In_ LPCWSTR key_name,
-	_In_ ULONG def_value
+	_In_opt_ ULONG def_value
 );
 
 _Success_ (return != 0)
@@ -77,7 +77,7 @@ ULONG _r_config_getulong_ex (
 _Success_ (return != 0)
 ULONG64 _r_config_getulong64 (
 	_In_ LPCWSTR key_name,
-	_In_ ULONG64 def_value
+	_In_opt_ ULONG64 def_value
 );
 
 _Success_ (return != 0)
@@ -564,7 +564,7 @@ _Ret_maybenull_
 HWND _r_app_createwindow (
 	_In_ PVOID hinst,
 	_In_ LPCWSTR dlg_name,
-	_In_opt_ LPCWSTR icon_name,
+	_In_opt_ LPWSTR icon_name,
 	_In_ DLGPROC dlg_proc
 );
 
