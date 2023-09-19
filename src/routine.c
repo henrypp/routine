@@ -1892,27 +1892,34 @@ VOID _r_workqueue_waitforfinish (
 // Synchronization: Mutex
 //
 
-_When_ (NT_SUCCESS (return), _Acquires_lock_ (*hmutex))
+_When_ (NT_SUCCESS (return), _Acquires_lock_ (*out_buffer))
 NTSTATUS _r_mutex_create (
 	_In_ LPCWSTR name,
-	_Outptr_ PHANDLE hmutex
+	_Outptr_ PHANDLE out_buffer
 )
 {
 	OBJECT_ATTRIBUTES oa = {0};
 	UNICODE_STRING us;
 	WCHAR buffer[128];
+	HANDLE hmutex;
 	NTSTATUS status;
 
 	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\BaseNamedObjects\\%s", name);
 
 	_r_obj_initializeunicodestring (&us, buffer);
 
-	InitializeObjectAttributes (&oa, &us, OBJ_CASE_INSENSITIVE, NULL, NULL);
+	InitializeObjectAttributes (&oa, &us, OBJ_CASE_INSENSITIVE | OBJ_OPENIF, NULL, NULL);
 
-	status = NtCreateMutant (hmutex, MUTANT_ALL_ACCESS, &oa, TRUE);
+	status = NtCreateMutant (&hmutex, MUTANT_ALL_ACCESS, &oa, TRUE);
 
-	if (!NT_SUCCESS (status))
-		*hmutex = NULL;
+	if (NT_SUCCESS (status))
+	{
+		*out_buffer = hmutex;
+	}
+	else
+	{
+		*out_buffer = NULL;
+	}
 
 	return status;
 }
@@ -1927,11 +1934,14 @@ NTSTATUS _r_mutex_destroy (
 
 	original_mutex = *hmutex;
 
-	*hmutex = NULL;
-
 	status = NtReleaseMutant (original_mutex, NULL);
 
-	NtClose (original_mutex);
+	if (NT_SUCCESS (status))
+	{
+		*hmutex = NULL;
+
+		NtClose (original_mutex);
+	}
 
 	return status;
 }
@@ -1956,12 +1966,13 @@ BOOLEAN _r_mutex_isexists (
 	status = NtOpenMutant (&hmutex, MUTANT_QUERY_STATE, &oa);
 
 	if (NT_SUCCESS (status))
+	{
 		NtClose (hmutex);
 
-	if (status == STATUS_OBJECT_NAME_NOT_FOUND)
-		return FALSE;
+		return TRUE;
+	}
 
-	return TRUE;
+	return FALSE;
 }
 
 //
@@ -8833,13 +8844,13 @@ ULONG _r_sys_getsessioninfo (
 
 ULONG _r_sys_gettickcount ()
 {
+	ULARGE_INTEGER tick_count = {0};
+
 #if defined(_WIN64)
 
 	return (ULONG)((USER_SHARED_DATA->TickCountQuad * USER_SHARED_DATA->TickCountMultiplier) >> 24);
 
 #else
-
-	ULARGE_INTEGER tick_count = {0};
 
 	while (TRUE)
 	{
@@ -8882,8 +8893,7 @@ ULONG64 _r_sys_gettickcount64 ()
 
 #endif // _WIN64
 
-	return (UInt32x32To64 (tick_count.LowPart, USER_SHARED_DATA->TickCountMultiplier) >> 24) +
-		(UInt32x32To64 (tick_count.HighPart, USER_SHARED_DATA->TickCountMultiplier) << 8);
+	return (UInt32x32To64 (tick_count.LowPart, USER_SHARED_DATA->TickCountMultiplier) >> 24) + (UInt32x32To64 (tick_count.HighPart, USER_SHARED_DATA->TickCountMultiplier) << 8);
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -15345,10 +15355,11 @@ LONG64 _r_ctrl_getinteger64 (
 _Ret_maybenull_
 PR_STRING _r_ctrl_getstring (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	PR_STRING string;
+	ULONG return_length;
 	ULONG length;
 
 	length = _r_ctrl_getstringlength (hwnd, ctrl_id);
@@ -15358,7 +15369,16 @@ PR_STRING _r_ctrl_getstring (
 
 	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
-	if ((ULONG)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXT, (WPARAM)length + 1, (LPARAM)string->buffer))
+	if (ctrl_id)
+	{
+		return_length = (ULONG)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXT, (WPARAM)length + 1, (LPARAM)string->buffer);
+	}
+	else
+	{
+		return_length = (ULONG)SendMessage (hwnd, WM_GETTEXT, (WPARAM)length + 1, (LPARAM)string->buffer);
+	}
+
+	if (return_length)
 	{
 		_r_obj_trimstringtonullterminator (string);
 
@@ -17070,8 +17090,8 @@ BOOL CALLBACK _r_util_activate_window_callback (
 	_In_ LPARAM lparam
 )
 {
-	WCHAR window_title[128];
 	PR_STRINGREF app_name;
+	PR_STRING string;
 	ULONG pid;
 
 	if (!_r_wnd_isdialog (hwnd))
@@ -17084,23 +17104,29 @@ BOOL CALLBACK _r_util_activate_window_callback (
 
 	app_name = (PR_STRINGREF)lparam;
 
-	// check window title
-	if (!GetWindowText (hwnd, window_title, RTL_NUMBER_OF (window_title)))
-		return TRUE;
-
 	if (!(_r_wnd_getstyle (hwnd) & WS_DLGFRAME))
 		return TRUE;
 
-	if (_r_str_isequal2 (app_name, window_title, FALSE))
+	// check window title
+	string = _r_ctrl_getstring (hwnd, 0);
+
+	if (!string)
+		return TRUE;
+
+	if (_r_str_isequal (app_name, &string->sr, FALSE))
 	{
 		// check window prop
 		if (GetProp (hwnd, app_name->buffer))
 		{
 			_r_wnd_toggle (hwnd, TRUE);
 
+			_r_obj_dereference (string);
+
 			return FALSE;
 		}
 	}
+
+	_r_obj_dereference (string);
 
 	return TRUE;
 }

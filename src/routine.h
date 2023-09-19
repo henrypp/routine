@@ -3855,7 +3855,7 @@ LONG64 _r_ctrl_getinteger64 (
 _Ret_maybenull_
 PR_STRING _r_ctrl_getstring (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 );
 
 _Success_ (return != 0)
@@ -3962,10 +3962,21 @@ VOID _r_ctrl_showballoontipformat (
 
 FORCEINLINE ULONG _r_ctrl_getstringlength (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
-	return (ULONG)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXTLENGTH, 0, 0);
+	ULONG length;
+
+	if (ctrl_id)
+	{
+		length = (ULONG)SendDlgItemMessage (hwnd, ctrl_id, WM_GETTEXTLENGTH, 0, 0);
+	}
+	else
+	{
+		length = (ULONG)SendMessage (hwnd, WM_GETTEXTLENGTH, 0, 0);
+	}
+
+	return length;
 }
 
 FORCEINLINE VOID _r_ctrl_setstring (
