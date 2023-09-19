@@ -9091,19 +9091,24 @@ NTSTATUS _r_sys_createprocess (
 {
 	PRTL_USER_PROCESS_PARAMETERS upi = NULL;
 	RTL_USER_PROCESS_INFORMATION pi = {0};
+	PUNICODE_STRING message_strings[4] = {0};
 	UNICODE_STRING current_directory_nt = {0};
 	UNICODE_STRING command_line_nt = {0};
 	UNICODE_STRING filename_nt;
 	UNICODE_STRING filename;
-	PS_CREATE_INFO create_info = {0};
 	SECTION_IMAGE_INFORMATION img_info = {0};
+	PCSR_CAPTURE_BUFFER capture_buffer = NULL;
+	PS_CREATE_INFO create_info = {0};
 	CLIENT_ID client_id = {0};
-	PPS_ATTRIBUTE_LIST attr = NULL;
+	BASE_API_MSG msg = {0};
+	PS_ATTRIBUTE_LIST attr = {0};
 	PR_STRING directory_string = NULL;
 	PR_STRING file_name_string;
 	PR_STRING new_path;
+	BYTE locale[0x14] = {0};
 	HANDLE hprocess;
 	HANDLE hthread;
+	ULONG64 policy;
 	NTSTATUS status;
 
 	file_name_string = _r_obj_createstring (file_name);
@@ -9155,33 +9160,29 @@ NTSTATUS _r_sys_createprocess (
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
-	upi->ProcessGroupId = NtCurrentPeb ()->ProcessParameters->ProcessGroupId;
+	attr.TotalLength = sizeof (PS_ATTRIBUTE_LIST);
 
-	attr = _r_mem_allocate (sizeof (PS_ATTRIBUTE_LIST));
+	attr.Attributes[0].Attribute = PS_ATTRIBUTE_IMAGE_NAME;
+	attr.Attributes[0].ValuePtr = filename_nt.Buffer;
+	attr.Attributes[0].Size = filename_nt.Length;
 
-	attr->TotalLength = sizeof (PS_ATTRIBUTE_LIST);
+	attr.Attributes[1].Attribute = PS_ATTRIBUTE_CLIENT_ID;
+	attr.Attributes[1].Size = sizeof (CLIENT_ID);
+	attr.Attributes[1].ValuePtr = &client_id;
 
-	attr->Attributes[0].Attribute = PS_ATTRIBUTE_IMAGE_NAME;
-	attr->Attributes[0].ValuePtr = filename_nt.Buffer;
-	attr->Attributes[0].Size = filename_nt.Length;
+	attr.Attributes[2].Attribute = PS_ATTRIBUTE_IMAGE_INFO;
+	attr.Attributes[2].Size = sizeof (SECTION_IMAGE_INFORMATION);
+	attr.Attributes[2].ValuePtr = &img_info;
 
-	attr->Attributes[1].Attribute = PS_ATTRIBUTE_CLIENT_ID;
-	attr->Attributes[1].Size = sizeof (CLIENT_ID);
-	attr->Attributes[1].ValuePtr = &client_id;
+	attr.Attributes[3].Attribute = PS_ATTRIBUTE_CHPE;
+	attr.Attributes[3].Value = 1;
+	attr.Attributes[3].Size = 1;
 
-	attr->Attributes[2].Attribute = PS_ATTRIBUTE_IMAGE_INFO;
-	attr->Attributes[2].Size = sizeof (SECTION_IMAGE_INFORMATION);
-	attr->Attributes[2].ValuePtr = &img_info;
+	policy = PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_OFF;
 
-	attr->Attributes[3].Attribute = PS_ATTRIBUTE_CHPE;
-	attr->Attributes[3].Value = 1;
-	attr->Attributes[3].Size = 1;
-
-	ULONG64 policy = PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON;
-
-	attr->Attributes[3].Attribute = PS_ATTRIBUTE_MITIGATION_OPTIONS;
-	attr->Attributes[3].ValuePtr = &policy;
-	attr->Attributes[3].Size = sizeof (DWORD64);
+	attr.Attributes[4].Attribute = PS_ATTRIBUTE_MITIGATION_OPTIONS;
+	attr.Attributes[4].ValuePtr = &policy;
+	attr.Attributes[4].Size = sizeof (ULONG64);
 
 	create_info.Size = sizeof (PS_CREATE_INFO);
 	create_info.State = PsCreateInitialState;
@@ -9199,8 +9200,64 @@ NTSTATUS _r_sys_createprocess (
 		THREAD_CREATE_FLAGS_CREATE_SUSPENDED,
 		upi,
 		&create_info,
-		attr
+		&attr
 	);
+
+	if (!NT_SUCCESS (status))
+		goto CleanupExit;
+
+	// basic fields
+	msg.CreateProcessMSG.ProcessHandle = (HANDLE)((ULONG_PTR)hprocess | 2);
+	msg.CreateProcessMSG.ThreadHandle = hthread;
+	msg.CreateProcessMSG.ClientId.UniqueProcess = client_id.UniqueProcess;
+	msg.CreateProcessMSG.ClientId.UniqueThread = client_id.UniqueThread;
+	msg.CreateProcessMSG.PebAddressNative = (ULONG64)create_info.SuccessState.PebAddressNative;
+
+#if defined(_WIN64)
+	msg.CreateProcessMSG.ProcessorArchitecture = 9;
+#else
+	msg.CreateProcessMSG.ProcessorArchitecture = 0;
+#endif // _WIN64
+
+	// sxs
+	msg.CreateProcessMSG.Sxs.Flags = 0x40;
+	msg.CreateProcessMSG.Sxs.ProcessParameterFlags = 0x6001;
+	msg.CreateProcessMSG.Sxs.FileHandle = create_info.SuccessState.FileHandle;
+
+	_r_obj_initializeunicodestring2 (&msg.CreateProcessMSG.Sxs.SxsWin32ExePath, file_name_string);
+
+	RtlCopyMemory (&msg.CreateProcessMSG.Sxs.SxsNtExePath, &filename_nt, sizeof (UNICODE_STRING));
+
+	msg.CreateProcessMSG.Sxs.PolicyStream.ManifestAddress = create_info.SuccessState.ManifestAddress;
+	msg.CreateProcessMSG.Sxs.PolicyStream.ManifestSize = create_info.SuccessState.ManifestSize;
+
+	msg.CreateProcessMSG.Sxs.FileName3.Length = 0x14;
+	msg.CreateProcessMSG.Sxs.FileName3.MaximumLength = 0x14;
+	msg.CreateProcessMSG.Sxs.FileName3.Buffer = (PWCH)locale;
+
+	RtlCopyMemory (msg.CreateProcessMSG.Sxs.FileName3.Buffer, "\x65\x00\x6e\x00\x2d\x00\x55\x00\x53\x00\x00\x00\x65\x00\x6e\x00\x00\x00\x00\x00", 0x14);
+
+	_r_obj_initializeunicodestring (&msg.CreateProcessMSG.Sxs.FileName4, L"-----------------------------------------------------------"); // wtf windows
+
+	// notify the windows subsystem
+	message_strings[0] = &msg.CreateProcessMSG.Sxs.SxsWin32ExePath;
+	message_strings[1] = &msg.CreateProcessMSG.Sxs.SxsNtExePath;
+	message_strings[2] = &msg.CreateProcessMSG.Sxs.FileName3;
+	message_strings[3] = &msg.CreateProcessMSG.Sxs.FileName4;
+
+	status = CsrCaptureMessageMultiUnicodeStringsInPlace (&capture_buffer, 4, message_strings);
+
+	if (NT_SUCCESS (status))
+	{
+		status = CsrClientCallServer (
+			&msg,
+			capture_buffer,
+			CSR_MAKE_API_NUMBER (BASESRV_SERVERDLL_INDEX, BasepRegisterThread),
+			sizeof (BASE_API_MSG) - sizeof (PORT_MESSAGE)
+		);
+
+		CsrFreeCaptureBuffer (capture_buffer);
+	}
 
 	if (NT_SUCCESS (status))
 	{
@@ -9231,9 +9288,6 @@ CleanupExit:
 
 	if (filename_nt.Buffer)
 		RtlFreeUnicodeString (&filename_nt);
-
-	if (attr)
-		_r_mem_free (attr);
 
 	return status;
 }
