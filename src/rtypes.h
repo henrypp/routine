@@ -352,8 +352,6 @@ typedef struct _R_WORKQUEUE
 	HANDLE semaphore_handle;
 
 	ULONG maximum_threads;
-	ULONG minimum_threads;
-	ULONG no_work_timeout;
 
 	volatile ULONG current_threads;
 	volatile ULONG busy_count;

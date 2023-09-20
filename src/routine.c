@@ -1619,7 +1619,7 @@ PR_FREE_LIST _r_workqueue_getfreelist ()
 
 	if (_r_initonce_begin (&init_once))
 	{
-		_r_freelist_initialize (&free_list, sizeof (R_WORKQUEUE_ITEM), 32);
+		_r_freelist_initialize (&free_list, sizeof (R_WORKQUEUE_ITEM), 128);
 
 		_r_initonce_end (&init_once);
 	}
@@ -1629,9 +1629,7 @@ PR_FREE_LIST _r_workqueue_getfreelist ()
 
 VOID _r_workqueue_initialize (
 	_Out_ PR_WORKQUEUE work_queue,
-	_In_ ULONG minimum_threads,
 	_In_ ULONG maximum_threads,
-	_In_ ULONG no_work_timeout,
 	_In_opt_ PR_ENVIRONMENT environment,
 	_In_opt_ LPCWSTR thread_name
 )
@@ -1644,9 +1642,7 @@ VOID _r_workqueue_initialize (
 	_r_protection_initialize (&work_queue->rundown_protect);
 	_r_condition_initialize (&work_queue->queue_empty_condition);
 
-	work_queue->minimum_threads = minimum_threads;
 	work_queue->maximum_threads = maximum_threads;
-	work_queue->no_work_timeout = no_work_timeout;
 
 	if (environment)
 	{
@@ -1751,7 +1747,7 @@ NTSTATUS _r_workqueue_threadproc (
 			_r_queuedlock_acquireexclusive (&work_queue->state_lock);
 
 			// Check the minimum as well.
-			if (work_queue->current_threads > work_queue->minimum_threads)
+			if (work_queue->current_threads > 0)
 			{
 				work_queue->current_threads -= 1;
 
@@ -1767,7 +1763,7 @@ NTSTATUS _r_workqueue_threadproc (
 		if (!work_queue->is_terminating)
 		{
 			// Wait for work.
-			_r_calc_millisecondstolargeinteger (&timeout, work_queue->no_work_timeout);
+			_r_calc_millisecondstolargeinteger (&timeout, 10000);
 
 			status = NtWaitForSingleObject (work_queue->semaphore_handle, FALSE, &timeout);
 		}
@@ -1808,7 +1804,7 @@ NTSTATUS _r_workqueue_threadproc (
 			// terminating, or some error occurred. Terminate the thread.
 			_r_queuedlock_acquireexclusive (&work_queue->state_lock);
 
-			if (work_queue->is_terminating || work_queue->current_threads > work_queue->minimum_threads)
+			if (work_queue->is_terminating || work_queue->current_threads > 0)
 			{
 				work_queue->current_threads -= 1;
 
@@ -9290,7 +9286,7 @@ NTSTATUS _r_sys_createprocess (
 
 	RtlCopyMemory (&msg.CreateProcessMSG.Sxs.SxsNtExePath, &filename_nt, sizeof (UNICODE_STRING));
 
-	msg.CreateProcessMSG.Sxs.PolicyStream.ManifestAddress = create_info.SuccessState.ManifestAddress;
+	msg.CreateProcessMSG.Sxs.PolicyStream.ManifestAddress = (ULONG_PTR)create_info.SuccessState.ManifestAddress;
 	msg.CreateProcessMSG.Sxs.PolicyStream.ManifestSize = create_info.SuccessState.ManifestSize;
 
 	msg.CreateProcessMSG.Sxs.FileName3.Length = 0x14;

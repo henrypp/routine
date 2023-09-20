@@ -152,7 +152,7 @@ static SID SeNetworkServiceSid = {SID_REVISION, 1, SECURITY_NT_AUTHORITY, {SECUR
 #endif
 
 #ifndef SAFE_DELETE_LIBRARY
-#define SAFE_DELETE_LIBRARY(p) {if((p)) {FreeLibrary ((p)); (p)=NULL;}}
+#define SAFE_DELETE_LIBRARY(p) {if((p)) {LdrUnloadDll ((p)); (p)=NULL;}}
 #endif
 
 #ifndef SAFE_DELETE_ICON
@@ -641,9 +641,7 @@ PR_FREE_LIST _r_workqueue_getfreelist ();
 
 VOID _r_workqueue_initialize (
 	_Out_ PR_WORKQUEUE work_queue,
-	_In_ ULONG minimum_threads,
 	_In_ ULONG maximum_threads,
-	_In_ ULONG no_work_timeout,
 	_In_opt_ PR_ENVIRONMENT environment,
 	_In_opt_ LPCWSTR thread_name
 );
