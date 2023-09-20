@@ -3099,6 +3099,13 @@ LdrLoadDll (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
+LdrUnloadDll (
+	_In_ PVOID DllHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
 LdrGetProcedureAddressEx (
 	_In_ PVOID DllHandle,
 	_In_opt_ PANSI_STRING ProcedureName,
@@ -3132,8 +3139,8 @@ NTAPI
 LdrGetDllPath (
 	_In_  PCWSTR DllName,
 	_In_  ULONG  Flags, // LOAD_LIBRARY_SEARCH_*
-	_Out_ PWSTR* DllPath,
-	_Out_ PWSTR* SearchPaths
+	_Out_ PWSTR *DllPath,
+	_Out_ PWSTR *SearchPaths
 );
 
 NTSYSCALLAPI
