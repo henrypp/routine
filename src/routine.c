@@ -2147,6 +2147,13 @@ PVOID NTAPI _r_obj_allocate (
 	return PR_OBJECT_HEADER_TO_OBJECT (object_header);
 }
 
+VOID _r_obj_clearreference (
+	_Inout_ PVOID_PTR object_body
+)
+{
+	_r_obj_movereference (object_body, NULL);
+}
+
 VOID NTAPI _r_obj_dereference (
 	_In_ PVOID object_body
 )
@@ -2195,6 +2202,20 @@ VOID NTAPI _r_obj_dereference_ex (
 	}
 }
 
+VOID NTAPI _r_obj_movereference (
+	_Inout_ PVOID_PTR object_body,
+	_In_opt_ PVOID new_object
+)
+{
+	PVOID old_object;
+
+	old_object = *object_body;
+	*object_body = new_object;
+
+	if (old_object)
+		_r_obj_dereference (old_object);
+}
+
 PVOID NTAPI _r_obj_reference (
 	_In_ PVOID object_body
 )
@@ -2217,6 +2238,24 @@ PVOID NTAPI _r_obj_referencesafe (
 		return NULL;
 
 	return _r_obj_reference (object_body);
+}
+
+
+VOID NTAPI _r_obj_swapreference (
+	_Inout_ PVOID_PTR object_body,
+	_In_opt_ PVOID new_object
+)
+{
+	PVOID old_object;
+
+	old_object = *object_body;
+	*object_body = new_object;
+
+	if (old_object)
+		_r_obj_dereference (old_object);
+
+	if (new_object)
+		new_object = _r_obj_reference (new_object);
 }
 
 //
@@ -10138,21 +10177,26 @@ VOID _r_sys_setenvironment (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_setenvironmentvariable (
-	_In_opt_ PVOID environment,
 	_In_ PR_STRINGREF name_sr,
 	_In_opt_ PR_STRINGREF value_sr
 )
 {
 	UNICODE_STRING name_us;
-	UNICODE_STRING value_us = {0};
+	UNICODE_STRING value_us;
 	NTSTATUS status;
 
 	_r_obj_initializeunicodestring3 (&name_us, name_sr);
 
 	if (value_sr)
+	{
 		_r_obj_initializeunicodestring3 (&value_us, value_sr);
 
-	status = RtlSetEnvironmentVariable (environment, &name_us, &value_us);
+		status = RtlSetEnvironmentVariable (NULL, &name_us, &value_us);
+	}
+	else
+	{
+		status = RtlSetEnvironmentVariable (NULL, &name_us, NULL);
+	}
 
 	return status;
 }
