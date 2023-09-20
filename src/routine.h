@@ -2464,7 +2464,7 @@ ULONG _r_sys_getlocaleinfo (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getmodulehandle (
-	_In_ LPCWSTR name,
+	_In_ LPCWSTR lib_name,
 	_Outptr_ PVOID_PTR out_buffer
 );
 

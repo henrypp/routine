@@ -8259,7 +8259,7 @@ BOOLEAN _r_sys_iswine ()
 
 	status = _r_sys_getprocaddress (hntdll, "wine_get_version", &procedure);
 
-	FreeLibrary (hntdll);
+	LdrUnloadDll (hntdll);
 
 	return NT_SUCCESS (status);
 }
@@ -8523,17 +8523,28 @@ ULONG _r_sys_getlocaleinfo (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getmodulehandle (
-	_In_ LPCWSTR name,
+	_In_ LPCWSTR lib_name,
 	_Outptr_ PVOID_PTR out_buffer
 )
 {
 	UNICODE_STRING us;
+	LPWSTR load_path;
+	LPWSTR dummy;
 	PVOID dll_handle;
 	NTSTATUS status;
 
-	_r_obj_initializeunicodestring (&us, name);
+	status = LdrGetDllPath (lib_name, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32, &load_path, &dummy);
 
-	status = LdrGetDllHandleEx (LDR_GET_DLL_HANDLE_EX_UNCHANGED_REFCOUNT, NULL, NULL, &us, &dll_handle);
+	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
+		return status;
+	}
+
+	_r_obj_initializeunicodestring (&us, lib_name);
+
+	status = LdrGetDllHandleEx (LDR_GET_DLL_HANDLE_EX_UNCHANGED_REFCOUNT, load_path, NULL, &us, &dll_handle);
 
 	if (NT_SUCCESS (status))
 	{
@@ -8543,6 +8554,8 @@ NTSTATUS _r_sys_getmodulehandle (
 	{
 		*out_buffer = NULL;
 	}
+
+	RtlReleasePath (load_path);
 
 	return status;
 }
@@ -9960,7 +9973,7 @@ PR_STRING _r_sys_querytaginformation (
 		{
 			status = _r_sys_getprocaddress (hadvapi32, "I_QueryTagInformation", (PVOID_PTR)&_I_QueryTagInformation);
 
-			//FreeLibrary (hadvapi32);
+			//LdrUnloadDll (hadvapi32);
 		}
 
 		_r_initonce_end (&init_once);
@@ -10431,7 +10444,7 @@ BOOLEAN _r_dc_adjustwindowrect (
 			// win10rs1+
 			status = _r_sys_getprocaddress (huser32, "AdjustWindowRectExForDpi", (PVOID_PTR)&_AdjustWindowRectExForDpi);
 
-			//FreeLibrary (huser32);
+			//LdrUnloadDll (huser32);
 		}
 
 		_r_initonce_end (&init_once);
@@ -10849,7 +10862,7 @@ LONG _r_dc_getdpivalue (
 			// win10rs1+
 			_r_sys_getprocaddress (huser32, "GetDpiForSystem", (PVOID_PTR)&_GetDpiForSystem);
 
-			//FreeLibrary (huser32);
+			//LdrUnloadDll (huser32);
 		}
 
 		_r_initonce_end (&init_once);
@@ -10962,7 +10975,7 @@ LONG _r_dc_getsystemmetrics (
 			// win10rs1+
 			status = _r_sys_getprocaddress (huser32, "GetSystemMetricsForDpi", (PVOID_PTR)&_GetSystemMetricsForDpi);
 
-			//FreeLibrary (huser32);
+			//LdrUnloadDll (huser32);
 		}
 
 		_r_initonce_end (&init_once);
@@ -10999,7 +11012,7 @@ BOOLEAN _r_dc_getsystemparametersinfo (
 			// win10rs1+
 			status = _r_sys_getprocaddress (huser32, "SystemParametersInfoForDpi", (PVOID_PTR)&_SystemParametersInfoForDpi);
 
-			//FreeLibrary (huser32);
+			//LdrUnloadDll (huser32);
 		}
 
 		_r_initonce_end (&init_once);
