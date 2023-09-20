@@ -239,35 +239,20 @@ VOID _r_error_initialize (
 #define RDBG2(a, ...) _r_debug ((a), __VA_ARGS__)
 
 //
-// Synchronization: Auto-dereference pool
-//
-
-VOID _r_autopool_initialize (
-	_Out_ PR_AUTO_POOL auto_pool
-);
-
-VOID _r_autopool_destroy (
-	_Inout_ PR_AUTO_POOL auto_pool
-);
-
-VOID _r_autopool_drain (
-	_Inout_ PR_AUTO_POOL auto_pool
-);
-
-PR_AUTO_POOL _r_autopool_getcurrentdata ();
-
-ULONG _r_autopool_getthreadindex ();
-
-VOID _r_autopool_setcurrentdata (
-	_In_ PR_AUTO_POOL auto_pool
-);
-
-//
 // Synchronization: A fast event object.
 //
 
 VOID FASTCALL _r_event_intialize (
 	_Out_ PR_EVENT event_object
+);
+
+VOID _r_event_dereference (
+	_Inout_ PR_EVENT event_object,
+	_In_opt_ HANDLE event_handle
+);
+
+VOID _r_event_reference (
+	_Inout_ PR_EVENT event_object
 );
 
 VOID FASTCALL _r_event_set (
@@ -293,34 +278,6 @@ FORCEINLINE BOOLEAN _r_event_test (
 )
 {
 	return !!event_object->is_set;
-}
-
-FORCEINLINE VOID _r_event_reference (
-	_Inout_ PR_EVENT event_object
-)
-{
-	InterlockedExchangeAddPointer ((PLONG_PTR)(&event_object->value), PR_EVENT_REFCOUNT_INC);
-}
-
-FORCEINLINE VOID _r_event_dereference (
-	_Inout_ PR_EVENT event_object,
-	_In_opt_ HANDLE event_handle
-)
-{
-	ULONG_PTR value;
-
-	value = InterlockedExchangeAddPointer ((PLONG_PTR)(&event_object->value), -PR_EVENT_REFCOUNT_INC);
-
-	// See if the reference count has become 0.
-	if (((value >> PR_EVENT_REFCOUNT_SHIFT) & PR_EVENT_REFCOUNT_MASK) - 1 == 0)
-	{
-		if (event_handle)
-		{
-			NtClose (event_handle);
-
-			event_object->event_handle = NULL;
-		}
-	}
 }
 
 //
@@ -477,7 +434,7 @@ FORCEINLINE VOID _r_queuedlock_acquireshared (
 {
 	ULONG_PTR value;
 
-	value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, IntToPtr (PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC), NULL);
+	value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, IntToPtr (PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC), NULL);
 
 	if (value != 0)
 		_r_queuedlock_acquireshared_ex (queued_lock);
@@ -506,7 +463,7 @@ FORCEINLINE VOID _r_queuedlock_releaseshared (
 
 	value = PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC;
 
-	new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, NULL, (PVOID)value);
+	new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, NULL, (PVOID)value);
 
 	if (new_value != value)
 		_r_queuedlock_releaseshared_ex (queued_lock);
@@ -595,7 +552,7 @@ FORCEINLINE BOOLEAN _r_protection_acquire (
 	ULONG_PTR new_value;
 
 	value = protection->value & ~PR_RUNDOWN_ACTIVE; // fail fast path when rundown is active
-	new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value + PR_RUNDOWN_REF_INC), (PVOID)value);
+	new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value + PR_RUNDOWN_REF_INC), (PVOID)value);
 
 	if (new_value == value)
 	{
@@ -615,7 +572,7 @@ FORCEINLINE VOID _r_protection_release (
 	ULONG_PTR new_value;
 
 	value = protection->value & ~PR_RUNDOWN_ACTIVE; // Fail fast path when rundown is active
-	new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value - PR_RUNDOWN_REF_INC), (PVOID)value);
+	new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value - PR_RUNDOWN_REF_INC), (PVOID)value);
 
 	if (new_value != value)
 		_r_protection_release_ex (protection);
@@ -627,7 +584,7 @@ FORCEINLINE VOID _r_protection_waitfor (
 {
 	ULONG_PTR value;
 
-	value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, IntToPtr (PR_RUNDOWN_ACTIVE), NULL);
+	value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, IntToPtr (PR_RUNDOWN_ACTIVE), NULL);
 
 	if (value != 0 && value != PR_RUNDOWN_ACTIVE)
 		_r_protection_waitfor_ex (protection);

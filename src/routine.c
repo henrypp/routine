@@ -487,100 +487,6 @@ ULONG64 _r_calc_roundnumber (
 }
 
 //
-// Synchronization: Auto-dereference pool
-//
-
-VOID _r_autopool_initialize (
-	_Out_ PR_AUTO_POOL auto_pool
-)
-{
-	RtlZeroMemory (auto_pool, sizeof (R_AUTO_POOL));
-
-	// Add the pool to the stack.
-	auto_pool->next_pool = _r_autopool_getcurrentdata ();
-
-	_r_autopool_setcurrentdata (auto_pool);
-}
-
-VOID _r_autopool_destroy (
-	_Inout_ PR_AUTO_POOL auto_pool
-)
-{
-	_r_autopool_drain (auto_pool);
-
-	if (_r_autopool_getcurrentdata () != auto_pool)
-		RtlRaiseStatus (STATUS_UNSUCCESSFUL);
-
-	// Remove the pool from the stack
-	_r_autopool_setcurrentdata (auto_pool->next_pool);
-
-	// Free the dynamic array if it hasn't been freed yet
-	SAFE_DELETE_MEMORY (auto_pool->dynamic_objects);
-}
-
-VOID _r_autopool_drain (
-	_Inout_ PR_AUTO_POOL auto_pool
-)
-{
-	if (auto_pool->static_count)
-	{
-		_r_obj_dereferencelist (auto_pool->static_objects, auto_pool->static_count);
-
-		auto_pool->static_count = 0;
-	}
-
-	if (auto_pool->dynamic_count)
-	{
-		_r_obj_dereferencelist (auto_pool->dynamic_objects, auto_pool->dynamic_count);
-
-		auto_pool->dynamic_count = 0;
-
-		if (auto_pool->dynamic_allocated > PR_AUTO_POOL_DYNAMIC_BIG_SIZE)
-		{
-			auto_pool->dynamic_allocated = 0;
-
-			SAFE_DELETE_MEMORY (auto_pool->dynamic_objects);
-		}
-	}
-}
-
-PR_AUTO_POOL _r_autopool_getcurrentdata ()
-{
-	ULONG tls_index;
-
-	tls_index = _r_autopool_getthreadindex ();
-
-	return (PR_AUTO_POOL)TlsGetValue (tls_index);
-}
-
-ULONG _r_autopool_getthreadindex ()
-{
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static ULONG tls_index = 0;
-
-	if (_r_initonce_begin (&init_once))
-	{
-		tls_index = TlsAlloc ();
-
-		_r_initonce_end (&init_once);
-	}
-
-	return tls_index;
-}
-
-VOID _r_autopool_setcurrentdata (
-	_In_ PR_AUTO_POOL auto_pool
-)
-{
-	ULONG tls_index;
-
-	tls_index = _r_autopool_getthreadindex ();
-
-	if (!TlsSetValue (tls_index, auto_pool))
-		RtlRaiseStatus (STATUS_UNSUCCESSFUL);
-}
-
-//
 // Synchronization: A fast event object
 //
 
@@ -590,6 +496,34 @@ VOID FASTCALL _r_event_intialize (
 {
 	event_object->value = PR_EVENT_REFCOUNT_INC;
 	event_object->event_handle = NULL;
+}
+
+VOID _r_event_dereference (
+	_Inout_ PR_EVENT event_object,
+	_In_opt_ HANDLE event_handle
+)
+{
+	ULONG_PTR value;
+
+	value = InterlockedExchangeAddPointer ((PLONG_PTR)(&event_object->value), -PR_EVENT_REFCOUNT_INC);
+
+	// See if the reference count has become 0.
+	if (((value >> PR_EVENT_REFCOUNT_SHIFT) & PR_EVENT_REFCOUNT_MASK) - 1 == 0)
+	{
+		if (event_handle)
+		{
+			NtClose (event_handle);
+
+			event_object->event_handle = NULL;
+		}
+	}
+}
+
+VOID _r_event_reference (
+	_Inout_ PR_EVENT event_object
+)
+{
+	InterlockedExchangeAddPointer ((PLONG_PTR)(&event_object->value), PR_EVENT_REFCOUNT_INC);
 }
 
 VOID FASTCALL _r_event_set (
@@ -662,7 +596,7 @@ BOOLEAN FASTCALL _r_event_wait_ex (
 		assert (event_handle);
 
 		// Try to set the event handle to our event.
-		if (InterlockedCompareExchangePointer (&event_object->event_handle, event_handle, NULL) != NULL)
+		if (_InterlockedCompareExchangePointer (&event_object->event_handle, event_handle, NULL) != NULL)
 		{
 			// Someone else set the event before we did.
 			NtClose (event_handle);
@@ -718,8 +652,8 @@ VOID _r_freelist_initialize (
 {
 	RtlInitializeSListHead (&free_list->list_head);
 
-	free_list->size = size;
 	free_list->count = 0;
+	free_list->size = size;
 	free_list->maximum_count = maximum_count;
 }
 
@@ -753,7 +687,8 @@ PVOID _r_freelist_allocateitem (
 
 	if (list_entry)
 	{
-		InterlockedDecrement (&free_list->count);
+		_InterlockedDecrement (&free_list->count);
+
 		entry = CONTAINING_RECORD (list_entry, R_FREE_LIST_ENTRY, list_entry);
 
 		RtlSecureZeroMemory (&entry->body, free_list->size);
@@ -780,7 +715,7 @@ VOID _r_freelist_deleteitem (
 	{
 		RtlInterlockedPushEntrySList (&free_list->list_head, &entry->list_entry);
 
-		InterlockedIncrement (&free_list->count);
+		_InterlockedIncrement (&free_list->count);
 	}
 	else
 	{
@@ -949,7 +884,7 @@ FORCEINLINE PR_QUEUED_WAIT_BLOCK _r_queuedlock_preparetowake (
 		{
 			new_value = value - PR_QUEUED_LOCK_TRAVERSING;
 
-			new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
 
 			if (new_value == value)
 				return NULL;
@@ -1004,7 +939,7 @@ FORCEINLINE PR_QUEUED_WAIT_BLOCK _r_queuedlock_preparetowake (
 		{
 			// We're waking an exclusive waiter and there is only one waiter, or we are waking a
 			// shared waiter and possibly others.
-			new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, NULL, (PVOID)value);
+			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, NULL, (PVOID)value);
 
 			if (new_value == value)
 				break;
@@ -1086,7 +1021,7 @@ FORCEINLINE BOOLEAN _r_queuedlock_pushwaitblock (
 		}
 	}
 
-	new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+	new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
 
 	*new_value_ptr = new_value;
 	*is_optimize_ptr = is_optimize;
@@ -1151,7 +1086,7 @@ FORCEINLINE VOID _r_queuedlock_optimizelist_ex (
 
 		// Try to clear the traversing bit.
 		new_value = current_value - PR_QUEUED_LOCK_TRAVERSING;
-		new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)current_value);
+		new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)current_value);
 
 		if (new_value == current_value)
 			break;
@@ -1216,7 +1151,7 @@ VOID FASTCALL _r_queuedlock_acquireexclusive_ex (
 	{
 		if (!(value & PR_QUEUED_LOCK_OWNED))
 		{
-			new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)(value + PR_QUEUED_LOCK_OWNED), (PVOID)value);
+			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)(value + PR_QUEUED_LOCK_OWNED), (PVOID)value);
 
 			if (new_value == value)
 				break;
@@ -1258,7 +1193,7 @@ VOID FASTCALL _r_queuedlock_acquireshared_ex (
 		{
 			new_value = (value + PR_QUEUED_LOCK_SHARED_INC) | PR_QUEUED_LOCK_OWNED;
 
-			new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
 
 			if (new_value == value)
 				break;
@@ -1300,7 +1235,7 @@ VOID FASTCALL _r_queuedlock_releaseexclusive_ex (
 			// If there are no waiters, we're simply releasing ownership. If someone is traversing
 			// the list, clearing the owned bit is a signal for them to wake waiters.
 			new_value = value - PR_QUEUED_LOCK_OWNED;
-			new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
 
 			if (new_value == value)
 				break;
@@ -1312,7 +1247,7 @@ VOID FASTCALL _r_queuedlock_releaseexclusive_ex (
 			new_value = (value - PR_QUEUED_LOCK_OWNED + PR_QUEUED_LOCK_TRAVERSING);
 			current_value = new_value;
 
-			new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
 
 			if (new_value == value)
 			{
@@ -1330,10 +1265,10 @@ VOID FASTCALL _r_queuedlock_releaseshared_ex (
 	_Inout_ PR_QUEUED_LOCK queued_lock
 )
 {
-	ULONG_PTR value;
-	ULONG_PTR new_value;
-	ULONG_PTR current_value;
 	PR_QUEUED_WAIT_BLOCK wait_lock;
+	ULONG_PTR current_value;
+	ULONG_PTR new_value;
+	ULONG_PTR value;
 
 	value = queued_lock->value;
 
@@ -1351,7 +1286,7 @@ VOID FASTCALL _r_queuedlock_releaseshared_ex (
 			new_value = 0;
 		}
 
-		new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+		new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
 
 		if (new_value == value)
 			return;
@@ -1364,7 +1299,7 @@ VOID FASTCALL _r_queuedlock_releaseshared_ex (
 		// Unfortunately we have to find the last wait block and decrement the shared owners count.
 		wait_lock = _r_queuedlock_findlastwaitblock (value);
 
-		if ((ULONG)InterlockedDecrement ((PLONG)&wait_lock->shared_owners) > 0)
+		if ((ULONG)_InterlockedDecrement ((PLONG)&wait_lock->shared_owners) > 0)
 			return;
 	}
 
@@ -1374,7 +1309,7 @@ VOID FASTCALL _r_queuedlock_releaseshared_ex (
 		{
 			new_value = value & ~(PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_MULTIPLE_SHARED);
 
-			new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
 
 			if (new_value == value)
 				break;
@@ -1385,7 +1320,7 @@ VOID FASTCALL _r_queuedlock_releaseshared_ex (
 
 			current_value = new_value;
 
-			new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
 
 			if (new_value == value)
 			{
@@ -1461,7 +1396,7 @@ VOID FASTCALL _r_queuedlock_wakeforrelease (
 
 	new_value = value + PR_QUEUED_LOCK_TRAVERSING;
 
-	current_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
+	current_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, (PVOID)new_value, (PVOID)value);
 
 	if (current_value == value)
 		_r_queuedlock_wake (queued_lock, new_value);
@@ -1529,7 +1464,7 @@ BOOLEAN FASTCALL _r_protection_acquire_ex (
 		if (value & PR_RUNDOWN_ACTIVE)
 			return FALSE;
 
-		new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value + PR_RUNDOWN_REF_INC), (PVOID)value);
+		new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value + PR_RUNDOWN_REF_INC), (PVOID)value);
 
 		if (new_value == value)
 			return TRUE;
@@ -1540,9 +1475,9 @@ VOID FASTCALL _r_protection_release_ex (
 	_Inout_ PR_RUNDOWN_PROTECT protection
 )
 {
-	ULONG_PTR value;
-	ULONG_PTR new_value;
 	PR_RUNDOWN_WAIT_BLOCK wait_block;
+	ULONG_PTR new_value;
+	ULONG_PTR value;
 
 	while (TRUE)
 	{
@@ -1552,6 +1487,7 @@ VOID FASTCALL _r_protection_release_ex (
 		{
 			// Since rundown is active, the reference count has been moved to the waiter's wait
 			// block. If we are the last user, we must wake up the waiter.
+
 			wait_block = (PR_RUNDOWN_WAIT_BLOCK)(value & ~PR_RUNDOWN_ACTIVE);
 
 			if (InterlockedDecrementPointer (&wait_block->count) == 0)
@@ -1562,7 +1498,7 @@ VOID FASTCALL _r_protection_release_ex (
 		else
 		{
 			// Decrement the reference count normally.
-			new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value - PR_RUNDOWN_REF_INC), (PVOID)value);
+			new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value - PR_RUNDOWN_REF_INC), (PVOID)value);
 
 			if (new_value == value)
 				break;
@@ -1578,25 +1514,31 @@ VOID FASTCALL _r_protection_waitfor_ex (
 	ULONG_PTR value;
 	ULONG_PTR new_value;
 	ULONG_PTR count;
+	BOOLEAN is_initialized = FALSE;
 
 	// Fast path. If the reference count is 0 or rundown has already been completed, return.
-	value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, IntToPtr (PR_RUNDOWN_ACTIVE), NULL);
+	value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, IntToPtr (PR_RUNDOWN_ACTIVE), NULL);
 
 	if (value == 0 || value == PR_RUNDOWN_ACTIVE)
 		return;
-
-	// Initialize the wait block.
-	_r_event_intialize (&wait_block.wake_event);
 
 	while (TRUE)
 	{
 		value = protection->value;
 		count = value >> PR_RUNDOWN_REF_SHIFT;
 
+		// Initialize the wait block if necessary.
+		if (count != 0 && !is_initialized)
+		{
+			_r_event_intialize (&wait_block.wake_event);
+
+			is_initialized = TRUE;
+		}
+
 		// Save the existing reference count.
 		wait_block.count = count;
 
-		new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)((ULONG_PTR)&wait_block | PR_RUNDOWN_ACTIVE), (PVOID)value);
+		new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)((ULONG_PTR)&wait_block | PR_RUNDOWN_ACTIVE), (PVOID)value);
 
 		if (new_value == value)
 		{
@@ -1763,7 +1705,7 @@ NTSTATUS _r_workqueue_threadproc (
 		if (!work_queue->is_terminating)
 		{
 			// Wait for work.
-			_r_calc_millisecondstolargeinteger (&timeout, 10000);
+			_r_calc_millisecondstolargeinteger (&timeout, 4000);
 
 			status = NtWaitForSingleObject (work_queue->semaphore_handle, FALSE, &timeout);
 		}
@@ -1791,7 +1733,7 @@ NTSTATUS _r_workqueue_threadproc (
 
 				work_queue_item->base_address (work_queue_item->context, work_queue->busy_count);
 
-				InterlockedDecrement (&work_queue->busy_count);
+				_InterlockedDecrement (&work_queue->busy_count);
 
 				_r_workqueue_destroyitem (work_queue_item);
 			}
@@ -1838,7 +1780,7 @@ VOID _r_workqueue_queueitem (
 	_r_queuedlock_acquireexclusive (&work_queue->queue_lock);
 
 	InsertTailList (&work_queue->queue_list_head, &work_queue_item->list_entry);
-	InterlockedIncrement (&work_queue->busy_count);
+	_InterlockedIncrement (&work_queue->busy_count);
 
 	_r_queuedlock_releaseexclusive (&work_queue->queue_lock);
 
@@ -2136,7 +2078,7 @@ PVOID NTAPI _r_obj_allocate (
 
 	object_header = _r_mem_allocate (UFIELD_OFFSET (R_OBJECT_HEADER, body) + bytes_count);
 
-	InterlockedIncrement (&object_header->ref_count);
+	_InterlockedIncrement (&object_header->ref_count);
 
 	object_header->cleanup_callback = cleanup_callback;
 
@@ -2181,7 +2123,7 @@ VOID NTAPI _r_obj_dereference_ex (
 
 	object_header = PR_OBJECT_TO_OBJECT_HEADER (object_body);
 
-	old_count = InterlockedExchangeAdd (&object_header->ref_count, -ref_count);
+	old_count = _InterlockedExchangeAdd (&object_header->ref_count, -ref_count);
 
 	new_count = old_count - ref_count;
 
@@ -2220,7 +2162,7 @@ PVOID NTAPI _r_obj_reference (
 
 	object_header = PR_OBJECT_TO_OBJECT_HEADER (object_body);
 
-	InterlockedIncrement (&object_header->ref_count);
+	_InterlockedIncrement (&object_header->ref_count);
 
 	return object_body;
 }
