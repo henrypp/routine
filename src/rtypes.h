@@ -95,8 +95,6 @@ typedef BOOL (WINAPI *SPIFP)(
 
 #endif // _WIN64
 
-#define PR_SIZE_T PR_ULONG_PTR
-
 //
 // Configuration
 //
@@ -190,10 +188,10 @@ C_ASSERT (sizeof (R_EVENT) == sizeof (ULONG_PTR) + sizeof (HANDLE));
 typedef struct _R_AUTO_POOL
 {
 	PVOID static_objects[PR_AUTO_POOL_STATIC_SIZE];
-	SIZE_T static_count;
+	ULONG_PTR static_count;
 
-	SIZE_T dynamic_count;
-	SIZE_T dynamic_allocated;
+	ULONG_PTR dynamic_count;
+	ULONG_PTR dynamic_allocated;
 	PVOID_PTR dynamic_objects;
 
 	struct _R_AUTO_POOL *next_pool;
@@ -207,7 +205,7 @@ typedef struct _R_FREE_LIST
 {
 	SLIST_HEADER list_head;
 
-	SIZE_T size;
+	ULONG_PTR size;
 
 	volatile ULONG count;
 	volatile ULONG maximum_count;
@@ -391,7 +389,7 @@ typedef struct _R_OBJECT_HEADER
 
 typedef struct _R_BYTEREF
 {
-	SIZE_T length;
+	ULONG_PTR length;
 	LPSTR buffer;
 } R_BYTEREF, *PR_BYTEREF;
 
@@ -402,7 +400,7 @@ typedef struct _R_BYTE
 		R_BYTEREF sr;
 		struct
 		{
-			SIZE_T length;
+			ULONG_PTR length;
 			LPSTR buffer;
 		};
 	};
@@ -420,7 +418,7 @@ typedef PR_BYTE *PR_BYTE_PTR;
 
 typedef struct _R_STRINGREF
 {
-	SIZE_T length;
+	ULONG_PTR length;
 	LPWSTR buffer;
 } R_STRINGREF, *PR_STRINGREF;
 
@@ -431,7 +429,7 @@ typedef struct _R_STRING
 		R_STRINGREF sr;
 		struct
 		{
-			SIZE_T length;
+			ULONG_PTR length;
 			LPWSTR buffer;
 		};
 	};
@@ -450,7 +448,7 @@ typedef PR_STRING *PR_STRING_PTR;
 typedef struct _R_STRINGBUILDER
 {
 	PR_STRING string;
-	SIZE_T allocated_length;
+	ULONG_PTR allocated_length;
 } R_STRINGBUILDER, *PR_STRINGBUILDER;
 
 //
@@ -460,9 +458,9 @@ typedef struct _R_STRINGBUILDER
 typedef struct _R_ARRAY
 {
 	PR_OBJECT_CLEANUP_CALLBACK cleanup_callback;
-	SIZE_T allocated_count;
-	SIZE_T count;
-	SIZE_T item_size;
+	ULONG_PTR allocated_count;
+	ULONG_PTR count;
+	ULONG_PTR item_size;
 	PVOID items;
 } R_ARRAY, *PR_ARRAY;
 
@@ -475,8 +473,8 @@ typedef PR_ARRAY *PR_ARRAY_PTR;
 typedef struct _R_LIST
 {
 	PR_OBJECT_CLEANUP_CALLBACK cleanup_callback;
-	SIZE_T allocated_count;
-	SIZE_T count;
+	ULONG_PTR allocated_count;
+	ULONG_PTR count;
 	PVOID_PTR items;
 } R_LIST, *PR_LIST;
 
@@ -488,7 +486,7 @@ typedef PR_LIST *PR_LIST_PTR;
 
 typedef struct _R_HASHTABLE_ENTRY
 {
-	SIZE_T next;
+	ULONG_PTR next;
 	ULONG_PTR hash_code;
 	QUAD_PTR body;
 } R_HASHTABLE_ENTRY, *PR_HASHTABLE_ENTRY;
@@ -496,14 +494,14 @@ typedef struct _R_HASHTABLE_ENTRY
 typedef struct _R_HASHTABLE
 {
 	PR_OBJECT_CLEANUP_CALLBACK cleanup_callback;
-	PSIZE_T buckets;
+	PULONG_PTR buckets;
 	PVOID entries;
-	SIZE_T free_entry;
-	SIZE_T next_entry;
-	SIZE_T entry_size;
-	SIZE_T allocated_buckets;
-	SIZE_T allocated_entries;
-	SIZE_T count;
+	ULONG_PTR free_entry;
+	ULONG_PTR next_entry;
+	ULONG_PTR entry_size;
+	ULONG_PTR allocated_buckets;
+	ULONG_PTR allocated_entries;
+	ULONG_PTR count;
 } R_HASHTABLE, *PR_HASHTABLE;
 
 typedef PR_HASHTABLE *PR_HASHTABLE_PTR;
@@ -515,7 +513,7 @@ typedef PR_HASHTABLE *PR_HASHTABLE_PTR;
 	((PR_HASHTABLE_ENTRY)PTR_ADD_OFFSET((hashtable)->entries, PR_HASHTABLE_ENTRY_SIZE((hashtable)->entry_size) * (index)))
 
 #define PR_HASHTABLE_GET_ENTRY_INDEX(hashtable, entry) \
-	((SIZE_T)(PTR_ADD_OFFSET(entry, -(hashtable)->entries) / PR_HASHTABLE_ENTRY_SIZE((hashtable)->entry_size)))
+	((ULONG_PTR)(PTR_ADD_OFFSET(entry, -(hashtable)->entries) / PR_HASHTABLE_ENTRY_SIZE((hashtable)->entry_size)))
 
 #define PR_HASHTABLE_INIT_VALUE 0xFF
 

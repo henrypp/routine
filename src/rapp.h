@@ -342,7 +342,7 @@ BOOLEAN NTAPI _r_update_downloadcallback (
 );
 
 _Success_ (return == ERROR_SUCCESS)
-ULONG _r_update_downloadupdate (
+LONG _r_update_downloadupdate (
 	_In_ PR_UPDATE_INFO update_info,
 	_Inout_ PR_UPDATE_COMPONENT update_component
 );

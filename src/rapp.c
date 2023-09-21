@@ -33,7 +33,7 @@ VOID _r_app_exceptionfilter_savedump (
 
 	status = _r_fs_createfile (dump_path, FILE_OVERWRITE_IF, GENERIC_WRITE, FILE_SHARE_READ, FILE_ATTRIBUTE_NORMAL, 0, FALSE, NULL, &hfile);
 
-	if (!_r_fs_isvalidhandle (hfile))
+	if (!NT_SUCCESS (status))
 		return;
 
 	minidump_info.ThreadId = HandleToUlong (NtCurrentThreadId ());
@@ -2099,7 +2099,7 @@ BOOLEAN NTAPI _r_update_downloadcallback (
 }
 
 _Success_ (return == ERROR_SUCCESS)
-ULONG _r_update_downloadupdate (
+LONG _r_update_downloadupdate (
 	_In_ PR_UPDATE_INFO update_info,
 	_Inout_ PR_UPDATE_COMPONENT update_component
 )

@@ -1165,18 +1165,18 @@ typedef struct _SYSTEM_PROCESS_INFORMATION
 	ULONG HandleCount;
 	ULONG SessionId;
 	ULONG_PTR UniqueProcessKey; // since VISTA (requires SystemExtendedProcessInformation)
-	SIZE_T PeakVirtualSize;
-	SIZE_T VirtualSize;
+	ULONG_PTR PeakVirtualSize;
+	ULONG_PTR VirtualSize;
 	ULONG PageFaultCount;
-	SIZE_T PeakWorkingSetSize;
-	SIZE_T WorkingSetSize;
-	SIZE_T QuotaPeakPagedPoolUsage;
-	SIZE_T QuotaPagedPoolUsage;
-	SIZE_T QuotaPeakNonPagedPoolUsage;
-	SIZE_T QuotaNonPagedPoolUsage;
-	SIZE_T PagefileUsage;
-	SIZE_T PeakPagefileUsage;
-	SIZE_T PrivatePageCount;
+	ULONG_PTR PeakWorkingSetSize;
+	ULONG_PTR WorkingSetSize;
+	ULONG_PTR QuotaPeakPagedPoolUsage;
+	ULONG_PTR QuotaPagedPoolUsage;
+	ULONG_PTR QuotaPeakNonPagedPoolUsage;
+	ULONG_PTR QuotaNonPagedPoolUsage;
+	ULONG_PTR PagefileUsage;
+	ULONG_PTR PeakPagefileUsage;
+	ULONG_PTR PrivatePageCount;
 	LARGE_INTEGER ReadOperationCount;
 	LARGE_INTEGER WriteOperationCount;
 	LARGE_INTEGER OtherOperationCount;
@@ -1190,13 +1190,13 @@ typedef struct _SYSTEM_PROCESS_INFORMATION
 
 typedef struct _SYSTEM_FILECACHE_INFORMATION
 {
-	SIZE_T CurrentSize;
-	SIZE_T PeakSize;
+	ULONG_PTR CurrentSize;
+	ULONG_PTR PeakSize;
 	ULONG PageFaultCount;
-	SIZE_T MinimumWorkingSet;
-	SIZE_T MaximumWorkingSet;
-	SIZE_T CurrentSizeIncludingTransitionInPages;
-	SIZE_T PeakSizeIncludingTransitionInPages;
+	ULONG_PTR MinimumWorkingSet;
+	ULONG_PTR MaximumWorkingSet;
+	ULONG_PTR CurrentSizeIncludingTransitionInPages;
+	ULONG_PTR PeakSizeIncludingTransitionInPages;
 	ULONG TransitionRePurposeCount;
 	ULONG Flags;
 } SYSTEM_FILECACHE_INFORMATION, *PSYSTEM_FILECACHE_INFORMATION;
@@ -1204,8 +1204,8 @@ typedef struct _SYSTEM_FILECACHE_INFORMATION
 // Can be used instead of SYSTEM_FILECACHE_INFORMATION
 typedef struct _SYSTEM_BASIC_WORKING_SET_INFORMATION
 {
-	SIZE_T CurrentSize;
-	SIZE_T PeakSize;
+	ULONG_PTR CurrentSize;
+	ULONG_PTR PeakSize;
 	ULONG PageFaultCount;
 } SYSTEM_BASIC_WORKING_SET_INFORMATION, *PSYSTEM_BASIC_WORKING_SET_INFORMATION;
 
@@ -2018,10 +2018,10 @@ typedef struct _PEB
 	ULONG NtGlobalFlag;
 
 	ULARGE_INTEGER CriticalSectionTimeout;
-	SIZE_T HeapSegmentReserve;
-	SIZE_T HeapSegmentCommit;
-	SIZE_T HeapDeCommitTotalFreeThreshold;
-	SIZE_T HeapDeCommitFreeBlockThreshold;
+	ULONG_PTR HeapSegmentReserve;
+	ULONG_PTR HeapSegmentCommit;
+	ULONG_PTR HeapDeCommitTotalFreeThreshold;
+	ULONG_PTR HeapDeCommitFreeBlockThreshold;
 
 	ULONG NumberOfHeaps;
 	ULONG MaximumNumberOfHeaps;
@@ -2062,7 +2062,7 @@ typedef struct _PEB
 	PVOID SystemDefaultActivationContextData; // ACTIVATION_CONTEXT_DATA
 	PVOID SystemAssemblyStorageMap; // ASSEMBLY_STORAGE_MAP
 
-	SIZE_T MinimumStackCommit;
+	ULONG_PTR MinimumStackCommit;
 
 	PVOID SparePointers[4]; // 19H1 (previously FlsCallback to FlsHighIndex)
 	ULONG SpareUlongs[5]; // 19H1
@@ -2359,22 +2359,22 @@ typedef struct _PROCESS_BASIC_INFORMATION
 typedef NTSTATUS (NTAPI *PRTL_HEAP_COMMIT_ROUTINE)(
 	_In_ PVOID Base,
 	_Inout_ PVOID *CommitAddress,
-	_Inout_ PSIZE_T CommitSize
+	_Inout_ PULONG_PTR CommitSize
 	);
 
 typedef struct _RTL_HEAP_PARAMETERS
 {
 	ULONG Length;
-	SIZE_T SegmentReserve;
-	SIZE_T SegmentCommit;
-	SIZE_T DeCommitFreeBlockThreshold;
-	SIZE_T DeCommitTotalFreeThreshold;
-	SIZE_T MaximumAllocationSize;
-	SIZE_T VirtualMemoryThreshold;
-	SIZE_T InitialCommit;
-	SIZE_T InitialReserve;
+	ULONG_PTR SegmentReserve;
+	ULONG_PTR SegmentCommit;
+	ULONG_PTR DeCommitFreeBlockThreshold;
+	ULONG_PTR DeCommitTotalFreeThreshold;
+	ULONG_PTR MaximumAllocationSize;
+	ULONG_PTR VirtualMemoryThreshold;
+	ULONG_PTR InitialCommit;
+	ULONG_PTR InitialReserve;
 	PRTL_HEAP_COMMIT_ROUTINE CommitRoutine;
-	SIZE_T Reserved[2];
+	ULONG_PTR Reserved[2];
 } RTL_HEAP_PARAMETERS, *PRTL_HEAP_PARAMETERS;
 
 typedef enum _SECTION_INFORMATION_CLASS
@@ -2419,8 +2419,8 @@ typedef struct _SECTION_IMAGE_INFORMATION
 {
 	PVOID TransferAddress;
 	ULONG ZeroBits;
-	SIZE_T MaximumStackSize;
-	SIZE_T CommittedStackSize;
+	ULONG_PTR MaximumStackSize;
+	ULONG_PTR CommittedStackSize;
 	ULONG SubSystemType;
 	union
 	{
@@ -2564,7 +2564,7 @@ typedef enum _ProcessCreateInitFlag
 
 typedef struct _PS_CREATE_INFO
 {
-	SIZE_T Size;
+	ULONG_PTR Size;
 	PS_CREATE_STATE State;
 	union
 	{
@@ -2640,18 +2640,18 @@ typedef struct _PS_CREATE_INFO
 typedef struct _PS_ATTRIBUTE
 {
 	ULONG_PTR Attribute;
-	SIZE_T Size;
+	ULONG_PTR Size;
 	union
 	{
 		ULONG_PTR Value;
 		PVOID ValuePtr;
 	};
-	PSIZE_T ReturnLength;
+	PULONG_PTR ReturnLength;
 } PS_ATTRIBUTE, *PPS_ATTRIBUTE;
 
 typedef struct _PS_ATTRIBUTE_LIST
 {
-	SIZE_T TotalLength;
+	ULONG_PTR TotalLength;
 	PS_ATTRIBUTE Attributes[5];
 } PS_ATTRIBUTE_LIST, *PPS_ATTRIBUTE_LIST;
 
@@ -2925,7 +2925,7 @@ typedef struct _PORT_MESSAGE_HEADER
 	ULONG MessageId;
 	union
 	{
-		SIZE_T ClientViewSize;
+		ULONG_PTR ClientViewSize;
 		ULONG CallbackId;
 	};
 } PORT_MESSAGE_HEADER, *PPORT_MESSAGE_HEADER;
@@ -2990,7 +2990,7 @@ NtAllocateVirtualMemory (
 	_In_ HANDLE ProcessHandle,
 	_Inout_ _At_ (*BaseAddress, _Readable_bytes_ (*RegionSize) _Writable_bytes_ (*RegionSize) _Post_readable_byte_size_ (*RegionSize)) PVOID * BaseAddress,
 	_In_ ULONG_PTR ZeroBits,
-	_Inout_ PSIZE_T RegionSize,
+	_Inout_ PULONG_PTR RegionSize,
 	_In_ ULONG AllocationType,
 	_In_ ULONG Protect
 );
@@ -3001,7 +3001,7 @@ NTAPI
 NtFreeVirtualMemory (
 	_In_ HANDLE ProcessHandle,
 	_Inout_ PVOID * BaseAddress,
-	_Inout_ PSIZE_T RegionSize,
+	_Inout_ PULONG_PTR RegionSize,
 	_In_ ULONG FreeType
 );
 
@@ -3011,7 +3011,7 @@ NTAPI
 NtFlushVirtualMemory (
 	_In_ HANDLE ProcessHandle,
 	_Inout_ PVOID * BaseAddress,
-	_Inout_ PSIZE_T RegionSize,
+	_Inout_ PULONG_PTR RegionSize,
 	_Out_ PIO_STATUS_BLOCK IoStatus
 );
 
@@ -3022,8 +3022,8 @@ NtReadVirtualMemory (
 	_In_ HANDLE ProcessHandle,
 	_In_opt_ PVOID BaseAddress,
 	_Out_writes_bytes_ (BufferSize) PVOID Buffer,
-	_In_ SIZE_T BufferSize,
-	_Out_opt_ PSIZE_T NumberOfBytesRead
+	_In_ ULONG_PTR BufferSize,
+	_Out_opt_ PULONG_PTR NumberOfBytesRead
 );
 
 NTSYSCALLAPI
@@ -3033,8 +3033,8 @@ NtWriteVirtualMemory (
 	_In_ HANDLE ProcessHandle,
 	_In_opt_ PVOID BaseAddress,
 	_In_reads_bytes_ (BufferSize) PVOID Buffer,
-	_In_ SIZE_T BufferSize,
-	_Out_opt_ PSIZE_T NumberOfBytesWritten
+	_In_ ULONG_PTR BufferSize,
+	_Out_opt_ PULONG_PTR NumberOfBytesWritten
 );
 
 NTSYSCALLAPI
@@ -3045,8 +3045,8 @@ NtQueryVirtualMemory (
 	_In_opt_ PVOID BaseAddress,
 	_In_ MEMORY_INFORMATION_CLASS MemoryInformationClass,
 	_Out_writes_bytes_ (MemoryInformationLength) PVOID MemoryInformation,
-	_In_ SIZE_T MemoryInformationLength,
-	_Out_opt_ PSIZE_T ReturnLength
+	_In_ ULONG_PTR MemoryInformationLength,
+	_Out_opt_ PULONG_PTR ReturnLength
 );
 
 NTSYSCALLAPI
@@ -3195,8 +3195,8 @@ RtlCreateUserThread (
 	_In_opt_ PSECURITY_DESCRIPTOR ThreadSecurityDescriptor,
 	_In_ BOOLEAN CreateSuspended,
 	_In_opt_ ULONG ZeroBits,
-	_In_opt_ SIZE_T MaximumStackSize,
-	_In_opt_ SIZE_T CommittedStackSize,
+	_In_opt_ ULONG_PTR MaximumStackSize,
+	_In_opt_ ULONG_PTR CommittedStackSize,
 	_In_ PUSER_THREAD_START_ROUTINE StartAddress,
 	_In_opt_ PVOID Parameter,
 	_Out_opt_ PHANDLE Thread,
@@ -3327,8 +3327,8 @@ NTAPI
 RtlCreateHeap (
 	_In_ ULONG Flags,
 	_In_opt_ PVOID HeapBase,
-	_In_opt_ SIZE_T ReserveSize,
-	_In_opt_ SIZE_T CommitSize,
+	_In_opt_ ULONG_PTR ReserveSize,
+	_In_opt_ ULONG_PTR CommitSize,
 	_In_opt_ PVOID Lock,
 	_In_opt_ PRTL_HEAP_PARAMETERS Parameters
 );
@@ -3346,7 +3346,7 @@ NTAPI
 RtlAllocateHeap (
 	_In_ PVOID HeapHandle,
 	_In_opt_ ULONG Flags,
-	_In_ SIZE_T Size
+	_In_ ULONG_PTR Size
 );
 
 NTSYSCALLAPI
@@ -3356,7 +3356,7 @@ RtlReAllocateHeap (
 	_In_ PVOID HeapHandle,
 	_In_ ULONG Flags,
 	_Frees_ptr_opt_ PVOID BaseAddress,
-	_In_ SIZE_T Size
+	_In_ ULONG_PTR Size
 );
 
 NTSYSCALLAPI
@@ -3375,7 +3375,7 @@ RtlSetHeapInformation (
 	_In_ PVOID HeapHandle,
 	_In_ HEAP_INFORMATION_CLASS HeapInformationClass,
 	_In_opt_ PVOID HeapInformation,
-	_In_opt_ SIZE_T HeapInformationLength
+	_In_opt_ ULONG_PTR HeapInformationLength
 );
 
 NTSYSCALLAPI
@@ -3884,8 +3884,8 @@ RtlDosSearchPath_Ustr (
 	_Out_opt_ PUNICODE_STRING StaticString,
 	_Out_opt_ PUNICODE_STRING DynamicString,
 	_Out_opt_ PCUNICODE_STRING *FullFileNameOut,
-	_Out_opt_ PSIZE_T FilePartPrefixCch,
-	_Out_opt_ PSIZE_T BytesRequired
+	_Out_opt_ PULONG_PTR FilePartPrefixCch,
+	_Out_opt_ PULONG_PTR BytesRequired
 );
 
 NTSYSCALLAPI
@@ -4776,9 +4776,9 @@ NtMapViewOfSection (
 	_In_ HANDLE ProcessHandle,
 	_Inout_ _At_ (*BaseAddress, _Readable_bytes_ (*ViewSize) _Writable_bytes_ (*ViewSize) _Post_readable_byte_size_ (*ViewSize)) PVOID *BaseAddress,
 	_In_ ULONG_PTR ZeroBits,
-	_In_ SIZE_T CommitSize,
+	_In_ ULONG_PTR CommitSize,
 	_Inout_opt_ PLARGE_INTEGER SectionOffset,
-	_Inout_ PSIZE_T ViewSize,
+	_Inout_ PULONG_PTR ViewSize,
 	_In_ SECTION_INHERIT InheritDisposition,
 	_In_ ULONG AllocationType,
 	_In_ ULONG Win32Protect
@@ -4807,8 +4807,8 @@ NtQuerySection (
 	_In_ HANDLE SectionHandle,
 	_In_ SECTION_INFORMATION_CLASS SectionInformationClass,
 	_Out_writes_bytes_ (SectionInformationLength) PVOID SectionInformation,
-	_In_ SIZE_T SectionInformationLength,
-	_Out_opt_ PSIZE_T ReturnLength
+	_In_ ULONG_PTR SectionInformationLength,
+	_Out_opt_ PULONG_PTR ReturnLength
 );
 
 NTSYSCALLAPI
