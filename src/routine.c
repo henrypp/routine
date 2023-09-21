@@ -1665,7 +1665,7 @@ VOID _r_workqueue_destroyitem (
 	_r_freelist_deleteitem (free_list, work_queue_item);
 }
 
-NTSTATUS _r_workqueue_threadproc (
+NTSTATUS NTAPI _r_workqueue_threadproc (
 	_In_ PVOID arglist
 )
 {
@@ -4329,7 +4329,7 @@ NTSTATUS _r_fs_copyfile (
 	return status;
 }
 
-VOID _r_fs_recursivedirectorydelete_callback (
+VOID NTAPI _r_fs_recursivedirectorydelete_callback (
 	_In_ LPCWSTR path,
 	_In_ PFILE_DIRECTORY_INFORMATION directory_info
 )

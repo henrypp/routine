@@ -434,7 +434,7 @@ FORCEINLINE VOID _r_queuedlock_acquireshared (
 {
 	ULONG_PTR value;
 
-	value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, IntToPtr (PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC), NULL);
+	value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, IntToPtr (PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC), NULL);
 
 	if (value != 0)
 		_r_queuedlock_acquireshared_ex (queued_lock);
@@ -463,7 +463,7 @@ FORCEINLINE VOID _r_queuedlock_releaseshared (
 
 	value = PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC;
 
-	new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, NULL, (PVOID)value);
+	new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, NULL, (PVOID)value);
 
 	if (new_value != value)
 		_r_queuedlock_releaseshared_ex (queued_lock);
@@ -552,7 +552,7 @@ FORCEINLINE BOOLEAN _r_protection_acquire (
 	ULONG_PTR new_value;
 
 	value = protection->value & ~PR_RUNDOWN_ACTIVE; // fail fast path when rundown is active
-	new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value + PR_RUNDOWN_REF_INC), (PVOID)value);
+	new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value + PR_RUNDOWN_REF_INC), (PVOID)value);
 
 	if (new_value == value)
 	{
@@ -572,7 +572,7 @@ FORCEINLINE VOID _r_protection_release (
 	ULONG_PTR new_value;
 
 	value = protection->value & ~PR_RUNDOWN_ACTIVE; // Fail fast path when rundown is active
-	new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value - PR_RUNDOWN_REF_INC), (PVOID)value);
+	new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value - PR_RUNDOWN_REF_INC), (PVOID)value);
 
 	if (new_value != value)
 		_r_protection_release_ex (protection);
@@ -584,7 +584,7 @@ FORCEINLINE VOID _r_protection_waitfor (
 {
 	ULONG_PTR value;
 
-	value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, IntToPtr (PR_RUNDOWN_ACTIVE), NULL);
+	value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, IntToPtr (PR_RUNDOWN_ACTIVE), NULL);
 
 	if (value != 0 && value != PR_RUNDOWN_ACTIVE)
 		_r_protection_waitfor_ex (protection);
