@@ -617,7 +617,7 @@ FORCEINLINE LPCWSTR _r_app_getcopyright ()
 
 FORCEINLINE LPCWSTR _r_app_getdonate_url ()
 {
-	return L"https://www.henrypp.org/donate?from=" APP_NAME_SHORT;
+	return L"https://github.com/henrypp/" APP_NAME_SHORT L"#donate";
 }
 
 FORCEINLINE LPCWSTR _r_app_getsources_url ()
