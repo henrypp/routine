@@ -86,7 +86,7 @@ IsCloseToTray=TRUE
 IsAutoinstallUpdates=FALSE
 ~~~
 
-Website: [www.henrypp.org](https://www.henrypp.org)<br />
-Support: support@henrypp.org<br />
+Website: [github.com/henrypp](https://github.com/henrypp)<br />
+Support: sforce5@mail.ru<br />
 <br />
 (c) 2012-2023 Henry++
