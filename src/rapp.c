@@ -368,6 +368,11 @@ BOOLEAN _r_app_initialize (
 			if (cmd_callback (CmdlineHelp))
 				return FALSE;
 		}
+		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"clean", NULL))
+		{
+			if (cmd_callback (CmdlineClean))
+				return FALSE;
+		}
 		else if (_r_sys_getopt (_r_sys_getimagecommandline (), L"install", NULL))
 		{
 			if (cmd_callback (CmdlineInstall))

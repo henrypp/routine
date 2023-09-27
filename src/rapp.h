@@ -510,6 +510,7 @@ VOID _r_app_initialize_seh ();
 typedef enum _R_CMDLINE_INFO_CLASS
 {
 	CmdlineHelp,
+	CmdlineClean,
 	CmdlineInstall,
 	CmdlineUninstall,
 } R_CMDLINE_INFO_CLASS;
