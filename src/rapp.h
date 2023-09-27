@@ -266,7 +266,6 @@ LONG64 _r_locale_getversion ();
 // Settings window
 //
 
-#if defined(APP_HAVE_SETTINGS)
 VOID _r_settings_addpage (
 	_In_ INT dlg_id,
 	_In_ UINT locale_id
@@ -295,13 +294,11 @@ FORCEINLINE HWND _r_settings_getwindow ()
 {
 	return app_global.settings.hwnd;
 }
-#endif // APP_HAVE_SETTINGS
 
 //
 // Autorun (optional feature)
 //
 
-#if defined(APP_HAVE_AUTORUN)
 BOOLEAN _r_autorun_isenabled ();
 
 _Success_ (NT_SUCCESS (return))
@@ -309,13 +306,11 @@ NTSTATUS _r_autorun_enable (
 	_In_opt_ HWND hwnd,
 	_In_ BOOLEAN is_enable
 );
-#endif // APP_HAVE_AUTORUN
 
 //
 // Skip UAC (optional feature)
 //
 
-#if defined(APP_HAVE_SKIPUAC)
 HRESULT _r_skipuac_checkmodulepath (
 	_In_ IRegisteredTaskPtr registered_task
 );
@@ -328,13 +323,11 @@ HRESULT _r_skipuac_enable (
 );
 
 BOOLEAN _r_skipuac_run ();
-#endif // APP_HAVE_SKIPUAC
 
 //
 // Update checker (optional feature)
 //
 
-#if defined(APP_HAVE_UPDATES)
 BOOLEAN NTAPI _r_update_downloadcallback (
 	_In_ ULONG total_written,
 	_In_ ULONG total_length,
@@ -400,7 +393,6 @@ VOID _r_update_applyconfig ();
 VOID _r_update_install (
 	_In_ PR_UPDATE_COMPONENT update_component
 );
-#endif // APP_HAVE_UPDATES
 
 BOOLEAN _r_log_isenabled (
 	_In_ R_LOG_LEVEL log_level_check

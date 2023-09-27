@@ -218,15 +218,10 @@ VOID _r_app_initialize_components ()
 		app_global.main.taskbar_msg = RegisterWindowMessage (L"TaskbarCreated");
 #endif // APP_HAVE_TRAY
 
-	// set updates path
-#if defined(APP_HAVE_UPDATES)
 	// initialize objects
 	app_global.update.info.components = _r_obj_createarray (sizeof (R_UPDATE_COMPONENT), NULL);
-#endif // APP_HAVE_UPDATES
 
-#if defined(APP_HAVE_SETTINGS)
 	app_global.settings.page_list = _r_obj_createarray (sizeof (R_SETTINGS_PAGE), NULL);
-#endif // APP_HAVE_SETTINGS
 }
 #endif // !APP_CONSOLE
 
@@ -604,7 +599,6 @@ LRESULT CALLBACK _r_app_maindlgproc (
 	_In_ LPARAM lparam
 )
 {
-#if defined(APP_HAVE_TRAY)
 	if (app_global.main.taskbar_msg)
 	{
 		if (msg == app_global.main.taskbar_msg)
@@ -615,7 +609,6 @@ LRESULT CALLBACK _r_app_maindlgproc (
 			return FALSE;
 		}
 	}
-#endif // APP_HAVE_TRAY
 
 	switch (msg)
 	{
@@ -681,6 +674,7 @@ LRESULT CALLBACK _r_app_maindlgproc (
 				if (_r_config_getboolean (L"IsCloseToTray", TRUE))
 				{
 					ShowWindow (hwnd, SW_HIDE);
+
 					return TRUE;
 				}
 			}
@@ -789,25 +783,20 @@ HWND _r_app_createwindow (
 		WM_COPYDATA,
 		WM_COPYGLOBALDATA,
 		WM_DROPFILES,
-#if defined(APP_HAVE_TRAY)
 		app_global.main.taskbar_msg,
-#endif // APP_HAVE_TRAY
 	};
 
+	WCHAR locale_version[64];
 	HWND hwnd;
 	LONG dpi_value;
 	LONG icon_small;
 	LONG icon_large;
 
-#if defined(APP_HAVE_UPDATES)
 	// configure components
-	WCHAR locale_version[64];
-
 	_r_str_fromlong64 (locale_version, RTL_NUMBER_OF (locale_version), _r_locale_getversion ());
 
 	_r_update_addcomponent (_r_app_getname (), _r_app_getnameshort (), _r_app_getversion (), _r_app_getdirectory (), TRUE);
 	_r_update_addcomponent (L"Language pack", L"language", locale_version, _r_app_getlocalepath (), FALSE);
-#endif // APP_HAVE_UPDATES
 
 	// create main window
 	hwnd = _r_wnd_createwindow (hinst, dlg_name, NULL, dlg_proc, NULL);
@@ -1709,11 +1698,7 @@ VOID _r_locale_apply (
 	PR_STRING locale_name;
 	ULONG_PTR locale_index;
 	HWND hwindow;
-
-#if defined(APP_HAVE_SETTINGS)
 	INT item_id;
-#endif // APP_HAVE_SETTINGS
-
 	BOOLEAN is_menu;
 
 	is_menu = (menu_id != 0);
@@ -1731,16 +1716,12 @@ VOID _r_locale_apply (
 	}
 	else
 	{
-#if defined(APP_HAVE_SETTINGS)
 		item_id = _r_combobox_getcurrentitem (hwnd, ctrl_id);
 
 		if (item_id == CB_ERR)
 			return;
 
 		locale_index = _r_combobox_getitemparam (hwnd, ctrl_id, item_id);
-#else
-		return;
-#endif // APP_HAVE_SETTINGS
 	}
 
 	if (locale_index == SIZE_MAX)
@@ -1762,13 +1743,11 @@ VOID _r_locale_apply (
 	if (hwindow)
 		PostMessage (hwindow, RM_LOCALIZE, 0, 0);
 
-#if defined(APP_HAVE_SETTINGS)
 	// refresh settings window
 	hwindow = _r_settings_getwindow ();
 
 	if (hwindow)
 		PostMessage (hwindow, RM_LOCALIZE, 0, 0);
-#endif // APP_HAVE_SETTINGS
 }
 
 VOID _r_locale_enum (
@@ -1778,7 +1757,7 @@ VOID _r_locale_enum (
 )
 {
 	PR_STRING locale_name;
-	HMENU hsubmenu;
+	HMENU hsubmenu = NULL;
 	ULONG_PTR locale_count;
 	UINT index;
 	UINT menu_index;
@@ -1802,9 +1781,6 @@ VOID _r_locale_enum (
 	}
 	else
 	{
-#if defined(APP_HAVE_SETTINGS)
-		hsubmenu = NULL; // fix warning!
-
 		_r_combobox_clear (hwnd, ctrl_id);
 
 		_r_combobox_insertitem (hwnd, ctrl_id, 0, _r_obj_getstringorempty (app_global.locale.resource_name));
@@ -1814,9 +1790,6 @@ VOID _r_locale_enum (
 		_r_combobox_setcurrentitem (hwnd, ctrl_id, 0);
 
 		_r_ctrl_enable (hwnd, ctrl_id, FALSE);
-#else
-		return;
-#endif // APP_HAVE_SETTINGS
 	}
 
 	locale_count = _r_locale_getcount ();
@@ -1858,13 +1831,11 @@ VOID _r_locale_enum (
 		}
 		else
 		{
-#if defined(APP_HAVE_SETTINGS)
 			_r_combobox_insertitem (hwnd, ctrl_id, index, locale_name->buffer);
 			_r_combobox_setitemparam (hwnd, ctrl_id, index, i);
 
 			if (is_current)
 				_r_combobox_setcurrentitem (hwnd, ctrl_id, index);
-#endif // APP_HAVE_SETTINGS
 		}
 
 		index += 1;
@@ -1998,7 +1969,6 @@ LONG64 _r_locale_getversion ()
 }
 #endif // !APP_CONSOLE
 
-#if defined(APP_HAVE_AUTORUN)
 BOOLEAN _r_autorun_isenabled ()
 {
 	HANDLE hkey;
@@ -2069,14 +2039,15 @@ NTSTATUS _r_autorun_enable (
 
 	NtClose (hkey);
 
-	if (hwnd && status != ERROR_SUCCESS)
-		_r_show_errormessage (hwnd, NULL, status, NULL);
+	if (hwnd)
+	{
+		if (!NT_SUCCESS (status))
+			_r_show_errormessage (hwnd, NULL, status, NULL);
+	}
 
 	return status;
 }
-#endif // APP_HAVE_AUTORUN
 
-#if defined(APP_HAVE_UPDATES)
 BOOLEAN NTAPI _r_update_downloadcallback (
 	_In_ ULONG total_written,
 	_In_ ULONG total_length,
@@ -2808,7 +2779,6 @@ VOID _r_update_install (
 
 	_r_obj_dereference (cmd_string);
 }
-#endif // APP_HAVE_UPDATES
 
 BOOLEAN _r_log_isenabled (
 	_In_ R_LOG_LEVEL log_level_check
@@ -3458,7 +3428,6 @@ VOID _r_window_saveposition (
 // Settings window
 //
 
-#if defined(APP_HAVE_SETTINGS)
 VOID _r_settings_addpage (
 	_In_ INT dlg_id,
 	_In_ UINT locale_id
@@ -4161,9 +4130,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 	return FALSE;
 }
-#endif // APP_HAVE_SETTINGS
 
-#if defined(APP_HAVE_SKIPUAC)
 HRESULT _r_skipuac_checkmodulepath (
 	_In_ IRegisteredTaskPtr registered_task
 )
@@ -4668,4 +4635,3 @@ CleanupExit:
 
 	return SUCCEEDED (status);
 }
-#endif // APP_HAVE_SKIPUAC

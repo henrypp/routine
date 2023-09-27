@@ -876,9 +876,7 @@ typedef struct _APP_GLOBAL_CONFIG
 		HANDLE hmutex;
 		HWND hwnd;
 
-#if defined(APP_HAVE_TRAY)
 		UINT taskbar_msg;
-#endif // APP_HAVE_TRAY
 
 		BOOLEAN is_needmaximize;
 	} main;
@@ -897,19 +895,17 @@ typedef struct _APP_GLOBAL_CONFIG
 	} locale;
 #endif // !APP_CONSOLE
 
-#if defined(APP_HAVE_UPDATES) && !defined(APP_CONSOLE)
+#if !defined(APP_CONSOLE)
 	struct
 	{
 		R_UPDATE_INFO info;
 	} update;
-#endif // APP_HAVE_UPDATES && !APP_CONSOLE
 
-#if defined(APP_HAVE_SETTINGS) && !defined(APP_CONSOLE)
 	struct
 	{
 		DLGPROC wnd_proc;
 		PR_ARRAY page_list;
 		HWND hwnd;
 	} settings;
-#endif // APP_HAVE_SETTINGS && !APP_CONSOLE
+#endif // !APP_CONSOLE
 } APP_GLOBAL_CONFIG, *PAPP_GLOBAL_CONFIG;

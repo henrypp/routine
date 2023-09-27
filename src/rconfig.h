@@ -25,11 +25,8 @@
 //#define APP_BETA // app has pre-release status
 
 //#define APP_HAVE_AUTORUN // enable autorun feature
-//#define APP_HAVE_SETTINGS // enable settings dialog feature
 //#define APP_HAVE_SETTINGS_TABS // enable settings dialog feature based on treeview
-//#define APP_HAVE_SKIPUAC // enable skip uac feature
 //#define APP_HAVE_TRAY // enable tray icon feature
-//#define APP_HAVE_UPDATES // enable update checking feature
 
 //#define APP_NO_APPDATA // use portable builds
 //#define APP_NO_CONFIG // do not save configuration
