@@ -4697,6 +4697,27 @@ NTSTATUS _r_fs_getdiskinformation (
 }
 
 _Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_getdisklist (
+	_Out_ PULONG out_buffer
+)
+{
+#if defined(_WIN64)
+	PROCESS_DEVICEMAP_INFORMATION_EX device_map = {0};
+#else
+	PROCESS_DEVICEMAP_INFORMATION device_map = {0};
+#endif // !_WIN64
+
+	NTSTATUS status;
+
+	// Get the Device Map for this Process
+	status = NtQueryInformationProcess (NtCurrentProcess (), ProcessDeviceMap, &device_map, sizeof (device_map), NULL);
+
+	*out_buffer = device_map.Query.DriveMap;
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getdiskspace (
 	_In_ LPCWSTR path,
 	_Out_ PLARGE_INTEGER freespace_ptr,
@@ -4722,7 +4743,12 @@ NTSTATUS _r_fs_getdiskspace (
 	);
 
 	if (!NT_SUCCESS (status))
+	{
+		RtlZeroMemory (freespace_ptr, sizeof (LARGE_INTEGER));
+		RtlZeroMemory (totalspace_ptr, sizeof (LARGE_INTEGER));
+
 		return status;
+	}
 
 	status = NtQueryVolumeInformationFile (hfile, &io, &info, sizeof (info), FileFsSizeInformation);
 
@@ -9207,7 +9233,7 @@ NTSTATUS _r_sys_createprocess (
 		goto CleanupExit;
 
 	// basic fields
-	msg.CreateProcessMSG.ProcessHandle = (HANDLE)((ULONG_PTR)hprocess | 2);
+	msg.CreateProcessMSG.ProcessHandle = (HANDLE)((ULONG64)hprocess | 2);
 	msg.CreateProcessMSG.ThreadHandle = hthread;
 	msg.CreateProcessMSG.ClientId.UniqueProcess = client_id.UniqueProcess;
 	msg.CreateProcessMSG.ClientId.UniqueThread = client_id.UniqueThread;
@@ -9224,12 +9250,12 @@ NTSTATUS _r_sys_createprocess (
 	msg.CreateProcessMSG.Sxs.ProcessParameterFlags = 0x6001;
 	msg.CreateProcessMSG.Sxs.FileHandle = create_info.SuccessState.FileHandle;
 
+	msg.CreateProcessMSG.Sxs.PolicyStream.ManifestAddress = (ULONG_PTR)create_info.SuccessState.ManifestAddress;
+	msg.CreateProcessMSG.Sxs.PolicyStream.ManifestSize = create_info.SuccessState.ManifestSize;
+
 	_r_obj_initializeunicodestring2 (&msg.CreateProcessMSG.Sxs.SxsWin32ExePath, file_name_string);
 
 	RtlCopyMemory (&msg.CreateProcessMSG.Sxs.SxsNtExePath, &filename_nt, sizeof (UNICODE_STRING));
-
-	msg.CreateProcessMSG.Sxs.PolicyStream.ManifestAddress = (ULONG_PTR)create_info.SuccessState.ManifestAddress;
-	msg.CreateProcessMSG.Sxs.PolicyStream.ManifestSize = create_info.SuccessState.ManifestSize;
 
 	msg.CreateProcessMSG.Sxs.FileName3.Length = 0x14;
 	msg.CreateProcessMSG.Sxs.FileName3.MaximumLength = 0x14;

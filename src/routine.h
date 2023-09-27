@@ -1749,6 +1749,11 @@ NTSTATUS _r_fs_getdiskinformation (
 );
 
 _Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_getdisklist (
+	_Out_ PULONG out_buffer
+);
+
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getdiskspace (
 	_In_ LPCWSTR path,
 	_Out_ PLARGE_INTEGER freespace_ptr,
