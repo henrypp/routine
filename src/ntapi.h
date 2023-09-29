@@ -1201,6 +1201,107 @@ typedef struct _SYSTEM_FILECACHE_INFORMATION
 	ULONG Flags;
 } SYSTEM_FILECACHE_INFORMATION, *PSYSTEM_FILECACHE_INFORMATION;
 
+typedef struct _SYSTEM_BASIC_INFORMATION
+{
+	ULONG Reserved;
+	ULONG TimerResolution;
+	ULONG PageSize;
+	ULONG NumberOfPhysicalPages;
+	ULONG LowestPhysicalPageNumber;
+	ULONG HighestPhysicalPageNumber;
+	ULONG AllocationGranularity;
+	ULONG_PTR MinimumUserModeAddress;
+	ULONG_PTR MaximumUserModeAddress;
+	KAFFINITY ActiveProcessorsAffinityMask;
+	CCHAR NumberOfProcessors;
+} SYSTEM_BASIC_INFORMATION, *PSYSTEM_BASIC_INFORMATION;
+
+typedef struct _SYSTEM_PAGEFILE_INFORMATION
+{
+	ULONG NextEntryOffset;
+	ULONG TotalSize;
+	ULONG TotalInUse;
+	ULONG PeakUsage;
+	UNICODE_STRING PageFileName;
+} SYSTEM_PAGEFILE_INFORMATION, *PSYSTEM_PAGEFILE_INFORMATION;
+
+typedef struct _SYSTEM_PERFORMANCE_INFORMATION
+{
+	LARGE_INTEGER IdleTime;
+	LARGE_INTEGER ReadTransferCount;
+	LARGE_INTEGER WriteTransferCount;
+	LARGE_INTEGER OtherTransferCount;
+	ULONG ReadOperationCount;
+	ULONG WriteOperationCount;
+	ULONG OtherOperationCount;
+	ULONG AvailablePages;
+	ULONG TotalCommittedPages;
+	ULONG TotalCommitLimit;
+	ULONG PeakCommitment;
+	ULONG PageFaults;
+	ULONG WriteCopyFaults;
+	ULONG TransitionFaults;
+	ULONG Reserved1;
+	ULONG DemandZeroFaults;
+	ULONG PagesRead;
+	ULONG PageReadIos;
+	ULONG Reserved2[2];
+	ULONG PagefilePagesWritten;
+	ULONG PagefilePageWriteIos;
+	ULONG MappedFilePagesWritten;
+	ULONG MappedFilePageWriteIos;
+	ULONG PagedPoolUsage;
+	ULONG NonPagedPoolUsage;
+	ULONG PagedPoolAllocs;
+	ULONG PagedPoolFrees;
+	ULONG NonPagedPoolAllocs;
+	ULONG NonPagedPoolFrees;
+	ULONG TotalFreeSystemPtes;
+	ULONG SystemCodePage;
+	ULONG TotalSystemDriverPages;
+	ULONG TotalSystemCodePages;
+	ULONG SmallNonPagedLookasideListAllocateHits;
+	ULONG SmallPagedLookasideListAllocateHits;
+	ULONG Reserved3;
+	ULONG MmSystemCachePage;
+	ULONG PagedPoolPage;
+	ULONG SystemDriverPage;
+	ULONG FastReadNoWait;
+	ULONG FastReadWait;
+	ULONG FastReadResourceMiss;
+	ULONG FastReadNotPossible;
+	ULONG FastMdlReadNoWait;
+	ULONG FastMdlReadWait;
+	ULONG FastMdlReadResourceMiss;
+	ULONG FastMdlReadNotPossible;
+	ULONG MapDataNoWait;
+	ULONG MapDataWait;
+	ULONG MapDataNoWaitMiss;
+	ULONG MapDataWaitMiss;
+	ULONG PinMappedDataCount;
+	ULONG PinReadNoWait;
+	ULONG PinReadWait;
+	ULONG PinReadNoWaitMiss;
+	ULONG PinReadWaitMiss;
+	ULONG CopyReadNoWait;
+	ULONG CopyReadWait;
+	ULONG CopyReadNoWaitMiss;
+	ULONG CopyReadWaitMiss;
+	ULONG MdlReadNoWait;
+	ULONG MdlReadWait;
+	ULONG MdlReadNoWaitMiss;
+	ULONG MdlReadWaitMiss;
+	ULONG ReadAheadIos;
+	ULONG LazyWriteIos;
+	ULONG LazyWritePages;
+	ULONG DataFlushes;
+	ULONG DataPages;
+	ULONG ContextSwitches;
+	ULONG FirstLevelTbFills;
+	ULONG SecondLevelTbFills;
+	ULONG SystemCalls;
+} SYSTEM_PERFORMANCE_INFORMATION, *PSYSTEM_PERFORMANCE_INFORMATION;
+
 // Can be used instead of SYSTEM_FILECACHE_INFORMATION
 typedef struct _SYSTEM_BASIC_WORKING_SET_INFORMATION
 {
