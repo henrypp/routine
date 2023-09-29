@@ -570,6 +570,25 @@ typedef struct _R_CRYPT_CONTEXT
 } R_CRYPT_CONTEXT, *PR_CRYPT_CONTEXT;
 
 //
+// Memory
+//
+
+typedef struct _R_MEMORY_OBJECT
+{
+	ULONG64 total_bytes;
+	ULONG64 free_bytes;
+	ULONG64 used_bytes;
+	ULONG percent;
+} R_MEMORY_OBJECT, *PR_MEMORY_OBJECT;
+
+typedef struct _R_MEMORY_INFO
+{
+	R_MEMORY_OBJECT physical_memory;
+	R_MEMORY_OBJECT page_file;
+	R_MEMORY_OBJECT system_cache;
+} R_MEMORY_INFO, *PR_MEMORY_INFO;
+
+//
 // System information
 //
 
@@ -615,10 +634,6 @@ typedef struct _R_TOKEN_ATTRIBUTES
 
 	ULONG reserved;
 } R_TOKEN_ATTRIBUTES, *PR_TOKEN_ATTRIBUTES;
-
-//
-// Filesystem
-//
 
 //
 // File dialog
