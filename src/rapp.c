@@ -585,7 +585,7 @@ PR_STRING _r_app_getuseragent ()
 				L"/",
 				_r_app_getversion (),
 				L" (+",
-				_r_app_getsources_url (),
+				_r_app_getwebsite_url (),
 				L")"
 			);
 		}
@@ -3023,8 +3023,8 @@ VOID _r_show_aboutmessage (
 		_r_app_getversiontype (),
 		_r_app_getarch (),
 		_r_app_getcopyright (),
-		_r_app_getsources_url (),
-		_r_app_getsources_url () + 8
+		_r_app_getwebsite_url (),
+		_r_app_getwebsite_url () + 8
 	);
 
 	tdc.cbSize = sizeof (tdc);
@@ -4343,7 +4343,7 @@ HRESULT _r_skipuac_enable (
 			goto CleanupExit;
 
 		task_author = SysAllocString (_r_app_getauthor ());
-		task_url = SysAllocString (_r_app_getsources_url ());
+		task_url = SysAllocString (_r_app_getwebsite_url ());
 
 		IRegistrationInfo_put_Author (registration_info, task_author);
 		IRegistrationInfo_put_URI (registration_info, task_url);
