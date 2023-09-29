@@ -416,48 +416,48 @@ LONG _r_calc_multipledivide (
 	return value;
 }
 
-LONG _r_calc_percentof (
-	_In_ LONG length,
-	_In_ LONG total_length
+ULONG _r_calc_percentof (
+	_In_ ULONG length,
+	_In_ ULONG total_length
 )
 {
 	LONG value;
 
-	value = (LONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
+	value = (ULONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
 
 	return value;
 }
 
-LONG _r_calc_percentof64 (
-	_In_ LONG64 length,
-	_In_ LONG64 total_length
+ULONG _r_calc_percentof64 (
+	_In_ ULONG64 length,
+	_In_ ULONG64 total_length
 )
 {
-	LONG value;
+	ULONG value;
 
-	value = (LONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
+	value = (ULONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
 
 	return value;
 }
 
-LONG _r_calc_percentval (
-	_In_ LONG percent,
-	_In_ LONG total_length
+ULONG _r_calc_percentval (
+	_In_ ULONG percent,
+	_In_ ULONG total_length
 )
 {
-	LONG value;
+	ULONG value;
 
 	value = (total_length * percent) / 100;
 
 	return value;
 }
 
-LONG64 _r_calc_percentval64 (
-	_In_ LONG64 percent,
-	_In_ LONG64 total_length
+ULONG64 _r_calc_percentval64 (
+	_In_ ULONG64 percent,
+	_In_ ULONG64 total_length
 )
 {
-	LONG64 value;
+	ULONG64 value;
 
 	value = (total_length * percent) / 100;
 
@@ -8486,6 +8486,88 @@ ULONG _r_sys_getlocaleinfo (
 }
 
 _Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_getmemoryinfo (
+	_Out_ PR_MEMORY_INFO out_buffer
+)
+{
+	SYSTEM_PERFORMANCE_INFORMATION perf_info = {0};
+	PSYSTEM_PAGEFILE_INFORMATION page_file;
+	SYSTEM_BASIC_INFORMATION basic_info = {0};
+	SYSTEM_FILECACHE_INFORMATION sfci = {0};
+	ULONG buffer_size = 0x200;
+	ULONG attempts = 6;
+	NTSTATUS status;
+
+	RtlZeroMemory (out_buffer, sizeof (R_MEMORY_INFO));
+
+	// physical memory information
+	status = NtQuerySystemInformation (SystemBasicInformation, &basic_info, sizeof (basic_info), NULL);
+
+	if (NT_SUCCESS (status))
+		out_buffer->physical_memory.total_bytes = UInt32x32To64 (basic_info.NumberOfPhysicalPages, basic_info.PageSize);
+
+	status = NtQuerySystemInformation (SystemPerformanceInformation, &perf_info, sizeof (perf_info), NULL);
+
+	if (NT_SUCCESS (status))
+	{
+		out_buffer->physical_memory.free_bytes = UInt32x32To64 (perf_info.AvailablePages, basic_info.PageSize);
+
+		out_buffer->physical_memory.used_bytes = out_buffer->physical_memory.total_bytes - out_buffer->physical_memory.free_bytes;
+
+		out_buffer->physical_memory.percent = _r_calc_percentof64 (out_buffer->physical_memory.used_bytes, out_buffer->physical_memory.total_bytes);
+	}
+
+	// file cache information
+	status = NtQuerySystemInformation (SystemFileCacheInformation, &sfci, sizeof (sfci), NULL);
+
+	if (NT_SUCCESS (status))
+	{
+		out_buffer->system_cache.total_bytes = sfci.PeakSize;
+		out_buffer->system_cache.free_bytes = sfci.PeakSize - sfci.CurrentSize;
+		out_buffer->system_cache.used_bytes = sfci.CurrentSize;
+
+		out_buffer->system_cache.percent = _r_calc_percentof64 (out_buffer->system_cache.used_bytes, out_buffer->system_cache.total_bytes);
+	}
+
+	// page file information
+	page_file = _r_mem_allocate (buffer_size);
+
+	do
+	{
+		status = NtQuerySystemInformation (SystemPageFileInformation, page_file, buffer_size, NULL);
+
+		if (status != STATUS_INFO_LENGTH_MISMATCH)
+			break;
+
+		buffer_size *= 2;
+
+		// fail if we're resizing the buffer to something very large.
+		if (buffer_size > PR_SIZE_BUFFER_OVERFLOW)
+		{
+			_r_mem_free (page_file);
+
+			return STATUS_INSUFFICIENT_RESOURCES;
+		}
+
+		_r_mem_reallocate (page_file, buffer_size);
+	}
+	while (--attempts);
+
+	if (NT_SUCCESS (status))
+	{
+		out_buffer->page_file.total_bytes = UInt32x32To64 (page_file->TotalSize, basic_info.PageSize);
+		out_buffer->page_file.free_bytes = UInt32x32To64 (page_file->PeakUsage, basic_info.PageSize);
+
+		out_buffer->page_file.used_bytes = UInt32x32To64 (page_file->TotalInUse, basic_info.PageSize);
+		out_buffer->page_file.percent = _r_calc_percentof64 (out_buffer->page_file.used_bytes, out_buffer->page_file.total_bytes);
+	}
+
+	_r_mem_free (page_file);
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getmodulehandle (
 	_In_ LPCWSTR lib_name,
 	_Outptr_ PVOID_PTR out_buffer
@@ -13804,7 +13886,11 @@ NTSTATUS _r_crypt_decryptbuffer (
 	);
 
 	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
 		return status;
+	}
 
 	tmp_buffer = _r_obj_createbyte_ex (NULL, return_length);
 
@@ -13830,6 +13916,8 @@ NTSTATUS _r_crypt_decryptbuffer (
 	else
 	{
 		_r_obj_dereference (tmp_buffer);
+
+		*out_buffer = NULL;
 	}
 
 	return status;
@@ -13862,7 +13950,11 @@ NTSTATUS _r_crypt_encryptbuffer (
 	);
 
 	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
 		return status;
+	}
 
 	tmp_buffer = _r_obj_createbyte_ex (NULL, return_length);
 
@@ -13888,6 +13980,8 @@ NTSTATUS _r_crypt_encryptbuffer (
 	else
 	{
 		_r_obj_dereference (tmp_buffer);
+
+		*out_buffer = NULL;
 	}
 
 	return status;

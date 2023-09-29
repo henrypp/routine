@@ -1502,24 +1502,24 @@ LONG _r_calc_multipledivide (
 	_In_ ULONG denominator
 );
 
-LONG _r_calc_percentof (
-	_In_ LONG length,
-	_In_ LONG total_length
+ULONG _r_calc_percentof (
+	_In_ ULONG length,
+	_In_ ULONG total_length
 );
 
-LONG _r_calc_percentof64 (
-	_In_ LONG64 length,
-	_In_ LONG64 total_length
+ULONG _r_calc_percentof64 (
+	_In_ ULONG64 length,
+	_In_ ULONG64 total_length
 );
 
-LONG _r_calc_percentval (
-	_In_ LONG percent,
-	_In_ LONG total_length
+ULONG _r_calc_percentval (
+	_In_ ULONG percent,
+	_In_ ULONG total_length
 );
 
-LONG64 _r_calc_percentval64 (
-	_In_ LONG64 percent,
-	_In_ LONG64 total_length
+ULONG64 _r_calc_percentval64 (
+	_In_ ULONG64 percent,
+	_In_ ULONG64 total_length
 );
 
 LONG _r_calc_rectheight (
@@ -2420,6 +2420,11 @@ ULONG _r_sys_getlocaleinfo (
 	_In_ LCID locale_id,
 	_In_ LCTYPE locale_type,
 	_Outptr_ PR_STRING_PTR out_buffer
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_getmemoryinfo (
+	_Out_ PR_MEMORY_INFO out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
