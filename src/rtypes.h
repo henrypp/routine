@@ -110,7 +110,7 @@ typedef BOOL (WINAPI *SPIFP)(
 #define PR_SIZE_FILE_READ_BUFFER (64 * 1024) // 256 KB
 #define PR_SIZE_INET_READ_BUFFER (64 * 1024) // 256 KB
 #define PR_SIZE_CONCAT_LENGTH_CACHE 16
-#define PR_SIZE_MAX_STRING_LENGTH (INT_MAX - 1)
+#define PR_SIZE_MAX_STRING_LENGTH (LONG_MAX - 1)
 
 //
 // Logging
@@ -148,9 +148,9 @@ typedef struct _R_EVENT
 			USHORT ref_count : 15;
 			UCHAR reserved;
 			UCHAR available_for_use;
-#ifdef _WIN64
+#if defined(_WIN64)
 			ULONG spare_bit;
-#endif
+#endif // _WIN64
 		};
 	};
 	HANDLE event_handle;
