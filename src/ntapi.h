@@ -1225,6 +1225,25 @@ typedef struct _SYSTEM_PAGEFILE_INFORMATION
 	UNICODE_STRING PageFileName;
 } SYSTEM_PAGEFILE_INFORMATION, *PSYSTEM_PAGEFILE_INFORMATION;
 
+typedef struct _SYSTEM_PAGEFILE_INFORMATION_EX
+{
+	union
+	{
+		SYSTEM_PAGEFILE_INFORMATION Info;
+		struct
+		{
+			ULONG NextEntryOffset;
+			ULONG TotalSize;
+			ULONG TotalInUse;
+			ULONG PeakUsage;
+			UNICODE_STRING PageFileName;
+		};
+	};
+
+	ULONG MinimumSize;
+	ULONG MaximumSize;
+} SYSTEM_PAGEFILE_INFORMATION_EX, *PSYSTEM_PAGEFILE_INFORMATION_EX;
+
 typedef struct _SYSTEM_PERFORMANCE_INFORMATION
 {
 	LARGE_INTEGER IdleTime;
@@ -4495,7 +4514,7 @@ NTSTATUS
 RtlRunOnceBeginInitialize (
 	_Inout_ PRTL_RUN_ONCE RunOnce,
 	_In_ ULONG Flags,
-	_In_opt_ PVOID *Context
+	_Outptr_opt_result_maybenull_ PVOID *Context
 );
 
 NTSYSCALLAPI
