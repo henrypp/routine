@@ -1720,7 +1720,7 @@ NTSTATUS _r_fs_enumfiles (
 	_In_ LPCWSTR path,
 	_In_opt_ HANDLE hdirectory,
 	_In_opt_ LPCWSTR search_pattern,
-	_In_ PR_FILE_ENUM_CALLBACK callback
+	_In_ PR_FILE_ENUM_CALLBACK enum_callback
 );
 
 _Success_ (return)
@@ -2118,8 +2118,8 @@ ULONG_PTR _r_str_getlength4 (
 );
 
 ULONG_PTR _r_str_getlength_ex (
-	_In_reads_or_z_ (max_count) LPCWSTR string,
-	_In_ ULONG_PTR max_count
+	_In_reads_or_z_ (max_length) LPCWSTR string,
+	_In_ _In_range_(<=, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR max_length
 );
 
 ULONG_PTR _r_str_getbytelength (
@@ -2135,8 +2135,8 @@ ULONG_PTR _r_str_getbytelength3 (
 );
 
 ULONG_PTR _r_str_getbytelength_ex (
-	_In_reads_or_z_ (max_count) LPCSTR string,
-	_In_ ULONG_PTR max_count
+	_In_reads_or_z_ (max_length) LPCSTR string,
+	_In_ _In_range_(<=, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR max_length
 );
 
 BOOLEAN _r_str_isdigit (

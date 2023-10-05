@@ -596,7 +596,7 @@ BOOLEAN FASTCALL _r_event_wait_ex (
 		assert (event_handle);
 
 		// Try to set the event handle to our event.
-		if (_InterlockedCompareExchangePointer (&event_object->event_handle, event_handle, NULL) != NULL)
+		if (InterlockedCompareExchangePointer (&event_object->event_handle, event_handle, NULL) != NULL)
 		{
 			// Someone else set the event before we did.
 			NtClose (event_handle);
@@ -4434,7 +4434,7 @@ NTSTATUS _r_fs_enumfiles (
 	_In_ LPCWSTR path,
 	_In_opt_ HANDLE hdirectory,
 	_In_opt_ LPCWSTR search_pattern,
-	_In_ PR_FILE_ENUM_CALLBACK callback
+	_In_ PR_FILE_ENUM_CALLBACK enum_callback
 )
 {
 	PFILE_DIRECTORY_INFORMATION directory_info;
@@ -4517,13 +4517,16 @@ NTSTATUS _r_fs_enumfiles (
 		{
 			directory_info = PTR_ADD_OFFSET (buffer, i);
 
-			if (_r_str_compare (directory_info->FileName, 0, L".", 0) != 0 && _r_str_compare (directory_info->FileName, 0, L"..", 0) != 0)
+			if (!_r_str_isempty (directory_info->FileName))
 			{
-				path_full = _r_format_string (L"%s\\%s", path, directory_info->FileName);
+				if (_r_str_compare (directory_info->FileName, 0, L".", 0) != 0 && _r_str_compare (directory_info->FileName, 0, L"..", 0) != 0)
+				{
+					path_full = _r_format_string (L"%s\\%s", path, directory_info->FileName);
 
-				callback (path_full->buffer, directory_info);
+					enum_callback (path_full->buffer, directory_info);
 
-				_r_obj_dereference (path_full);
+					_r_obj_dereference (path_full);
+				}
 			}
 
 			if (directory_info->NextEntryOffset != 0)
@@ -4539,10 +4542,10 @@ NTSTATUS _r_fs_enumfiles (
 		is_firsttime = FALSE;
 	}
 
-	_r_mem_free (buffer);
-
 	if (hdirectory_new)
 		NtClose (hdirectory_new);
+
+	_r_mem_free (buffer);
 
 	return status;
 }
@@ -6846,10 +6849,13 @@ ULONG _r_str_gethash (
 )
 {
 	R_STRINGREF sr;
+	ULONG hash;
 
 	_r_obj_initializestringref (&sr, string);
 
-	return _r_str_gethash3 (&sr, is_ignorecase);
+	hash = _r_str_gethash3 (&sr, is_ignorecase);
+
+	return hash;
 }
 
 ULONG _r_str_gethash2 (
@@ -6857,7 +6863,11 @@ ULONG _r_str_gethash2 (
 	_In_ BOOLEAN is_ignorecase
 )
 {
-	return _r_str_gethash3 (&string->sr, is_ignorecase);
+	ULONG hash;
+
+	hash = _r_str_gethash3 (&string->sr, is_ignorecase);
+
+	return hash;
 }
 
 ULONG _r_str_gethash3 (
@@ -6865,14 +6875,22 @@ ULONG _r_str_gethash3 (
 	_In_ BOOLEAN is_ignorecase
 )
 {
-	return _r_str_x65599 (string, is_ignorecase);
+	ULONG hash;
+
+	hash = _r_str_x65599 (string, is_ignorecase);
+
+	return hash;
 }
 
 ULONG_PTR _r_str_getlength (
 	_In_ LPCWSTR string
 )
 {
-	return _r_str_getlength_ex (string, PR_SIZE_MAX_STRING_LENGTH);
+	ULONG_PTR length;
+
+	length = _r_str_getlength_ex (string, PR_SIZE_MAX_STRING_LENGTH);
+
+	return length;
 }
 
 ULONG_PTR _r_str_getlength2 (
@@ -6903,18 +6921,36 @@ ULONG_PTR _r_str_getlength4 (
 }
 
 ULONG_PTR _r_str_getlength_ex (
-	_In_reads_or_z_ (max_count) LPCWSTR string,
-	_In_ ULONG_PTR max_count
+	_In_reads_or_z_ (max_length) LPCWSTR string,
+	_In_ _In_range_ (<= , PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR max_length
 )
 {
-	return wcsnlen_s (string, max_count);
+	ULONG_PTR original_length;
+
+	original_length = max_length;
+
+	while (max_length && (*string != UNICODE_NULL))
+	{
+		string += 1;
+
+		max_length -= 1;
+	}
+
+	if (original_length == 0)
+		return 0;
+
+	return original_length - max_length;
 }
 
 ULONG_PTR _r_str_getbytelength (
 	_In_ LPCSTR string
 )
 {
-	return _r_str_getbytelength_ex (string, PR_SIZE_MAX_STRING_LENGTH);
+	ULONG_PTR length;
+
+	length = _r_str_getbytelength_ex (string, PR_SIZE_MAX_STRING_LENGTH);
+
+	return length;
 }
 
 ULONG_PTR _r_str_getbytelength2 (
@@ -6932,11 +6968,25 @@ ULONG_PTR _r_str_getbytelength3 (
 }
 
 ULONG_PTR _r_str_getbytelength_ex (
-	_In_reads_or_z_ (max_count) LPCSTR string,
-	_In_ ULONG_PTR max_count
+	_In_reads_or_z_ (max_length) LPCSTR string,
+	_In_ _In_range_ (<= , PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR max_length
 )
 {
-	return strnlen_s (string, max_count);
+	ULONG_PTR original_length;
+
+	original_length = max_length;
+
+	while (max_length && (*string != ANSI_NULL))
+	{
+		string += 1;
+
+		max_length -= 1;
+	}
+
+	if (original_length == 0)
+		return 0;
+
+	return original_length - max_length;
 }
 
 BOOLEAN _r_str_isdigit (
@@ -8495,7 +8545,6 @@ NTSTATUS _r_sys_getmemoryinfo (
 	SYSTEM_BASIC_INFORMATION basic_info = {0};
 	SYSTEM_FILECACHE_INFORMATION sfci = {0};
 	ULONG buffer_size = 0x200;
-	ULONG attempts = 6;
 	NTSTATUS status;
 
 	RtlZeroMemory (out_buffer, sizeof (R_MEMORY_INFO));
@@ -8511,7 +8560,6 @@ NTSTATUS _r_sys_getmemoryinfo (
 	if (NT_SUCCESS (status))
 	{
 		out_buffer->physical_memory.free_bytes = UInt32x32To64 (perf_info.AvailablePages, basic_info.PageSize);
-
 		out_buffer->physical_memory.used_bytes = out_buffer->physical_memory.total_bytes - out_buffer->physical_memory.free_bytes;
 
 		out_buffer->physical_memory.percent = _r_calc_percentof64 (out_buffer->physical_memory.used_bytes, out_buffer->physical_memory.total_bytes);
@@ -8523,7 +8571,7 @@ NTSTATUS _r_sys_getmemoryinfo (
 	if (NT_SUCCESS (status))
 	{
 		out_buffer->system_cache.total_bytes = sfci.PeakSize;
-		out_buffer->system_cache.free_bytes = sfci.PeakSize - sfci.CurrentSize;
+		out_buffer->system_cache.free_bytes = (ULONG64)sfci.PeakSize - (ULONG64)sfci.CurrentSize;
 		out_buffer->system_cache.used_bytes = sfci.CurrentSize;
 
 		out_buffer->system_cache.percent = _r_calc_percentof64 (out_buffer->system_cache.used_bytes, out_buffer->system_cache.total_bytes);
@@ -8532,33 +8580,23 @@ NTSTATUS _r_sys_getmemoryinfo (
 	// page file information
 	page_file = _r_mem_allocate (buffer_size);
 
-	do
+	status = NtQuerySystemInformation (SystemPageFileInformation, page_file, buffer_size, NULL);
+
+	if (status == STATUS_INFO_LENGTH_MISMATCH)
 	{
+		buffer_size *= 4;
+
+		page_file = _r_mem_reallocate (page_file, buffer_size);
+
 		status = NtQuerySystemInformation (SystemPageFileInformation, page_file, buffer_size, NULL);
-
-		if (status != STATUS_INFO_LENGTH_MISMATCH)
-			break;
-
-		buffer_size *= 2;
-
-		// fail if we're resizing the buffer to something very large.
-		if (buffer_size > PR_SIZE_BUFFER_OVERFLOW)
-		{
-			_r_mem_free (page_file);
-
-			return STATUS_INSUFFICIENT_RESOURCES;
-		}
-
-		_r_mem_reallocate (page_file, buffer_size);
 	}
-	while (--attempts);
 
 	if (NT_SUCCESS (status))
 	{
 		out_buffer->page_file.total_bytes = UInt32x32To64 (page_file->TotalSize, basic_info.PageSize);
 		out_buffer->page_file.free_bytes = UInt32x32To64 (page_file->PeakUsage, basic_info.PageSize);
-
 		out_buffer->page_file.used_bytes = UInt32x32To64 (page_file->TotalInUse, basic_info.PageSize);
+
 		out_buffer->page_file.percent = _r_calc_percentof64 (out_buffer->page_file.used_bytes, out_buffer->page_file.total_bytes);
 	}
 
@@ -9546,7 +9584,6 @@ NTSTATUS _r_sys_enumprocesses (
 	if (NT_SUCCESS (status))
 	{
 		*out_buffer = buffer;
-
 	}
 	else
 	{
