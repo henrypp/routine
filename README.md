@@ -14,6 +14,10 @@ List of arguments for compiled binary with `routine` library:
 ### Settings:
 List of `ini` options for compiled binary with `routine` library:
 
+<details>
+<summary>APP_NAME_SHORT.ini:</summary>
+
+---
 ~~~ini
 #
 #2.0+
@@ -85,8 +89,10 @@ IsCloseToTray=TRUE
 # Auto install non-executable updates if found (boolean)
 IsAutoinstallUpdates=FALSE
 ~~~
+---
+</details>
 
-Website: [github.com/henrypp](https://github.com/henrypp)<br />
-Support: sforce5@mail.ru<br />
-<br />
+- Website: [github.com/henrypp](https://github.com/henrypp)
+- Support: sforce5@mail.ru
+
 (c) 2012-2023 Henry++
