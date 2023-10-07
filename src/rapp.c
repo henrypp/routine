@@ -74,7 +74,7 @@ ULONG NTAPI _r_app_exceptionfilter_callback (
 	_r_show_errormessage (NULL, APP_EXCEPTION_TITLE, exception_ptr->ExceptionRecord->ExceptionCode, &error_info);
 #endif // APP_CONSOLE
 
-	_r_sys_exitprocess (exception_ptr->ExceptionRecord->ExceptionCode);
+	RtlExitUserProcess (exception_ptr->ExceptionRecord->ExceptionCode);
 
 	return EXCEPTION_EXECUTE_HANDLER;
 }
@@ -215,7 +215,7 @@ VOID _r_app_initialize_components ()
 	// register TaskbarCreated message
 #if defined(APP_HAVE_TRAY)
 	if (!app_global.main.taskbar_msg)
-		app_global.main.taskbar_msg = RegisterWindowMessage (L"TaskbarCreated");
+		app_global.main.taskbar_msg = RegisterWindowMessageW (L"TaskbarCreated");
 #endif // APP_HAVE_TRAY
 
 	// initialize objects
@@ -392,6 +392,9 @@ BOOLEAN _r_app_initialize (
 		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"help", NULL))
 			return FALSE;
 
+		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"clean", NULL))
+			return FALSE;
+
 		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"install", NULL))
 			return FALSE;
 
@@ -452,9 +455,7 @@ PR_STRING _r_app_getconfigpath ()
 			status = _r_path_getknownfolder (&FOLDERID_RoamingAppData, L"\\" APP_AUTHOR L"\\" APP_NAME L"\\" APP_NAME_SHORT L".ini", &string);
 
 			if (SUCCEEDED (status))
-			{
 				cached_result = string;
-			}
 		}
 
 
@@ -608,7 +609,7 @@ LRESULT CALLBACK _r_app_maindlgproc (
 		if (msg == app_global.main.taskbar_msg)
 		{
 			if (app_global.main.wnd_proc)
-				return CallWindowProc (app_global.main.wnd_proc, hwnd, RM_TASKBARCREATED, 0, 0);
+				return CallWindowProcW (app_global.main.wnd_proc, hwnd, RM_TASKBARCREATED, 0, 0);
 
 			return FALSE;
 		}
@@ -621,7 +622,7 @@ LRESULT CALLBACK _r_app_maindlgproc (
 			if (!app_global.main.wnd_proc)
 				break;
 
-			CallWindowProc (app_global.main.wnd_proc, hwnd, msg, wparam, lparam);
+			CallWindowProcW (app_global.main.wnd_proc, hwnd, msg, wparam, lparam);
 
 			RedrawWindow (hwnd, NULL, NULL, RDW_ERASENOW | RDW_INVALIDATE);
 
@@ -644,7 +645,7 @@ LRESULT CALLBACK _r_app_maindlgproc (
 
 		case WM_QUERYENDSESSION:
 		{
-			SetWindowLongPtr (hwnd, DWLP_MSGRESULT, TRUE);
+			SetWindowLongPtrW (hwnd, DWLP_MSGRESULT, TRUE);
 			return TRUE;
 		}
 
@@ -694,6 +695,7 @@ LRESULT CALLBACK _r_app_maindlgproc (
 				if (app_global.main.is_needmaximize)
 				{
 					ShowWindow (hwnd, SW_SHOWMAXIMIZED);
+
 					app_global.main.is_needmaximize = FALSE;
 				}
 			}
@@ -717,7 +719,7 @@ LRESULT CALLBACK _r_app_maindlgproc (
 	if (!app_global.main.wnd_proc)
 		return FALSE;
 
-	return CallWindowProc (app_global.main.wnd_proc, hwnd, msg, wparam, lparam);
+	return CallWindowProcW (app_global.main.wnd_proc, hwnd, msg, wparam, lparam);
 }
 
 ULONG _r_app_getshowcode (
@@ -746,9 +748,7 @@ ULONG _r_app_getshowcode (
 	if (!is_windowhidden)
 	{
 		if (_r_config_getboolean (L"IsStartMinimized", FALSE) || _r_sys_getopt (_r_sys_getimagecommandline (), L"minimized", NULL))
-		{
 			is_windowhidden = TRUE;
-		}
 	}
 #endif // APP_HAVE_TRAY
 
@@ -833,7 +833,7 @@ HWND _r_app_createwindow (
 	}
 
 	// set window prop
-	SetProp (hwnd, _r_app_getname (), IntToPtr (42));
+	SetPropW (hwnd, _r_app_getname (), IntToPtr (42));
 
 	// set window on top
 	_r_wnd_top (hwnd, _r_config_getboolean (L"AlwaysOnTop", FALSE));
@@ -845,8 +845,8 @@ HWND _r_app_createwindow (
 	_r_wnd_changemessagefilter (hwnd, messages, RTL_NUMBER_OF (messages), MSGFLT_ALLOW);
 
 	// subclass window
-	app_global.main.wnd_proc = (WNDPROC)GetWindowLongPtr (hwnd, DWLP_DLGPROC);
-	SetWindowLongPtr (hwnd, DWLP_DLGPROC, (LONG_PTR)_r_app_maindlgproc);
+	app_global.main.wnd_proc = (WNDPROC)GetWindowLongPtrW (hwnd, DWLP_DLGPROC);
+	SetWindowLongPtrW (hwnd, DWLP_DLGPROC, (LONG_PTR)_r_app_maindlgproc);
 
 	// restore window position
 	_r_window_restoreposition (hwnd, L"window");
@@ -924,7 +924,7 @@ VOID _r_app_restart (
 		NtWaitForSingleObject (hmain, FALSE, &timeout); // wait for exit
 	}
 
-	_r_sys_exitprocess (STATUS_SUCCESS);
+	RtlExitUserProcess (STATUS_SUCCESS);
 }
 #endif // !APP_CONSOLE
 
@@ -1642,7 +1642,7 @@ VOID _r_config_setstring_ex (
 
 	path = _r_app_getconfigpath ();
 
-	WritePrivateProfileString (section_string, key_name, _r_obj_getstring (object_ptr->object_body), path->buffer);
+	WritePrivateProfileStringW (section_string, key_name, _r_obj_getstring (object_ptr->object_body), path->buffer);
 }
 
 //
@@ -1804,6 +1804,7 @@ VOID _r_locale_enum (
 	if (is_menu)
 	{
 		_r_menu_enableitem (hwnd, ctrl_id, MF_BYPOSITION, TRUE);
+
 		_r_menu_additem (hsubmenu, 0, NULL);
 	}
 	else
@@ -1918,9 +1919,7 @@ PR_STRING _r_locale_getstring_ex (
 				if (NT_SUCCESS (status))
 				{
 					_r_queuedlock_acquireexclusive (&app_global.locale.lock);
-
 					_r_obj_addhashtablepointer (app_global.locale.table, hash_code, _r_obj_reference (value_string));
-
 					_r_queuedlock_releaseexclusive (&app_global.locale.lock);
 				}
 			}
@@ -1962,7 +1961,7 @@ LONG64 _r_locale_getversion ()
 	path = _r_app_getlocalepath ();
 
 	// HACK!!! Use "Russian" section and default timestamp key (000) for compatibility with old releases...
-	length = GetPrivateProfileString (L"Russian", L"000", NULL, timestamp_string, RTL_NUMBER_OF (timestamp_string), path->buffer);
+	length = GetPrivateProfileStringW (L"Russian", L"000", NULL, timestamp_string, RTL_NUMBER_OF (timestamp_string), path->buffer);
 
 	if (!length)
 		return 0;
@@ -1988,8 +1987,8 @@ BOOLEAN _r_autorun_isenabled ()
 
 		if (NT_SUCCESS (status))
 		{
-			PathRemoveArgs (path->buffer);
-			PathUnquoteSpaces (path->buffer);
+			PathRemoveArgsW (path->buffer);
+			PathUnquoteSpacesW (path->buffer);
 
 			_r_obj_trimstringtonullterminator (path);
 
@@ -2129,11 +2128,12 @@ LONG _r_update_downloadupdate (
 		update_component->flags &= ~PR_UPDATE_FLAG_AVAILABLE;
 
 		_r_obj_movereference (&update_component->current_version, update_component->new_version);
+
 		update_component->new_version = NULL;
 	}
 
 	// remove cache directory if it is empty
-	RemoveDirectory (path);
+	_r_fs_deletedirectory (path, FALSE);
 
 	return ERROR_SUCCESS;
 }
@@ -2386,7 +2386,7 @@ CleanupExit:
 
 	_r_obj_dereference (update_url);
 
-	InterlockedDecrement (&update_info->lock);
+	_InterlockedDecrement (&update_info->lock);
 
 	return STATUS_SUCCESS;
 }
@@ -2454,7 +2454,7 @@ BOOLEAN _r_update_check (
 	if (!hparent && !_r_update_isenabled (TRUE))
 		return FALSE;
 
-	if (InterlockedCompareExchange (&update_info->lock, 0, 0) != 0)
+	if (_InterlockedCompareExchange (&update_info->lock, 0, 0) != 0)
 		return FALSE;
 
 	if (!update_info->hsession)
@@ -2470,7 +2470,7 @@ BOOLEAN _r_update_check (
 	if (!NT_SUCCESS (status))
 		return FALSE;
 
-	InterlockedIncrement (&update_info->lock);
+	_InterlockedIncrement (&update_info->lock);
 
 	update_info->hparent = hparent;
 	update_info->htaskdlg = NULL;
@@ -2945,22 +2945,34 @@ LPCWSTR _r_log_leveltostring (
 	switch (log_level)
 	{
 		case LOG_LEVEL_DISABLED:
+		{
 			return L"Disabled";
+		}
 
 		case LOG_LEVEL_DEBUG:
+		{
 			return L"Debug";
+		}
 
 		case LOG_LEVEL_INFO:
+		{
 			return L"Info";
+		}
 
 		case LOG_LEVEL_WARNING:
+		{
 			return L"Warning";
+		}
 
 		case LOG_LEVEL_ERROR:
+		{
 			return L"Error";
+		}
 
 		case LOG_LEVEL_CRITICAL:
+		{
 			return L"Critical";
+		}
 	}
 
 	return NULL;
@@ -2974,18 +2986,26 @@ ULONG _r_log_leveltrayicon (
 	{
 		case LOG_LEVEL_DEBUG:
 		case LOG_LEVEL_INFO:
+		{
 			return NIIF_INFO;
+		}
 
 		case LOG_LEVEL_WARNING:
+		{
 			return NIIF_WARNING;
+		}
 
 		case LOG_LEVEL_ERROR:
 		case LOG_LEVEL_CRITICAL:
+		{
 			return NIIF_ERROR;
+		}
 
 		case LOG_LEVEL_DISABLED:
 		default:
+		{
 			return NIIF_NONE;
+		}
 	}
 }
 
@@ -3172,9 +3192,7 @@ VOID _r_show_errormessage (
 
 	tdc.nDefaultButton = IDCLOSE;
 
-	status = _r_msg_taskdialog (&tdc, &command_id, NULL, NULL);
-
-	if (SUCCEEDED (status))
+	if (SUCCEEDED (_r_msg_taskdialog (&tdc, &command_id, NULL, NULL)))
 	{
 		if (command_id == IDYES)
 		{
@@ -3406,7 +3424,7 @@ VOID _r_window_saveposition (
 	monitor_info.cbSize = sizeof (monitor_info);
 
 	// The rectangle is in workspace coordinates. Convert the values back to screen coordinates.
-	if (GetMonitorInfo (hmonitor, &monitor_info))
+	if (GetMonitorInfoW (hmonitor, &monitor_info))
 	{
 		rectangle.left += monitor_info.rcWork.left - monitor_info.rcMonitor.left;
 		rectangle.top += monitor_info.rcWork.top - monitor_info.rcMonitor.top;
@@ -3696,7 +3714,7 @@ VOID _r_settings_createwindow (
 		WC_BUTTON
 	);
 
-	DialogBoxIndirect (_r_sys_getimagebase (), buffer, hwnd, &_r_settings_wndproc);
+	DialogBoxIndirectW (_r_sys_getimagebase (), buffer, hwnd, &_r_settings_wndproc);
 
 	_r_mem_free (buffer);
 }
@@ -3714,9 +3732,11 @@ INT_PTR CALLBACK _r_settings_wndproc (
 		{
 			PR_SETTINGS_PAGE ptr_page;
 			LONG dlg_id;
+
 #if !defined(APP_HAVE_SETTINGS_TABS)
 			HTREEITEM hitem;
 #endif // !APP_HAVE_SETTINGS_TABS
+
 #if defined(IDI_MAIN)
 			LONG dpi_value;
 			LONG icon_small;
@@ -3928,6 +3948,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 				if (ptr_page->hwnd)
 				{
 					DestroyWindow (ptr_page->hwnd);
+
 					ptr_page->hwnd = NULL;
 				}
 			}
@@ -4601,11 +4622,13 @@ BOOLEAN _r_skipuac_run ()
 			if (state == TASK_STATE_DISABLED)
 			{
 				status = SCHED_S_TASK_DISABLED;
+
 				break;
 			}
 			else if (state == TASK_STATE_RUNNING)
 			{
 				status = S_OK;
+
 				break;
 			}
 		}

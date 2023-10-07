@@ -1927,7 +1927,7 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_search (
 	_In_ LPCWSTR filename,
 	_In_opt_ LPCWSTR extension,
-	_Outptr_result_maybenull_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 //
@@ -1942,7 +1942,7 @@ FORCEINLINE VOID _r_shell_opendefault (
 	_In_ LPCWSTR path
 )
 {
-	ShellExecute (NULL, NULL, path, NULL, NULL, SW_SHOWDEFAULT);
+	ShellExecuteW (NULL, NULL, path, NULL, NULL, SW_SHOWDEFAULT);
 }
 
 //
@@ -2548,6 +2548,12 @@ HICON _r_sys_loadsharedicon (
 	_In_ LONG icon_size
 );
 
+_Success_ (SUCCEEDED (NT_SUCCESS (return)))
+NTSTATUS _r_sys_loadlibraryasresource (
+	_In_ LPCWSTR lib_name,
+	_Out_ PVOID_PTR out_buffer
+);
+
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_loadlibrary (
 	_In_ LPCWSTR lib_name,
@@ -2659,8 +2665,6 @@ NTSTATUS _r_sys_setthreadname (
 	_In_ HANDLE thread_handle,
 	_In_ LPCWSTR thread_name
 );
-
-#define _r_sys_exitprocess RtlExitUserProcess
 
 FORCEINLINE PVOID _r_sys_getimagebase ()
 {
@@ -2879,8 +2883,10 @@ HRESULT _r_filedialog_show (
 	_In_ PR_FILE_DIALOG file_dialog
 );
 
-PR_STRING _r_filedialog_getpath (
-	_In_ PR_FILE_DIALOG file_dialog
+_Success_ (SUCCEEDED (return))
+HRESULT _r_filedialog_getpath (
+	_In_ PR_FILE_DIALOG file_dialog,
+	_Outptr_ PR_STRING_PTR out_buffer
 );
 
 VOID _r_filedialog_setpath (

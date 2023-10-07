@@ -6204,7 +6204,7 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_search (
 	_In_ LPCWSTR filename,
 	_In_opt_ LPCWSTR extension,
-	_Outptr_result_maybenull_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 )
 {
 	UNICODE_STRING path_us;
@@ -9769,6 +9769,106 @@ HICON _r_sys_loadsharedicon (
 	return hicon;
 }
 
+_Success_ (SUCCEEDED (NT_SUCCESS (return)))
+NTSTATUS _r_sys_loadlibraryasresource (
+	_In_ LPCWSTR lib_name,
+	_Out_ PVOID_PTR out_buffer
+)
+{
+	LARGE_INTEGER offset = {0};
+	PR_STRING path;
+	HANDLE hmapping;
+	HANDLE hfile;
+	PVOID base_address = NULL;
+	ULONG_PTR view_size = 0;
+	NTSTATUS status;
+
+	status = _r_path_search (lib_name, NULL, &path);
+
+	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
+		return status;
+	}
+
+	status = _r_fs_createfile (
+		path->buffer,
+		FILE_OPEN,
+		GENERIC_READ,
+		FILE_SHARE_READ | FILE_SHARE_DELETE,
+		FILE_ATTRIBUTE_NORMAL,
+		0,
+		FALSE,
+		NULL,
+		&hfile
+	);
+
+	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
+		return status;
+	}
+
+	status = NtCreateSection (
+		&hmapping,
+		SECTION_QUERY | SECTION_MAP_READ,
+		NULL,
+		NULL,
+		PAGE_READONLY,
+		SEC_IMAGE_NO_EXECUTE, // win8+
+		hfile
+	);
+
+	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
+		return status;
+	}
+
+	status = NtMapViewOfSection (
+		hmapping,
+		NtCurrentProcess (),
+		&base_address,
+		0,
+		0,
+		&offset,
+		&view_size,
+		ViewUnmap,
+		_r_sys_isosversiongreaterorequal (WINDOWS_10_1709) ? MEM_MAPPED : 0,
+		PAGE_READONLY
+	);
+
+	if (status == STATUS_IMAGE_NOT_AT_BASE)
+		status = STATUS_SUCCESS;
+
+	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
+		return status;
+	}
+
+	// Windows returns the address with bitwise OR | 2 for use with LDR_IS_IMAGEMAPPING
+	if (NT_SUCCESS (status))
+	{
+		*out_buffer = LDR_MAPPEDVIEW_TO_IMAGEMAPPING (base_address);
+	}
+	else
+	{
+		*out_buffer = NULL;
+	}
+
+	_r_obj_dereference (path);
+
+	NtClose (hmapping);
+	NtClose (hfile);
+
+	return status;
+}
+
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_loadlibrary (
 	_In_ LPCWSTR lib_name,
@@ -9803,7 +9903,14 @@ NTSTATUS _r_sys_loadlibrary (
 
 	_r_obj_initializeunicodestring (&us, lib_name);
 
-	status = LdrLoadDll (load_path, &flags, &us, &hmodule);
+	if (flags & (LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_AS_DATAFILE_EXCLUSIVE | LOAD_LIBRARY_AS_IMAGE_RESOURCE))
+	{
+		status = _r_sys_loadlibraryasresource (lib_name, &hmodule);
+	}
+	else
+	{
+		status = LdrLoadDll (load_path, &flags, &us, &hmodule);
+	}
 
 	if (NT_SUCCESS (status))
 	{
@@ -11397,8 +11504,10 @@ HRESULT _r_filedialog_show (
 	return status;
 }
 
-PR_STRING _r_filedialog_getpath (
-	_In_ PR_FILE_DIALOG file_dialog
+_Success_ (SUCCEEDED (return))
+HRESULT _r_filedialog_getpath (
+	_In_ PR_FILE_DIALOG file_dialog,
+	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
 	IShellItem *result;
@@ -11434,7 +11543,9 @@ PR_STRING _r_filedialog_getpath (
 		}
 	}
 
-	return file_name;
+	*out_buffer = file_name;
+
+	return status;
 }
 
 VOID _r_filedialog_setpath (
