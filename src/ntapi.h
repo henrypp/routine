@@ -1391,6 +1391,21 @@ typedef struct _PROCESS_PRIORITY_CLASS
 	UCHAR PriorityClass;
 } PROCESS_PRIORITY_CLASS, *PPROCESS_PRIORITY_CLASS;
 
+typedef struct _PROCESS_PRIORITY_CLASS_EX
+{
+	union
+	{
+		struct
+		{
+			USHORT ForegroundValid : 1;
+			USHORT PriorityClassValid : 1;
+		};
+		USHORT AllFlags;
+	};
+	UCHAR PriorityClass;
+	BOOLEAN Foreground;
+} PROCESS_PRIORITY_CLASS_EX, *PPROCESS_PRIORITY_CLASS_EX;
+
 typedef struct _SYSTEM_PROCESS_ID_INFORMATION
 {
 	HANDLE ProcessId;
