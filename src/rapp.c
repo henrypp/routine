@@ -368,17 +368,20 @@ BOOLEAN _r_app_initialize (
 			if (cmd_callback (CmdlineHelp))
 				return FALSE;
 		}
+
 		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"clean", NULL))
 		{
 			if (cmd_callback (CmdlineClean))
 				return FALSE;
 		}
-		else if (_r_sys_getopt (_r_sys_getimagecommandline (), L"install", NULL))
+
+		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"install", NULL))
 		{
 			if (cmd_callback (CmdlineInstall))
 				return FALSE;
 		}
-		else if (_r_sys_getopt (_r_sys_getimagecommandline (), L"uninstall", NULL))
+
+		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"uninstall", NULL))
 		{
 			if (cmd_callback (CmdlineUninstall))
 				return FALSE;
@@ -387,17 +390,13 @@ BOOLEAN _r_app_initialize (
 	else
 	{
 		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"help", NULL))
-		{
 			return FALSE;
-		}
-		else if (_r_sys_getopt (_r_sys_getimagecommandline (), L"install", NULL))
-		{
+
+		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"install", NULL))
 			return FALSE;
-		}
-		else if (_r_sys_getopt (_r_sys_getimagecommandline (), L"uninstall", NULL))
-		{
+
+		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"uninstall", NULL))
 			return FALSE;
-		}
 	}
 
 	return TRUE;

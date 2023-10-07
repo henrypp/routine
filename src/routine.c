@@ -4670,7 +4670,7 @@ NTSTATUS _r_fs_getdiskinformation (
 			*serialnumber_ptr = 0;
 	}
 
-	length = sizeof (FILE_FS_VOLUME_INFORMATION) + 512 * sizeof (WCHAR);
+	length = sizeof (FILE_FS_ATTRIBUTE_INFORMATION) + 512 * sizeof (WCHAR);
 	attribute_info = _r_mem_reallocate (volume_info, length);
 
 	status = NtQueryVolumeInformationFile (hfile, &io, attribute_info, length, FileFsAttributeInformation);
@@ -4762,11 +4762,8 @@ NTSTATUS _r_fs_getdiskspace (
 
 		units = info.SectorsPerAllocationUnit * info.BytesPerSector;
 
-		if (freespace_ptr)
-			freespace_ptr->QuadPart = info.AvailableAllocationUnits.QuadPart * units;
-
-		if (totalspace_ptr)
-			totalspace_ptr->QuadPart = info.TotalAllocationUnits.QuadPart * units;
+		freespace_ptr->QuadPart = info.AvailableAllocationUnits.QuadPart * units;
+		totalspace_ptr->QuadPart = info.TotalAllocationUnits.QuadPart * units;
 	}
 	else
 	{
@@ -10303,19 +10300,30 @@ VOID _r_sys_setprocessenvironment (
 )
 {
 	R_ENVIRONMENT current_environment;
-	IO_PRIORITY_HINT io_priority;
-	PROCESS_PRIORITY_CLASS priority_class = {0};
+	PROCESS_PRIORITY_CLASS_EX priority_class_ex = {0};
 	PAGE_PRIORITY_INFORMATION page_priority = {0};
+	PROCESS_PRIORITY_CLASS priority_class = {0};
+	IO_PRIORITY_HINT io_priority;
 
 	_r_sys_queryprocessenvironment (process_handle, &current_environment);
 
 	// set base priority
 	if (current_environment.base_priority != new_environment->base_priority)
 	{
-		priority_class.Foreground = FALSE;
-		priority_class.PriorityClass = (UCHAR)(new_environment->base_priority);
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_11_22H2))
+		{
+			priority_class_ex.PriorityClass = (UCHAR)(new_environment->base_priority);
+			priority_class_ex.PriorityClassValid = TRUE;
 
-		NtSetInformationProcess (process_handle, ProcessPriorityClass, &priority_class, sizeof (priority_class));
+			NtSetInformationProcess (process_handle, ProcessPriorityClassEx, &priority_class_ex, sizeof (priority_class_ex));
+		}
+		else
+		{
+			priority_class.PriorityClass = (UCHAR)(new_environment->base_priority);
+			//priority_class.Foreground = FALSE;
+
+			NtSetInformationProcess (process_handle, ProcessPriorityClass, &priority_class, sizeof (priority_class));
+		}
 	}
 
 	// set i/o priority
@@ -10407,16 +10415,16 @@ NTSTATUS _r_sys_setthreadname (
 
 LONG64 _r_unixtime_now ()
 {
-	FILETIME file_time = {0};
+	LARGE_INTEGER time_value = {0};
 
 	do
 	{
-		file_time.dwHighDateTime = USER_SHARED_DATA->SystemTime.High1Time;
-		file_time.dwLowDateTime = USER_SHARED_DATA->SystemTime.LowPart;
+		time_value.HighPart = USER_SHARED_DATA->SystemTime.High1Time;
+		time_value.LowPart = USER_SHARED_DATA->SystemTime.LowPart;
 	}
-	while (file_time.dwHighDateTime != USER_SHARED_DATA->SystemTime.High2Time);
+	while (time_value.HighPart != USER_SHARED_DATA->SystemTime.High2Time);
 
-	return _r_unixtime_from_filetime (&file_time);
+	return _r_unixtime_from_largeinteger (&time_value);
 }
 
 LONG64 _r_unixtime_from_filetime (
@@ -10425,8 +10433,8 @@ LONG64 _r_unixtime_from_filetime (
 {
 	LARGE_INTEGER time_value = {0};
 
-	time_value.LowPart = file_time->dwLowDateTime;
 	time_value.HighPart = file_time->dwHighDateTime;
+	time_value.LowPart = file_time->dwLowDateTime;
 
 	return _r_unixtime_from_largeinteger (&time_value);
 }
