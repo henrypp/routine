@@ -1015,7 +1015,7 @@ BOOLEAN _r_obj_initializeunicodestring_ex (
 //
 
 VOID _r_obj_initializestorage (
-	_Out_ PR_STORAGE memory,
+	_Out_ PR_STORAGE storage,
 	_In_opt_ PVOID buffer,
 	_In_opt_ ULONG length
 );
@@ -2867,14 +2867,14 @@ HRESULT _r_dc_imagetobitmap (
 // File dialog
 //
 
-_Success_ (return)
-BOOLEAN _r_filedialog_initialize (
+_Success_ (SUCCEEDED (return))
+HRESULT _r_filedialog_initialize (
 	_Out_ PR_FILE_DIALOG file_dialog,
 	_In_ ULONG flags
 );
 
-_Success_ (return)
-BOOLEAN _r_filedialog_show (
+_Success_ (SUCCEEDED (return))
+HRESULT _r_filedialog_show (
 	_In_opt_ HWND hwnd,
 	_In_ PR_FILE_DIALOG file_dialog
 );
@@ -3555,7 +3555,7 @@ HRESULT _r_xml_createfilestream (
 _Success_ (SUCCEEDED (return))
 HRESULT _r_xml_createstream (
 	_Inout_ PR_XML_LIBRARY xml_library,
-	_In_opt_ LPCVOID buffer,
+	_In_reads_bytes_opt_ (buffer_length) LPCVOID buffer,
 	_In_ ULONG buffer_length
 );
 
@@ -3692,7 +3692,7 @@ VOID _r_tray_setversion (
 BOOLEAN _r_tray_create (
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid,
-	_In_ UINT code,
+	_In_ UINT msg,
 	_In_opt_ HICON hicon,
 	_In_opt_ LPCWSTR tooltip,
 	_In_ BOOLEAN is_hidden
@@ -4263,8 +4263,7 @@ PR_STRING _r_listview_getitemtext (
 
 VOID _r_listview_redraw (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ INT item_id
+	_In_ INT ctrl_id
 );
 
 VOID _r_listview_setcolumn (
