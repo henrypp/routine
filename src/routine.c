@@ -8340,7 +8340,7 @@ NTSTATUS _r_sys_getbinarytype (
 {
 	SECTION_IMAGE_INFORMATION image_info = {0};
 	HANDLE hfile;
-	HANDLE hmapping;
+	HANDLE hsection;
 	NTSTATUS status;
 
 	*out_buffer = 0;
@@ -8348,7 +8348,7 @@ NTSTATUS _r_sys_getbinarytype (
 	status = _r_fs_createfile (
 		path,
 		FILE_OPEN,
-		GENERIC_READ,
+		FILE_READ_DATA | FILE_EXECUTE,
 		FILE_SHARE_READ | FILE_SHARE_DELETE,
 		FILE_ATTRIBUTE_NORMAL,
 		0,
@@ -8358,18 +8358,28 @@ NTSTATUS _r_sys_getbinarytype (
 	);
 
 	if (!NT_SUCCESS (status))
-		return status;
+		goto CleanupExit;
 
-	status = NtCreateSection (&hmapping, SECTION_QUERY | SECTION_MAP_READ | SECTION_MAP_EXECUTE, NULL, NULL, PAGE_READONLY, SEC_IMAGE, hfile);
+	status = NtCreateSection (
+		&hsection,
+		SECTION_QUERY | SECTION_MAP_READ | SECTION_MAP_EXECUTE,
+		NULL,
+		NULL,
+		PAGE_EXECUTE,
+		SEC_IMAGE,
+		hfile
+	);
+
+	NtClose (hfile);
 
 	if (!NT_SUCCESS (status))
-	{
-		NtClose (hfile);
+		goto CleanupExit;
 
-		return status;
-	}
+	status = NtQuerySection (hsection, SectionImageInformation, &image_info, sizeof (image_info), NULL);
 
-	status = NtQuerySection (hmapping, SectionImageInformation, &image_info, sizeof (image_info), NULL);
+	NtClose (hsection);
+
+CleanupExit:
 
 	switch (status)
 	{
@@ -8444,9 +8454,6 @@ NTSTATUS _r_sys_getbinarytype (
 			break;
 		}
 	}
-
-	NtClose (hmapping);
-	NtClose (hfile);
 
 	return status;
 }
@@ -8663,6 +8670,17 @@ NTSTATUS _r_sys_getprocessorinformation (
 
 		if (out_features)
 			*out_features = cpu_info.ProcessorFeatureBits;
+	}
+	else
+	{
+		if (out_architecture)
+			*out_architecture = 0;
+
+		if (out_revision)
+			*out_revision = 0;
+
+		if (out_features)
+			*out_features = 0;
 	}
 
 	return status;
@@ -9769,7 +9787,7 @@ HICON _r_sys_loadsharedicon (
 	return hicon;
 }
 
-_Success_ (SUCCEEDED (NT_SUCCESS (return)))
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_loadlibraryasresource (
 	_In_ LPCWSTR lib_name,
 	_Out_ PVOID_PTR out_buffer
@@ -10054,6 +10072,26 @@ NTSTATUS NTAPI _r_sys_basethreadstart (
 		CoUninitialize ();
 
 	RtlExitUserThread (status);
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_freelibrary (
+	_In_ PVOID dll_handle,
+	_In_ BOOLEAN is_resource
+)
+{
+	NTSTATUS status;
+
+	if (is_resource)
+	{
+		status = NtUnmapViewOfSection (NtCurrentProcess (), LDR_IMAGEMAPPING_TO_MAPPEDVIEW (dll_handle));
+	}
+	else
+	{
+		status = LdrUnloadDll (dll_handle);
+	}
 
 	return status;
 }
@@ -12773,7 +12811,7 @@ VOID _r_wnd_setposition (
 
 	if (position)
 	{
-		rectangle.position = *position;
+		RtlCopyMemory (&rectangle.position, position, sizeof (R_SIZE));
 	}
 	else
 	{
@@ -12782,7 +12820,7 @@ VOID _r_wnd_setposition (
 
 	if (size)
 	{
-		rectangle.size = *size;
+		RtlCopyMemory (&rectangle.size, size, sizeof (R_SIZE));
 	}
 	else
 	{

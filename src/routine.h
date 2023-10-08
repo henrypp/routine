@@ -127,43 +127,43 @@ static SID SeLocalServiceSid = {SID_REVISION, 1, SECURITY_NT_AUTHORITY, {SECURIT
 static SID SeNetworkServiceSid = {SID_REVISION, 1, SECURITY_NT_AUTHORITY, {SECURITY_NETWORK_SERVICE_RID}};
 
 // safe clenup memory
-#ifndef SAFE_DELETE_MEMORY
+#if !defined(SAFE_DELETE_MEMORY)
 #define SAFE_DELETE_MEMORY(p) {if(p) {_r_mem_free (p); (p)=NULL;}}
 #endif
 
-#ifndef SAFE_DELETE_REFERENCE
+#if !defined(SAFE_DELETE_REFERENCE)
 #define SAFE_DELETE_REFERENCE(p) {if(p) {_r_obj_clearreference (&(p));}}
 #endif
 
-#ifndef SAFE_DELETE_STREAM
+#if !defined(SAFE_DELETE_STREAM)
 #define SAFE_DELETE_STREAM(p) {if(p) {IStream_Release ((p)); (p)=NULL;}}
 #endif
 
-#ifndef SAFE_DELETE_DC
+#if !defined(SAFE_DELETE_DC)
 #define SAFE_DELETE_DC(p) {if(p) {DeleteDC (p); (p)=NULL;}}
 #endif
 
-#ifndef SAFE_DELETE_OBJECT
+#if !defined(SAFE_DELETE_OBJECT)
 #define SAFE_DELETE_OBJECT(p) {if(p) {DeleteObject (p); (p)=NULL;}}
 #endif
 
-#ifndef SAFE_DELETE_HANDLE
+#if !defined(SAFE_DELETE_HANDLE)
 #define SAFE_DELETE_HANDLE(p) {if(_r_fs_isvalidhandle ((p))) {NtClose ((p)); (p)=NULL;}}
 #endif
 
-#ifndef SAFE_DELETE_LIBRARY
-#define SAFE_DELETE_LIBRARY(p) {if((p)) {LdrUnloadDll ((p)); (p)=NULL;}}
+#if !defined(SAFE_DELETE_LIBRARY)
+#define SAFE_DELETE_LIBRARY(p, is_res) {if((p)) {_r_sys_freelibrary ((p), (is_res)); (p)=NULL;}}
 #endif
 
-#ifndef SAFE_DELETE_ICON
+#if !defined(SAFE_DELETE_ICON)
 #define SAFE_DELETE_ICON(p) {if((p)) {DestroyIcon ((p)); (p)=NULL;}}
 #endif
 
-#ifndef SAFE_DELETE_LOCAL
+#if !defined(SAFE_DELETE_LOCAL)
 #define SAFE_DELETE_LOCAL(p) {if((p)) {LocalFree ((p)); ((p))=NULL;}}
 #endif
 
-#ifndef SAFE_DELETE_GLOBAL
+#if !defined(SAFE_DELETE_GLOBAL)
 #define SAFE_DELETE_GLOBAL(p) {if((p)) {GlobalFree ((p)); (p)=NULL;}}
 #endif
 
@@ -2119,7 +2119,7 @@ ULONG_PTR _r_str_getlength4 (
 
 ULONG_PTR _r_str_getlength_ex (
 	_In_reads_or_z_ (max_length) LPCWSTR string,
-	_In_ _In_range_(<=, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR max_length
+	_In_ _In_range_ (<= , PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR max_length
 );
 
 ULONG_PTR _r_str_getbytelength (
@@ -2136,7 +2136,7 @@ ULONG_PTR _r_str_getbytelength3 (
 
 ULONG_PTR _r_str_getbytelength_ex (
 	_In_reads_or_z_ (max_length) LPCSTR string,
-	_In_ _In_range_(<=, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR max_length
+	_In_ _In_range_ (<= , PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR max_length
 );
 
 BOOLEAN _r_str_isdigit (
@@ -2548,7 +2548,7 @@ HICON _r_sys_loadsharedicon (
 	_In_ LONG icon_size
 );
 
-_Success_ (SUCCEEDED (NT_SUCCESS (return)))
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_loadlibraryasresource (
 	_In_ LPCWSTR lib_name,
 	_Out_ PVOID_PTR out_buffer
@@ -2588,6 +2588,12 @@ NTSTATUS _r_sys_sleep (
 
 NTSTATUS NTAPI _r_sys_basethreadstart (
 	_In_ PVOID arglist
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_freelibrary (
+	_In_ PVOID dll_handle,
+	_In_ BOOLEAN is_resource
 );
 
 PR_FREE_LIST _r_sys_getthreadfreelist ();
@@ -3264,7 +3270,12 @@ VOID _r_inet_destroyurlparts (
 	_Inout_ PR_URLPARTS url_parts
 );
 
-#define _r_inet_close WinHttpCloseHandle
+FORCEINLINE VOID _r_inet_close (
+	_In_ HINTERNET hinet
+)
+{
+	WinHttpCloseHandle (hinet);
+}
 
 //
 // Registry
@@ -3838,38 +3849,6 @@ VOID _r_ctrl_setstringlength (
 	_In_ PR_STRINGREF string
 );
 
-FORCEINLINE VOID _r_ctrl_setreadonly (
-	_In_ HWND hwnd,
-	_In_opt_ INT ctrl_id,
-	_In_ BOOLEAN is_readonly
-)
-{
-	if (ctrl_id)
-	{
-		SendDlgItemMessage (hwnd, ctrl_id, EM_SETREADONLY, is_readonly, 0);
-	}
-	else
-	{
-		SendMessage (hwnd, EM_SETREADONLY, is_readonly, 0);
-	}
-}
-
-FORCEINLINE VOID _r_ctrl_settextlimit (
-	_In_ HWND hwnd,
-	_In_opt_ INT ctrl_id,
-	_In_ INT limit
-)
-{
-	if (ctrl_id)
-	{
-		SendDlgItemMessage (hwnd, ctrl_id, EM_LIMITTEXT, limit, 0);
-	}
-	else
-	{
-		SendMessage (hwnd, EM_LIMITTEXT, limit, 0);
-	}
-}
-
 VOID _r_ctrl_settiptext (
 	_In_ HWND htip,
 	_In_ HWND hparent,
@@ -3925,6 +3904,22 @@ FORCEINLINE ULONG _r_ctrl_getstringlength (
 	return length;
 }
 
+FORCEINLINE VOID _r_ctrl_setreadonly (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ BOOLEAN is_readonly
+)
+{
+	if (ctrl_id)
+	{
+		SendDlgItemMessage (hwnd, ctrl_id, EM_SETREADONLY, is_readonly, 0);
+	}
+	else
+	{
+		SendMessage (hwnd, EM_SETREADONLY, is_readonly, 0);
+	}
+}
+
 FORCEINLINE VOID _r_ctrl_setstring (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
@@ -3938,6 +3933,22 @@ FORCEINLINE VOID _r_ctrl_setstring (
 	else
 	{
 		SendMessage (hwnd, WM_SETTEXT, 0, (LPARAM)string);
+	}
+}
+
+FORCEINLINE VOID _r_ctrl_settextlimit (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ INT limit
+)
+{
+	if (ctrl_id)
+	{
+		SendDlgItemMessage (hwnd, ctrl_id, EM_LIMITTEXT, limit, 0);
+	}
+	else
+	{
+		SendMessage (hwnd, EM_LIMITTEXT, limit, 0);
 	}
 }
 
@@ -4565,6 +4576,13 @@ VOID _r_status_settextformat (
 	...
 );
 
+VOID _r_status_settext (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ INT part_id,
+	_In_opt_ LPCWSTR string
+);
+
 FORCEINLINE VOID _r_status_setparts (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
@@ -4574,13 +4592,6 @@ FORCEINLINE VOID _r_status_setparts (
 {
 	SendDlgItemMessage (hwnd, ctrl_id, SB_SETPARTS, (WPARAM)count, (LPARAM)parts);
 }
-
-VOID _r_status_settext (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ INT part_id,
-	_In_opt_ LPCWSTR string
-);
 
 //
 // Control: rebar
