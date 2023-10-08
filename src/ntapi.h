@@ -2922,6 +2922,14 @@ typedef VOID (NTAPI *PIO_APC_ROUTINE)(
 
 #define LDR_GET_PROCEDURE_ADDRESS_DONT_RECORD_FORWARDER 0x00000001
 
+#define LDR_IS_DATAFILE(DllHandle) (((ULONG_PTR)(DllHandle)) & (ULONG_PTR)1)
+#define LDR_IS_IMAGEMAPPING(DllHandle) (((ULONG_PTR)(DllHandle)) & (ULONG_PTR)2)
+#define LDR_IS_RESOURCE(DllHandle) (LDR_IS_IMAGEMAPPING(DllHandle) || LDR_IS_DATAFILE(DllHandle))
+#define LDR_MAPPEDVIEW_TO_DATAFILE(BaseAddress) ((PVOID)(((ULONG_PTR)(BaseAddress)) | (ULONG_PTR)1))
+#define LDR_MAPPEDVIEW_TO_IMAGEMAPPING(BaseAddress) ((PVOID)(((ULONG_PTR)(BaseAddress)) | (ULONG_PTR)2))
+#define LDR_DATAFILE_TO_MAPPEDVIEW(DllHandle) ((PVOID)(((ULONG_PTR)(DllHandle)) & ~(ULONG_PTR)1))
+#define LDR_IMAGEMAPPING_TO_MAPPEDVIEW(DllHandle) ((PVOID)(((ULONG_PTR)(DllHandle)) & ~(ULONG_PTR)2))
+
 //
 // nt functions
 //
@@ -2929,17 +2937,17 @@ typedef VOID (NTAPI *PIO_APC_ROUTINE)(
 
 typedef struct
 {
-	BYTE byte0;						// +00		(+0xB8)
-	BYTE byte1;						// +01
-	BYTE byte2;						// +02
-	BYTE byte3;						// +02
-	ULONG64 DUMMY;					// +08		(+0xC0)
-	ULONG_PTR ManifestAddress;		// +10		(+0xC8)
-	ULONG64 ManifestSize;			// +18		(+0xD0)
-	HANDLE SectionHandle;			// +20
-	ULONG64 Offset;					// +28
-	ULONG_PTR Size;					// +30
-} BASE_SXS_STREAM;					// 0x38
+	BYTE byte0; // +00 (+0xB8)
+	BYTE byte1; // +01
+	BYTE byte2; // +02
+	BYTE byte3; // +02
+	ULONG64 DUMMY; // +08 (+0xC0)
+	ULONG_PTR ManifestAddress; // +10 (+0xC8)
+	ULONG64 ManifestSize; // +18 (+0xD0)
+	HANDLE SectionHandle; // +20
+	ULONG64 Offset; // +28
+	ULONG_PTR Size; // +30
+} BASE_SXS_STREAM; // 0x38
 
 typedef struct _CSR_CAPTURE_BUFFER
 {
