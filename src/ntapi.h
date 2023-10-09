@@ -4127,6 +4127,7 @@ RtlGUIDFromString (
 	_Out_ LPGUID Guid
 );
 
+// win vista+
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -4153,6 +4154,7 @@ RtlConvertSidToUnicodeString (
 	_In_ BOOLEAN AllocateDestinationString
 );
 
+_Must_inspect_result_
 NTSYSCALLAPI
 BOOLEAN
 NTAPI
@@ -4160,6 +4162,7 @@ RtlValidSid (
 	_In_ PSID Sid
 );
 
+_Must_inspect_result_
 NTSYSCALLAPI
 BOOLEAN
 NTAPI
@@ -4195,6 +4198,52 @@ ULONG
 NTAPI
 RtlLengthSecurityDescriptor (
 	_In_ PSECURITY_DESCRIPTOR SecurityDescriptor
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlGetOwnerSecurityDescriptor (
+	_In_ PSECURITY_DESCRIPTOR SecurityDescriptor,
+	_Outptr_result_maybenull_ PSID *Owner,
+	_Out_ PBOOLEAN OwnerDefaulted
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlMakeSelfRelativeSD (
+	_In_ PSECURITY_DESCRIPTOR AbsoluteSecurityDescriptor,
+	_Out_writes_bytes_ (*BufferLength) PSECURITY_DESCRIPTOR SelfRelativeSecurityDescriptor,
+	_Inout_ PULONG BufferLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlAddAce (
+	_Inout_ PACL Acl,
+	_In_ ULONG AceRevision,
+	_In_ ULONG StartingAceIndex,
+	_In_reads_bytes_ (AceListLength) PVOID AceList,
+	_In_ ULONG AceListLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlDeleteAce (
+	_Inout_ PACL Acl,
+	_In_ ULONG AceIndex
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlGetAce (
+	_In_ PACL Acl,
+	_In_ ULONG AceIndex,
+	_Outptr_ PVOID *Ace
 );
 
 NTSYSCALLAPI
@@ -4563,6 +4612,14 @@ NTSYSCALLAPI
 NTSTATUS
 NTAPI
 NtSetEvent (
+	_In_ HANDLE EventHandle,
+	_Out_opt_ PLONG PreviousState
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtResetEvent(
 	_In_ HANDLE EventHandle,
 	_Out_opt_ PLONG PreviousState
 );
