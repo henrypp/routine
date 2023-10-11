@@ -10190,18 +10190,18 @@ PR_STRING _r_sys_querytaginformation (
 
 	TAG_INFO_NAME_FROM_TAG tag_query = {0};
 	PR_STRING service_name_string;
-	PVOID hadvapi32;
+	PVOID hsechost;
 	NTSTATUS status;
 
 	if (_r_initonce_begin (&init_once))
 	{
-		status = _r_sys_loadlibrary (L"advapi32.dll", 0, &hadvapi32);
+		status = _r_sys_loadlibrary (L"sechost.dll", 0, &hsechost); // win81+
 
 		if (NT_SUCCESS (status))
 		{
-			status = _r_sys_getprocaddress (hadvapi32, "I_QueryTagInformation", (PVOID_PTR)&_I_QueryTagInformation);
+			status = _r_sys_getprocaddress (hsechost, "I_QueryTagInformation", (PVOID_PTR)&_I_QueryTagInformation);
 
-			//LdrUnloadDll (hadvapi32);
+			//LdrUnloadDll (hsechost);
 		}
 
 		_r_initonce_end (&init_once);
