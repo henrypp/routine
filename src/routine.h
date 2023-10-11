@@ -1128,11 +1128,11 @@ VOID _r_obj_resizestringbuilder (
 // Array object
 //
 
-#define _r_obj_isarrayempty(array_node) \
-    ((array_node) == NULL || (array_node)->count == 0)
+#define _r_obj_isempty(node) \
+	((node) == NULL || (node)->count == 0)
 
-#define _r_obj_isarrayempty2(array_node) \
-    ((array_node)->count == 0)
+#define _r_obj_isempty2(node) \
+	((node)->count == 0)
 
 PR_ARRAY _r_obj_createarray_ex (
 	_In_ ULONG_PTR item_size,
@@ -1194,12 +1194,6 @@ VOID _r_obj_resizearray (
 //
 // List object
 //
-
-#define _r_obj_islistempty(list_node) \
-    ((list_node) == NULL || (list_node)->count == 0)
-
-#define _r_obj_islistempty2(list_node) \
-    ((list_node)->count == 0)
 
 PR_LIST _r_obj_createlist_ex (
 	_In_ ULONG_PTR initial_capacity,
