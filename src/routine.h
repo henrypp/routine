@@ -1272,9 +1272,6 @@ VOID _r_obj_setlistitem (
 // array. This improves locality but may be inefficient when resizing the hashtable. It is a good
 // idea to store pointers to objects as entries, as opposed to the objects themselves.
 
-#define _r_obj_ishashtableempty(hashtable) \
-    ((hashtable) == NULL || (hashtable)->count == 0)
-
 FORCEINLINE ULONG _r_obj_validatehash (
 	_In_ ULONG_PTR hash_code
 )

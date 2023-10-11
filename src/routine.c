@@ -4974,11 +4974,11 @@ NTSTATUS _r_fs_readfile (
 	buffer = _r_obj_createbyte_ex (NULL, (ULONG_PTR)file_size.LowPart);
 #endif // _WIN64
 
-	memory = _r_mem_allocate (0x4000);
+	memory = _r_mem_allocate (PR_SIZE_FILE_READ_BUFFER);
 
 	while (TRUE)
 	{
-		status = NtReadFile (hfile, NULL, NULL, NULL, &isb, memory, 0x4000, NULL, NULL);
+		status = NtReadFile (hfile, NULL, NULL, NULL, &isb, memory, PR_SIZE_FILE_READ_BUFFER, NULL, NULL);
 
 		if (status == STATUS_END_OF_FILE)
 		{
@@ -4987,10 +4987,7 @@ NTSTATUS _r_fs_readfile (
 			break;
 		}
 
-		if (!NT_SUCCESS (status))
-			break;
-
-		if (!isb.Information)
+		if (!NT_SUCCESS (status) || !isb.Information)
 			break;
 
 		RtlCopyMemory (PTR_ADD_OFFSET (buffer->buffer, length), memory, isb.Information);

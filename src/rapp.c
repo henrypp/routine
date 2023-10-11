@@ -1874,7 +1874,7 @@ PR_STRING _r_locale_getstring_ex (
 
 	if (_r_initonce_begin (&init_once))
 	{
-		if (_r_obj_ishashtableempty (app_global.locale.table))
+		if (_r_obj_isempty (app_global.locale.table))
 			_r_locale_initialize ();
 
 		_r_initonce_end (&init_once);
