@@ -9629,13 +9629,13 @@ NTSTATUS _r_sys_getprocaddress (
 	if ((ULONG_PTR)procedure >> 16)
 	{
 		RtlInitAnsiString (&procedure_name, (LPSTR)procedure);
+
+		status = LdrGetProcedureAddress (hinst, &procedure_name, 0, &proc_address);
 	}
 	else
 	{
-		ordinal = PtrToUlong (procedure);
+		status = LdrGetProcedureAddress (hinst, NULL, LOWORD (procedure), &proc_address);
 	}
-
-	status = LdrGetProcedureAddressEx (hinst, &procedure_name, ordinal, &proc_address, 0);
 
 	if (NT_SUCCESS (status))
 	{
