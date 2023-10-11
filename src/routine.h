@@ -1148,7 +1148,7 @@ PR_ARRAY _r_obj_createarray (
 PVOID _r_obj_addarrayitem_ex (
 	_Inout_ PR_ARRAY array_node,
 	_In_opt_ LPCVOID array_item,
-	_Out_opt_ PSIZE_T new_index_ptr
+	_Out_opt_ PULONG_PTR new_index_ptr
 );
 
 PVOID _r_obj_addarrayitem (
@@ -1218,7 +1218,7 @@ VOID _r_obj_addlistitem (
 VOID _r_obj_addlistitem_ex (
 	_Inout_ PR_LIST list_node,
 	_In_opt_ PVOID list_item,
-	_Out_opt_ PSIZE_T new_index_ptr
+	_Out_opt_ PULONG_PTR new_index_ptr
 );
 
 VOID _r_obj_clearlist (
@@ -1323,7 +1323,7 @@ BOOLEAN _r_obj_enumhashtable (
 	_In_ PR_HASHTABLE hashtable,
 	_Outptr_opt_ PVOID_PTR entry_ptr,
 	_Out_opt_ PULONG_PTR hash_code_ptr,
-	_Inout_ PSIZE_T enum_key
+	_Inout_ PULONG_PTR enum_key
 );
 
 _Ret_maybenull_
@@ -1372,7 +1372,7 @@ BOOLEAN _r_obj_enumhashtablepointer (
 	_In_ PR_HASHTABLE hashtable,
 	_Outptr_opt_ PVOID_PTR entry_ptr,
 	_Out_opt_ PULONG_PTR hash_code_ptr,
-	_Inout_ PSIZE_T enum_key
+	_Inout_ PULONG_PTR enum_key
 );
 
 _Ret_maybenull_

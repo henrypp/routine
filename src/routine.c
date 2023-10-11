@@ -244,7 +244,7 @@ PR_STRING _r_format_interval (
 
 	status = LongLongToLong (seconds, &seconds32);
 
-	if (status != S_OK)
+	if (FAILED (status))
 		return NULL;
 
 	buffer_length = 128;
@@ -3110,7 +3110,7 @@ PR_ARRAY _r_obj_createarray (
 PVOID _r_obj_addarrayitem_ex (
 	_Inout_ PR_ARRAY array_node,
 	_In_opt_ LPCVOID array_item,
-	_Out_opt_ PSIZE_T new_index_ptr
+	_Out_opt_ PULONG_PTR new_index_ptr
 )
 {
 	PVOID ptr;
@@ -3306,7 +3306,7 @@ VOID _r_obj_addlistitem (
 VOID _r_obj_addlistitem_ex (
 	_Inout_ PR_LIST list_node,
 	_In_opt_ PVOID list_item,
-	_Out_opt_ PSIZE_T new_index_ptr
+	_Out_opt_ PULONG_PTR new_index_ptr
 )
 {
 	ULONG_PTR new_index;
@@ -3670,7 +3670,7 @@ BOOLEAN _r_obj_enumhashtable (
 	_In_ PR_HASHTABLE hashtable,
 	_Outptr_opt_ PVOID_PTR entry_ptr,
 	_Out_opt_ PULONG_PTR hash_code_ptr,
-	_Inout_ PSIZE_T enum_key
+	_Inout_ PULONG_PTR enum_key
 )
 {
 	PR_HASHTABLE_ENTRY hashtable_entry;
@@ -3866,7 +3866,7 @@ BOOLEAN _r_obj_enumhashtablepointer (
 	_In_ PR_HASHTABLE hashtable,
 	_Outptr_opt_ PVOID_PTR entry_ptr,
 	_Out_opt_ PULONG_PTR hash_code_ptr,
-	_Inout_ PSIZE_T enum_key
+	_Inout_ PULONG_PTR enum_key
 )
 {
 	PR_OBJECT_POINTER object_ptr = NULL;
@@ -5392,8 +5392,8 @@ BOOLEAN _r_path_issecurelocation (
 	PACL dacl;
 	PSID current_user_sid;
 	PACCESS_ALLOWED_ACE ace = {0};
-	ULONG status;
 	BOOLEAN is_writeable = FALSE;
+	NTSTATUS status;
 
 	status = GetNamedSecurityInfoW (file_path, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, NULL, NULL, &dacl, NULL, &security_descriptor);
 
@@ -5410,7 +5410,9 @@ BOOLEAN _r_path_issecurelocation (
 
 		for (WORD ace_index = 0; ace_index < dacl->AceCount; ace_index++)
 		{
-			if (!GetAce (dacl, ace_index, &ace))
+			status = RtlGetAce (dacl, ace_index, &ace);
+
+			if (!NT_SUCCESS (status))
 				continue;
 
 			if (ace->Header.AceType != ACCESS_ALLOWED_ACE_TYPE)
@@ -5421,6 +5423,7 @@ BOOLEAN _r_path_issecurelocation (
 				if (ace->Mask & (DELETE | ACTRL_FILE_WRITE_ATTRIB | SYNCHRONIZE | READ_CONTROL))
 				{
 					is_writeable = TRUE;
+
 					break;
 				}
 			}
@@ -14204,6 +14207,14 @@ NTSTATUS _r_crypt_finalhashcontext (
 		if (out_buffer)
 			*out_buffer = _r_obj_reference (hash_context->block_data);
 	}
+	else
+	{
+		if (out_string)
+			*out_string = NULL;
+
+		if (out_buffer)
+			*out_buffer = NULL;
+	}
 
 	return status;
 }
@@ -14370,11 +14381,13 @@ ULONG64 _r_math_exponentiate64 (
 
 ULONG _r_math_getrandom ()
 {
-	static ULONG seed = {0}; // save seed
+	static LARGE_INTEGER seed = {0}; // save seed
 
 	ULONG value;
 
-	value = RtlRandomEx (&seed);
+	RtlQueryPerformanceCounter (&seed);
+
+	value = RtlRandomEx (&seed.HighPart);
 
 	return value;
 }
