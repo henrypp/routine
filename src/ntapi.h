@@ -3249,12 +3249,11 @@ LdrUnloadDll (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-LdrGetProcedureAddressEx (
+LdrGetProcedureAddress (
 	_In_ PVOID DllHandle,
 	_In_opt_ PANSI_STRING ProcedureName,
 	_In_opt_ ULONG ProcedureNumber,
-	_Out_ PVOID *ProcedureAddress,
-	_In_ ULONG Flags
+	_Out_ PVOID *ProcedureAddress
 );
 
 NTSYSCALLAPI
