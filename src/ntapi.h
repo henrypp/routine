@@ -1598,6 +1598,7 @@ typedef enum _IO_PRIORITY_HINT
 #define OBJ_PROTECT_CLOSE 0x00000001
 #define OBJ_INHERIT 0x00000002
 #define OBJ_AUDIT_OBJECT_CLOSE 0x00000004
+#define OBJ_NO_RIGHTS_UPGRADE 0x00000008
 #define OBJ_PERMANENT 0x00000010
 #define OBJ_EXCLUSIVE 0x00000020
 #define OBJ_CASE_INSENSITIVE 0x00000040
@@ -1607,7 +1608,7 @@ typedef enum _IO_PRIORITY_HINT
 #define OBJ_FORCE_ACCESS_CHECK 0x00000400
 #define OBJ_IGNORE_IMPERSONATED_DEVICEMAP 0x00000800
 #define OBJ_DONT_REPARSE 0x00001000
-#define OBJ_VALID_ATTRIBUTES 0x00001ff2
+#define OBJ_VALID_ATTRIBUTES 0x00001FF2
 
 #define OBJECT_TYPE_CREATE 0x0001
 #define OBJECT_TYPE_ALL_ACCESS (STANDARD_RIGHTS_REQUIRED | 0x1)
@@ -2517,8 +2518,8 @@ typedef enum _SECTION_INFORMATION_CLASS
 	SectionBasicInformation, // q; SECTION_BASIC_INFORMATION
 	SectionImageInformation, // q; SECTION_IMAGE_INFORMATION
 	SectionRelocationInformation, // q; PVOID RelocationAddress // name:wow64:whNtQuerySection_SectionRelocationInformation // since WIN7
-	SectionOriginalBaseInformation, // PVOID BaseAddress
-	SectionInternalImageInformation, // SECTION_INTERNAL_IMAGE_INFORMATION // since REDSTONE2
+	SectionOriginalBaseInformation, // q; ULONG_PTR RelocationDelta // name:wow64:whNtQuerySection_SectionRelocationInformation // since WIN7
+	SectionInternalImageInformation, // q; PVOID BaseAddress // since REDSTONE
 	MaxSectionInfoClass
 } SECTION_INFORMATION_CLASS;
 
@@ -3979,7 +3980,7 @@ NTSYSCALLAPI
 NTSTATUS
 NTAPI
 NtClose (
-	_In_ HANDLE Handle
+	_In_ _Post_ptr_invalid_ HANDLE Handle
 );
 
 NTSYSCALLAPI
