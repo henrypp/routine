@@ -10962,7 +10962,7 @@ COLORREF _r_dc_getcoloraccent ()
 
 	status = DwmGetColorizationColor (&clr, &is_opaque);
 
-	if (status != S_OK)
+	if (FAILED (status))
 		return 0;
 
 	return RGB (GetBValue (clr), GetGValue (clr), GetRValue (clr));
