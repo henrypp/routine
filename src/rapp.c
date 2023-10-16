@@ -3512,7 +3512,7 @@ VOID _r_settings_createwindow (
 	WORD controls;
 	NTSTATUS status;
 
-	assert (!_r_obj_isarrayempty (app_global.settings.page_list));
+	assert (!_r_obj_isempty (app_global.settings.page_list));
 
 	if (_r_settings_getwindow ())
 	{
