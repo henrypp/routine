@@ -11800,7 +11800,7 @@ ULONG _r_layout_getcontrolflags (
 	R_STRINGREF sr;
 	ULONG length;
 
-	length = GetClassName (hwnd, class_name, RTL_NUMBER_OF (class_name));
+	length = GetClassNameW (hwnd, class_name, RTL_NUMBER_OF (class_name));
 
 	if (!length)
 		return 0;
@@ -12702,7 +12702,7 @@ ULONG CALLBACK _r_wnd_message_callback (
 		if (!is_processed)
 		{
 			TranslateMessage (&msg);
-			DispatchMessage (&msg);
+			DispatchMessageW (&msg);
 		}
 	}
 
