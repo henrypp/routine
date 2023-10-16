@@ -11651,8 +11651,7 @@ VOID _r_filedialog_destroy (
 // Window layout
 //
 
-_Success_ (return)
-BOOLEAN _r_layout_initializemanager (
+VOID _r_layout_initializemanager (
 	_Out_ PR_LAYOUT_MANAGER layout_manager,
 	_In_ HWND hwnd
 )
@@ -11662,10 +11661,10 @@ BOOLEAN _r_layout_initializemanager (
 	LONG dpi_value;
 
 	if (!_r_wnd_getposition (hwnd, &rect))
-		return FALSE;
+		return;
 
 	if (!_r_wnd_getclientsize (hwnd, &client_rect))
-		return FALSE;
+		return;
 
 	dpi_value = _r_dc_getwindowdpi (hwnd);
 
@@ -11697,8 +11696,6 @@ BOOLEAN _r_layout_initializemanager (
 
 	// Enumerate child control and windows
 	_r_layout_enumcontrols (layout_manager, &layout_manager->root_item, hwnd);
-
-	return TRUE;
 }
 
 VOID _r_layout_destroymanager (
@@ -15313,7 +15310,7 @@ VOID _r_tray_setversion (
 	Shell_NotifyIconW (NIM_SETVERSION, nid);
 }
 
-BOOLEAN _r_tray_create (
+VOID _r_tray_create (
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid,
 	_In_ UINT msg,
@@ -15354,16 +15351,10 @@ BOOLEAN _r_tray_create (
 	}
 
 	if (Shell_NotifyIconW (NIM_ADD, &nid))
-	{
 		_r_tray_setversion (&nid);
-
-		return TRUE;
-	}
-
-	return FALSE;
 }
 
-BOOLEAN _r_tray_destroy (
+VOID _r_tray_destroy (
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid
 )
@@ -15372,10 +15363,10 @@ BOOLEAN _r_tray_destroy (
 
 	_r_tray_initialize (&nid, hwnd, guid);
 
-	return !!Shell_NotifyIconW (NIM_DELETE, &nid);
+	Shell_NotifyIconW (NIM_DELETE, &nid);
 }
 
-BOOLEAN _r_tray_popup (
+VOID _r_tray_popup (
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid,
 	_In_opt_ ULONG icon_id,
@@ -15392,6 +15383,7 @@ BOOLEAN _r_tray_popup (
 	if (icon_id)
 	{
 		nid.uFlags |= NIF_INFO;
+
 		nid.dwInfoFlags = icon_id;
 	}
 
@@ -15401,10 +15393,10 @@ BOOLEAN _r_tray_popup (
 	if (string)
 		_r_str_copy (nid.szInfo, RTL_NUMBER_OF (nid.szInfo), string);
 
-	return !!Shell_NotifyIconW (NIM_MODIFY, &nid);
+	Shell_NotifyIconW (NIM_MODIFY, &nid);
 }
 
-BOOLEAN _r_tray_popupformat (
+VOID _r_tray_popupformat (
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid,
 	_In_opt_ ULONG icon_id,
@@ -15415,20 +15407,17 @@ BOOLEAN _r_tray_popupformat (
 {
 	va_list arg_ptr;
 	PR_STRING string;
-	BOOLEAN status;
 
 	va_start (arg_ptr, format);
 	string = _r_format_string_v (format, arg_ptr);
 	va_end (arg_ptr);
 
-	status = _r_tray_popup (hwnd, guid, icon_id, title, string->buffer);
+	_r_tray_popup (hwnd, guid, icon_id, title, string->buffer);
 
 	_r_obj_dereference (string);
-
-	return status;
 }
 
-BOOLEAN _r_tray_setinfo (
+VOID _r_tray_setinfo (
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid,
 	_In_opt_ HICON hicon,
@@ -15453,10 +15442,10 @@ BOOLEAN _r_tray_setinfo (
 		_r_str_copy (nid.szTip, RTL_NUMBER_OF (nid.szTip), tooltip);
 	}
 
-	return !!Shell_NotifyIconW (NIM_MODIFY, &nid);
+	Shell_NotifyIconW (NIM_MODIFY, &nid);
 }
 
-BOOLEAN _r_tray_setinfoformat (
+VOID _r_tray_setinfoformat (
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid,
 	_In_opt_ HICON hicon,
@@ -15466,20 +15455,17 @@ BOOLEAN _r_tray_setinfoformat (
 {
 	va_list arg_ptr;
 	PR_STRING string;
-	BOOLEAN status;
 
 	va_start (arg_ptr, format);
 	string = _r_format_string_v (format, arg_ptr);
 	va_end (arg_ptr);
 
-	status = _r_tray_setinfo (hwnd, guid, hicon, string->buffer);
+	_r_tray_setinfo (hwnd, guid, hicon, string->buffer);
 
 	_r_obj_dereference (string);
-
-	return status;
 }
 
-BOOLEAN _r_tray_toggle (
+VOID _r_tray_toggle (
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid,
 	_In_ BOOLEAN is_show
@@ -15494,7 +15480,7 @@ BOOLEAN _r_tray_toggle (
 	nid.dwState = is_show ? 0 : NIS_HIDDEN;
 	nid.dwStateMask = NIS_HIDDEN;
 
-	return !!Shell_NotifyIconW (NIM_MODIFY, &nid);
+	Shell_NotifyIconW (NIM_MODIFY, &nid);
 }
 
 //

@@ -2905,8 +2905,7 @@ VOID _r_filedialog_destroy (
 // Window layout
 //
 
-_Success_ (return)
-BOOLEAN _r_layout_initializemanager (
+VOID _r_layout_initializemanager (
 	_Out_ PR_LAYOUT_MANAGER layout_manager,
 	_In_ HWND hwnd
 );
@@ -3697,7 +3696,7 @@ VOID _r_tray_setversion (
 	_Inout_ PNOTIFYICONDATA nid
 );
 
-BOOLEAN _r_tray_create (
+VOID _r_tray_create (
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid,
 	_In_ UINT msg,
@@ -3706,12 +3705,12 @@ BOOLEAN _r_tray_create (
 	_In_ BOOLEAN is_hidden
 );
 
-BOOLEAN _r_tray_destroy (
+VOID _r_tray_destroy (
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid
 );
 
-BOOLEAN _r_tray_popup (
+VOID _r_tray_popup (
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid,
 	_In_opt_ ULONG icon_id,
@@ -3719,7 +3718,7 @@ BOOLEAN _r_tray_popup (
 	_In_opt_ LPCWSTR string
 );
 
-BOOLEAN _r_tray_popupformat (
+VOID _r_tray_popupformat (
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid,
 	_In_opt_ ULONG icon_id,
@@ -3728,14 +3727,14 @@ BOOLEAN _r_tray_popupformat (
 	...
 );
 
-BOOLEAN _r_tray_setinfo (
+VOID _r_tray_setinfo (
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid,
 	_In_opt_ HICON hicon,
 	_In_opt_ LPCWSTR tooltip
 );
 
-BOOLEAN _r_tray_setinfoformat (
+VOID _r_tray_setinfoformat (
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid,
 	_In_opt_ HICON hicon,
@@ -3743,7 +3742,7 @@ BOOLEAN _r_tray_setinfoformat (
 	...
 );
 
-BOOLEAN _r_tray_toggle (
+VOID _r_tray_toggle (
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid,
 	_In_ BOOLEAN is_show
