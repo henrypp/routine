@@ -2175,23 +2175,13 @@ NTSTATUS NTAPI _r_update_downloadthread (
 		{
 			buttons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
 
-#if defined(IDS_UPDATE_INSTALL)
-			str_content = _r_locale_getstring (IDS_UPDATE_INSTALL);
-#else
 			str_content = L"Update available. Do you want to install it now?";
-#pragma PR_PRINT_WARNING(IDS_UPDATE_INSTALL)
-#endif // IDS_UPDATE_INSTALL
 		}
 		else
 		{
 			buttons = TDCBF_CLOSE_BUTTON;
 
-#if defined(IDS_UPDATE_DONE)
-			str_content = _r_locale_getstring (IDS_UPDATE_DONE);
-#else
 			str_content = L"Downloading update finished.";
-#pragma PR_PRINT_WARNING(IDS_UPDATE_DONE)
-#endif // IDS_UPDATE_DONE
 		}
 	}
 	else
@@ -2199,12 +2189,7 @@ NTSTATUS NTAPI _r_update_downloadthread (
 		main_icon = TD_WARNING_ICON;
 		buttons = TDCBF_CLOSE_BUTTON;
 
-#if defined(IDS_UPDATE_ERROR)
-		str_content = _r_locale_getstring (IDS_UPDATE_ERROR);
-#else
 		str_content = L"Update server connection error.";
-#pragma PR_PRINT_WARNING(IDS_UPDATE_ERROR)
-#endif // IDS_UPDATE_ERROR
 	}
 
 	_r_update_navigate (update_info, buttons, 0, main_icon, NULL, str_content, status);
@@ -2244,12 +2229,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 	{
 		if (update_info->hparent)
 		{
-#if defined(IDS_UPDATE_ERROR)
-			str_content = _r_locale_getstring (IDS_UPDATE_ERROR);
-#else
 			str_content = L"Update server connection error.";
-#pragma PR_PRINT_WARNING(IDS_UPDATE_ERROR)
-#endif // IDS_UPDATE_ERROR
 
 			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, TD_WARNING_ICON, NULL, str_content, status);
 		}
@@ -2330,12 +2310,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 	{
 		_r_str_trim (str_updates, L"\r\n ");
 
-#if defined(IDS_UPDATE_YES)
-		str_content = _r_locale_getstring (IDS_UPDATE_YES);
-#else
 		str_content = L"Update available. Download and install now?";
-#pragma PR_PRINT_WARNING(IDS_UPDATE_YES)
-#endif // IDS_UPDATE_YES
 
 		_r_update_navigate (update_info, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, 0, NULL, str_content, str_updates, 0);
 	}
@@ -2345,32 +2320,17 @@ NTSTATUS NTAPI _r_update_checkthread (
 		{
 			if (status != ERROR_SUCCESS)
 			{
-#if defined(IDS_UPDATE_ERROR)
-				str_content = _r_locale_getstring (IDS_UPDATE_ERROR);
-#else
 				str_content = L"Update server connection error.";
-#pragma PR_PRINT_WARNING(IDS_UPDATE_ERROR)
-#endif // IDS_UPDATE_ERROR
 			}
 			else
 			{
 				if (downloads_count)
 				{
-#if defined(IDS_UPDATE_DONE)
-					str_content = _r_locale_getstring (IDS_UPDATE_DONE);
-#else
 					str_content = L"Downloading update finished.";
-#pragma PR_PRINT_WARNING(IDS_UPDATE_DONE)
-#endif // IDS_UPDATE_DONE
 				}
 				else
 				{
-#if defined(IDS_UPDATE_NO)
-					str_content = _r_locale_getstring (IDS_UPDATE_NO);
-#else
 					str_content = L"No updates available.";
-#pragma PR_PRINT_WARNING(IDS_UPDATE_NO)
-#endif // IDS_UPDATE_NO
 				}
 			}
 
@@ -2482,12 +2442,7 @@ BOOLEAN _r_update_check (
 
 	if (hparent)
 	{
-#if defined(IDS_UPDATE_INIT)
-		str_content = _r_locale_getstring (IDS_UPDATE_INIT);
-#else
 		str_content = L"Checking for new releases...";
-#pragma PR_PRINT_WARNING(IDS_UPDATE_INIT)
-#endif // IDS_UPDATE_INIT
 
 		update_info->hthread = hthread;
 
@@ -2562,12 +2517,7 @@ HRESULT CALLBACK _r_update_pagecallback (
 						update_info->is_clicked = FALSE;
 					}
 
-#if defined(IDS_UPDATE_DOWNLOAD)
-					str_content = _r_locale_getstring (IDS_UPDATE_DOWNLOAD);
-#else
 					str_content = L"Downloading update...";
-#pragma PR_PRINT_WARNING(IDS_UPDATE_DOWNLOAD)
-#endif // IDS_UPDATE_DOWNLOAD
 
 					_r_update_navigate (update_info, TDCBF_CANCEL_BUTTON, TDF_SHOW_PROGRESS_BAR, NULL, NULL, str_content, 0);
 
@@ -2683,14 +2633,7 @@ VOID _r_update_navigate (
 	if (buttons & TDCBF_YES_BUTTON)
 	{
 		if (update_info->flags & PR_UPDATE_FLAG_FILE)
-		{
-#if defined(IDS_UPDATE_AUTOINSTALL)
-			tdc.pszVerificationText = _r_locale_getstring (IDS_UPDATE_AUTOINSTALL);
-#else
 			tdc.pszVerificationText = L"Automatically install non-executable updates";
-#pragma PR_PRINT_WARNING(IDS_UPDATE_AUTOINSTALL)
-#endif // IDS_UPDATE_AUTOINSTALL
-		}
 	}
 
 	if (update_info->htaskdlg)
