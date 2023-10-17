@@ -2136,7 +2136,7 @@ VOID NTAPI _r_obj_dereference_ex (
 	}
 	else if (new_count < 0)
 	{
-		RtlRaiseStatus (STATUS_INVALID_PARAMETER);
+		RtlRaiseStatus (STATUS_UNSUCCESSFUL);
 	}
 }
 
