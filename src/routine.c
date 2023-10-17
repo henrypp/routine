@@ -8339,47 +8339,31 @@ NTSTATUS _r_sys_getbinarytype (
 )
 {
 	SECTION_IMAGE_INFORMATION image_info = {0};
-	HANDLE hfile;
-	HANDLE hsection;
+	HANDLE hsection = NULL;
+	HANDLE hfile = NULL;
 	NTSTATUS status;
 
 	*out_buffer = 0;
 
-	status = _r_fs_createfile (
-		path,
-		FILE_OPEN,
-		FILE_READ_DATA | FILE_EXECUTE,
-		FILE_SHARE_READ | FILE_SHARE_DELETE,
-		FILE_ATTRIBUTE_NORMAL,
-		0,
-		FALSE,
-		NULL,
-		&hfile
-	);
+	status = _r_fs_createfile (path, FILE_OPEN, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, FILE_ATTRIBUTE_NORMAL, 0, FALSE, NULL, &hfile);
 
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
-	status = NtCreateSection (
-		&hsection,
-		SECTION_QUERY | SECTION_MAP_READ | SECTION_MAP_EXECUTE,
-		NULL,
-		NULL,
-		PAGE_EXECUTE,
-		SEC_IMAGE,
-		hfile
-	);
-
-	NtClose (hfile);
+	status = NtCreateSection (&hsection, STANDARD_RIGHTS_REQUIRED | SECTION_QUERY, NULL, NULL, PAGE_READONLY, SEC_IMAGE, hfile);
 
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
 	status = NtQuerySection (hsection, SectionImageInformation, &image_info, sizeof (image_info), NULL);
 
-	NtClose (hsection);
-
 CleanupExit:
+
+	if (hfile)
+		NtClose (hfile);
+
+	if (hsection)
+		NtClose (hsection);
 
 	switch (status)
 	{
@@ -11659,6 +11643,8 @@ VOID _r_layout_initializemanager (
 	R_RECTANGLE client_rect;
 	R_RECTANGLE rect;
 	LONG dpi_value;
+
+	RtlZeroMemory (layout_manager, sizeof (R_LAYOUT_MANAGER));
 
 	if (!_r_wnd_getposition (hwnd, &rect))
 		return;
