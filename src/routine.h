@@ -1673,7 +1673,7 @@ VOID _r_fs_clearfile (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_createdirectory (
 	_In_ LPCWSTR path,
-	_In_ ULONG file_attributes
+	_In_opt_ ULONG file_attributes
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -1682,7 +1682,7 @@ NTSTATUS _r_fs_createfile (
 	_In_ ULONG create_disposition,
 	_In_ ACCESS_MASK desired_access,
 	_In_ ULONG share_access,
-	_In_ ULONG file_attributes,
+	_In_opt_ ULONG file_attributes,
 	_In_ ULONG create_option,
 	_In_ BOOLEAN is_directory,
 	_In_opt_ PLARGE_INTEGER allocation_size,
@@ -1810,8 +1810,15 @@ NTSTATUS _r_fs_settimestamp (
 	_In_opt_ LPFILETIME write_time
 );
 
-#define _r_fs_isvalidhandle(handle) \
-    ((handle) != NULL && (handle) != INVALID_HANDLE_VALUE)
+FORCEINLINE BOOLEAN _r_fs_isvalidhandle (
+	_In_ HANDLE handle
+)
+{
+	if (handle && handle != INVALID_HANDLE_VALUE)
+		return TRUE;
+
+	return FALSE;
+}
 
 //
 // Paths
@@ -2328,6 +2335,36 @@ ULONG _r_str_x65599 (
 	_In_ BOOLEAN is_ignorecase
 );
 
+FORCEINLINE VOID _r_str_trim (
+	_In_ LPWSTR string,
+	_In_ LPCWSTR trim
+)
+{
+	StrTrimW (string, trim);
+}
+
+FORCEINLINE WCHAR _r_str_lower (
+	_In_ WCHAR str
+)
+{
+	WCHAR chr;
+
+	chr = RtlDowncaseUnicodeChar (str);
+
+	return chr;
+}
+
+FORCEINLINE WCHAR _r_str_upper (
+	_In_ WCHAR str
+)
+{
+	WCHAR chr;
+
+	chr = RtlUpcaseUnicodeChar (str);
+
+	return chr;
+}
+
 #if defined(_WIN64)
 #define _r_str_fromlong_ptr _r_str_fromlong64
 #define _r_str_fromulong_ptr _r_str_fromulong64
@@ -2341,11 +2378,6 @@ ULONG _r_str_x65599 (
 #define _r_str_tolong_ptr _r_str_tolong
 #define _r_str_toulong_ptr _r_str_toulong
 #endif // _WIN64
-
-#define _r_str_trim StrTrimW
-
-#define _r_str_lower RtlDowncaseUnicodeChar
-#define _r_str_upper RtlUpcaseUnicodeChar
 
 //
 // Performance

@@ -4171,26 +4171,42 @@ VOID _r_fs_clearfile (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_createdirectory (
 	_In_ LPCWSTR path,
-	_In_ ULONG file_attributes
+	_In_opt_ ULONG file_attributes
 )
 {
+	WCHAR buffer[1024];
+	LPWSTR slash;
 	HANDLE hfile;
-	NTSTATUS status;
+	NTSTATUS status = STATUS_OBJECT_NAME_COLLISION;
 
-	status = _r_fs_createfile (
-		path,
-		FILE_CREATE,
-		GENERIC_READ,
-		FILE_SHARE_READ | FILE_SHARE_WRITE,
-		file_attributes,
-		0,
-		TRUE,
-		NULL,
-		&hfile
-	);
+	if (_r_fs_exists (path))
+		return STATUS_OBJECT_NAME_COLLISION;
 
-	if (NT_SUCCESS (status))
-		NtClose (hfile);
+	_r_str_copy (buffer, RTL_NUMBER_OF (buffer), path);
+
+	PathAddBackslashW (buffer);
+
+	slash = buffer + 3;
+
+	while (*slash)
+	{
+		while (*slash && *slash != OBJ_NAME_PATH_SEPARATOR)
+		{
+			slash += 1;
+		}
+
+		if (*slash != UNICODE_NULL)
+		{
+			*slash = UNICODE_NULL; // terminate path at separator
+
+			status = _r_fs_createfile (buffer, FILE_CREATE, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE, file_attributes, FILE_OPEN_FOR_BACKUP_INTENT, TRUE, NULL, &hfile);
+
+			if (NT_SUCCESS (status))
+				NtClose (hfile);
+		}
+
+		*slash++ = OBJ_NAME_PATH_SEPARATOR; // put the separator back
+	}
 
 	return status;
 }
@@ -4201,7 +4217,7 @@ NTSTATUS _r_fs_createfile (
 	_In_ ULONG create_disposition,
 	_In_ ACCESS_MASK desired_access,
 	_In_ ULONG share_access,
-	_In_ ULONG file_attributes,
+	_In_opt_ ULONG file_attributes,
 	_In_ ULONG create_option,
 	_In_ BOOLEAN is_directory,
 	_In_opt_ PLARGE_INTEGER allocation_size,
@@ -4233,7 +4249,7 @@ NTSTATUS _r_fs_createfile (
 		&oa,
 		&io,
 		allocation_size,
-		file_attributes | FILE_ATTRIBUTE_NORMAL,
+		file_attributes ? file_attributes : FILE_ATTRIBUTE_NORMAL,
 		share_access,
 		create_disposition,
 		FILE_SYNCHRONOUS_IO_NONALERT | create_option,
