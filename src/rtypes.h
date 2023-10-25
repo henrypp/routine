@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <mscat.h>
+
 //
 // Types definition
 //
@@ -12,6 +14,7 @@
 typedef PVOID *PVOID_PTR;
 typedef PBYTE *PBYTE_PTR;
 typedef HICON *HICON_PTR;
+typedef HCATADMIN *HCATADMIN_PTR;
 typedef HBITMAP *HBITMAP_PTR;
 typedef HDWP *HDWP_PTR;
 typedef PSYSTEM_PROCESS_INFORMATION *PSYSTEM_PROCESS_INFORMATION_PTR;
