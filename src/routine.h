@@ -3610,20 +3610,20 @@ BOOLEAN _r_xml_findchildbytagname (
 	_In_ LPWSTR tag_name
 );
 
-_Success_ (return)
-BOOLEAN _r_xml_getattribute (
+_Success_ (SUCCEEDED (return))
+HRESULT _r_xml_getattribute (
 	_Inout_ PR_XML_LIBRARY xml_library,
 	_In_ LPCWSTR attrib_name,
 	_Out_ PR_STRINGREF value
 );
 
-_Ret_maybenull_
-PR_STRING _r_xml_getattribute_string (
+BOOLEAN _r_xml_getattribute_boolean (
 	_Inout_ PR_XML_LIBRARY xml_library,
 	_In_ LPCWSTR attrib_name
 );
 
-BOOLEAN _r_xml_getattribute_boolean (
+_Ret_maybenull_
+PR_STRING _r_xml_getattribute_string (
 	_Inout_ PR_XML_LIBRARY xml_library,
 	_In_ LPCWSTR attrib_name
 );

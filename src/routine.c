@@ -14986,15 +14986,15 @@ BOOLEAN _r_xml_findchildbytagname (
 	return FALSE;
 }
 
-_Success_ (return)
-BOOLEAN _r_xml_getattribute (
+_Success_ (SUCCEEDED (return))
+HRESULT _r_xml_getattribute (
 	_Inout_ PR_XML_LIBRARY xml_library,
 	_In_ LPCWSTR attrib_name,
 	_Out_ PR_STRINGREF value
 )
 {
-	LPCWSTR value_string;
-	UINT value_length;
+	LPWSTR value_string = NULL;
+	UINT value_length = 0;
 	HRESULT status;
 
 	status = IXmlReader_MoveToAttributeByName (xml_library->reader, attrib_name, NULL);
@@ -15003,7 +15003,7 @@ BOOLEAN _r_xml_getattribute (
 	{
 		_r_obj_initializestringrefempty (value);
 
-		return FALSE;
+		return status;
 	}
 
 	status = IXmlReader_GetValue (xml_library->reader, &value_string, &value_length);
@@ -15011,16 +15011,36 @@ BOOLEAN _r_xml_getattribute (
 	// restore position before return from the function!
 	IXmlReader_MoveToElement (xml_library->reader);
 
-	if (FAILED (status) || _r_str_isempty (value_string) || !value_length)
+	if (FAILED (status))
 	{
 		_r_obj_initializestringrefempty (value);
 
-		return FALSE;
+		return status;
 	}
 
-	_r_obj_initializestringref_ex (value, (LPWSTR)value_string, value_length * sizeof (WCHAR));
+	if (_r_str_isempty (value_string) || !value_length)
+	{
+		_r_obj_initializestringrefempty (value);
+	}
+	else
+	{
+		_r_obj_initializestringref_ex (value, value_string, value_length * sizeof (WCHAR));
+	}
 
-	return TRUE;
+	return status;
+}
+
+BOOLEAN _r_xml_getattribute_boolean (
+	_Inout_ PR_XML_LIBRARY xml_library,
+	_In_ LPCWSTR attrib_name
+)
+{
+	R_STRINGREF text_value;
+
+	if (FAILED (_r_xml_getattribute (xml_library, attrib_name, &text_value)))
+		return FALSE;
+
+	return _r_str_toboolean (&text_value);
 }
 
 _Ret_maybenull_
@@ -15031,23 +15051,10 @@ PR_STRING _r_xml_getattribute_string (
 {
 	R_STRINGREF text_value;
 
-	if (!_r_xml_getattribute (xml_library, attrib_name, &text_value))
+	if (FAILED (_r_xml_getattribute (xml_library, attrib_name, &text_value)))
 		return NULL;
 
 	return _r_obj_createstring3 (&text_value);
-}
-
-BOOLEAN _r_xml_getattribute_boolean (
-	_Inout_ PR_XML_LIBRARY xml_library,
-	_In_ LPCWSTR attrib_name
-)
-{
-	R_STRINGREF text_value;
-
-	if (!_r_xml_getattribute (xml_library, attrib_name, &text_value))
-		return FALSE;
-
-	return _r_str_toboolean (&text_value);
 }
 
 LONG _r_xml_getattribute_long (
@@ -15057,7 +15064,7 @@ LONG _r_xml_getattribute_long (
 {
 	R_STRINGREF text_value;
 
-	if (!_r_xml_getattribute (xml_library, attrib_name, &text_value))
+	if (FAILED (_r_xml_getattribute (xml_library, attrib_name, &text_value)))
 		return 0;
 
 	return _r_str_tolong (&text_value);
@@ -15070,7 +15077,7 @@ LONG64 _r_xml_getattribute_long64 (
 {
 	R_STRINGREF text_value;
 
-	if (!_r_xml_getattribute (xml_library, attrib_name, &text_value))
+	if (FAILED (_r_xml_getattribute (xml_library, attrib_name, &text_value)))
 		return 0;
 
 	return _r_str_tolong64 (&text_value);
