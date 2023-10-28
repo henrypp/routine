@@ -57,10 +57,6 @@ ULONG NTAPI _r_app_exceptionfilter_callback (
 	_In_ PEXCEPTION_POINTERS exception_ptr
 )
 {
-#if !defined(APP_CONSOLE)
-	R_ERROR_INFO error_info;
-#endif // !APP_CONSOLE
-
 	_r_app_exceptionfilter_savedump (exception_ptr);
 
 #if defined(APP_CONSOLE)
@@ -69,9 +65,7 @@ ULONG NTAPI _r_app_exceptionfilter_callback (
 		exception_ptr->ExceptionRecord->ExceptionCode
 	);
 #else
-	_r_error_initialize (&error_info, NULL, NULL, exception_ptr);
-
-	_r_show_errormessage (NULL, APP_EXCEPTION_TITLE, exception_ptr->ExceptionRecord->ExceptionCode, &error_info);
+	_r_show_errormessage (NULL, APP_EXCEPTION_TITLE, exception_ptr->ExceptionRecord->ExceptionCode, NULL, NULL, exception_ptr);
 #endif // APP_CONSOLE
 
 	RtlExitUserProcess (exception_ptr->ExceptionRecord->ExceptionCode);
@@ -192,7 +186,7 @@ BOOLEAN _r_app_initialize_com ()
 #if defined(APP_CONSOLE)
 		_r_console_writestringformat (APP_FAILED_COM_INITIALIZE L" 0x%08" TEXT (PRIX32) L"!\r\n", status);
 #else
-		_r_show_errormessage (NULL, APP_FAILED_COM_INITIALIZE, status, NULL);
+		_r_show_errormessage (NULL, APP_FAILED_COM_INITIALIZE, status, NULL, NULL, NULL);
 #endif // APP_CONSOLE
 
 		return FALSE;
@@ -332,7 +326,7 @@ BOOLEAN _r_app_initialize (
 	if (!_r_sys_iselevated ())
 	{
 		if (!_r_app_runasadmin ())
-			_r_show_errormessage (NULL, APP_FAILED_ADMIN_RIGHTS, ERROR_DS_INSUFF_ACCESS_RIGHTS, NULL);
+			_r_show_errormessage (NULL, APP_FAILED_ADMIN_RIGHTS, STATUS_ACCESS_DENIED, NULL, NULL, NULL);
 
 		return FALSE;
 	}
@@ -903,7 +897,7 @@ VOID _r_app_restart (
 
 	_r_mutex_destroy (&app_global.main.hmutex);
 
-	status = _r_sys_createprocess (_r_sys_getimagepath (), _r_sys_getimagecommandline (), _r_sys_getcurrentdirectory ());
+	status = _r_sys_createprocess (_r_sys_getimagepath (), _r_sys_getimagecommandline (), _r_sys_getcurrentdirectory (), NULL);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -2045,7 +2039,7 @@ NTSTATUS _r_autorun_enable (
 	if (hwnd)
 	{
 		if (!NT_SUCCESS (status))
-			_r_show_errormessage (hwnd, NULL, status, NULL);
+			_r_show_errormessage (hwnd, NULL, status, NULL, NULL, NULL);
 	}
 
 	return status;
@@ -2709,20 +2703,15 @@ VOID _r_update_install (
 	_In_ PR_UPDATE_COMPONENT update_component
 )
 {
-	R_ERROR_INFO error_info;
 	PR_STRING cmd_string;
 
 	if (!_r_fs_exists (update_component->cache_path->buffer))
 		return;
 
-	cmd_string = _r_format_string (L"\"%s\" /u /S /D=%s", update_component->cache_path->buffer, update_component->target_path->buffer);
+	cmd_string = _r_format_string (L"\"%s\" /S /D=%s", update_component->cache_path->buffer, update_component->target_path->buffer);
 
 	if (!_r_sys_runasadmin (update_component->cache_path->buffer, cmd_string->buffer, NULL))
-	{
-		_r_error_initialize (&error_info, NULL, update_component->cache_path->buffer, NULL);
-
-		_r_show_errormessage (NULL, NULL, GetLastError (), &error_info);
-	}
+		_r_show_errormessage (NULL, NULL, GetLastError (), NULL, update_component->cache_path->buffer, NULL);
 
 	_r_obj_dereference (cmd_string);
 }
@@ -2952,7 +2941,6 @@ ULONG _r_log_leveltrayicon (
 	}
 }
 
-#if !defined(APP_CONSOLE)
 VOID _r_show_aboutmessage (
 	_In_opt_ HWND hwnd
 )
@@ -3042,7 +3030,9 @@ VOID _r_show_errormessage (
 	_In_opt_ HWND hwnd,
 	_In_opt_ LPCWSTR main,
 	_In_ LONG error_code,
-	_In_opt_ PR_ERROR_INFO error_info_ptr
+	_In_opt_ LPCWSTR description,
+	_In_opt_ PVOID hinst,
+	_In_opt_ PEXCEPTION_POINTERS exception_ptr
 )
 {
 	TASKDIALOGCONFIG tdc = {0};
@@ -3052,29 +3042,31 @@ VOID _r_show_errormessage (
 	R_STRINGREF sr;
 	LPCWSTR str_main;
 	LPCWSTR path;
-	PVOID hinst;
+	PVOID hmodule = NULL;
 	INT command_id;
 	UINT btn_cnt = 0;
 	NTSTATUS status;
 
-	if (error_info_ptr && error_info_ptr->hinst)
+	if (hinst)
 	{
-		hinst = error_info_ptr->hinst;
+		hmodule = hinst;
 	}
 	else
 	{
-		status = _r_sys_getmodulehandle (L"ntdll.dll", &hinst);
+		status = _r_sys_loadlibraryasresource (L"ntdll.dll", &hmodule);
 
 		if (!NT_SUCCESS (status))
 			return;
 	}
 
-	status = _r_sys_formatmessage (error_code, hinst, 0, &string);
+	status = _r_sys_formatmessage (error_code, hmodule, 0, &string);
 
 	if (status == STATUS_MESSAGE_NOT_FOUND)
 	{
-		if (NT_SUCCESS (_r_sys_getmodulehandle (L"kernel32.dll", &hinst)))
-			status = _r_sys_formatmessage (error_code, hinst, 0, &string);
+		status = _r_sys_loadlibraryasresource (L"kernel32.dll", &hmodule);
+
+		if (NT_SUCCESS (status))
+			status = _r_sys_formatmessage (error_code, hmodule, 0, &string);
 	}
 
 	str_main = main ? main : APP_FAILED_MESSAGE_TITLE;
@@ -3087,14 +3079,11 @@ VOID _r_show_errormessage (
 		error_code
 	);
 
-	if (error_info_ptr)
+	if (description)
 	{
-		if (error_info_ptr->description)
-		{
-			_r_str_append (str_content, RTL_NUMBER_OF (str_content), L"\r\n\r\n");
+		_r_str_append (str_content, RTL_NUMBER_OF (str_content), L"\r\n\r\n");
 
-			_r_str_append (str_content, RTL_NUMBER_OF (str_content), error_info_ptr->description);
-		}
+		_r_str_append (str_content, RTL_NUMBER_OF (str_content), description);
 	}
 
 	tdc.cbSize = sizeof (tdc);
@@ -3109,7 +3098,7 @@ VOID _r_show_errormessage (
 	tdc.pfCallback = &_r_msg_callback;
 	tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
 
-	if (error_info_ptr && error_info_ptr->exception_ptr)
+	if (exception_ptr)
 	{
 		// add "Crash dumps" button
 		td_buttons[btn_cnt].pszButtonText = L"Crash dumps";
@@ -3150,6 +3139,9 @@ VOID _r_show_errormessage (
 			_r_clipboard_set (NULL, &sr);
 		}
 	}
+
+	if (hmodule)
+		_r_sys_freelibrary (hmodule, TRUE);
 
 	if (string)
 		_r_obj_dereference (string);
@@ -3387,7 +3379,6 @@ VOID _r_window_saveposition (
 		}
 	}
 }
-#endif // !APP_CONSOLE
 
 //
 // Settings window
@@ -4464,7 +4455,7 @@ CleanupExit:
 		ITaskService_Release (task_service);
 
 	if (hwnd && FAILED (status))
-		_r_show_errormessage (hwnd, NULL, status, NULL);
+		_r_show_errormessage (hwnd, NULL, status, NULL, NULL, NULL);
 
 	return status;
 }

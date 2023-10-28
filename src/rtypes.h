@@ -129,13 +129,6 @@ typedef enum _R_LOG_LEVEL
 	LOG_LEVEL_CRITICAL = 5,
 } R_LOG_LEVEL, *PR_LOG_LEVEL;
 
-typedef struct _R_ERROR_INFO
-{
-	LPCWSTR description;
-	PEXCEPTION_POINTERS exception_ptr;
-	PVOID hinst;
-} R_ERROR_INFO, *PR_ERROR_INFO;
-
 //
 // Synchronization: A fast event object.
 //

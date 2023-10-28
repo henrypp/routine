@@ -2788,7 +2788,7 @@ typedef struct _PS_ATTRIBUTE
 typedef struct _PS_ATTRIBUTE_LIST
 {
 	ULONG_PTR TotalLength;
-	PS_ATTRIBUTE Attributes[5];
+	PS_ATTRIBUTE Attributes[6];
 } PS_ATTRIBUTE_LIST, *PPS_ATTRIBUTE_LIST;
 
 typedef enum _PS_ATTRIBUTE_NUM

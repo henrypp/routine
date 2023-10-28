@@ -426,7 +426,6 @@ ULONG _r_log_leveltrayicon (
 	_In_ R_LOG_LEVEL log_level
 );
 
-#if !defined(APP_CONSOLE)
 VOID _r_show_aboutmessage (
 	_In_opt_ HWND hwnd
 );
@@ -435,7 +434,9 @@ VOID _r_show_errormessage (
 	_In_opt_ HWND hwnd,
 	_In_opt_ LPCWSTR main,
 	_In_ LONG error_code,
-	_In_opt_ PR_ERROR_INFO error_info_ptr
+	_In_opt_ LPCWSTR description,
+	_In_opt_ PVOID hinst,
+	_In_opt_ PEXCEPTION_POINTERS exception_ptr
 );
 
 BOOLEAN _r_show_confirmmessage (
@@ -461,7 +462,6 @@ VOID _r_window_saveposition (
 	_In_ HWND hwnd,
 	_In_ LPCWSTR window_name
 );
-#endif // APP_CONSOLE
 
 //
 // Application: seh

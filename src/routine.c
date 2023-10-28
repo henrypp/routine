@@ -30,18 +30,6 @@ VOID _r_debug (
 	OutputDebugStringW (string);
 }
 
-VOID _r_error_initialize (
-	_Out_ PR_ERROR_INFO error_info,
-	_In_opt_ PVOID hinst,
-	_In_opt_ LPCWSTR description,
-	_In_opt_ PEXCEPTION_POINTERS exception_ptr
-)
-{
-	error_info->description = description;
-	error_info->exception_ptr = exception_ptr;
-	error_info->hinst = hinst;
-}
-
 //
 // Console
 //
@@ -608,7 +596,7 @@ BOOLEAN FASTCALL _r_event_wait_ex (
 	// Essential: check the event one last time to see if it is set.
 	if (!(event_object->value & PR_EVENT_SET))
 	{
-		result = (NtWaitForSingleObject (event_handle, FALSE, timeout) == STATUS_WAIT_0);
+		result = (NtWaitForSingleObject (event_handle, FALSE, timeout) == STATUS_SUCCESS);
 	}
 	else
 	{
@@ -3910,99 +3898,6 @@ BOOLEAN _r_obj_removehashtablepointer (
 //
 // System messages
 //
-
-INT _r_msg (
-	_In_ HWND hwnd,
-	_In_ ULONG flags,
-	_In_opt_ LPCWSTR title,
-	_In_opt_ LPCWSTR main,
-	_In_opt_ LPCWSTR string,
-	_In_opt_ ...
-)
-{
-	TASKDIALOGCONFIG tdc = {0};
-	WCHAR buffer[1024];
-	va_list args;
-	INT result = 0;
-
-	if (string)
-	{
-		va_start (args, string);
-		_r_str_printf_v (buffer, RTL_NUMBER_OF (buffer), string, args);
-		va_end (args);
-	}
-
-	tdc.cbSize = sizeof (tdc);
-	tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
-	tdc.hwndParent = hwnd;
-	tdc.hInstance = _r_sys_getimagebase ();
-	tdc.pfCallback = &_r_msg_callback;
-	tdc.pszWindowTitle = title;
-	tdc.pszMainInstruction = main;
-
-	if (string && buffer[0])
-		tdc.pszContent = buffer;
-
-	// default buttons
-	//if ((flags & MB_DEFMASK) == MB_DEFBUTTON2)
-	//	tdc.nDefaultButton = IDNO;
-
-	// buttons
-	if ((flags & MB_TYPEMASK) == MB_YESNO)
-	{
-		tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
-	}
-	else if ((flags & MB_TYPEMASK) == MB_YESNOCANCEL)
-	{
-		tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON | TDCBF_CANCEL_BUTTON;
-	}
-	else if ((flags & MB_TYPEMASK) == MB_OKCANCEL)
-	{
-		tdc.dwCommonButtons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
-	}
-	else if ((flags & MB_TYPEMASK) == MB_RETRYCANCEL)
-	{
-		tdc.dwCommonButtons = TDCBF_RETRY_BUTTON | TDCBF_CANCEL_BUTTON;
-	}
-	else
-	{
-		tdc.dwCommonButtons = TDCBF_OK_BUTTON;
-	}
-
-	// icons
-	if ((flags & MB_ICONMASK) == MB_USERICON)
-	{
-#if defined(IDI_MAIN)
-		tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
-#else
-		tdc.pszMainIcon = MAKEINTRESOURCE (100);
-#endif // IDI_MAIN
-	}
-	else if ((flags & MB_ICONMASK) == MB_ICONASTERISK)
-	{
-		tdc.pszMainIcon = TD_INFORMATION_ICON;
-	}
-	else if ((flags & MB_ICONMASK) == MB_ICONEXCLAMATION)
-	{
-		tdc.pszMainIcon = TD_WARNING_ICON;
-	}
-	else if ((flags & MB_ICONMASK) == MB_ICONQUESTION)
-	{
-		tdc.pszMainIcon = TD_INFORMATION_ICON;
-	}
-	else if ((flags & MB_ICONMASK) == MB_ICONHAND)
-	{
-		tdc.pszMainIcon = TD_ERROR_ICON;
-	}
-
-	if ((flags & MB_TOPMOST) != 0)
-		tdc.lpCallbackData = MAKELONG (0, TRUE);
-
-	if (SUCCEEDED (_r_msg_taskdialog (&tdc, &result, NULL, NULL)))
-		return result;
-
-	return 0;
-}
 
 _Success_ (SUCCEEDED (return))
 HRESULT _r_msg_taskdialog (
@@ -9247,7 +9142,8 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_createprocess (
 	_In_ LPCWSTR file_name,
 	_In_opt_ LPCWSTR command_line,
-	_In_opt_ LPCWSTR directory
+	_In_opt_ LPCWSTR directory,
+	_In_opt_ HANDLE token
 )
 {
 	PRTL_USER_PROCESS_PARAMETERS upi = NULL;
@@ -9345,6 +9241,13 @@ NTSTATUS _r_sys_createprocess (
 	attr.Attributes[4].ValuePtr = &policy;
 	attr.Attributes[4].Size = sizeof (ULONG64);
 
+	if (token)
+	{
+		attr.Attributes[5].Attribute = PS_ATTRIBUTE_TOKEN;
+		attr.Attributes[5].ValuePtr = token;
+		attr.Attributes[5].Size = sizeof (HANDLE);
+	}
+
 	create_info.Size = sizeof (PS_CREATE_INFO);
 	create_info.State = PsCreateInitialState;
 	create_info.InitState.InitFlags = WriteOutputOnExit | DetectManifest | 0x20000000;
@@ -9412,7 +9315,7 @@ NTSTATUS _r_sys_createprocess (
 
 	if (NT_SUCCESS (status))
 	{
-		status = CsrClientCallServer (
+		CsrClientCallServer (
 			&msg,
 			capture_buffer,
 			CSR_MAKE_API_NUMBER (BASESRV_SERVERDLL_INDEX, BasepRegisterThread),
@@ -9883,6 +9786,7 @@ NTSTATUS _r_sys_loadlibraryasresource (
 	_r_obj_dereference (path);
 
 	NtClose (hmapping);
+
 	NtClose (hfile);
 
 	return status;
@@ -14226,7 +14130,7 @@ NTSTATUS _r_crypt_getfilehash (
 {
 	R_CRYPT_CONTEXT hash_context;
 	IO_STATUS_BLOCK isb;
-	HANDLE hfile_new;
+	HANDLE hfile_new = NULL;
 	PVOID buffer;
 	PR_STRING string;
 	ULONG buffer_size;
@@ -14296,6 +14200,9 @@ NTSTATUS _r_crypt_getfilehash (
 	}
 
 	_r_crypt_destroycryptcontext (&hash_context);
+
+	if (hfile_new)
+		NtClose (hfile_new);
 
 	_r_mem_free (buffer);
 
@@ -15300,24 +15207,6 @@ VOID _r_tray_initialize (
 	nid->uID = guid->Data2;
 
 	RtlCopyMemory (&nid->guidItem, guid, sizeof (GUID));
-
-	// The path of the binary file is included in the registration of the icon's GUID
-	// and cannot be changed. Settings associated with the icon are preserved through
-	// an upgrade only if the file path and GUID are unchanged. If the path must be
-	// changed, the application should remove any GUID information that was added when
-	// the existing icon was registered. Once that information is removed, you can move
-	// the binary file to a new location and reregister it with a new GUID.
-
-	nid->guidItem.Data1 |= hash_code; // HACK!!!
-}
-
-VOID _r_tray_setversion (
-	_Inout_ PNOTIFYICONDATA nid
-)
-{
-	nid->uVersion = NOTIFYICON_VERSION_4;
-
-	Shell_NotifyIconW (NIM_SETVERSION, nid);
 }
 
 VOID _r_tray_create (
@@ -15360,8 +15249,11 @@ VOID _r_tray_create (
 		nid.dwStateMask = NIS_HIDDEN;
 	}
 
-	if (Shell_NotifyIconW (NIM_ADD, &nid))
-		_r_tray_setversion (&nid);
+	Shell_NotifyIconW (NIM_ADD, &nid);
+
+	nid.uVersion = NOTIFYICON_VERSION_4;
+
+	Shell_NotifyIconW (NIM_SETVERSION, &nid);
 }
 
 VOID _r_tray_destroy (

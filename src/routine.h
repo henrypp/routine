@@ -228,13 +228,6 @@ VOID _r_debug (
 	...
 );
 
-VOID _r_error_initialize (
-	_Out_ PR_ERROR_INFO error_info,
-	_In_opt_ PVOID hinst,
-	_In_opt_ LPCWSTR description,
-	_In_opt_ PEXCEPTION_POINTERS exception_ptr
-);
-
 #define RDBG(a) _r_debug ((a))
 #define RDBG2(a, ...) _r_debug ((a), __VA_ARGS__)
 
@@ -1617,15 +1610,6 @@ FORCEINLINE LONG _r_calc_days2seconds (
 // Modal dialogs
 //
 
-INT _r_msg (
-	_In_ HWND hwnd,
-	_In_ ULONG flags,
-	_In_opt_ LPCWSTR title,
-	_In_opt_ LPCWSTR main,
-	_In_opt_ LPCWSTR string,
-	_In_opt_ ...
-);
-
 // TaskDialogIndirect (vista+)
 _Success_ (SUCCEEDED (return))
 HRESULT _r_msg_taskdialog (
@@ -1811,7 +1795,7 @@ NTSTATUS _r_fs_settimestamp (
 );
 
 FORCEINLINE BOOLEAN _r_fs_isvalidhandle (
-	_In_ HANDLE handle
+	_In_opt_ HANDLE handle
 )
 {
 	if (handle && handle != INVALID_HANDLE_VALUE)
@@ -2512,7 +2496,8 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_createprocess (
 	_In_ LPCWSTR file_name,
 	_In_opt_ LPCWSTR command_line,
-	_In_opt_ LPCWSTR directory
+	_In_opt_ LPCWSTR directory,
+	_In_opt_ HANDLE token
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -3722,10 +3707,6 @@ VOID _r_tray_initialize (
 	_Inout_ PNOTIFYICONDATA nid,
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid
-);
-
-VOID _r_tray_setversion (
-	_Inout_ PNOTIFYICONDATA nid
 );
 
 VOID _r_tray_create (
