@@ -9266,9 +9266,9 @@ NTSTATUS _r_sys_createprocess (
 	PR_STRING directory_string = NULL;
 	PR_STRING file_name_string;
 	PR_STRING new_path;
-	BYTE locale[0x14] = {0};
-	HANDLE hprocess;
-	HANDLE hthread;
+	PWCH locale;
+	HANDLE hprocess = NULL;
+	HANDLE hthread = NULL;
 	ULONG64 policy;
 	NTSTATUS status;
 
@@ -9392,9 +9392,11 @@ NTSTATUS _r_sys_createprocess (
 
 	RtlCopyMemory (&msg.CreateProcessMSG.Sxs.SxsNtExePath, &filename_nt, sizeof (UNICODE_STRING));
 
-	msg.CreateProcessMSG.Sxs.FileName3.Length = 0x14;
+	locale = _r_mem_allocate (0x2A);
+
+	msg.CreateProcessMSG.Sxs.FileName3.Length = 0x10;
 	msg.CreateProcessMSG.Sxs.FileName3.MaximumLength = 0x14;
-	msg.CreateProcessMSG.Sxs.FileName3.Buffer = (PWCH)locale;
+	msg.CreateProcessMSG.Sxs.FileName3.Buffer = locale;
 
 	RtlCopyMemory (msg.CreateProcessMSG.Sxs.FileName3.Buffer, "\x65\x00\x6e\x00\x2d\x00\x55\x00\x53\x00\x00\x00\x65\x00\x6e\x00\x00\x00\x00\x00", 0x14);
 
@@ -9420,22 +9422,21 @@ NTSTATUS _r_sys_createprocess (
 		CsrFreeCaptureBuffer (capture_buffer);
 	}
 
-	if (NT_SUCCESS (status))
+	if (hthread)
 	{
-		if (hthread)
-		{
-			NtResumeThread (hthread, NULL);
+		NtResumeThread (hthread, NULL);
 
-			NtClose (hthread);
-		}
-
-		if (hprocess)
-		{
-			NtResumeProcess (hprocess);
-
-			NtClose (hprocess);
-		}
+		NtClose (hthread);
 	}
+
+	if (hprocess)
+	{
+		NtResumeProcess (hprocess);
+
+		NtClose (hprocess);
+	}
+
+	_r_mem_free (locale);
 
 CleanupExit:
 
