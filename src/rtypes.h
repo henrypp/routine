@@ -879,7 +879,6 @@ typedef struct _APP_GLOBAL_CONFIG
 		LONG64 last_timestamp;
 	} error;
 
-#if !defined(APP_CONSOLE)
 	struct
 	{
 		WNDPROC wnd_proc;
@@ -890,9 +889,7 @@ typedef struct _APP_GLOBAL_CONFIG
 
 		BOOLEAN is_needmaximize;
 	} main;
-#endif // !APP_CONSOLE
 
-#if !defined(APP_CONSOLE)
 	struct
 	{
 		R_QUEUED_LOCK lock;
@@ -903,9 +900,7 @@ typedef struct _APP_GLOBAL_CONFIG
 		PR_STRING default_name;
 		PR_STRING current_name;
 	} locale;
-#endif // !APP_CONSOLE
 
-#if !defined(APP_CONSOLE)
 	struct
 	{
 		R_UPDATE_INFO info;
@@ -917,5 +912,4 @@ typedef struct _APP_GLOBAL_CONFIG
 		PR_ARRAY page_list;
 		HWND hwnd;
 	} settings;
-#endif // !APP_CONSOLE
 } APP_GLOBAL_CONFIG, *PAPP_GLOBAL_CONFIG;

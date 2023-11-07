@@ -1830,7 +1830,7 @@ NTSTATUS _r_mutex_create (
 	HANDLE hmutex;
 	NTSTATUS status;
 
-	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\BaseNamedObjects\\%s", name);
+	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\Sessions\\%u\\BaseNamedObjects\\%s", NtCurrentPeb ()->SessionId, name);
 
 	_r_obj_initializeunicodestring (&us, buffer);
 
@@ -1883,7 +1883,7 @@ BOOLEAN _r_mutex_isexists (
 	HANDLE hmutex;
 	NTSTATUS status;
 
-	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\BaseNamedObjects\\%s", name);
+	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\Sessions\\%u\\BaseNamedObjects\\%s", NtCurrentPeb ()->SessionId, name);
 
 	_r_obj_initializeunicodestring (&us, buffer);
 
@@ -2124,7 +2124,7 @@ VOID NTAPI _r_obj_dereference_ex (
 	}
 	else if (new_count < 0)
 	{
-		RtlRaiseStatus (STATUS_UNSUCCESSFUL);
+		//RtlRaiseStatus (STATUS_UNSUCCESSFUL);
 	}
 }
 
@@ -5264,17 +5264,26 @@ NTSTATUS _r_path_getmodulepath (
 )
 {
 	UNICODE_STRING name = {0};
-	PR_STRING string;
-	ULONG length;
+	PR_STRING string = NULL;
+	ULONG attempts = 6;
+	ULONG length = 256;
 	NTSTATUS status;
 
-	length = 512;
-	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
+	do
+	{
+		length *= 2;
 
-	name.Buffer = string->buffer;
-	name.MaximumLength = (USHORT)string->length;
+		_r_obj_movereference (&string, _r_obj_createstring_ex (NULL, length * sizeof (WCHAR)));
 
-	status = LdrGetDllFullName (hinst, &name);
+		name.Buffer = string->buffer;
+		name.MaximumLength = (USHORT)string->length;
+
+		status = LdrGetDllFullName (hinst, &name);
+
+		if (status != STATUS_BUFFER_TOO_SMALL)
+			break;
+	}
+	while (--attempts);
 
 	if (NT_SUCCESS (status))
 	{
@@ -6040,7 +6049,7 @@ NTSTATUS _r_path_ntpathfromdos (
 	PR_STRING string;
 	ULONG buffer_size;
 	ULONG attributes;
-	ULONG attempts;
+	ULONG attempts = 6;
 	NTSTATUS status;
 
 	_r_fs_getattributes (path->buffer, &attributes);
@@ -6066,8 +6075,6 @@ NTSTATUS _r_path_ntpathfromdos (
 
 	buffer_size = sizeof (OBJECT_NAME_INFORMATION) + (512 * sizeof (WCHAR));
 	obj_name_info = _r_mem_allocate (buffer_size);
-
-	attempts = 6;
 
 	do
 	{
@@ -6672,7 +6679,7 @@ _Success_ (return == ERROR_SUCCESS)
 ULONG _r_str_fromsecuritydescriptor (
 	_In_ PSECURITY_DESCRIPTOR security_descriptor,
 	_In_ SECURITY_INFORMATION security_information,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 )
 {
 	LPWSTR security_string;
@@ -6695,7 +6702,7 @@ ULONG _r_str_fromsecuritydescriptor (
 	}
 	else
 	{
-		status = GetLastError ();
+		status = PebLastError ();
 
 		*out_buffer = NULL;
 	}
@@ -7908,6 +7915,80 @@ NTSTATUS _r_str_unicode2multibyte (
 	return status;
 }
 
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_str_utf8toutf16 (
+	_In_ PR_BYTEREF string,
+	_Outptr_ PR_STRING_PTR out_buffer
+)
+{
+	PR_STRING out_string;
+	ULONG output_size;
+	NTSTATUS status;
+
+	status = RtlUTF8ToUnicodeN (NULL, 0, &output_size, string->buffer, (ULONG)string->length);
+
+	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
+		return status;
+	}
+
+	out_string = _r_obj_createstring_ex (NULL, output_size);
+
+	status = RtlUTF8ToUnicodeN (out_string->buffer, (ULONG)out_string->length, NULL, string->buffer, (ULONG)string->length);
+
+	if (NT_SUCCESS (status))
+	{
+		*out_buffer = out_string;
+	}
+	else
+	{
+		*out_buffer = NULL;
+
+		_r_obj_dereference (out_string);
+	}
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_str_utf16toutf8 (
+	_In_ PR_STRINGREF string,
+	_Outptr_ PR_BYTE_PTR out_buffer
+)
+{
+	PR_BYTE out_string;
+	ULONG output_size;
+	NTSTATUS status;
+
+	status = RtlUnicodeToUTF8N (NULL, 0, &output_size, string->buffer, (ULONG)string->length);
+
+	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
+		return status;
+	}
+
+	out_string = _r_obj_createbyte_ex (NULL, output_size);
+
+	status = RtlUnicodeToUTF8N (out_string->buffer, (ULONG)out_string->length, NULL, string->buffer, (ULONG)string->length);
+
+	if (NT_SUCCESS (status))
+	{
+		*out_buffer = out_string;
+	}
+	else
+	{
+		*out_buffer = NULL;
+
+		_r_obj_dereference (out_string);
+	}
+
+	return status;
+}
+
 _Ret_maybenull_
 PR_HASHTABLE _r_str_unserialize (
 	_In_ PR_STRINGREF string,
@@ -8204,13 +8285,14 @@ NTSTATUS _r_sys_formatmessage (
 	_In_ ULONG error_code,
 	_In_ PVOID hinst,
 	_In_opt_ ULONG lang_id,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 )
 {
 	static R_STRINGREF whitespace_sr = PR_STRINGREF_INIT (L"\r\n ");
 
 	PMESSAGE_RESOURCE_ENTRY entry;
 	PR_STRING string;
+	R_BYTEREF bytes;
 	LCID locale_id = LOCALE_SYSTEM_DEFAULT;
 	NTSTATUS status;
 
@@ -8229,9 +8311,25 @@ NTSTATUS _r_sys_formatmessage (
 
 	if (NT_SUCCESS (status))
 	{
-		string = _r_obj_createstring_ex ((LPCWSTR)entry->Text, entry->Length);
+		if (entry->Flags & MESSAGE_RESOURCE_UNICODE)
+		{
+			string = _r_obj_createstring_ex ((LPCWSTR)entry->Text, entry->Length);
+		}
+		else if (entry->Flags & MESSAGE_RESOURCE_UTF8)
+		{
+			_r_obj_initializebyteref_ex (&bytes, entry->Text, entry->Length);
 
-		_r_str_trimstring (string, &whitespace_sr, 0);
+			_r_str_utf8toutf16 (&bytes, &string);
+		}
+		else
+		{
+			_r_obj_initializebyteref_ex (&bytes, entry->Text, entry->Length);
+
+			_r_str_multibyte2unicode (&bytes, &string);
+		}
+
+		if (string)
+			_r_str_trimstring (string, &whitespace_sr, 0);
 
 		*out_buffer = string;
 	}
@@ -8398,7 +8496,7 @@ _Success_ (return == ERROR_SUCCESS)
 ULONG _r_sys_getlocaleinfo (
 	_In_ LCID locale_id,
 	_In_ LCTYPE locale_type,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 )
 {
 	PR_STRING string;
@@ -8410,7 +8508,7 @@ ULONG _r_sys_getlocaleinfo (
 	{
 		*out_buffer = NULL;
 
-		return GetLastError ();
+		return PebLastError ();
 	}
 
 	string = _r_obj_createstring_ex (NULL, return_length * sizeof (WCHAR) - sizeof (UNICODE_NULL));
@@ -8428,7 +8526,7 @@ ULONG _r_sys_getlocaleinfo (
 
 		_r_obj_dereference (string);
 
-		return GetLastError ();
+		return PebLastError ();
 	}
 
 	return ERROR_SUCCESS;
@@ -8862,10 +8960,10 @@ NTSTATUS _r_sys_getservicesid (
 	return status;
 }
 
-_Success_ (return == ERROR_SUCCESS)
-ULONG _r_sys_getsessioninfo (
+_Success_ (return)
+BOOLEAN _r_sys_getsessioninfo (
 	_In_ WTS_INFO_CLASS info_class,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 )
 {
 	PR_STRING string;
@@ -8876,7 +8974,7 @@ ULONG _r_sys_getsessioninfo (
 	{
 		*out_buffer = NULL;
 
-		return GetLastError ();
+		return FALSE;
 	}
 
 	string = _r_obj_createstring_ex (buffer, length * sizeof (WCHAR));
@@ -8885,7 +8983,7 @@ ULONG _r_sys_getsessioninfo (
 
 	WTSFreeMemory (buffer);
 
-	return ERROR_SUCCESS;
+	return TRUE;
 }
 
 ULONG _r_sys_gettickcount ()
@@ -11221,13 +11319,7 @@ HRESULT _r_dc_imagetobitmap (
 	status = CoCreateInstance (&CLSID_WICImagingFactory2, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory2, &wicFactory);
 
 	if (FAILED (status))
-	{
-		// winxp+
-		status = CoCreateInstance (&CLSID_WICImagingFactory1, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory, &wicFactory);
-
-		if (FAILED (status))
-			goto CleanupExit;
-	}
+		goto CleanupExit;
 
 	// Create the Stream
 	status = IWICImagingFactory_CreateStream (wicFactory, &wicStream);
@@ -12568,7 +12660,7 @@ ULONG CALLBACK _r_wnd_message_callback (
 		haccelerator = LoadAcceleratorsW (NULL, accelerator_table);
 
 		if (!haccelerator)
-			return GetLastError ();
+			return PebLastError ();
 	}
 
 	while (TRUE)
@@ -12781,7 +12873,7 @@ VOID _r_wnd_toggle (
 		if (!is_success)
 		{
 			// uipi fix
-			if (GetLastError () == ERROR_ACCESS_DENIED)
+			if (PebLastError () == ERROR_ACCESS_DENIED)
 				SendMessage (hwnd, WM_SYSCOMMAND, SC_RESTORE, 0);
 		}
 
@@ -12927,7 +13019,6 @@ HINTERNET _r_inet_createsession (
 	return hsession;
 }
 
-_Success_ (return == ERROR_SUCCESS)
 ULONG _r_inet_openurl (
 	_In_ HINTERNET hsession,
 	_In_ PR_STRING url,
@@ -12944,6 +13035,12 @@ ULONG _r_inet_openurl (
 	ULONG status;
 	BOOL result;
 
+	*hconnect_ptr = NULL;
+	*hrequest_ptr = NULL;
+
+	if (total_length_ptr)
+		*total_length_ptr = 0;
+
 	status = _r_inet_queryurlparts (url, PR_URLPARTS_SCHEME | PR_URLPARTS_HOST | PR_URLPARTS_PORT | PR_URLPARTS_PATH, &url_parts);
 
 	if (status != ERROR_SUCCESS)
@@ -12953,7 +13050,7 @@ ULONG _r_inet_openurl (
 
 	if (!hconnect)
 	{
-		status = GetLastError ();
+		status = PebLastError ();
 
 		goto CleanupExit;
 	}
@@ -12967,7 +13064,7 @@ ULONG _r_inet_openurl (
 
 	if (!hrequest)
 	{
-		status = GetLastError ();
+		status = PebLastError ();
 
 		_r_inet_close (hconnect);
 
@@ -12983,7 +13080,7 @@ ULONG _r_inet_openurl (
 
 		if (!result)
 		{
-			status = GetLastError ();
+			status = PebLastError ();
 
 			if (status == ERROR_WINHTTP_RESEND_REQUEST)
 			{
@@ -13016,7 +13113,7 @@ ULONG _r_inet_openurl (
 		{
 			if (!WinHttpReceiveResponse (hrequest, NULL))
 			{
-				status = GetLastError ();
+				status = PebLastError ();
 			}
 			else
 			{
@@ -13065,7 +13162,7 @@ BOOLEAN _r_inet_readrequest (
 	if (!WinHttpReadData (hrequest, buffer, buffer_size, &readed))
 		return FALSE;
 
-	if (readed_ptr && !readed)
+	if (!readed)
 		return FALSE;
 
 	if (readed_ptr)
@@ -13289,14 +13386,12 @@ ULONG _r_inet_queryurlparts (
 )
 {
 	URL_COMPONENTS url_comp = {0};
-	ULONG length;
+	ULONG length = 256;
 	ULONG status;
 
 	url_comp.dwStructSize = sizeof (url_comp);
 
 	RtlZeroMemory (url_parts, sizeof (R_URLPARTS));
-
-	length = 256;
 
 	if (flags & PR_URLPARTS_HOST)
 	{
@@ -13332,7 +13427,7 @@ ULONG _r_inet_queryurlparts (
 
 	if (!WinHttpCrackUrl (url->buffer, (ULONG)_r_str_getlength2 (url), ICU_DECODE, &url_comp))
 	{
-		status = GetLastError ();
+		status = PebLastError ();
 
 		_r_inet_destroyurlparts (url_parts);
 

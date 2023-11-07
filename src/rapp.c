@@ -499,7 +499,6 @@ LPCWSTR _r_app_getcrashdirectory (
 	return cached_path;
 }
 
-#if !defined(APP_CONSOLE)
 PR_STRING _r_app_getlocalepath ()
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
@@ -514,7 +513,6 @@ PR_STRING _r_app_getlocalepath ()
 
 	return cached_path;
 }
-#endif // !APP_CONSOLE
 
 PR_STRING _r_app_getlogpath ()
 {
@@ -802,11 +800,7 @@ HWND _r_app_createwindow (
 	_r_app_sethwnd (hwnd);
 
 	if (!hwnd)
-	{
-		RtlRaiseStatus (GetLastError ());
-
 		return NULL;
-	}
 
 	// set window title
 	_r_ctrl_setstring (hwnd, 0, _r_app_getname ());
@@ -1643,15 +1637,12 @@ VOID _r_config_setstring_ex (
 // Localization
 //
 
-#if !defined(APP_CONSOLE)
 VOID _r_locale_initialize ()
 {
-	PR_HASHTABLE locale_table;
+	PR_HASHTABLE locale_table = NULL;
 	PR_LIST locale_names;
 	PR_STRING language_config;
 	PR_STRING language_path;
-
-	locale_table = NULL;
 
 	language_config = _r_config_getstring (L"Language", NULL);
 
@@ -1845,11 +1836,17 @@ VOID _r_locale_enum (
 
 ULONG_PTR _r_locale_getcount ()
 {
-	ULONG_PTR count;
+	ULONG_PTR count = 0;
 
-	_r_queuedlock_acquireshared (&app_global.locale.lock);
-	count = _r_obj_getlistsize (app_global.locale.available_list);
-	_r_queuedlock_releaseshared (&app_global.locale.lock);
+	if (!app_global.locale.available_list)
+		_r_locale_initialize ();
+
+	if (app_global.locale.available_list)
+	{
+		_r_queuedlock_acquireshared (&app_global.locale.lock);
+		count = _r_obj_getlistsize (app_global.locale.available_list);
+		_r_queuedlock_releaseshared (&app_global.locale.lock);
+	}
 
 	return count;
 }
@@ -1964,7 +1961,6 @@ LONG64 _r_locale_getversion ()
 
 	return _r_str_tolong64 (&string);
 }
-#endif // !APP_CONSOLE
 
 BOOLEAN _r_autorun_isenabled ()
 {
@@ -2711,7 +2707,7 @@ VOID _r_update_install (
 	cmd_string = _r_format_string (L"\"%s\" /S /D=%s", update_component->cache_path->buffer, update_component->target_path->buffer);
 
 	if (!_r_sys_runasadmin (update_component->cache_path->buffer, cmd_string->buffer, NULL))
-		_r_show_errormessage (NULL, NULL, GetLastError (), NULL, update_component->cache_path->buffer, NULL);
+		_r_show_errormessage (NULL, NULL, PebLastError (), NULL, update_component->cache_path->buffer, NULL);
 
 	_r_obj_dereference (cmd_string);
 }

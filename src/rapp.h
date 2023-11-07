@@ -233,7 +233,6 @@ VOID _r_config_setstring_ex (
 // Localization
 //
 
-#if !defined(APP_CONSOLE)
 VOID _r_locale_initialize ();
 
 VOID _r_locale_apply (
@@ -260,7 +259,6 @@ LPCWSTR _r_locale_getstring (
 );
 
 LONG64 _r_locale_getversion ();
-#endif // !APP_CONSOLE
 
 //
 // Settings window
@@ -574,7 +572,6 @@ VOID _r_app_restart (
 
 EXTERN_C_END
 
-#if !defined(APP_CONSOLE)
 FORCEINLINE HWND _r_app_gethwnd ()
 {
 	return app_global.main.hwnd;
@@ -586,7 +583,6 @@ FORCEINLINE VOID _r_app_sethwnd (
 {
 	app_global.main.hwnd = hwnd;
 }
-#endif // !APP_CONSOLE
 
 FORCEINLINE LPWSTR _r_app_getname ()
 {

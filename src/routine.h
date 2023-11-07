@@ -2053,7 +2053,7 @@ _Success_ (return == ERROR_SUCCESS)
 ULONG _r_str_fromsecuritydescriptor (
 	_In_ PSECURITY_DESCRIPTOR security_descriptor,
 	_In_ SECURITY_INFORMATION security_information,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2298,6 +2298,18 @@ NTSTATUS _r_str_unicode2multibyte (
 	_Outptr_ PR_BYTE_PTR out_buffer
 );
 
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_str_utf8toutf16 (
+	_In_ PR_BYTEREF string,
+	_Outptr_ PR_STRING_PTR out_buffer
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_str_utf16toutf8 (
+	_In_ PR_STRINGREF string,
+	_Outptr_ PR_BYTE_PTR out_buffer
+);
+
 _Ret_maybenull_
 PR_HASHTABLE _r_str_unserialize (
 	_In_ PR_STRINGREF string,
@@ -2411,7 +2423,7 @@ NTSTATUS _r_sys_formatmessage (
 	_In_ ULONG error_code,
 	_In_ PVOID hinst,
 	_In_opt_ ULONG lang_id,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2426,7 +2438,7 @@ _Success_ (return == ERROR_SUCCESS)
 ULONG _r_sys_getlocaleinfo (
 	_In_ LCID locale_id,
 	_In_ LCTYPE locale_type,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2473,10 +2485,10 @@ NTSTATUS _r_sys_getservicesid (
 	_Out_ PR_BYTE_PTR out_buffer
 );
 
-_Success_ (return == ERROR_SUCCESS)
-ULONG _r_sys_getsessioninfo (
+_Success_ (return)
+BOOLEAN _r_sys_getsessioninfo (
 	_In_ WTS_INFO_CLASS info_class,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 ULONG _r_sys_gettickcount ();
@@ -3215,7 +3227,6 @@ HINTERNET _r_inet_createsession (
 	_In_opt_ PR_STRING useragent
 );
 
-_Success_ (return == ERROR_SUCCESS)
 ULONG _r_inet_openurl (
 	_In_ HINTERNET hsession,
 	_In_ PR_STRING url,
@@ -4555,6 +4566,15 @@ VOID _r_treeview_setstyle (
 	_In_opt_ INT height,
 	_In_opt_ INT indent
 );
+
+FORCEINLINE VOID _r_treeview_setimagelist (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_opt_ HIMAGELIST himg
+)
+{
+	SendDlgItemMessage (hwnd, ctrl_id, TVM_SETIMAGELIST, TVSIL_NORMAL, (LPARAM)himg);
+}
 
 //
 // Control: statusbar

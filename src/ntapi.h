@@ -1688,6 +1688,8 @@ typedef struct _PROCESS_DEVICEMAP_INFORMATION_EX
 #define NtCurrentProcessId() (NtCurrentTeb()->ClientId.UniqueProcess)
 #define NtCurrentThreadId() (NtCurrentTeb()->ClientId.UniqueThread)
 
+#define PebLastError() (NtCurrentTeb()->LastErrorValue)
+
 #define InitializeObjectAttributes(p, n, a, r, s) { \
     (p)->Length = sizeof(OBJECT_ATTRIBUTES); \
     (p)->RootDirectory = r; \
@@ -4012,6 +4014,16 @@ RtlGetVersion (
 	_Out_ PRTL_OSVERSIONINFOEXW VersionInformation // PRTL_OSVERSIONINFOW
 );
 
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtCreateIoCompletion(
+	_Out_ PHANDLE IoCompletionHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
+	_In_opt_ ULONG Count
+);
+
 #define RTL_DOS_SEARCH_PATH_FLAG_APPLY_ISOLATION_REDIRECTION 0x00000001
 #define RTL_DOS_SEARCH_PATH_FLAG_DISALLOW_DOT_RELATIVE_PATH_SEARCH 0x00000002
 #define RTL_DOS_SEARCH_PATH_FLAG_APPLY_DEFAULT_EXTENSION_WHEN_NOT_RELATIVE_PATH_EVEN_IF_FILE_HAS_EXTENSION 0x00000004
@@ -4291,6 +4303,28 @@ RtlMultiByteToUnicodeN (
 	_Out_opt_ PULONG BytesInUnicodeString,
 	_In_reads_bytes_ (BytesInMultiByteString) PCSTR MultiByteString,
 	_In_ ULONG BytesInMultiByteString
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlUTF8ToUnicodeN (
+	_Out_writes_bytes_to_ (UnicodeStringMaxByteCount, *UnicodeStringActualByteCount) PWSTR UnicodeStringDestination,
+	_In_ ULONG UnicodeStringMaxByteCount,
+	_Out_opt_ PULONG UnicodeStringActualByteCount,
+	_In_reads_bytes_ (UTF8StringByteCount) PCCH UTF8StringSource,
+	_In_ ULONG UTF8StringByteCount
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlUnicodeToUTF8N (
+	_Out_writes_bytes_to_ (UTF8StringMaxByteCount, *UTF8StringActualByteCount) PCHAR UTF8StringDestination,
+	_In_ ULONG UTF8StringMaxByteCount,
+	_Out_opt_ PULONG UTF8StringActualByteCount,
+	_In_reads_bytes_(UnicodeStringByteCount) PCWCH UnicodeStringSource,
+	_In_ ULONG UnicodeStringByteCount
 );
 
 NTSYSCALLAPI
