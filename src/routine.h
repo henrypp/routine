@@ -739,7 +739,7 @@ VOID NTAPI _r_obj_swapreference (
 //
 
 #define _r_obj_isbyteempty(string) \
-    ((string) == NULL || (string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == ANSI_NULL)
+	((string) == NULL || (string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == ANSI_NULL)
 
 PR_BYTE _r_obj_createbyte (
 	_In_ LPSTR string
@@ -795,10 +795,10 @@ VOID _r_obj_writebytenullterminator (
 //
 
 #define _r_obj_isstringempty(string) \
-    ((string) == NULL || (string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == UNICODE_NULL)
+	((string) == NULL || (string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == UNICODE_NULL)
 
 #define _r_obj_isstringempty2(string) \
-    ((string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == UNICODE_NULL)
+	((string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == UNICODE_NULL)
 
 PR_STRING _r_obj_createstring (
 	_In_ LPCWSTR string
@@ -878,7 +878,7 @@ VOID _r_obj_writestringnullterminator (
 );
 
 _Ret_maybenull_
-FORCEINLINE LPCWSTR _r_obj_getstring (
+FORCEINLINE LPWSTR _r_obj_getstring (
 	_In_opt_ PR_STRING string
 )
 {
@@ -888,19 +888,19 @@ FORCEINLINE LPCWSTR _r_obj_getstring (
 	return NULL;
 }
 
-FORCEINLINE LPCWSTR _r_obj_getstringorempty (
+FORCEINLINE LPWSTR _r_obj_getstringorempty (
 	_In_opt_ PR_STRING string
 )
 {
 	if (!_r_obj_isstringempty (string))
 		return string->buffer;
 
-	return L"";
+	return (LPWSTR)L"";
 }
 
-FORCEINLINE LPCWSTR _r_obj_getstringordefault (
+FORCEINLINE LPWSTR _r_obj_getstringordefault (
 	_In_opt_ PR_STRING string,
-	_In_ LPCWSTR def
+	_In_ LPWSTR def
 )
 {
 	if (!_r_obj_isstringempty (string))
@@ -930,7 +930,7 @@ VOID _r_obj_initializebyteref3 (
 
 VOID _r_obj_initializebyterefconst (
 	_Out_ PR_BYTEREF string,
-	_In_ LPCSTR buffer
+	_In_ LPSTR buffer
 );
 
 VOID _r_obj_initializebyterefempty (
@@ -983,7 +983,7 @@ VOID _r_obj_initializestringref_ex (
 
 BOOLEAN _r_obj_initializeunicodestring (
 	_Out_ PUNICODE_STRING string,
-	_In_opt_ LPCWSTR buffer
+	_In_opt_ LPWSTR buffer
 );
 
 BOOLEAN _r_obj_initializeunicodestring2 (
@@ -1427,7 +1427,7 @@ HRESULT _r_format_bytesize64 (
 );
 
 _Ret_maybenull_
-PR_STRING _r_format_filetime_ex (
+PR_STRING _r_format_filetime (
 	_In_ LPFILETIME file_time,
 	_In_ ULONG flags
 );
@@ -1446,13 +1446,8 @@ VOID _r_format_number (
 
 _Ret_maybenull_
 PR_STRING _r_format_unixtime (
-	_In_ LONG64 unixtime
-);
-
-_Ret_maybenull_
-PR_STRING _r_format_unixtime_ex (
 	_In_ LONG64 unixtime,
-	_In_ ULONG flags
+	_In_opt_ ULONG flags
 );
 
 //
@@ -1694,7 +1689,7 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_enumfiles (
 	_In_ LPCWSTR path,
 	_In_opt_ HANDLE hdirectory,
-	_In_opt_ LPCWSTR search_pattern,
+	_In_opt_ LPWSTR search_pattern,
 	_In_ PR_FILE_ENUM_CALLBACK enum_callback
 );
 
@@ -1713,6 +1708,8 @@ NTSTATUS _r_fs_getattributes (
 	_In_ LPCWSTR path,
 	_Out_ PULONG out_buffer
 );
+
+PR_STRING _r_fs_getcurrentdirectory ();
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getdiskinformation (
@@ -1743,8 +1740,16 @@ NTSTATUS _r_fs_getpos (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getsize (
-	_In_ HANDLE hfile,
+	_In_opt_ HANDLE hfile,
+	_In_opt_ LPCWSTR path,
 	_Out_ PLARGE_INTEGER out_buffer
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_getsize2 (
+	_In_opt_ HANDLE hfile,
+	_In_opt_ LPCWSTR path,
+	_Out_ PLONG64 out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -1769,9 +1774,14 @@ NTSTATUS _r_fs_readfile (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_setattributes (
-	_In_opt_ LPCWSTR path,
 	_In_opt_ HANDLE hfile,
+	_In_opt_ LPCWSTR path,
 	_In_ ULONG attributes
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_setcurrentdirectory (
+	_In_ PR_STRING path
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -1794,14 +1804,15 @@ NTSTATUS _r_fs_settimestamp (
 	_In_opt_ LPFILETIME write_time
 );
 
+_Success_ (return)
 FORCEINLINE BOOLEAN _r_fs_isvalidhandle (
 	_In_opt_ HANDLE handle
 )
 {
-	if (handle && handle != INVALID_HANDLE_VALUE)
-		return TRUE;
+	if (handle == NULL || handle == INVALID_HANDLE_VALUE)
+		return FALSE;
 
-	return FALSE;
+	return TRUE;
 }
 
 //
@@ -1907,8 +1918,8 @@ NTSTATUS _r_path_ntpathfromdos (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_search (
-	_In_ LPCWSTR filename,
-	_In_opt_ LPCWSTR extension,
+	_In_ LPWSTR filename,
+	_In_opt_ LPWSTR extension,
 	_Out_ PR_STRING_PTR out_buffer
 );
 
@@ -1932,10 +1943,10 @@ FORCEINLINE VOID _r_shell_opendefault (
 //
 
 #define _r_str_isempty(string) \
-    ((string) == NULL || (string)[0] == UNICODE_NULL)
+	((string) == NULL || (string)[0] == UNICODE_NULL)
 
 #define _r_str_isempty2(string) \
-    ((string)[0] == UNICODE_NULL)
+	((string)[0] == UNICODE_NULL)
 
 #define _r_str_isbyteempty(string) \
 	((string) == NULL || (string)[0] == ANSI_NULL)
@@ -2038,7 +2049,7 @@ VOID _r_str_fromulong64 (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_fromguid (
-	_In_ LPCGUID guid,
+	_In_ LPGUID guid,
 	_In_ BOOLEAN is_uppercase,
 	_Outptr_ PR_STRING_PTR out_buffer
 );
@@ -2448,7 +2459,7 @@ NTSTATUS _r_sys_getmemoryinfo (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getmodulehandle (
-	_In_ LPCWSTR lib_name,
+	_In_ LPWSTR lib_name,
 	_Outptr_ PVOID_PTR out_buffer
 );
 
@@ -2481,7 +2492,7 @@ LONG _r_sys_getpackagepath (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getservicesid (
-	_In_ LPCWSTR name,
+	_In_ LPWSTR name,
 	_Out_ PR_BYTE_PTR out_buffer
 );
 
@@ -2506,10 +2517,9 @@ ULONG _r_sys_getwindowsversion ();
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_createprocess (
-	_In_ LPCWSTR file_name,
-	_In_opt_ LPCWSTR command_line,
-	_In_opt_ LPCWSTR directory,
-	_In_opt_ HANDLE token
+	_In_ LPWSTR file_name,
+	_In_opt_ LPWSTR command_line,
+	_In_opt_ LPWSTR directory
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2542,7 +2552,7 @@ NTSTATUS _r_sys_enumprocesses (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getprocaddress (
 	_In_ PVOID hinst,
-	_In_ LPCSTR procedure,
+	_In_ LPSTR procedure,
 	_Out_ PVOID_PTR out_buffer
 );
 
@@ -2570,13 +2580,13 @@ HICON _r_sys_loadsharedicon (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_loadlibraryasresource (
-	_In_ LPCWSTR lib_name,
+	_In_ LPWSTR lib_name,
 	_Out_ PVOID_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_loadlibrary (
-	_In_ LPCWSTR lib_name,
+	_In_ LPWSTR lib_name,
 	_In_opt_ ULONG lib_flags,
 	_Outptr_ PVOID_PTR out_buffer
 );
@@ -3227,9 +3237,11 @@ HINTERNET _r_inet_createsession (
 	_In_opt_ PR_STRING useragent
 );
 
-ULONG _r_inet_openurl (
+_Success_ (return)
+BOOLEAN _r_inet_openurl (
 	_In_ HINTERNET hsession,
 	_In_ PR_STRING url,
+	_In_opt_ PR_STRING proxy,
 	_Out_ LPHINTERNET hconnect_ptr,
 	_Out_ LPHINTERNET hrequest_ptr,
 	_Out_opt_ PULONG total_length_ptr
@@ -3266,10 +3278,11 @@ VOID _r_inet_initializedownload (
 	_In_opt_ PVOID lparam
 );
 
-_Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_begindownload (
+_Success_ (return)
+BOOLEAN _r_inet_begindownload (
 	_In_ HINTERNET hsession,
 	_In_ PR_STRING url,
+	_In_opt_ PR_STRING proxy,
 	_Inout_ PR_DOWNLOAD_INFO download_info
 );
 
@@ -3277,8 +3290,8 @@ VOID _r_inet_destroydownload (
 	_Inout_ PR_DOWNLOAD_INFO download_info
 );
 
-_Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_queryurlparts (
+_Success_ (return)
+BOOLEAN _r_inet_queryurlparts (
 	_In_ PR_STRING url,
 	_In_ ULONG flags,
 	_Out_ PR_URLPARTS url_parts
@@ -3302,7 +3315,7 @@ FORCEINLINE VOID _r_inet_close (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_openkey (
 	_In_ HANDLE hroot,
-	_In_ LPCWSTR path,
+	_In_ LPWSTR path,
 	_In_ ACCESS_MASK desired_access,
 	_Out_ PHANDLE hkey
 );
@@ -3310,7 +3323,7 @@ NTSTATUS _r_reg_openkey (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_deletevalue (
 	_In_ HANDLE hkey,
-	_In_ LPCWSTR value_name
+	_In_ LPWSTR value_name
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -3331,35 +3344,35 @@ NTSTATUS _r_reg_queryinfo (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_querybinary (
 	_In_ HANDLE hkey,
-	_In_ LPCWSTR value_name,
+	_In_ LPWSTR value_name,
 	_Outptr_ PR_BYTE_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_querystring (
 	_In_ HANDLE hkey,
-	_In_opt_ LPCWSTR value_name,
+	_In_opt_ LPWSTR value_name,
 	_Outptr_ PR_STRING_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_queryulong (
 	_In_ HANDLE hkey,
-	_In_ LPCWSTR value_name,
+	_In_ LPWSTR value_name,
 	_Out_ PULONG out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_queryulong64 (
 	_In_ HANDLE hkey,
-	_In_ LPCWSTR value_name,
+	_In_ LPWSTR value_name,
 	_Out_ PULONG64 out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_queryvalue (
 	_In_ HANDLE hkey,
-	_In_opt_ LPCWSTR value_name,
+	_In_opt_ LPWSTR value_name,
 	_Out_opt_ PVOID buffer,
 	_Out_opt_ PULONG buffer_length,
 	_Out_opt_ PULONG type
@@ -3368,7 +3381,7 @@ NTSTATUS _r_reg_queryvalue (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_setvalue (
 	_In_ HANDLE hkey,
-	_In_opt_ LPCWSTR value_name,
+	_In_opt_ LPWSTR value_name,
 	_In_ ULONG type,
 	_In_ PVOID buffer,
 	_In_ ULONG buffer_length
@@ -3867,7 +3880,7 @@ VOID _r_ctrl_settiptext (
 	_In_ HWND htip,
 	_In_ HWND hparent,
 	_In_ INT ctrl_id,
-	_In_ LPCWSTR string
+	_In_ LPWSTR string
 );
 
 VOID _r_ctrl_settiptextformat (
@@ -4062,13 +4075,13 @@ FORCEINLINE VOID _r_edit_settextlimit (
 VOID _r_menu_additem (
 	_In_ HMENU hmenu,
 	_In_opt_ UINT item_id,
-	_In_opt_ LPCWSTR string
+	_In_opt_ LPWSTR string
 );
 
 VOID _r_menu_additem_ex (
 	_In_ HMENU hmenu,
 	_In_opt_ UINT item_id,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_opt_ UINT state
 );
 
@@ -4076,7 +4089,7 @@ VOID _r_menu_addsubmenu (
 	_In_ HMENU hmenu,
 	_In_ UINT pos,
 	_In_ HMENU hsubmenu,
-	_In_opt_ LPCWSTR string
+	_In_opt_ LPWSTR string
 );
 
 VOID _r_menu_checkitem (
@@ -4102,7 +4115,7 @@ VOID _r_menu_setitemtext (
 	_In_ HMENU hmenu,
 	_In_ UINT item_id,
 	_In_ BOOL is_byposition,
-	_In_ LPCWSTR string
+	_In_ LPWSTR string
 );
 
 VOID _r_menu_setitemtextformat (
@@ -4144,7 +4157,7 @@ INT _r_tab_additem (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ INT item_id,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
 	_In_opt_ LPARAM lparam
 );
@@ -4159,7 +4172,7 @@ INT _r_tab_setitem (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ INT item_id,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
 	_In_opt_ LPARAM lparam
 );
@@ -4194,7 +4207,7 @@ INT _r_listview_addcolumn (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ INT column_id,
-	_In_opt_ LPCWSTR title,
+	_In_opt_ LPWSTR title,
 	_In_opt_ INT width,
 	_In_opt_ INT fmt
 );
@@ -4203,7 +4216,7 @@ INT _r_listview_addgroup (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ INT group_id,
-	_In_opt_ LPCWSTR title,
+	_In_opt_ LPWSTR title,
 	_In_opt_ UINT align,
 	_In_opt_ UINT state,
 	_In_opt_ UINT state_mask
@@ -4213,14 +4226,14 @@ INT _r_listview_additem (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ INT item_id,
-	_In_ LPCWSTR string
+	_In_ LPWSTR string
 );
 
 INT _r_listview_additem_ex (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ INT item_id,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
 	_In_ INT group_id,
 	_In_opt_ LPARAM lparam
@@ -4237,7 +4250,7 @@ VOID _r_listview_fillitems (
 	_In_ INT item_start,
 	_In_ INT item_end,
 	_In_ INT subitem_id,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_ INT image_id
 );
 
@@ -4301,7 +4314,7 @@ VOID _r_listview_setcolumn (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ INT column_id,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_opt_ INT width
 );
 
@@ -4317,7 +4330,7 @@ VOID _r_listview_setitem (
 	_In_ INT ctrl_id,
 	_In_ INT item_id,
 	_In_ INT subitem_id,
-	_In_opt_ LPCWSTR string
+	_In_opt_ LPWSTR string
 );
 
 VOID _r_listview_setitem_ex (
@@ -4325,7 +4338,7 @@ VOID _r_listview_setitem_ex (
 	_In_ INT ctrl_id,
 	_In_ INT item_id,
 	_In_ INT subitem_id,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
 	_In_ INT group_id,
 	_In_opt_ LPARAM lparam
@@ -4356,7 +4369,7 @@ VOID _r_listview_setgroup (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ INT group_id,
-	_In_opt_ LPCWSTR title,
+	_In_opt_ LPWSTR title,
 	_In_opt_ UINT state,
 	_In_opt_ UINT state_mask
 );
@@ -4512,7 +4525,7 @@ FORCEINLINE VOID _r_listview_setview (
 HTREEITEM _r_treeview_additem (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
 	_In_opt_ HTREEITEM hparent,
 	_In_opt_ HTREEITEM hinsert_after,
@@ -4529,10 +4542,22 @@ INT _r_treeview_getitemcount (
 	_In_ INT ctrl_id
 );
 
-LPARAM _r_treeview_getlparam (
+LPARAM _r_treeview_getitemlparam (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ HTREEITEM hitem
+);
+
+UINT _r_treeview_getitemstate (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ HTREEITEM item_id
+);
+
+BOOLEAN _r_treeview_isitemchecked (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ HTREEITEM item_id
 );
 
 VOID _r_treeview_setitemcheck (
@@ -4554,7 +4579,7 @@ VOID _r_treeview_setitem (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ HTREEITEM hitem,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
 	_In_opt_ LPARAM lparam
 );
@@ -4680,7 +4705,7 @@ VOID _r_toolbar_setbutton (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ UINT command_id,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_opt_ INT style,
 	_In_opt_ INT state,
 	_In_ INT image);

@@ -560,6 +560,30 @@ PR_STRING _r_app_getprofiledirectory ()
 	return cached_path;
 }
 
+_Ret_maybenull_
+PR_STRING _r_app_getproxyconfiguration ()
+{
+	WINHTTP_CURRENT_USER_IE_PROXY_CONFIG proxy = {0};
+	PR_STRING proxy_string;
+
+	proxy_string = _r_config_getstring (L"Proxy", NULL);
+
+	if (_r_obj_isstringempty (proxy_string))
+	{
+		if (WinHttpGetIEProxyConfigForCurrentUser (&proxy))
+		{
+			if (!_r_str_isempty (proxy.lpszProxy))
+				proxy_string = _r_obj_createstring (proxy.lpszProxy);
+
+			SAFE_DELETE_GLOBAL (proxy.lpszProxy);
+			SAFE_DELETE_GLOBAL (proxy.lpszProxyBypass);
+			SAFE_DELETE_GLOBAL (proxy.lpszAutoConfigUrl);
+		}
+	}
+
+	return proxy_string;
+}
+
 PR_STRING _r_app_getuseragent ()
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
@@ -891,7 +915,7 @@ VOID _r_app_restart (
 
 	_r_mutex_destroy (&app_global.main.hmutex);
 
-	status = _r_sys_createprocess (_r_sys_getimagepath (), _r_sys_getimagecommandline (), _r_sys_getcurrentdirectory (), NULL);
+	status = _r_sys_createprocess (_r_sys_getimagepath (), _r_sys_getimagecommandline (), _r_sys_getcurrentdirectory ());
 
 	if (!NT_SUCCESS (status))
 	{
@@ -1923,12 +1947,12 @@ PR_STRING _r_locale_getstring_ex (
 }
 
 // TODO: in theory this is not good, so redesign in future.
-LPCWSTR _r_locale_getstring (
+LPWSTR _r_locale_getstring (
 	_In_ UINT uid
 )
 {
 	PR_STRING string;
-	LPCWSTR result;
+	LPWSTR result;
 
 	string = _r_locale_getstring_ex (uid);
 
@@ -2069,6 +2093,7 @@ LONG _r_update_downloadupdate (
 )
 {
 	R_DOWNLOAD_INFO download_info;
+	PR_STRING proxy_string;
 	LPCWSTR path;
 	HANDLE hfile;
 	NTSTATUS status;
@@ -2092,12 +2117,19 @@ LONG _r_update_downloadupdate (
 
 	_r_inet_initializedownload (&download_info, hfile, &_r_update_downloadcallback, update_info);
 
-	status = _r_inet_begindownload (update_info->hsession, update_component->url, &download_info);
+	proxy_string = _r_app_getproxyconfiguration ();
+
+	status = _r_inet_begindownload (update_info->hsession, update_component->url, proxy_string, &download_info);
 
 	NtClose (hfile); // required!
 
-	if (status != ERROR_SUCCESS)
-		return status;
+	if (!status)
+	{
+		if (proxy_string)
+			_r_obj_dereference (proxy_string);
+
+		return STATUS_CANCELLED;
+	}
 
 	if (update_component->flags & PR_UPDATE_FLAG_FILE)
 	{
@@ -2124,6 +2156,9 @@ LONG _r_update_downloadupdate (
 
 	// remove cache directory if it is empty
 	_r_fs_deletedirectory (path, FALSE);
+
+	if (proxy_string)
+		_r_obj_dereference (proxy_string);
 
 	return ERROR_SUCCESS;
 }
@@ -2198,6 +2233,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 	R_DOWNLOAD_INFO download_info;
 	PR_HASHTABLE string_table;
 	PR_STRING string_value = NULL;
+	PR_STRING proxy_string;
 	PR_STRING update_url;
 	PR_STRING string;
 	R_STRINGREF remaining_part;
@@ -2205,7 +2241,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 	R_STRINGREF new_url_sr;
 	ULONG_PTR downloads_count = 0;
 	ULONG hash_code;
-	ULONG status;
+	LONG status = STATUS_INVALID_PARAMETER;
 
 	update_info = arglist;
 
@@ -2213,18 +2249,22 @@ NTSTATUS NTAPI _r_update_checkthread (
 
 	_r_inet_initializedownload (&download_info, NULL, NULL, NULL);
 
-	status = _r_inet_begindownload (update_info->hsession, update_url, &download_info);
+	proxy_string = _r_app_getproxyconfiguration ();
 
-	if (status != ERROR_SUCCESS)
+	if (!_r_inet_begindownload (update_info->hsession, update_url, proxy_string, &download_info))
 	{
 		if (update_info->hparent)
 		{
 			str_content = L"Update server connection error.";
 
-			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, TD_WARNING_ICON, NULL, str_content, status);
+			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, TD_WARNING_ICON, NULL, str_content, STATUS_CANCELLED);
 		}
 
 		goto CleanupExit;
+	}
+	else
+	{
+		status = STATUS_SUCCESS;
 	}
 
 	string_table = _r_str_unserialize (&download_info.u.string->sr, L';', L'=');
@@ -2308,7 +2348,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 	{
 		if (update_info->hparent)
 		{
-			if (status != ERROR_SUCCESS)
+			if (status != STATUS_SUCCESS)
 			{
 				str_content = L"Update server connection error.";
 			}
@@ -2333,6 +2373,9 @@ NTSTATUS NTAPI _r_update_checkthread (
 CleanupExit:
 
 	_r_inet_destroydownload (&download_info);
+
+	if (proxy_string)
+		_r_obj_dereference (proxy_string);
 
 	_r_obj_dereference (update_url);
 
@@ -2576,7 +2619,7 @@ VOID _r_update_navigate (
 	_In_opt_ LPCWSTR main_icon,
 	_In_opt_ LPCWSTR main,
 	_In_opt_ LPCWSTR content,
-	_In_opt_ ULONG error_code
+	_In_opt_ LONG error_code
 )
 {
 	TASKDIALOGCONFIG tdc = {0};
@@ -2615,7 +2658,7 @@ VOID _r_update_navigate (
 
 	if (error_code != ERROR_SUCCESS)
 	{
-		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"Status: %" TEXT (PR_ULONG), error_code);
+		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"Status: %" TEXT (PR_LONG) L" (0x%" TEXT (PRIX32)")", error_code, error_code);
 
 		tdc.pszExpandedInformation = buffer;
 	}
@@ -2761,7 +2804,7 @@ HANDLE _r_log_getfilehandle ()
 	}
 	else if (NT_SUCCESS (status))
 	{
-		status = _r_fs_getsize (hfile, &file_size);
+		status = _r_fs_getsize (hfile, NULL, &file_size);
 
 		if (NT_SUCCESS (status))
 			_r_fs_setpos (hfile, &file_size);
@@ -2790,7 +2833,7 @@ VOID _r_log (
 		return;
 
 	current_timestamp = _r_unixtime_now ();
-	date_string = _r_format_unixtime_ex (current_timestamp, FDTF_SHORTDATE | FDTF_LONGTIME);
+	date_string = _r_format_unixtime (current_timestamp, FDTF_SHORTDATE | FDTF_LONGTIME);
 
 	level_string = _r_log_leveltostring (log_level);
 
@@ -3070,8 +3113,9 @@ VOID _r_show_errormessage (
 	_r_str_printf (
 		str_content,
 		RTL_NUMBER_OF (str_content),
-		L"%s\r\nStatus: 0x%08" TEXT (PRIX32),
+		L"%s\r\nStatus: %" TEXT (PR_LONG) " (0x%08" TEXT (PRIX32) L")",
 		_r_obj_getstringordefault (string, L"n/a"),
+		error_code,
 		error_code
 	);
 
@@ -3086,7 +3130,8 @@ VOID _r_show_errormessage (
 	tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_ENABLE_HYPERLINKS | TDF_NO_SET_FOREGROUND | TDF_SIZE_TO_CONTENT;
 	tdc.hwndParent = hwnd;
 	tdc.hInstance = _r_sys_getimagebase ();
-	tdc.pszFooterIcon = TD_WARNING_ICON;
+	tdc.pszMainIcon = TD_WARNING_ICON;
+	tdc.pszFooterIcon = TD_INFORMATION_ICON;
 	tdc.pszWindowTitle = _r_app_getname ();
 	tdc.pszMainInstruction = str_main;
 	tdc.pszContent = str_content;
@@ -3777,7 +3822,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 			while (hitem)
 			{
-				ptr_page = (PR_SETTINGS_PAGE)_r_treeview_getlparam (hwnd, IDC_NAV, hitem);
+				ptr_page = (PR_SETTINGS_PAGE)_r_treeview_getitemlparam (hwnd, IDC_NAV, hitem);
 
 				if (ptr_page)
 				{

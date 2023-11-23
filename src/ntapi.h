@@ -1691,13 +1691,13 @@ typedef struct _PROCESS_DEVICEMAP_INFORMATION_EX
 #define PebLastError() (NtCurrentTeb()->LastErrorValue)
 
 #define InitializeObjectAttributes(p, n, a, r, s) { \
-    (p)->Length = sizeof(OBJECT_ATTRIBUTES); \
-    (p)->RootDirectory = r; \
-    (p)->Attributes = a; \
-    (p)->ObjectName = n; \
-    (p)->SecurityDescriptor = s; \
-    (p)->SecurityQualityOfService = NULL; \
-    }
+	(p)->Length = sizeof(OBJECT_ATTRIBUTES); \
+	(p)->RootDirectory = r; \
+	(p)->Attributes = a; \
+	(p)->ObjectName = n; \
+	(p)->SecurityDescriptor = s; \
+	(p)->SecurityQualityOfService = NULL; \
+	}
 
 //
 // Kernel-user shared data
@@ -2079,6 +2079,8 @@ typedef struct _RTL_USER_PROCESS_PARAMETERS
 	UNICODE_STRING HeapPartitionName; // 19H1
 	ULONG_PTR DefaultThreadpoolCpuSetMasks;
 	ULONG DefaultThreadpoolCpuSetMaskCount;
+	ULONG DefaultThreadpoolThreadMaximum;
+	ULONG HeapMemoryTypeMask; // WIN11
 } RTL_USER_PROCESS_PARAMETERS, *PRTL_USER_PROCESS_PARAMETERS;
 
 typedef struct _PEB
@@ -2790,7 +2792,7 @@ typedef struct _PS_ATTRIBUTE
 typedef struct _PS_ATTRIBUTE_LIST
 {
 	ULONG_PTR TotalLength;
-	PS_ATTRIBUTE Attributes[6];
+	PS_ATTRIBUTE Attributes[5];
 } PS_ATTRIBUTE_LIST, *PPS_ATTRIBUTE_LIST;
 
 typedef enum _PS_ATTRIBUTE_NUM
@@ -2835,73 +2837,73 @@ typedef enum _PS_ATTRIBUTE_NUM
 #define PS_ATTRIBUTE_ADDITIVE 0x00040000 // "accumulated" e.g. bitmasks, counters, etc.
 
 #define PsAttributeValue(Number, Thread, Input, Additive) \
-    (((Number) & PS_ATTRIBUTE_NUMBER_MASK) | \
-    ((Thread) ? PS_ATTRIBUTE_THREAD : 0) | \
-    ((Input) ? PS_ATTRIBUTE_INPUT : 0) | \
-    ((Additive) ? PS_ATTRIBUTE_ADDITIVE : 0))
+	(((Number) & PS_ATTRIBUTE_NUMBER_MASK) | \
+	((Thread) ? PS_ATTRIBUTE_THREAD : 0) | \
+	((Input) ? PS_ATTRIBUTE_INPUT : 0) | \
+	((Additive) ? PS_ATTRIBUTE_ADDITIVE : 0))
 
 #define PS_ATTRIBUTE_PARENT_PROCESS \
-    PsAttributeValue(PsAttributeParentProcess, FALSE, TRUE, TRUE)
+	PsAttributeValue(PsAttributeParentProcess, FALSE, TRUE, TRUE)
 #define PS_ATTRIBUTE_DEBUG_OBJECT \
-    PsAttributeValue(PsAttributeDebugObject, FALSE, TRUE, TRUE)
+	PsAttributeValue(PsAttributeDebugObject, FALSE, TRUE, TRUE)
 #define PS_ATTRIBUTE_TOKEN \
-    PsAttributeValue(PsAttributeToken, FALSE, TRUE, TRUE)
+	PsAttributeValue(PsAttributeToken, FALSE, TRUE, TRUE)
 #define PS_ATTRIBUTE_CLIENT_ID \
-    PsAttributeValue(PsAttributeClientId, TRUE, FALSE, FALSE)
+	PsAttributeValue(PsAttributeClientId, TRUE, FALSE, FALSE)
 #define PS_ATTRIBUTE_TEB_ADDRESS \
-    PsAttributeValue(PsAttributeTebAddress, TRUE, FALSE, FALSE)
+	PsAttributeValue(PsAttributeTebAddress, TRUE, FALSE, FALSE)
 #define PS_ATTRIBUTE_IMAGE_NAME \
-    PsAttributeValue(PsAttributeImageName, FALSE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeImageName, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_IMAGE_INFO \
-    PsAttributeValue(PsAttributeImageInfo, FALSE, FALSE, FALSE)
+	PsAttributeValue(PsAttributeImageInfo, FALSE, FALSE, FALSE)
 #define PS_ATTRIBUTE_MEMORY_RESERVE \
-    PsAttributeValue(PsAttributeMemoryReserve, FALSE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeMemoryReserve, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_PRIORITY_CLASS \
-    PsAttributeValue(PsAttributePriorityClass, FALSE, TRUE, FALSE)
+	PsAttributeValue(PsAttributePriorityClass, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_ERROR_MODE \
-    PsAttributeValue(PsAttributeErrorMode, FALSE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeErrorMode, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_STD_HANDLE_INFO \
-    PsAttributeValue(PsAttributeStdHandleInfo, FALSE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeStdHandleInfo, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_HANDLE_LIST \
-    PsAttributeValue(PsAttributeHandleList, FALSE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeHandleList, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_GROUP_AFFINITY \
-    PsAttributeValue(PsAttributeGroupAffinity, TRUE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeGroupAffinity, TRUE, TRUE, FALSE)
 #define PS_ATTRIBUTE_PREFERRED_NODE \
-    PsAttributeValue(PsAttributePreferredNode, FALSE, TRUE, FALSE)
+	PsAttributeValue(PsAttributePreferredNode, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_IDEAL_PROCESSOR \
-    PsAttributeValue(PsAttributeIdealProcessor, TRUE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeIdealProcessor, TRUE, TRUE, FALSE)
 #define PS_ATTRIBUTE_UMS_THREAD \
-    PsAttributeValue(PsAttributeUmsThread, TRUE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeUmsThread, TRUE, TRUE, FALSE)
 #define PS_ATTRIBUTE_MITIGATION_OPTIONS \
-    PsAttributeValue(PsAttributeMitigationOptions, FALSE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeMitigationOptions, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_PROTECTION_LEVEL \
-    PsAttributeValue(PsAttributeProtectionLevel, FALSE, TRUE, TRUE)
+	PsAttributeValue(PsAttributeProtectionLevel, FALSE, TRUE, TRUE)
 #define PS_ATTRIBUTE_SECURE_PROCESS \
-    PsAttributeValue(PsAttributeSecureProcess, FALSE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeSecureProcess, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_JOB_LIST \
-    PsAttributeValue(PsAttributeJobList, FALSE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeJobList, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_CHILD_PROCESS_POLICY \
-    PsAttributeValue(PsAttributeChildProcessPolicy, FALSE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeChildProcessPolicy, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_ALL_APPLICATION_PACKAGES_POLICY \
-    PsAttributeValue(PsAttributeAllApplicationPackagesPolicy, FALSE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeAllApplicationPackagesPolicy, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_WIN32K_FILTER \
-    PsAttributeValue(PsAttributeWin32kFilter, FALSE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeWin32kFilter, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_SAFE_OPEN_PROMPT_ORIGIN_CLAIM \
-    PsAttributeValue(PsAttributeSafeOpenPromptOriginClaim, FALSE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeSafeOpenPromptOriginClaim, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_BNO_ISOLATION \
-    PsAttributeValue(PsAttributeBnoIsolation, FALSE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeBnoIsolation, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_DESKTOP_APP_POLICY \
-    PsAttributeValue(PsAttributeDesktopAppPolicy, FALSE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeDesktopAppPolicy, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_CHPE \
-    PsAttributeValue(PsAttributeChpe, FALSE, TRUE, TRUE)
+	PsAttributeValue(PsAttributeChpe, FALSE, TRUE, TRUE)
 #define PS_ATTRIBUTE_MITIGATION_AUDIT_OPTIONS \
-    PsAttributeValue(PsAttributeMitigationAuditOptions, FALSE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeMitigationAuditOptions, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_MACHINE_TYPE \
-    PsAttributeValue(PsAttributeMachineType, FALSE, TRUE, TRUE)
+	PsAttributeValue(PsAttributeMachineType, FALSE, TRUE, TRUE)
 #define PS_ATTRIBUTE_COMPONENT_FILTER \
-    PsAttributeValue(PsAttributeComponentFilter, FALSE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeComponentFilter, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_ENABLE_OPTIONAL_XSTATE_FEATURES \
-    PsAttributeValue(PsAttributeEnableOptionalXStateFeatures, TRUE, TRUE, FALSE)
+	PsAttributeValue(PsAttributeEnableOptionalXStateFeatures, TRUE, TRUE, FALSE)
 
 typedef enum _SECTION_INHERIT
 {
@@ -2997,19 +2999,19 @@ typedef enum _BASESRV_API_NUMBER
 } BASESRV_API_NUMBER, * PBASESRV_API_NUMBER;
 
 #define CSR_MAKE_API_NUMBER( DllIndex, ApiIndex ) \
-    (ULONG)(((DllIndex) << 16) | (ApiIndex))
+	(ULONG)(((DllIndex) << 16) | (ApiIndex))
 
-#define CSRSRV_SERVERDLL_INDEX          0
-#define CSRSRV_FIRST_API_NUMBER         0
+#define CSRSRV_SERVERDLL_INDEX 0
+#define CSRSRV_FIRST_API_NUMBER 0
 
-#define BASESRV_SERVERDLL_INDEX         1
-#define BASESRV_FIRST_API_NUMBER        0
+#define BASESRV_SERVERDLL_INDEX 1
+#define BASESRV_FIRST_API_NUMBER 0
 
-#define CONSRV_SERVERDLL_INDEX          2
-#define CONSRV_FIRST_API_NUMBER         512
+#define CONSRV_SERVERDLL_INDEX 2
+#define CONSRV_FIRST_API_NUMBER 512
 
-#define USERSRV_SERVERDLL_INDEX         3
-#define USERSRV_FIRST_API_NUMBER        1024
+#define USERSRV_SERVERDLL_INDEX 3
+#define USERSRV_FIRST_API_NUMBER 1024
 
 typedef struct
 {
@@ -3018,11 +3020,11 @@ typedef struct
 	HANDLE FileHandle; // +08 // we can get this value
 	UNICODE_STRING SxsWin32ExePath; // +10 // UNICODE_STRING, we can build!
 	UNICODE_STRING SxsNtExePath; // +20 // UNICODE_STRING, we can build!
-	BYTE    Field30[0x10]; // +30 // blank, ignore
+	BYTE Field30[0x10]; // +30 // blank, ignore
 	BASE_SXS_STREAM PolicyStream; // +40 // !!!
 	UNICODE_STRING AssemblyName; // +78 // blank, ignore
 	UNICODE_STRING FileName3; // +88 // UNICODE_STRING, we can build!
-	BYTE    Field98[0x10]; // +98 // blank, ignore
+	BYTE Field98[0x10]; // +98 // blank, ignore
 	UNICODE_STRING FileName4; // +a8 // UNICODE_STRING, we can build!
 	BYTE OtherFileds[0x110]; // +b8 // blank, ignore
 } BASE_SXS_CREATEPROCESS_MSG;
@@ -3282,8 +3284,8 @@ NTSYSCALLAPI
 NTSTATUS
 NTAPI
 LdrGetDllPath (
-	_In_  PCWSTR DllName,
-	_In_  ULONG  Flags, // LOAD_LIBRARY_SEARCH_*
+	_In_ PCWSTR DllName,
+	_In_ ULONG Flags, // LOAD_LIBRARY_SEARCH_*
 	_Out_ PWSTR *DllPath,
 	_Out_ PWSTR *SearchPaths
 );
@@ -3625,6 +3627,7 @@ TpIsTimerSet (
 	_In_ PTP_TIMER Timer
 );
 
+// vista+
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -3649,6 +3652,7 @@ RtlDestroyProcessParameters (
 	_In_ _Post_invalid_ PRTL_USER_PROCESS_PARAMETERS ProcessParameters
 );
 
+// vista+
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -4069,6 +4073,21 @@ RtlGetFullPathName_UEx (
 );
 
 NTSYSCALLAPI
+ULONG
+NTAPI
+RtlGetCurrentDirectory_U (
+	_In_ ULONG BufferLength,
+	_Out_writes_bytes_ (BufferLength) PWSTR Buffer
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlSetCurrentDirectory_U (
+	_In_ PUNICODE_STRING PathName
+);
+
+NTSYSCALLAPI
 NTSTATUS
 NTAPI
 RtlDosPathNameToNtPathName_U_WithStatus (
@@ -4123,12 +4142,14 @@ RtlDowncaseUnicodeChar (
 	_In_ WCHAR SourceCharacter
 );
 
+// win81+
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-RtlStringFromGUID (
+RtlStringFromGUIDEx (
 	_In_ LPGUID Guid,
-	_Out_ PUNICODE_STRING GuidString
+	_Inout_ PUNICODE_STRING GuidString,
+	_In_ BOOLEAN AllocateGuidString
 );
 
 NTSYSCALLAPI
@@ -4616,6 +4637,18 @@ RtlTryAcquireSRWLockShared (
 );
 
 NTSYSCALLAPI
+VOID
+RtlAcquirePebLock (
+	VOID
+);
+
+NTSYSCALLAPI
+VOID
+RtlReleasePebLock (
+	VOID
+);
+
+NTSYSCALLAPI
 NTSTATUS
 RtlRunOnceBeginInitialize (
 	_Inout_ PRTL_RUN_ONCE RunOnce,
@@ -4680,7 +4713,7 @@ NtSetThreadExecutionState (
 #define KEYEDEVENT_WAIT 0x0001
 #define KEYEDEVENT_WAKE 0x0002
 #define KEYEDEVENT_ALL_ACCESS \
-    (STANDARD_RIGHTS_REQUIRED | KEYEDEVENT_WAIT | KEYEDEVENT_WAKE)
+	(STANDARD_RIGHTS_REQUIRED | KEYEDEVENT_WAIT | KEYEDEVENT_WAKE)
 
 NTSYSCALLAPI
 NTSTATUS

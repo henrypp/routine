@@ -254,7 +254,7 @@ PR_STRING _r_locale_getstring_ex (
 	_In_ UINT uid
 );
 
-LPCWSTR _r_locale_getstring (
+LPWSTR _r_locale_getstring (
 	_In_ UINT uid
 );
 
@@ -375,7 +375,7 @@ VOID _r_update_navigate (
 	_In_opt_ LPCWSTR main_icon,
 	_In_opt_ LPCWSTR main,
 	_In_opt_ LPCWSTR content,
-	_In_opt_ ULONG error_code
+	_In_opt_ LONG error_code
 );
 
 VOID _r_update_addcomponent (
@@ -540,6 +540,9 @@ PR_STRING _r_app_getlocalepath ();
 PR_STRING _r_app_getlogpath ();
 
 PR_STRING _r_app_getprofiledirectory ();
+
+_Ret_maybenull_
+PR_STRING _r_app_getproxyconfiguration ();
 
 PR_STRING _r_app_getuseragent ();
 

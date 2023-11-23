@@ -190,7 +190,7 @@ HRESULT _r_format_bytesize64 (
 }
 
 _Ret_maybenull_
-PR_STRING _r_format_filetime_ex (
+PR_STRING _r_format_filetime (
 	_In_ LPFILETIME file_time,
 	_In_ ULONG flags
 )
@@ -298,23 +298,21 @@ VOID _r_format_number (
 
 _Ret_maybenull_
 PR_STRING _r_format_unixtime (
-	_In_ LONG64 unixtime
-)
-{
-	return _r_format_unixtime_ex (unixtime, FDTF_DEFAULT);
-}
-
-_Ret_maybenull_
-PR_STRING _r_format_unixtime_ex (
 	_In_ LONG64 unixtime,
-	_In_ ULONG flags
+	_In_opt_ ULONG flags
 )
 {
 	FILETIME file_time;
+	PR_STRING string;
 
 	_r_unixtime_to_filetime (unixtime, &file_time);
 
-	return _r_format_filetime_ex (&file_time, flags);
+	if (!flags)
+		flags = FDTF_DEFAULT;
+
+	string = _r_format_filetime (&file_time, flags);
+
+	return string;
 }
 
 //
@@ -355,9 +353,7 @@ ULONG _r_calc_countbits (
 	_In_ ULONG value
 )
 {
-	ULONG count;
-
-	count = 0;
+	ULONG count = 0;
 
 	while (value)
 	{
@@ -2623,10 +2619,10 @@ VOID _r_obj_initializebyteref3 (
 
 VOID _r_obj_initializebyterefconst (
 	_Out_ PR_BYTEREF string,
-	_In_ LPCSTR buffer
+	_In_ LPSTR buffer
 )
 {
-	_r_obj_initializebyteref_ex (string, (LPSTR)buffer, _r_str_getbytelength (buffer));
+	_r_obj_initializebyteref_ex (string, buffer, _r_str_getbytelength (buffer));
 }
 
 VOID _r_obj_initializebyterefempty (
@@ -2715,7 +2711,7 @@ VOID _r_obj_initializestringref_ex (
 
 BOOLEAN _r_obj_initializeunicodestring (
 	_Out_ PUNICODE_STRING string,
-	_In_opt_ LPCWSTR buffer
+	_In_opt_ LPWSTR buffer
 )
 {
 	ULONG length = 0;
@@ -2724,7 +2720,7 @@ BOOLEAN _r_obj_initializeunicodestring (
 	if (buffer)
 		length = (ULONG)_r_str_getlength (buffer) * sizeof (WCHAR);
 
-	result = _r_obj_initializeunicodestring_ex (string, (LPWSTR)buffer, (USHORT)length, (USHORT)length + sizeof (UNICODE_NULL));
+	result = _r_obj_initializeunicodestring_ex (string, buffer, (USHORT)length, (USHORT)length + sizeof (UNICODE_NULL));
 
 	return result;
 }
@@ -4213,7 +4209,7 @@ NTSTATUS _r_fs_copyfile (
 		return status;
 	}
 
-	length = 0x4000;
+	length = PR_SIZE_BUFFER;
 	buffer = _r_mem_allocate (length);
 
 	while (TRUE)
@@ -4289,7 +4285,7 @@ NTSTATUS _r_fs_deletedirectory (
 	if (!NT_SUCCESS (status))
 		return status;
 
-	_r_fs_setattributes (NULL, hdirectory, FILE_ATTRIBUTE_NORMAL);
+	_r_fs_setattributes (hdirectory, NULL, FILE_ATTRIBUTE_NORMAL);
 
 	if (is_recurse)
 		_r_fs_enumfiles (path, hdirectory, NULL, &_r_fs_recursivedirectorydelete_callback);
@@ -4329,7 +4325,7 @@ NTSTATUS _r_fs_deletefile (
 	if (!NT_SUCCESS (status))
 		return status;
 
-	_r_fs_setattributes (path, NULL, FILE_ATTRIBUTE_NORMAL);
+	_r_fs_setattributes (NULL, path, FILE_ATTRIBUTE_NORMAL);
 
 	InitializeObjectAttributes (&oa, &nt_path, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
@@ -4344,7 +4340,7 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_enumfiles (
 	_In_ LPCWSTR path,
 	_In_opt_ HANDLE hdirectory,
-	_In_opt_ LPCWSTR search_pattern,
+	_In_opt_ LPWSTR search_pattern,
 	_In_ PR_FILE_ENUM_CALLBACK enum_callback
 )
 {
@@ -4528,6 +4524,36 @@ NTSTATUS _r_fs_getattributes (
 	RtlFreeUnicodeString (&nt_path);
 
 	return status;
+}
+
+PR_STRING _r_fs_getcurrentdirectory ()
+{
+	PR_STRING string;
+	ULONG_PTR length;
+
+	// Lock the PEB to get the current directory
+	RtlAcquirePebLock ();
+
+	string = _r_obj_createstring4 (&NtCurrentPeb ()->ProcessParameters->CurrentDirectory.DosPath);
+
+	RtlReleasePebLock ();
+
+	length = string->length / sizeof (WCHAR);
+
+	// Again check for our two cases (drive root vs path)
+	if ((length <= 1) || (string->buffer[length - 2] != L':'))
+	{
+		// Replace the trailing slash with a null
+		string->buffer[length - 1] = UNICODE_NULL;
+		string->length -= sizeof (UNICODE_NULL);
+	}
+	else
+	{
+		// Append the null char since there's no trailing slash
+		string->buffer[length] = UNICODE_NULL;
+	}
+
+	return string;
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -4715,13 +4741,38 @@ NTSTATUS _r_fs_getpos (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getsize (
-	_In_ HANDLE hfile,
+	_In_opt_ HANDLE hfile,
+	_In_opt_ LPCWSTR path,
 	_Out_ PLARGE_INTEGER out_buffer
 )
 {
 	FILE_STANDARD_INFORMATION info = {0};
 	IO_STATUS_BLOCK io;
+	HANDLE hfile_new = NULL;
 	NTSTATUS status;
+
+	if (!hfile && !path)
+		return STATUS_INVALID_PARAMETER;
+
+	if (!hfile && path)
+	{
+		status = _r_fs_createfile (
+			path,
+			FILE_OPEN,
+			GENERIC_READ,
+			FILE_SHARE_READ | FILE_SHARE_DELETE,
+			FILE_ATTRIBUTE_NORMAL,
+			0,
+			FALSE,
+			NULL,
+			&hfile_new
+		);
+
+		if (!NT_SUCCESS (status))
+			return status;
+
+		hfile = hfile_new;
+	}
 
 	status = NtQueryInformationFile (hfile, &io, &info, sizeof (info), FileStandardInformation);
 
@@ -4732,6 +4783,34 @@ NTSTATUS _r_fs_getsize (
 	else
 	{
 		RtlZeroMemory (out_buffer, sizeof (LARGE_INTEGER));
+	}
+
+	if (hfile_new)
+		NtClose (hfile_new);
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_getsize2 (
+	_In_opt_ HANDLE hfile,
+	_In_opt_ LPCWSTR path,
+	_Out_ PLONG64 out_buffer
+)
+{
+	FILE_STANDARD_INFORMATION info = {0};
+	LARGE_INTEGER li;
+	NTSTATUS status;
+
+	status = _r_fs_getsize (hfile, path, &li);
+
+	if (NT_SUCCESS (status))
+	{
+		*out_buffer = li.QuadPart;
+	}
+	else
+	{
+		*out_buffer = 0;
 	}
 
 	return status;
@@ -4859,11 +4938,12 @@ NTSTATUS _r_fs_readfile (
 	LARGE_INTEGER file_size;
 	IO_STATUS_BLOCK isb;
 	PR_BYTE buffer;
-	PVOID memory;
+	PVOID pmemory;
 	ULONG_PTR length = 0;
+	ULONG allocated_length;
 	NTSTATUS status;
 
-	status = _r_fs_getsize (hfile, &file_size);
+	status = _r_fs_getsize (hfile, NULL, &file_size);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -4885,11 +4965,12 @@ NTSTATUS _r_fs_readfile (
 	buffer = _r_obj_createbyte_ex (NULL, (ULONG_PTR)file_size.LowPart);
 #endif // _WIN64
 
-	memory = _r_mem_allocate (PR_SIZE_FILE_READ_BUFFER);
+	allocated_length = PR_SIZE_BUFFER;
+	pmemory = _r_mem_allocate (allocated_length);
 
 	while (TRUE)
 	{
-		status = NtReadFile (hfile, NULL, NULL, NULL, &isb, memory, PR_SIZE_FILE_READ_BUFFER, NULL, NULL);
+		status = NtReadFile (hfile, NULL, NULL, NULL, &isb, pmemory, allocated_length, NULL, NULL);
 
 		if (status == STATUS_END_OF_FILE)
 		{
@@ -4901,7 +4982,7 @@ NTSTATUS _r_fs_readfile (
 		if (!NT_SUCCESS (status) || !isb.Information)
 			break;
 
-		RtlCopyMemory (PTR_ADD_OFFSET (buffer->buffer, length), memory, isb.Information);
+		RtlCopyMemory (PTR_ADD_OFFSET (buffer->buffer, length), pmemory, isb.Information);
 
 		length += isb.Information;
 	}
@@ -4911,24 +4992,23 @@ NTSTATUS _r_fs_readfile (
 		*out_buffer = buffer;
 
 		_r_obj_setbytelength (buffer, length);
-
-		_r_mem_free (memory);
 	}
 	else
 	{
 		*out_buffer = NULL;
 
 		_r_obj_dereference (buffer);
-		_r_mem_free (memory);
 	}
+
+	_r_mem_free (pmemory);
 
 	return status;
 }
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_setattributes (
-	_In_opt_ LPCWSTR path,
 	_In_opt_ HANDLE hfile,
+	_In_opt_ LPCWSTR path,
 	_In_ ULONG attributes
 )
 {
@@ -4966,6 +5046,21 @@ NTSTATUS _r_fs_setattributes (
 
 	if (hfile_new)
 		NtClose (hfile_new);
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_setcurrentdirectory (
+	_In_ PR_STRING path
+)
+{
+	UNICODE_STRING us;
+	NTSTATUS status;
+
+	_r_obj_initializeunicodestring2 (&us, path);
+
+	status = RtlSetCurrentDirectory_U (&us);
 
 	return status;
 }
@@ -6120,8 +6215,8 @@ NTSTATUS _r_path_ntpathfromdos (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_search (
-	_In_ LPCWSTR filename,
-	_In_opt_ LPCWSTR extension,
+	_In_ LPWSTR filename,
+	_In_opt_ LPWSTR extension,
 	_Out_ PR_STRING_PTR out_buffer
 )
 {
@@ -6603,16 +6698,19 @@ VOID _r_str_fromulong64 (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_fromguid (
-	_In_ LPCGUID guid,
+	_In_ LPGUID guid,
 	_In_ BOOLEAN is_uppercase,
 	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
-	UNICODE_STRING us;
+	UNICODE_STRING us = {0};
+	WCHAR buffer[128] = {0};
 	PR_STRING string;
 	NTSTATUS status;
 
-	status = RtlStringFromGUID ((LPGUID)guid, &us);
+	_r_obj_initializeunicodestring_ex (&us, buffer, 0, RTL_NUMBER_OF (buffer));
+
+	status = RtlStringFromGUIDEx (guid, &us, FALSE);
 
 	if (NT_SUCCESS (status))
 	{
@@ -6622,8 +6720,6 @@ NTSTATUS _r_str_fromguid (
 			_r_str_toupper (&string->sr);
 
 		*out_buffer = string;
-
-		RtlFreeUnicodeString (&us);
 	}
 	else
 	{
@@ -6919,8 +7015,8 @@ BOOLEAN _r_str_isequal (
 	_In_ BOOLEAN is_ignorecase
 )
 {
-	LPCWSTR buffer1;
-	LPCWSTR buffer2;
+	LPWSTR buffer1;
+	LPWSTR buffer2;
 	ULONG_PTR length1;
 	ULONG_PTR length2;
 	ULONG_PTR length;
@@ -8368,11 +8464,11 @@ NTSTATUS _r_sys_getbinarytype (
 
 CleanupExit:
 
-	if (hfile)
-		NtClose (hfile);
-
 	if (hsection)
 		NtClose (hsection);
+
+	if (hfile)
+		NtClose (hfile);
 
 	switch (status)
 	{
@@ -8604,7 +8700,7 @@ NTSTATUS _r_sys_getmemoryinfo (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getmodulehandle (
-	_In_ LPCWSTR lib_name,
+	_In_ LPWSTR lib_name,
 	_Outptr_ PVOID_PTR out_buffer
 )
 {
@@ -8922,7 +9018,7 @@ LONG _r_sys_getpackagepath (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getservicesid (
-	_In_ LPCWSTR name,
+	_In_ LPWSTR name,
 	_Out_ PR_BYTE_PTR out_buffer
 )
 {
@@ -9238,31 +9334,30 @@ ULONG _r_sys_getwindowsversion ()
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_createprocess (
-	_In_ LPCWSTR file_name,
-	_In_opt_ LPCWSTR command_line,
-	_In_opt_ LPCWSTR directory,
-	_In_opt_ HANDLE token
+	_In_ LPWSTR file_name,
+	_In_opt_ LPWSTR command_line,
+	_In_opt_ LPWSTR directory
 )
 {
 	PRTL_USER_PROCESS_PARAMETERS upi = NULL;
-	RTL_USER_PROCESS_INFORMATION pi = {0};
 	PUNICODE_STRING message_strings[4] = {0};
 	UNICODE_STRING current_directory_nt = {0};
 	UNICODE_STRING command_line_nt = {0};
 	UNICODE_STRING filename_nt;
 	UNICODE_STRING filename;
-	SECTION_IMAGE_INFORMATION img_info = {0};
 	PCSR_CAPTURE_BUFFER capture_buffer = NULL;
+	SECTION_IMAGE_INFORMATION img_info = {0};
 	PS_CREATE_INFO create_info = {0};
+	PS_ATTRIBUTE_LIST attr = {0};
 	CLIENT_ID client_id = {0};
 	BASE_API_MSG msg = {0};
-	PS_ATTRIBUTE_LIST attr = {0};
 	PR_STRING directory_string = NULL;
+	PR_STRING cmdline_string = NULL;
 	PR_STRING file_name_string;
 	PR_STRING new_path;
-	PWCH locale;
 	HANDLE hprocess = NULL;
 	HANDLE hthread = NULL;
+	BYTE locale[0x14] = {0};
 	ULONG64 policy;
 	NTSTATUS status;
 
@@ -9273,7 +9368,13 @@ NTSTATUS _r_sys_createprocess (
 		status = _r_path_search (file_name, L".exe", &new_path);
 
 		if (NT_SUCCESS (status))
+		{
 			_r_obj_movereference (&file_name_string, new_path);
+		}
+		else
+		{
+			goto CleanupExit;
+		}
 	}
 
 	status = RtlDosPathNameToNtPathName_U_WithStatus (file_name_string->buffer, &filename_nt, NULL, NULL);
@@ -9284,7 +9385,15 @@ NTSTATUS _r_sys_createprocess (
 	_r_obj_initializeunicodestring2 (&filename, file_name_string);
 
 	if (command_line)
-		_r_obj_initializeunicodestring (&command_line_nt, command_line);
+	{
+		cmdline_string = _r_format_string (L"\"%s\" %s", file_name_string->buffer, command_line);
+	}
+	else
+	{
+		cmdline_string = _r_format_string (L"\"%s\"", file_name_string->buffer);
+	}
+
+	_r_obj_initializeunicodestring2 (&command_line_nt, cmdline_string);
 
 	if (directory && _r_fs_exists (directory))
 	{
@@ -9303,7 +9412,7 @@ NTSTATUS _r_sys_createprocess (
 		&filename,
 		NULL,
 		current_directory_nt.Length ? &current_directory_nt : NULL,
-		command_line_nt.Length ? &command_line_nt : &filename,
+		&command_line_nt,
 		NULL,
 		NULL,
 		NULL,
@@ -9321,30 +9430,23 @@ NTSTATUS _r_sys_createprocess (
 	attr.Attributes[0].ValuePtr = filename_nt.Buffer;
 	attr.Attributes[0].Size = filename_nt.Length;
 
-	attr.Attributes[1].Attribute = PS_ATTRIBUTE_CLIENT_ID;
-	attr.Attributes[1].Size = sizeof (CLIENT_ID);
-	attr.Attributes[1].ValuePtr = &client_id;
+	attr.Attributes[1].Attribute = PS_ATTRIBUTE_PARENT_PROCESS;
+	attr.Attributes[1].Size = sizeof (HANDLE);
+	attr.Attributes[1].ValuePtr = NtCurrentProcess ();
 
-	attr.Attributes[2].Attribute = PS_ATTRIBUTE_IMAGE_INFO;
-	attr.Attributes[2].Size = sizeof (SECTION_IMAGE_INFORMATION);
-	attr.Attributes[2].ValuePtr = &img_info;
+	attr.Attributes[2].Attribute = PS_ATTRIBUTE_CLIENT_ID;
+	attr.Attributes[2].Size = sizeof (CLIENT_ID);
+	attr.Attributes[2].ValuePtr = &client_id;
 
-	attr.Attributes[3].Attribute = PS_ATTRIBUTE_CHPE;
-	attr.Attributes[3].Value = 1;
-	attr.Attributes[3].Size = 1;
+	attr.Attributes[3].Attribute = PS_ATTRIBUTE_IMAGE_INFO;
+	attr.Attributes[3].Size = sizeof (SECTION_IMAGE_INFORMATION);
+	attr.Attributes[3].ValuePtr = &img_info;
 
 	policy = PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_OFF;
 
 	attr.Attributes[4].Attribute = PS_ATTRIBUTE_MITIGATION_OPTIONS;
 	attr.Attributes[4].ValuePtr = &policy;
 	attr.Attributes[4].Size = sizeof (ULONG64);
-
-	if (token)
-	{
-		attr.Attributes[5].Attribute = PS_ATTRIBUTE_TOKEN;
-		attr.Attributes[5].ValuePtr = token;
-		attr.Attributes[5].Size = sizeof (HANDLE);
-	}
 
 	create_info.Size = sizeof (PS_CREATE_INFO);
 	create_info.State = PsCreateInitialState;
@@ -9373,7 +9475,7 @@ NTSTATUS _r_sys_createprocess (
 	msg.CreateProcessMSG.ThreadHandle = hthread;
 	msg.CreateProcessMSG.ClientId.UniqueProcess = client_id.UniqueProcess;
 	msg.CreateProcessMSG.ClientId.UniqueThread = client_id.UniqueThread;
-	msg.CreateProcessMSG.PebAddressNative = (ULONG64)create_info.SuccessState.PebAddressNative;
+	msg.CreateProcessMSG.PebAddressNative = create_info.SuccessState.PebAddressNative;
 
 #if defined(_WIN64)
 	msg.CreateProcessMSG.ProcessorArchitecture = 9;
@@ -9393,13 +9495,11 @@ NTSTATUS _r_sys_createprocess (
 
 	RtlCopyMemory (&msg.CreateProcessMSG.Sxs.SxsNtExePath, &filename_nt, sizeof (UNICODE_STRING));
 
-	locale = _r_mem_allocate (0x2A);
-
-	msg.CreateProcessMSG.Sxs.FileName3.Length = 0x10;
+	msg.CreateProcessMSG.Sxs.FileName3.Length = 0x14;
 	msg.CreateProcessMSG.Sxs.FileName3.MaximumLength = 0x14;
-	msg.CreateProcessMSG.Sxs.FileName3.Buffer = locale;
+	msg.CreateProcessMSG.Sxs.FileName3.Buffer = (PWSTR)locale;
 
-	RtlCopyMemory (msg.CreateProcessMSG.Sxs.FileName3.Buffer, "\x65\x00\x6e\x00\x2d\x00\x55\x00\x53\x00\x00\x00\x65\x00\x6e\x00\x00\x00\x00\x00", 0x14);
+	RtlCopyMemory (msg.CreateProcessMSG.Sxs.FileName3.Buffer, "\x65\x00\x6e\x00\x2d\x00\x55\x00\x53\x00\x00\x00\x65\x00\x6e\x00\x00\x00\x00\x00", 0x14); // wtf windows
 
 	_r_obj_initializeunicodestring (&msg.CreateProcessMSG.Sxs.FileName4, L"-----------------------------------------------------------"); // wtf windows
 
@@ -9437,14 +9537,15 @@ NTSTATUS _r_sys_createprocess (
 		NtClose (hprocess);
 	}
 
-	_r_mem_free (locale);
-
 CleanupExit:
 
 	_r_obj_dereference (file_name_string);
 
 	if (directory_string)
 		_r_obj_dereference (directory_string);
+
+	if (cmdline_string)
+		_r_obj_dereference (cmdline_string);
 
 	if (upi)
 		RtlDestroyProcessParameters (upi);
@@ -9581,7 +9682,7 @@ NTSTATUS _r_sys_enumprocesses (
 	ULONG length;
 	NTSTATUS status;
 
-	length = 0x4000;
+	length = PR_SIZE_BUFFER;
 	buffer = _r_mem_allocate (length);
 
 	while (TRUE)
@@ -9609,14 +9710,13 @@ NTSTATUS _r_sys_enumprocesses (
 		_r_mem_free (buffer);
 	}
 
-
 	return status;
 }
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getprocaddress (
 	_In_ PVOID hinst,
-	_In_ LPCSTR procedure,
+	_In_ LPSTR procedure,
 	_Out_ PVOID_PTR out_buffer
 )
 {
@@ -9627,7 +9727,7 @@ NTSTATUS _r_sys_getprocaddress (
 
 	if ((ULONG_PTR)procedure >> 16)
 	{
-		RtlInitAnsiString (&procedure_name, (LPSTR)procedure);
+		RtlInitAnsiString (&procedure_name, procedure);
 
 		status = LdrGetProcedureAddress (hinst, &procedure_name, 0, &proc_address);
 	}
@@ -9791,7 +9891,7 @@ HICON _r_sys_loadsharedicon (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_loadlibraryasresource (
-	_In_ LPCWSTR lib_name,
+	_In_ LPWSTR lib_name,
 	_Out_ PVOID_PTR out_buffer
 )
 {
@@ -9892,7 +9992,7 @@ NTSTATUS _r_sys_loadlibraryasresource (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_loadlibrary (
-	_In_ LPCWSTR lib_name,
+	_In_ LPWSTR lib_name,
 	_In_opt_ ULONG lib_flags,
 	_Outptr_ PVOID_PTR out_buffer
 )
@@ -10342,7 +10442,7 @@ VOID _r_sys_querythreadenvironment (
 	}
 	else
 	{
-		environment->io_priority = IoPriorityLow;
+		environment->io_priority = IoPriorityVeryLow;
 	}
 
 	// query memory priority
@@ -13019,14 +13119,19 @@ HINTERNET _r_inet_createsession (
 	return hsession;
 }
 
-ULONG _r_inet_openurl (
+_Success_ (return)
+BOOLEAN _r_inet_openurl (
 	_In_ HINTERNET hsession,
 	_In_ PR_STRING url,
+	_In_opt_ PR_STRING proxy,
 	_Out_ LPHINTERNET hconnect_ptr,
 	_Out_ LPHINTERNET hrequest_ptr,
 	_Out_opt_ PULONG total_length_ptr
 )
 {
+	WINHTTP_PROXY_INFO wpi = {0};
+	WCHAR proxy_buffer[256];
+	R_URLPARTS proxy_parts;
 	R_URLPARTS url_parts;
 	HINTERNET hconnect;
 	HINTERNET hrequest;
@@ -13034,6 +13139,7 @@ ULONG _r_inet_openurl (
 	ULONG flags;
 	ULONG status;
 	BOOL result;
+	BOOLEAN is_success = FALSE;
 
 	*hconnect_ptr = NULL;
 	*hrequest_ptr = NULL;
@@ -13041,19 +13147,13 @@ ULONG _r_inet_openurl (
 	if (total_length_ptr)
 		*total_length_ptr = 0;
 
-	status = _r_inet_queryurlparts (url, PR_URLPARTS_SCHEME | PR_URLPARTS_HOST | PR_URLPARTS_PORT | PR_URLPARTS_PATH, &url_parts);
-
-	if (status != ERROR_SUCCESS)
+	if (!_r_inet_queryurlparts (url, PR_URLPARTS_SCHEME | PR_URLPARTS_HOST | PR_URLPARTS_PORT | PR_URLPARTS_PATH, &url_parts))
 		goto CleanupExit;
 
 	hconnect = WinHttpConnect (hsession, url_parts.host->buffer, url_parts.port, 0);
 
 	if (!hconnect)
-	{
-		status = PebLastError ();
-
 		goto CleanupExit;
-	}
 
 	flags = WINHTTP_FLAG_REFRESH;
 
@@ -13064,8 +13164,6 @@ ULONG _r_inet_openurl (
 
 	if (!hrequest)
 	{
-		status = PebLastError ();
-
 		_r_inet_close (hconnect);
 
 		goto CleanupExit;
@@ -13073,6 +13171,28 @@ ULONG _r_inet_openurl (
 
 	// disable "keep-alive" feature (win7+)
 	WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &(ULONG){WINHTTP_DISABLE_KEEP_ALIVE}, sizeof (ULONG));
+
+	if (!_r_obj_isstringempty (proxy))
+	{
+		if (_r_inet_queryurlparts (proxy, PR_URLPARTS_HOST | PR_URLPARTS_PORT | PR_URLPARTS_USER | PR_URLPARTS_PASS, &proxy_parts))
+		{
+			_r_str_printf (proxy_buffer, RTL_NUMBER_OF (proxy_buffer), L"%s:%" TEXT (PRIu16), proxy_parts.host->buffer, proxy_parts.port);
+
+			wpi.dwAccessType = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
+			wpi.lpszProxy = proxy_buffer;
+
+			WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY, &wpi, sizeof (wpi));
+
+			// set proxy credentials (if exists)
+			if (!_r_obj_isstringempty (proxy_parts.user))
+				WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY_USERNAME, proxy_parts.user->buffer, (ULONG)_r_str_getlength2 (proxy_parts.user));
+
+			if (!_r_obj_isstringempty (proxy_parts.pass))
+				WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY_PASSWORD, proxy_parts.pass->buffer, (ULONG)_r_str_getlength2 (proxy_parts.pass));
+
+			_r_inet_destroyurlparts (&proxy_parts);
+		}
+	}
 
 	do
 	{
@@ -13111,11 +13231,7 @@ ULONG _r_inet_openurl (
 		}
 		else
 		{
-			if (!WinHttpReceiveResponse (hrequest, NULL))
-			{
-				status = PebLastError ();
-			}
-			else
+			if (WinHttpReceiveResponse (hrequest, NULL))
 			{
 				if (_r_inet_querystatuscode (hrequest) != HTTP_STATUS_OK)
 				{
@@ -13130,7 +13246,7 @@ ULONG _r_inet_openurl (
 				if (total_length_ptr)
 					*total_length_ptr = _r_inet_querycontentlength (hrequest);
 
-				status = ERROR_SUCCESS;
+				is_success = TRUE;
 
 				goto CleanupExit;
 			}
@@ -13145,7 +13261,7 @@ CleanupExit:
 
 	_r_inet_destroyurlparts (&url_parts);
 
-	return status;
+	return is_success;
 }
 
 _Success_ (return)
@@ -13268,10 +13384,11 @@ VOID _r_inet_initializedownload (
 	download_info->lparam = lparam;
 }
 
-_Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_begindownload (
+_Success_ (return)
+BOOLEAN _r_inet_begindownload (
 	_In_ HINTERNET hsession,
 	_In_ PR_STRING url,
+	_In_opt_ PR_STRING proxy,
 	_Inout_ PR_DOWNLOAD_INFO download_info
 )
 {
@@ -13285,17 +13402,16 @@ ULONG _r_inet_begindownload (
 	ULONG total_readed = 0;
 	ULONG total_length;
 	ULONG readed_length;
-	NTSTATUS status;
+	NTSTATUS status = STATUS_INVALID_PARAMETER;
+	BOOLEAN is_success = FALSE;
 
-	status = _r_inet_openurl (hsession, url, &hconnect, &hrequest, &total_length);
-
-	if (status != ERROR_SUCCESS)
-		return status;
+	if (!_r_inet_openurl (hsession, url, proxy, &hconnect, &hrequest, &total_length))
+		return FALSE;
 
 	if (!download_info->is_savetofile)
-		_r_obj_initializestringbuilder (&sb, 0x4000);
+		_r_obj_initializestringbuilder (&sb, PR_SIZE_BUFFER);
 
-	allocated_length = PR_SIZE_INET_READ_BUFFER;
+	allocated_length = PR_SIZE_BUFFER;
 	content_bytes = _r_obj_createbyte_ex (NULL, allocated_length);
 
 	while (_r_inet_readrequest (hrequest, content_bytes->buffer, allocated_length, &readed_length, &total_readed))
@@ -13308,8 +13424,17 @@ ULONG _r_inet_begindownload (
 		{
 			status = NtWriteFile (download_info->u.hfile, NULL, NULL, NULL, &isb, content_bytes->buffer, readed_length, NULL, NULL);
 
-			if (!NT_SUCCESS (status))
+			if (NT_SUCCESS (status))
+			{
+				is_success = TRUE;
+			}
+			else
+			{
+				is_success = FALSE;
+
 				break;
+			}
+
 		}
 		else
 		{
@@ -13320,9 +13445,13 @@ ULONG _r_inet_begindownload (
 				_r_obj_appendstringbuilder2 (&sb, string);
 
 				_r_obj_dereference (string);
+
+				is_success = TRUE;
 			}
 			else
 			{
+				is_success = FALSE;
+
 				break;
 			}
 		}
@@ -13331,7 +13460,7 @@ ULONG _r_inet_begindownload (
 		{
 			if (!download_info->download_callback (total_readed, max (total_readed, total_length), download_info->lparam))
 			{
-				status = STATUS_CANCELLED;
+				is_success = FALSE;
 
 				break;
 			}
@@ -13345,6 +13474,8 @@ ULONG _r_inet_begindownload (
 			string = _r_obj_finalstringbuilder (&sb);
 
 			download_info->u.string = string;
+
+			is_success = TRUE;
 		}
 		else
 		{
@@ -13361,7 +13492,7 @@ ULONG _r_inet_begindownload (
 	_r_inet_close (hrequest);
 	_r_inet_close (hconnect);
 
-	return status;
+	return is_success;
 }
 
 VOID _r_inet_destroydownload (
@@ -13378,8 +13509,8 @@ VOID _r_inet_destroydownload (
 	}
 }
 
-_Success_ (return == ERROR_SUCCESS)
-ULONG _r_inet_queryurlparts (
+_Success_ (return)
+BOOLEAN _r_inet_queryurlparts (
 	_In_ PR_STRING url,
 	_In_ ULONG flags,
 	_Out_ PR_URLPARTS url_parts
@@ -13387,7 +13518,6 @@ ULONG _r_inet_queryurlparts (
 {
 	URL_COMPONENTS url_comp = {0};
 	ULONG length = 256;
-	ULONG status;
 
 	url_comp.dwStructSize = sizeof (url_comp);
 
@@ -13427,11 +13557,9 @@ ULONG _r_inet_queryurlparts (
 
 	if (!WinHttpCrackUrl (url->buffer, (ULONG)_r_str_getlength2 (url), ICU_DECODE, &url_comp))
 	{
-		status = PebLastError ();
-
 		_r_inet_destroyurlparts (url_parts);
 
-		return status;
+		return FALSE;
 	}
 
 	if (flags & PR_URLPARTS_SCHEME)
@@ -13452,7 +13580,7 @@ ULONG _r_inet_queryurlparts (
 	if (flags & PR_URLPARTS_PASS)
 		_r_obj_trimstringtonullterminator (url_parts->pass);
 
-	return ERROR_SUCCESS;
+	return TRUE;
 }
 
 VOID _r_inet_destroyurlparts (
@@ -13565,7 +13693,7 @@ HANDLE _r_reg_getroothandle (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_openkey (
 	_In_ HANDLE hroot,
-	_In_ LPCWSTR path,
+	_In_ LPWSTR path,
 	_In_ ACCESS_MASK desired_access,
 	_Out_ PHANDLE hkey
 )
@@ -13589,7 +13717,7 @@ NTSTATUS _r_reg_openkey (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_deletevalue (
 	_In_ HANDLE hkey,
-	_In_ LPCWSTR value_name
+	_In_ LPWSTR value_name
 )
 {
 	UNICODE_STRING us;
@@ -13665,7 +13793,7 @@ NTSTATUS _r_reg_queryinfo (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_querybinary (
 	_In_ HANDLE hkey,
-	_In_ LPCWSTR value_name,
+	_In_ LPWSTR value_name,
 	_Outptr_ PR_BYTE_PTR out_buffer
 )
 {
@@ -13701,7 +13829,7 @@ NTSTATUS _r_reg_querybinary (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_querystring (
 	_In_ HANDLE hkey,
-	_In_opt_ LPCWSTR value_name,
+	_In_opt_ LPWSTR value_name,
 	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
@@ -13757,7 +13885,7 @@ NTSTATUS _r_reg_querystring (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_queryulong (
 	_In_ HANDLE hkey,
-	_In_ LPCWSTR value_name,
+	_In_ LPWSTR value_name,
 	_Out_ PULONG out_buffer
 )
 {
@@ -13783,7 +13911,7 @@ NTSTATUS _r_reg_queryulong (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_queryulong64 (
 	_In_ HANDLE hkey,
-	_In_ LPCWSTR value_name,
+	_In_ LPWSTR value_name,
 	_Out_ PULONG64 out_buffer
 )
 {
@@ -13809,7 +13937,7 @@ NTSTATUS _r_reg_queryulong64 (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_queryvalue (
 	_In_ HANDLE hkey,
-	_In_opt_ LPCWSTR value_name,
+	_In_opt_ LPWSTR value_name,
 	_Out_opt_ PVOID buffer,
 	_Out_opt_ PULONG buffer_length,
 	_Out_opt_ PULONG type
@@ -13861,7 +13989,7 @@ NTSTATUS _r_reg_queryvalue (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_setvalue (
 	_In_ HANDLE hkey,
-	_In_opt_ LPCWSTR value_name,
+	_In_opt_ LPWSTR value_name,
 	_In_ ULONG type,
 	_In_ PVOID buffer,
 	_In_ ULONG buffer_length
@@ -14267,7 +14395,7 @@ NTSTATUS _r_crypt_getfilehash (
 		return status;
 	}
 
-	buffer_size = 0x4000;
+	buffer_size = PR_SIZE_BUFFER;
 	buffer = _r_mem_allocate (buffer_size);
 
 	while (TRUE)
@@ -15908,7 +16036,7 @@ VOID _r_ctrl_settiptext (
 	_In_ HWND htip,
 	_In_ HWND hparent,
 	_In_ INT ctrl_id,
-	_In_ LPCWSTR string
+	_In_ LPWSTR string
 )
 {
 	TOOLINFO tool_info = {0};
@@ -15918,7 +16046,7 @@ VOID _r_ctrl_settiptext (
 	tool_info.hwnd = hparent;
 	tool_info.hinst = _r_sys_getimagebase ();
 	tool_info.uId = (UINT_PTR)GetDlgItem (hparent, ctrl_id);
-	tool_info.lpszText = (LPWSTR)string;
+	tool_info.lpszText = string;
 
 	GetClientRect (hparent, &tool_info.rect);
 
@@ -16001,7 +16129,7 @@ VOID _r_ctrl_showballoontipformat (
 VOID _r_menu_additem (
 	_In_ HMENU hmenu,
 	_In_opt_ UINT item_id,
-	_In_opt_ LPCWSTR string
+	_In_opt_ LPWSTR string
 )
 {
 	_r_menu_additem_ex (hmenu, item_id, string, MF_UNCHECKED);
@@ -16010,7 +16138,7 @@ VOID _r_menu_additem (
 VOID _r_menu_additem_ex (
 	_In_ HMENU hmenu,
 	_In_opt_ UINT item_id,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_opt_ UINT state
 )
 {
@@ -16024,7 +16152,7 @@ VOID _r_menu_additem_ex (
 		mii.fMask |= MIIM_ID | MIIM_STRING;
 
 		mii.fType = MF_STRING;
-		mii.dwTypeData = (LPWSTR)string;
+		mii.dwTypeData = string;
 		mii.wID = item_id;
 
 		if (state)
@@ -16052,7 +16180,7 @@ VOID _r_menu_addsubmenu (
 	_In_ HMENU hmenu,
 	_In_ UINT pos,
 	_In_ HMENU hsubmenu,
-	_In_opt_ LPCWSTR string
+	_In_opt_ LPWSTR string
 )
 {
 	MENUITEMINFO mii = {0};
@@ -16065,7 +16193,7 @@ VOID _r_menu_addsubmenu (
 	{
 		mii.fMask |= MIIM_STRING;
 
-		mii.dwTypeData = (LPWSTR)string;
+		mii.dwTypeData = string;
 	}
 
 	InsertMenuItemW (hmenu, pos, TRUE, &mii);
@@ -16134,14 +16262,14 @@ VOID _r_menu_setitemtext (
 	_In_ HMENU hmenu,
 	_In_ UINT item_id,
 	_In_ BOOL is_byposition,
-	_In_ LPCWSTR string
+	_In_ LPWSTR string
 )
 {
 	MENUITEMINFO mii = {0};
 
 	mii.cbSize = sizeof (mii);
 	mii.fMask = MIIM_STRING;
-	mii.dwTypeData = (LPWSTR)string;
+	mii.dwTypeData = string;
 
 	SetMenuItemInfoW (hmenu, item_id, is_byposition, &mii);
 }
@@ -16238,7 +16366,7 @@ INT _r_tab_additem (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ INT item_id,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
 	_In_opt_ LPARAM lparam
 )
@@ -16248,7 +16376,7 @@ INT _r_tab_additem (
 	if (string)
 	{
 		tci.mask |= TCIF_TEXT;
-		tci.pszText = (LPWSTR)string;
+		tci.pszText = string;
 	}
 
 	if (image_id != I_IMAGENONE)
@@ -16286,7 +16414,7 @@ INT _r_tab_setitem (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ INT item_id,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
 	_In_opt_ LPARAM lparam
 )
@@ -16296,7 +16424,7 @@ INT _r_tab_setitem (
 	if (string)
 	{
 		tci.mask |= TCIF_TEXT;
-		tci.pszText = (LPWSTR)string;
+		tci.pszText = string;
 	}
 
 	if (image_id != I_IMAGENONE)
@@ -16345,7 +16473,7 @@ INT _r_listview_addcolumn (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ INT column_id,
-	_In_opt_ LPCWSTR title,
+	_In_opt_ LPWSTR title,
 	_In_opt_ INT width,
 	_In_opt_ INT fmt
 )
@@ -16360,7 +16488,7 @@ INT _r_listview_addcolumn (
 	{
 		lvc.mask |= LVCF_TEXT;
 
-		lvc.pszText = (LPWSTR)title;
+		lvc.pszText = title;
 	}
 
 	if (width)
@@ -16398,7 +16526,7 @@ INT _r_listview_addgroup (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ INT group_id,
-	_In_opt_ LPCWSTR title,
+	_In_opt_ LPWSTR title,
 	_In_opt_ UINT align,
 	_In_opt_ UINT state,
 	_In_opt_ UINT state_mask
@@ -16414,7 +16542,7 @@ INT _r_listview_addgroup (
 	{
 		lvg.mask |= LVGF_HEADER;
 
-		lvg.pszHeader = (LPWSTR)title;
+		lvg.pszHeader = title;
 	}
 
 	if (align)
@@ -16439,7 +16567,7 @@ INT _r_listview_additem (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ INT item_id,
-	_In_ LPCWSTR string
+	_In_ LPWSTR string
 )
 {
 	return _r_listview_additem_ex (hwnd, ctrl_id, item_id, string, I_IMAGENONE, I_GROUPIDNONE, 0);
@@ -16449,7 +16577,7 @@ INT _r_listview_additem_ex (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ INT item_id,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
 	_In_ INT group_id,
 	_In_opt_ LPARAM lparam
@@ -16464,7 +16592,7 @@ INT _r_listview_additem_ex (
 	{
 		lvi.mask |= LVIF_TEXT;
 
-		lvi.pszText = (LPWSTR)string;
+		lvi.pszText = string;
 	}
 
 	if (image_id != I_IMAGENONE)
@@ -16513,7 +16641,7 @@ VOID _r_listview_fillitems (
 	_In_ INT item_start,
 	_In_ INT item_end,
 	_In_ INT subitem_id,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_ INT image_id
 )
 {
@@ -16721,7 +16849,7 @@ VOID _r_listview_setcolumn (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ INT column_id,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_opt_ INT width
 )
 {
@@ -16735,7 +16863,7 @@ VOID _r_listview_setcolumn (
 	{
 		lvc.mask |= LVCF_TEXT;
 
-		lvc.pszText = (LPWSTR)string;
+		lvc.pszText = string;
 	}
 
 	if (width)
@@ -16803,7 +16931,7 @@ VOID _r_listview_setitem (
 	_In_ INT ctrl_id,
 	_In_ INT item_id,
 	_In_ INT subitem_id,
-	_In_opt_ LPCWSTR string
+	_In_opt_ LPWSTR string
 )
 {
 	_r_listview_setitem_ex (hwnd, ctrl_id, item_id, subitem_id, string, I_IMAGENONE, I_GROUPIDNONE, 0);
@@ -16814,7 +16942,7 @@ VOID _r_listview_setitem_ex (
 	_In_ INT ctrl_id,
 	_In_ INT item_id,
 	_In_ INT subitem_id,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
 	_In_ INT group_id,
 	_In_opt_ LPARAM lparam
@@ -16829,7 +16957,7 @@ VOID _r_listview_setitem_ex (
 	{
 		lvi.mask |= LVIF_TEXT;
 
-		lvi.pszText = (LPWSTR)string;
+		lvi.pszText = string;
 	}
 
 	if (subitem_id == 0)
@@ -16902,7 +17030,7 @@ VOID _r_listview_setgroup (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ INT group_id,
-	_In_opt_ LPCWSTR title,
+	_In_opt_ LPWSTR title,
 	_In_opt_ UINT state,
 	_In_opt_ UINT state_mask
 )
@@ -16914,7 +17042,7 @@ VOID _r_listview_setgroup (
 	if (title)
 	{
 		lvg.mask |= LVGF_HEADER;
-		lvg.pszHeader = (LPWSTR)title;
+		lvg.pszHeader = title;
 	}
 
 	if (state || state_mask)
@@ -16962,7 +17090,7 @@ VOID _r_listview_setstyle (
 HTREEITEM _r_treeview_additem (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
 	_In_opt_ HTREEITEM hparent,
 	_In_opt_ HTREEITEM hinsert_after,
@@ -16979,7 +17107,7 @@ HTREEITEM _r_treeview_additem (
 	{
 		tvi.itemex.mask |= TVIF_TEXT;
 
-		tvi.itemex.pszText = (LPWSTR)string;
+		tvi.itemex.pszText = string;
 	}
 
 	if (hparent)
@@ -17026,7 +17154,7 @@ INT _r_treeview_getitemcount (
 	return total_count;
 }
 
-LPARAM _r_treeview_getlparam (
+LPARAM _r_treeview_getitemlparam (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ HTREEITEM hitem
@@ -17040,6 +17168,51 @@ LPARAM _r_treeview_getlparam (
 	SendDlgItemMessage (hwnd, ctrl_id, TVM_GETITEM, 0, (LPARAM)&tvi);
 
 	return tvi.lParam;
+}
+
+UINT _r_treeview_getitemstate (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ HTREEITEM item_id
+)
+{
+	TVITEM tvi = {0};
+
+	tvi.mask = TVIF_STATE;
+	tvi.hItem = item_id;
+
+	SendDlgItemMessage (hwnd, ctrl_id, TVM_GETITEM, 0, (LPARAM)&tvi);
+
+	return tvi.state;
+}
+
+UINT _r_treeview_getnextitem (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ HTREEITEM item_id
+)
+{
+	TVITEM tvi = {0};
+
+	tvi.mask = TVIF_STATE;
+	tvi.hItem = item_id;
+
+	SendDlgItemMessage (hwnd, ctrl_id, TVM_GETNEXTITEM, TVGN_NEXT, (LPARAM)&tvi);
+
+	return tvi.state;
+}
+
+BOOLEAN _r_treeview_isitemchecked (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ HTREEITEM item_id
+)
+{
+	UINT state;
+
+	state = _r_treeview_getitemstate (hwnd, ctrl_id, item_id);
+
+	return (state >> 12) - 1;
 }
 
 VOID _r_treeview_setitemcheck (
@@ -17074,7 +17247,7 @@ VOID _r_treeview_setitem (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ HTREEITEM hitem,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
 	_In_opt_ LPARAM lparam
 )
@@ -17087,7 +17260,7 @@ VOID _r_treeview_setitem (
 	{
 		tvi.mask |= TVIF_TEXT;
 
-		tvi.pszText = (LPWSTR)string;
+		tvi.pszText = string;
 	}
 
 	if (image_id != I_IMAGENONE)
@@ -17312,7 +17485,7 @@ VOID _r_toolbar_setbutton (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ UINT command_id,
-	_In_opt_ LPCWSTR string,
+	_In_opt_ LPWSTR string,
 	_In_opt_ INT style,
 	_In_opt_ INT state,
 	_In_ INT image_id
@@ -17326,7 +17499,7 @@ VOID _r_toolbar_setbutton (
 	{
 		tbi.dwMask |= TBIF_TEXT;
 
-		tbi.pszText = (LPWSTR)string;
+		tbi.pszText = string;
 	}
 
 	if (style)
