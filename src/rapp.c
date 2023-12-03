@@ -649,7 +649,7 @@ LRESULT CALLBACK _r_app_maindlgproc (
 
 		//case WM_NCDESTROY:
 		//{
-		//	SendMessage (hwnd, RM_UNINITIALIZE_POST, 0, 0);
+		//	SendMessageW (hwnd, RM_UNINITIALIZE_POST, 0, 0);
 		//	break;
 		//}
 
@@ -864,15 +864,15 @@ HWND _r_app_createwindow (
 	_r_window_restoreposition (hwnd, L"window");
 
 	// common initialization
-	SendMessage (hwnd, RM_INITIALIZE, 0, 0);
-	SendMessage (hwnd, RM_LOCALIZE, 0, 0);
+	SendMessageW (hwnd, RM_INITIALIZE, 0, 0);
+	SendMessageW (hwnd, RM_LOCALIZE, 0, 0);
 
 	// restore window visibility (or not?)
 #if !defined(APP_STARTMINIMIZED)
 	ShowWindow (hwnd, _r_app_getshowcode (hwnd));
 #endif // !APP_STARTMINIMIZED
 
-	PostMessage (hwnd, RM_INITIALIZE_POST, 0, 0);
+	PostMessageW (hwnd, RM_INITIALIZE_POST, 0, 0);
 
 #if defined(APP_HAVE_UPDATES)
 	if (_r_update_isenabled (TRUE))
@@ -1754,13 +1754,13 @@ VOID _r_locale_apply (
 	hwindow = _r_app_gethwnd ();
 
 	if (hwindow)
-		PostMessage (hwindow, RM_LOCALIZE, 0, 0);
+		PostMessageW (hwindow, RM_LOCALIZE, 0, 0);
 
 	// refresh settings window
 	hwindow = _r_settings_getwindow ();
 
 	if (hwindow)
-		PostMessage (hwindow, RM_LOCALIZE, 0, 0);
+		PostMessageW (hwindow, RM_LOCALIZE, 0, 0);
 }
 
 VOID _r_locale_enum (
@@ -2080,7 +2080,7 @@ BOOLEAN NTAPI _r_update_downloadcallback (
 	{
 		percent = _r_calc_percentof (total_written, total_length);
 
-		SendMessage (update_info->htaskdlg, TDM_SET_PROGRESS_BAR_POS, (WPARAM)percent, 0);
+		SendMessageW (update_info->htaskdlg, TDM_SET_PROGRESS_BAR_POS, (WPARAM)percent, 0);
 	}
 
 	return TRUE;
@@ -2509,8 +2509,8 @@ HRESULT CALLBACK _r_update_pagecallback (
 
 			update_info->htaskdlg = hwnd;
 
-			SendMessage (hwnd, TDM_SET_MARQUEE_PROGRESS_BAR, TRUE, 0);
-			SendMessage (hwnd, TDM_SET_PROGRESS_BAR_MARQUEE, TRUE, 10);
+			SendMessageW (hwnd, TDM_SET_MARQUEE_PROGRESS_BAR, TRUE, 0);
+			SendMessageW (hwnd, TDM_SET_PROGRESS_BAR_MARQUEE, TRUE, 10);
 
 			hparent = GetParent (hwnd);
 
@@ -2671,7 +2671,7 @@ VOID _r_update_navigate (
 
 	if (update_info->htaskdlg)
 	{
-		SendMessage (update_info->htaskdlg, TDM_NAVIGATE_PAGE, 0, (LPARAM)&tdc);
+		SendMessageW (update_info->htaskdlg, TDM_NAVIGATE_PAGE, 0, (LPARAM)&tdc);
 	}
 	else
 	{
@@ -2732,10 +2732,10 @@ VOID _r_update_applyconfig ()
 	if (!hwnd)
 		return;
 
-	SendMessage (hwnd, RM_CONFIG_UPDATE, 0, 0);
-	SendMessage (hwnd, RM_INITIALIZE, 0, 0);
+	SendMessageW (hwnd, RM_CONFIG_UPDATE, 0, 0);
+	SendMessageW (hwnd, RM_INITIALIZE, 0, 0);
 
-	PostMessage (hwnd, RM_LOCALIZE, 0, 0);
+	PostMessageW (hwnd, RM_LOCALIZE, 0, 0);
 }
 
 VOID _r_update_install (
@@ -3689,7 +3689,7 @@ VOID _r_settings_createwindow (
 		WC_BUTTON
 	);
 
-	DialogBoxIndirectW (_r_sys_getimagebase (), buffer, hwnd, &_r_settings_wndproc);
+	DialogBoxIndirectParamW (_r_sys_getimagebase (), buffer, hwnd, &_r_settings_wndproc, 0);
 
 	_r_mem_free (buffer);
 }
@@ -3759,13 +3759,13 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 				BringWindowToTop (ptr_page->hwnd); // HACK!!!
 
-				SendMessage (ptr_page->hwnd, RM_INITIALIZE, (WPARAM)ptr_page->dlg_id, 0);
+				SendMessageW (ptr_page->hwnd, RM_INITIALIZE, (WPARAM)ptr_page->dlg_id, 0);
 
 #if !defined(APP_HAVE_SETTINGS_TABS)
 				hitem = _r_treeview_additem (hwnd, IDC_NAV, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, NULL, NULL, (LPARAM)ptr_page);
 
 				if (dlg_id && ptr_page->dlg_id == dlg_id)
-					SendDlgItemMessage (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)hitem);
+					SendDlgItemMessageW (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)hitem);
 #else
 				EnableThemeDialogTexture (ptr_page->hwnd, ETDT_ENABLETAB);
 
@@ -3785,7 +3785,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 				_r_tab_selectitem (hwnd, IDC_NAV, 0);
 #endif // APP_HAVE_SETTINGS_TABS
 
-			SendMessage (hwnd, RM_LOCALIZE, 0, 0);
+			SendMessageW (hwnd, RM_LOCALIZE, 0, 0);
 
 			break;
 		}
@@ -3818,7 +3818,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 				_r_dc_getdpi (PR_SIZE_TREEINDENT, dpi_value)
 			);
 
-			hitem = (HTREEITEM)SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_ROOT, 0);
+			hitem = (HTREEITEM)SendDlgItemMessageW (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_ROOT, 0);
 
 			while (hitem)
 			{
@@ -3831,11 +3831,11 @@ INT_PTR CALLBACK _r_settings_wndproc (
 					if (ptr_page->hwnd)
 					{
 						if (_r_wnd_isvisible (ptr_page->hwnd))
-							PostMessage (ptr_page->hwnd, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
+							PostMessageW (ptr_page->hwnd, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
 					}
 				}
 
-				hitem = (HTREEITEM)SendDlgItemMessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_NEXT, (LPARAM)hitem);
+				hitem = (HTREEITEM)SendDlgItemMessageW (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_NEXT, (LPARAM)hitem);
 			}
 #else
 			for (INT i = 0; i < _r_tab_getitemcount (hwnd, IDC_NAV); i++)
@@ -3847,46 +3847,34 @@ INT_PTR CALLBACK _r_settings_wndproc (
 					_r_tab_setitem (hwnd, IDC_NAV, i, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, 0);
 
 					if (ptr_page->hwnd && _r_wnd_isvisible (ptr_page->hwnd))
-						PostMessage (ptr_page->hwnd, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
+						PostMessageW (ptr_page->hwnd, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
 				}
 			}
 #endif // APP_HAVE_SETTINGS_TABS
 
 			// localize buttons
-#if defined(IDC_RESET)
 #if defined(IDS_RESET)
 			_r_ctrl_setstring (hwnd, IDC_RESET, _r_locale_getstring (IDS_RESET));
 #else
 			_r_ctrl_setstring (hwnd, IDC_RESET, L"Reset");
 #pragma PR_PRINT_WARNING(IDS_RESET)
 #endif // IDS_RESET
-#else
-#pragma PR_PRINT_WARNING(IDC_RESET)
-#endif // IDC_RESET
 
 #if defined(APP_HAVE_SETTINGS_TABS)
-#if defined(IDC_SAVE)
 #if defined(IDS_SAVE)
 			_r_ctrl_setstring (hwnd, IDC_SAVE, _r_locale_getstring (IDS_SAVE));
 #else
 			_r_ctrl_setstring (hwnd, IDC_SAVE, L"OK");
 #pragma PR_PRINT_WARNING(IDS_SAVE)
 #endif // IDS_SAVE
-#else
-#pragma PR_PRINT_WARNING(IDC_SAVE)
-#endif // IDC_SAVE
 #endif // APP_HAVE_SETTINGS_TABS
 
-#if defined(IDC_CLOSE)
 #if defined(IDS_CLOSE)
 			_r_ctrl_setstring (hwnd, IDC_CLOSE, _r_locale_getstring (IDS_CLOSE));
 #else
 			_r_ctrl_setstring (hwnd, IDC_CLOSE, L"Close");
 #pragma PR_PRINT_WARNING(IDS_CLOSE)
 #endif // IDS_CLOSE
-#else
-#pragma PR_PRINT_WARNING(IDC_CLOSE)
-#endif // IDC_CLOSE
 
 			break;
 		}
@@ -3895,7 +3883,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 		{
 			_r_wnd_message_dpichanged (hwnd, wparam, lparam);
 
-			PostMessage (hwnd, RM_LOCALIZE, 0, 0);
+			PostMessageW (hwnd, RM_LOCALIZE, 0, 0);
 
 			break;
 		}
@@ -3951,11 +3939,11 @@ INT_PTR CALLBACK _r_settings_wndproc (
 #if !defined(APP_HAVE_SETTINGS_TABS)
 				case TVN_SELCHANGING:
 				{
-					LPNMTREEVIEW lpnmtv;
+					LPNMTREEVIEWW lpnmtv;
 					PR_SETTINGS_PAGE ptr_page_old;
 					PR_SETTINGS_PAGE ptr_page_new;
 
-					lpnmtv = (LPNMTREEVIEW)lparam;
+					lpnmtv = (LPNMTREEVIEWW)lparam;
 
 					ptr_page_old = (PR_SETTINGS_PAGE)lpnmtv->itemOld.lParam;
 					ptr_page_new = (PR_SETTINGS_PAGE)lpnmtv->itemNew.lParam;
@@ -3970,7 +3958,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 					_r_settings_adjustchild (hwnd, IDC_NAV, ptr_page_new->hwnd);
 
-					SendMessage (ptr_page_new->hwnd, RM_LOCALIZE, (WPARAM)ptr_page_new->dlg_id, 0);
+					SendMessageW (ptr_page_new->hwnd, RM_LOCALIZE, (WPARAM)ptr_page_new->dlg_id, 0);
 
 					ShowWindow (ptr_page_new->hwnd, SW_SHOW);
 
@@ -4006,7 +3994,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 					_r_tab_adjustchild (hwnd, ctrl_id, ptr_page->hwnd);
 
-					SendMessage (ptr_page->hwnd, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
+					SendMessageW (ptr_page->hwnd, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
 
 					ShowWindow (ptr_page->hwnd, SW_SHOW);
 
@@ -4040,7 +4028,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 						{
 							if (ptr_page->hwnd)
 							{
-								retn = (LONG_PTR)SendMessage (ptr_page->hwnd, RM_CONFIG_SAVE, (WPARAM)ptr_page->dlg_id, 0);
+								retn = (LONG_PTR)SendMessageW (ptr_page->hwnd, RM_CONFIG_SAVE, (WPARAM)ptr_page->dlg_id, 0);
 
 								if (retn == -1)
 								{
@@ -4065,7 +4053,6 @@ INT_PTR CALLBACK _r_settings_wndproc (
 					break;
 				}
 
-#if defined(IDC_RESET)
 				case IDC_RESET:
 				{
 					PR_SETTINGS_PAGE ptr_page;
@@ -4097,12 +4084,12 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 					if (hwindow)
 					{
-						SendMessage (hwindow, RM_INITIALIZE, 0, 0);
-						SendMessage (hwindow, RM_LOCALIZE, 0, 0);
+						SendMessageW (hwindow, RM_INITIALIZE, 0, 0);
+						SendMessageW (hwindow, RM_LOCALIZE, 0, 0);
 
-						SendMessage (hwindow, WM_EXITSIZEMOVE, 0, 0); // reset size and pos
+						SendMessageW (hwindow, WM_EXITSIZEMOVE, 0, 0); // reset size and pos
 
-						SendMessage (hwindow, RM_CONFIG_RESET, 0, 0);
+						SendMessageW (hwindow, RM_CONFIG_RESET, 0, 0);
 					}
 
 					// reinitialize settings
@@ -4114,14 +4101,13 @@ INT_PTR CALLBACK _r_settings_wndproc (
 							continue;
 
 						if (_r_wnd_isvisible (ptr_page->hwnd))
-							SendMessage (ptr_page->hwnd, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
+							SendMessageW (ptr_page->hwnd, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
 
-						SendMessage (ptr_page->hwnd, RM_INITIALIZE, (WPARAM)ptr_page->dlg_id, 0);
+						SendMessageW (ptr_page->hwnd, RM_INITIALIZE, (WPARAM)ptr_page->dlg_id, 0);
 					}
 
 					break;
 				}
-#endif // IDC_RESET
 			}
 
 			break;

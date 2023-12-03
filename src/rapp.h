@@ -10,6 +10,22 @@
 
 #include "rconfig.h"
 
+#if !defined(IDC_NAV)
+#define IDC_NAV 1000
+#endif // IDC_NAV
+
+#if !defined(IDC_RESET)
+#define IDC_RESET 1001
+#endif // IDC_RESET
+
+#if !defined(IDC_SAVE)
+#define IDC_SAVE 1002
+#endif // IDC_SAVE
+
+#if !defined(IDC_CLOSE)
+#define IDC_CLOSE 1003
+#endif // IDC_CLOSE
+
 //
 // Global variables
 //

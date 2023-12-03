@@ -14773,13 +14773,20 @@ PR_STRING _r_res_queryversionstring (
 
 	if (file_info->dwSignature == VS_FFI_SIGNATURE)
 	{
-		string = _r_format_string (
-			L"%" TEXT (PR_ULONG) L".%" TEXT (PR_ULONG) L".%" TEXT (PR_ULONG) L".%" TEXT (PR_ULONG),
-			HIWORD (file_info->dwFileVersionMS),
-			LOWORD (file_info->dwFileVersionMS),
-			HIWORD (file_info->dwFileVersionLS),
-			LOWORD (file_info->dwFileVersionLS)
-		);
+		if (HIWORD (file_info->dwFileVersionLS) || LOWORD (file_info->dwFileVersionLS))
+		{
+			string = _r_format_string (
+				L"%" TEXT (PR_ULONG) L".%" TEXT (PR_ULONG) L".%" TEXT (PR_ULONG) L".%" TEXT (PR_ULONG),
+				HIWORD (file_info->dwFileVersionMS),
+				LOWORD (file_info->dwFileVersionMS),
+				HIWORD (file_info->dwFileVersionLS),
+				LOWORD (file_info->dwFileVersionLS)
+			);
+		}
+		else
+		{
+			string = _r_format_string (L"%" TEXT (PR_ULONG) L".%" TEXT (PR_ULONG), HIWORD (file_info->dwFileVersionMS), LOWORD (file_info->dwFileVersionMS));
+		}
 
 		_r_mem_free (ver_block);
 
