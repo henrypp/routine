@@ -275,9 +275,9 @@ typedef struct _DLGTEMPLATEEX
 {
 	WORD dlgVer;
 	WORD signature;
-	DWORD helpID;
-	DWORD exStyle;
-	DWORD style;
+	ULONG helpID;
+	ULONG exStyle;
+	ULONG style;
 	WORD cdit;
 	SHORT x;
 	SHORT y;
@@ -298,14 +298,14 @@ typedef struct _DLGTEMPLATEEX
 
 typedef struct _DLGITEMTEMPLATEEX
 {
-	DWORD helpID;
-	DWORD exStyle;
-	DWORD style;
+	ULONG helpID;
+	ULONG exStyle;
+	ULONG style;
 	SHORT x;
 	SHORT y;
 	SHORT cx;
 	SHORT cy;
-	DWORD id;
+	ULONG id;
 
 	// Everything else in this structure is variable length,
 	// and therefore must be determined dynamically
