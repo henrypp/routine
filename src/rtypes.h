@@ -617,7 +617,6 @@ typedef struct _R_THREAD_CONTEXT
 
 typedef struct _R_TOKEN_ATTRIBUTES
 {
-	HANDLE token_handle;
 	PSID token_sid;
 
 	struct

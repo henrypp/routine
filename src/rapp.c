@@ -36,13 +36,13 @@ VOID _r_app_exceptionfilter_savedump (
 	if (!NT_SUCCESS (status))
 		return;
 
-	minidump_info.ThreadId = HandleToUlong (NtCurrentThreadId ());
+	minidump_info.ThreadId = HandleToULong (NtCurrentThreadId ());
 	minidump_info.ExceptionPointers = exception_ptr;
 	minidump_info.ClientPointers = FALSE;
 
 	MiniDumpWriteDump (
 		NtCurrentProcess (),
-		HandleToUlong (NtCurrentProcessId ()),
+		HandleToULong (NtCurrentProcessId ()),
 		hfile,
 		MiniDumpNormal,
 		&minidump_info,
@@ -743,9 +743,7 @@ ULONG _r_app_getshowcode (
 )
 {
 	ULONG show_code;
-	BOOLEAN is_windowhidden;
-
-	is_windowhidden = FALSE;
+	BOOLEAN is_windowhidden = FALSE;
 
 	if (NtCurrentPeb ()->ProcessParameters->WindowFlags & STARTF_USESHOWWINDOW)
 	{
@@ -910,7 +908,7 @@ VOID _r_app_restart (
 	HWND hmain;
 	NTSTATUS status;
 
-	if (_r_show_message (hwnd, MB_YESNO | MB_ICONQUESTION, NULL, APP_QUESTION_RESTART) != IDYES)
+	if (_r_show_message (hwnd, MB_YESNO | MB_ICONEXCLAMATION, NULL, APP_QUESTION_RESTART) != IDYES)
 		return;
 
 	_r_mutex_destroy (&app_global.main.hmutex);
@@ -1877,7 +1875,7 @@ ULONG_PTR _r_locale_getcount ()
 
 _Ret_maybenull_
 PR_STRING _r_locale_getstring_ex (
-	_In_ UINT uid
+	_In_ ULONG uid
 )
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
@@ -1946,9 +1944,9 @@ PR_STRING _r_locale_getstring_ex (
 	return value_string;
 }
 
-// TODO: in theory this is not good, so redesign in future.
+// TODO: in theory this is not good, so redesign it in future.
 LPWSTR _r_locale_getstring (
-	_In_ UINT uid
+	_In_ ULONG uid
 )
 {
 	PR_STRING string;
@@ -2086,8 +2084,8 @@ BOOLEAN NTAPI _r_update_downloadcallback (
 	return TRUE;
 }
 
-_Success_ (return == ERROR_SUCCESS)
-LONG _r_update_downloadupdate (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_update_downloadupdate (
 	_In_ PR_UPDATE_INFO update_info,
 	_Inout_ PR_UPDATE_COMPONENT update_component
 )
@@ -2160,7 +2158,7 @@ LONG _r_update_downloadupdate (
 	if (proxy_string)
 		_r_obj_dereference (proxy_string);
 
-	return ERROR_SUCCESS;
+	return STATUS_SUCCESS;
 }
 
 NTSTATUS NTAPI _r_update_downloadthread (
@@ -2173,7 +2171,7 @@ NTSTATUS NTAPI _r_update_downloadthread (
 	LPCWSTR str_content;
 	LPCWSTR main_icon = NULL;
 	ULONG update_flags = 0;
-	ULONG status = ERROR_SUCCESS;
+	ULONG status = STATUS_SUCCESS;
 
 	for (ULONG_PTR i = 0; i < _r_obj_getarraysize (update_info->components); i++)
 	{
@@ -2184,14 +2182,14 @@ NTSTATUS NTAPI _r_update_downloadthread (
 
 		status = _r_update_downloadupdate (update_info, update_component);
 
-		if (status != ERROR_SUCCESS)
+		if (status != STATUS_SUCCESS)
 			break;
 
 		update_flags |= update_component->flags;
 	}
 
 	// set result text and navigate taskdialog
-	if (status == ERROR_SUCCESS && update_flags)
+	if (status == STATUS_SUCCESS && update_flags)
 	{
 		if (update_flags & PR_UPDATE_FLAG_FILE)
 			_r_update_applyconfig ();
@@ -2241,7 +2239,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 	R_STRINGREF new_url_sr;
 	ULONG_PTR downloads_count = 0;
 	ULONG hash_code;
-	LONG status = STATUS_INVALID_PARAMETER;
+	NTSTATUS status = STATUS_INVALID_PARAMETER;
 
 	update_info = arglist;
 
@@ -2315,7 +2313,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 				{
 					status = _r_update_downloadupdate (update_info, update_component);
 
-					if (status != ERROR_SUCCESS)
+					if (status != STATUS_SUCCESS)
 						break;
 
 					downloads_count += 1;
@@ -2537,7 +2535,7 @@ HRESULT CALLBACK _r_update_pagecallback (
 
 			if (wparam == IDYES)
 			{
-				_r_sys_setenvironment (&environment, THREAD_PRIORITY_LOWEST, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
+				_r_sys_setenvironment (&environment, THREAD_PRIORITY_ABOVE_NORMAL, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
 
 				status = _r_sys_createthread (&_r_update_downloadthread, update_info, &update_info->hthread, &environment, L"UpdateThread");
 
@@ -2656,7 +2654,7 @@ VOID _r_update_navigate (
 	if (content)
 		tdc.pszContent = content;
 
-	if (error_code != ERROR_SUCCESS)
+	if (error_code != STATUS_SUCCESS)
 	{
 		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"Status: %" TEXT (PR_LONG) L" (0x%" TEXT (PRIX32)")", error_code, error_code);
 
@@ -3102,6 +3100,8 @@ VOID _r_show_errormessage (
 
 	if (status == STATUS_MESSAGE_NOT_FOUND)
 	{
+		_r_sys_freelibrary (hmodule, TRUE);
+
 		status = _r_sys_loadlibraryasresource (L"kernel32.dll", &hmodule);
 
 		if (NT_SUCCESS (status))
@@ -3540,8 +3540,7 @@ VOID _r_settings_createwindow (
 	controls = 3;
 #endif
 
-	size = ((sizeof (DLGTEMPLATEEX) + (sizeof (WORD) * 8)) +
-			((sizeof (DLGITEMTEMPLATEEX) + (sizeof (WORD) * 3)) * controls)) + 128;
+	size = ((sizeof (DLGTEMPLATEEX) + (sizeof (WORD) * 8)) + ((sizeof (DLGITEMTEMPLATEEX) + (sizeof (WORD) * 3)) * controls)) + 128;
 
 	buffer = _r_mem_allocate (size);
 	buffer_ptr = buffer;
@@ -4016,9 +4015,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 				{
 					PR_SETTINGS_PAGE ptr_page;
 					LONG_PTR retn;
-					BOOLEAN is_saved;
-
-					is_saved = TRUE;
+					BOOLEAN is_saved = TRUE;
 
 					for (INT i = 0; i < _r_tab_getitemcount (hwnd, IDC_NAV); i++)
 					{
@@ -4033,6 +4030,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 								if (retn == -1)
 								{
 									is_saved = FALSE;
+
 									break;
 								}
 							}
@@ -4050,6 +4048,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 				case IDC_CLOSE:
 				{
 					EndDialog (hwnd, 0);
+
 					break;
 				}
 
@@ -4338,11 +4337,8 @@ HRESULT _r_skipuac_enable (
 		//
 		// TASK_COMPATIBILITY_V2_4 - win10
 		// TASK_COMPATIBILITY_V2_3 - win8.1
-		// TASK_COMPATIBILITY_V2_2 - win8
-		// TASK_COMPATIBILITY_V2_1 - win7
-		// TASK_COMPATIBILITY_V2   - vista
 
-		for (INT i = TASK_COMPATIBILITY_V2_4; i != TASK_COMPATIBILITY_V2; --i)
+		for (INT i = TASK_COMPATIBILITY_V2_4; i != TASK_COMPATIBILITY_V2_3; --i)
 		{
 			status = ITaskSettings_put_Compatibility (task_settings, i);
 
@@ -4594,7 +4590,7 @@ BOOLEAN _r_skipuac_run ()
 			}
 		}
 
-		_r_sys_sleep (150);
+		_r_sys_sleep (200);
 	}
 	while (--attempts);
 

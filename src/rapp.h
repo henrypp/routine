@@ -267,11 +267,11 @@ ULONG_PTR _r_locale_getcount ();
 
 _Ret_maybenull_
 PR_STRING _r_locale_getstring_ex (
-	_In_ UINT uid
+	_In_ ULONG uid
 );
 
 LPWSTR _r_locale_getstring (
-	_In_ UINT uid
+	_In_ ULONG uid
 );
 
 LONG64 _r_locale_getversion ();
@@ -348,8 +348,8 @@ BOOLEAN NTAPI _r_update_downloadcallback (
 	_In_ PVOID lparam
 );
 
-_Success_ (return == ERROR_SUCCESS)
-LONG _r_update_downloadupdate (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_update_downloadupdate (
 	_In_ PR_UPDATE_INFO update_info,
 	_Inout_ PR_UPDATE_COMPONENT update_component
 );
