@@ -4735,6 +4735,66 @@ NTSTATUS _r_fs_getpos (
 }
 
 _Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_getsecurityinfo (
+	_In_ LPCWSTR path,
+	_Out_ PSECURITY_DESCRIPTOR_PTR out_sd,
+	_Out_ PACL_PTR  out_dacl
+)
+{
+	PSECURITY_DESCRIPTOR psd;
+	PACL pdacl = NULL;
+	HANDLE hfile;
+	ULONG buffer_length;
+	ULONG required_length;
+	BOOLEAN is_defaulted;
+	BOOLEAN is_writeable = FALSE;
+	BOOLEAN is_present;
+	NTSTATUS status;
+
+	status = _r_fs_openfile (path, FILE_GENERIC_READ, FILE_SHARE_READ, FALSE, &hfile);
+
+	if (!NT_SUCCESS (status))
+		return status;
+
+	buffer_length = 0x100;
+	psd = _r_mem_allocate (buffer_length);
+
+	status = NtQuerySecurityObject (hfile, DACL_SECURITY_INFORMATION, psd, buffer_length, &required_length);
+
+	if (status == STATUS_BUFFER_TOO_SMALL)
+	{
+		buffer_length = required_length;
+		psd = _r_mem_reallocate (psd, buffer_length);
+
+		status = NtQuerySecurityObject (hfile, DACL_SECURITY_INFORMATION, psd, buffer_length, &buffer_length);
+	}
+
+	if (!NT_SUCCESS (status))
+		goto CleanupExit;
+
+	status = RtlGetDaclSecurityDescriptor (psd, &is_present, &pdacl, &is_defaulted);
+
+CleanupExit:
+
+	if (NT_SUCCESS (status))
+	{
+		*out_sd = psd;
+		*out_dacl = pdacl;
+	}
+	else
+	{
+		*out_sd = NULL;
+		*out_dacl = NULL;
+
+		_r_mem_free (psd);
+	}
+
+	NtClose (hfile);
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getsize (
 	_In_opt_ HANDLE hfile,
 	_In_opt_ LPCWSTR path,
@@ -5444,19 +5504,19 @@ NTSTATUS _r_path_getmodulepath (
 }
 
 BOOLEAN _r_path_issecurelocation (
-	_In_ LPCWSTR file_path
+	_In_ LPCWSTR path
 )
 {
 	PSECURITY_DESCRIPTOR security_descriptor;
 	PACL dacl;
-	PSID current_user_sid;
+	PSID current_token;
 	PACCESS_ALLOWED_ACE ace = {0};
 	BOOLEAN is_writeable = FALSE;
 	NTSTATUS status;
 
-	status = GetNamedSecurityInfoW (file_path, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, NULL, NULL, &dacl, NULL, &security_descriptor);
+	status = _r_fs_getsecurityinfo (path, &security_descriptor, &dacl);
 
-	if (status != ERROR_SUCCESS)
+	if (!NT_SUCCESS (status))
 		return FALSE;
 
 	if (!dacl)
@@ -5465,7 +5525,7 @@ BOOLEAN _r_path_issecurelocation (
 	}
 	else
 	{
-		current_user_sid = _r_sys_getcurrenttoken ()->token_sid;
+		current_token = _r_sys_getcurrenttoken ()->token_sid;
 
 		for (WORD ace_index = 0; ace_index < dacl->AceCount; ace_index++)
 		{
@@ -5477,7 +5537,7 @@ BOOLEAN _r_path_issecurelocation (
 			if (ace->Header.AceType != ACCESS_ALLOWED_ACE_TYPE)
 				continue;
 
-			if (RtlEqualSid (&ace->SidStart, &SeAuthenticatedUserSid) || RtlEqualSid (&ace->SidStart, current_user_sid))
+			if (RtlEqualSid (&ace->SidStart, &SeAuthenticatedUserSid) || RtlEqualSid (&ace->SidStart, current_token))
 			{
 				if (ace->Mask & (DELETE | ACTRL_FILE_WRITE_ATTRIB | SYNCHRONIZE | READ_CONTROL))
 				{
@@ -5489,7 +5549,7 @@ BOOLEAN _r_path_issecurelocation (
 		}
 	}
 
-	LocalFree (security_descriptor);
+	_r_mem_free (security_descriptor);
 
 	return !is_writeable;
 }

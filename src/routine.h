@@ -1739,6 +1739,13 @@ NTSTATUS _r_fs_getpos (
 );
 
 _Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_getsecurityinfo (
+	_In_ LPCWSTR path,
+	_Out_ PSECURITY_DESCRIPTOR_PTR out_sd,
+	_Out_ PACL_PTR  out_dacl
+);
+
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getsize (
 	_In_opt_ HANDLE hfile,
 	_In_opt_ LPCWSTR path,
