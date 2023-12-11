@@ -734,12 +734,21 @@ VOID NTAPI _r_obj_swapreference (
 	_In_opt_ PVOID new_object
 );
 
+#define _r_obj_isempty(obj) \
+	((obj) == NULL || (obj)->count == 0)
+
+#define _r_obj_isempty2(obj) \
+	((obj)->count == 0)
+
 //
 // 8-bit string object
 //
 
 #define _r_obj_isbyteempty(string) \
 	((string) == NULL || (string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == ANSI_NULL)
+
+#define _r_obj_isbyteempty2(string) \
+	((string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == ANSI_NULL)
 
 PR_BYTE _r_obj_createbyte (
 	_In_ LPSTR string
@@ -1120,12 +1129,6 @@ VOID _r_obj_resizestringbuilder (
 //
 // Array object
 //
-
-#define _r_obj_isempty(node) \
-	((node) == NULL || (node)->count == 0)
-
-#define _r_obj_isempty2(node) \
-	((node)->count == 0)
 
 PR_ARRAY _r_obj_createarray_ex (
 	_In_ ULONG_PTR item_size,
@@ -1597,9 +1600,27 @@ FORCEINLINE LONG _r_calc_days2seconds (
 // Byte swap
 //
 
-#define _r_byteswap_ushort _byteswap_ushort
-#define _r_byteswap_ulong _byteswap_ulong
-#define _r_byteswap_ulong64 _byteswap_uint64
+FORCEINLINE USHORT _r_byteswap_ushort (
+	_In_ USHORT number
+)
+{
+	return (number << 8) + (number >> 8);
+}
+
+FORCEINLINE ULONG _r_byteswap_ulong (
+	_In_ ULONG number
+)
+{
+	return (number << 24) + ((number << 8) & 0xFF0000) + ((number >> 8) & 0xFF00) + (number >> 24);
+}
+
+FORCEINLINE ULONG64 _r_byteswap_ulong64 (
+	_In_ ULONG64 number
+)
+{
+	return (number << 56) + ((number & 0xFF00) << 40) + ((number & 0xFF0000) << 24) + ((number & 0xFF000000) << 8) +
+		((number >> 8) & 0xFF000000) + ((number >> 24) & 0xFF0000) + ((number >> 40) & 0xFF00) + (number >> 56);
+}
 
 //
 // Modal dialogs
@@ -1958,14 +1979,14 @@ FORCEINLINE VOID _r_shell_opendefault (
 // Strings
 //
 
+#define _r_str_isbyteempty(string) \
+	((string) == NULL || (string)[0] == ANSI_NULL)
+
 #define _r_str_isempty(string) \
 	((string) == NULL || (string)[0] == UNICODE_NULL)
 
 #define _r_str_isempty2(string) \
 	((string)[0] == UNICODE_NULL)
-
-#define _r_str_isbyteempty(string) \
-	((string) == NULL || (string)[0] == ANSI_NULL)
 
 VOID _r_str_append (
 	_Inout_updates_z_ (buffer_size) LPWSTR buffer,
@@ -3492,6 +3513,10 @@ NTSTATUS _r_crypt_hashbuffer (
 // Math
 //
 
+VOID _r_math_createguid (
+	_Out_ LPGUID guid
+);
+
 ULONG _r_math_exponentiate (
 	_In_ ULONG base,
 	_In_ ULONG exponent
@@ -3520,14 +3545,6 @@ ULONG _r_math_hashinteger64 (
 ULONG_PTR _r_math_rounduptopoweroftwo (
 	_In_ ULONG_PTR number
 );
-
-_Success_ (return == ERROR_SUCCESS)
-FORCEINLINE LONG _r_math_createguid (
-	_Out_ LPGUID guid
-)
-{
-	return UuidCreate (guid);
-}
 
 #if defined(_WIN64)
 #define _r_math_hashinteger_ptr _r_math_hashinteger64

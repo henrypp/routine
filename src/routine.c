@@ -14563,6 +14563,22 @@ NTSTATUS _r_crypt_hashbuffer (
 // Math
 //
 
+VOID _r_math_createguid (
+	_Out_ LPGUID guid
+)
+{
+	RtlGenRandom (guid, sizeof (GUID));
+
+	// Clear the version bits and set the version (4)
+	guid->Data3 &= 0x0fff;
+	guid->Data3 |= (4 << 12);
+
+	// Set the topmost bits of Data4 (clock_seq_hi_and_reserved) as
+	// specified in RFC 4122, section 4.4.
+	guid->Data4[0] &= 0x3f;
+	guid->Data4[0] |= 0x80;
+}
+
 ULONG _r_math_exponentiate (
 	_In_ ULONG base,
 	_In_ ULONG exponent
