@@ -5100,11 +5100,32 @@ RtlAddAccessAllowedAce (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
+NtQuerySecurityObject (
+	_In_ HANDLE Handle,
+	_In_ SECURITY_INFORMATION SecurityInformation,
+	_Out_writes_bytes_opt_ (Length) PSECURITY_DESCRIPTOR SecurityDescriptor,
+	_In_ ULONG Length,
+	_Out_ PULONG LengthNeeded
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
 RtlSetDaclSecurityDescriptor (
 	_Inout_ PSECURITY_DESCRIPTOR SecurityDescriptor,
 	_In_ BOOLEAN DaclPresent,
 	_In_opt_ PACL Dacl,
 	_In_ BOOLEAN DaclDefaulted
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlGetDaclSecurityDescriptor (
+	_In_ PSECURITY_DESCRIPTOR SecurityDescriptor,
+	_Out_ PBOOLEAN DaclPresent,
+	_Outptr_result_maybenull_ PACL * Dacl,
+	_Out_ PBOOLEAN DaclDefaulted
 );
 
 // win7+
