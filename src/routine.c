@@ -8689,10 +8689,11 @@ NTSTATUS _r_sys_getmemoryinfo (
 )
 {
 	SYSTEM_PERFORMANCE_INFORMATION perf_info = {0};
-	PSYSTEM_PAGEFILE_INFORMATION page_file;
+	PSYSTEM_PAGEFILE_INFORMATION_EX page_file;
 	SYSTEM_BASIC_INFORMATION basic_info = {0};
 	SYSTEM_FILECACHE_INFORMATION sfci = {0};
 	ULONG buffer_size = 0x200;
+	ULONG attempts = 6;
 	NTSTATUS status;
 
 	RtlZeroMemory (out_buffer, sizeof (R_MEMORY_INFO));
@@ -8701,13 +8702,18 @@ NTSTATUS _r_sys_getmemoryinfo (
 	status = NtQuerySystemInformation (SystemBasicInformation, &basic_info, sizeof (basic_info), NULL);
 
 	if (NT_SUCCESS (status))
-		out_buffer->physical_memory.total_bytes = UInt32x32To64 (basic_info.NumberOfPhysicalPages, basic_info.PageSize);
+	{
+		out_buffer->physical_memory.total_bytes = basic_info.NumberOfPhysicalPages;
+		out_buffer->physical_memory.total_bytes *= basic_info.PageSize;
+	}
 
 	status = NtQuerySystemInformation (SystemPerformanceInformation, &perf_info, sizeof (perf_info), NULL);
 
 	if (NT_SUCCESS (status))
 	{
-		out_buffer->physical_memory.free_bytes = UInt32x32To64 (perf_info.AvailablePages, basic_info.PageSize);
+		out_buffer->physical_memory.free_bytes = perf_info.AvailablePages;
+		out_buffer->physical_memory.free_bytes *= basic_info.PageSize;
+
 		out_buffer->physical_memory.used_bytes = out_buffer->physical_memory.total_bytes - out_buffer->physical_memory.free_bytes;
 
 		out_buffer->physical_memory.percent = _r_calc_percentof64 (out_buffer->physical_memory.used_bytes, out_buffer->physical_memory.total_bytes);
@@ -8728,22 +8734,28 @@ NTSTATUS _r_sys_getmemoryinfo (
 	// page file information
 	page_file = _r_mem_allocate (buffer_size);
 
-	status = NtQuerySystemInformation (SystemPageFileInformation, page_file, buffer_size, NULL);
-
-	if (status == STATUS_INFO_LENGTH_MISMATCH)
+	do
 	{
-		buffer_size *= 4;
+		// win8+
+		status = NtQuerySystemInformation (SystemPageFileInformationEx, page_file, buffer_size, NULL);
 
+		if (status != STATUS_INFO_LENGTH_MISMATCH)
+			break;
+
+		buffer_size *= 2;
 		page_file = _r_mem_reallocate (page_file, buffer_size);
-
-		status = NtQuerySystemInformation (SystemPageFileInformation, page_file, buffer_size, NULL);
 	}
+	while (--attempts);
 
 	if (NT_SUCCESS (status))
 	{
-		out_buffer->page_file.total_bytes = UInt32x32To64 (page_file->TotalSize, basic_info.PageSize);
-		out_buffer->page_file.free_bytes = UInt32x32To64 (page_file->PeakUsage, basic_info.PageSize);
-		out_buffer->page_file.used_bytes = UInt32x32To64 (page_file->TotalInUse, basic_info.PageSize);
+		out_buffer->page_file.total_bytes = page_file->Info.TotalSize;
+		out_buffer->page_file.free_bytes = page_file->Info.PeakUsage;
+		out_buffer->page_file.used_bytes = page_file->Info.TotalInUse;
+
+		out_buffer->page_file.total_bytes *= basic_info.PageSize;
+		out_buffer->page_file.free_bytes *= basic_info.PageSize;
+		out_buffer->page_file.used_bytes *= basic_info.PageSize;
 
 		out_buffer->page_file.percent = _r_calc_percentof64 (out_buffer->page_file.used_bytes, out_buffer->page_file.total_bytes);
 	}
