@@ -4170,17 +4170,7 @@ NTSTATUS _r_fs_copyfile (
 	ULONG length;
 	NTSTATUS status;
 
-	status = _r_fs_createfile (
-		path_from,
-		FILE_OPEN,
-		FILE_GENERIC_READ,
-		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-		FILE_ATTRIBUTE_NORMAL,
-		FILE_SEQUENTIAL_ONLY,
-		FALSE,
-		NULL,
-		&hfile1
-	);
+	status = _r_fs_openfile (path_from, FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, FALSE, &hfile1);
 
 	if (!NT_SUCCESS (status))
 		return status;
@@ -4567,17 +4557,7 @@ NTSTATUS _r_fs_getdiskinformation (
 	HANDLE hfile;
 	NTSTATUS status;
 
-	status = _r_fs_createfile (
-		path,
-		FILE_OPEN,
-		FILE_GENERIC_READ,
-		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-		FILE_ATTRIBUTE_NORMAL,
-		0,
-		TRUE,
-		NULL,
-		&hfile
-	);
+	status = _r_fs_openfile (path, FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, TRUE, &hfile);
 
 	if (!NT_SUCCESS (status))
 		return status;
@@ -4667,17 +4647,7 @@ NTSTATUS _r_fs_getdiskspace (
 	ULONG units;
 	NTSTATUS status;
 
-	status = _r_fs_createfile (
-		path,
-		FILE_OPEN,
-		FILE_GENERIC_READ,
-		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-		FILE_ATTRIBUTE_NORMAL,
-		0,
-		TRUE,
-		NULL,
-		&hfile
-	);
+	status = _r_fs_openfile (path, FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, TRUE, &hfile);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -4811,17 +4781,7 @@ NTSTATUS _r_fs_getsize (
 
 	if (!hfile && path)
 	{
-		status = _r_fs_createfile (
-			path,
-			FILE_OPEN,
-			GENERIC_READ,
-			FILE_SHARE_READ | FILE_SHARE_DELETE,
-			FILE_ATTRIBUTE_NORMAL,
-			0,
-			FALSE,
-			NULL,
-			&hfile_new
-		);
+		status = _r_fs_openfile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, FALSE, &hfile_new);
 
 		if (!NT_SUCCESS (status))
 			return status;
@@ -10006,17 +9966,7 @@ NTSTATUS _r_sys_loadlibraryasresource (
 		return status;
 	}
 
-	status = _r_fs_createfile (
-		path->buffer,
-		FILE_OPEN,
-		GENERIC_READ,
-		FILE_SHARE_READ | FILE_SHARE_DELETE,
-		FILE_ATTRIBUTE_NORMAL,
-		0,
-		FALSE,
-		NULL,
-		&hfile
-	);
+	status = _r_fs_openfile (path->buffer, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, FALSE, &hfile);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -14463,17 +14413,7 @@ NTSTATUS _r_crypt_getfilehash (
 
 	if (path && !hfile)
 	{
-		status = _r_fs_createfile (
-			path,
-			FILE_OPEN,
-			GENERIC_READ,
-			FILE_SHARE_READ | FILE_SHARE_DELETE,
-			FILE_ATTRIBUTE_NORMAL,
-			0,
-			FALSE,
-			NULL,
-			&hfile_new
-		);
+		status = _r_fs_openfile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, FALSE, &hfile_new);
 
 		if (!NT_SUCCESS (status))
 		{
