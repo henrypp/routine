@@ -290,7 +290,7 @@ BOOLEAN _r_app_initialize (
 #endif // !APP_CONSOLE
 
 	// set main thread name (win10rs1+)
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1607))
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_10))
 		_r_sys_setthreadname (NtCurrentThread (), L"MainThread");
 
 	// initialize controls
@@ -2133,7 +2133,7 @@ NTSTATUS _r_update_downloadupdate (
 	{
 		// copy required files
 		if (_r_fs_exists (update_component->target_path->buffer))
-			_r_fs_deletefile (update_component->target_path->buffer);
+			_r_fs_deletefile (update_component->target_path->buffer, NULL);
 
 		// move target files
 		status = _r_fs_movefile (update_component->cache_path->buffer, update_component->target_path->buffer);
@@ -2143,7 +2143,7 @@ NTSTATUS _r_update_downloadupdate (
 
 		// remove if it exists
 		if (_r_fs_exists (update_component->cache_path->buffer))
-			_r_fs_deletefile (update_component->cache_path->buffer);
+			_r_fs_deletefile (update_component->cache_path->buffer, NULL);
 
 		update_component->flags &= ~PR_UPDATE_FLAG_AVAILABLE;
 
@@ -3063,6 +3063,59 @@ VOID _r_show_aboutmessage (
 	is_opened = FALSE;
 }
 
+BOOLEAN _r_show_confirmmessage (
+	_In_opt_ HWND hwnd,
+	_In_opt_ LPCWSTR main,
+	_In_opt_ LPCWSTR content,
+	_In_opt_ LPCWSTR config_key
+)
+{
+	TASKDIALOGCONFIG tdc = {0};
+	INT command_id = 0;
+	BOOL is_flagchecked = FALSE;
+
+	if (config_key && !_r_config_getboolean (config_key, TRUE))
+		return TRUE;
+
+	tdc.cbSize = sizeof (tdc);
+	tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
+	tdc.hwndParent = hwnd;
+	tdc.hInstance = _r_sys_getimagebase ();
+	tdc.pszMainIcon = TD_WARNING_ICON;
+	tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
+	tdc.pszWindowTitle = _r_app_getname ();
+	tdc.pfCallback = &_r_msg_callback;
+	tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
+
+	if (config_key)
+	{
+#if defined(IDS_QUESTION_FLAG_CHK)
+		tdc.pszVerificationText = _r_locale_getstring (IDS_QUESTION_FLAG_CHK);
+#else
+		tdc.pszVerificationText = L"Do not ask again";
+#pragma PR_PRINT_WARNING(IDS_QUESTION_FLAG_CHK)
+#endif // IDS_QUESTION_FLAG_CHK
+	}
+
+	if (main)
+		tdc.pszMainInstruction = main;
+
+	if (content)
+		tdc.pszContent = content;
+
+	_r_msg_taskdialog (&tdc, &command_id, NULL, &is_flagchecked);
+
+	if (command_id == IDYES)
+	{
+		if (config_key && is_flagchecked)
+			_r_config_setboolean (config_key, FALSE);
+
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
 VOID _r_show_errormessage (
 	_In_opt_ HWND hwnd,
 	_In_opt_ LPCWSTR main,
@@ -3186,59 +3239,6 @@ VOID _r_show_errormessage (
 
 	if (string)
 		_r_obj_dereference (string);
-}
-
-BOOLEAN _r_show_confirmmessage (
-	_In_opt_ HWND hwnd,
-	_In_opt_ LPCWSTR main,
-	_In_opt_ LPCWSTR content,
-	_In_opt_ LPCWSTR config_key
-)
-{
-	TASKDIALOGCONFIG tdc = {0};
-	INT command_id = 0;
-	BOOL is_flagchecked = FALSE;
-
-	if (config_key && !_r_config_getboolean (config_key, TRUE))
-		return TRUE;
-
-	tdc.cbSize = sizeof (tdc);
-	tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
-	tdc.hwndParent = hwnd;
-	tdc.hInstance = _r_sys_getimagebase ();
-	tdc.pszMainIcon = TD_WARNING_ICON;
-	tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
-	tdc.pszWindowTitle = _r_app_getname ();
-	tdc.pfCallback = &_r_msg_callback;
-	tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
-
-	if (config_key)
-	{
-#if defined(IDS_QUESTION_FLAG_CHK)
-		tdc.pszVerificationText = _r_locale_getstring (IDS_QUESTION_FLAG_CHK);
-#else
-		tdc.pszVerificationText = L"Do not ask again";
-#pragma PR_PRINT_WARNING(IDS_QUESTION_FLAG_CHK)
-#endif // IDS_QUESTION_FLAG_CHK
-	}
-
-	if (main)
-		tdc.pszMainInstruction = main;
-
-	if (content)
-		tdc.pszContent = content;
-
-	_r_msg_taskdialog (&tdc, &command_id, NULL, &is_flagchecked);
-
-	if (command_id == IDYES)
-	{
-		if (config_key && is_flagchecked)
-			_r_config_setboolean (config_key, FALSE);
-
-		return TRUE;
-	}
-
-	return FALSE;
 }
 
 INT _r_show_message (

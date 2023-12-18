@@ -1906,7 +1906,7 @@ HANDLE NTAPI _r_mem_getheap ()
 	if (_r_initonce_begin (&init_once))
 	{
 		// win10rs1 preview (14295)+
-		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1607))
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS1))
 			heap_handle = RtlCreateHeap (HEAP_GROWABLE | HEAP_CLASS_1 | HEAP_CREATE_SEGMENT_HEAP, NULL, 0, 0, NULL, NULL);
 
 		if (!heap_handle)
@@ -4236,7 +4236,7 @@ VOID NTAPI _r_fs_recursivedirectorydelete_callback (
 	}
 	else
 	{
-		_r_fs_deletefile (string->buffer);
+		_r_fs_deletefile (string->buffer, NULL);
 	}
 
 	_r_obj_dereference (string);
@@ -4275,11 +4275,11 @@ NTSTATUS _r_fs_deletedirectory (
 	if (is_recurse)
 		_r_fs_enumfiles (path, hdirectory, NULL, &_r_fs_recursivedirectorydelete_callback);
 
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1809))
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
 	{
 		fdi_ex.Flags = FILE_DISPOSITION_FLAG_DELETE | FILE_DISPOSITION_FLAG_POSIX_SEMANTICS | FILE_DISPOSITION_FLAG_IGNORE_READONLY_ATTRIBUTE;
 
-		status = NtSetInformationFile (hdirectory, &isb, &fdi_ex, sizeof (FILE_DISPOSITION_INFO_EX), FileDispositionInformationEx);
+		status = NtSetInformationFile (hdirectory, &isb, &fdi_ex, sizeof (fdi_ex), FileDispositionInformationEx);
 	}
 	else
 	{
@@ -4290,7 +4290,7 @@ NTSTATUS _r_fs_deletedirectory (
 	{
 		fdi.DeleteFile = TRUE;
 
-		status = NtSetInformationFile (hdirectory, &isb, &fdi, sizeof (FILE_DISPOSITION_INFORMATION), FileDispositionInformation);
+		status = NtSetInformationFile (hdirectory, &isb, &fdi, sizeof (fdi), FileDispositionInformation);
 	}
 
 	return status;
@@ -4298,25 +4298,58 @@ NTSTATUS _r_fs_deletedirectory (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_deletefile (
-	_In_ LPCWSTR path
+	_In_opt_ LPCWSTR path,
+	_In_opt_ HANDLE hfile
 )
 {
+	FILE_DISPOSITION_INFO_EX fdi_ex = {0};
+	FILE_DISPOSITION_INFORMATION fdi = {0};
+	IO_STATUS_BLOCK isb;
 	OBJECT_ATTRIBUTES oa = {0};
-	UNICODE_STRING nt_path;
+	HANDLE hfile_new = NULL;
 	NTSTATUS status;
 
-	status = RtlDosPathNameToNtPathName_U_WithStatus (path, &nt_path, NULL, NULL);
+	if (!path && !hfile)
+		return STATUS_INVALID_PARAMETER;
+
+	if (path && !hfile)
+	{
+		status = _r_fs_openfile (
+			path,
+			DELETE,
+			FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+			FALSE,
+			&hfile_new
+		);
+
+		if (!NT_SUCCESS (status))
+			return status;
+
+		hfile = hfile_new;
+	}
+
+	_r_fs_setattributes (hfile, NULL, FILE_ATTRIBUTE_NORMAL);
+
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
+	{
+		fdi_ex.Flags = FILE_DISPOSITION_FLAG_DELETE | FILE_DISPOSITION_FLAG_POSIX_SEMANTICS | FILE_DISPOSITION_FLAG_IGNORE_READONLY_ATTRIBUTE;
+
+		status = NtSetInformationFile (hfile, &isb, &fdi_ex, sizeof (fdi_ex), FileDispositionInformationEx);
+	}
+	else
+	{
+		status = STATUS_UNSUCCESSFUL;
+	}
 
 	if (!NT_SUCCESS (status))
-		return status;
+	{
+		fdi.DeleteFile = TRUE;
 
-	_r_fs_setattributes (NULL, path, FILE_ATTRIBUTE_NORMAL);
+		status = NtSetInformationFile (hfile, &isb, &fdi, sizeof (fdi), FileDispositionInformation);
+	}
 
-	InitializeObjectAttributes (&oa, &nt_path, OBJ_CASE_INSENSITIVE, NULL, NULL);
-
-	status = NtDeleteFile (&oa);
-
-	RtlFreeUnicodeString (&nt_path);
+	if (hfile_new)
+		NtClose (hfile_new);
 
 	return status;
 }
@@ -4889,7 +4922,8 @@ NTSTATUS _r_fs_movefile (
 	PFILE_RENAME_INFORMATION rename_info;
 	UNICODE_STRING nt_path;
 	IO_STATUS_BLOCK isb;
-	HANDLE hfile;
+	HANDLE hfile = NULL;
+	ULONG attributes;
 	ULONG length;
 	NTSTATUS status;
 
@@ -4898,24 +4932,25 @@ NTSTATUS _r_fs_movefile (
 	if (!NT_SUCCESS (status))
 		return status;
 
+	status = _r_fs_getattributes (path_from, &attributes);
+
+	if (!NT_SUCCESS (status))
+		goto CleanupExit;
+
 	status = _r_fs_createfile (
 		path_from,
 		FILE_OPEN,
 		FILE_GENERIC_READ | DELETE,
 		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-		FILE_ATTRIBUTE_NORMAL,
-		FILE_SEQUENTIAL_ONLY,
-		FALSE,
+		0,
+		(attributes & FILE_ATTRIBUTE_DIRECTORY) ? 0 : FILE_SEQUENTIAL_ONLY,
+		(attributes & FILE_ATTRIBUTE_DIRECTORY) ? TRUE : FALSE,
 		NULL,
 		&hfile
 	);
 
 	if (!NT_SUCCESS (status))
-	{
-		RtlFreeUnicodeString (&nt_path);
-
-		return status;
-	}
+		goto CleanupExit;
 
 	length = sizeof (FILE_RENAME_INFORMATION) + nt_path.Length + sizeof (UNICODE_NULL);
 
@@ -4934,12 +4969,15 @@ NTSTATUS _r_fs_movefile (
 		status = _r_fs_copyfile (path_from, path_to);
 
 		if (NT_SUCCESS (status))
-			_r_fs_deletefile (path_from);
+			_r_fs_deletefile (NULL, hfile);
 	}
+
+CleanupExit:
 
 	RtlFreeUnicodeString (&nt_path);
 
-	NtClose (hfile);
+	if (hfile)
+		NtClose (hfile);
 
 	return status;
 }
@@ -5549,7 +5587,7 @@ NTSTATUS _r_path_makebackup (
 	);
 
 	if (_r_fs_exists (new_path->buffer))
-		_r_fs_deletefile (new_path->buffer);
+		_r_fs_deletefile (new_path->buffer, NULL);
 
 	if (is_removesourcefile)
 	{
@@ -5559,7 +5597,7 @@ NTSTATUS _r_path_makebackup (
 		{
 			status = _r_fs_copyfile (path->buffer, new_path->buffer);
 
-			_r_fs_deletefile (path->buffer);
+			_r_fs_deletefile (path->buffer, NULL);
 		}
 	}
 	else
@@ -8425,7 +8463,7 @@ BOOLEAN _r_sys_iswine ()
 
 	status = _r_sys_getprocaddress (hntdll, "wine_get_version", &procedure);
 
-	LdrUnloadDll (hntdll);
+	_r_sys_freelibrary (hntdll, FALSE);
 
 	return NT_SUCCESS (status);
 }
@@ -9305,7 +9343,7 @@ ULONG _r_sys_getwindowsversion ()
 			}
 			else if (version_info.dwMajorVersion == 6 && version_info.dwMinorVersion == 4)
 			{
-				windows_version = WINDOWS_10; // earlier versions of windows 10 have 6.4 version number
+				windows_version = WINDOWS_10_TH1; // earlier versions of windows 10 have 6.4 version number
 			}
 			else if (version_info.dwMajorVersion == 10 && version_info.dwMinorVersion == 0)
 			{
@@ -9320,10 +9358,6 @@ ULONG _r_sys_getwindowsversion ()
 				else if (version_info.dwBuildNumber >= 22000)
 				{
 					windows_version = WINDOWS_11_21H2;
-				}
-				else if (version_info.dwBuildNumber >= 20348)
-				{
-					windows_version = WINDOWS_10_21H2_SERVER;
 				}
 				else if (version_info.dwBuildNumber >= 19045)
 				{
@@ -9343,47 +9377,43 @@ ULONG _r_sys_getwindowsversion ()
 				}
 				else if (version_info.dwBuildNumber >= 19041)
 				{
-					windows_version = WINDOWS_10_2004;
+					windows_version = WINDOWS_10_20H1;
 				}
 				else if (version_info.dwBuildNumber >= 18363)
 				{
-					windows_version = WINDOWS_10_1909;
+					windows_version = WINDOWS_10_19H2;
 				}
 				else if (version_info.dwBuildNumber >= 18362)
 				{
-					windows_version = WINDOWS_10_1903;
+					windows_version = WINDOWS_10_19H1;
 				}
 				else if (version_info.dwBuildNumber >= 17763)
 				{
-					windows_version = WINDOWS_10_1809;
+					windows_version = WINDOWS_10_RS5;
 				}
 				else if (version_info.dwBuildNumber >= 17134)
 				{
-					windows_version = WINDOWS_10_1803;
+					windows_version = WINDOWS_10_RS4;
 				}
 				else if (version_info.dwBuildNumber >= 16299)
 				{
-					windows_version = WINDOWS_10_1709;
+					windows_version = WINDOWS_10_RS3;
 				}
 				else if (version_info.dwBuildNumber >= 15063)
 				{
-					windows_version = WINDOWS_10_1703;
+					windows_version = WINDOWS_10_RS2;
 				}
 				else if (version_info.dwBuildNumber >= 14393)
 				{
-					windows_version = WINDOWS_10_1607;
+					windows_version = WINDOWS_10_RS1;
 				}
 				else if (version_info.dwBuildNumber >= 10586)
 				{
-					windows_version = WINDOWS_10_1511;
+					windows_version = WINDOWS_10_TH2;
 				}
-				else if (version_info.dwBuildNumber >= 10240)
+				else // 10240+
 				{
-					windows_version = WINDOWS_10_1507;
-				}
-				else
-				{
-					windows_version = WINDOWS_10;
+					windows_version = WINDOWS_10_TH1;
 				}
 			}
 			else
@@ -9787,6 +9817,7 @@ NTSTATUS _r_sys_getprocaddress (
 )
 {
 	ANSI_STRING procedure_name = {0};
+	PANSI_STRING ptr = NULL;
 	PVOID proc_address;
 	ULONG ordinal = 0;
 	NTSTATUS status;
@@ -9795,12 +9826,14 @@ NTSTATUS _r_sys_getprocaddress (
 	{
 		RtlInitAnsiString (&procedure_name, procedure);
 
-		status = LdrGetProcedureAddress (hinst, &procedure_name, 0, &proc_address);
+		ptr = &procedure_name;
 	}
 	else
 	{
-		status = LdrGetProcedureAddress (hinst, NULL, LOWORD (procedure), &proc_address);
+		ordinal = LOWORD (procedure);
 	}
+
+	status = LdrGetProcedureAddressEx (hinst, ptr, ordinal, &proc_address, 0);
 
 	if (NT_SUCCESS (status))
 	{
@@ -10015,7 +10048,7 @@ NTSTATUS _r_sys_loadlibraryasresource (
 		&offset,
 		&view_size,
 		ViewUnmap,
-		_r_sys_isosversiongreaterorequal (WINDOWS_10_1709) ? MEM_MAPPED : 0,
+		_r_sys_isosversiongreaterorequal (WINDOWS_10_RS3) ? MEM_MAPPED : 0,
 		PAGE_READONLY
 	);
 
@@ -10316,7 +10349,7 @@ NTSTATUS _r_sys_createthread (
 		// win10rs1+
 		if (thread_name)
 		{
-			if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1607))
+			if (_r_sys_isosversiongreaterorequal (WINDOWS_10))
 				_r_sys_setthreadname (hthread, thread_name);
 		}
 
@@ -10361,7 +10394,7 @@ PR_STRING _r_sys_querytaginformation (
 		{
 			status = _r_sys_getprocaddress (hsechost, "I_QueryTagInformation", (PVOID_PTR)&_I_QueryTagInformation);
 
-			//LdrUnloadDll (hsechost);
+			//_r_sys_freelibrary (hsechost, FALSE);
 		}
 
 		_r_initonce_end (&init_once);
@@ -10844,7 +10877,7 @@ BOOLEAN _r_dc_adjustwindowrect (
 			// win10rs1+
 			status = _r_sys_getprocaddress (huser32, "AdjustWindowRectExForDpi", (PVOID_PTR)&_AdjustWindowRectExForDpi);
 
-			//LdrUnloadDll (huser32);
+			//_r_sys_freelibrary (huser32, FALSE);
 		}
 
 		_r_initonce_end (&init_once);
@@ -11262,7 +11295,7 @@ LONG _r_dc_getdpivalue (
 			// win10rs1+
 			_r_sys_getprocaddress (huser32, "GetDpiForSystem", (PVOID_PTR)&_GetDpiForSystem);
 
-			//LdrUnloadDll (huser32);
+			//_r_sys_freelibrary (huser32, FALSE);
 		}
 
 		_r_initonce_end (&init_once);
@@ -11375,7 +11408,7 @@ LONG _r_dc_getsystemmetrics (
 			// win10rs1+
 			status = _r_sys_getprocaddress (huser32, "GetSystemMetricsForDpi", (PVOID_PTR)&_GetSystemMetricsForDpi);
 
-			//LdrUnloadDll (huser32);
+			//_r_sys_freelibrary (huser32, FALSE);
 		}
 
 		_r_initonce_end (&init_once);
@@ -11412,7 +11445,7 @@ BOOLEAN _r_dc_getsystemparametersinfo (
 			// win10rs1+
 			status = _r_sys_getprocaddress (huser32, "SystemParametersInfoForDpi", (PVOID_PTR)&_SystemParametersInfoForDpi);
 
-			//LdrUnloadDll (huser32);
+			//_r_sys_freelibrary (huser32, FALSE);
 		}
 
 		_r_initonce_end (&init_once);
@@ -12674,7 +12707,7 @@ BOOLEAN _r_wnd_isfullscreenmode ()
 	HWND hwnd;
 
 	// win10rs3+
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_1803))
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS4))
 	{
 		if (_r_wnd_isfocusassist ())
 			return TRUE;

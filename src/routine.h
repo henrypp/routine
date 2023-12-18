@@ -1703,7 +1703,8 @@ NTSTATUS _r_fs_deletedirectory (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_deletefile (
-	_In_ LPCWSTR path
+	_In_opt_ LPCWSTR path,
+	_In_opt_ HANDLE hfile
 );
 
 _Success_ (NT_SUCCESS (return))

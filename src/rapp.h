@@ -444,6 +444,13 @@ VOID _r_show_aboutmessage (
 	_In_opt_ HWND hwnd
 );
 
+BOOLEAN _r_show_confirmmessage (
+	_In_opt_ HWND hwnd,
+	_In_opt_ LPCWSTR main,
+	_In_opt_ LPCWSTR content,
+	_In_opt_ LPCWSTR config_key
+);
+
 VOID _r_show_errormessage (
 	_In_opt_ HWND hwnd,
 	_In_opt_ LPCWSTR main,
@@ -451,13 +458,6 @@ VOID _r_show_errormessage (
 	_In_opt_ LPCWSTR description,
 	_In_opt_ PVOID hinst,
 	_In_opt_ PEXCEPTION_POINTERS exception_ptr
-);
-
-BOOLEAN _r_show_confirmmessage (
-	_In_opt_ HWND hwnd,
-	_In_opt_ LPCWSTR main,
-	_In_opt_ LPCWSTR content,
-	_In_opt_ LPCWSTR config_key
 );
 
 INT _r_show_message (
