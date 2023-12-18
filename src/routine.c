@@ -4288,7 +4288,7 @@ NTSTATUS _r_fs_deletedirectory (
 
 	if (!NT_SUCCESS (status))
 	{
-		fdi.DeleteFile = TRUE;
+		fdi.FileDelete = TRUE;
 
 		status = NtSetInformationFile (hdirectory, &isb, &fdi, sizeof (fdi), FileDispositionInformation);
 	}
@@ -4302,8 +4302,8 @@ NTSTATUS _r_fs_deletefile (
 	_In_opt_ HANDLE hfile
 )
 {
-	FILE_DISPOSITION_INFO_EX fdi_ex = {0};
 	FILE_DISPOSITION_INFORMATION fdi = {0};
+	FILE_DISPOSITION_INFO_EX fdi_ex = {0};
 	IO_STATUS_BLOCK isb;
 	OBJECT_ATTRIBUTES oa = {0};
 	HANDLE hfile_new = NULL;
@@ -4343,7 +4343,7 @@ NTSTATUS _r_fs_deletefile (
 
 	if (!NT_SUCCESS (status))
 	{
-		fdi.DeleteFile = TRUE;
+		fdi.FileDelete = TRUE;
 
 		status = NtSetInformationFile (hfile, &isb, &fdi, sizeof (fdi), FileDispositionInformation);
 	}
