@@ -3251,15 +3251,19 @@ LdrUnloadDll (
 	_In_ PVOID DllHandle
 );
 
+#define LDR_GET_PROCEDURE_ADDRESS_DONT_RECORD_FORWARDER 0x00000001
+
+// vista+
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-LdrGetProcedureAddress (
+LdrGetProcedureAddressEx (
 	_In_ PVOID DllHandle,
 	_In_opt_ PANSI_STRING ProcedureName,
 	_In_opt_ ULONG ProcedureNumber,
-	_Out_ PVOID *ProcedureAddress
-);
+	_Out_ PVOID * ProcedureAddress,
+	_In_ ULONG Flags
+);;
 
 NTSYSCALLAPI
 NTSTATUS
