@@ -6809,12 +6809,13 @@ NTSTATUS _r_str_fromguid (
 )
 {
 	UNICODE_STRING us;
-	WCHAR buffer[128] = {0};
+	WCHAR buffer[42] = {0};
 	PR_STRING string;
 	NTSTATUS status;
 
-	_r_obj_initializeunicodestring_ex (&us, buffer, 0, RTL_NUMBER_OF (buffer));
+	_r_obj_initializeunicodestring_ex (&us, buffer, 0, RTL_NUMBER_OF (buffer) * sizeof (WCHAR));
 
+	// win 8.1+
 	status = RtlStringFromGUIDEx (guid, &us, FALSE);
 
 	if (NT_SUCCESS (status))
@@ -14548,22 +14549,6 @@ NTSTATUS _r_crypt_hashbuffer (
 // Math
 //
 
-VOID _r_math_createguid (
-	_Out_ LPGUID guid
-)
-{
-	RtlGenRandom (guid, sizeof (GUID));
-
-	// Clear the version bits and set the version (4)
-	guid->Data3 &= 0x0fff;
-	guid->Data3 |= (4 << 12);
-
-	// Set the topmost bits of Data4 (clock_seq_hi_and_reserved) as
-	// specified in RFC 4122, section 4.4.
-	guid->Data4[0] &= 0x3f;
-	guid->Data4[0] |= 0x80;
-}
-
 ULONG _r_math_exponentiate (
 	_In_ ULONG base,
 	_In_ ULONG exponent
@@ -14602,6 +14587,50 @@ ULONG64 _r_math_exponentiate64 (
 	return result;
 }
 
+VOID _r_math_generateguid (
+	_Out_ LPGUID guid
+)
+{
+	LARGE_INTEGER seed;
+
+	// The top/sign bit is always unusable for RtlRandomEx (the result is always unsigned), so we'll
+	// take the bottom 24 bits. We need 128 bits in total, so we'll call the function 6 times.
+	ULONG random[6] = {0};
+
+	RtlQueryPerformanceCounter (&seed);
+
+	for (ULONG_PTR i = 0; i < RTL_NUMBER_OF (random); i++)
+		random[i] = RtlRandomEx (&seed.LowPart);
+
+	// random[0] is usable
+	*(PUSHORT)&guid->Data1 = (USHORT)random[0];
+
+	// top byte from random[0] is usable
+	*((PUSHORT)&guid->Data1 + 1) = (USHORT)((random[0] >> 16) | (random[1] & 0xFF));
+
+	// top 2 bytes from random[1] are usable
+	guid->Data2 = (SHORT)(random[1] >> 8);
+
+	// random[2] is usable
+	guid->Data3 = (SHORT)random[2];
+
+	// top byte from random[2] is usable
+	*(PUSHORT)&guid->Data4[0] = (USHORT)((random[2] >> 16) | (random[3] & 0xFF));
+
+	// top 2 bytes from random[3] are usable
+	*(PUSHORT)&guid->Data4[2] = (USHORT)(random[3] >> 8);
+
+	// random[4] is usable
+	*(PUSHORT)&guid->Data4[4] = (USHORT)random[4];
+
+	// top byte from random[4] is usable
+	*(PUSHORT)&guid->Data4[6] = (USHORT)((random[4] >> 16) | (random[5] & 0xFF));
+
+	((PGUID_EX)guid)->s2.Version = GUID_VERSION_RANDOM;
+	((PGUID_EX)guid)->s2.Variant &= ~GUID_VARIANT_STANDARD_MASK;
+	((PGUID_EX)guid)->s2.Variant |= GUID_VARIANT_STANDARD;
+}
+
 ULONG _r_math_getrandom ()
 {
 	static LARGE_INTEGER seed = {0}; // save seed
@@ -14610,7 +14639,7 @@ ULONG _r_math_getrandom ()
 
 	RtlQueryPerformanceCounter (&seed);
 
-	value = RtlRandomEx (&seed.HighPart);
+	value = RtlRandomEx (&seed.LowPart);
 
 	return value;
 }

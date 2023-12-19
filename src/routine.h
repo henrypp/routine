@@ -3514,10 +3514,6 @@ NTSTATUS _r_crypt_hashbuffer (
 // Math
 //
 
-VOID _r_math_createguid (
-	_Out_ LPGUID guid
-);
-
 ULONG _r_math_exponentiate (
 	_In_ ULONG base,
 	_In_ ULONG exponent
@@ -3526,6 +3522,10 @@ ULONG _r_math_exponentiate (
 ULONG64 _r_math_exponentiate64 (
 	_In_ ULONG64 base,
 	_In_ ULONG exponent
+);
+
+VOID _r_math_generateguid (
+	_Out_ LPGUID guid
 );
 
 ULONG _r_math_getrandom ();
