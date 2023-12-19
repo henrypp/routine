@@ -3102,6 +3102,51 @@ typedef struct
 	BASE_CREATEPROCESS_MSG CreateProcessMSG; // 0x40
 } BASE_API_MSG, *PBASE_API_MSG;
 
+#define GUID_VERSION_MAC 1
+#define GUID_VERSION_DCE 2
+#define GUID_VERSION_MD5 3
+#define GUID_VERSION_RANDOM 4
+#define GUID_VERSION_SHA1 5
+#define GUID_VERSION_TIME 6
+#define GUID_VERSION_EPOCH 7
+#define GUID_VERSION_VENDOR 8
+
+#define GUID_VARIANT_NCS_MASK 0x80
+#define GUID_VARIANT_NCS 0x00
+#define GUID_VARIANT_STANDARD_MASK 0xc0
+#define GUID_VARIANT_STANDARD 0x80
+#define GUID_VARIANT_MICROSOFT_MASK 0xe0
+#define GUID_VARIANT_MICROSOFT 0xc0
+#define GUID_VARIANT_RESERVED_MASK 0xe0
+#define GUID_VARIANT_RESERVED 0xe0
+
+typedef union _GUID_EX
+{
+	GUID Guid;
+	UCHAR Data[16];
+	struct
+	{
+		ULONG TimeLowPart;
+		USHORT TimeMidPart;
+		USHORT TimeHighPart;
+		UCHAR ClockSequenceHigh;
+		UCHAR ClockSequenceLow;
+		UCHAR Node[6];
+	} s;
+	struct
+	{
+		ULONG Part0;
+		USHORT Part32;
+		UCHAR Part48;
+		UCHAR Part56 : 4;
+		UCHAR Version : 4;
+		UCHAR Variant;
+		UCHAR Part72;
+		USHORT Part80;
+		ULONG Part96;
+	} s2;
+} GUID_EX, *PGUID_EX;
+
 EXTERN_C_START
 
 NTSYSCALLAPI
