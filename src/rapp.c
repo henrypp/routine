@@ -1794,9 +1794,7 @@ VOID _r_locale_enum (
 	{
 		_r_combobox_clear (hwnd, ctrl_id);
 
-		_r_combobox_insertitem (hwnd, ctrl_id, 0, _r_obj_getstringorempty (app_global.locale.resource_name));
-
-		_r_combobox_setitemparam (hwnd, ctrl_id, 0, SIZE_MAX);
+		_r_combobox_insertitem (hwnd, ctrl_id, 0, _r_obj_getstringorempty (app_global.locale.resource_name), (LPARAM)SIZE_MAX);
 
 		_r_combobox_setcurrentitem (hwnd, ctrl_id, 0);
 
@@ -1843,8 +1841,7 @@ VOID _r_locale_enum (
 		}
 		else
 		{
-			_r_combobox_insertitem (hwnd, ctrl_id, index, locale_name->buffer);
-			_r_combobox_setitemparam (hwnd, ctrl_id, index, i);
+			_r_combobox_insertitem (hwnd, ctrl_id, index, locale_name->buffer, i);
 
 			if (is_current)
 				_r_combobox_setcurrentitem (hwnd, ctrl_id, index);

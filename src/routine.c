@@ -2809,6 +2809,7 @@ VOID _r_obj_deletestringbuilder (
 	SAFE_DELETE_REFERENCE (sb->string);
 }
 
+_Ret_maybenull_
 PR_STRING _r_obj_finalstringbuilder (
 	_In_ PR_STRINGBUILDER sb
 )
@@ -4350,6 +4351,22 @@ NTSTATUS _r_fs_deletefile (
 
 	if (hfile_new)
 		NtClose (hfile_new);
+
+	return status;
+}
+
+LONG _r_fs_deleterecycle (
+	_In_ LPCWSTR path
+)
+{
+	SHFILEOPSTRUCTW shfop = {0};
+	LONG status;
+
+	shfop.wFunc = FO_DELETE;
+	shfop.fFlags = FOF_ALLOWUNDO | FOF_NO_UI;
+	shfop.pFrom = path;
+
+	status = SHFileOperationW (&shfop);
 
 	return status;
 }
@@ -16252,6 +16269,46 @@ VOID _r_ctrl_showballoontipformat (
 	_r_ctrl_showballoontip (hwnd, ctrl_id, icon_id, title, string->buffer);
 
 	_r_obj_dereference (string);
+}
+
+//
+// Control: combobox
+//
+
+VOID _r_combobox_insertitem (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ INT item_id,
+	_In_ LPCWSTR string,
+	_In_opt_ LPARAM lparam
+)
+{
+	SendDlgItemMessageW (hwnd, ctrl_id, CB_INSERTSTRING, (WPARAM)item_id, (LPARAM)string);
+	SendDlgItemMessageW (hwnd, ctrl_id, CB_SETITEMDATA, (WPARAM)item_id, lparam);
+}
+
+VOID _r_combobox_setcurrentitembyparam (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ LPARAM lparam
+)
+{
+	LPARAM cparam;
+	INT count;
+
+	count = _r_combobox_getcount (hwnd, ctrl_id);
+
+	for (INT i = 0; i < count; i++)
+	{
+		cparam = SendDlgItemMessageW (hwnd, ctrl_id, CB_GETITEMDATA, (WPARAM)i, 0);
+
+		if (cparam == lparam)
+		{
+			_r_combobox_setcurrentitem (hwnd, ctrl_id, i);
+
+			break;
+		}
+	}
 }
 
 //

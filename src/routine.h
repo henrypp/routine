@@ -1035,6 +1035,7 @@ VOID _r_obj_deletestringbuilder (
 	_Inout_ PR_STRINGBUILDER sb
 );
 
+_Ret_maybenull_
 PR_STRING _r_obj_finalstringbuilder (
 	_In_ PR_STRINGBUILDER sb
 );
@@ -1705,6 +1706,10 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_deletefile (
 	_In_opt_ LPCWSTR path,
 	_In_opt_ HANDLE hfile
+);
+
+LONG  _r_fs_deleterecycle (
+	_In_ LPCWSTR path
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -4013,9 +4018,38 @@ FORCEINLINE VOID _r_ctrl_settextlimit (
 	}
 }
 
+FORCEINLINE VOID _r_ctrl_settextmargin (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id
+)
+{
+	if (ctrl_id)
+	{
+		SendDlgItemMessageW (hwnd, ctrl_id, EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN, 0);
+	}
+	else
+	{
+		SendMessageW (hwnd, EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN, 0);
+	}
+}
+
 //
 // Control: combobox
 //
+
+VOID _r_combobox_insertitem (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ INT item_id,
+	_In_ LPCWSTR string,
+	_In_opt_ LPARAM lparam
+);
+
+VOID _r_combobox_setcurrentitembyparam (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ LPARAM lparam
+);
 
 FORCEINLINE VOID _r_combobox_clear (
 	_In_ HWND hwnd,
@@ -4023,6 +4057,14 @@ FORCEINLINE VOID _r_combobox_clear (
 )
 {
 	SendDlgItemMessageW (hwnd, ctrl_id, CB_RESETCONTENT, 0, 0);
+}
+
+FORCEINLINE INT _r_combobox_getcount (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id
+)
+{
+	return (INT)SendDlgItemMessageW (hwnd, ctrl_id, CB_GETCOUNT, 0, 0);
 }
 
 FORCEINLINE INT _r_combobox_getcurrentitem (
@@ -4040,16 +4082,6 @@ FORCEINLINE LPARAM _r_combobox_getitemparam (
 )
 {
 	return SendDlgItemMessageW (hwnd, ctrl_id, CB_GETITEMDATA, (WPARAM)item_id, 0);
-}
-
-FORCEINLINE VOID _r_combobox_insertitem (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ INT item_id,
-	_In_ LPCWSTR string
-)
-{
-	SendDlgItemMessageW (hwnd, ctrl_id, CB_INSERTSTRING, (WPARAM)item_id, (LPARAM)string);
 }
 
 FORCEINLINE VOID _r_combobox_setcurrentitem (
