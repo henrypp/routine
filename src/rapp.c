@@ -1732,7 +1732,7 @@ VOID _r_locale_apply (
 		if (item_id == CB_ERR)
 			return;
 
-		locale_index = _r_combobox_getitemparam (hwnd, ctrl_id, item_id);
+		locale_index = _r_combobox_getitemlparam (hwnd, ctrl_id, item_id);
 	}
 
 	if (locale_index == SIZE_MAX)

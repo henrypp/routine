@@ -4045,7 +4045,7 @@ VOID _r_combobox_insertitem (
 	_In_opt_ LPARAM lparam
 );
 
-VOID _r_combobox_setcurrentitembyparam (
+VOID _r_combobox_setcurrentitembylparam (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ LPARAM lparam
@@ -4075,7 +4075,7 @@ FORCEINLINE INT _r_combobox_getcurrentitem (
 	return (INT)SendDlgItemMessageW (hwnd, ctrl_id, CB_GETCURSEL, 0, 0);
 }
 
-FORCEINLINE LPARAM _r_combobox_getitemparam (
+FORCEINLINE LPARAM _r_combobox_getitemlparam (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ INT item_id
