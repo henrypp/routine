@@ -1035,7 +1035,6 @@ VOID _r_obj_deletestringbuilder (
 	_Inout_ PR_STRINGBUILDER sb
 );
 
-_Ret_maybenull_
 PR_STRING _r_obj_finalstringbuilder (
 	_In_ PR_STRINGBUILDER sb
 );
@@ -3789,7 +3788,7 @@ VOID _r_tray_destroy (
 VOID _r_tray_popup (
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid,
-	_In_opt_ ULONG icon_id,
+	_In_opt_ ULONG flags,
 	_In_opt_ LPCWSTR title,
 	_In_opt_ LPCWSTR string
 );
@@ -3797,7 +3796,7 @@ VOID _r_tray_popup (
 VOID _r_tray_popupformat (
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid,
-	_In_opt_ ULONG icon_id,
+	_In_opt_ ULONG flags,
 	_In_opt_ LPCWSTR title,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
@@ -4657,6 +4656,15 @@ VOID _r_treeview_setstyle (
 	_In_opt_ INT height,
 	_In_opt_ INT indent
 );
+
+FORCEINLINE VOID _r_treeview_selectitem (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ HTREEITEM hitem
+)
+{
+	SendDlgItemMessageW (hwnd, ctrl_id, TVM_SELECTITEM, TVGN_CARET, (LPARAM)hitem);
+}
 
 FORCEINLINE VOID _r_treeview_setimagelist (
 	_In_ HWND hwnd,

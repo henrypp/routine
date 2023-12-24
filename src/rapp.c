@@ -3761,7 +3761,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 				hitem = _r_treeview_additem (hwnd, IDC_NAV, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, NULL, NULL, (LPARAM)ptr_page);
 
 				if (dlg_id && ptr_page->dlg_id == dlg_id)
-					SendDlgItemMessageW (hwnd, IDC_NAV, TVM_SELECTITEM, TVGN_CARET, (LPARAM)hitem);
+					_r_treeview_selectitem (hwnd, IDC_NAV, hitem);
 #else
 				EnableThemeDialogTexture (ptr_page->hwnd, ETDT_ENABLETAB);
 

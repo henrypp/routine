@@ -2809,7 +2809,6 @@ VOID _r_obj_deletestringbuilder (
 	SAFE_DELETE_REFERENCE (sb->string);
 }
 
-_Ret_maybenull_
 PR_STRING _r_obj_finalstringbuilder (
 	_In_ PR_STRINGBUILDER sb
 )
@@ -15643,7 +15642,7 @@ VOID _r_tray_destroy (
 VOID _r_tray_popup (
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid,
-	_In_opt_ ULONG icon_id,
+	_In_opt_ ULONG flags,
 	_In_opt_ LPCWSTR title,
 	_In_opt_ LPCWSTR string
 )
@@ -15654,11 +15653,11 @@ VOID _r_tray_popup (
 
 	nid.uFlags |= NIF_REALTIME;
 
-	if (icon_id)
+	if (flags)
 	{
 		nid.uFlags |= NIF_INFO;
 
-		nid.dwInfoFlags = icon_id;
+		nid.dwInfoFlags = flags;
 	}
 
 	if (title)
@@ -15673,7 +15672,7 @@ VOID _r_tray_popup (
 VOID _r_tray_popupformat (
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid,
-	_In_opt_ ULONG icon_id,
+	_In_opt_ ULONG flags,
 	_In_opt_ LPCWSTR title,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
@@ -15686,7 +15685,7 @@ VOID _r_tray_popupformat (
 	string = _r_format_string_v (format, arg_ptr);
 	va_end (arg_ptr);
 
-	_r_tray_popup (hwnd, guid, icon_id, title, string->buffer);
+	_r_tray_popup (hwnd, guid, flags, title, string->buffer);
 
 	_r_obj_dereference (string);
 }
