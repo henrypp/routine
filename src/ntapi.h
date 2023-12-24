@@ -3732,6 +3732,25 @@ NtOpenProcess (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
+NtOpenProcessToken (
+	_In_ HANDLE ProcessHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_Out_ PHANDLE TokenHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtOpenProcessTokenEx (
+	_In_ HANDLE ProcessHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ ULONG HandleAttributes,
+	_Out_ PHANDLE TokenHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
 NtTerminateProcess (
 	_In_opt_ HANDLE ProcessHandle,
 	_In_ NTSTATUS ExitStatus
@@ -4899,6 +4918,19 @@ RtlDecompressFragmentEx (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
+NtCreateKey (
+	_Out_ PHANDLE KeyHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes,
+	_Reserved_ ULONG TitleIndex,
+	_In_opt_ PUNICODE_STRING Class,
+	_In_ ULONG CreateOptions,
+	_Out_opt_ PULONG Disposition
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
 NtOpenKey (
 	_Out_ PHANDLE KeyHandle,
 	_In_ ACCESS_MASK DesiredAccess,
@@ -5025,6 +5057,32 @@ NTSTATUS
 NTAPI
 NtFlushKey (
 	_In_ HANDLE KeyHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtRestoreKey (
+	_In_ HANDLE KeyHandle,
+	_In_ HANDLE FileHandle,
+	_In_ ULONG Flags
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtSaveKey (
+	_In_ HANDLE KeyHandle,
+	_In_ HANDLE FileHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtSaveKeyEx (
+	_In_ HANDLE KeyHandle,
+	_In_ HANDLE FileHandle,
+	_In_ ULONG Format
 );
 
 NTSYSCALLAPI
