@@ -1420,21 +1420,36 @@ typedef struct _KEY_BASIC_INFORMATION
 	_Field_size_bytes_ (NameLength) WCHAR Name[1];
 } KEY_BASIC_INFORMATION, *PKEY_BASIC_INFORMATION;
 
-typedef struct _KEY_VALUE_BASIC_INFORMATION
+typedef struct _KEY_NODE_INFORMATION
 {
+	LARGE_INTEGER LastWriteTime;
 	ULONG TitleIndex;
-	ULONG Type;
+	ULONG ClassOffset;
+	ULONG ClassLength;
 	ULONG NameLength;
 	_Field_size_bytes_ (NameLength) WCHAR Name[1];
-} KEY_VALUE_BASIC_INFORMATION, *PKEY_VALUE_BASIC_INFORMATION;
+	// ...
+	// WCHAR Class[1];
+} KEY_NODE_INFORMATION, *PKEY_NODE_INFORMATION;
 
-typedef struct _KEY_VALUE_PARTIAL_INFORMATION
+typedef struct _KEY_NAME_INFORMATION
 {
+	ULONG NameLength;
+	_Field_size_bytes_ (NameLength) WCHAR Name[1];
+} KEY_NAME_INFORMATION, *PKEY_NAME_INFORMATION;
+
+typedef struct _KEY_CACHED_INFORMATION
+{
+	LARGE_INTEGER LastWriteTime;
 	ULONG TitleIndex;
-	ULONG Type;
-	ULONG DataLength;
-	_Field_size_bytes_ (DataLength) UCHAR Data[1];
-} KEY_VALUE_PARTIAL_INFORMATION, *PKEY_VALUE_PARTIAL_INFORMATION;
+	ULONG SubKeys;
+	ULONG MaxNameLength;
+	ULONG Values;
+	ULONG MaxValueNameLength;
+	ULONG MaxValueDataLength;
+	ULONG NameLength;
+	_Field_size_bytes_ (NameLength) WCHAR Name[1];
+} KEY_CACHED_INFORMATION, *PKEY_CACHED_INFORMATION;
 
 typedef struct _KEY_FULL_INFORMATION
 {
@@ -1450,6 +1465,22 @@ typedef struct _KEY_FULL_INFORMATION
 	ULONG MaxValueDataLength;
 	WCHAR Class[1];
 } KEY_FULL_INFORMATION, *PKEY_FULL_INFORMATION;
+
+typedef struct _KEY_VALUE_BASIC_INFORMATION
+{
+	ULONG TitleIndex;
+	ULONG Type;
+	ULONG NameLength;
+	_Field_size_bytes_ (NameLength) WCHAR Name[1];
+} KEY_VALUE_BASIC_INFORMATION, *PKEY_VALUE_BASIC_INFORMATION;
+
+typedef struct _KEY_VALUE_PARTIAL_INFORMATION
+{
+	ULONG TitleIndex;
+	ULONG Type;
+	ULONG DataLength;
+	_Field_size_bytes_ (DataLength) UCHAR Data[1];
+} KEY_VALUE_PARTIAL_INFORMATION, *PKEY_VALUE_PARTIAL_INFORMATION;
 
 typedef struct _KEY_VALUE_FULL_INFORMATION
 {
