@@ -451,13 +451,12 @@ BOOLEAN _r_show_confirmmessage (
 	_In_opt_ LPCWSTR config_key
 );
 
-VOID _r_show_errormessage (
+NTSTATUS _r_show_errormessage (
 	_In_opt_ HWND hwnd,
 	_In_opt_ LPCWSTR main,
 	_In_ LONG error_code,
 	_In_opt_ LPCWSTR description,
-	_In_opt_ PVOID hinst,
-	_In_opt_ PEXCEPTION_POINTERS exception_ptr
+	_In_ BOOLEAN is_native
 );
 
 INT _r_show_message (

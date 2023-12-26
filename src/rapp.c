@@ -15,7 +15,7 @@ VOID _r_app_exceptionfilter_savedump (
 )
 {
 	MINIDUMP_EXCEPTION_INFORMATION minidump_info = {0};
-	WCHAR dump_path[512];
+	WCHAR path[512];
 	LONG64 current_time;
 	HANDLE hfile;
 	NTSTATUS status;
@@ -23,15 +23,15 @@ VOID _r_app_exceptionfilter_savedump (
 	current_time = _r_unixtime_now ();
 
 	_r_str_printf (
-		dump_path,
-		RTL_NUMBER_OF (dump_path),
+		path,
+		RTL_NUMBER_OF (path),
 		L"%s\\%s-%" TEXT (PR_LONG64) L".dmp",
 		_r_app_getcrashdirectory (TRUE),
 		_r_app_getnameshort (),
 		current_time
 	);
 
-	status = _r_fs_createfile (dump_path, FILE_OVERWRITE_IF, GENERIC_WRITE, FILE_SHARE_READ, FILE_ATTRIBUTE_NORMAL, 0, FALSE, NULL, &hfile);
+	status = _r_fs_createfile (path, FILE_OVERWRITE_IF, GENERIC_WRITE, FILE_SHARE_READ, FILE_ATTRIBUTE_NORMAL, 0, FALSE, NULL, &hfile);
 
 	if (!NT_SUCCESS (status))
 		return;
@@ -65,7 +65,7 @@ ULONG NTAPI _r_app_exceptionfilter_callback (
 		exception_ptr->ExceptionRecord->ExceptionCode
 	);
 #else
-	_r_show_errormessage (NULL, APP_EXCEPTION_TITLE, exception_ptr->ExceptionRecord->ExceptionCode, NULL, NULL, exception_ptr);
+	_r_show_errormessage (NULL, APP_EXCEPTION_TITLE, exception_ptr->ExceptionRecord->ExceptionCode, NULL, TRUE);
 #endif // APP_CONSOLE
 
 	RtlExitUserProcess (exception_ptr->ExceptionRecord->ExceptionCode);
@@ -186,7 +186,7 @@ BOOLEAN _r_app_initialize_com ()
 #if defined(APP_CONSOLE)
 		_r_console_writestringformat (APP_FAILED_COM_INITIALIZE L" 0x%08" TEXT (PRIX32) L"!\r\n", status);
 #else
-		_r_show_errormessage (NULL, APP_FAILED_COM_INITIALIZE, status, NULL, NULL, NULL);
+		_r_show_errormessage (NULL, APP_FAILED_COM_INITIALIZE, status, NULL, FALSE);
 #endif // APP_CONSOLE
 
 		return FALSE;
@@ -326,7 +326,7 @@ BOOLEAN _r_app_initialize (
 	if (!_r_sys_iselevated ())
 	{
 		if (!_r_app_runasadmin ())
-			_r_show_errormessage (NULL, APP_FAILED_ADMIN_RIGHTS, STATUS_ACCESS_DENIED, NULL, NULL, NULL);
+			_r_show_errormessage (NULL, APP_FAILED_ADMIN_RIGHTS, STATUS_ACCESS_DENIED, NULL, TRUE);
 
 		return FALSE;
 	}
@@ -2054,7 +2054,7 @@ NTSTATUS _r_autorun_enable (
 	if (hwnd)
 	{
 		if (!NT_SUCCESS (status))
-			_r_show_errormessage (hwnd, NULL, status, NULL, NULL, NULL);
+			_r_show_errormessage (hwnd, NULL, status, NULL, TRUE);
 	}
 
 	return status;
@@ -2745,7 +2745,7 @@ VOID _r_update_install (
 	cmd_string = _r_format_string (L"\"%s\" /S /D=%s", update_component->cache_path->buffer, update_component->target_path->buffer);
 
 	if (!_r_sys_runasadmin (update_component->cache_path->buffer, cmd_string->buffer, NULL))
-		_r_show_errormessage (NULL, NULL, PebLastError (), NULL, update_component->cache_path->buffer, NULL);
+		_r_show_errormessage (NULL, NULL, PebLastError (), update_component->cache_path->buffer, FALSE);
 
 	_r_obj_dereference (cmd_string);
 }
@@ -3113,13 +3113,12 @@ BOOLEAN _r_show_confirmmessage (
 	return FALSE;
 }
 
-VOID _r_show_errormessage (
+NTSTATUS _r_show_errormessage (
 	_In_opt_ HWND hwnd,
 	_In_opt_ LPCWSTR main,
 	_In_ LONG error_code,
 	_In_opt_ LPCWSTR description,
-	_In_opt_ PVOID hinst,
-	_In_opt_ PEXCEPTION_POINTERS exception_ptr
+	_In_ BOOLEAN is_native
 )
 {
 	TASKDIALOGCONFIG tdc = {0};
@@ -3134,29 +3133,12 @@ VOID _r_show_errormessage (
 	UINT btn_cnt = 0;
 	NTSTATUS status;
 
-	if (hinst)
-	{
-		hmodule = hinst;
-	}
-	else
-	{
-		status = _r_sys_loadlibraryasresource (L"ntdll.dll", &hmodule);
+	status = _r_sys_loadlibraryasresource (is_native ? L"ntdll.dll" : L"kernel32.dll", &hmodule);
 
-		if (!NT_SUCCESS (status))
-			return;
-	}
+	if (!NT_SUCCESS (status) || !hmodule)
+		return status;
 
 	status = _r_sys_formatmessage (error_code, hmodule, 0, &string);
-
-	if (status == STATUS_MESSAGE_NOT_FOUND)
-	{
-		_r_sys_freelibrary (hmodule, TRUE);
-
-		status = _r_sys_loadlibraryasresource (L"kernel32.dll", &hmodule);
-
-		if (NT_SUCCESS (status))
-			status = _r_sys_formatmessage (error_code, hmodule, 0, &string);
-	}
 
 	str_main = main ? main : APP_FAILED_MESSAGE_TITLE;
 
@@ -3176,6 +3158,8 @@ VOID _r_show_errormessage (
 		_r_str_append (str_content, RTL_NUMBER_OF (str_content), description);
 	}
 
+	path = _r_app_getcrashdirectory (FALSE);
+
 	tdc.cbSize = sizeof (tdc);
 	tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_ENABLE_HYPERLINKS | TDF_NO_SET_FOREGROUND | TDF_SIZE_TO_CONTENT;
 	tdc.hwndParent = hwnd;
@@ -3189,7 +3173,7 @@ VOID _r_show_errormessage (
 	tdc.pfCallback = &_r_msg_callback;
 	tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
 
-	if (exception_ptr)
+	if (_r_fs_exists (path))
 	{
 		// add "Crash dumps" button
 		td_buttons[btn_cnt].pszButtonText = L"Crash dumps";
@@ -3219,8 +3203,6 @@ VOID _r_show_errormessage (
 	{
 		if (command_id == IDYES)
 		{
-			path = _r_app_getcrashdirectory (TRUE);
-
 			_r_shell_opendefault (path);
 		}
 		else if (command_id == IDNO)
@@ -3236,6 +3218,8 @@ VOID _r_show_errormessage (
 
 	if (string)
 		_r_obj_dereference (string);
+
+	return status;
 }
 
 INT _r_show_message (
@@ -4475,7 +4459,7 @@ CleanupExit:
 		ITaskService_Release (task_service);
 
 	if (hwnd && FAILED (status))
-		_r_show_errormessage (hwnd, NULL, status, NULL, NULL, NULL);
+		_r_show_errormessage (hwnd, NULL, status, NULL, FALSE);
 
 	return status;
 }
