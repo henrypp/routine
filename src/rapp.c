@@ -2812,7 +2812,7 @@ VOID _r_log (
 	_In_ R_LOG_LEVEL log_level,
 	_In_opt_ LPCGUID tray_guid,
 	_In_ LPCWSTR title,
-	_In_ ULONG error_code,
+	_In_ LONG error_code,
 	_In_opt_ LPCWSTR description
 )
 {
@@ -2889,7 +2889,7 @@ VOID _r_log_v (
 	_In_ R_LOG_LEVEL log_level,
 	_In_opt_ LPCGUID tray_guid,
 	_In_ LPCWSTR title,
-	_In_ ULONG error_code,
+	_In_ LONG error_code,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 )
@@ -3758,7 +3758,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 				SendMessageW (ptr_page->hwnd, RM_INITIALIZE, (WPARAM)ptr_page->dlg_id, 0);
 
 #if !defined(APP_HAVE_SETTINGS_TABS)
-				hitem = _r_treeview_additem (hwnd, IDC_NAV, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, NULL, NULL, (LPARAM)ptr_page);
+				hitem = _r_treeview_additem (hwnd, IDC_NAV, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, 0, NULL, NULL, (LPARAM)ptr_page);
 
 				if (dlg_id && ptr_page->dlg_id == dlg_id)
 					_r_treeview_selectitem (hwnd, IDC_NAV, hitem);

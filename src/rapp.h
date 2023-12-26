@@ -419,7 +419,7 @@ VOID _r_log (
 	_In_ R_LOG_LEVEL log_level,
 	_In_opt_ LPCGUID tray_guid,
 	_In_ LPCWSTR title,
-	_In_ ULONG error_code,
+	_In_ LONG error_code,
 	_In_opt_ LPCWSTR description
 );
 
@@ -427,7 +427,7 @@ VOID _r_log_v (
 	_In_ R_LOG_LEVEL log_level,
 	_In_opt_ LPCGUID tray_guid,
 	_In_ LPCWSTR title,
-	_In_ ULONG error_code,
+	_In_ LONG error_code,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 );
