@@ -3354,12 +3354,23 @@ FORCEINLINE VOID _r_inet_close (
 // Registry
 //
 
+typedef BOOLEAN (NTAPI *PR_ENUM_KEY_CALLBACK)(
+	_In_ HANDLE hroot,
+	_In_ PVOID buffer,
+	_In_opt_ PVOID context
+	);
+
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_openkey (
 	_In_ HANDLE hroot,
-	_In_ LPWSTR path,
+	_In_opt_ LPWSTR path,
 	_In_ ACCESS_MASK desired_access,
 	_Out_ PHANDLE hkey
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_deletekey (
+	_In_ HANDLE hkey
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -3371,9 +3382,16 @@ NTSTATUS _r_reg_deletevalue (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_enumkey (
 	_In_ HANDLE hkey,
-	_In_ ULONG index,
-	_Outptr_ PR_STRING_PTR name_ptr,
-	_Out_opt_ PLONG64 timestamp_ptr
+	_In_ KEY_INFORMATION_CLASS info,
+	_In_ PR_ENUM_KEY_CALLBACK callback,
+	_In_opt_ PVOID context
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_enumvalues (
+	_In_ HANDLE hkey,
+	_In_ KEY_INFORMATION_CLASS info,
+	_Outptr_ PVOID_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -4592,6 +4610,7 @@ HTREEITEM _r_treeview_additem (
 	_In_ INT ctrl_id,
 	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
+	_In_ INT state,
 	_In_opt_ HTREEITEM hparent,
 	_In_opt_ HTREEITEM hinsert_after,
 	_In_opt_ LPARAM lparam
@@ -4765,11 +4784,6 @@ VOID _r_toolbar_addbutton (
 	_In_ INT image_id
 );
 
-VOID _r_toolbar_addseparator (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id
-);
-
 INT _r_toolbar_getwidth (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id
@@ -4789,6 +4803,14 @@ VOID _r_toolbar_setstyle (
 	_In_ INT ctrl_id,
 	_In_opt_ ULONG ex_style
 );
+
+FORCEINLINE VOID _r_toolbar_addseparator (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id
+)
+{
+	_r_toolbar_addbutton (hwnd, ctrl_id, 0, BTNS_SEP, 0, 0, I_IMAGENONE);
+}
 
 FORCEINLINE VOID _r_toolbar_enablebutton (
 	_In_ HWND hwnd,

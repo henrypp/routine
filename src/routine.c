@@ -13804,7 +13804,7 @@ HANDLE _r_reg_getroothandle (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_openkey (
 	_In_ HANDLE hroot,
-	_In_ LPWSTR path,
+	_In_opt_ LPWSTR path,
 	_In_ ACCESS_MASK desired_access,
 	_Out_ PHANDLE hkey
 )
@@ -13821,6 +13821,18 @@ NTSTATUS _r_reg_openkey (
 	InitializeObjectAttributes (&oa, &us, OBJ_CASE_INSENSITIVE, hroot_handle, NULL);
 
 	status = NtOpenKey (hkey, desired_access, &oa);
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_deletekey (
+	_In_ HANDLE hkey
+)
+{
+	NTSTATUS status;
+
+	status = NtDeleteKey (hkey);
 
 	return status;
 }
@@ -13844,33 +13856,99 @@ NTSTATUS _r_reg_deletevalue (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_enumkey (
 	_In_ HANDLE hkey,
-	_In_ ULONG index,
-	_Outptr_ PR_STRING_PTR name_ptr,
-	_Out_opt_ PLONG64 timestamp_ptr
+	_In_ KEY_INFORMATION_CLASS info,
+	_In_ PR_ENUM_KEY_CALLBACK callback,
+	_In_opt_ PVOID context
 )
 {
-	PKEY_BASIC_INFORMATION basic_info;
-	ULONG buffer_size;
+	PVOID buffer;
+	ULONG buffer_length;
+	ULONG index = 0;
 	NTSTATUS status;
 
-	buffer_size = sizeof (0x100);
-	basic_info = _r_mem_allocate (buffer_size);
+	buffer_length = sizeof (0x100);
+	buffer = _r_mem_allocate (buffer_length);
 
-	status = NtEnumerateKey (hkey, index, KeyBasicInformation, basic_info, buffer_size, &buffer_size);
-
-	if (status == STATUS_BUFFER_OVERFLOW || status == STATUS_BUFFER_TOO_SMALL)
+	while (TRUE)
 	{
-		basic_info = _r_mem_reallocate (basic_info, buffer_size);
+		status = NtEnumerateKey (hkey, index, info, buffer, buffer_length, &buffer_length);
 
-		status = NtEnumerateKey (hkey, index, KeyBasicInformation, basic_info, buffer_size, &buffer_size);
+		if (status == STATUS_NO_MORE_ENTRIES)
+		{
+			status = STATUS_SUCCESS;
+
+			break;
+		}
+
+		if (status == STATUS_BUFFER_OVERFLOW || status == STATUS_BUFFER_TOO_SMALL)
+		{
+			buffer = _r_mem_reallocate (buffer, buffer_length);
+
+			status = NtEnumerateKey (hkey, index, info, buffer, buffer_length, &buffer_length);
+		}
+
+		if (!NT_SUCCESS (status))
+			break;
+
+		if (!callback (hkey, buffer, context))
+			break;
+
+		index += 1;
+	}
+
+	_r_mem_free (buffer);
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_enumvalues (
+	_In_ HANDLE hkey,
+	_In_ KEY_INFORMATION_CLASS info,
+	_Outptr_ PVOID_PTR out_buffer
+)
+{
+	PVOID buffer;
+	ULONG buffer_length;
+	ULONG index = 0;
+	NTSTATUS status;
+
+	buffer_length = 0x100;
+	buffer = _r_mem_allocate (buffer_length);
+
+	while (TRUE)
+	{
+		status = NtEnumerateValueKey (hkey, index, info, buffer, buffer_length, &buffer_length);
+
+		if (status == STATUS_NO_MORE_ENTRIES)
+		{
+			status = STATUS_SUCCESS;
+
+			break;
+		}
+
+		if (status == STATUS_BUFFER_OVERFLOW || status == STATUS_BUFFER_TOO_SMALL)
+		{
+			buffer = _r_mem_reallocate (buffer, buffer_length);
+
+			status = NtEnumerateValueKey (hkey, index, info, buffer, buffer_length, &buffer_length);
+		}
+
+		if (!NT_SUCCESS (status))
+			break;
+
+		index += 1;
 	}
 
 	if (NT_SUCCESS (status))
 	{
-		*name_ptr = _r_obj_createstring_ex (basic_info->Name, basic_info->NameLength);
+		*out_buffer = buffer;
+	}
+	else
+	{
+		*out_buffer = NULL;
 
-		if (timestamp_ptr)
-			*timestamp_ptr = _r_unixtime_from_largeinteger (&basic_info->LastWriteTime);
+		_r_mem_free (buffer);
 	}
 
 	return status;
@@ -13896,6 +13974,14 @@ NTSTATUS _r_reg_queryinfo (
 
 		if (out_timestamp)
 			*out_timestamp = _r_unixtime_from_largeinteger (&full_info.LastWriteTime);
+	}
+	else
+	{
+		if (out_length)
+			*out_length = 0;
+
+		if (out_timestamp)
+			*out_timestamp = 0;
 	}
 
 	return status;
@@ -13931,6 +14017,8 @@ NTSTATUS _r_reg_querybinary (
 	}
 	else
 	{
+		*out_buffer = NULL;
+
 		_r_obj_dereference (bytes); // cleanup
 	}
 
@@ -13987,6 +14075,8 @@ NTSTATUS _r_reg_querystring (
 	}
 	else
 	{
+		*out_buffer = NULL;
+
 		_r_obj_dereference (string); // cleanup
 	}
 
@@ -14012,7 +14102,11 @@ NTSTATUS _r_reg_queryulong (
 		return status;
 
 	if (type != REG_DWORD)
+	{
+		*out_buffer = 0;
+
 		return STATUS_OBJECT_TYPE_MISMATCH;
+	}
 
 	*out_buffer = buffer;
 
@@ -14038,7 +14132,11 @@ NTSTATUS _r_reg_queryulong64 (
 		return status;
 
 	if (type != REG_QWORD)
+	{
+		*out_buffer = 0;
+
 		return STATUS_OBJECT_TYPE_MISMATCH;
+	}
 
 	*out_buffer = buffer;
 
@@ -14090,6 +14188,14 @@ NTSTATUS _r_reg_queryvalue (
 
 		if (type)
 			*type = value_info->Type;
+	}
+	else
+	{
+		if (buffer_length)
+			*buffer_length = 0;
+
+		if (type)
+			*type = 0;
 	}
 
 	_r_mem_free (value_info);
@@ -17278,6 +17384,7 @@ HTREEITEM _r_treeview_additem (
 	_In_ INT ctrl_id,
 	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
+	_In_ INT state,
 	_In_opt_ HTREEITEM hparent,
 	_In_opt_ HTREEITEM hinsert_after,
 	_In_opt_ LPARAM lparam
@@ -17286,8 +17393,8 @@ HTREEITEM _r_treeview_additem (
 	TVINSERTSTRUCTW tvi = {0};
 
 	tvi.itemex.mask = TVIF_STATE;
-	tvi.itemex.state = TVIS_EXPANDED;
-	tvi.itemex.stateMask = TVIS_EXPANDED;
+	tvi.itemex.state = state;
+	tvi.itemex.stateMask = state;
 
 	if (string)
 	{
@@ -17640,14 +17747,6 @@ VOID _r_toolbar_addbutton (
 	button_id = _r_toolbar_getbuttoncount (hwnd, ctrl_id);
 
 	SendDlgItemMessageW (hwnd, ctrl_id, TB_INSERTBUTTON, (WPARAM)button_id, (LPARAM)&tbi);
-}
-
-VOID _r_toolbar_addseparator (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id
-)
-{
-	_r_toolbar_addbutton (hwnd, ctrl_id, 0, BTNS_SEP, 0, 0, I_IMAGENONE);
 }
 
 INT _r_toolbar_getwidth (
