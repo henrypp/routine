@@ -4110,7 +4110,7 @@ FORCEINLINE VOID _r_combobox_setcurrentitem (
 	SendDlgItemMessageW (hwnd, ctrl_id, CB_SETCURSEL, (WPARAM)item_id, 0);
 }
 
-FORCEINLINE VOID _r_combobox_setitemparam (
+FORCEINLINE VOID _r_combobox_setitemlparam (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ INT item_id,
