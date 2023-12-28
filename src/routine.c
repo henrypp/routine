@@ -11026,6 +11026,47 @@ HICON _r_dc_bitmaptoicon (
 	return hicon;
 }
 
+_Ret_maybenull_
+HBITMAP _r_dc_createbitmap (
+	_In_opt_ HDC hdc,
+	_In_ LONG width,
+	_In_ LONG height,
+	_Out_ _When_ (return != NULL, _Notnull_) PVOID_PTR bits
+)
+{
+	BITMAPINFO bmi = {0};
+	HBITMAP hbitmap;
+	HDC new_hdc = NULL;
+
+	if (!hdc)
+	{
+		new_hdc = GetDC (NULL);
+
+		if (!new_hdc)
+		{
+			*bits = NULL;
+
+			return NULL;
+		}
+
+		hdc = new_hdc;
+	}
+
+	bmi.bmiHeader.biSize = sizeof (BITMAPINFOHEADER);
+	bmi.bmiHeader.biWidth = width;
+	bmi.bmiHeader.biHeight = -height;
+	bmi.bmiHeader.biPlanes = 1;
+	bmi.bmiHeader.biBitCount = 32;
+	bmi.bmiHeader.biCompression = BI_RGB;
+
+	hbitmap = CreateDIBSection (hdc, &bmi, DIB_RGB_COLORS, bits, NULL, 0);
+
+	if (new_hdc)
+		ReleaseDC (NULL, new_hdc);
+
+	return hbitmap;
+}
+
 BOOLEAN _r_dc_drawwindow (
 	_In_ HDC hdc,
 	_In_ HWND hwnd,
@@ -11497,204 +11538,6 @@ LONG _r_dc_getwindowdpi (
 		return _r_dc_getdpivalue (hwnd, NULL);
 
 	return _r_dc_getdpivalue (NULL, &rect);
-}
-
-_Success_ (SUCCEEDED (return))
-HRESULT _r_dc_imagetobitmap (
-	_In_ LPCGUID format,
-	_In_ WICInProcPointer buffer,
-	_In_ ULONG buffer_length,
-	_In_ LONG x,
-	_In_ LONG y,
-	_Outptr_result_maybenull_ HBITMAP_PTR out_buffer
-)
-{
-	BITMAPINFO bmi = {0};
-	HDC hdc = NULL;
-	HDC hdc_buffer = NULL;
-	HBITMAP hbitmap = NULL;
-	PVOID bitmap_buffer = NULL;
-	IWICStream *wicStream = NULL;
-	IWICBitmapSource *wicBitmapSource = NULL;
-	IWICBitmapDecoder *wicDecoder = NULL;
-	IWICBitmapFrameDecode *wicFrame = NULL;
-	IWICImagingFactory2 *wicFactory = NULL;
-	IWICFormatConverter *wicFormatConverter = NULL;
-	IWICBitmapScaler *wicScaler = NULL;
-	WICPixelFormatGUID pixelFormat;
-	WICRect rect = {0};
-	UINT frame_count;
-	HRESULT status;
-
-	// Create the ImagingFactory (win8+)
-	status = CoCreateInstance (&CLSID_WICImagingFactory2, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory2, &wicFactory);
-
-	if (FAILED (status))
-		goto CleanupExit;
-
-	// Create the Stream
-	status = IWICImagingFactory_CreateStream (wicFactory, &wicStream);
-
-	if (FAILED (status))
-		goto CleanupExit;
-
-	// Initialize the Stream from Memory
-	status = IWICStream_InitializeFromMemory (wicStream, buffer, buffer_length);
-
-	if (FAILED (status))
-		goto CleanupExit;
-
-	status = IWICImagingFactory_CreateDecoder (wicFactory, format, NULL, &wicDecoder);
-
-	if (FAILED (status))
-		goto CleanupExit;
-
-	status = IWICBitmapDecoder_Initialize (wicDecoder, (IStream*)wicStream, WICDecodeMetadataCacheOnLoad);
-
-	if (FAILED (status))
-		goto CleanupExit;
-
-	// Get the Frame count
-	status = IWICBitmapDecoder_GetFrameCount (wicDecoder, &frame_count);
-
-	if (FAILED (status) || frame_count < 1)
-		goto CleanupExit;
-
-	// Get the Frame
-	status = IWICBitmapDecoder_GetFrame (wicDecoder, 0, &wicFrame);
-
-	if (FAILED (status))
-		goto CleanupExit;
-
-	// Get the WicFrame image format
-	status = IWICBitmapFrameDecode_GetPixelFormat (wicFrame, &pixelFormat);
-
-	if (FAILED (status))
-		goto CleanupExit;
-
-	// Check if the image format is supported:
-	if (IsEqualGUID (&pixelFormat, &GUID_WICPixelFormat32bppPRGBA))
-	{
-		wicBitmapSource = (IWICBitmapSource *)wicFrame;
-	}
-	else
-	{
-		status = IWICImagingFactory_CreateFormatConverter (wicFactory, &wicFormatConverter);
-
-		if (FAILED (status))
-			goto CleanupExit;
-
-		status = IWICFormatConverter_Initialize (
-			wicFormatConverter,
-			(IWICBitmapSource*)wicFrame,
-			&GUID_WICPixelFormat32bppPBGRA,
-			WICBitmapDitherTypeNone,
-			NULL,
-			0.0,
-			WICBitmapPaletteTypeCustom
-		);
-
-		if (FAILED (status))
-			goto CleanupExit;
-
-		// Convert the image to the correct format.
-		IWICFormatConverter_QueryInterface (wicFormatConverter, &IID_IWICBitmapSource, &wicBitmapSource);
-
-		// Cleanup the converter.
-		IWICFormatConverter_Release (wicFormatConverter);
-
-		// Dispose the old frame now that the converted frame is in wicBitmapSource.
-		IWICBitmapFrameDecode_Release (wicFrame);
-	}
-
-	bmi.bmiHeader.biSize = sizeof (BITMAPINFOHEADER);
-	bmi.bmiHeader.biWidth = x;
-	bmi.bmiHeader.biHeight = -(y);
-	bmi.bmiHeader.biPlanes = 1;
-	bmi.bmiHeader.biBitCount = 32;
-	bmi.bmiHeader.biCompression = BI_RGB;
-
-	hdc = GetDC (NULL);
-
-	if (!hdc)
-	{
-		status = E_FAIL;
-
-		goto CleanupExit;
-	}
-
-	hdc_buffer = CreateCompatibleDC (hdc);
-
-	if (!hdc_buffer)
-	{
-		status = E_FAIL;
-
-		goto CleanupExit;
-	}
-
-	hbitmap = CreateDIBSection (hdc, &bmi, DIB_RGB_COLORS, &bitmap_buffer, NULL, 0);
-
-	if (!hbitmap)
-	{
-		status = E_FAIL;
-
-		goto CleanupExit;
-	}
-
-	status = IWICImagingFactory_CreateBitmapScaler (wicFactory, &wicScaler);
-
-	if (FAILED (status))
-		goto CleanupExit;
-
-	status = IWICBitmapScaler_Initialize (wicScaler, wicBitmapSource, x, y, WICBitmapInterpolationModeFant);
-
-	if (FAILED (status))
-		goto CleanupExit;
-
-	rect.Width = x;
-	rect.Height = y;
-
-	status = IWICBitmapScaler_CopyPixels (wicScaler, &rect, x * 4, x * y * 4, (PBYTE)bitmap_buffer);
-
-	if (FAILED (status))
-		goto CleanupExit;
-
-CleanupExit:
-
-	if (hdc_buffer)
-		DeleteDC (hdc_buffer);
-
-	if (hdc)
-		ReleaseDC (NULL, hdc);
-
-	if (wicScaler)
-		IWICBitmapScaler_Release (wicScaler);
-
-	if (wicBitmapSource)
-		IWICBitmapSource_Release (wicBitmapSource);
-
-	if (wicStream)
-		IWICStream_Release (wicStream);
-
-	if (wicDecoder)
-		IWICBitmapDecoder_Release (wicDecoder);
-
-	if (wicFactory)
-		IWICImagingFactory_Release (wicFactory);
-
-	if (SUCCEEDED (status))
-	{
-		*out_buffer = hbitmap;
-	}
-	else
-	{
-		*out_buffer = NULL;
-
-		if (hbitmap)
-			DeleteObject (hbitmap);
-	}
-
-	return status;
 }
 
 //
@@ -14854,6 +14697,197 @@ NTSTATUS _r_res_loadresource (
 	else
 	{
 		_r_obj_initializestorage (out_buffer, NULL, 0);
+	}
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_res_loadimage (
+	_In_ PVOID hinst,
+	_In_ LPCWSTR type,
+	_In_ LPCWSTR name,
+	_In_ LPCGUID format,
+	_In_ LONG width,
+	_In_ LONG height,
+	_Outptr_result_maybenull_ HBITMAP_PTR out_buffer
+)
+{
+	WICPixelFormatGUID pixelFormat;
+	IWICFormatConverter *wicFormatConverter = NULL;
+	IWICBitmapSource *wicBitmapSource = NULL;
+	IWICBitmapFrameDecode *wicFrame = NULL;
+	IWICImagingFactory2 *wicFactory = NULL;
+	IWICBitmapDecoder *wicDecoder = NULL;
+	IWICBitmapScaler *wicScaler = NULL;
+	IWICStream *wicStream = NULL;
+	WICRect rect = {0};
+	R_STORAGE buffer;
+	PVOID bitmap_buffer = NULL;
+	HBITMAP hbitmap = NULL;
+	HBITMAP result = NULL;
+	LONG width_src = 0;
+	LONG height_src = 0;
+	NTSTATUS status;
+
+	status = _r_res_loadresource (hinst, type, name, &buffer);
+
+	if (!NT_SUCCESS (status))
+		return status;
+
+	// Create the ImagingFactory (win8+)
+	status = CoCreateInstance (&CLSID_WICImagingFactory2, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory2, &wicFactory);
+
+	if (FAILED (status))
+		goto CleanupExit;
+
+	// Create the Stream
+	status = IWICImagingFactory_CreateStream (wicFactory, &wicStream);
+
+	if (FAILED (status))
+		goto CleanupExit;
+
+	// Initialize the Stream from Memory
+	status = IWICStream_InitializeFromMemory (wicStream, buffer.buffer, buffer.length);
+
+	if (FAILED (status))
+		goto CleanupExit;
+
+	status = IWICImagingFactory_CreateDecoder (wicFactory, format, NULL, &wicDecoder);
+
+	if (FAILED (status))
+		goto CleanupExit;
+
+	status = IWICBitmapDecoder_Initialize (wicDecoder, (IStream*)wicStream, WICDecodeMetadataCacheOnDemand);
+
+	if (FAILED (status))
+		goto CleanupExit;
+
+	// Get the Frame
+	status = IWICBitmapDecoder_GetFrame (wicDecoder, 0, &wicFrame);
+
+	if (FAILED (status))
+		goto CleanupExit;
+
+	// Get the WicFrame image format
+	status = IWICBitmapFrameDecode_GetPixelFormat (wicFrame, &pixelFormat);
+
+	if (FAILED (status))
+		goto CleanupExit;
+
+	// Check if the image format is supported:
+	if (IsEqualGUID (&pixelFormat, &GUID_WICPixelFormat32bppBGRA))
+	{
+		status = IWICBitmapFrameDecode_QueryInterface (wicFrame, &IID_IWICBitmapSource, &wicBitmapSource);
+
+		if (FAILED (status))
+			goto CleanupExit;
+	}
+	else
+	{
+		status = IWICImagingFactory_CreateFormatConverter (wicFactory, &wicFormatConverter);
+
+		if (FAILED (status))
+			goto CleanupExit;
+
+		status = IWICFormatConverter_Initialize (
+			wicFormatConverter,
+			(IWICBitmapSource*)wicFrame,
+			&GUID_WICPixelFormat32bppPBGRA,
+			WICBitmapDitherTypeNone,
+			NULL,
+			0.0,
+			WICBitmapPaletteTypeCustom
+		);
+
+		if (FAILED (status))
+			goto CleanupExit;
+
+		// Convert the image to the correct format.
+		status = IWICFormatConverter_QueryInterface (wicFormatConverter, &IID_IWICBitmapSource, &wicBitmapSource);
+
+		if (FAILED (status))
+			goto CleanupExit;
+	}
+
+	hbitmap = _r_dc_createbitmap (NULL, width, height, &bitmap_buffer);
+
+	if (!hbitmap)
+	{
+		status = E_FAIL;
+
+		goto CleanupExit;
+	}
+
+	status = IWICBitmapSource_GetSize (wicBitmapSource, &width_src, &height_src);
+
+	if (SUCCEEDED (status) && width_src == width && height_src == height)
+	{
+		status = IWICBitmapSource_CopyPixels (wicBitmapSource, NULL, width * sizeof (RGBQUAD), width * height * sizeof (RGBQUAD), bitmap_buffer);
+	}
+	else
+	{
+		status = IWICImagingFactory_CreateBitmapScaler (wicFactory, &wicScaler);
+
+		if (FAILED (status))
+			goto CleanupExit;
+
+		status = IWICBitmapScaler_Initialize (
+			wicScaler,
+			wicBitmapSource,
+			width,
+			height,
+			_r_sys_isosversiongreaterorequal (WINDOWS_10) ? WICBitmapInterpolationModeFant : WICBitmapInterpolationModeFant
+		);
+
+		if (FAILED (status))
+			goto CleanupExit;
+
+		rect.Width = width;
+		rect.Height = height;
+
+		status = IWICBitmapScaler_CopyPixels (
+			wicScaler,
+			&rect,
+			width * sizeof (RGBQUAD),
+			width * height * sizeof (RGBQUAD),
+			(PBYTE)bitmap_buffer
+		);
+
+		if (FAILED (status))
+			goto CleanupExit;
+	}
+
+CleanupExit:
+
+	if (wicFormatConverter)
+		IWICFormatConverter_Release (wicFormatConverter);
+
+	if (wicBitmapSource)
+		IWICBitmapSource_Release (wicBitmapSource);
+
+	if (wicDecoder)
+		IWICBitmapDecoder_Release (wicDecoder);
+
+	if (wicScaler)
+		IWICBitmapScaler_Release (wicScaler);
+
+	if (wicStream)
+		IWICStream_Release (wicStream);
+
+	if (wicFactory)
+		IWICImagingFactory_Release (wicFactory);
+
+	if (SUCCEEDED (status))
+	{
+		*out_buffer = hbitmap;
+	}
+	else
+	{
+		*out_buffer = NULL;
+
+		if (hbitmap)
+			DeleteObject (hbitmap);
 	}
 
 	return status;

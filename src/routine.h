@@ -2829,6 +2829,14 @@ HICON _r_dc_bitmaptoicon (
 	_In_ LONG y
 );
 
+_Ret_maybenull_
+HBITMAP _r_dc_createbitmap (
+	_In_opt_ HDC hdc,
+	_In_ LONG width,
+	_In_ LONG height,
+	_Out_ _When_ (return != NULL, _Notnull_) PVOID_PTR bits
+);
+
 BOOLEAN _r_dc_drawwindow (
 	_In_ HDC hdc,
 	_In_ HWND hwnd,
@@ -2933,16 +2941,6 @@ LONG _r_dc_gettaskbardpi ();
 
 LONG _r_dc_getwindowdpi (
 	_In_ HWND hwnd
-);
-
-_Success_ (SUCCEEDED (return))
-HRESULT _r_dc_imagetobitmap (
-	_In_ LPCGUID format,
-	_In_ WICInProcPointer buffer,
-	_In_ ULONG buffer_length,
-	_In_ LONG x,
-	_In_ LONG y,
-	_Outptr_result_maybenull_ HBITMAP_PTR out_buffer
 );
 
 //
@@ -3585,6 +3583,17 @@ NTSTATUS _r_res_loadresource (
 	_In_ LPCWSTR type,
 	_In_ LPCWSTR name,
 	_Out_ PR_STORAGE out_buffer
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_res_loadimage (
+	_In_ PVOID hinst,
+	_In_ LPCWSTR type,
+	_In_ LPCWSTR name,
+	_In_ LPCGUID format,
+	_In_ LONG width,
+	_In_ LONG height,
+	_Outptr_result_maybenull_ HBITMAP_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
