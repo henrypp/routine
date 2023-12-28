@@ -2742,7 +2742,7 @@ VOID _r_update_install (
 	if (!_r_fs_exists (update_component->cache_path->buffer))
 		return;
 
-	cmd_string = _r_format_string (L"\"%s\" /S /D=%s", update_component->cache_path->buffer, update_component->target_path->buffer);
+	cmd_string = _r_format_string (L"\"%s\" /u /S /D=%s", update_component->cache_path->buffer, update_component->target_path->buffer);
 
 	if (!_r_sys_runasadmin (update_component->cache_path->buffer, cmd_string->buffer, NULL))
 		_r_show_errormessage (NULL, NULL, PebLastError (), update_component->cache_path->buffer, FALSE);
