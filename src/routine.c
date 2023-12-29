@@ -14710,7 +14710,7 @@ NTSTATUS _r_res_loadimage (
 	_In_ LPCGUID format,
 	_In_ LONG width,
 	_In_ LONG height,
-	_Outptr_result_maybenull_ HBITMAP_PTR out_buffer
+	_Out_ HBITMAP_PTR out_buffer
 )
 {
 	WICPixelFormatGUID pixelFormat;
