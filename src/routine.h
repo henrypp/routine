@@ -2825,8 +2825,8 @@ HBITMAP _r_dc_bitmapfromicon (
 _Ret_maybenull_
 HICON _r_dc_bitmaptoicon (
 	_In_ HBITMAP hbitmap,
-	_In_ LONG x,
-	_In_ LONG y
+	_In_ LONG width,
+	_In_ LONG height
 );
 
 _Ret_maybenull_
@@ -4046,16 +4046,18 @@ FORCEINLINE VOID _r_ctrl_settextlimit (
 
 FORCEINLINE VOID _r_ctrl_settextmargin (
 	_In_ HWND hwnd,
-	_In_opt_ INT ctrl_id
+	_In_opt_ INT ctrl_id,
+	_In_ LONG left_margin,
+	_In_ LONG right_margin
 )
 {
 	if (ctrl_id)
 	{
-		SendDlgItemMessageW (hwnd, ctrl_id, EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN, 0);
+		SendDlgItemMessageW (hwnd, ctrl_id, EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN, MAKELPARAM (left_margin, right_margin));
 	}
 	else
 	{
-		SendMessageW (hwnd, EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN, 0);
+		SendMessageW (hwnd, EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN, MAKELPARAM (left_margin, right_margin));
 	}
 }
 
@@ -4135,29 +4137,50 @@ FORCEINLINE VOID _r_combobox_setitemlparam (
 
 FORCEINLINE VOID _r_edit_setcuebanner (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ LPCWSTR text
+	_In_opt_ INT ctrl_id,
+	_In_ LPCWSTR string
 )
 {
-	SendDlgItemMessageW (hwnd, ctrl_id, EM_SETCUEBANNER, FALSE, (LPARAM)text);
+	if (ctrl_id)
+	{
+		SendDlgItemMessageW (hwnd, ctrl_id, EM_SETCUEBANNER, FALSE, (LPARAM)string);
+	}
+	else
+	{
+		SendMessageW (hwnd, EM_SETCUEBANNER, FALSE, (LPARAM)string);
+	}
 }
 
 FORCEINLINE VOID _r_edit_setselection (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT selection
 )
 {
-	SendDlgItemMessageW (hwnd, ctrl_id, EM_SETSEL, 0, (LPARAM)selection);
+	if (ctrl_id)
+	{
+		SendDlgItemMessageW (hwnd, ctrl_id, EM_SETSEL, 0, (LPARAM)selection);
+	}
+	else
+	{
+		SendMessageW (hwnd, EM_SETSEL, 0, (LPARAM)selection);
+	}
 }
 
 FORCEINLINE VOID _r_edit_settextlimit (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ ULONG length
 )
 {
-	SendDlgItemMessageW (hwnd, ctrl_id, EM_LIMITTEXT, (WPARAM)length, 0);
+	if (ctrl_id)
+	{
+		SendDlgItemMessageW (hwnd, ctrl_id, EM_LIMITTEXT, (WPARAM)length, 0);
+	}
+	else
+	{
+		SendMessageW (hwnd, EM_LIMITTEXT, (WPARAM)length, 0);
+	}
 }
 
 //
