@@ -10991,8 +10991,8 @@ CleanupExit:
 _Ret_maybenull_
 HICON _r_dc_bitmaptoicon (
 	_In_ HBITMAP hbitmap,
-	_In_ LONG x,
-	_In_ LONG y
+	_In_ LONG width,
+	_In_ LONG height
 )
 {
 	ICONINFO icon_info = {0};
@@ -11005,7 +11005,7 @@ HICON _r_dc_bitmaptoicon (
 	if (!hdc)
 		return NULL;
 
-	hmask = CreateCompatibleBitmap (hdc, x, y);
+	hmask = CreateCompatibleBitmap (hdc, width, height);
 
 	if (!hmask)
 	{
