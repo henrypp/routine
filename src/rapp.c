@@ -2636,9 +2636,9 @@ VOID _r_update_navigate (
 	else
 	{
 #if defined(IDI_MAIN)
-		tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
+		tdc.pszMainIcon = MAKEINTRESOURCEW (IDI_MAIN);
 #else
-		tdc.pszMainIcon = MAKEINTRESOURCE (100);
+		tdc.pszMainIcon = MAKEINTRESOURCEW (100);
 #pragma PR_PRINT_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
 	}
@@ -3030,7 +3030,7 @@ VOID _r_show_aboutmessage (
 	td_buttons[1].nButtonID = IDCLOSE;
 
 #if defined(IDI_MAIN)
-	tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
+	tdc.pszMainIcon = MAKEINTRESOURCEW (IDI_MAIN);
 #else
 #pragma PR_PRINT_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
@@ -3245,7 +3245,7 @@ INT _r_show_message (
 	if ((flags & MB_ICONMASK) == MB_USERICON)
 	{
 #if defined(IDI_MAIN)
-		tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
+		tdc.pszMainIcon = MAKEINTRESOURCEW (IDI_MAIN);
 #else
 		tdc.pszMainIcon = TD_INFORMATION_ICON;
 #pragma PR_PRINT_WARNING(IDI_MAIN)
@@ -3487,7 +3487,7 @@ VOID _r_settings_createwindow (
 			if (!ptr_page->dlg_id)
 				continue;
 
-			status = _r_res_loadresource (_r_sys_getimagebase (), RT_DIALOG, MAKEINTRESOURCE (ptr_page->dlg_id), &dlg_buffer);
+			status = _r_res_loadresource (_r_sys_getimagebase (), RT_DIALOG, MAKEINTRESOURCEW (ptr_page->dlg_id), &dlg_buffer);
 
 			if (!NT_SUCCESS (status))
 				continue;
@@ -3712,8 +3712,8 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 			_r_wnd_seticon (
 				hwnd,
-				_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCE (IDI_MAIN), icon_small),
-				_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCE (IDI_MAIN), icon_large)
+				_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCEW (IDI_MAIN), icon_small),
+				_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCEW (IDI_MAIN), icon_large)
 			);
 #else
 #pragma PR_PRINT_WARNING(IDI_MAIN)
@@ -3732,7 +3732,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 				if (!ptr_page->dlg_id)
 					continue;
 
-				ptr_page->hwnd = _r_wnd_createwindow (_r_sys_getimagebase (), MAKEINTRESOURCE (ptr_page->dlg_id), hwnd, app_global.settings.wnd_proc, 0);
+				ptr_page->hwnd = _r_wnd_createwindow (_r_sys_getimagebase (), MAKEINTRESOURCEW (ptr_page->dlg_id), hwnd, app_global.settings.wnd_proc, 0);
 
 				if (!ptr_page->hwnd)
 					continue;

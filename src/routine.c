@@ -14906,7 +14906,7 @@ NTSTATUS _r_res_loadstring (
 	ULONG string_num;
 	NTSTATUS status;
 
-	status = _r_res_loadresource (hinst, RT_STRING, MAKEINTRESOURCE ((LOWORD (string_id) >> 4) + 1), &buffer);
+	status = _r_res_loadresource (hinst, RT_STRING, MAKEINTRESOURCEW ((LOWORD (string_id) >> 4) + 1), &buffer);
 
 	if (!NT_SUCCESS (status))
 	{
