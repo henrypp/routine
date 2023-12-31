@@ -4259,6 +4259,74 @@ FORCEINLINE VOID _r_menu_enableitem (
 }
 
 //
+// Control: up-down
+//
+
+_Ret_maybenull_
+FORCEINLINE HWND _r_updown_getbuddy (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id
+)
+{
+	if (ctrl_id)
+	{
+		return (HWND)SendDlgItemMessageW (hwnd, ctrl_id, UDM_GETBUDDY, 0, 0);
+	}
+	else
+	{
+		return (HWND)SendMessageW (hwnd, UDM_GETBUDDY, 0, 0);
+	}
+}
+
+FORCEINLINE LONG _r_updown_getvalue (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id
+)
+{
+	if (ctrl_id)
+	{
+		return (LONG)SendDlgItemMessageW (hwnd, ctrl_id, UDM_GETPOS32, 0, 0);
+	}
+	else
+	{
+		return (LONG)SendMessageW (hwnd, UDM_GETPOS32, 0, 0);
+	}
+}
+
+FORCEINLINE VOID _r_updown_setrange (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ LONG min_value,
+	_In_ LONG max_value
+)
+{
+	if (ctrl_id)
+	{
+		SendDlgItemMessageW (hwnd, ctrl_id, UDM_SETRANGE32, (WPARAM)min_value, (LPARAM)max_value);
+	}
+	else
+	{
+		SendMessageW (hwnd, UDM_SETRANGE32, (WPARAM)min_value, (LPARAM)max_value);
+	}
+}
+
+FORCEINLINE VOID _r_updown_setvalue (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ LONG value
+)
+{
+	if (ctrl_id)
+	{
+		SendDlgItemMessageW (hwnd, ctrl_id, UDM_SETPOS32, 0, (LPARAM)value);
+	}
+	else
+	{
+		SendMessageW (hwnd, UDM_SETPOS32, 0, (LPARAM)value);
+	}
+}
+
+//
 // Control: tab
 //
 
