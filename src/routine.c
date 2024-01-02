@@ -4755,14 +4755,15 @@ NTSTATUS _r_fs_getpos (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getsecurityinfo (
-	_In_ LPCWSTR path,
+	_In_opt_ HANDLE hfile,
+	_In_opt_ LPCWSTR path,
 	_Out_ PSECURITY_DESCRIPTOR_PTR out_sd,
 	_Out_ PACL_PTR  out_dacl
 )
 {
 	PSECURITY_DESCRIPTOR psd;
 	PACL pdacl = NULL;
-	HANDLE hfile;
+	HANDLE hfile_new = NULL;
 	ULONG buffer_length;
 	ULONG required_length;
 	BOOLEAN is_defaulted;
@@ -4770,7 +4771,15 @@ NTSTATUS _r_fs_getsecurityinfo (
 	BOOLEAN is_present;
 	NTSTATUS status;
 
-	status = _r_fs_openfile (path, FILE_GENERIC_READ, FILE_SHARE_READ, FALSE, &hfile);
+	if (!hfile && path)
+	{
+		status = _r_fs_openfile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, FALSE, &hfile_new);
+
+		if (!NT_SUCCESS (status))
+			return status;
+
+		hfile = hfile_new;
+	}
 
 	if (!NT_SUCCESS (status))
 		return status;
@@ -4808,7 +4817,8 @@ CleanupExit:
 		_r_mem_free (psd);
 	}
 
-	NtClose (hfile);
+	if (hfile_new)
+		NtClose (hfile_new);
 
 	return status;
 }
@@ -5528,7 +5538,7 @@ BOOLEAN _r_path_issecurelocation (
 	BOOLEAN is_writeable = FALSE;
 	NTSTATUS status;
 
-	status = _r_fs_getsecurityinfo (path, &security_descriptor, &dacl);
+	status = _r_fs_getsecurityinfo (NULL, path, &security_descriptor, &dacl);
 
 	if (!NT_SUCCESS (status))
 		return FALSE;
@@ -10662,6 +10672,7 @@ NTSTATUS _r_sys_setprocessprivilege (
 		}
 	}
 
+	// can be STATUS_NOT_ALL_ASSIGNED
 	status = NtAdjustPrivilegesToken (token_handle, FALSE, token_privileges, 0, NULL, NULL);
 
 	_r_mem_free (privileges_buffer);
