@@ -9913,6 +9913,66 @@ NTSTATUS _r_sys_getprocessimagepath (
 	return status;
 }
 
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_getprocessimagepathbyid (
+	_In_ HANDLE hprocess_id,
+	_In_ BOOLEAN is_ntpathtodos,
+	_Out_ PR_STRING_PTR out_buffer
+)
+{
+	SYSTEM_PROCESS_ID_INFORMATION data = {0};
+	PR_STRING path;
+	NTSTATUS status;
+
+	// On input, specify the PID and a buffer to hold the string.
+	data.ProcessId = hprocess_id;
+	data.ImageName.MaximumLength = 0x100;
+	data.ImageName.Buffer = _r_mem_allocate (data.ImageName.MaximumLength);
+
+	do
+	{
+		status = NtQuerySystemInformation (SystemProcessIdInformation, &data, sizeof (SYSTEM_PROCESS_ID_INFORMATION), NULL);
+
+		if (NT_SUCCESS (status))
+		{
+			break;
+		}
+		else
+		{
+			data.ImageName.MaximumLength *= 2;
+
+			data.ImageName.Buffer = _r_mem_reallocate (data.ImageName.Buffer, data.ImageName.MaximumLength);
+		}
+
+		// Repeat using the correct value the system put into MaximumLength
+	}
+	while (status == STATUS_INFO_LENGTH_MISMATCH);
+
+	if (NT_SUCCESS (status))
+	{
+		path = _r_obj_createstring4 (&data.ImageName);
+
+		if (is_ntpathtodos)
+		{
+			*out_buffer = _r_path_dospathfromnt (path);
+
+			_r_obj_dereference (path);
+		}
+		else
+		{
+			*out_buffer = path;
+		}
+	}
+	else
+	{
+		*out_buffer = NULL;
+	}
+
+	_r_mem_free (data.ImageName.Buffer);
+
+	return status;
+}
+
 _Success_ (SUCCEEDED (return))
 HRESULT _r_sys_loadicon (
 	_In_opt_ PVOID hinst,

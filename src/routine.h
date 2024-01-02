@@ -2605,6 +2605,13 @@ NTSTATUS _r_sys_getprocessimagepath (
 	_Out_ PR_STRING_PTR out_buffer
 );
 
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_getprocessimagepathbyid (
+	_In_ HANDLE hprocess_id,
+	_In_ BOOLEAN is_ntpathtodos,
+	_Out_ PR_STRING_PTR out_buffer
+);
+
 _Success_ (SUCCEEDED (return))
 HRESULT _r_sys_loadicon (
 	_In_opt_ PVOID hinst,
