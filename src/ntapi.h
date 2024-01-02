@@ -2966,10 +2966,14 @@ typedef VOID (NTAPI *PIO_APC_ROUTINE)(
 #define LDR_DATAFILE_TO_MAPPEDVIEW(DllHandle) ((PVOID)(((ULONG_PTR)(DllHandle)) & ~(ULONG_PTR)1))
 #define LDR_IMAGEMAPPING_TO_MAPPEDVIEW(DllHandle) ((PVOID)(((ULONG_PTR)(DllHandle)) & ~(ULONG_PTR)2))
 
-//
-// nt functions
-//
-
+#define EFI_VARIABLE_NON_VOLATILE 0x00000001
+#define EFI_VARIABLE_BOOTSERVICE_ACCESS 0x00000002
+#define EFI_VARIABLE_RUNTIME_ACCESS 0x00000004
+#define EFI_VARIABLE_HARDWARE_ERROR_RECORD 0x00000008
+#define EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS 0x00000010
+#define EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS 0x00000020
+#define EFI_VARIABLE_APPEND_WRITE 0x00000040
+#define EFI_VARIABLE_ENHANCED_AUTHENTICATED_ACCESS 0x00000080
 
 typedef struct
 {
@@ -3177,6 +3181,10 @@ typedef union _GUID_EX
 		ULONG Part96;
 	} s2;
 } GUID_EX, *PGUID_EX;
+
+//
+// nt functions
+//
 
 EXTERN_C_START
 
@@ -3627,6 +3635,47 @@ NtDelayExecution (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
+NtQuerySystemEnvironmentValue (
+	_In_ PUNICODE_STRING VariableName,
+	_Out_writes_bytes_ (ValueLength) PWSTR VariableValue,
+	_In_ USHORT ValueLength,
+	_Out_opt_ PUSHORT ReturnLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtQuerySystemEnvironmentValueEx (
+	_In_ PUNICODE_STRING VariableName,
+	_In_ LPCGUID VendorGuid,
+	_Out_writes_bytes_opt_ (*ValueLength) PVOID Value,
+	_Inout_ PULONG ValueLength,
+	_Out_opt_ PULONG Attributes // EFI_VARIABLE_*
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtSetSystemEnvironmentValueEx (
+	_In_ PUNICODE_STRING VariableName,
+	_In_ LPCGUID VendorGuid,
+	_In_reads_bytes_opt_ (ValueLength) PVOID Value,
+	_In_ ULONG ValueLength, // 0 = delete variable
+	_In_ ULONG Attributes // EFI_VARIABLE_*
+);
+
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtSetSystemEnvironmentValue (
+	_In_ PUNICODE_STRING VariableName,
+	_In_ PUNICODE_STRING VariableValue
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
 NtQueryObject (
 	_In_opt_ HANDLE Handle,
 	_In_ OBJECT_INFORMATION_CLASS ObjectInformationClass,
@@ -3958,6 +4007,38 @@ NtCreateDirectoryObject (
 	_Out_ PHANDLE DirectoryHandle,
 	_In_ ACCESS_MASK DesiredAccess,
 	_In_ POBJECT_ATTRIBUTES ObjectAttributes
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtDeviceIoControlFile (
+	_In_ HANDLE FileHandle,
+	_In_opt_ HANDLE Event,
+	_In_opt_ PIO_APC_ROUTINE ApcRoutine,
+	_In_opt_ PVOID ApcContext,
+	_Out_ PIO_STATUS_BLOCK IoStatusBlock,
+	_In_ ULONG IoControlCode,
+	_In_reads_bytes_opt_ (InputBufferLength) PVOID InputBuffer,
+	_In_ ULONG InputBufferLength,
+	_Out_writes_bytes_opt_ (OutputBufferLength) PVOID OutputBuffer,
+	_In_ ULONG OutputBufferLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtFsControlFile (
+	_In_ HANDLE FileHandle,
+	_In_opt_ HANDLE Event,
+	_In_opt_ PIO_APC_ROUTINE ApcRoutine,
+	_In_opt_ PVOID ApcContext,
+	_Out_ PIO_STATUS_BLOCK IoStatusBlock,
+	_In_ ULONG FsControlCode,
+	_In_reads_bytes_opt_ (InputBufferLength) PVOID InputBuffer,
+	_In_ ULONG InputBufferLength,
+	_Out_writes_bytes_opt_ (OutputBufferLength) PVOID OutputBuffer,
+	_In_ ULONG OutputBufferLength
 );
 
 NTSYSCALLAPI
@@ -4795,6 +4876,17 @@ NTSTATUS
 NTAPI
 NtWaitForSingleObject (
 	_In_ HANDLE Handle,
+	_In_ BOOLEAN Alertable,
+	_In_opt_ PLARGE_INTEGER Timeout
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtWaitForMultipleObjects (
+	_In_ ULONG Count,
+	_In_reads_ (Count) HANDLE Handles[],
+	_In_ WAIT_TYPE WaitType,
 	_In_ BOOLEAN Alertable,
 	_In_opt_ PLARGE_INTEGER Timeout
 );
