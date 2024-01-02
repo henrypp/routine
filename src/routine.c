@@ -4592,7 +4592,8 @@ PR_STRING _r_fs_getcurrentdirectory ()
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getdiskinformation (
-	_In_ LPCWSTR path,
+	_In_opt_ HANDLE hfile,
+	_In_opt_ LPCWSTR path,
 	_Out_opt_ PR_STRING_PTR label_ptr,
 	_Out_opt_ PR_STRING_PTR filesystem_ptr,
 	_Out_opt_ PULONG flags_ptr,
@@ -4602,14 +4603,22 @@ NTSTATUS _r_fs_getdiskinformation (
 	PFILE_FS_ATTRIBUTE_INFORMATION attribute_info;
 	PFILE_FS_VOLUME_INFORMATION volume_info;
 	IO_STATUS_BLOCK isb;
+	HANDLE hfile_new = NULL;
 	ULONG length;
-	HANDLE hfile;
 	NTSTATUS status;
 
-	status = _r_fs_openfile (path, FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, TRUE, &hfile);
+	if (!hfile && !path)
+		return STATUS_INVALID_PARAMETER;
 
-	if (!NT_SUCCESS (status))
-		return status;
+	if (!hfile && path)
+	{
+		status = _r_fs_openfile (path, FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, TRUE, &hfile_new);
+
+		if (!NT_SUCCESS (status))
+			return status;
+
+		hfile = hfile_new;
+	}
 
 	length = sizeof (FILE_FS_VOLUME_INFORMATION) + 512 * sizeof (WCHAR);
 	volume_info = _r_mem_allocate (length);
@@ -4657,7 +4666,8 @@ NTSTATUS _r_fs_getdiskinformation (
 
 	_r_mem_free (attribute_info);
 
-	NtClose (hfile);
+	if (hfile_new)
+		NtClose (hfile_new);
 
 	return status;
 }
@@ -4685,25 +4695,29 @@ NTSTATUS _r_fs_getdisklist (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getdiskspace (
-	_In_ LPCWSTR path,
+	_In_opt_ HANDLE hfile,
+	_In_opt_ LPCWSTR path,
 	_Out_ PLARGE_INTEGER freespace_ptr,
 	_Out_ PLARGE_INTEGER totalspace_ptr
 )
 {
 	FILE_FS_SIZE_INFORMATION info = {0};
 	IO_STATUS_BLOCK isb;
-	HANDLE hfile;
+	HANDLE hfile_new = NULL;
 	ULONG units;
 	NTSTATUS status;
 
-	status = _r_fs_openfile (path, FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, TRUE, &hfile);
+	if (!hfile && !path)
+		return STATUS_INVALID_PARAMETER;
 
-	if (!NT_SUCCESS (status))
+	if (!hfile && path)
 	{
-		RtlZeroMemory (freespace_ptr, sizeof (LARGE_INTEGER));
-		RtlZeroMemory (totalspace_ptr, sizeof (LARGE_INTEGER));
+		status = _r_fs_openfile (path, FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, TRUE, &hfile_new);
 
-		return status;
+		if (!NT_SUCCESS (status))
+			return status;
+
+		hfile = hfile_new;
 	}
 
 	status = NtQueryVolumeInformationFile (hfile, &isb, &info, sizeof (info), FileFsSizeInformation);
@@ -4724,7 +4738,8 @@ NTSTATUS _r_fs_getdiskspace (
 		RtlZeroMemory (totalspace_ptr, sizeof (LARGE_INTEGER));
 	}
 
-	NtClose (hfile);
+	if (hfile_new)
+		NtClose (hfile_new);
 
 	return status;
 }
@@ -4771,6 +4786,9 @@ NTSTATUS _r_fs_getsecurityinfo (
 	BOOLEAN is_present;
 	NTSTATUS status;
 
+	if (!hfile && !path)
+		return STATUS_INVALID_PARAMETER;
+
 	if (!hfile && path)
 	{
 		status = _r_fs_openfile (path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, FALSE, &hfile_new);
@@ -4780,9 +4798,6 @@ NTSTATUS _r_fs_getsecurityinfo (
 
 		hfile = hfile_new;
 	}
-
-	if (!NT_SUCCESS (status))
-		return status;
 
 	buffer_length = 0x100;
 	psd = _r_mem_allocate (buffer_length);

@@ -1739,7 +1739,8 @@ PR_STRING _r_fs_getcurrentdirectory ();
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getdiskinformation (
-	_In_ LPCWSTR path,
+	_In_opt_ HANDLE hfile,
+	_In_opt_ LPCWSTR path,
 	_Out_opt_ PR_STRING_PTR label_ptr,
 	_Out_opt_ PR_STRING_PTR filesystem_ptr,
 	_Out_opt_ PULONG flags_ptr,
@@ -1753,7 +1754,8 @@ NTSTATUS _r_fs_getdisklist (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getdiskspace (
-	_In_ LPCWSTR path,
+	_In_opt_ HANDLE hfile,
+	_In_opt_ LPCWSTR path,
 	_Out_ PLARGE_INTEGER freespace_ptr,
 	_Out_ PLARGE_INTEGER totalspace_ptr
 );
