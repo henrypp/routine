@@ -9871,48 +9871,44 @@ NTSTATUS _r_sys_getprocessimagepath (
 	_Out_ PR_STRING_PTR out_buffer
 )
 {
-	SYSTEM_PROCESS_ID_INFORMATION data = {0};
-	PR_STRING path;
+	PUNICODE_STRING filename_nt;
+	ULONG return_length;
+	ULONG buffer_length;
 	NTSTATUS status;
 
-	// On input, specify the PID and a buffer to hold the string.
-	data.ProcessId = hprocess;
-	data.ImageName.MaximumLength = 0x200;
+	buffer_length = sizeof (UNICODE_STRING) + 0x100;
+	filename_nt = _r_mem_allocate (buffer_length);
 
-	do
+	status = NtQueryInformationProcess (hprocess, is_ntpathtodos ? ProcessImageFileNameWin32 : ProcessImageFileName, filename_nt, buffer_length, &return_length);
+
+	if (status == STATUS_INFO_LENGTH_MISMATCH)
 	{
-		data.ImageName.Buffer = _r_mem_allocate (data.ImageName.MaximumLength);
+		buffer_length = return_length;
+		filename_nt = _r_mem_reallocate (filename_nt, buffer_length);
 
-		status = NtQuerySystemInformation (SystemProcessIdInformation, &data, sizeof (SYSTEM_PROCESS_ID_INFORMATION), NULL);
-
-		if (!NT_SUCCESS (status))
-			_r_mem_free (data.ImageName.Buffer);
-
-		// Repeat using the correct value the system put into MaximumLength
+		status = NtQueryInformationProcess (hprocess, is_ntpathtodos ? ProcessImageFileNameWin32 : ProcessImageFileName, filename_nt, buffer_length, &return_length);
 	}
-	while (status == STATUS_INFO_LENGTH_MISMATCH);
 
 	if (NT_SUCCESS (status))
 	{
-		path = _r_obj_createstring4 (&data.ImageName);
-
-		if (is_ntpathtodos)
+		// Note: Some minimal/pico processes have UNICODE_NULL as their filename. (dmex)
+		if (filename_nt->Length == 0)
 		{
-			*out_buffer = _r_path_dospathfromnt (path);
+			_r_mem_free (filename_nt);
 
-			_r_obj_dereference (path);
-		}
-		else
-		{
-			*out_buffer = path;
+			*out_buffer = NULL;
+
+			return STATUS_UNSUCCESSFUL;
 		}
 
-		_r_mem_free (data.ImageName.Buffer);
+		*out_buffer = _r_obj_createstring4 (filename_nt);
 	}
 	else
 	{
 		*out_buffer = NULL;
 	}
+
+	_r_mem_free (filename_nt);
 
 	return status;
 }
