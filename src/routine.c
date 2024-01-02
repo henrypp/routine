@@ -14837,7 +14837,7 @@ NTSTATUS _r_res_loadimage (
 			wicBitmapSource,
 			width,
 			height,
-			_r_sys_isosversiongreaterorequal (WINDOWS_10) ? WICBitmapInterpolationModeFant : WICBitmapInterpolationModeFant
+			_r_sys_isosversiongreaterorequal (WINDOWS_10) ? WICBitmapInterpolationModeHighQualityCubic : WICBitmapInterpolationModeFant
 		);
 
 		if (FAILED (status))
@@ -14846,13 +14846,7 @@ NTSTATUS _r_res_loadimage (
 		rect.Width = width;
 		rect.Height = height;
 
-		status = IWICBitmapScaler_CopyPixels (
-			wicScaler,
-			&rect,
-			width * sizeof (RGBQUAD),
-			width * height * sizeof (RGBQUAD),
-			(PBYTE)bitmap_buffer
-		);
+		status = IWICBitmapScaler_CopyPixels (wicScaler, &rect, width * sizeof (RGBQUAD), width * height * sizeof (RGBQUAD), bitmap_buffer);
 
 		if (FAILED (status))
 			goto CleanupExit;
