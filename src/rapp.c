@@ -3145,18 +3145,14 @@ NTSTATUS _r_show_errormessage (
 	_r_str_printf (
 		str_content,
 		RTL_NUMBER_OF (str_content),
-		L"%s\r\nStatus: %" TEXT (PR_LONG) " (0x%08" TEXT (PRIX32) L")",
+		L"Message:\r\n%s\r\nStatus:\r\n%" TEXT (PR_LONG) " (0x%08" TEXT (PRIX32) L")",
 		_r_obj_getstringordefault (string, L"n/a"),
 		error_code,
 		error_code
 	);
 
 	if (description)
-	{
-		_r_str_append (str_content, RTL_NUMBER_OF (str_content), L"\r\n\r\n");
-
-		_r_str_append (str_content, RTL_NUMBER_OF (str_content), description);
-	}
+		_r_str_appendformat (str_content, RTL_NUMBER_OF (str_content), L"\r\n\r\nDescription:\r\n%s", description);
 
 	path = _r_app_getcrashdirectory (FALSE);
 
