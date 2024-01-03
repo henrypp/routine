@@ -1681,9 +1681,9 @@ NTSTATUS _r_fs_createfile (
 	_In_ LPCWSTR path,
 	_In_ ULONG create_disposition,
 	_In_ ACCESS_MASK desired_access,
-	_In_ ULONG share_access,
+	_In_opt_ ULONG share_access,
 	_In_opt_ ULONG file_attributes,
-	_In_ ULONG create_option,
+	_In_opt_ ULONG create_option,
 	_In_ BOOLEAN is_directory,
 	_In_opt_ PLARGE_INTEGER allocation_size,
 	_Outptr_ PHANDLE out_buffer
@@ -1806,7 +1806,8 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_openfile (
 	_In_ LPCWSTR path,
 	_In_ ACCESS_MASK desired_access,
-	_In_ ULONG share_access,
+	_In_opt_ ULONG share_access,
+	_In_opt_ ULONG open_options,
 	_In_ BOOLEAN is_directory,
 	_Outptr_ PHANDLE out_buffer
 );
