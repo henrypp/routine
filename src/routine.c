@@ -4688,7 +4688,14 @@ NTSTATUS _r_fs_getdisklist (
 	// Get the Device Map for this Process
 	status = NtQueryInformationProcess (NtCurrentProcess (), ProcessDeviceMap, &device_map, sizeof (device_map), NULL);
 
-	*out_buffer = device_map.Query.DriveMap;
+	if (NT_SUCCESS (status))
+	{
+		*out_buffer = device_map.Query.DriveMap;
+	}
+	else
+	{
+		*out_buffer = 0;
+	}
 
 	return status;
 }
@@ -6856,7 +6863,7 @@ NTSTATUS _r_str_fromguid (
 
 	_r_obj_initializeunicodestring_ex (&us, buffer, 0, RTL_NUMBER_OF (buffer) * sizeof (WCHAR));
 
-	// win 8.1+
+	// win 81+
 	status = RtlStringFromGUIDEx (guid, &us, FALSE);
 
 	if (NT_SUCCESS (status))
@@ -10556,14 +10563,15 @@ NTSTATUS _r_sys_querytokeninformation (
 	return status;
 }
 
-VOID _r_sys_queryprocessenvironment (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_queryprocessenvironment (
 	_In_ HANDLE process_handle,
 	_Out_ PR_ENVIRONMENT environment
 )
 {
-	IO_PRIORITY_HINT io_priority = {0};
-	PROCESS_PRIORITY_CLASS priority_class = {0};
 	PAGE_PRIORITY_INFORMATION page_priority = {0};
+	PROCESS_PRIORITY_CLASS priority_class = {0};
+	IO_PRIORITY_HINT io_priority = {0};
 	NTSTATUS status;
 
 	// query base priority
@@ -10601,16 +10609,19 @@ VOID _r_sys_queryprocessenvironment (
 	{
 		environment->page_priority = MEMORY_PRIORITY_LOWEST;
 	}
+
+	return status;
 }
 
-VOID _r_sys_querythreadenvironment (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_querythreadenvironment (
 	_In_ HANDLE thread_handle,
 	_Out_ PR_ENVIRONMENT environment
 )
 {
-	KPRIORITY base_priority = 0;
-	IO_PRIORITY_HINT io_priority = {0};
 	PAGE_PRIORITY_INFORMATION page_priority = {0};
+	IO_PRIORITY_HINT io_priority = {0};
+	KPRIORITY base_priority = 0;
 	NTSTATUS status;
 
 	// query base priority
@@ -10648,6 +10659,8 @@ VOID _r_sys_querythreadenvironment (
 	{
 		environment->page_priority = MEMORY_PRIORITY_LOWEST;
 	}
+
+	return status;
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -10735,16 +10748,18 @@ NTSTATUS _r_sys_setenvironmentvariable (
 	return status;
 }
 
-VOID _r_sys_setprocessenvironment (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_setprocessenvironment (
 	_In_ HANDLE process_handle,
 	_In_ PR_ENVIRONMENT new_environment
 )
 {
-	R_ENVIRONMENT current_environment;
 	PROCESS_PRIORITY_CLASS_EX priority_class_ex = {0};
 	PAGE_PRIORITY_INFORMATION page_priority = {0};
 	PROCESS_PRIORITY_CLASS priority_class = {0};
+	R_ENVIRONMENT current_environment;
 	IO_PRIORITY_HINT io_priority;
+	NTSTATUS status;
 
 	_r_sys_queryprocessenvironment (process_handle, &current_environment);
 
@@ -10756,14 +10771,14 @@ VOID _r_sys_setprocessenvironment (
 			priority_class_ex.PriorityClass = (UCHAR)(new_environment->base_priority);
 			priority_class_ex.PriorityClassValid = TRUE;
 
-			NtSetInformationProcess (process_handle, ProcessPriorityClassEx, &priority_class_ex, sizeof (priority_class_ex));
+			status = NtSetInformationProcess (process_handle, ProcessPriorityClassEx, &priority_class_ex, sizeof (priority_class_ex));
 		}
 		else
 		{
 			priority_class.PriorityClass = (UCHAR)(new_environment->base_priority);
 			//priority_class.Foreground = FALSE;
 
-			NtSetInformationProcess (process_handle, ProcessPriorityClass, &priority_class, sizeof (priority_class));
+			status = NtSetInformationProcess (process_handle, ProcessPriorityClass, &priority_class, sizeof (priority_class));
 		}
 	}
 
@@ -10772,7 +10787,7 @@ VOID _r_sys_setprocessenvironment (
 	{
 		io_priority = new_environment->io_priority;
 
-		NtSetInformationProcess (process_handle, ProcessIoPriority, &io_priority, sizeof (io_priority));
+		status = NtSetInformationProcess (process_handle, ProcessIoPriority, &io_priority, sizeof (io_priority));
 	}
 
 	// set memory priority
@@ -10780,19 +10795,23 @@ VOID _r_sys_setprocessenvironment (
 	{
 		page_priority.PagePriority = new_environment->page_priority;
 
-		NtSetInformationProcess (process_handle, ProcessPagePriority, &page_priority, sizeof (page_priority));
+		status = NtSetInformationProcess (process_handle, ProcessPagePriority, &page_priority, sizeof (page_priority));
 	}
+
+	return status;
 }
 
-VOID _r_sys_setthreadenvironment (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_setthreadenvironment (
 	_In_ HANDLE thread_handle,
 	_In_ PR_ENVIRONMENT new_environment
 )
 {
-	R_ENVIRONMENT current_environment;
-	KPRIORITY base_priority;
-	IO_PRIORITY_HINT io_priority;
 	PAGE_PRIORITY_INFORMATION page_priority = {0};
+	R_ENVIRONMENT current_environment;
+	IO_PRIORITY_HINT io_priority;
+	KPRIORITY base_priority;
+	NTSTATUS status;
 
 	_r_sys_querythreadenvironment (thread_handle, &current_environment);
 
@@ -10801,7 +10820,7 @@ VOID _r_sys_setthreadenvironment (
 	{
 		base_priority = new_environment->base_priority;
 
-		NtSetInformationThread (thread_handle, ThreadBasePriority, &base_priority, sizeof (base_priority));
+		status = NtSetInformationThread (thread_handle, ThreadBasePriority, &base_priority, sizeof (base_priority));
 	}
 
 	// set i/o priority
@@ -10809,7 +10828,7 @@ VOID _r_sys_setthreadenvironment (
 	{
 		io_priority = new_environment->io_priority;
 
-		NtSetInformationThread (thread_handle, ThreadIoPriority, &io_priority, sizeof (io_priority));
+		status = NtSetInformationThread (thread_handle, ThreadIoPriority, &io_priority, sizeof (io_priority));
 	}
 
 	// set memory priority
@@ -10817,8 +10836,10 @@ VOID _r_sys_setthreadenvironment (
 	{
 		page_priority.PagePriority = new_environment->page_priority;
 
-		NtSetInformationThread (thread_handle, ThreadPagePriority, &page_priority, sizeof (page_priority));
+		status = NtSetInformationThread (thread_handle, ThreadPagePriority, &page_priority, sizeof (page_priority));
 	}
+
+	return status;
 }
 
 _Success_ (NT_SUCCESS (return))

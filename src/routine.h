@@ -2702,12 +2702,14 @@ NTSTATUS _r_sys_querytokeninformation (
 	_Out_ PVOID_PTR token_info
 );
 
-VOID _r_sys_queryprocessenvironment (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_queryprocessenvironment (
 	_In_ HANDLE process_handle,
 	_Out_ PR_ENVIRONMENT environment
 );
 
-VOID _r_sys_querythreadenvironment (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_querythreadenvironment (
 	_In_ HANDLE thread_handle,
 	_Out_ PR_ENVIRONMENT environment
 );
@@ -2733,12 +2735,14 @@ NTSTATUS _r_sys_setenvironmentvariable (
 	_In_opt_ PR_STRINGREF value_sr
 );
 
-VOID _r_sys_setprocessenvironment (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_setprocessenvironment (
 	_In_ HANDLE process_handle,
 	_In_ PR_ENVIRONMENT new_environment
 );
 
-VOID _r_sys_setthreadenvironment (
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_setthreadenvironment (
 	_In_ HANDLE thread_handle,
 	_In_ PR_ENVIRONMENT new_environment
 );
