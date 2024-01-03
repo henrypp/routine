@@ -4780,7 +4780,7 @@ NTSTATUS _r_fs_getsecurityinfo (
 	_In_opt_ HANDLE hfile,
 	_In_opt_ LPCWSTR path,
 	_Out_ PSECURITY_DESCRIPTOR_PTR out_sd,
-	_Out_ PACL_PTR  out_dacl
+	_Out_ PACL_PTR out_dacl
 )
 {
 	PSECURITY_DESCRIPTOR psd;
@@ -10759,7 +10759,7 @@ NTSTATUS _r_sys_setprocessenvironment (
 	PROCESS_PRIORITY_CLASS priority_class = {0};
 	R_ENVIRONMENT current_environment;
 	IO_PRIORITY_HINT io_priority;
-	NTSTATUS status;
+	NTSTATUS status = STATUS_UNSUCCESSFUL;
 
 	_r_sys_queryprocessenvironment (process_handle, &current_environment);
 
@@ -10811,7 +10811,7 @@ NTSTATUS _r_sys_setthreadenvironment (
 	R_ENVIRONMENT current_environment;
 	IO_PRIORITY_HINT io_priority;
 	KPRIORITY base_priority;
-	NTSTATUS status;
+	NTSTATUS status = STATUS_UNSUCCESSFUL;
 
 	_r_sys_querythreadenvironment (thread_handle, &current_environment);
 

@@ -1707,7 +1707,7 @@ NTSTATUS _r_fs_deletefile (
 	_In_opt_ HANDLE hfile
 );
 
-LONG  _r_fs_deleterecycle (
+LONG _r_fs_deleterecycle (
 	_In_ LPCWSTR path
 );
 
@@ -1771,7 +1771,7 @@ NTSTATUS _r_fs_getsecurityinfo (
 	_In_opt_ HANDLE hfile,
 	_In_opt_ LPCWSTR path,
 	_Out_ PSECURITY_DESCRIPTOR_PTR out_sd,
-	_Out_ PACL_PTR  out_dacl
+	_Out_ PACL_PTR out_dacl
 );
 
 _Success_ (NT_SUCCESS (return))

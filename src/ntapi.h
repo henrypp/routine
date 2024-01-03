@@ -945,7 +945,7 @@ typedef enum _KEY_VALUE_INFORMATION_CLASS
 	KeyValueFullInformation, // KEY_VALUE_FULL_INFORMATION
 	KeyValuePartialInformation, // KEY_VALUE_PARTIAL_INFORMATION
 	KeyValueFullInformationAlign64,
-	KeyValuePartialInformationAlign64,  // KEY_VALUE_PARTIAL_INFORMATION_ALIGN64
+	KeyValuePartialInformationAlign64, // KEY_VALUE_PARTIAL_INFORMATION_ALIGN64
 	KeyValueLayerInformation, // KEY_VALUE_LAYER_INFORMATION
 	MaxKeyValueInfoClass
 } KEY_VALUE_INFORMATION_CLASS;
@@ -992,7 +992,7 @@ typedef enum _FSINFOCLASS
 	FileFsSizeInformation, // q: FILE_FS_SIZE_INFORMATION
 	FileFsDeviceInformation, // q: FILE_FS_DEVICE_INFORMATION
 	FileFsAttributeInformation, // q: FILE_FS_ATTRIBUTE_INFORMATION
-	FileFsControlInformation, // q, s: FILE_FS_CONTROL_INFORMATION  (q: requires FILE_READ_DATA; s: requires FILE_WRITE_DATA to volume)
+	FileFsControlInformation, // q, s: FILE_FS_CONTROL_INFORMATION (q: requires FILE_READ_DATA; s: requires FILE_WRITE_DATA to volume)
 	FileFsFullSizeInformation, // q: FILE_FS_FULL_SIZE_INFORMATION
 	FileFsObjectIdInformation, // q; s: FILE_FS_OBJECTID_INFORMATION (s: requires FILE_WRITE_DATA to volume)
 	FileFsDriverPathInformation, // q: FILE_FS_DRIVER_PATH_INFORMATION
