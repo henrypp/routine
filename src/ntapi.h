@@ -3422,6 +3422,44 @@ NtQueryDefaultLocale (
 	_Inout_ PLCID DefaultLocaleId
 );
 
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlConvertLCIDToString (
+	_In_ LCID LcidValue,
+	_In_ ULONG Base,
+	_In_ ULONG Padding, // string is padded to this width
+	_Out_writes_ (Size) PWSTR pResultBuf,
+	_In_ ULONG Size
+);
+
+NTSYSAPI
+BOOLEAN
+NTAPI
+RtlIsValidLocaleName (
+	_In_ PCWSTR LocaleName,
+	_In_ ULONG Flags
+);
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlLcidToLocaleName (
+	_In_ LCID lcid, // sic
+	_Inout_ PUNICODE_STRING LocaleName,
+	_In_ ULONG Flags,
+	_In_ BOOLEAN AllocateDestinationString
+);
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlLocaleNameToLcid (
+	_In_ PCWSTR LocaleName,
+	_Out_ PLCID lcid,
+	_In_ ULONG Flags
+);
+
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -4861,6 +4899,13 @@ NTAPI
 NtSetEvent (
 	_In_ HANDLE EventHandle,
 	_Out_opt_ PLONG PreviousState
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtClearEvent (
+	_In_ HANDLE EventHandle
 );
 
 NTSYSCALLAPI
