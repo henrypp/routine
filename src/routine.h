@@ -1850,16 +1850,8 @@ NTSTATUS _r_fs_settimestamp (
 	_In_opt_ LPFILETIME write_time
 );
 
-_Success_ (return)
-FORCEINLINE BOOLEAN _r_fs_isvalidhandle (
-	_In_opt_ HANDLE handle
-)
-{
-	if (handle == NULL || handle == INVALID_HANDLE_VALUE)
-		return FALSE;
-
-	return TRUE;
-}
+#define _r_fs_isvalidhandle(handle) \
+    ((handle) != NULL && (handle) != INVALID_HANDLE_VALUE)
 
 //
 // Paths
@@ -2322,25 +2314,25 @@ VOID _r_str_toupper (
 VOID _r_str_trimstring (
 	_Inout_ PR_STRING string,
 	_In_ PR_STRINGREF charset,
-	_In_ ULONG flags
+	_In_opt_ ULONG flags
 );
 
 VOID _r_str_trimstring2 (
 	_Inout_ PR_STRING string,
 	_In_ LPWSTR charset,
-	_In_ ULONG flags
+	_In_opt_ ULONG flags
 );
 
 VOID _r_str_trimstringref (
 	_Inout_ PR_STRINGREF string,
 	_In_ PR_STRINGREF charset,
-	_In_ ULONG flags
+	_In_opt_ ULONG flags
 );
 
 VOID _r_str_trimstringref2 (
 	_Inout_ PR_STRINGREF string,
 	_In_ LPWSTR charset,
-	_In_ ULONG flags
+	_In_opt_ ULONG flags
 );
 
 _Success_ (NT_SUCCESS (return))

@@ -1746,7 +1746,7 @@ NTSTATUS NTAPI _r_workqueue_threadproc (
 	return STATUS_SUCCESS;
 }
 
-VOID _r_workqueue_queueitem (
+VOID NTAPI _r_workqueue_queueitem (
 	_Inout_ PR_WORKQUEUE work_queue,
 	_In_ PR_WORKQUEUE_FUNCTION function_address,
 	_In_opt_ PVOID context
@@ -7915,7 +7915,7 @@ VOID _r_str_toupper (
 VOID _r_str_trimstring (
 	_Inout_ PR_STRING string,
 	_In_ PR_STRINGREF charset,
-	_In_ ULONG flags
+	_In_opt_ ULONG flags
 )
 {
 	_r_str_trimstringref (&string->sr, charset, flags);
@@ -7926,7 +7926,7 @@ VOID _r_str_trimstring (
 VOID _r_str_trimstring2 (
 	_Inout_ PR_STRING string,
 	_In_ LPWSTR charset,
-	_In_ ULONG flags
+	_In_opt_ ULONG flags
 )
 {
 	_r_str_trimstringref2 (&string->sr, charset, flags);
@@ -7937,7 +7937,7 @@ VOID _r_str_trimstring2 (
 VOID _r_str_trimstringref (
 	_Inout_ PR_STRINGREF string,
 	_In_ PR_STRINGREF charset,
-	_In_ ULONG flags
+	_In_opt_ ULONG flags
 )
 {
 	LPCWSTR charset_buff;
@@ -8079,7 +8079,7 @@ CharFound2:
 VOID _r_str_trimstringref2 (
 	_Inout_ PR_STRINGREF string,
 	_In_ LPWSTR charset,
-	_In_ ULONG flags
+	_In_opt_ ULONG flags
 )
 {
 	R_STRINGREF sr;
