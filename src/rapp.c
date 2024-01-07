@@ -255,10 +255,10 @@ VOID _r_app_initialize_locale ()
 
 	_r_obj_clearreference (&app_global.locale.default_name);
 
-	status = _r_sys_getlocaleinfo (GetUserDefaultUILanguage (), LOCALE_SENGLISHLANGUAGENAME, &app_global.locale.default_name);
+	status = _r_sys_getlocaleinfo (LOCALE_NAME_USER_DEFAULT, LOCALE_SENGLISHLANGUAGENAME, &app_global.locale.default_name);
 
 	if (status != ERROR_SUCCESS)
-		_r_sys_getlocaleinfo (LOCALE_SYSTEM_DEFAULT, LOCALE_SENGLISHLANGUAGENAME, &app_global.locale.default_name);
+		_r_sys_getlocaleinfo (LOCALE_NAME_SYSTEM_DEFAULT, LOCALE_SENGLISHLANGUAGENAME, &app_global.locale.default_name);
 }
 #endif // !APP_CONSOLE
 
@@ -2236,7 +2236,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 	R_STRINGREF new_url_sr;
 	ULONG_PTR downloads_count = 0;
 	ULONG hash_code;
-	NTSTATUS status = STATUS_INVALID_PARAMETER;
+	NTSTATUS status;
 
 	update_info = arglist;
 
@@ -2254,6 +2254,8 @@ NTSTATUS NTAPI _r_update_checkthread (
 
 			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, TD_WARNING_ICON, NULL, str_content, STATUS_CANCELLED);
 		}
+
+		status = STATUS_INVALID_PARAMETER;
 
 		goto CleanupExit;
 	}
@@ -3151,7 +3153,7 @@ NTSTATUS _r_show_errormessage (
 		error_code
 	);
 
-	if (description)
+	if (!_r_str_isempty (description))
 		_r_str_appendformat (str_content, RTL_NUMBER_OF (str_content), L"\r\n\r\nDescription:\r\n%s", description);
 
 	path = _r_app_getcrashdirectory (FALSE);

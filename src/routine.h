@@ -2483,9 +2483,15 @@ NTSTATUS _r_sys_getbinarytype (
 
 PR_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ();
 
+LCID _r_sys_getlcid (
+	_In_ BOOLEAN is_userprofile
+);
+
+LCID _r_sys_getthreadlcid ();
+
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_sys_getlocaleinfo (
-	_In_ LCID locale_id,
+	_In_opt_ LPCWSTR locale_name,
 	_In_ LCTYPE locale_type,
 	_Out_ PR_STRING_PTR out_buffer
 );

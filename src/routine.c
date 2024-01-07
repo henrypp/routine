@@ -260,19 +260,18 @@ VOID _r_format_number (
 	static WCHAR decimal_separator[4] = {0};
 	static WCHAR thousand_separator[4] = {0};
 
-	NUMBERFMT number_format = {0};
-	WCHAR number_string[64];
-	LONG result;
+	NUMBERFMT nf = {0};
+	WCHAR string[64];
 
 	if (_r_initonce_begin (&init_once))
 	{
-		if (!GetLocaleInfoW (LOCALE_USER_DEFAULT, LOCALE_SDECIMAL, decimal_separator, RTL_NUMBER_OF (decimal_separator)))
+		if (!GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_SDECIMAL, decimal_separator, RTL_NUMBER_OF (decimal_separator)))
 		{
 			decimal_separator[0] = L'.';
 			decimal_separator[1] = UNICODE_NULL;
 		}
 
-		if (!GetLocaleInfoW (LOCALE_USER_DEFAULT, LOCALE_STHOUSAND, thousand_separator, RTL_NUMBER_OF (thousand_separator)))
+		if (!GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_STHOUSAND, thousand_separator, RTL_NUMBER_OF (thousand_separator)))
 		{
 			thousand_separator[0] = L',';
 			thousand_separator[1] = UNICODE_NULL;
@@ -281,17 +280,15 @@ VOID _r_format_number (
 		_r_initonce_end (&init_once);
 	}
 
-	number_format.Grouping = 3;
-	number_format.lpDecimalSep = decimal_separator;
-	number_format.lpThousandSep = thousand_separator;
-	number_format.NegativeOrder = 1;
+	nf.lpDecimalSep = decimal_separator;
+	nf.lpThousandSep = thousand_separator;
+	nf.NegativeOrder = 1;
+	nf.Grouping = 3;
 
-	_r_str_fromlong64 (number_string, RTL_NUMBER_OF (number_string), number);
+	_r_str_fromlong64 (string, RTL_NUMBER_OF (string), number);
 
-	result = GetNumberFormatW (LOCALE_USER_DEFAULT, 0, number_string, &number_format, buffer, buffer_size);
-
-	if (!result)
-		_r_str_copy (buffer, buffer_size, number_string);
+	if (!GetNumberFormatEx (LOCALE_NAME_USER_DEFAULT, 0, string, &nf, buffer, buffer_size))
+		_r_str_copy (buffer, buffer_size, string);
 }
 
 _Ret_maybenull_
@@ -8541,7 +8538,7 @@ NTSTATUS _r_sys_formatmessage (
 	PMESSAGE_RESOURCE_ENTRY entry;
 	PR_STRING string;
 	R_BYTEREF bytes;
-	LCID locale_id = LOCALE_SYSTEM_DEFAULT;
+	LCID locale_id;
 	NTSTATUS status;
 
 	status = RtlFindMessage (hinst, 11, lang_id, error_code, &entry);
@@ -8549,8 +8546,9 @@ NTSTATUS _r_sys_formatmessage (
 	// Try using the system LANGID.
 	if (!NT_SUCCESS (status))
 	{
-		if (NT_SUCCESS (NtQueryDefaultLocale (FALSE, &locale_id)))
-			status = RtlFindMessage (hinst, 11, locale_id, error_code, &entry);
+		locale_id = _r_sys_getlcid (FALSE);
+
+		status = RtlFindMessage (hinst, 11, locale_id, error_code, &entry);
 	}
 
 	// Try using U.S. English.
@@ -8728,9 +8726,36 @@ PR_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
 	return &attributes;
 }
 
+LCID _r_sys_getlcid (
+	_In_ BOOLEAN is_userprofile
+)
+{
+	LCID locale_id = is_userprofile ? LOCALE_USER_DEFAULT : LOCALE_SYSTEM_DEFAULT;
+	NTSTATUS status;
+
+	status = NtQueryDefaultLocale (is_userprofile, &locale_id);
+
+	if (NT_SUCCESS (status))
+		return locale_id;
+
+	return is_userprofile ? LOCALE_USER_DEFAULT : LOCALE_SYSTEM_DEFAULT;
+}
+
+LCID _r_sys_getthreadlcid ()
+{
+	PTEB teb;
+
+	teb = NtCurrentTeb ();
+
+	if (!teb->CurrentLocale)
+		teb->CurrentLocale = _r_sys_getlcid (TRUE);
+
+	return teb->CurrentLocale;
+}
+
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_sys_getlocaleinfo (
-	_In_ LCID locale_id,
+	_In_opt_ LPCWSTR locale_name,
 	_In_ LCTYPE locale_type,
 	_Out_ PR_STRING_PTR out_buffer
 )
@@ -8738,7 +8763,7 @@ ULONG _r_sys_getlocaleinfo (
 	PR_STRING string;
 	ULONG return_length;
 
-	return_length = GetLocaleInfoW (locale_id, locale_type, NULL, 0);
+	return_length = GetLocaleInfoEx (locale_name, locale_type, NULL, 0);
 
 	if (!return_length)
 	{
@@ -8749,12 +8774,11 @@ ULONG _r_sys_getlocaleinfo (
 
 	string = _r_obj_createstring_ex (NULL, return_length * sizeof (WCHAR) - sizeof (UNICODE_NULL));
 
-	return_length = GetLocaleInfoW (locale_id, locale_type, string->buffer, return_length);
+	return_length = GetLocaleInfoEx (locale_name, locale_type, string->buffer, return_length);
 
 	if (return_length)
 	{
 		*out_buffer = string;
-
 	}
 	else
 	{
