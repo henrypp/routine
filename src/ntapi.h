@@ -108,6 +108,10 @@
 #define OBJ_NAME_PATH_SEPARATOR L'\\'
 #endif // !OBJ_NAME_PATH_SEPARATOR
 
+#if !defined(OBJ_NAME_ALTPATH_SEPARATOR)
+#define OBJ_NAME_ALTPATH_SEPARATOR L'/'
+#endif // !OBJ_NAME_ALTPATH_SEPARATOR
+
 //
 // Undocumented codes
 //
@@ -3422,7 +3426,7 @@ NtQueryDefaultLocale (
 	_Inout_ PLCID DefaultLocaleId
 );
 
-NTSYSAPI
+NTSYSCALLAPI
 NTSTATUS
 NTAPI
 RtlConvertLCIDToString (
@@ -3433,7 +3437,7 @@ RtlConvertLCIDToString (
 	_In_ ULONG Size
 );
 
-NTSYSAPI
+NTSYSCALLAPI
 BOOLEAN
 NTAPI
 RtlIsValidLocaleName (
@@ -3441,7 +3445,7 @@ RtlIsValidLocaleName (
 	_In_ ULONG Flags
 );
 
-NTSYSAPI
+NTSYSCALLAPI
 NTSTATUS
 NTAPI
 RtlLcidToLocaleName (
@@ -3451,13 +3455,53 @@ RtlLcidToLocaleName (
 	_In_ BOOLEAN AllocateDestinationString
 );
 
-NTSYSAPI
+NTSYSCALLAPI
 NTSTATUS
 NTAPI
 RtlLocaleNameToLcid (
 	_In_ PCWSTR LocaleName,
 	_Out_ PLCID lcid,
 	_In_ ULONG Flags
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlpGetSystemDefaultUILanguage (
+	_Out_ LANGID DefaultUILanguageId,
+	_Inout_ PLCID Lcid
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlGetUserPreferredUILanguages (
+	_In_ ULONG Flags, // MUI_LANGUAGE_NAME
+	_In_ PCWSTR LocaleName,
+	_Out_ PULONG NumberOfLanguages,
+	_Out_writes_opt_ (*ReturnLength) PZZWSTR Languages,
+	_Inout_ PULONG ReturnLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlGetUILanguageInfo (
+	_In_ ULONG Flags,
+	_In_ PCZZWSTR Languages,
+	_Out_writes_opt_ (*NumberOfFallbackLanguages) PZZWSTR FallbackLanguages,
+	_Inout_opt_ PULONG NumberOfFallbackLanguages,
+	_Out_ PULONG Attributes
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlGetLocaleFileMappingAddress (
+	_Out_ PVOID * BaseAddress,
+	_Out_ PLCID DefaultLocaleId,
+	_Out_ PLARGE_INTEGER DefaultCasingTableSize,
+	_Out_opt_ PULONG CurrentNLSVersion
 );
 
 NTSYSCALLAPI
