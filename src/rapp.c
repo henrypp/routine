@@ -199,8 +199,7 @@ BOOLEAN _r_app_initialize_com ()
 VOID _r_app_initialize_components ()
 {
 	// set locale information
-	if (app_global.locale.default_name)
-		_r_obj_dereference (app_global.locale.default_name);
+	_r_obj_clearreference (&app_global.locale.default_name);
 
 	app_global.locale.resource_name = _r_obj_createstring (APP_LANGUAGE_DEFAULT);
 
@@ -251,14 +250,22 @@ VOID _r_app_initialize_dll ()
 #if !defined(APP_CONSOLE)
 VOID _r_app_initialize_locale ()
 {
-	ULONG status;
+	PR_STRING locale;
+	PR_STRING string;
 
 	_r_obj_clearreference (&app_global.locale.default_name);
 
-	status = _r_sys_getlocaleinfo (LOCALE_NAME_USER_DEFAULT, LOCALE_SENGLISHLANGUAGENAME, &app_global.locale.default_name);
+	_r_locale_lcidtoname (_r_locale_getlcid (TRUE), &locale);
 
-	if (status != ERROR_SUCCESS)
-		_r_sys_getlocaleinfo (LOCALE_NAME_SYSTEM_DEFAULT, LOCALE_SENGLISHLANGUAGENAME, &app_global.locale.default_name);
+	string = _r_locale_getinfo (_r_obj_getstring (locale), LOCALE_SENGLISHLANGUAGENAME);
+
+	if (!string)
+		string = _r_locale_getinfo (LOCALE_NAME_SYSTEM_DEFAULT, LOCALE_SENGLISHLANGUAGENAME);
+
+	app_global.locale.default_name = string;
+
+	if (locale)
+		_r_obj_dereference (locale);
 }
 #endif // !APP_CONSOLE
 
