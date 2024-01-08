@@ -1962,6 +1962,25 @@ NTSTATUS _r_path_search (
 );
 
 //
+// Locale
+//
+
+_Ret_maybenull_
+PR_STRING _r_locale_getinfo (
+	_In_opt_ LPCWSTR locale_name,
+	_In_ LCTYPE locale_type
+);
+
+LCID _r_locale_getlcid (
+	_In_ BOOLEAN is_userprofile
+);
+
+NTSTATUS _r_locale_lcidtoname (
+	_In_ LCID lcid,
+	_Out_ PR_STRING_PTR out_buffer
+);
+
+//
 // Shell
 //
 
@@ -2482,19 +2501,6 @@ NTSTATUS _r_sys_getbinarytype (
 );
 
 PR_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ();
-
-LCID _r_sys_getlcid (
-	_In_ BOOLEAN is_userprofile
-);
-
-LCID _r_sys_getthreadlcid ();
-
-_Success_ (return == ERROR_SUCCESS)
-ULONG _r_sys_getlocaleinfo (
-	_In_opt_ LPCWSTR locale_name,
-	_In_ LCTYPE locale_type,
-	_Out_ PR_STRING_PTR out_buffer
-);
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getmemoryinfo (

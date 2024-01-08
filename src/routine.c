@@ -6444,6 +6444,76 @@ NTSTATUS _r_path_search (
 }
 
 //
+// Locale
+//
+
+_Ret_maybenull_
+PR_STRING _r_locale_getinfo (
+	_In_opt_ LPCWSTR locale_name,
+	_In_ LCTYPE locale_type
+)
+{
+	PR_STRING string;
+	ULONG return_length;
+
+	return_length = GetLocaleInfoEx (locale_name, locale_type, NULL, 0);
+
+	if (!return_length)
+		return NULL;
+
+	string = _r_obj_createstring_ex (NULL, return_length * sizeof (WCHAR) - sizeof (UNICODE_NULL));
+
+	return_length = GetLocaleInfoEx (locale_name, locale_type, string->buffer, return_length);
+
+	if (return_length)
+		return string;
+
+	_r_obj_dereference (string);
+
+	return NULL;
+}
+
+LCID _r_locale_getlcid (
+	_In_ BOOLEAN is_userprofile
+)
+{
+	LCID locale_id = is_userprofile ? LOCALE_USER_DEFAULT : LOCALE_SYSTEM_DEFAULT;
+	NTSTATUS status;
+
+	status = NtQueryDefaultLocale (is_userprofile, &locale_id);
+
+	if (NT_SUCCESS (status))
+		return locale_id;
+
+	return is_userprofile ? LOCALE_USER_DEFAULT : LOCALE_SYSTEM_DEFAULT;
+}
+
+NTSTATUS _r_locale_lcidtoname (
+	_In_ LCID lcid,
+	_Out_ PR_STRING_PTR out_buffer
+)
+{
+	WCHAR locale_name[LOCALE_NAME_MAX_LENGTH] = {0};
+	UNICODE_STRING us = {0};
+	NTSTATUS status;
+
+	_r_obj_initializeunicodestring_ex (&us, locale_name, 0, sizeof (locale_name));
+
+	status = RtlLcidToLocaleName (lcid, &us, 0, FALSE);
+
+	if (NT_SUCCESS (status))
+	{
+		*out_buffer = _r_obj_createstring4 (&us);
+	}
+	else
+	{
+		*out_buffer = NULL;
+	}
+
+	return status;
+}
+
+//
 // Shell
 //
 
@@ -6521,7 +6591,7 @@ INT _r_str_compare (
 	len_1 = length1 ? (INT)length1 : -1;
 	len_2 = length2 ? (INT)length2 : -1;
 
-	result = CompareStringEx (LOCALE_NAME_SYSTEM_DEFAULT, NORM_IGNORECASE, string1, len_1, string2, len_2, NULL, NULL, 0);
+	result = CompareStringEx (LOCALE_NAME_USER_DEFAULT, NORM_IGNORECASE, string1, len_1, string2, len_2, NULL, NULL, 0);
 
 	return result - CSTR_EQUAL;
 }
@@ -8546,7 +8616,7 @@ NTSTATUS _r_sys_formatmessage (
 	// Try using the system LANGID.
 	if (!NT_SUCCESS (status))
 	{
-		locale_id = _r_sys_getlcid (FALSE);
+		locale_id = _r_locale_getlcid (FALSE);
 
 		status = RtlFindMessage (hinst, 11, locale_id, error_code, &entry);
 	}
@@ -8724,72 +8794,6 @@ PR_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
 	}
 
 	return &attributes;
-}
-
-LCID _r_sys_getlcid (
-	_In_ BOOLEAN is_userprofile
-)
-{
-	LCID locale_id = is_userprofile ? LOCALE_USER_DEFAULT : LOCALE_SYSTEM_DEFAULT;
-	NTSTATUS status;
-
-	status = NtQueryDefaultLocale (is_userprofile, &locale_id);
-
-	if (NT_SUCCESS (status))
-		return locale_id;
-
-	return is_userprofile ? LOCALE_USER_DEFAULT : LOCALE_SYSTEM_DEFAULT;
-}
-
-LCID _r_sys_getthreadlcid ()
-{
-	PTEB teb;
-
-	teb = NtCurrentTeb ();
-
-	if (!teb->CurrentLocale)
-		teb->CurrentLocale = _r_sys_getlcid (TRUE);
-
-	return teb->CurrentLocale;
-}
-
-_Success_ (return == ERROR_SUCCESS)
-ULONG _r_sys_getlocaleinfo (
-	_In_opt_ LPCWSTR locale_name,
-	_In_ LCTYPE locale_type,
-	_Out_ PR_STRING_PTR out_buffer
-)
-{
-	PR_STRING string;
-	ULONG return_length;
-
-	return_length = GetLocaleInfoEx (locale_name, locale_type, NULL, 0);
-
-	if (!return_length)
-	{
-		*out_buffer = NULL;
-
-		return PebLastError ();
-	}
-
-	string = _r_obj_createstring_ex (NULL, return_length * sizeof (WCHAR) - sizeof (UNICODE_NULL));
-
-	return_length = GetLocaleInfoEx (locale_name, locale_type, string->buffer, return_length);
-
-	if (return_length)
-	{
-		*out_buffer = string;
-	}
-	else
-	{
-		*out_buffer = NULL;
-
-		_r_obj_dereference (string);
-
-		return PebLastError ();
-	}
-
-	return ERROR_SUCCESS;
 }
 
 _Success_ (NT_SUCCESS (return))
