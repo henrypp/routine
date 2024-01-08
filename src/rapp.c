@@ -250,22 +250,16 @@ VOID _r_app_initialize_dll ()
 #if !defined(APP_CONSOLE)
 VOID _r_app_initialize_locale ()
 {
-	PR_STRING locale;
 	PR_STRING string;
 
 	_r_obj_clearreference (&app_global.locale.default_name);
 
-	_r_locale_lcidtoname (_r_locale_getlcid (TRUE), &locale);
-
-	string = _r_locale_getinfo (_r_obj_getstring (locale), LOCALE_SENGLISHLANGUAGENAME);
+	string = _r_locale_getinfo (LOCALE_NAME_USER_DEFAULT, LOCALE_SENGLISHLANGUAGENAME);
 
 	if (!string)
 		string = _r_locale_getinfo (LOCALE_NAME_SYSTEM_DEFAULT, LOCALE_SENGLISHLANGUAGENAME);
 
 	app_global.locale.default_name = string;
-
-	if (locale)
-		_r_obj_dereference (locale);
 }
 #endif // !APP_CONSOLE
 
