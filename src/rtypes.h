@@ -167,8 +167,8 @@ C_ASSERT (sizeof (R_EVENT) == sizeof (ULONG_PTR) + sizeof (HANDLE));
 // Synchronization: One-time initialization
 //
 
-#define R_INITONCE RTL_RUN_ONCE
-#define PR_INITONCE PRTL_RUN_ONCE
+typedef RTL_RUN_ONCE R_INITONCE;
+typedef PRTL_RUN_ONCE PR_INITONCE;
 
 #define PR_INITONCE_INIT RTL_RUN_ONCE_INIT
 
