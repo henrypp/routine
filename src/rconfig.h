@@ -1,7 +1,7 @@
 // routine.c
 // project sdk library
 //
-// Copyright (c) 2012-2023 Henry++
+// Copyright (c) 2012-2024 Henry++
 
 #pragma once
 
@@ -87,11 +87,7 @@
 #if defined(APP_UPDATE_PERIOD)
 #pragma PR_PRINT_WARNING_DEFINE(APP_UPDATE_PERIOD)
 #else
-#if defined(_DEBUG) || defined(APP_BETA)
-#define APP_UPDATE_PERIOD 1
-#else
-#define APP_UPDATE_PERIOD 7
-#endif // _APP_BETA || _APP_BETA_RC
+#define APP_UPDATE_PERIOD 4
 #endif // APP_UPDATE_PERIOD
 
 // error tray balloon period (in seconds)
