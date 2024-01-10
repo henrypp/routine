@@ -4218,16 +4218,19 @@ NTSTATUS _r_fs_copyfile (
 	return status;
 }
 
-VOID NTAPI _r_fs_recursivedirectorydelete_callback (
-	_In_ LPCWSTR path,
-	_In_ PFILE_DIRECTORY_INFORMATION directory_info
+BOOLEAN NTAPI _r_fs_recursivedirectorydelete_callback (
+	_In_ PR_STRING path,
+	_In_ ULONG attributes,
+	_In_ PLARGE_INTEGER creation_time,
+	_In_ PLARGE_INTEGER lastwrite_time,
+	_In_opt_ PVOID context
 )
 {
 	PR_STRING string;
 
-	string = _r_format_string (L"\\\\?\\%s", path);
+	string = _r_format_string (L"\\\\.\\%s", path->buffer);
 
-	if (directory_info->FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+	if (attributes & FILE_ATTRIBUTE_DIRECTORY)
 	{
 		_r_fs_deletedirectory (string->buffer, TRUE);
 	}
@@ -4237,6 +4240,8 @@ VOID NTAPI _r_fs_recursivedirectorydelete_callback (
 	}
 
 	_r_obj_dereference (string);
+
+	return TRUE;
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -4270,7 +4275,7 @@ NTSTATUS _r_fs_deletedirectory (
 	_r_fs_setattributes (hdirectory, NULL, FILE_ATTRIBUTE_NORMAL);
 
 	if (is_recurse)
-		_r_fs_enumfiles (path, hdirectory, NULL, &_r_fs_recursivedirectorydelete_callback);
+		_r_fs_enumfiles (path, hdirectory, NULL, &_r_fs_recursivedirectorydelete_callback, NULL);
 
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
 	{
@@ -4366,31 +4371,31 @@ NTSTATUS _r_fs_enumfiles (
 	_In_ LPCWSTR path,
 	_In_opt_ HANDLE hdirectory,
 	_In_opt_ LPWSTR search_pattern,
-	_In_ PR_FILE_ENUM_CALLBACK enum_callback
+	_In_ PR_FILE_ENUM_CALLBACK enum_callback,
+	_In_opt_ PVOID context
 )
 {
 	PFILE_DIRECTORY_INFORMATION directory_info;
 	UNICODE_STRING pattern = {0};
 	IO_STATUS_BLOCK isb;
 	HANDLE hdirectory_new = NULL;
+	PR_STRING file_name;
 	PR_STRING path_full;
 	PVOID buffer;
 	ULONG buffer_size = 0x400;
 	ULONG i;
-	BOOLEAN is_firsttime = FALSE;
+	BOOLEAN is_firsttime = TRUE;
+	BOOLEAN is_break = FALSE;
 	NTSTATUS status;
 
 	if (!hdirectory)
 	{
-		status = _r_fs_createfile (
+		status = _r_fs_openfile (
 			path,
-			FILE_OPEN,
-			FILE_LIST_DIRECTORY,
+			GENERIC_READ | FILE_LIST_DIRECTORY,
 			FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-			FILE_ATTRIBUTE_NORMAL,
 			0,
 			TRUE,
-			NULL,
 			&hdirectory_new
 		);
 
@@ -4451,17 +4456,24 @@ NTSTATUS _r_fs_enumfiles (
 		{
 			directory_info = PTR_ADD_OFFSET (buffer, i);
 
-			if (!_r_str_isempty (directory_info->FileName))
+			if (directory_info->FileNameLength && !_r_str_isempty2 (directory_info->FileName))
 			{
 				if (_r_str_compare (directory_info->FileName, 0, L".", 0) != 0 && _r_str_compare (directory_info->FileName, 0, L"..", 0) != 0)
 				{
-					path_full = _r_format_string (L"%s\\%s", path, directory_info->FileName);
+					file_name = _r_obj_createstring_ex (directory_info->FileName, directory_info->FileNameLength);
 
-					enum_callback (path_full->buffer, directory_info);
+					path_full = _r_format_string (L"%s\\%s", path, file_name->buffer);
+
+					if (!enum_callback (path_full, directory_info->FileAttributes, &directory_info->CreationTime, &directory_info->LastWriteTime, context))
+						is_break = TRUE;
 
 					_r_obj_dereference (path_full);
+					_r_obj_dereference (file_name);
 				}
 			}
+
+			if (is_break)
+				break;
 
 			if (directory_info->NextEntryOffset != 0)
 			{
