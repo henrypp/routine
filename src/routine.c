@@ -13786,6 +13786,36 @@ HANDLE _r_reg_getroothandle (
 }
 
 _Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_createkey (
+	_In_ HANDLE hroot,
+	_In_opt_ LPWSTR path,
+	_In_ ACCESS_MASK desired_access,
+	_Out_opt_ PULONG disposition,
+	_In_ BOOLEAN is_open,
+	_Out_ PHANDLE hkey
+)
+{
+	OBJECT_ATTRIBUTES oa = {0};
+	UNICODE_STRING us;
+	HANDLE hroot_handle;
+	BOOLEAN flags = OBJ_CASE_INSENSITIVE;
+	NTSTATUS status;
+
+	hroot_handle = _r_reg_getroothandle (hroot);
+
+	_r_obj_initializeunicodestring (&us, path);
+
+	if (is_open)
+		flags |= OBJ_OPENIF;
+
+	InitializeObjectAttributes (&oa, &us, flags, hroot_handle, NULL);
+
+	status = NtCreateKey (hkey, desired_access, &oa, 0, NULL, 0, disposition);
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_openkey (
 	_In_ HANDLE hroot,
 	_In_opt_ LPWSTR path,

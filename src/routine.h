@@ -3382,6 +3382,16 @@ typedef BOOLEAN (NTAPI *PR_ENUM_KEY_CALLBACK)(
 	);
 
 _Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_createkey (
+	_In_ HANDLE hroot,
+	_In_opt_ LPWSTR path,
+	_In_ ACCESS_MASK desired_access,
+	_Out_opt_ PULONG disposition,
+	_In_ BOOLEAN is_open,
+	_Out_ PHANDLE hkey
+);
+
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_openkey (
 	_In_ HANDLE hroot,
 	_In_opt_ LPWSTR path,
