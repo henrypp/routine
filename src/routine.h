@@ -1661,9 +1661,12 @@ BOOLEAN _r_clipboard_set (
 // Filesystem
 //
 
-typedef VOID (NTAPI *PR_FILE_ENUM_CALLBACK) (
-	_In_ LPCWSTR path,
-	_In_ PFILE_DIRECTORY_INFORMATION directory_info
+typedef BOOLEAN (NTAPI *PR_FILE_ENUM_CALLBACK) (
+	_In_ PR_STRING path,
+	_In_ ULONG attributes,
+	_In_ PLARGE_INTEGER creation_time,
+	_In_ PLARGE_INTEGER lastwrite_time,
+	_In_opt_ PVOID context
 	);
 
 VOID _r_fs_clearfile (
@@ -1716,7 +1719,8 @@ NTSTATUS _r_fs_enumfiles (
 	_In_ LPCWSTR path,
 	_In_opt_ HANDLE hdirectory,
 	_In_opt_ LPWSTR search_pattern,
-	_In_ PR_FILE_ENUM_CALLBACK enum_callback
+	_In_ PR_FILE_ENUM_CALLBACK enum_callback,
+	_In_opt_ PVOID context
 );
 
 _Success_ (return)
@@ -4267,6 +4271,15 @@ INT _r_menu_popup (
 	_In_ BOOLEAN is_sendmessage
 );
 
+FORCEINLINE VOID _r_menu_deleteitem (
+	_In_ HMENU hmenu,
+	_In_ UINT item_id,
+	_In_ BOOLEAN is_byposition
+)
+{
+	RemoveMenu (hmenu, item_id, is_byposition ? MF_BYPOSITION : MF_BYCOMMAND);
+}
+
 FORCEINLINE VOID _r_menu_enableitem (
 	_In_ HMENU hmenu,
 	_In_ UINT item_id,
@@ -4639,6 +4652,14 @@ FORCEINLINE INT _r_listview_getselectedcount (
 )
 {
 	return (INT)SendDlgItemMessageW (hwnd, ctrl_id, LVM_GETSELECTEDCOUNT, 0, 0);
+}
+
+FORCEINLINE INT _r_listview_getselecteditem (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id
+)
+{
+	return (INT)SendDlgItemMessageW (hwnd, ctrl_id, LVM_GETNEXTITEM, (WPARAM)-1, (LPARAM)LVNI_SELECTED);
 }
 
 FORCEINLINE INT _r_listview_getnextselected (
