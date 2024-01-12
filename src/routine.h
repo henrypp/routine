@@ -4016,6 +4016,25 @@ VOID _r_ctrl_showballoontipformat (
 	...
 );
 
+FORCEINLINE LONG_PTR _r_ctrl_getselection (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id
+)
+{
+	LONG_PTR pos;
+
+	if (ctrl_id)
+	{
+		pos = SendDlgItemMessageW (hwnd, ctrl_id, EM_GETSEL, 0, 0);
+	}
+	else
+	{
+		pos = SendMessageW (hwnd, EM_GETSEL, 0, 0);
+	}
+
+	return pos;
+}
+
 FORCEINLINE ULONG _r_ctrl_getstringlength (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id
@@ -4033,6 +4052,22 @@ FORCEINLINE ULONG _r_ctrl_getstringlength (
 	}
 
 	return length;
+}
+
+FORCEINLINE VOID _r_ctrl_setselection (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ LONG_PTR pos
+)
+{
+	if (ctrl_id)
+	{
+		SendDlgItemMessageW (hwnd, ctrl_id, EM_SETSEL, LOWORD (pos), HIWORD (pos));
+	}
+	else
+	{
+		SendMessageW (hwnd, EM_SETSEL, LOWORD (pos), HIWORD (pos));
+	}
 }
 
 FORCEINLINE VOID _r_ctrl_setreadonly (
