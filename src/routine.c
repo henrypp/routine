@@ -5322,6 +5322,49 @@ PR_STRING _r_path_compact (
 	return _r_obj_reference (path);
 }
 
+BOOLEAN _r_path_geticon (
+	_In_opt_ LPCWSTR path,
+	_Out_opt_ PLONG icon_id_ptr,
+	_Out_opt_ HICON_PTR hicon_ptr
+)
+{
+	SHFILEINFO shfi = {0};
+	UINT flags = SHGFI_LARGEICON;
+
+	if (!icon_id_ptr && !hicon_ptr)
+		return FALSE;
+
+	if (icon_id_ptr)
+	{
+		flags |= SHGFI_SYSICONINDEX;
+
+		*icon_id_ptr = 0;
+	}
+
+	if (hicon_ptr)
+	{
+		flags |= SHGFI_ICON;
+
+		*hicon_ptr = NULL;
+	}
+
+	if (!_r_str_isempty (path))
+	{
+		if (SHGetFileInfoW (path, 0, &shfi, sizeof (shfi), flags))
+		{
+			if (icon_id_ptr)
+				*icon_id_ptr = shfi.iIcon;
+
+			if (hicon_ptr)
+				*hicon_ptr = shfi.hIcon;
+
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
 _Success_ (return)
 BOOLEAN _r_path_getpathinfo (
 	_In_ PR_STRINGREF path,
@@ -10139,32 +10182,26 @@ NTSTATUS _r_sys_loadlibraryasresource (
 {
 	LARGE_INTEGER offset = {0};
 	PR_STRING path;
-	HANDLE hmapping;
+	HANDLE hsection = NULL;
 	HANDLE hfile;
 	PVOID base_address = NULL;
-	ULONG_PTR view_size = 0;
+	ULONG_PTR base_size = 0;
 	NTSTATUS status;
+
+	*out_buffer = NULL;
 
 	status = _r_path_search (lib_name, NULL, &path);
 
 	if (!NT_SUCCESS (status))
-	{
-		*out_buffer = NULL;
-
 		return status;
-	}
 
 	status = _r_fs_openfile (path->buffer, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, 0, FALSE, &hfile);
 
 	if (!NT_SUCCESS (status))
-	{
-		*out_buffer = NULL;
-
 		return status;
-	}
 
 	status = NtCreateSection (
-		&hmapping,
+		&hsection,
 		SECTION_QUERY | SECTION_MAP_READ,
 		NULL,
 		NULL,
@@ -10174,22 +10211,16 @@ NTSTATUS _r_sys_loadlibraryasresource (
 	);
 
 	if (!NT_SUCCESS (status))
-	{
-		NtClose (hfile);
-
-		*out_buffer = NULL;
-
-		return status;
-	}
+		goto CleanupExit;
 
 	status = NtMapViewOfSection (
-		hmapping,
+		hsection,
 		NtCurrentProcess (),
 		&base_address,
 		0,
 		0,
 		&offset,
-		&view_size,
+		&base_size,
 		ViewUnmap,
 		_r_sys_isosversiongreaterorequal (WINDOWS_10_RS3) ? MEM_MAPPED : 0,
 		PAGE_READONLY
@@ -10198,29 +10229,17 @@ NTSTATUS _r_sys_loadlibraryasresource (
 	if (status == STATUS_IMAGE_NOT_AT_BASE)
 		status = STATUS_SUCCESS;
 
-	if (!NT_SUCCESS (status))
-	{
-		NtClose (hmapping);
-		NtClose (hfile);
-
-		*out_buffer = NULL;
-
-		return status;
-	}
-
-	// Windows returns the address with bitwise OR | 2 for use with LDR_IS_IMAGEMAPPING
+	// Windows returns the address with bitwise OR|2 for use with LDR_IS_IMAGEMAPPING (dmex)
 	if (NT_SUCCESS (status))
-	{
 		*out_buffer = LDR_MAPPEDVIEW_TO_IMAGEMAPPING (base_address);
-	}
-	else
-	{
-		*out_buffer = NULL;
-	}
+
+CleanupExit:
 
 	_r_obj_dereference (path);
 
-	NtClose (hmapping);
+	if (hsection)
+		NtClose (hsection);
+
 	NtClose (hfile);
 
 	return status;
@@ -15370,8 +15389,8 @@ HRESULT _r_xml_initializelibrary (
 	_In_ BOOLEAN is_reader
 )
 {
-	HRESULT status;
 	PVOID object;
+	HRESULT status;
 
 	RtlZeroMemory (xml_library, sizeof (R_XML_LIBRARY));
 
@@ -17300,9 +17319,10 @@ PR_STRING _r_listview_getitemtext (
 {
 	LVITEMW lvi = {0};
 	PR_STRING string = NULL;
-	ULONG allocated_count = 256;
+	ULONG allocated_count;
 	ULONG count;
 
+	allocated_count = 0xFF;
 	count = allocated_count;
 
 	while (count >= allocated_count)

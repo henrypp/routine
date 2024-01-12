@@ -1866,6 +1866,12 @@ PR_STRING _r_path_compact (
 	_In_ ULONG length
 );
 
+BOOLEAN _r_path_geticon (
+	_In_opt_ LPCWSTR path,
+	_Out_opt_ PLONG icon_id_ptr,
+	_Out_opt_ HICON_PTR hicon_ptr
+);
+
 _Success_ (return)
 BOOLEAN _r_path_getpathinfo (
 	_In_ PR_STRINGREF path,
