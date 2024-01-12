@@ -16216,6 +16216,8 @@ LONG _r_ctrl_getinteger (
 
 	_r_str_tointeger64 (&string->sr, 0, base_ptr, &value);
 
+	_r_obj_dereference (string);
+
 	return (LONG)value;
 }
 
