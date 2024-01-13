@@ -4054,6 +4054,26 @@ FORCEINLINE ULONG _r_ctrl_getstringlength (
 	return length;
 }
 
+FORCEINLINE VOID _r_ctrl_setacceleration (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ LONG val
+)
+{
+	UDACCEL ud = {0};
+
+	ud.nInc = val;
+
+	if (ctrl_id)
+	{
+		SendDlgItemMessageW (hwnd, ctrl_id, UDM_SETACCEL, 1, (LPARAM)&ud);
+	}
+	else
+	{
+		SendMessageW (hwnd, UDM_SETACCEL, 1, (LPARAM)&ud);
+	}
+}
+
 FORCEINLINE VOID _r_ctrl_setselection (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
