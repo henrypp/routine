@@ -4367,6 +4367,43 @@ LONG _r_fs_deleterecycle (
 }
 
 _Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_deviceiocontrol (
+	_In_ HANDLE hdevice,
+	_In_ ULONG ioctrl,
+	_In_reads_bytes_opt_ (in_length) PVOID in_buffer,
+	_In_ ULONG in_length,
+	_Out_writes_bytes_opt_ (out_length) PVOID out_buffer,
+	_In_ ULONG out_length,
+	_Out_opt_ PULONG return__length
+)
+{
+	IO_STATUS_BLOCK isb;
+	NTSTATUS status;
+
+	if (DEVICE_TYPE_FROM_CTL_CODE (ioctrl) == FILE_DEVICE_FILE_SYSTEM)
+	{
+		status = NtFsControlFile (hdevice, NULL, NULL, NULL, &isb, ioctrl, in_buffer, in_length, out_buffer, out_length);
+	}
+	else
+	{
+		status = NtDeviceIoControlFile (hdevice, NULL, NULL, NULL, &isb, ioctrl, in_buffer, in_length, out_buffer, out_length);
+	}
+
+	if (status == STATUS_PENDING)
+	{
+		status = NtWaitForSingleObject (hdevice, FALSE, NULL);
+
+		if (NT_SUCCESS (status))
+			status = isb.Status;
+	}
+
+	if (return__length)
+		*return__length = (ULONG)isb.Information;
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_enumfiles (
 	_In_ LPCWSTR path,
 	_In_opt_ HANDLE hdirectory,

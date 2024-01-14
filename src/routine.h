@@ -72,6 +72,7 @@
 #include <wincodec.h>
 #include <wincrypt.h>
 #include <winhttp.h>
+#include <winioctl.h>
 #include <wtsapi32.h>
 #include <xmllite.h>
 
@@ -1712,6 +1713,17 @@ NTSTATUS _r_fs_deletefile (
 
 LONG _r_fs_deleterecycle (
 	_In_ LPCWSTR path
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_deviceiocontrol (
+	_In_ HANDLE hdevice,
+	_In_ ULONG ioctrl,
+	_In_reads_bytes_opt_ (in_length) PVOID in_buffer,
+	_In_ ULONG in_length,
+	_Out_writes_bytes_opt_ (out_length) PVOID out_buffer,
+	_In_ ULONG out_length,
+	_Out_opt_ PULONG return__length
 );
 
 _Success_ (NT_SUCCESS (return))
