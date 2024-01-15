@@ -3364,7 +3364,7 @@ LdrGetProcedureAddressEx (
 	_In_opt_ ULONG ProcedureNumber,
 	_Out_ PVOID * ProcedureAddress,
 	_In_ ULONG Flags
-);;
+);
 
 NTSYSCALLAPI
 NTSTATUS

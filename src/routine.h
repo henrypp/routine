@@ -149,7 +149,7 @@ static SID SeNetworkServiceSid = {SID_REVISION, 1, SECURITY_NT_AUTHORITY, {SECUR
 #endif
 
 #if !defined(SAFE_DELETE_HANDLE)
-#define SAFE_DELETE_HANDLE(p) {if(_r_fs_isvalidhandle ((p))) {NtClose ((p)); (p)=NULL;}}
+#define SAFE_DELETE_HANDLE(p) {if(p) {NtClose ((p)); (p)=NULL;}}
 #endif
 
 #if !defined(SAFE_DELETE_LIBRARY)
@@ -1867,7 +1867,7 @@ NTSTATUS _r_fs_settimestamp (
 );
 
 #define _r_fs_isvalidhandle(handle) \
-    ((handle) != NULL && (handle) != INVALID_HANDLE_VALUE)
+	((handle) != NULL && (handle) != INVALID_HANDLE_VALUE)
 
 //
 // Paths

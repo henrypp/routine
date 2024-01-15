@@ -4823,8 +4823,8 @@ NTSTATUS _r_fs_getsecurityinfo (
 	_Out_ PACL_PTR out_dacl
 )
 {
-	PSECURITY_DESCRIPTOR psd;
-	PACL pdacl = NULL;
+	PSECURITY_DESCRIPTOR security_descriptor;
+	PACL dacl = NULL;
 	HANDLE hfile_new = NULL;
 	ULONG buffer_length;
 	ULONG required_length;
@@ -4847,36 +4847,36 @@ NTSTATUS _r_fs_getsecurityinfo (
 	}
 
 	buffer_length = 0x100;
-	psd = _r_mem_allocate (buffer_length);
+	security_descriptor = _r_mem_allocate (buffer_length);
 
-	status = NtQuerySecurityObject (hfile, DACL_SECURITY_INFORMATION, psd, buffer_length, &required_length);
+	status = NtQuerySecurityObject (hfile, DACL_SECURITY_INFORMATION, security_descriptor, buffer_length, &required_length);
 
 	if (status == STATUS_BUFFER_TOO_SMALL)
 	{
 		buffer_length = required_length;
-		psd = _r_mem_reallocate (psd, buffer_length);
+		security_descriptor = _r_mem_reallocate (security_descriptor, buffer_length);
 
-		status = NtQuerySecurityObject (hfile, DACL_SECURITY_INFORMATION, psd, buffer_length, &buffer_length);
+		status = NtQuerySecurityObject (hfile, DACL_SECURITY_INFORMATION, security_descriptor, buffer_length, &buffer_length);
 	}
 
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
-	status = RtlGetDaclSecurityDescriptor (psd, &is_present, &pdacl, &is_defaulted);
+	status = RtlGetDaclSecurityDescriptor (security_descriptor, &is_present, &dacl, &is_defaulted);
 
 CleanupExit:
 
 	if (NT_SUCCESS (status))
 	{
-		*out_sd = psd;
-		*out_dacl = pdacl;
+		*out_sd = security_descriptor;
+		*out_dacl = dacl;
 	}
 	else
 	{
 		*out_sd = NULL;
 		*out_dacl = NULL;
 
-		_r_mem_free (psd);
+		_r_mem_free (security_descriptor);
 	}
 
 	if (hfile_new)
