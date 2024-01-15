@@ -8703,6 +8703,7 @@ NTSTATUS _r_sys_formatmessage (
 	LCID locale_id;
 	NTSTATUS status;
 
+	// 11 means RT_MESSAGETABLE
 	status = RtlFindMessage (hinst, 11, lang_id, error_code, &entry);
 
 	// Try using the system LANGID.
@@ -12543,7 +12544,7 @@ INT_PTR _r_wnd_createmodalwindow (
 	INT_PTR result;
 	NTSTATUS status;
 
-	status = _r_res_loadresource (hinst, RT_DIALOG, name, &buffer);
+	status = _r_res_loadresource (hinst, RT_DIALOG, name, 0, &buffer);
 
 	if (!NT_SUCCESS (status))
 		return 0;
@@ -12566,7 +12567,7 @@ HWND _r_wnd_createwindow (
 	HWND hwnd;
 	NTSTATUS status;
 
-	status = _r_res_loadresource (hinst, RT_DIALOG, name, &buffer);
+	status = _r_res_loadresource (hinst, RT_DIALOG, name, 0, &buffer);
 
 	if (!NT_SUCCESS (status))
 		return NULL;
@@ -14893,6 +14894,7 @@ NTSTATUS _r_res_loadresource (
 	_In_ PVOID hinst,
 	_In_ LPCWSTR type,
 	_In_ LPCWSTR name,
+	_In_opt_ ULONG lang_id,
 	_Out_ PR_STORAGE out_buffer
 )
 {
@@ -14904,7 +14906,7 @@ NTSTATUS _r_res_loadresource (
 
 	resource_info.Type = (ULONG_PTR)type;
 	resource_info.Name = (ULONG_PTR)name;
-	resource_info.Language = MAKELANGID (LANG_NEUTRAL, SUBLANG_NEUTRAL);
+	resource_info.Language = lang_id; // MAKELANGID (LANG_NEUTRAL, SUBLANG_NEUTRAL);
 
 	status = LdrFindResource_U (hinst, &resource_info, RESOURCE_DATA_LEVEL, &resource_data);
 
@@ -14957,7 +14959,7 @@ NTSTATUS _r_res_loadimage (
 	LONG height_src = 0;
 	NTSTATUS status;
 
-	status = _r_res_loadresource (hinst, type, name, &buffer);
+	status = _r_res_loadresource (hinst, type, name, 0, &buffer);
 
 	if (!NT_SUCCESS (status))
 		return status;
@@ -15127,7 +15129,7 @@ NTSTATUS _r_res_loadstring (
 	ULONG string_num;
 	NTSTATUS status;
 
-	status = _r_res_loadresource (hinst, RT_STRING, MAKEINTRESOURCEW ((LOWORD (string_id) >> 4) + 1), &buffer);
+	status = _r_res_loadresource (hinst, RT_STRING, MAKEINTRESOURCEW ((LOWORD (string_id) >> 4) + 1), 0, &buffer);
 
 	if (!NT_SUCCESS (status))
 	{

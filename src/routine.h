@@ -3633,6 +3633,7 @@ NTSTATUS _r_res_loadresource (
 	_In_ PVOID hinst,
 	_In_ LPCWSTR type,
 	_In_ LPCWSTR name,
+	_In_opt_ ULONG lang_id,
 	_Out_ PR_STORAGE out_buffer
 );
 

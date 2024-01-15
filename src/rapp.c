@@ -3486,7 +3486,7 @@ VOID _r_settings_createwindow (
 			if (!ptr_page->dlg_id)
 				continue;
 
-			status = _r_res_loadresource (_r_sys_getimagebase (), RT_DIALOG, MAKEINTRESOURCEW (ptr_page->dlg_id), &dlg_buffer);
+			status = _r_res_loadresource (_r_sys_getimagebase (), RT_DIALOG, MAKEINTRESOURCEW (ptr_page->dlg_id), 0, &dlg_buffer);
 
 			if (!NT_SUCCESS (status))
 				continue;
