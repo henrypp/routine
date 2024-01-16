@@ -13680,6 +13680,7 @@ BOOLEAN _r_inet_queryurlparts (
 )
 {
 	URL_COMPONENTS url_comp = {0};
+	PR_STRING url_fixed;
 	ULONG length = 256;
 
 	url_comp.dwStructSize = sizeof (url_comp);
@@ -13720,9 +13721,24 @@ BOOLEAN _r_inet_queryurlparts (
 
 	if (!WinHttpCrackUrl (url->buffer, (ULONG)_r_str_getlength2 (url), ICU_DECODE, &url_comp))
 	{
-		_r_inet_destroyurlparts (url_parts);
+		if (PebLastError () != ERROR_WINHTTP_UNRECOGNIZED_SCHEME)
+		{
+			_r_inet_destroyurlparts (url_parts);
 
-		return FALSE;
+			return FALSE;
+		}
+
+		url_fixed = _r_format_string (L"https://%s", url->buffer);
+
+		if (!WinHttpCrackUrl (url_fixed->buffer, (ULONG)_r_str_getlength2 (url_fixed), ICU_DECODE, &url_comp))
+		{
+			_r_inet_destroyurlparts (url_parts);
+			_r_obj_dereference (url_fixed);
+
+			return FALSE;
+		}
+
+		_r_obj_dereference (url_fixed);
 	}
 
 	if (flags & PR_URLPARTS_SCHEME)
