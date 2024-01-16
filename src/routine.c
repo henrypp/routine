@@ -8692,8 +8692,6 @@ NTSTATUS _r_sys_formatmessage (
 	_Out_ PR_STRING_PTR out_buffer
 )
 {
-	static R_STRINGREF whitespace_sr = PR_STRINGREF_INIT (L"\r\n ");
-
 	PMESSAGE_RESOURCE_ENTRY entry;
 	PR_STRING string;
 	R_BYTEREF bytes;
@@ -8733,9 +8731,6 @@ NTSTATUS _r_sys_formatmessage (
 
 			_r_str_multibyte2unicode (&bytes, &string);
 		}
-
-		if (string)
-			_r_str_trimstring (string, &whitespace_sr, 0);
 
 		*out_buffer = string;
 	}
