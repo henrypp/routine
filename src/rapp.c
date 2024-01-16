@@ -905,7 +905,6 @@ VOID _r_app_restart (
 	_In_opt_ HWND hwnd
 )
 {
-	LARGE_INTEGER timeout;
 	HWND hmain;
 	NTSTATUS status;
 
@@ -930,9 +929,7 @@ VOID _r_app_restart (
 	{
 		DestroyWindow (hmain);
 
-		_r_calc_millisecondstolargeinteger (&timeout, 4000);
-
-		NtWaitForSingleObject (hmain, FALSE, &timeout); // wait for exit
+		_r_sys_waitforsingleobject (hmain, 4000); // wait for exit
 	}
 
 	RtlExitUserProcess (STATUS_SUCCESS);

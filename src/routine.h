@@ -2690,11 +2690,6 @@ BOOLEAN _r_sys_runasadmin (
 	_In_opt_ LPCWSTR current_directory
 );
 
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_sys_sleep (
-	_In_ ULONG milliseconds
-);
-
 NTSTATUS NTAPI _r_sys_basethreadstart (
 	_In_ PVOID arglist
 );
@@ -2783,6 +2778,17 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_setthreadname (
 	_In_ HANDLE thread_handle,
 	_In_ LPCWSTR thread_name
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_sleep (
+	_In_opt_ ULONG milliseconds
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_waitforsingleobject (
+	_In_ HANDLE hevent,
+	_In_opt_ ULONG milliseconds
 );
 
 FORCEINLINE PVOID _r_sys_getimagebase ()

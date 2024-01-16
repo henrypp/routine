@@ -1650,7 +1650,6 @@ NTSTATUS NTAPI _r_workqueue_threadproc (
 	PR_WORKQUEUE work_queue;
 	PR_WORKQUEUE_ITEM work_queue_item;
 	PLIST_ENTRY list_entry;
-	LARGE_INTEGER timeout;
 	BOOLEAN is_terminate;
 	NTSTATUS status;
 
@@ -1683,9 +1682,7 @@ NTSTATUS NTAPI _r_workqueue_threadproc (
 		if (!work_queue->is_terminating)
 		{
 			// Wait for work.
-			_r_calc_millisecondstolargeinteger (&timeout, 4000);
-
-			status = NtWaitForSingleObject (work_queue->semaphore_handle, FALSE, &timeout);
+			status = _r_sys_waitforsingleobject (work_queue->semaphore_handle, 4000);
 		}
 		else
 		{
@@ -4391,7 +4388,7 @@ NTSTATUS _r_fs_deviceiocontrol (
 
 	if (status == STATUS_PENDING)
 	{
-		status = NtWaitForSingleObject (hdevice, FALSE, NULL);
+		status = _r_sys_waitforsingleobject (hdevice, 0);
 
 		if (NT_SUCCESS (status))
 			status = isb.Status;
@@ -4457,7 +4454,7 @@ NTSTATUS _r_fs_enumfiles (
 			// Our ISB is on the stack, so we have to wait for the operation to complete before continuing.
 			if (status == STATUS_PENDING)
 			{
-				status = NtWaitForSingleObject (hdirectory, FALSE, NULL);
+				status = _r_sys_waitforsingleobject (hdirectory, 0);
 
 				if (NT_SUCCESS (status))
 					status = isb.Status;
@@ -10427,24 +10424,6 @@ BOOLEAN _r_sys_runasadmin (
 	return !!ShellExecuteExW (&shex);
 }
 
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_sys_sleep (
-	_In_ ULONG milliseconds
-)
-{
-	LARGE_INTEGER timeout;
-	NTSTATUS status;
-
-	if (milliseconds == 0 || milliseconds == INFINITE)
-		return STATUS_INVALID_PARAMETER;
-
-	_r_calc_millisecondstolargeinteger (&timeout, milliseconds);
-
-	status = NtDelayExecution (FALSE, &timeout);
-
-	return status;
-}
-
 NTSTATUS NTAPI _r_sys_basethreadstart (
 	_In_ PVOID arglist
 )
@@ -10962,6 +10941,43 @@ NTSTATUS _r_sys_setthreadname (
 	RtlInitUnicodeString (&tni.ThreadName, thread_name);
 
 	status = NtSetInformationThread (thread_handle, ThreadNameInformation, &tni, sizeof (tni));
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_sleep (
+	_In_opt_ ULONG milliseconds
+)
+{
+	LARGE_INTEGER timeout;
+	NTSTATUS status;
+
+	if (milliseconds)
+		_r_calc_millisecondstolargeinteger (&timeout, milliseconds);
+
+	status = NtDelayExecution (FALSE, milliseconds ? &timeout : NULL);
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_waitforsingleobject (
+	_In_ HANDLE hevent,
+	_In_opt_ ULONG milliseconds
+)
+{
+	LARGE_INTEGER timeout;
+	NTSTATUS status;
+
+	if (milliseconds)
+		_r_calc_millisecondstolargeinteger (&timeout, milliseconds);
+
+	status = NtWaitForSingleObject (hevent, FALSE, milliseconds ? &timeout : NULL);
+
+	// is it an error code?
+	//if (HIWORD (status))
+	//	status = WAIT_FAILED;
 
 	return status;
 }
