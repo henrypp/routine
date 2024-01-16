@@ -9407,11 +9407,11 @@ NTSTATUS _r_sys_getusernamefromsid (
 )
 {
 	LSA_OBJECT_ATTRIBUTES oa = {0};
-	LSA_HANDLE policy_handle;
 	PLSA_REFERENCED_DOMAIN_LIST referenced_domains = NULL;
 	PLSA_TRANSLATED_NAME names = NULL;
-	R_STRINGBUILDER sb = {0};
 	PLSA_TRUST_INFORMATION trust_info;
+	LSA_HANDLE policy_handle;
+	R_STRINGBUILDER sb = {0};
 	BOOLEAN is_hasdomain;
 	BOOLEAN is_hasname;
 	NTSTATUS status;
