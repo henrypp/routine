@@ -910,7 +910,7 @@ FORCEINLINE LPWSTR _r_obj_getstringorempty (
 
 FORCEINLINE LPWSTR _r_obj_getstringordefault (
 	_In_opt_ PR_STRING string,
-	_In_ LPWSTR def
+	_In_opt_ LPWSTR def
 )
 {
 	if (!_r_obj_isstringempty (string))
