@@ -13410,11 +13410,14 @@ ULONG _r_inet_openurl (
 
 CleanupExit:
 
-	if (hrequest)
-		_r_inet_close (hrequest);
+	if (status != ERROR_SUCCESS)
+	{
+		if (hrequest)
+			_r_inet_close (hrequest);
 
-	if (hconnect)
-		_r_inet_close (hconnect);
+		if (hconnect)
+			_r_inet_close (hconnect);
+	}
 
 	_r_inet_destroyurlparts (&url_parts);
 
