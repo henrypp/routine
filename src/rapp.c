@@ -2446,7 +2446,7 @@ BOOLEAN _r_update_check (
 		return FALSE;
 
 	if (!update_info->hsession)
-		update_info->hsession = _r_inet_createsession (_r_app_getuseragent ());
+		update_info->hsession = _r_inet_createsession (_r_app_getuseragent (), _r_app_getproxyconfiguration ());
 
 	if (!update_info->hsession)
 		return FALSE;

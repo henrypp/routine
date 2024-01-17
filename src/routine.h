@@ -938,11 +938,6 @@ VOID _r_obj_initializebyteref3 (
 	_In_ PR_BYTEREF buffer
 );
 
-VOID _r_obj_initializebyterefconst (
-	_Out_ PR_BYTEREF string,
-	_In_ LPSTR buffer
-);
-
 VOID _r_obj_initializebyterefempty (
 	_Out_ PR_BYTEREF string
 );
@@ -3321,14 +3316,14 @@ VOID _r_wnd_setcontext (
 
 _Ret_maybenull_
 HINTERNET _r_inet_createsession (
-	_In_opt_ PR_STRING useragent
+	_In_opt_ PR_STRING useragent,
+	_In_opt_ PR_STRING proxy
 );
 
 _Success_ (return)
 BOOLEAN _r_inet_openurl (
 	_In_ HINTERNET hsession,
 	_In_ PR_STRING url,
-	_In_opt_ PR_STRING proxy,
 	_Out_ LPHINTERNET hconnect_ptr,
 	_Out_ LPHINTERNET hrequest_ptr,
 	_Out_opt_ PULONG total_length_ptr

@@ -2606,14 +2606,6 @@ VOID _r_obj_initializebyteref3 (
 	_r_obj_initializebyteref_ex (string, buffer->buffer, buffer->length);
 }
 
-VOID _r_obj_initializebyterefconst (
-	_Out_ PR_BYTEREF string,
-	_In_ LPSTR buffer
-)
-{
-	_r_obj_initializebyteref_ex (string, buffer, _r_str_getbytelength (buffer));
-}
-
 VOID _r_obj_initializebyterefempty (
 	_Out_ PR_BYTEREF string
 )
@@ -13256,17 +13248,35 @@ VOID _r_wnd_setcontext (
 
 _Ret_maybenull_
 HINTERNET _r_inet_createsession (
-	_In_opt_ PR_STRING useragent
+	_In_opt_ PR_STRING useragent,
+	_In_opt_ PR_STRING proxy
 )
 {
-	HINTERNET hsession;
+	R_URLPARTS proxy_parts;
+	WCHAR proxy_buffer[256];
+	HINTERNET hsession = NULL;
 
-	hsession = WinHttpOpen (_r_obj_getstring (useragent), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+	// proxy configuration
+	if (!_r_obj_isstringempty (proxy))
+	{
+		if (_r_inet_queryurlparts (proxy, PR_URLPARTS_HOST | PR_URLPARTS_PORT | PR_URLPARTS_USER | PR_URLPARTS_PASS, &proxy_parts))
+		{
+			_r_str_printf (proxy_buffer, RTL_NUMBER_OF (proxy_buffer), L"%s:%" TEXT (PRIu16), proxy_parts.host->buffer, proxy_parts.port);
+
+			hsession = WinHttpOpen (_r_obj_getstring (useragent), WINHTTP_ACCESS_TYPE_NAMED_PROXY, proxy_buffer, WINHTTP_NO_PROXY_BYPASS, 0);
+
+			_r_inet_destroyurlparts (&proxy_parts);
+		}
+	}
+	else
+	{
+		hsession = WinHttpOpen (_r_obj_getstring (useragent), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+	}
 
 	if (!hsession)
 		return NULL;
 
-	// enable secure protocols
+	// enable secure protocols (win8.1+)
 	WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3}, sizeof (ULONG));
 
 	// disable redirect from https to http
@@ -13279,6 +13289,10 @@ HINTERNET _r_inet_createsession (
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_10))
 		WinHttpSetOption (hsession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &(ULONG){WINHTTP_PROTOCOL_FLAG_HTTP2}, sizeof (ULONG));
 
+	// disable global, cross-session pooling (win11+)
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_11))
+		WinHttpSetOption (hsession, WINHTTP_OPTION_DISABLE_GLOBAL_POOLING, &(ULONG){TRUE}, sizeof (ULONG));
+
 	return hsession;
 }
 
@@ -13286,22 +13300,18 @@ _Success_ (return)
 BOOLEAN _r_inet_openurl (
 	_In_ HINTERNET hsession,
 	_In_ PR_STRING url,
-	_In_opt_ PR_STRING proxy,
 	_Out_ LPHINTERNET hconnect_ptr,
 	_Out_ LPHINTERNET hrequest_ptr,
 	_Out_opt_ PULONG total_length_ptr
 )
 {
-	WINHTTP_PROXY_INFO wpi = {0};
-	WCHAR proxy_buffer[256];
-	R_URLPARTS proxy_parts;
 	R_URLPARTS url_parts;
 	HINTERNET hconnect;
 	HINTERNET hrequest;
 	ULONG attempts = 6;
-	ULONG flags;
+	ULONG flags = WINHTTP_FLAG_REFRESH;
 	ULONG status;
-	BOOL result;
+	BOOL is_valid;
 	BOOLEAN is_success = FALSE;
 
 	*hconnect_ptr = NULL;
@@ -13318,8 +13328,6 @@ BOOLEAN _r_inet_openurl (
 	if (!hconnect)
 		goto CleanupExit;
 
-	flags = WINHTTP_FLAG_REFRESH;
-
 	if (url_parts.scheme == INTERNET_SCHEME_HTTPS)
 		flags |= WINHTTP_FLAG_SECURE;
 
@@ -13335,33 +13343,11 @@ BOOLEAN _r_inet_openurl (
 	// disable "keep-alive" feature (win7+)
 	WinHttpSetOption (hrequest, WINHTTP_OPTION_DISABLE_FEATURE, &(ULONG){WINHTTP_DISABLE_KEEP_ALIVE}, sizeof (ULONG));
 
-	if (!_r_obj_isstringempty (proxy))
-	{
-		if (_r_inet_queryurlparts (proxy, PR_URLPARTS_HOST | PR_URLPARTS_PORT | PR_URLPARTS_USER | PR_URLPARTS_PASS, &proxy_parts))
-		{
-			_r_str_printf (proxy_buffer, RTL_NUMBER_OF (proxy_buffer), L"%s:%" TEXT (PRIu16), proxy_parts.host->buffer, proxy_parts.port);
-
-			wpi.dwAccessType = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
-			wpi.lpszProxy = proxy_buffer;
-
-			WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY, &wpi, sizeof (wpi));
-
-			// set proxy credentials (if exists)
-			if (!_r_obj_isstringempty (proxy_parts.user))
-				WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY_USERNAME, proxy_parts.user->buffer, (ULONG)_r_str_getlength2 (proxy_parts.user));
-
-			if (!_r_obj_isstringempty (proxy_parts.pass))
-				WinHttpSetOption (hrequest, WINHTTP_OPTION_PROXY_PASSWORD, proxy_parts.pass->buffer, (ULONG)_r_str_getlength2 (proxy_parts.pass));
-
-			_r_inet_destroyurlparts (&proxy_parts);
-		}
-	}
-
 	do
 	{
-		result = WinHttpSendRequest (hrequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH, 0);
+		is_valid = WinHttpSendRequest (hrequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH, 0);
 
-		if (!result)
+		if (!is_valid)
 		{
 			status = PebLastError ();
 
@@ -13371,16 +13357,16 @@ BOOLEAN _r_inet_openurl (
 			}
 			else if (status == ERROR_WINHTTP_CONNECTION_ERROR)
 			{
-				result = WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2}, sizeof (ULONG));
+				is_valid = WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2}, sizeof (ULONG));
 
-				if (!result)
+				if (!is_valid)
 					break;
 			}
 			else if (status == ERROR_WINHTTP_SECURE_FAILURE)
 			{
-				result = WinHttpSetOption (hrequest, WINHTTP_OPTION_SECURITY_FLAGS, &(ULONG){SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE}, sizeof (ULONG));
+				is_valid = WinHttpSetOption (hrequest, WINHTTP_OPTION_SECURITY_FLAGS, &(ULONG){SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE}, sizeof (ULONG));
 
-				if (!result)
+				if (!is_valid)
 					break;
 			}
 			else
@@ -13568,7 +13554,7 @@ BOOLEAN _r_inet_begindownload (
 	BOOLEAN is_success = FALSE;
 	NTSTATUS status = STATUS_INVALID_PARAMETER;
 
-	if (!_r_inet_openurl (hsession, url, proxy, &hconnect, &hrequest, &total_length))
+	if (!_r_inet_openurl (hsession, url, &hconnect, &hrequest, &total_length))
 		return FALSE;
 
 	if (!download_info->is_savetofile)
@@ -17486,7 +17472,7 @@ VOID _r_listview_setcolumnsortindex (
 
 	hitem.mask = HDI_FORMAT;
 
-	if (!(BOOL)SendMessageW (header, HDM_GETITEM, (WPARAM)column_id, (LPARAM)&hitem))
+	if (!SendMessageW (header, HDM_GETITEM, (WPARAM)column_id, (LPARAM)&hitem))
 		return;
 
 	if (arrow == 1)
