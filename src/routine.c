@@ -13544,7 +13544,6 @@ VOID _r_inet_initializedownload (
 NTSTATUS _r_inet_begindownload (
 	_In_ HINTERNET hsession,
 	_In_ PR_STRING url,
-	_In_opt_ PR_STRING proxy,
 	_Inout_ PR_DOWNLOAD_INFO download_info
 )
 {

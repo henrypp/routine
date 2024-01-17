@@ -2085,7 +2085,6 @@ NTSTATUS _r_update_downloadupdate (
 )
 {
 	R_DOWNLOAD_INFO download_info;
-	PR_STRING proxy_string;
 	LPCWSTR path;
 	HANDLE hfile;
 	NTSTATUS status;
@@ -2109,12 +2108,7 @@ NTSTATUS _r_update_downloadupdate (
 
 	_r_inet_initializedownload (&download_info, hfile, &_r_update_downloadcallback, update_info);
 
-	proxy_string = _r_app_getproxyconfiguration ();
-
-	status = _r_inet_begindownload (update_info->hsession, update_component->url, proxy_string, &download_info);
-
-	if (proxy_string)
-		_r_obj_dereference (proxy_string);
+	status = _r_inet_begindownload (update_info->hsession, update_component->url, &download_info);
 
 	NtClose (hfile); // required!
 
@@ -2146,9 +2140,6 @@ NTSTATUS _r_update_downloadupdate (
 
 	// remove cache directory if it is empty
 	_r_fs_deletedirectory (path, FALSE);
-
-	if (proxy_string)
-		_r_obj_dereference (proxy_string);
 
 	return STATUS_SUCCESS;
 }
@@ -2223,7 +2214,6 @@ NTSTATUS NTAPI _r_update_checkthread (
 	R_DOWNLOAD_INFO download_info;
 	PR_HASHTABLE string_table;
 	PR_STRING string_value = NULL;
-	PR_STRING proxy_string;
 	PR_STRING update_url;
 	PR_STRING string;
 	R_STRINGREF remaining_part;
@@ -2239,9 +2229,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 
 	_r_inet_initializedownload (&download_info, NULL, NULL, NULL);
 
-	proxy_string = _r_app_getproxyconfiguration ();
-
-	status = _r_inet_begindownload (update_info->hsession, update_url, proxy_string, &download_info);
+	status = _r_inet_begindownload (update_info->hsession, update_url, &download_info);
 
 	if (status != STATUS_SUCCESS)
 	{
@@ -2361,9 +2349,6 @@ NTSTATUS NTAPI _r_update_checkthread (
 CleanupExit:
 
 	_r_inet_destroydownload (&download_info);
-
-	if (proxy_string)
-		_r_obj_dereference (proxy_string);
 
 	_r_obj_dereference (update_url);
 
