@@ -2079,7 +2079,6 @@ BOOLEAN NTAPI _r_update_downloadcallback (
 	return TRUE;
 }
 
-_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_update_downloadupdate (
 	_In_ PR_UPDATE_INFO update_info,
 	_Inout_ PR_UPDATE_COMPONENT update_component
@@ -2114,15 +2113,13 @@ NTSTATUS _r_update_downloadupdate (
 
 	status = _r_inet_begindownload (update_info->hsession, update_component->url, proxy_string, &download_info);
 
+	if (proxy_string)
+		_r_obj_dereference (proxy_string);
+
 	NtClose (hfile); // required!
 
-	if (!status)
-	{
-		if (proxy_string)
-			_r_obj_dereference (proxy_string);
-
-		return STATUS_CANCELLED;
-	}
+	if (status != STATUS_SUCCESS)
+		return status;
 
 	if (update_component->flags & PR_UPDATE_FLAG_FILE)
 	{
@@ -2244,25 +2241,21 @@ NTSTATUS NTAPI _r_update_checkthread (
 
 	proxy_string = _r_app_getproxyconfiguration ();
 
-	if (!_r_inet_begindownload (update_info->hsession, update_url, proxy_string, &download_info))
+	status = _r_inet_begindownload (update_info->hsession, update_url, proxy_string, &download_info);
+
+	if (status != STATUS_SUCCESS)
 	{
 		if (update_info->hparent)
 		{
 			str_content = L"Update server connection error.";
 
-			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, TD_WARNING_ICON, NULL, str_content, STATUS_CANCELLED);
+			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, TD_WARNING_ICON, NULL, str_content, status);
 		}
-
-		status = STATUS_INVALID_PARAMETER;
 
 		goto CleanupExit;
 	}
-	else
-	{
-		status = STATUS_SUCCESS;
-	}
 
-	string_table = _r_str_unserialize (&download_info.u.string->sr, L';', L'=');
+	string_table = _r_str_unserialize (&download_info.string->sr, L';', L'=');
 
 	if (string_table)
 	{
@@ -2653,7 +2646,7 @@ VOID _r_update_navigate (
 
 	if (error_code != STATUS_SUCCESS)
 	{
-		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"Status: %" TEXT (PR_LONG) L" (0x%" TEXT (PRIX32)")", error_code, error_code);
+		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"Status:\r\n%" TEXT (PR_LONG) L" (0x%08" TEXT (PRIX32)")", error_code, error_code);
 
 		tdc.pszExpandedInformation = buffer;
 	}

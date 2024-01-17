@@ -3881,7 +3881,7 @@ HRESULT _r_msg_taskdialog (
 	_In_ const LPTASKDIALOGCONFIG task_dialog,
 	_Out_opt_ PINT button_ptr,
 	_Out_opt_ PINT radio_button_ptr,
-	_Out_opt_ LPBOOL is_flagchecked_ptr
+	_Out_opt_ PBOOL is_flagchecked_ptr
 )
 {
 	HRESULT status;
@@ -13296,8 +13296,8 @@ HINTERNET _r_inet_createsession (
 	return hsession;
 }
 
-_Success_ (return)
-BOOLEAN _r_inet_openurl (
+_Success_ (return == ERROR_SUCCESS)
+ULONG _r_inet_openurl (
 	_In_ HINTERNET hsession,
 	_In_ PR_STRING url,
 	_Out_ LPHINTERNET hconnect_ptr,
@@ -13307,12 +13307,11 @@ BOOLEAN _r_inet_openurl (
 {
 	R_URLPARTS url_parts;
 	HINTERNET hconnect;
-	HINTERNET hrequest;
+	HINTERNET hrequest = NULL;
 	ULONG attempts = 6;
 	ULONG flags = WINHTTP_FLAG_REFRESH;
-	ULONG status;
 	BOOL is_valid;
-	BOOLEAN is_success = FALSE;
+	ULONG status;
 
 	*hconnect_ptr = NULL;
 	*hrequest_ptr = NULL;
@@ -13321,12 +13320,16 @@ BOOLEAN _r_inet_openurl (
 		*total_length_ptr = 0;
 
 	if (!_r_inet_queryurlparts (url, PR_URLPARTS_SCHEME | PR_URLPARTS_HOST | PR_URLPARTS_PORT | PR_URLPARTS_PATH, &url_parts))
-		goto CleanupExit;
+		return PebLastError ();
 
 	hconnect = WinHttpConnect (hsession, url_parts.host->buffer, url_parts.port, 0);
 
 	if (!hconnect)
+	{
+		status = PebLastError ();
+
 		goto CleanupExit;
+	}
 
 	if (url_parts.scheme == INTERNET_SCHEME_HTTPS)
 		flags |= WINHTTP_FLAG_SECURE;
@@ -13335,6 +13338,8 @@ BOOLEAN _r_inet_openurl (
 
 	if (!hrequest)
 	{
+		status = PebLastError ();
+
 		_r_inet_close (hconnect);
 
 		goto CleanupExit;
@@ -13395,7 +13400,7 @@ BOOLEAN _r_inet_openurl (
 				if (total_length_ptr)
 					*total_length_ptr = _r_inet_querycontentlength (hrequest);
 
-				is_success = TRUE;
+				status = ERROR_SUCCESS;
 
 				goto CleanupExit;
 			}
@@ -13403,14 +13408,17 @@ BOOLEAN _r_inet_openurl (
 	}
 	while (--attempts);
 
-	_r_inet_close (hrequest);
-	_r_inet_close (hconnect);
-
 CleanupExit:
+
+	if (hrequest)
+		_r_inet_close (hrequest);
+
+	if (hconnect)
+		_r_inet_close (hconnect);
 
 	_r_inet_destroyurlparts (&url_parts);
 
-	return is_success;
+	return status;
 }
 
 _Success_ (return)
@@ -13522,19 +13530,18 @@ VOID _r_inet_initializedownload (
 
 	if (download_info->is_savetofile)
 	{
-		download_info->u.hfile = hfile;
+		download_info->hfile = hfile;
 	}
 	else
 	{
-		download_info->u.string = NULL;
+		download_info->string = NULL;
 	}
 
 	download_info->download_callback = download_callback;
 	download_info->lparam = lparam;
 }
 
-_Success_ (return)
-BOOLEAN _r_inet_begindownload (
+NTSTATUS _r_inet_begindownload (
 	_In_ HINTERNET hsession,
 	_In_ PR_STRING url,
 	_In_opt_ PR_STRING proxy,
@@ -13551,11 +13558,12 @@ BOOLEAN _r_inet_begindownload (
 	ULONG total_readed = 0;
 	ULONG total_length;
 	ULONG readed_length;
-	BOOLEAN is_success = FALSE;
-	NTSTATUS status = STATUS_INVALID_PARAMETER;
+	LONG status;
 
-	if (!_r_inet_openurl (hsession, url, &hconnect, &hrequest, &total_length))
-		return FALSE;
+	status = _r_inet_openurl (hsession, url, &hconnect, &hrequest, &total_length);
+
+	if (status != ERROR_SUCCESS)
+		return status;
 
 	if (!download_info->is_savetofile)
 		_r_obj_initializestringbuilder (&sb, PR_SIZE_BUFFER);
@@ -13571,19 +13579,10 @@ BOOLEAN _r_inet_begindownload (
 
 		if (download_info->is_savetofile)
 		{
-			status = NtWriteFile (download_info->u.hfile, NULL, NULL, NULL, &isb, content_bytes->buffer, readed_length, NULL, NULL);
+			status = NtWriteFile (download_info->hfile, NULL, NULL, NULL, &isb, content_bytes->buffer, readed_length, NULL, NULL);
 
-			if (NT_SUCCESS (status))
-			{
-				is_success = TRUE;
-			}
-			else
-			{
-				is_success = FALSE;
-
+			if (!NT_SUCCESS (status))
 				break;
-			}
-
 		}
 		else
 		{
@@ -13594,13 +13593,9 @@ BOOLEAN _r_inet_begindownload (
 				_r_obj_appendstringbuilder2 (&sb, string);
 
 				_r_obj_dereference (string);
-
-				is_success = TRUE;
 			}
 			else
 			{
-				is_success = FALSE;
-
 				break;
 			}
 		}
@@ -13609,7 +13604,7 @@ BOOLEAN _r_inet_begindownload (
 		{
 			if (!download_info->download_callback (total_readed, max (total_readed, total_length), download_info->lparam))
 			{
-				is_success = FALSE;
+				status = STATUS_CANCELLED;
 
 				break;
 			}
@@ -13622,15 +13617,13 @@ BOOLEAN _r_inet_begindownload (
 		{
 			string = _r_obj_finalstringbuilder (&sb);
 
-			download_info->u.string = string;
-
-			is_success = TRUE;
+			download_info->string = string;
 		}
 		else
 		{
 			_r_obj_deletestringbuilder (&sb);
 
-			download_info->u.string = NULL;
+			download_info->string = NULL;
 		}
 	}
 
@@ -13641,7 +13634,7 @@ BOOLEAN _r_inet_begindownload (
 	_r_inet_close (hrequest);
 	_r_inet_close (hconnect);
 
-	return is_success;
+	return status;
 }
 
 VOID _r_inet_destroydownload (
@@ -13650,11 +13643,11 @@ VOID _r_inet_destroydownload (
 {
 	if (download_info->is_savetofile)
 	{
-		SAFE_DELETE_HANDLE (download_info->u.hfile);
+		SAFE_DELETE_HANDLE (download_info->hfile);
 	}
 	else
 	{
-		SAFE_DELETE_REFERENCE (download_info->u.string);
+		SAFE_DELETE_REFERENCE (download_info->string);
 	}
 }
 

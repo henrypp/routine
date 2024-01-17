@@ -1628,7 +1628,7 @@ HRESULT _r_msg_taskdialog (
 	_In_ const LPTASKDIALOGCONFIG task_dialog,
 	_Out_opt_ PINT button_ptr,
 	_Out_opt_ PINT radio_button_ptr,
-	_Out_opt_ LPBOOL is_flagchecked_ptr
+	_Out_opt_ PBOOL is_flagchecked_ptr
 );
 
 HRESULT CALLBACK _r_msg_callback (
@@ -3320,8 +3320,8 @@ HINTERNET _r_inet_createsession (
 	_In_opt_ PR_STRING proxy
 );
 
-_Success_ (return)
-BOOLEAN _r_inet_openurl (
+_Success_ (return == ERROR_SUCCESS)
+ULONG _r_inet_openurl (
 	_In_ HINTERNET hsession,
 	_In_ PR_STRING url,
 	_Out_ LPHINTERNET hconnect_ptr,
@@ -3360,8 +3360,7 @@ VOID _r_inet_initializedownload (
 	_In_opt_ PVOID lparam
 );
 
-_Success_ (return)
-BOOLEAN _r_inet_begindownload (
+NTSTATUS _r_inet_begindownload (
 	_In_ HINTERNET hsession,
 	_In_ PR_STRING url,
 	_In_opt_ PR_STRING proxy,

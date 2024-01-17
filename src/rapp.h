@@ -348,7 +348,6 @@ BOOLEAN NTAPI _r_update_downloadcallback (
 	_In_ PVOID lparam
 );
 
-_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_update_downloadupdate (
 	_In_ PR_UPDATE_INFO update_info,
 	_Inout_ PR_UPDATE_COMPONENT update_component

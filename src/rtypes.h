@@ -761,7 +761,7 @@ typedef struct _R_DOWNLOAD_INFO
 	{
 		HANDLE hfile;
 		PR_STRING string;
-	} u;
+	};
 
 	PR_INET_DOWNLOAD_CALLBACK download_callback;
 	PVOID lparam;
