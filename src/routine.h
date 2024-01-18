@@ -4861,7 +4861,27 @@ UINT _r_treeview_getitemstate (
 	_In_ HTREEITEM item_id
 );
 
+HTREEITEM _r_treeview_getnextitem (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ HTREEITEM item_id,
+	_In_opt_ ULONG retrieve_id
+);
+
 BOOLEAN _r_treeview_isitemchecked (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ HTREEITEM item_id
+);
+
+_Ret_maybenull_
+PR_STRING _r_treeview_getitemtext (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ HTREEITEM item_id
+);
+
+VOID _r_treeview_selectfirstchild (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ HTREEITEM item_id

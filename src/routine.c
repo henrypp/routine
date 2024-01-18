@@ -17747,20 +17747,21 @@ UINT _r_treeview_getitemstate (
 	return tvi.state;
 }
 
-UINT _r_treeview_getnextitem (
+HTREEITEM _r_treeview_getnextitem (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
-	_In_ HTREEITEM item_id
+	_In_ HTREEITEM item_id,
+	_In_opt_ ULONG retrieve_id
 )
 {
 	TVITEMW tvi = {0};
 
-	tvi.mask = TVIF_STATE;
+	tvi.mask = TVIF_HANDLE;
 	tvi.hItem = item_id;
 
-	SendDlgItemMessageW (hwnd, ctrl_id, TVM_GETNEXTITEM, TVGN_NEXT, (LPARAM)&tvi);
+	SendDlgItemMessageW (hwnd, ctrl_id, TVM_GETNEXTITEM, retrieve_id, (LPARAM)&tvi);
 
-	return tvi.state;
+	return tvi.hItem;
 }
 
 BOOLEAN _r_treeview_isitemchecked (
@@ -17774,6 +17775,55 @@ BOOLEAN _r_treeview_isitemchecked (
 	state = _r_treeview_getitemstate (hwnd, ctrl_id, item_id);
 
 	return (state >> 12) - 1;
+}
+
+_Ret_maybenull_
+PR_STRING _r_treeview_getitemtext (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ HTREEITEM item_id
+)
+{
+	TVITEMW tvi = {0};
+	PR_STRING string = NULL;
+	ULONG allocated_count;
+
+	tvi.mask = TVIF_HANDLE | TVIF_TEXT;
+	tvi.hItem = item_id;
+
+	allocated_count = 0xFF;
+
+	string = _r_obj_createstring_ex (NULL, allocated_count * sizeof (WCHAR));
+
+	tvi.pszText = string->buffer;
+	tvi.cchTextMax = (INT)allocated_count + 1;
+
+	SendDlgItemMessageW (hwnd, ctrl_id, TVM_GETITEM, 0, (LPARAM)&tvi);
+
+	_r_obj_trimstringtonullterminator (string);
+
+	if (!_r_obj_isstringempty2 (string))
+		return string;
+
+	_r_obj_dereference (string);
+
+	return NULL;
+}
+
+VOID _r_treeview_selectfirstchild (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ HTREEITEM item_id
+)
+{
+	TVITEMEX tvi = {0};
+
+	tvi.mask = TVIF_HANDLE;
+	tvi.hItem = (HTREEITEM)SendDlgItemMessageW (hwnd, ctrl_id, TVM_GETNEXTITEM, TVGN_CHILD, (LPARAM)item_id);
+
+	SendDlgItemMessageW (hwnd, ctrl_id, TVM_GETITEM, 0, (LPARAM)&tvi);
+
+	_r_treeview_selectitem (hwnd, ctrl_id, tvi.hItem);
 }
 
 VOID _r_treeview_setitemcheck (
