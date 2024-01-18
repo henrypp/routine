@@ -13615,7 +13615,7 @@ NTSTATUS _r_inet_begindownload (
 
 	if (!download_info->is_savetofile)
 	{
-		if (NT_SUCCESS (status))
+		if (status == STATUS_SUCCESS)
 		{
 			string = _r_obj_finalstringbuilder (&sb);
 
