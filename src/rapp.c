@@ -4122,7 +4122,7 @@ HRESULT _r_skipuac_checkmodulepath (
 		goto CleanupExit;
 
 	// check path is for current module
-	PathUnquoteSpaces (task_path);
+	PathUnquoteSpacesW (task_path);
 
 	if (_r_str_compare (task_path, 0, _r_sys_getimagepath (), 0) != 0)
 	{
