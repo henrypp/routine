@@ -11771,27 +11771,11 @@ HRESULT _r_filedialog_initialize (
 	return status;
 }
 
-_Success_ (SUCCEEDED (return))
-HRESULT _r_filedialog_show (
-	_In_opt_ HWND hwnd,
+VOID _r_filedialog_destroy (
 	_In_ PR_FILE_DIALOG file_dialog
 )
 {
-	FILEOPENDIALOGOPTIONS options = 0;
-	HRESULT status;
-
-	IFileDialog_SetDefaultExtension (file_dialog->u.ifd, L"");
-
-	IFileDialog_GetOptions (file_dialog->u.ifd, &options);
-
-	if ((file_dialog->flags & PR_FILEDIALOG_OPENDIR))
-		options |= FOS_PICKFOLDERS;
-
-	IFileDialog_SetOptions (file_dialog->u.ifd, options | FOS_DONTADDTORECENT | FOS_FORCESHOWHIDDEN);
-
-	status = IFileDialog_Show (file_dialog->u.ifd, hwnd);
-
-	return status;
+	IFileDialog_Release (file_dialog->u.ifd);
 }
 
 _Success_ (SUCCEEDED (return))
@@ -11838,6 +11822,38 @@ HRESULT _r_filedialog_getpath (
 	return status;
 }
 
+_Success_ (SUCCEEDED (return))
+HRESULT _r_filedialog_show (
+	_In_opt_ HWND hwnd,
+	_In_ PR_FILE_DIALOG file_dialog
+)
+{
+	FILEOPENDIALOGOPTIONS options = 0;
+	HRESULT status;
+
+	IFileDialog_SetDefaultExtension (file_dialog->u.ifd, L"");
+
+	IFileDialog_GetOptions (file_dialog->u.ifd, &options);
+
+	if ((file_dialog->flags & PR_FILEDIALOG_OPENDIR))
+		options |= FOS_PICKFOLDERS;
+
+	IFileDialog_SetOptions (file_dialog->u.ifd, options | FOS_DONTADDTORECENT | FOS_FORCESHOWHIDDEN);
+
+	status = IFileDialog_Show (file_dialog->u.ifd, hwnd);
+
+	return status;
+}
+
+VOID _r_filedialog_setfilter (
+	_Inout_ PR_FILE_DIALOG file_dialog,
+	_In_ LPCOMDLG_FILTERSPEC filters,
+	_In_ ULONG count
+)
+{
+	IFileDialog_SetFileTypes (file_dialog->u.ifd, count, filters);
+}
+
 VOID _r_filedialog_setpath (
 	_Inout_ PR_FILE_DIALOG file_dialog,
 	_In_ LPWSTR path
@@ -11881,22 +11897,6 @@ VOID _r_filedialog_setpath (
 	{
 		IFileDialog_SetFileName (file_dialog->u.ifd, path);
 	}
-}
-
-VOID _r_filedialog_setfilter (
-	_Inout_ PR_FILE_DIALOG file_dialog,
-	_In_ LPCOMDLG_FILTERSPEC filters,
-	_In_ ULONG count
-)
-{
-	IFileDialog_SetFileTypes (file_dialog->u.ifd, count, filters);
-}
-
-VOID _r_filedialog_destroy (
-	_In_ PR_FILE_DIALOG file_dialog
-)
-{
-	IFileDialog_Release (file_dialog->u.ifd);
 }
 
 //

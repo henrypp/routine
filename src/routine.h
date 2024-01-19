@@ -2995,9 +2995,7 @@ HRESULT _r_filedialog_initialize (
 	_In_ ULONG flags
 );
 
-_Success_ (SUCCEEDED (return))
-HRESULT _r_filedialog_show (
-	_In_opt_ HWND hwnd,
+VOID _r_filedialog_destroy (
 	_In_ PR_FILE_DIALOG file_dialog
 );
 
@@ -3007,9 +3005,10 @@ HRESULT _r_filedialog_getpath (
 	_Outptr_ PR_STRING_PTR out_buffer
 );
 
-VOID _r_filedialog_setpath (
-	_Inout_ PR_FILE_DIALOG file_dialog,
-	_In_ LPWSTR path
+_Success_ (SUCCEEDED (return))
+HRESULT _r_filedialog_show (
+	_In_opt_ HWND hwnd,
+	_In_ PR_FILE_DIALOG file_dialog
 );
 
 VOID _r_filedialog_setfilter (
@@ -3018,8 +3017,9 @@ VOID _r_filedialog_setfilter (
 	_In_ ULONG count
 );
 
-VOID _r_filedialog_destroy (
-	_In_ PR_FILE_DIALOG file_dialog
+VOID _r_filedialog_setpath (
+	_Inout_ PR_FILE_DIALOG file_dialog,
+	_In_ LPWSTR path
 );
 
 //
