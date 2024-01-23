@@ -4400,6 +4400,15 @@ FORCEINLINE INT _r_tab_getitemcount (
 	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, TCM_GETITEMCOUNT, 0, 0);
 }
 
+FORCEINLINE VOID _r_tab_setimagelist (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ HIMAGELIST himglist
+)
+{
+	_r_wnd_sendmessage (hwnd, ctrl_id, TCM_SETIMAGELIST, 0, (LPARAM)himglist);
+}
+
 //
 // Control: listview
 //
