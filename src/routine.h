@@ -2679,6 +2679,11 @@ NTSTATUS _r_sys_queryprocessstring (
 	_Out_ PR_STRING_PTR out_buffer
 );
 
+_Success_ (SUCCEEDED (return))
+HRESULT _r_sys_registerrestart (
+	_In_ BOOLEAN is_register
+);
+
 BOOLEAN _r_sys_runasadmin (
 	_In_ LPCWSTR file_name,
 	_In_opt_ LPCWSTR command_line,
