@@ -7009,7 +7009,7 @@ NTSTATUS _r_str_fromguid (
 
 	_r_obj_initializeunicodestring_ex (&us, buffer, 0, RTL_NUMBER_OF (buffer) * sizeof (WCHAR));
 
-	// win 81+
+	// win 8.1+
 	status = RtlStringFromGUIDEx (guid, &us, FALSE);
 
 	if (NT_SUCCESS (status))
