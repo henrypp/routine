@@ -352,6 +352,12 @@ BOOLEAN _r_app_initialize (
 #endif // !_DEBUG && !_WIN64
 #endif // !APP_CONSOLE
 
+	// restart app on restart
+	if (!_r_autorun_isenabled ())
+		_r_sys_registerrestart (TRUE);
+
+	AllowSetForegroundWindow (ASFW_ANY);
+
 	// if profile directory does not exist, we cannot save configuration
 	if (!_r_app_isreadonly ())
 		_r_app_getprofiledirectory (); // create profile directory if it does not exists
@@ -1979,6 +1985,57 @@ LONG64 _r_locale_getversion ()
 	return _r_str_tolong64 (&string);
 }
 
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_autorun_enable (
+	_In_opt_ HWND hwnd,
+	_In_ BOOLEAN is_enable
+)
+{
+	HANDLE hkey;
+	PR_STRING string;
+	NTSTATUS status;
+
+	status = _r_reg_openkey (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", KEY_WRITE, &hkey);
+
+	if (!NT_SUCCESS (status))
+		return status;
+
+	if (is_enable)
+	{
+		string = _r_obj_concatstrings (
+			3,
+			L"\"",
+			_r_sys_getimagepath (),
+			L"\" -minimized"
+		);
+
+		status = _r_reg_setvalue (hkey, _r_app_getname (), REG_SZ, string->buffer, (ULONG)(string->length + sizeof (UNICODE_NULL)));
+
+		_r_obj_dereference (string);
+
+		_r_sys_registerrestart (TRUE);
+	}
+	else
+	{
+		status = _r_reg_deletevalue (hkey, _r_app_getname ());
+
+		if (status == STATUS_OBJECT_NAME_NOT_FOUND)
+			status = STATUS_SUCCESS;
+
+		_r_sys_registerrestart (FALSE);
+	}
+
+	NtClose (hkey);
+
+	if (hwnd)
+	{
+		if (!NT_SUCCESS (status))
+			_r_show_errormessage (hwnd, NULL, status, NULL, TRUE);
+	}
+
+	return status;
+}
+
 BOOLEAN _r_autorun_isenabled ()
 {
 	HANDLE hkey;
@@ -2009,53 +2066,6 @@ BOOLEAN _r_autorun_isenabled ()
 	}
 
 	return is_enabled;
-}
-
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_autorun_enable (
-	_In_opt_ HWND hwnd,
-	_In_ BOOLEAN is_enable
-)
-{
-	HANDLE hkey;
-	PR_STRING string;
-	NTSTATUS status;
-
-	status = _r_reg_openkey (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", KEY_WRITE, &hkey);
-
-	if (!NT_SUCCESS (status))
-		return status;
-
-	if (is_enable)
-	{
-		string = _r_obj_concatstrings (
-			3,
-			L"\"",
-			_r_sys_getimagepath (),
-			L"\" -minimized"
-		);
-
-		status = _r_reg_setvalue (hkey, _r_app_getname (), REG_SZ, string->buffer, (ULONG)(string->length + sizeof (UNICODE_NULL)));
-
-		_r_obj_dereference (string);
-	}
-	else
-	{
-		status = _r_reg_deletevalue (hkey, _r_app_getname ());
-
-		if (status == STATUS_OBJECT_NAME_NOT_FOUND)
-			status = STATUS_SUCCESS;
-	}
-
-	NtClose (hkey);
-
-	if (hwnd)
-	{
-		if (!NT_SUCCESS (status))
-			_r_show_errormessage (hwnd, NULL, status, NULL, TRUE);
-	}
-
-	return status;
 }
 
 BOOLEAN NTAPI _r_update_downloadcallback (
@@ -4075,10 +4085,10 @@ HRESULT _r_skipuac_checkmodulepath (
 	_In_ IRegisteredTaskPtr registered_task
 )
 {
-	ITaskDefinition *task_definition = NULL;
 	IActionCollection *action_collection = NULL;
-	IAction *action = NULL;
+	ITaskDefinition *task_definition = NULL;
 	IExecAction *exec_action = NULL;
+	IAction *action = NULL;
 	BSTR task_path = NULL;
 	LONG count;
 	HRESULT status;
@@ -4125,11 +4135,7 @@ HRESULT _r_skipuac_checkmodulepath (
 	PathUnquoteSpacesW (task_path);
 
 	if (_r_str_compare (task_path, 0, _r_sys_getimagepath (), 0) != 0)
-	{
 		status = SCHED_E_INVALID_TASK;
-
-		goto CleanupExit;
-	}
 
 CleanupExit:
 
@@ -4153,10 +4159,10 @@ CleanupExit:
 
 BOOLEAN _r_skipuac_isenabled ()
 {
-	VARIANT empty = {VT_EMPTY};
+	IRegisteredTask *registered_task = NULL;
 	ITaskService *task_service = NULL;
 	ITaskFolder *task_folder = NULL;
-	IRegisteredTask *registered_task = NULL;
+	VARIANT empty = {VT_EMPTY};
 	BSTR task_root = NULL;
 	BSTR task_name = NULL;
 	HRESULT status;
@@ -4187,9 +4193,6 @@ BOOLEAN _r_skipuac_isenabled ()
 
 	status = _r_skipuac_checkmodulepath (registered_task);
 
-	if (FAILED (status))
-		goto CleanupExit;
-
 CleanupExit:
 
 	if (task_root)
@@ -4215,18 +4218,18 @@ HRESULT _r_skipuac_enable (
 	_In_ BOOLEAN is_enable
 )
 {
-	VARIANT empty = {VT_EMPTY};
+	IActionCollection *action_collection = NULL;
+	IRegistrationInfo *registration_info = NULL;
+	IRegisteredTask *registered_task = NULL;
+	ITaskDefinition *task_definition = NULL;
+	ITaskSettings3 *task_settings3 = NULL;
+	ITaskSettings *task_settings = NULL;
 	ITaskService *task_service = NULL;
 	ITaskFolder *task_folder = NULL;
-	ITaskDefinition *task_definition = NULL;
-	IRegistrationInfo *registration_info = NULL;
-	IPrincipal *principal = NULL;
-	ITaskSettings *task_settings = NULL;
-	ITaskSettings2 *task_settings2 = NULL;
-	IActionCollection *action_collection = NULL;
-	IAction *action = NULL;
 	IExecAction *exec_action = NULL;
-	IRegisteredTask *registered_task = NULL;
+	IPrincipal *principal = NULL;
+	IAction *action = NULL;
+	VARIANT empty = {VT_EMPTY};
 	BSTR task_root = NULL;
 	BSTR task_name = NULL;
 	BSTR task_author = NULL;
@@ -4241,7 +4244,7 @@ HRESULT _r_skipuac_enable (
 	{
 		if (!_r_path_issecurelocation (_r_sys_getimagepath ()))
 		{
-			if (_r_show_message (hwnd, MB_YESNO | MB_ICONWARNING, APP_SECURITY_TITLE, APP_WARNING_UAC_TEXT) != IDYES)
+			if (!_r_show_confirmmessage (hwnd, APP_SECURITY_TITLE, APP_WARNING_UAC_TEXT, NULL))
 				return E_ABORT;
 		}
 	}
@@ -4289,39 +4292,33 @@ HRESULT _r_skipuac_enable (
 			goto CleanupExit;
 
 		// Set task compatibility (win7+)
-		//
-		// TASK_COMPATIBILITY_V2_4 - win10
-		// TASK_COMPATIBILITY_V2_3 - win8.1
+		status = ITaskSettings_put_Compatibility (task_settings, TASK_COMPATIBILITY_V2_4); // win10
 
-		for (INT i = TASK_COMPATIBILITY_V2_4; i != TASK_COMPATIBILITY_V2_3; --i)
-		{
-			status = ITaskSettings_put_Compatibility (task_settings, i);
-
-			if (SUCCEEDED (status))
-				break;
-		}
+		if (FAILED (status))
+			status = ITaskSettings_put_Compatibility (task_settings, TASK_COMPATIBILITY_V2_3); // win8.1
 
 		// Set task settings (win7+)
-		status = ITaskSettings_QueryInterface (task_settings, &IID_ITaskSettings2, &task_settings2);
+		task_time_limit = SysAllocString (L"PT0S");
+
+		ITaskSettings_put_MultipleInstances (task_settings, TASK_INSTANCES_PARALLEL);
+		ITaskSettings_put_DisallowStartIfOnBatteries (task_settings, VARIANT_FALSE);
+		ITaskSettings_put_StopIfGoingOnBatteries (task_settings, VARIANT_FALSE);
+		ITaskSettings_put_ExecutionTimeLimit (task_settings, task_time_limit);
+		ITaskSettings_put_AllowHardTerminate (task_settings, VARIANT_FALSE);
+		ITaskSettings_put_StartWhenAvailable (task_settings, VARIANT_TRUE);
+		ITaskSettings_put_AllowDemandStart (task_settings, VARIANT_TRUE);
+		ITaskSettings_put_Priority (task_settings, 1); // HIGH_PRIORITY_CLASS
+
+		// win8+
+		status = ITaskSettings_QueryInterface (task_settings, &IID_ITaskSettings3, &task_settings3);
 
 		if (SUCCEEDED (status))
 		{
-			ITaskSettings2_put_UseUnifiedSchedulingEngine (task_settings2, VARIANT_TRUE);
-			ITaskSettings2_put_DisallowStartOnRemoteAppSession (task_settings2, VARIANT_TRUE);
+			ITaskSettings3_put_UseUnifiedSchedulingEngine (task_settings3, VARIANT_TRUE);
+			ITaskSettings3_put_DisallowStartOnRemoteAppSession (task_settings3, VARIANT_TRUE);
 
-			ITaskSettings2_Release (task_settings2);
+			ITaskSettings3_Release (task_settings3);
 		}
-
-		task_time_limit = SysAllocString (L"PT0S");
-
-		ITaskSettings_put_AllowDemandStart (task_settings, VARIANT_TRUE);
-		ITaskSettings_put_AllowHardTerminate (task_settings, VARIANT_FALSE);
-		ITaskSettings_put_ExecutionTimeLimit (task_settings, task_time_limit);
-		ITaskSettings_put_DisallowStartIfOnBatteries (task_settings, VARIANT_FALSE);
-		ITaskSettings_put_MultipleInstances (task_settings, TASK_INSTANCES_PARALLEL);
-		ITaskSettings_put_StartWhenAvailable (task_settings, VARIANT_TRUE);
-		ITaskSettings_put_StopIfGoingOnBatteries (task_settings, VARIANT_FALSE);
-		//ITaskSettings_put_Priority (task_settings, 4); // NORMAL_PRIORITY_CLASS
 
 		status = ITaskDefinition_get_Principal (task_definition, &principal);
 
@@ -4372,7 +4369,7 @@ HRESULT _r_skipuac_enable (
 	{
 		status = ITaskFolder_DeleteTask (task_folder, task_name, 0);
 
-		if (status == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND))
+		if (status == E_NOT_SET)
 			status = S_OK;
 	}
 

@@ -313,13 +313,13 @@ FORCEINLINE HWND _r_settings_getwindow ()
 // Autorun (optional feature)
 //
 
-BOOLEAN _r_autorun_isenabled ();
-
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_autorun_enable (
 	_In_opt_ HWND hwnd,
 	_In_ BOOLEAN is_enable
 );
+
+BOOLEAN _r_autorun_isenabled ();
 
 //
 // Skip UAC (optional feature)
