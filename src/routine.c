@@ -10996,12 +10996,16 @@ LONG64 _r_unixtime_now ()
 {
 	LARGE_INTEGER time_value = {0};
 
+#if defined(_WIN64)
+	time_value.QuadPart = *(volatile ULONG64*)&USER_SHARED_DATA->SystemTime;
+#else
 	do
 	{
 		time_value.HighPart = USER_SHARED_DATA->SystemTime.High1Time;
 		time_value.LowPart = USER_SHARED_DATA->SystemTime.LowPart;
 	}
 	while (time_value.HighPart != USER_SHARED_DATA->SystemTime.High2Time);
+#endif // _WIN64
 
 	return _r_unixtime_from_largeinteger (&time_value);
 }
