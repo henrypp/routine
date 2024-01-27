@@ -4271,7 +4271,7 @@ HRESULT _r_skipuac_enable (
 		status = ITaskSettings_put_Compatibility (task_settings, TASK_COMPATIBILITY_V2_4); // win10
 
 		if (FAILED (status))
-			status = ITaskSettings_put_Compatibility (task_settings, TASK_COMPATIBILITY_V2_3); // win8.1
+			ITaskSettings_put_Compatibility (task_settings, TASK_COMPATIBILITY_V2_3); // win8.1
 
 		// Set task settings (win7+)
 		task_time_limit = SysAllocString (L"PT0S");
