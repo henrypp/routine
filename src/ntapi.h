@@ -754,7 +754,7 @@ typedef enum _PROCESSINFOCLASS
 	ProcessImageSection, // q: HANDLE
 	ProcessDebugAuthInformation, // since REDSTONE4 // 90
 	ProcessSystemResourceManagement, // PROCESS_SYSTEM_RESOURCE_MANAGEMENT
-	ProcessSequenceNumber, // q: ULONGLONG
+	ProcessSequenceNumber, // q: ULONG64
 	ProcessLoaderDetour, // since REDSTONE5
 	ProcessSecurityDomainInformation, // PROCESS_SECURITY_DOMAIN_INFORMATION
 	ProcessCombineSecurityDomainsInformation, // PROCESS_COMBINE_SECURITY_DOMAINS_INFORMATION
@@ -1171,7 +1171,7 @@ typedef struct _SYSTEM_PROCESS_INFORMATION
 	LARGE_INTEGER WorkingSetPrivateSize; // since VISTA
 	ULONG HardFaultCount; // since WIN7
 	ULONG NumberOfThreadsHighWatermark; // since WIN7
-	ULONGLONG CycleTime; // since WIN7
+	ULONG64 CycleTime; // since WIN7
 	LARGE_INTEGER CreateTime;
 	LARGE_INTEGER UserTime;
 	LARGE_INTEGER KernelTime;
@@ -1579,7 +1579,7 @@ typedef ULONG WNF_CHANGE_STAMP, *PWNF_CHANGE_STAMP;
 
 typedef struct _WNF_DELIVERY_DESCRIPTOR
 {
-	ULONGLONG SubscriptionId;
+	ULONG64 SubscriptionId;
 	WNF_STATE_NAME StateName;
 	WNF_CHANGE_STAMP ChangeStamp;
 	ULONG StateDataSize;
@@ -1739,7 +1739,7 @@ typedef struct _PROCESS_DEVICEMAP_INFORMATION_EX
 #define PebLastError() (NtCurrentTeb()->LastErrorValue)
 
 #define InitializeObjectAttributes(p, n, a, r, s) { \
-	(p)->Length = sizeof(OBJECT_ATTRIBUTES); \
+	(p)->Length = sizeof (OBJECT_ATTRIBUTES); \
 	(p)->RootDirectory = r; \
 	(p)->Attributes = a; \
 	(p)->ObjectName = n; \
@@ -1779,58 +1779,110 @@ typedef struct _KSYSTEM_TIME
 #include <pshpack4.h>
 typedef struct _KUSER_SHARED_DATA
 {
+	// Current low 32-bit of tick count and tick count multiplier.
+	//
+	// N.B. The tick count is updated each time the clock ticks.
 	ULONG TickCountLowDeprecated;
 	ULONG TickCountMultiplier;
 
+	// Current 64-bit interrupt time in 100ns units.
 	volatile KSYSTEM_TIME InterruptTime;
+
+	// Current 64-bit interrupt time in 100ns units.
 	volatile KSYSTEM_TIME SystemTime;
+
+	// Current 64-bit time zone bias.
 	volatile KSYSTEM_TIME TimeZoneBias;
 
+	// Support image magic number range for the host system.
+	//
+	// N.B. This is an inclusive range.
 	USHORT ImageNumberLow;
 	USHORT ImageNumberHigh;
 
+	// Copy of system root in unicode.
+	//
+	// N.B. This field must be accessed via the RtlGetNtSystemRoot API for an accurate result.
 	WCHAR NtSystemRoot[260];
 
+	// Maximum stack trace depth if tracing enabled.
 	ULONG MaxStackTraceDepth;
 
+	// Crypto exponent value.
 	ULONG CryptoExponent;
 
+	// Time zone ID.
 	ULONG TimeZoneId;
 	ULONG LargePageMinimum;
-	ULONG AitSamplingValue;
-	ULONG AppCompatFlag;
-	ULONGLONG RNGSeedVersion;
-	ULONG GlobalValidationRunlevel;
-	LONG TimeZoneBiasStamp;
 
+	// This value controls the AIT Sampling rate.
+	ULONG AitSamplingValue;
+
+	// This value controls switchback processing.
+	ULONG AppCompatFlag;
+
+	// Current Kernel Root RNG state seed version
+	ULONG64 RNGSeedVersion;
+
+	// This value controls assertion failure handling.
+	ULONG GlobalValidationRunlevel;
+
+	volatile LONG TimeZoneBiasStamp;
+
+	// The shared collective build number undecorated with C or F.
+	// GetVersionEx hides the real number
 	ULONG NtBuildNumber;
+
+	// Product type.
+	//
+	// N.B. This field must be accessed via the RtlGetNtProductType API for an accurate result.
 	NT_PRODUCT_TYPE NtProductType;
 	BOOLEAN ProductTypeIsValid;
-	UCHAR Reserved0[1];
+	BOOLEAN Reserved0[1];
 	USHORT NativeProcessorArchitecture;
 
+	// N. B. Note that each process sees a version from its PEB, but if the
+	// process is running with an altered view of the system version,
+	// the following two fields are used to correctly identify the
+	// version.
 	ULONG NtMajorVersion;
 	ULONG NtMinorVersion;
 
+	// Processor features.
 	BOOLEAN ProcessorFeatures[PROCESSOR_FEATURE_MAX];
 
+	// Reserved fields - do not use.
 	ULONG Reserved1;
 	ULONG Reserved3;
 
+	// Time slippage while in debugger.
 	volatile ULONG TimeSlip;
 
+	// Alternative system architecture, e.g., NEC PC98xx on x86.
 	ALTERNATIVE_ARCHITECTURE_TYPE AlternativeArchitecture;
+
+	// Boot sequence, incremented for each boot attempt by the OS loader.
 	ULONG BootId;
 
+	// If the system is an evaluation unit, the following field contains the
+	// date and time that the evaluation unit expires. A value of 0 indicates
+	// that there is no expiration. A non-zero value is the UTC absolute time
+	// that the system expires.
 	LARGE_INTEGER SystemExpirationDate;
 
+	// Suite support.
+	//
+	// N.B. This field must be accessed via the RtlGetSuiteMask API for an accurate result.
 	ULONG SuiteMask;
 
+	// TRUE if a kernel debugger is connected/enabled.
 	BOOLEAN KdDebuggerEnabled;
 
+	// Mitigation policies.
 	union
 	{
 		UCHAR MitigationPolicies;
+
 		struct
 		{
 			UCHAR NXSupportPolicy : 2;
@@ -1840,25 +1892,55 @@ typedef struct _KUSER_SHARED_DATA
 		};
 	};
 
+	// Measured duration of a single processor yield, in cycles. This is used by
+	// lock packages to determine how many times to spin waiting for a state
+	// change before blocking.
 	USHORT CyclesPerYield;
 
+	// Current console session Id. Always zero on non-TS systems.
+	//
+	// N.B. This field must be accessed via the RtlGetActiveConsoleId API for an accurate result.
 	volatile ULONG ActiveConsoleId;
 
+	// Force-dismounts cause handles to become invalid. Rather than always
+	// probe handles, a serial number of dismounts is maintained that clients
+	// can use to see if they need to probe handles.
 	volatile ULONG DismountCount;
 
+	// This field indicates the status of the 64-bit COM+ package on the
+	// system. It indicates whether the Itermediate Language (IL) COM+
+	// images need to use the 64-bit COM+ runtime or the 32-bit COM+ runtime.
 	ULONG ComPlusPackage;
 
+	// Time in tick count for system-wide last user input across all terminal
+	// sessions. For MP performance, it is not updated all the time (e.g. once
+	// a minute per session). It is used for idle detection.
 	ULONG LastSystemRITEventTickCount;
 
+	// Number of physical pages in the system. This can dynamically change as
+	// physical memory can be added or removed from a running system.
 	ULONG NumberOfPhysicalPages;
 
+	// True if the system was booted in safe boot mode.
 	BOOLEAN SafeBootMode;
+
+	// Virtualization flags.
 	UCHAR VirtualizationFlags;
+
+	// Reserved (available for reuse).
 	UCHAR Reserved12[2];
 
+	// This is a packed bitfield that contains various flags concerning
+	// the system state. They must be manipulated using interlocked
+	// operations.
+	//
+	// N.B. DbgMultiSessionSku must be accessed via the RtlIsMultiSessionSku API for an accurate result
 	union
 	{
 		ULONG SharedDataFlags;
+
+		// The following bit fields are for the debugger only. Do not use.
+		// Use the bit definitions instead.
 		struct
 		{
 			ULONG DbgErrorPortPresent : 1;
@@ -1878,14 +1960,21 @@ typedef struct _KUSER_SHARED_DATA
 
 	ULONG DataFlagsPad[1];
 
-	ULONGLONG TestRetInstruction;
-	LONGLONG QpcFrequency;
+	// Depending on the processor, the code for fast system call will differ,
+	// Stub code is provided pointers below to access the appropriate code.
+	//
+	// N.B. The following field is only used on 32-bit systems.
+	ULONG64 TestRetInstruction;
+	LONG64 QpcFrequency;
 
+	// On AMD64, this value is initialized to a nonzero value if the system
+	// operates with an altered view of the system service call mechanism.
 	ULONG SystemCall;
 
 	union
 	{
 		ULONG AllFlags;
+
 		struct
 		{
 			ULONG Win32Process : 1;
@@ -1895,12 +1984,15 @@ typedef struct _KUSER_SHARED_DATA
 		};
 	} UserCetAvailableEnvironments;
 
-	ULONGLONG SystemCallPad[2];
+	// Reserved, available for reuse.
+	ULONG64 SystemCallPad[2];
 
+	// The 64-bit tick count.
 	union
 	{
 		volatile KSYSTEM_TIME TickCount;
 		volatile ULONG64 TickCountQuad;
+
 		struct
 		{
 			ULONG ReservedTickCountOverlay[3];
@@ -1908,50 +2000,104 @@ typedef struct _KUSER_SHARED_DATA
 		};
 	};
 
+	// Cookie for encoding pointers system wide.
 	ULONG Cookie;
 	ULONG CookiePad[1];
 
-	LONGLONG ConsoleSessionForegroundProcessId;
-	ULONGLONG TimeUpdateLock;
-	ULONGLONG BaselineSystemTimeQpc;
-	ULONGLONG BaselineInterruptTimeQpc;
-	ULONGLONG QpcSystemTimeIncrement;
-	ULONGLONG QpcInterruptTimeIncrement;
+	// Client id of the process having the focus in the current
+	// active console session id.
+	//
+	// N.B. This field must be accessed via the RtlGetConsoleSessionForegroundProcessId API for an accurate result.
+	LONG64 ConsoleSessionForegroundProcessId;
+
+	// N.B. The following data is used to implement the precise time
+	// services. It is aligned on a 64-byte cache-line boundary and
+	// arranged in the order of typical accesses.
+	//
+	// Placeholder for the (internal) time update lock.
+	ULONG64 TimeUpdateLock;
+
+	// The performance counter value used to establish the current system time.
+	ULONG64 BaselineSystemTimeQpc;
+
+	// The performance counter value used to compute the last interrupt time.
+	ULONG64 BaselineInterruptTimeQpc;
+
+	// The scaled number of system time seconds represented by a single
+	// performance count (this value may vary to achieve time synchronization).
+	ULONG64 QpcSystemTimeIncrement;
+
+	// The scaled number of interrupt time seconds represented by a single
+	// performance count (this value is constant after the system is booted).
+	ULONG64 QpcInterruptTimeIncrement;
+
+	// The scaling shift count applied to the performance counter system time increment.
 	UCHAR QpcSystemTimeIncrementShift;
+
+	// The scaling shift count applied to the performance counter interrupt time increment.
 	UCHAR QpcInterruptTimeIncrementShift;
 
+	// The count of unparked processors.
 	USHORT UnparkedProcessorCount;
+
+	// A bitmask of enclave features supported on this system.
+	//
+	// N.B. This field must be accessed via the RtlIsEnclaveFeaturePresent API for an accurate result.
 	ULONG EnclaveFeatureMask[4];
 
+	// Current coverage round for telemetry based coverage.
 	ULONG TelemetryCoverageRound;
 
+	// The following field is used for ETW user mode global logging (UMGL).
 	USHORT UserModeGlobalLogger[16];
+
+	// Settings that can enable the use of Image File Execution Options from HKCU in addition to the original HKLM.
 	ULONG ImageFileExecutionOptions;
 
+	// Generation of the kernel structure holding system language information
 	ULONG LangGenerationCount;
-	ULONGLONG Reserved4;
+
+	// Reserved (available for reuse).
+	ULONG64 Reserved4;
+
+	// Current 64-bit interrupt time bias in 100ns units.
 	volatile ULONG64 InterruptTimeBias;
+
+	// Current 64-bit performance counter bias, in performance counter units before the shift is applied.
 	volatile ULONG64 QpcBias;
 
+	// Number of active processors and groups.
 	ULONG ActiveProcessorCount;
 	volatile UCHAR ActiveGroupCount;
+
+	// Reserved (available for re-use).
 	UCHAR Reserved9;
 
 	union
 	{
 		USHORT QpcData;
+
 		struct
 		{
-			volatile UCHAR QpcBypassEnabled : 1;
-			UCHAR QpcShift : 1;
+			// A boolean indicating whether performance counter queries
+			// can read the counter directly (bypassing the system call).
+			volatile UCHAR QpcBypassEnabled;
+
+			// Shift applied to the raw counter value to derive the QPC count.
+			UCHAR QpcShift;
 		};
 	};
 
 	LARGE_INTEGER TimeZoneBiasEffectiveStart;
 	LARGE_INTEGER TimeZoneBiasEffectiveEnd;
+
+	// Extended processor state configuration
 	XSTATE_CONFIGURATION XState;
+
 	KSYSTEM_TIME FeatureConfigurationChangeStamp;
 	ULONG Spare;
+
+	ULONG64 UserPointerAuthMask;
 } KUSER_SHARED_DATA, *PKUSER_SHARED_DATA;
 #include <poppack.h>
 
@@ -1987,17 +2133,20 @@ C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ActiveGroupCount) == 0x03c4);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Reserved9) == 0x03c5);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, XState) == 0x03d8);
 
-#define USER_SHARED_DATA ((KUSER_SHARED_DATA * const)0x7ffe0000)
+#define USER_SHARED_DATA ((PKUSER_SHARED_DATA const)0x7FFE0000)
 
 //
 // Teb/Peb
 //
 
-#if !defined(_WIN64)
-#define GDI_HANDLE_BUFFER_SIZE 34
+#define GDI_HANDLE_BUFFER_SIZE32 34
+#define GDI_HANDLE_BUFFER_SIZE64 60
+
+#if defined(_WIN64)
+#define GDI_HANDLE_BUFFER_SIZE GDI_HANDLE_BUFFER_SIZE64
 #else
-#define GDI_HANDLE_BUFFER_SIZE 60
-#endif // !_WIN64
+#define GDI_HANDLE_BUFFER_SIZE GDI_HANDLE_BUFFER_SIZE32
+#endif // _WIN64
 
 typedef ULONG GDI_HANDLE_BUFFER[GDI_HANDLE_BUFFER_SIZE];
 
@@ -2131,6 +2280,31 @@ typedef struct _RTL_USER_PROCESS_PARAMETERS
 	ULONG HeapMemoryTypeMask; // WIN11
 } RTL_USER_PROCESS_PARAMETERS, *PRTL_USER_PROCESS_PARAMETERS;
 
+typedef struct _TELEMETRY_COVERAGE_HEADER
+{
+	UCHAR MajorVersion;
+	UCHAR MinorVersion;
+
+	struct
+	{
+		USHORT TracingEnabled : 1;
+		USHORT Reserved1 : 15;
+	};
+
+	ULONG HashTableEntries;
+	ULONG HashIndexMask;
+	ULONG TableUpdateVersion;
+	ULONG TableSizeInBytes;
+	ULONG LastResetTick;
+	ULONG ResetRound;
+	ULONG Reserved2;
+	ULONG RecordedCount;
+	ULONG Reserved3[4];
+	ULONG HashTable[ANYSIZE_ARRAY];
+} TELEMETRY_COVERAGE_HEADER, *PTELEMETRY_COVERAGE_HEADER;
+
+typedef struct _LEAP_SECOND_DATA *PLEAP_SECOND_DATA;
+
 typedef struct _PEB
 {
 	BOOLEAN InheritedAddressSpace;
@@ -2140,6 +2314,7 @@ typedef struct _PEB
 	union
 	{
 		BOOLEAN BitField;
+
 		struct
 		{
 			BOOLEAN ImageUsesLargePages : 1;
@@ -2167,6 +2342,7 @@ typedef struct _PEB
 	union
 	{
 		ULONG CrossProcessFlags;
+
 		struct
 		{
 			ULONG ProcessInJob : 1;
@@ -2192,7 +2368,7 @@ typedef struct _PEB
 	PAPI_SET_NAMESPACE ApiSetMap;
 	ULONG TlsExpansionCounter;
 	PVOID TlsBitmap;
-	ULONG TlsBitmapBits[2];
+	ULONG TlsBitmapBits[2]; // TLS_MINIMUM_AVAILABLE
 
 	PVOID ReadOnlySharedMemoryBase;
 	PVOID SharedData; // HotpatchInformation
@@ -2215,7 +2391,7 @@ typedef struct _PEB
 	ULONG MaximumNumberOfHeaps;
 	PVOID *ProcessHeaps; // PHEAP
 
-	PVOID GdiSharedHandleTable;
+	PVOID GdiSharedHandleTable; // PGDI_SHARED_MEMORY
 	PVOID ProcessStarterHelper;
 	ULONG GdiDCAttributeList;
 
@@ -2234,31 +2410,35 @@ typedef struct _PEB
 	PVOID PostProcessInitRoutine;
 
 	PVOID TlsExpansionBitmap;
-	ULONG TlsExpansionBitmapBits[32];
+	ULONG TlsExpansionBitmapBits[32]; // TLS_EXPANSION_SLOTS
 
 	ULONG SessionId;
 
-	ULARGE_INTEGER AppCompatFlags;
+	ULARGE_INTEGER AppCompatFlags; // KACF_*
 	ULARGE_INTEGER AppCompatFlagsUser;
 	PVOID pShimData;
 	PVOID AppCompatInfo; // APPCOMPAT_EXE_DATA
 
 	UNICODE_STRING CSDVersion;
 
-	PVOID ActivationContextData; // ACTIVATION_CONTEXT_DATA
-	PVOID ProcessAssemblyStorageMap; // ASSEMBLY_STORAGE_MAP
-	PVOID SystemDefaultActivationContextData; // ACTIVATION_CONTEXT_DATA
-	PVOID SystemAssemblyStorageMap; // ASSEMBLY_STORAGE_MAP
+	PVOID ActivationContextData;
+	PVOID ProcessAssemblyStorageMap;
+	PVOID SystemDefaultActivationContextData;
+	PVOID SystemAssemblyStorageMap;
 
 	ULONG_PTR MinimumStackCommit;
 
-	PVOID SparePointers[4]; // 19H1 (previously FlsCallback to FlsHighIndex)
-	ULONG SpareUlongs[5]; // 19H1
-	//PVOID* FlsCallback;
-	//LIST_ENTRY FlsListHead;
-	//PVOID FlsBitmap;
-	//ULONG FlsBitmapBits[FLS_MAXIMUM_AVAILABLE / (sizeof(ULONG) * 8)];
-	//ULONG FlsHighIndex;
+	PVOID SparePointers[2]; // 19H1 (previously FlsCallback to FlsHighIndex)
+	PVOID PatchLoaderData;
+	PVOID ChpeV2ProcessInfo; // _CHPEV2_PROCESS_INFO
+
+	ULONG AppModelFeatureState;
+	ULONG SpareUlongs[2];
+
+	USHORT ActiveCodePage;
+	USHORT OemCodePage;
+	USHORT UseCaseMapping;
+	USHORT UnusedNlsField;
 
 	PVOID WerRegistrationData;
 	PVOID WerShipAssertPtr;
@@ -2275,6 +2455,7 @@ typedef struct _PEB
 	union
 	{
 		ULONG TracingFlags;
+
 		struct
 		{
 			ULONG HeapTracingEnabled : 1;
@@ -2284,20 +2465,21 @@ typedef struct _PEB
 		};
 	};
 
-	ULONGLONG CsrServerReadOnlySharedMemoryBase;
+	ULONG64 CsrServerReadOnlySharedMemoryBase;
 	PRTL_CRITICAL_SECTION TppWorkerpListLock;
 	LIST_ENTRY TppWorkerpList;
 	PVOID WaitOnAddressHashTable[128];
-	PVOID TelemetryCoverageHeader; // REDSTONE3
+	PTELEMETRY_COVERAGE_HEADER TelemetryCoverageHeader; // REDSTONE3
 	ULONG CloudFileFlags;
 	ULONG CloudFileDiagFlags; // REDSTONE4
 	CHAR PlaceholderCompatibilityMode;
 	CHAR PlaceholderCompatibilityModeReserved[7];
-	struct _LEAP_SECOND_DATA *LeapSecondData; // REDSTONE5
+	PLEAP_SECOND_DATA LeapSecondData; // REDSTONE5
 
 	union
 	{
 		ULONG LeapSecondFlags;
+
 		struct
 		{
 			ULONG SixtySecondEnabled : 1;
@@ -2306,26 +2488,21 @@ typedef struct _PEB
 	};
 
 	ULONG NtGlobalFlag2;
+	ULONG64 ExtendedFeatureDisableMask; // since WIN11
 } PEB, *PPEB;
 
 #if defined(_WIN64)
-C_ASSERT (FIELD_OFFSET (PEB, KernelCallbackTable) == 0x0058);
-C_ASSERT (FIELD_OFFSET (PEB, SessionId) == 0x02C0);
-C_ASSERT (FIELD_OFFSET (PEB, MinimumStackCommit) == 0x0318);
-
+C_ASSERT(FIELD_OFFSET(PEB, SessionId) == 0x2C0);
 //C_ASSERT(sizeof(PEB) == 0x7B0); // REDSTONE3
 //C_ASSERT(sizeof(PEB) == 0x7B8); // REDSTONE4
-C_ASSERT (sizeof (PEB) == 0x7C8); // REDSTONE5 // 19H1
-
+//C_ASSERT(sizeof(PEB) == 0x7C8); // REDSTONE5 // 19H1
+C_ASSERT(sizeof(PEB) == 0x7D0); // WIN11
 #else
-
-C_ASSERT (FIELD_OFFSET (PEB, KernelCallbackTable) == 0x002c);
-C_ASSERT (FIELD_OFFSET (PEB, SessionId) == 0x01d4);
-C_ASSERT (FIELD_OFFSET (PEB, MinimumStackCommit) == 0x0208);
-
+C_ASSERT(FIELD_OFFSET(PEB, SessionId) == 0x1D4);
 //C_ASSERT(sizeof(PEB) == 0x468); // REDSTONE3
 //C_ASSERT(sizeof(PEB) == 0x470); // REDSTONE4
-C_ASSERT (sizeof (PEB) == 0x480); // REDSTONE5 // 19H1
+//C_ASSERT(sizeof(PEB) == 0x480); // REDSTONE5 // 19H1
+C_ASSERT(sizeof(PEB) == 0x488); // WIN11
 #endif // _WIN64
 
 typedef struct _TEB
@@ -2505,11 +2682,11 @@ typedef struct _TEB
 	LONG WowTebOffset;
 	PVOID ResourceRetValue;
 	PVOID ReservedForWdf;
-	ULONGLONG ReservedForCrt;
+	ULONG64 ReservedForCrt;
 	GUID EffectiveContainerId;
-	ULONGLONG LastSleepCounter; // Win11
+	ULONG64 LastSleepCounter; // Win11
 	ULONG SpinCallCount;
-	ULONGLONG ExtendedFeatureDisableMask;
+	ULONG64 ExtendedFeatureDisableMask;
 } TEB, *PTEB;
 
 #if defined(_WIN64)
@@ -2814,12 +2991,12 @@ typedef struct _PS_CREATE_INFO
 			};
 			HANDLE FileHandle;
 			HANDLE SectionHandle;
-			ULONGLONG UserProcessParametersNative;
+			ULONG64 UserProcessParametersNative;
 			ULONG UserProcessParametersWow64;
 			ULONG CurrentParameterFlags;
-			ULONGLONG PebAddressNative;
+			ULONG64 PebAddressNative;
 			ULONG PebAddressWow64;
-			ULONGLONG ManifestAddress;
+			ULONG64 ManifestAddress;
 			ULONG ManifestSize;
 		} SuccessState;
 	};
