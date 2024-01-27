@@ -2970,10 +2970,8 @@ VOID _r_show_aboutmessage (
 	static BOOLEAN is_opened = FALSE;
 
 	TASKDIALOGCONFIG tdc = {0};
-	TASKDIALOG_BUTTON td_buttons[2] = {0};
 	LPCWSTR str_title;
 	WCHAR str_content[512];
-	INT command_id;
 
 	if (is_opened)
 		return;
@@ -3000,22 +2998,16 @@ VOID _r_show_aboutmessage (
 	);
 
 	tdc.cbSize = sizeof (tdc);
-	tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
+	tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_EXPAND_FOOTER_AREA | TDF_SIZE_TO_CONTENT;
 	tdc.hwndParent = hwnd;
 	tdc.hInstance = _r_sys_getimagebase ();
+	tdc.dwCommonButtons = TDCBF_CLOSE_BUTTON;
 	tdc.pszFooterIcon = TD_INFORMATION_ICON;
-	tdc.nDefaultButton = IDCLOSE;
 	tdc.pszWindowTitle = str_title;
 	tdc.pszMainInstruction = _r_app_getname ();
 	tdc.pszContent = str_content;
 	tdc.pfCallback = &_r_msg_callback;
 	tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
-
-	tdc.pButtons = td_buttons;
-	tdc.cButtons = RTL_NUMBER_OF (td_buttons);
-
-	td_buttons[0].nButtonID = IDOK;
-	td_buttons[1].nButtonID = IDCLOSE;
 
 #if defined(IDI_MAIN)
 	tdc.pszMainIcon = MAKEINTRESOURCEW (IDI_MAIN);
@@ -3023,27 +3015,11 @@ VOID _r_show_aboutmessage (
 #pragma PR_PRINT_WARNING(IDI_MAIN)
 #endif // IDI_MAIN
 
-#if defined(IDS_DONATE)
-	td_buttons[0].pszButtonText = _r_locale_getstring (IDS_DONATE);
-#else
-	td_buttons[0].pszButtonText = L"Give thanks!";
-#pragma PR_PRINT_WARNING(IDS_DONATE)
-#endif // IDS_DONATE
-
-#if defined(IDS_CLOSE)
-	td_buttons[1].pszButtonText = _r_locale_getstring (IDS_CLOSE);
-#else
-	td_buttons[1].pszButtonText = L"Close";
-#pragma PR_PRINT_WARNING(IDS_CLOSE)
-#endif // IDS_CLOSE
-
+	tdc.pszExpandedInformation = APP_ABOUT_DONATE;
+	tdc.pszCollapsedControlText = L"Donate";
 	tdc.pszFooter = APP_ABOUT_FOOTER;
 
-	if (SUCCEEDED (_r_msg_taskdialog (&tdc, &command_id, NULL, NULL)))
-	{
-		if (command_id == td_buttons[0].nButtonID)
-			_r_shell_opendefault (_r_app_getdonate_url ());
-	}
+	_r_msg_taskdialog (&tdc, NULL, NULL, NULL);
 
 	is_opened = FALSE;
 }
@@ -3123,7 +3099,7 @@ NTSTATUS _r_show_errormessage (
 
 	status = _r_sys_loadlibraryasresource (is_native ? L"ntdll.dll" : L"kernel32.dll", &hmodule);
 
-	if (!NT_SUCCESS (status) || !hmodule)
+	if (!NT_SUCCESS (status))
 		return status;
 
 	status = _r_sys_formatmessage (error_code, hmodule, 0, &string);

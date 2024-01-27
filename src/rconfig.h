@@ -102,12 +102,12 @@
 //
 
 #define APP_ABOUT_FOOTER L"This program is free software; you can redistribute it and/or modify it under the terms of " \
-	L"the <a href=\"https://www.gnu.org/licenses/gpl-3.0.html\">GNU General Public License 3</a> " \
+	L"the <a href=\"https://github.com/henrypp/routine\">GNU General Public License 3</a> " \
 	L"as published by the Free Software Foundation."
 
-#define APP_ABOUT_FOOTER_CLEAN L"This program is free software; you can redistribute it and/\r\n" \
-	L"or modify it under the terms of the GNU General Public\r\n" \
-	L"License 3 as published by the Free Software Foundation."
+#define APP_ABOUT_DONATE L"<a href=\"https://www.blockchain.com/btc/address/1LrRTXPsvHcQWCNZotA9RcwjsGcRghG96c\">Bitcoin</a> | " \
+	L"<a href=\"https://www.blockchain.com/explorer/addresses/eth/0xe2C84A62eb2a4EF154b19bec0c1c106734B95960\">Ethereum</a> | " \
+	L"<a href=\"https://paypal.me/henrypp\">PayPal</a> | <a href=\"https://yoomoney.ru/to/4100115776040583\">Yandex Money</a>"
 
 #define APP_EXCEPTION_TITLE L"Exception raised :("
 
