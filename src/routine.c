@@ -311,161 +311,6 @@ PR_STRING _r_format_unixtime (
 }
 
 //
-// Calculation
-//
-
-LONG _r_calc_clamp (
-	_In_ LONG value,
-	_In_ LONG min_value,
-	_In_ LONG max_value
-)
-{
-	if (value < min_value)
-		value = min_value;
-
-	if (value > max_value)
-		value = max_value;
-
-	return value;
-}
-
-LONG64 _r_calc_clamp64 (
-	_In_ LONG64 value,
-	_In_ LONG64 min_value,
-	_In_ LONG64 max_value
-)
-{
-	if (value < min_value)
-		value = min_value;
-
-	if (value > max_value)
-		value = max_value;
-
-	return value;
-}
-
-ULONG _r_calc_countbits (
-	_In_ ULONG value
-)
-{
-	ULONG count = 0;
-
-	while (value)
-	{
-		count += 1;
-
-		value &= value - 1;
-	}
-
-	return count;
-}
-
-VOID _r_calc_millisecondstolargeinteger (
-	_Out_ PLARGE_INTEGER timeout,
-	_In_ ULONG milliseconds
-)
-{
-	if (milliseconds == 0 || milliseconds == INFINITE)
-	{
-		timeout->QuadPart = 0;
-	}
-	else
-	{
-		timeout->QuadPart = -(LONG64)UInt32x32To64 (milliseconds, 10000);
-	}
-}
-
-LONG _r_calc_multipledivide (
-	_In_ LONG number,
-	_In_ ULONG numerator,
-	_In_ ULONG denominator
-)
-{
-	LONG value;
-
-	if (((number < 0) && (numerator < 0)) || ((number >= 0) && (numerator >= 0)))
-	{
-		value = (LONG)(((LONG64)number * (LONG64)numerator + denominator / 2) / (LONG64)denominator);
-	}
-	else
-	{
-		value = (LONG)(((LONG64)number * (LONG64)numerator - denominator / 2) / (LONG64)denominator);
-	}
-
-	return value;
-}
-
-ULONG _r_calc_percentof (
-	_In_ ULONG length,
-	_In_ ULONG total_length
-)
-{
-	LONG value;
-
-	value = (ULONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
-
-	return value;
-}
-
-ULONG _r_calc_percentof64 (
-	_In_ ULONG64 length,
-	_In_ ULONG64 total_length
-)
-{
-	ULONG value;
-
-	value = (ULONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
-
-	return value;
-}
-
-ULONG _r_calc_percentval (
-	_In_ ULONG percent,
-	_In_ ULONG total_length
-)
-{
-	ULONG value;
-
-	value = (total_length * percent) / 100;
-
-	return value;
-}
-
-ULONG64 _r_calc_percentval64 (
-	_In_ ULONG64 percent,
-	_In_ ULONG64 total_length
-)
-{
-	ULONG64 value;
-
-	value = (total_length * percent) / 100;
-
-	return value;
-}
-
-LONG _r_calc_rectheight (
-	_In_ LPCRECT rect
-)
-{
-	return rect->bottom - rect->top;
-}
-
-LONG _r_calc_rectwidth (
-	_In_ LPCRECT rect
-)
-{
-	return rect->right - rect->left;
-}
-
-ULONG64 _r_calc_roundnumber (
-	_In_ ULONG64 value,
-	_In_ ULONG64 granularity
-)
-{
-	return (value + granularity / 2) / granularity * granularity;
-}
-
-//
 // Synchronization: A fast event object
 //
 
@@ -10953,37 +10798,49 @@ NTSTATUS _r_sys_setthreadname (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_sleep (
-	_In_opt_ ULONG milliseconds
+	_In_ ULONG milliseconds
 )
 {
 	LARGE_INTEGER timeout;
 	NTSTATUS status;
 
-	if (milliseconds)
-		_r_calc_millisecondstolargeinteger (&timeout, milliseconds);
+	_r_calc_millisecondstolargeinteger (&timeout, milliseconds);
 
-	status = NtDelayExecution (FALSE, milliseconds ? &timeout : NULL);
+	status = NtDelayExecution (FALSE, &timeout);
 
 	return status;
 }
 
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_sys_waitforsingleobject (
-	_In_ HANDLE hevent,
-	_In_opt_ ULONG milliseconds
+NTSTATUS _r_sys_waitformultipleobjects (
+	_In_ ULONG count,
+	_In_reads_ (count) HANDLE * hevents,
+	_In_ ULONG milliseconds,
+	_In_ BOOLEAN is_waitall
 )
 {
 	LARGE_INTEGER timeout;
 	NTSTATUS status;
 
-	if (milliseconds)
-		_r_calc_millisecondstolargeinteger (&timeout, milliseconds);
+	status = NtWaitForMultipleObjects (count, hevents, is_waitall ? WaitAll : WaitAny, FALSE, _r_calc_millisecondstolargeinteger (&timeout, milliseconds));
 
-	status = NtWaitForSingleObject (hevent, FALSE, milliseconds ? &timeout : NULL);
+	if (!NT_SUCCESS (status))
+		status = WAIT_FAILED;
 
-	// is it an error code?
-	//if (HIWORD (status))
-	//	status = WAIT_FAILED;
+	return status;
+}
+
+NTSTATUS _r_sys_waitforsingleobject (
+	_In_ HANDLE hevent,
+	_In_ ULONG milliseconds
+)
+{
+	LARGE_INTEGER timeout;
+	NTSTATUS status;
+
+	status = NtWaitForSingleObject (hevent, FALSE, _r_calc_millisecondstolargeinteger (&timeout, milliseconds));
+
+	if (!NT_SUCCESS (status))
+		status = WAIT_FAILED;
 
 	return status;
 }

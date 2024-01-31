@@ -2785,7 +2785,13 @@ NTSTATUS _r_sys_sleep (
 	_In_opt_ ULONG milliseconds
 );
 
-_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_waitformultipleobjects (
+	_In_ ULONG count,
+	_In_reads_ (count) HANDLE* hevents,
+	_In_opt_ ULONG milliseconds,
+	_In_ BOOLEAN is_waitall
+);
+
 NTSTATUS _r_sys_waitforsingleobject (
 	_In_ HANDLE hevent,
 	_In_opt_ ULONG milliseconds
