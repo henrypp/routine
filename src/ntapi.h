@@ -2933,6 +2933,7 @@ typedef struct _PS_CREATE_INFO
 {
 	ULONG_PTR Size;
 	PS_CREATE_STATE State;
+
 	union
 	{
 		// PsCreateInitialState
@@ -2941,6 +2942,7 @@ typedef struct _PS_CREATE_INFO
 			union
 			{
 				ULONG InitFlags;
+
 				struct
 				{
 					UCHAR WriteOutputOnExit : 1;
@@ -2979,6 +2981,7 @@ typedef struct _PS_CREATE_INFO
 			union
 			{
 				ULONG OutputFlags;
+
 				struct
 				{
 					UCHAR ProtectedProcess : 1;
@@ -2991,6 +2994,7 @@ typedef struct _PS_CREATE_INFO
 					USHORT SpareBits3 : 16;
 				};
 			};
+
 			HANDLE FileHandle;
 			HANDLE SectionHandle;
 			ULONG64 UserProcessParametersNative;
@@ -3008,11 +3012,13 @@ typedef struct _PS_ATTRIBUTE
 {
 	ULONG_PTR Attribute;
 	ULONG_PTR Size;
+
 	union
 	{
 		ULONG_PTR Value;
 		PVOID ValuePtr;
 	};
+
 	PULONG_PTR ReturnLength;
 } PS_ATTRIBUTE, *PPS_ATTRIBUTE;
 
@@ -3137,6 +3143,15 @@ typedef enum _SECTION_INHERIT
 	ViewShare = 1,
 	ViewUnmap = 2
 } SECTION_INHERIT;
+
+#define MEM_EXECUTE_OPTION_ENABLE 0x01
+#define MEM_EXECUTE_OPTION_DISABLE 0x02
+#define MEM_EXECUTE_OPTION_DISABLE_THUNK_EMULATION 0x04
+#define MEM_EXECUTE_OPTION_PERMANENT 0x08
+#define MEM_EXECUTE_OPTION_EXECUTE_DISPATCH_ENABLE 0x10
+#define MEM_EXECUTE_OPTION_IMAGE_DISPATCH_ENABLE 0x20
+#define MEM_EXECUTE_OPTION_DISABLE_EXCEPTION_CHAIN_VALIDATION 0x40
+#define MEM_EXECUTE_OPTION_VALID_FLAGS 0x7F
 
 typedef VOID (NTAPI *PIO_APC_ROUTINE)(
 	_In_ PVOID ApcContext,
@@ -3409,6 +3424,8 @@ CsrFreeCaptureBuffer (
 	_In_ PCSR_CAPTURE_BUFFER captureBuffer
 );
 
+
+
 _Must_inspect_result_
 _When_ (return == 0, __drv_allocatesMem (mem))
 NTSYSCALLAPI
@@ -3416,11 +3433,25 @@ NTSTATUS
 NTAPI
 NtAllocateVirtualMemory (
 	_In_ HANDLE ProcessHandle,
-	_Inout_ _At_ (*BaseAddress, _Readable_bytes_ (*RegionSize) _Writable_bytes_ (*RegionSize) _Post_readable_byte_size_ (*RegionSize)) PVOID * BaseAddress,
+	_Inout_ _At_ (*BaseAddress, _Readable_bytes_ (*RegionSize) _Writable_bytes_ (*RegionSize) _Post_readable_byte_size_ (*RegionSize)) PVOID *BaseAddress,
 	_In_ ULONG_PTR ZeroBits,
 	_Inout_ PULONG_PTR RegionSize,
 	_In_ ULONG AllocationType,
 	_In_ ULONG Protect
+);
+
+// win10rs5+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAllocateVirtualMemoryEx (
+	_In_ HANDLE ProcessHandle,
+	_Inout_ _At_ (*BaseAddress, _Readable_bytes_ (*RegionSize) _Writable_bytes_ (*RegionSize) _Post_readable_byte_size_ (*RegionSize)) PVOID *BaseAddress,
+	_Inout_ PSIZE_T RegionSize,
+	_In_ ULONG AllocationType,
+	_In_ ULONG PageProtection,
+	_Inout_updates_opt_ (ExtendedParameterCount) PMEM_EXTENDED_PARAMETER ExtendedParameters,
+	_In_ ULONG ExtendedParameterCount
 );
 
 NTSYSCALLAPI
@@ -3428,7 +3459,7 @@ NTSTATUS
 NTAPI
 NtFreeVirtualMemory (
 	_In_ HANDLE ProcessHandle,
-	_Inout_ PVOID * BaseAddress,
+	_Inout_ PVOID *BaseAddress,
 	_Inout_ PULONG_PTR RegionSize,
 	_In_ ULONG FreeType
 );
@@ -3438,7 +3469,7 @@ NTSTATUS
 NTAPI
 NtFlushVirtualMemory (
 	_In_ HANDLE ProcessHandle,
-	_Inout_ PVOID * BaseAddress,
+	_Inout_ PVOID *BaseAddress,
 	_Inout_ PULONG_PTR RegionSize,
 	_Out_ PIO_STATUS_BLOCK IoStatus
 );
@@ -3454,6 +3485,19 @@ NtReadVirtualMemory (
 	_Out_opt_ PULONG_PTR NumberOfBytesRead
 );
 
+// win11+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtReadVirtualMemoryEx (
+	_In_ HANDLE ProcessHandle,
+	_In_opt_ PVOID BaseAddress,
+	_Out_writes_bytes_ (BufferSize) PVOID Buffer,
+	_In_ SIZE_T BufferSize,
+	_Out_opt_ PSIZE_T NumberOfBytesRead,
+	_In_ ULONG Flags
+);
+
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -3463,6 +3507,17 @@ NtWriteVirtualMemory (
 	_In_reads_bytes_ (BufferSize) PVOID Buffer,
 	_In_ ULONG_PTR BufferSize,
 	_Out_opt_ PULONG_PTR NumberOfBytesWritten
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtProtectVirtualMemory (
+	_In_ HANDLE ProcessHandle,
+	_Inout_ PVOID *BaseAddress,
+	_Inout_ PSIZE_T RegionSize,
+	_In_ ULONG NewProtect,
+	_Out_ PULONG OldProtect
 );
 
 NTSYSCALLAPI
@@ -3541,7 +3596,7 @@ LdrGetProcedureAddressEx (
 	_In_ PVOID DllHandle,
 	_In_opt_ PANSI_STRING ProcedureName,
 	_In_opt_ ULONG ProcedureNumber,
-	_Out_ PVOID * ProcedureAddress,
+	_Out_ PVOID *ProcedureAddress,
 	_In_ ULONG Flags
 );
 
@@ -3690,7 +3745,7 @@ NTSYSCALLAPI
 NTSTATUS
 NTAPI
 RtlGetLocaleFileMappingAddress (
-	_Out_ PVOID * BaseAddress,
+	_Out_ PVOID *BaseAddress,
 	_Out_ PLCID DefaultLocaleId,
 	_Out_ PLARGE_INTEGER DefaultCasingTableSize,
 	_Out_opt_ PULONG CurrentNLSVersion
@@ -5088,6 +5143,29 @@ BOOLEAN
 NTAPI
 RtlTryAcquireSRWLockShared (
 	_Inout_ PRTL_SRWLOCK SRWLock
+);
+
+_Acquires_exclusive_lock_ (*CriticalSection)
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlEnterCriticalSection (
+	_Inout_ PRTL_CRITICAL_SECTION CriticalSection
+);
+
+_Releases_exclusive_lock_ (*CriticalSection)
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlLeaveCriticalSection (
+	_Inout_ PRTL_CRITICAL_SECTION CriticalSection
+);
+
+NTSYSCALLAPI
+PPEB
+NTAPI
+RtlGetCurrentPeb (
+	VOID
 );
 
 NTSYSCALLAPI
