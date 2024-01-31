@@ -1417,8 +1417,10 @@ typedef struct _PROCESS_PRIORITY_CLASS_EX
 			USHORT ForegroundValid : 1;
 			USHORT PriorityClassValid : 1;
 		};
+
 		USHORT AllFlags;
 	};
+
 	UCHAR PriorityClass;
 	BOOLEAN Foreground;
 } PROCESS_PRIORITY_CLASS_EX, *PPROCESS_PRIORITY_CLASS_EX;
