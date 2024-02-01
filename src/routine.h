@@ -1453,65 +1453,51 @@ PR_STRING _r_format_unixtime (
 // Calculation
 //
 
-LONG _r_calc_clamp (
+FORCEINLINE LONG _r_calc_clamp (
 	_In_ LONG value,
 	_In_ LONG min_value,
 	_In_ LONG max_value
-);
+)
+{
+	if (value < min_value)
+		value = min_value;
 
-LONG64 _r_calc_clamp64 (
+	if (value > max_value)
+		value = max_value;
+
+	return value;
+}
+
+FORCEINLINE LONG64 _r_calc_clamp64 (
 	_In_ LONG64 value,
 	_In_ LONG64 min_value,
 	_In_ LONG64 max_value
-);
+)
+{
+	if (value < min_value)
+		value = min_value;
 
-ULONG _r_calc_countbits (
+	if (value > max_value)
+		value = max_value;
+
+	return value;
+}
+
+FORCEINLINE ULONG _r_calc_countbits (
 	_In_ ULONG value
-);
+)
+{
+	ULONG count = 0;
 
-VOID _r_calc_millisecondstolargeinteger (
-	_Out_ PLARGE_INTEGER timeout,
-	_In_ ULONG milliseconds
-);
+	while (value)
+	{
+		count += 1;
 
-LONG _r_calc_multipledivide (
-	_In_ LONG number,
-	_In_ ULONG numerator,
-	_In_ ULONG denominator
-);
+		value &= value - 1;
+	}
 
-ULONG _r_calc_percentof (
-	_In_ ULONG length,
-	_In_ ULONG total_length
-);
-
-ULONG _r_calc_percentof64 (
-	_In_ ULONG64 length,
-	_In_ ULONG64 total_length
-);
-
-ULONG _r_calc_percentval (
-	_In_ ULONG percent,
-	_In_ ULONG total_length
-);
-
-ULONG64 _r_calc_percentval64 (
-	_In_ ULONG64 percent,
-	_In_ ULONG64 total_length
-);
-
-LONG _r_calc_rectheight (
-	_In_ LPCRECT rect
-);
-
-LONG _r_calc_rectwidth (
-	_In_ LPCRECT rect
-);
-
-ULONG64 _r_calc_roundnumber (
-	_In_ ULONG64 value,
-	_In_ ULONG64 granularity
-);
+	return count;
+}
 
 FORCEINLINE VOID _r_calc_filetime2largeinteger (
 	_In_ LPFILETIME file_time,
@@ -1550,11 +1536,103 @@ FORCEINLINE LONG64 _r_calc_megabytes2bytes64 (
 	return megabytes * 1048576LL;
 }
 
+_Ret_maybenull_
+FORCEINLINE PLARGE_INTEGER _r_calc_millisecondstolargeinteger (
+	_Out_ PLARGE_INTEGER timeout,
+	_In_ ULONG milliseconds
+)
+{
+	if (milliseconds == INFINITE)
+	{
+		timeout->QuadPart = LLONG_MIN;
+
+		return NULL; // NULL means infinite
+	}
+
+	timeout->QuadPart = -Int32x32To64 (milliseconds, 10000);
+
+	return timeout;
+};
+
 FORCEINLINE LONG _r_calc_minutes2milliseconds (
 	_In_ LONG minutes
 )
 {
-	return minutes * 60LL * 1000LL;
+	return minutes * 60L * 1000L;
+}
+
+FORCEINLINE LONG _r_calc_multipledivide (
+	_In_ LONG number,
+	_In_ ULONG numerator,
+	_In_ ULONG denominator
+)
+{
+	LONG value;
+
+	if (number >= 0)
+	{
+		value = (LONG)(((LONG64)number * (LONG64)numerator + denominator / 2) / (LONG64)denominator);
+	}
+	else
+	{
+		value = (LONG)(((LONG64)number * (LONG64)numerator - denominator / 2) / (LONG64)denominator);
+	}
+
+	return value;
+}
+
+FORCEINLINE ULONG _r_calc_percentof (
+	_In_ ULONG length,
+	_In_ ULONG total_length
+)
+{
+	return (ULONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
+}
+
+FORCEINLINE ULONG _r_calc_percentof64 (
+	_In_ ULONG64 length,
+	_In_ ULONG64 total_length
+)
+{
+	return (ULONG)(((DOUBLE)length / (DOUBLE)total_length) * 100.0);
+}
+
+FORCEINLINE ULONG _r_calc_percentval (
+	_In_ ULONG percent,
+	_In_ ULONG total_length
+)
+{
+	return (total_length * percent) / 100;
+}
+
+FORCEINLINE ULONG64 _r_calc_percentval64 (
+	_In_ ULONG64 percent,
+	_In_ ULONG64 total_length
+)
+{
+	return (total_length * percent) / 100;
+}
+
+FORCEINLINE LONG _r_calc_rectheight (
+	_In_ LPCRECT rect
+)
+{
+	return rect->bottom - rect->top;
+}
+
+FORCEINLINE LONG _r_calc_rectwidth (
+	_In_ LPCRECT rect
+)
+{
+	return rect->right - rect->left;
+}
+
+FORCEINLINE ULONG64 _r_calc_roundnumber (
+	_In_ ULONG64 value,
+	_In_ ULONG64 granularity
+)
+{
+	return (value + granularity / 2) / granularity * granularity;
 }
 
 FORCEINLINE LONG _r_calc_seconds2milliseconds (
@@ -2782,19 +2860,19 @@ NTSTATUS _r_sys_setthreadname (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_sleep (
-	_In_opt_ ULONG milliseconds
+	_In_ ULONG milliseconds
 );
 
 NTSTATUS _r_sys_waitformultipleobjects (
 	_In_ ULONG count,
 	_In_reads_ (count) HANDLE* hevents,
-	_In_opt_ ULONG milliseconds,
+	_In_ ULONG milliseconds,
 	_In_ BOOLEAN is_waitall
 );
 
 NTSTATUS _r_sys_waitforsingleobject (
 	_In_ HANDLE hevent,
-	_In_opt_ ULONG milliseconds
+	_In_ ULONG milliseconds
 );
 
 FORCEINLINE PVOID _r_sys_getimagebase ()
