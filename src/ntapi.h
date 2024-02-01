@@ -15,11 +15,11 @@
 // Calling convention
 //
 
-#if !defined(_WIN64)
-#define FASTCALL __fastcall
-#else
+#if defined(_WIN64)
 #define FASTCALL
-#endif // !_WIN64
+#else
+#define FASTCALL __fastcall
+#endif // _WIN64
 
 //
 // Errors
@@ -49,13 +49,8 @@
 // Memory
 //
 
-#if !defined(PTR_ADD_OFFSET)
 #define PTR_ADD_OFFSET(pointer, offset) ((PVOID)((ULONG_PTR)(pointer) + (ULONG_PTR)(offset)))
-#endif // !PTR_ADD_OFFSET
-
-#if !defined(PTR_SUB_OFFSET)
 #define PTR_SUB_OFFSET(pointer, offset) ((PVOID)((ULONG_PTR)(pointer) - (ULONG_PTR)(offset)))
-#endif // !PTR_SUB_OFFSET
 
 #define ALIGN_UP_BY(address, align) (((ULONG_PTR)(address) + (align) - 1) & ~((align) - 1))
 #define ALIGN_UP_POINTER_BY(pointer, align) ((PVOID)ALIGN_UP_BY(pointer, align))
@@ -65,6 +60,8 @@
 #define ALIGN_DOWN_POINTER_BY(pointer, align) ((PVOID)ALIGN_DOWN_BY(pointer, align))
 #define ALIGN_DOWN(address, type) ALIGN_DOWN_BY(address, sizeof(type))
 #define ALIGN_DOWN_POINTER(pointer, type) ((PVOID)ALIGN_DOWN(pointer, type))
+
+#define IS_ALIGNED(pointer, align) ((((ULONG_PTR)(pointer)) & ((align) - 1)) == 0)
 
 #define PAGE_SIZE 0x1000
 
@@ -1425,6 +1422,32 @@ typedef struct _PROCESS_PRIORITY_CLASS_EX
 	BOOLEAN Foreground;
 } PROCESS_PRIORITY_CLASS_EX, *PPROCESS_PRIORITY_CLASS_EX;
 
+typedef struct _PROCESS_MITIGATION_POLICY_INFORMATION
+{
+	PROCESS_MITIGATION_POLICY Policy;
+
+	union
+	{
+		PROCESS_MITIGATION_ASLR_POLICY ASLRPolicy;
+		PROCESS_MITIGATION_STRICT_HANDLE_CHECK_POLICY StrictHandleCheckPolicy;
+		PROCESS_MITIGATION_SYSTEM_CALL_DISABLE_POLICY SystemCallDisablePolicy;
+		PROCESS_MITIGATION_EXTENSION_POINT_DISABLE_POLICY ExtensionPointDisablePolicy;
+		PROCESS_MITIGATION_DYNAMIC_CODE_POLICY DynamicCodePolicy;
+		PROCESS_MITIGATION_CONTROL_FLOW_GUARD_POLICY ControlFlowGuardPolicy;
+		PROCESS_MITIGATION_BINARY_SIGNATURE_POLICY SignaturePolicy;
+		PROCESS_MITIGATION_FONT_DISABLE_POLICY FontDisablePolicy;
+		PROCESS_MITIGATION_IMAGE_LOAD_POLICY ImageLoadPolicy;
+		PROCESS_MITIGATION_SYSTEM_CALL_FILTER_POLICY SystemCallFilterPolicy;
+		PROCESS_MITIGATION_PAYLOAD_RESTRICTION_POLICY PayloadRestrictionPolicy;
+		PROCESS_MITIGATION_CHILD_PROCESS_POLICY ChildProcessPolicy;
+		PROCESS_MITIGATION_SIDE_CHANNEL_ISOLATION_POLICY SideChannelIsolationPolicy;
+		PROCESS_MITIGATION_USER_SHADOW_STACK_POLICY UserShadowStackPolicy;
+		PROCESS_MITIGATION_REDIRECTION_TRUST_POLICY RedirectionTrustPolicy;
+		PROCESS_MITIGATION_USER_POINTER_AUTH_POLICY UserPointerAuthPolicy;
+		PROCESS_MITIGATION_SEHOP_POLICY SEHOPPolicy;
+	};
+} PROCESS_MITIGATION_POLICY_INFORMATION, *PPROCESS_MITIGATION_POLICY_INFORMATION;
+
 typedef struct _SYSTEM_PROCESS_ID_INFORMATION
 {
 	HANDLE ProcessId;
@@ -1718,6 +1741,7 @@ typedef struct _PROCESS_DEVICEMAP_INFORMATION_EX
 			UCHAR DriveType[32];
 		} Query;
 	};
+
 	ULONG Flags; // PROCESS_LUID_DOSDEVICES_ONLY
 } PROCESS_DEVICEMAP_INFORMATION_EX, *PPROCESS_DEVICEMAP_INFORMATION_EX;
 
@@ -2610,6 +2634,7 @@ typedef struct _TEB
 	{
 		PROCESSOR_NUMBER CurrentIdealProcessor;
 		ULONG IdealProcessorValue;
+
 		struct
 		{
 			UCHAR ReservedPad0;
@@ -2789,6 +2814,7 @@ typedef struct _SECTION_IMAGE_INFORMATION
 	ULONG_PTR MaximumStackSize;
 	ULONG_PTR CommittedStackSize;
 	ULONG SubSystemType;
+
 	union
 	{
 		struct
@@ -2796,8 +2822,10 @@ typedef struct _SECTION_IMAGE_INFORMATION
 			USHORT SubSystemMinorVersion;
 			USHORT SubSystemMajorVersion;
 		};
+
 		ULONG SubSystemVersion;
 	};
+
 	union
 	{
 		struct
@@ -2805,15 +2833,19 @@ typedef struct _SECTION_IMAGE_INFORMATION
 			USHORT MajorOperatingSystemVersion;
 			USHORT MinorOperatingSystemVersion;
 		};
+
 		ULONG OperatingSystemVersion;
 	};
+
 	USHORT ImageCharacteristics;
 	USHORT DllCharacteristics;
 	USHORT Machine;
 	BOOLEAN ImageContainsCode;
+
 	union
 	{
 		UCHAR ImageFlags;
+
 		struct
 		{
 			UCHAR ComPlusNativeReady : 1;
@@ -2825,6 +2857,7 @@ typedef struct _SECTION_IMAGE_INFORMATION
 			UCHAR Reserved : 2;
 		};
 	};
+
 	ULONG LoaderFlags;
 	ULONG ImageFileSize;
 	ULONG CheckSum;
@@ -2890,6 +2923,7 @@ typedef struct _IO_STATUS_BLOCK
 		NTSTATUS Status;
 		PVOID Pointer;
 	};
+
 	ULONG_PTR Information;
 } IO_STATUS_BLOCK, *PIO_STATUS_BLOCK;
 
@@ -3300,8 +3334,10 @@ typedef struct _PORT_MESSAGE_HEADER
 			SHORT DataLength;
 			SHORT TotalLength;
 		} s1;
+
 		ULONG Length;
 	} u1;
+
 	union
 	{
 		struct
@@ -3309,14 +3345,18 @@ typedef struct _PORT_MESSAGE_HEADER
 			SHORT Type;
 			SHORT DataInfoOffset;
 		} s2;
+
 		ULONG ZeroInit;
 	} u2;
+
 	union
 	{
 		CLIENT_ID ClientId;
-		double DoNotUseThisField;
+		DOUBLE DoNotUseThisField;
 	};
+
 	ULONG MessageId;
+
 	union
 	{
 		ULONG_PTR ClientViewSize;
@@ -3370,6 +3410,7 @@ typedef union _GUID_EX
 {
 	GUID Guid;
 	UCHAR Data[16];
+
 	struct
 	{
 		ULONG TimeLowPart;
@@ -3379,6 +3420,7 @@ typedef union _GUID_EX
 		UCHAR ClockSequenceLow;
 		UCHAR Node[6];
 	} s;
+
 	struct
 	{
 		ULONG Part0;
@@ -3957,6 +3999,15 @@ NTSYSCALLAPI
 NTSTATUS
 NTAPI
 NtDelayExecution (
+	_In_ BOOLEAN Alertable,
+	_In_opt_ PLARGE_INTEGER DelayInterval
+);
+
+// win10+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlDelayExecution (
 	_In_ BOOLEAN Alertable,
 	_In_opt_ PLARGE_INTEGER DelayInterval
 );
