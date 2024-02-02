@@ -15224,6 +15224,7 @@ BOOLEAN _r_parseini (
 	R_STRINGREF values_iterator;
 	R_STRINGREF key_string;
 	R_STRINGREF value_string;
+	PR_STRING value;
 	PR_HASHTABLE hashtable;
 	PR_STRING sections_string;
 	PR_STRING values_string;
@@ -15251,7 +15252,7 @@ BOOLEAN _r_parseini (
 
 	_r_obj_setstringlength (sections_string, return_length * sizeof (WCHAR));
 
-	allocated_length = 0x7fff; // maximum length for GetPrivateProfileSection
+	allocated_length = 0x7FFF; // maximum length for GetPrivateProfileSection
 	values_string = _r_obj_createstring_ex (NULL, allocated_length * sizeof (WCHAR));
 
 	// initialize section iterator
@@ -15292,11 +15293,16 @@ BOOLEAN _r_parseini (
 						{
 							if (!_r_obj_findhashtable (hashtable, hash_code))
 							{
-								_r_obj_addhashtablepointer (
-									hashtable,
-									hash_code,
-									value_string.length ? _r_obj_createstring3 (&value_string) : NULL
-								);
+								if (value_string.length)
+								{
+									value = _r_obj_createstring3 (&value_string);
+								}
+								else
+								{
+									value = NULL;
+								}
+
+								_r_obj_addhashtablepointer (hashtable, hash_code, value);
 							}
 						}
 
