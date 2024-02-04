@@ -6303,6 +6303,13 @@ NTSTATUS _r_path_search (
 	ULONG_PTR return_length;
 	NTSTATUS status;
 
+	if (_r_fs_exists (filename))
+	{
+		*out_buffer = _r_obj_createstring (filename);
+
+		return STATUS_SUCCESS;
+	}
+
 	status = RtlGetSearchPath (&path);
 
 	if (!NT_SUCCESS (status))
@@ -9456,18 +9463,15 @@ NTSTATUS _r_sys_createprocess (
 
 	file_name_string = _r_obj_createstring (file_name);
 
-	if (!_r_fs_exists (file_name))
-	{
-		status = _r_path_search (file_name, L".exe", &new_path);
+	status = _r_path_search (file_name, L".exe", &new_path);
 
-		if (NT_SUCCESS (status))
-		{
-			_r_obj_movereference (&file_name_string, new_path);
-		}
-		else
-		{
-			goto CleanupExit;
-		}
+	if (NT_SUCCESS (status))
+	{
+		_r_obj_movereference (&file_name_string, new_path);
+	}
+	else
+	{
+		goto CleanupExit;
 	}
 
 	status = RtlDosPathNameToNtPathName_U_WithStatus (file_name_string->buffer, &filename_nt, NULL, NULL);
@@ -10048,9 +10052,9 @@ NTSTATUS _r_sys_loadlibraryasresource (
 )
 {
 	LARGE_INTEGER offset = {0};
-	PR_STRING path;
 	HANDLE hsection = NULL;
 	HANDLE hfile;
+	PR_STRING path;
 	PVOID base_address = NULL;
 	ULONG_PTR base_size = 0;
 	NTSTATUS status;
