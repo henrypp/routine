@@ -51,52 +51,44 @@ BOOLEAN _r_config_getboolean_ex (
 	_In_opt_ LPCWSTR section_name
 );
 
-_Success_ (return != 0)
 LONG _r_config_getlong (
 	_In_ LPCWSTR key_name,
 	_In_ LONG def_value
 );
 
-_Success_ (return != 0)
 LONG _r_config_getlong_ex (
 	_In_ LPCWSTR key_name,
 	_In_opt_ LONG def_value,
 	_In_opt_ LPCWSTR section_name
 );
 
-_Success_ (return != 0)
 LONG64 _r_config_getlong64 (
 	_In_ LPCWSTR key_name,
 	_In_ LONG64 def_value
 );
 
-_Success_ (return != 0)
 LONG64 _r_config_getlong64_ex (
 	_In_ LPCWSTR key_name,
 	_In_opt_ LONG64 def_value,
 	_In_opt_ LPCWSTR section_name
 );
 
-_Success_ (return != 0)
 ULONG _r_config_getulong (
 	_In_ LPCWSTR key_name,
 	_In_opt_ ULONG def_value
 );
 
-_Success_ (return != 0)
 ULONG _r_config_getulong_ex (
 	_In_ LPCWSTR key_name,
 	_In_opt_ ULONG def_value,
 	_In_opt_ LPCWSTR section_name
 );
 
-_Success_ (return != 0)
 ULONG64 _r_config_getulong64 (
 	_In_ LPCWSTR key_name,
 	_In_opt_ ULONG64 def_value
 );
 
-_Success_ (return != 0)
 ULONG64 _r_config_getulong64_ex (
 	_In_ LPCWSTR key_name,
 	_In_opt_ ULONG64 def_value,
@@ -277,7 +269,7 @@ LPWSTR _r_locale_getstring (
 LONG64 _r_locale_getversion ();
 
 //
-// Settings window
+// Settings
 //
 
 VOID _r_settings_addpage (
@@ -387,8 +379,8 @@ VOID _r_update_navigate (
 	_In_ PR_UPDATE_INFO update_info,
 	_In_ TASKDIALOG_COMMON_BUTTON_FLAGS buttons,
 	_In_opt_ TASKDIALOG_FLAGS flags,
-	_In_opt_ LPCWSTR main_icon,
-	_In_opt_ LPCWSTR main,
+	_In_opt_ LPCWSTR icon,
+	_In_opt_ LPCWSTR title,
 	_In_opt_ LPCWSTR content,
 	_In_opt_ LONG error_code
 );
@@ -406,6 +398,10 @@ VOID _r_update_applyconfig ();
 VOID _r_update_install (
 	_In_ PR_UPDATE_COMPONENT update_component
 );
+
+//
+// Logging
+//
 
 BOOLEAN _r_log_isenabled (
 	_In_ R_LOG_LEVEL log_level_check
@@ -439,20 +435,31 @@ ULONG _r_log_leveltrayicon (
 	_In_ R_LOG_LEVEL log_level
 );
 
+//
+// Messages
+//
+
+VOID _r_report_error (
+	_In_opt_ LPCWSTR title,
+	_In_opt_ LPCWSTR string,
+	_In_ LONG status,
+	_In_ BOOLEAN is_native
+);
+
 VOID _r_show_aboutmessage (
 	_In_opt_ HWND hwnd
 );
 
 BOOLEAN _r_show_confirmmessage (
 	_In_opt_ HWND hwnd,
-	_In_opt_ LPCWSTR main,
+	_In_opt_ LPCWSTR title,
 	_In_opt_ LPCWSTR content,
 	_In_opt_ LPCWSTR config_key
 );
 
 NTSTATUS _r_show_errormessage (
 	_In_opt_ HWND hwnd,
-	_In_opt_ LPCWSTR main,
+	_In_opt_ LPCWSTR title,
 	_In_ LONG error_code,
 	_In_opt_ LPCWSTR description,
 	_In_ BOOLEAN is_native
@@ -461,7 +468,7 @@ NTSTATUS _r_show_errormessage (
 INT _r_show_message (
 	_In_opt_ HWND hwnd,
 	_In_ ULONG flags,
-	_In_opt_ LPCWSTR main,
+	_In_opt_ LPCWSTR title,
 	_In_ LPCWSTR content
 );
 
@@ -479,7 +486,6 @@ VOID _r_window_saveposition (
 // Application: seh
 //
 
-#if !defined(_DEBUG)
 VOID _r_app_exceptionfilter_savedump (
 	_In_ PEXCEPTION_POINTERS exception_ptr
 );
@@ -487,13 +493,12 @@ VOID _r_app_exceptionfilter_savedump (
 ULONG NTAPI _r_app_exceptionfilter_callback (
 	_In_ PEXCEPTION_POINTERS exception_ptr
 );
-#endif // !_DEBUG
 
 //
 // Application: common
 //
 
-LPCWSTR _r_app_getmutexname ();
+LPWSTR _r_app_getmutexname ();
 
 BOOLEAN _r_app_isportable ();
 
@@ -501,23 +506,15 @@ BOOLEAN _r_app_isreadonly ();
 
 BOOLEAN _r_app_initialize_com ();
 
-#if !defined(APP_CONSOLE)
 VOID _r_app_initialize_components ();
-#endif // !APP_CONSOLE
 
-#if !defined(APP_CONSOLE)
 VOID _r_app_initialize_controls ();
-#endif // !APP_CONSOLE
 
 VOID _r_app_initialize_dll ();
 
-#if !defined(APP_CONSOLE)
 VOID _r_app_initialize_locale ();
-#endif // !APP_CONSOLE
 
-#if !defined(_DEBUG)
 VOID _r_app_initialize_seh ();
-#endif // !_DEBUG
 
 typedef enum _R_CMDLINE_INFO_CLASS
 {
@@ -547,9 +544,7 @@ LPCWSTR _r_app_getcrashdirectory (
 	_In_ BOOLEAN is_create
 );
 
-#if !defined(APP_CONSOLE)
 PR_STRING _r_app_getlocalepath ();
-#endif // !APP_CONSOLE
 
 PR_STRING _r_app_getlogpath ();
 
@@ -560,7 +555,6 @@ PR_STRING _r_app_getproxyconfiguration ();
 
 PR_STRING _r_app_getuseragent ();
 
-#if !defined(APP_CONSOLE)
 LRESULT CALLBACK _r_app_maindlgproc (
 	_In_ HWND hwnd,
 	_In_ UINT msg,
@@ -585,7 +579,6 @@ BOOLEAN _r_app_runasadmin ();
 VOID _r_app_restart (
 	_In_opt_ HWND hwnd
 );
-#endif // !APP_CONSOLE
 
 EXTERN_C_END
 

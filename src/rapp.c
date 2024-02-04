@@ -9,7 +9,6 @@
 // Application: seh
 //
 
-#if !defined(_DEBUG)
 VOID _r_app_exceptionfilter_savedump (
 	_In_ PEXCEPTION_POINTERS exception_ptr
 )
@@ -59,47 +58,39 @@ ULONG NTAPI _r_app_exceptionfilter_callback (
 {
 	_r_app_exceptionfilter_savedump (exception_ptr);
 
-#if defined(APP_CONSOLE)
-	_r_console_writestringformat (
-		APP_EXCEPTION_TITLE L" 0x%08X\r\n",
-		exception_ptr->ExceptionRecord->ExceptionCode
-	);
-#else
-	_r_show_errormessage (NULL, APP_EXCEPTION_TITLE, exception_ptr->ExceptionRecord->ExceptionCode, NULL, TRUE);
-#endif // APP_CONSOLE
+	_r_report_error (APP_EXCEPTION_TITLE, NULL, exception_ptr->ExceptionRecord->ExceptionCode, TRUE);
 
 	RtlExitUserProcess (exception_ptr->ExceptionRecord->ExceptionCode);
 
 	return EXCEPTION_EXECUTE_HANDLER;
 }
-#endif // !_DEBUG
 
 //
 // Application: common
 //
 
-LPCWSTR _r_app_getmutexname ()
+LPWSTR _r_app_getmutexname ()
 {
-#if defined(APP_NO_MUTEX)
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static PR_STRING cached_name = NULL;
 
 	if (_r_initonce_begin (&init_once))
 	{
+#if defined(APP_NO_MUTEX)
 		cached_name = _r_format_string (
 			L"%s-%" TEXT (PR_ULONG) L"-%" TEXT (PR_ULONG),
 			_r_app_getnameshort (),
 			_r_str_gethash (_r_sys_getimagepath (), TRUE),
 			_r_str_gethash (_r_sys_getimagecommandline (), TRUE)
 		);
+#else
+		cached_name = _r_obj_createstring (_r_app_getnameshort ());
+#endif // APP_NO_MUTEX
 
 		_r_initonce_end (&init_once);
 	}
 
 	return cached_name->buffer;
-#else
-	return _r_app_getnameshort ();
-#endif // !APP_NO_MUTEX
 }
 
 BOOLEAN _r_app_isportable ()
@@ -183,11 +174,7 @@ BOOLEAN _r_app_initialize_com ()
 
 	if (FAILED (status))
 	{
-#if defined(APP_CONSOLE)
-		_r_console_writestringformat (APP_FAILED_COM_INITIALIZE L" 0x%08" TEXT (PRIX32) L"!\r\n", status);
-#else
-		_r_show_errormessage (NULL, APP_FAILED_COM_INITIALIZE, status, NULL, FALSE);
-#endif // APP_CONSOLE
+		_r_report_error (NULL, APP_FAILED_COM_INITIALIZE, status, FALSE);
 
 		return FALSE;
 	}
@@ -195,7 +182,6 @@ BOOLEAN _r_app_initialize_com ()
 	return TRUE;
 }
 
-#if !defined(APP_CONSOLE)
 VOID _r_app_initialize_components ()
 {
 	// set locale information
@@ -216,9 +202,7 @@ VOID _r_app_initialize_components ()
 
 	app_global.settings.page_list = _r_obj_createarray (sizeof (R_SETTINGS_PAGE), NULL);
 }
-#endif // !APP_CONSOLE
 
-#if !defined(APP_CONSOLE)
 VOID _r_app_initialize_controls ()
 {
 	INITCOMMONCONTROLSEX icex = {0};
@@ -228,7 +212,6 @@ VOID _r_app_initialize_controls ()
 
 	InitCommonControlsEx (&icex);
 }
-#endif // !APP_CONSOLE
 
 VOID _r_app_initialize_dll ()
 {
@@ -247,7 +230,6 @@ VOID _r_app_initialize_dll ()
 	LdrSetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 }
 
-#if !defined(APP_CONSOLE)
 VOID _r_app_initialize_locale ()
 {
 	PR_STRING string;
@@ -261,9 +243,57 @@ VOID _r_app_initialize_locale ()
 
 	app_global.locale.default_name = string;
 }
-#endif // !APP_CONSOLE
 
-#if !defined(_DEBUG)
+VOID _r_app_initialize_mitigations ()
+{
+	PROCESS_MITIGATION_POLICY_INFORMATION policy = {0};
+	NTSTATUS status;
+
+	if (!_r_sys_isosversiongreaterorequal (WINDOWS_10))
+		return;
+
+	// the policy of a process that can restrict image loading to those images that are either signed by Microsoft,
+	// by the Windows Store, or by Microsoft, the Windows Store and the WHQL
+	policy.Policy = ProcessSignaturePolicy;
+	policy.SignaturePolicy.Flags = 0;
+	policy.SignaturePolicy.MicrosoftSignedOnly = TRUE;
+
+	status = NtSetInformationProcess (NtCurrentProcess (), ProcessMitigationPolicy, &policy, sizeof (policy));
+
+	if (!NT_SUCCESS (status))
+		_r_report_error (NULL, L"ProcessSignaturePolicy", status, TRUE);
+
+	// prevents legacy extension point DLLs from being loaded into the process
+	policy.Policy = ProcessExtensionPointDisablePolicy;
+	policy.ExtensionPointDisablePolicy.Flags = 0;
+	policy.ExtensionPointDisablePolicy.DisableExtensionPoints = TRUE;
+
+	status = NtSetInformationProcess (NtCurrentProcess (), ProcessMitigationPolicy, &policy, sizeof (policy));
+
+	if (!NT_SUCCESS (status))
+		_r_report_error (NULL, L"ProcessExtensionPointDisablePolicy", status, TRUE);
+
+	// when turned on, the process cannot generate dynamic code or modify existing executable code
+	policy.Policy = ProcessDynamicCodePolicy;
+	policy.DynamicCodePolicy.Flags = 0;
+	policy.DynamicCodePolicy.ProhibitDynamicCode = TRUE;
+
+	status = NtSetInformationProcess (NtCurrentProcess (), ProcessMitigationPolicy, &policy, sizeof (policy));
+
+	if (!NT_SUCCESS (status))
+		_r_report_error (NULL, L"ProcessDynamicCodePolicy", status, TRUE);
+
+	// the RedirectionGuard policy of the process.
+	policy.Policy = ProcessRedirectionTrustPolicy;
+	policy.RedirectionTrustPolicy.Flags = 0;
+	policy.RedirectionTrustPolicy.EnforceRedirectionTrust = TRUE;
+
+	status = NtSetInformationProcess (NtCurrentProcess (), ProcessMitigationPolicy, &policy, sizeof (policy));
+
+	if (!NT_SUCCESS (status))
+		_r_report_error (NULL, L"ProcessRedirectionTrustPolicy", status, TRUE);
+}
+
 VOID _r_app_initialize_seh ()
 {
 	ULONG error_mode = 0;
@@ -280,15 +310,14 @@ VOID _r_app_initialize_seh ()
 
 	RtlSetUnhandledExceptionFilter (&_r_app_exceptionfilter_callback);
 }
-#endif // !_DEBUG
 
 BOOLEAN _r_app_initialize (
 	_In_opt_ PR_CMDLINE_CALLBACK cmd_callback
 )
 {
-#if !defined(APP_CONSOLE)
-	R_STRINGREF sr;
-#endif // !APP_CONSOLE
+	R_STRINGREF sr = {0};
+
+	_r_app_initialize_mitigations ();
 
 	// set main thread name (win10rs1+)
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_10))
@@ -327,7 +356,7 @@ BOOLEAN _r_app_initialize (
 	if (!_r_sys_iselevated ())
 	{
 		if (!_r_app_runasadmin ())
-			_r_show_errormessage (NULL, APP_FAILED_ADMIN_RIGHTS, STATUS_ACCESS_DENIED, NULL, TRUE);
+			_r_report_error (NULL, APP_FAILED_ADMIN_RIGHTS, STATUS_ACCESS_DENIED, TRUE);
 
 		return FALSE;
 	}
@@ -340,17 +369,17 @@ BOOLEAN _r_app_initialize (
 
 	// set running flag
 	_r_mutex_create (_r_app_getmutexname (), &app_global.main.hmutex);
+#endif // !APP_CONSOLE
 
 	// check for wow64 working and show warning if it is TRUE!
 #if !defined(_DEBUG) && !defined(_WIN64)
 	if (_r_sys_iswow64 () && !_r_sys_getopt (_r_sys_getimagecommandline (), L"nowow64", NULL))
 	{
-		_r_show_message (NULL, MB_OK | MB_ICONWARNING | MB_TOPMOST, APP_WARNING_WOW64_TITLE, APP_WARNING_WOW64_TEXT);
+		_r_report_error (APP_WARNING_WOW64_TITLE, APP_WARNING_WOW64_TEXT, STATUS_IMAGE_MACHINE_TYPE_MISMATCH);
 
 		return FALSE;
 	}
 #endif // !_DEBUG && !_WIN64
-#endif // !APP_CONSOLE
 
 	// restart app on restart
 	if (!_r_autorun_isenabled ())
@@ -619,7 +648,6 @@ PR_STRING _r_app_getuseragent ()
 	return cached_agent;
 }
 
-#if !defined(APP_CONSOLE)
 LRESULT CALLBACK _r_app_maindlgproc (
 	_In_ HWND hwnd,
 	_In_ UINT msg,
@@ -940,7 +968,6 @@ VOID _r_app_restart (
 
 	RtlExitUserProcess (STATUS_SUCCESS);
 }
-#endif // !APP_CONSOLE
 
 //
 // Configuration
@@ -993,7 +1020,6 @@ BOOLEAN _r_config_getboolean_ex (
 	return result;
 }
 
-_Success_ (return != 0)
 LONG _r_config_getlong (
 	_In_ LPCWSTR key_name,
 	_In_ LONG def_value
@@ -1006,7 +1032,6 @@ LONG _r_config_getlong (
 	return value;
 }
 
-_Success_ (return != 0)
 LONG _r_config_getlong_ex (
 	_In_ LPCWSTR key_name,
 	_In_opt_ LONG def_value,
@@ -1031,7 +1056,6 @@ LONG _r_config_getlong_ex (
 	return value;
 }
 
-_Success_ (return != 0)
 LONG64 _r_config_getlong64 (
 	_In_ LPCWSTR key_name,
 	_In_ LONG64 def_value
@@ -1044,7 +1068,6 @@ LONG64 _r_config_getlong64 (
 	return value;
 }
 
-_Success_ (return != 0)
 LONG64 _r_config_getlong64_ex (
 	_In_ LPCWSTR key_name,
 	_In_opt_ LONG64 def_value,
@@ -1069,7 +1092,6 @@ LONG64 _r_config_getlong64_ex (
 	return value;
 }
 
-_Success_ (return != 0)
 ULONG _r_config_getulong (
 	_In_ LPCWSTR key_name,
 	_In_opt_ ULONG def_value
@@ -1082,7 +1104,6 @@ ULONG _r_config_getulong (
 	return value;
 }
 
-_Success_ (return != 0)
 ULONG _r_config_getulong_ex (
 	_In_ LPCWSTR key_name,
 	_In_opt_ ULONG def_value,
@@ -1107,7 +1128,6 @@ ULONG _r_config_getulong_ex (
 	return result;
 }
 
-_Success_ (return != 0)
 ULONG64 _r_config_getulong64 (
 	_In_ LPCWSTR key_name,
 	_In_opt_ ULONG64 def_value
@@ -1120,7 +1140,6 @@ ULONG64 _r_config_getulong64 (
 	return value;
 }
 
-_Success_ (return != 0)
 ULONG64 _r_config_getulong64_ex (
 	_In_ LPCWSTR key_name,
 	_In_opt_ ULONG64 def_value,
@@ -1263,26 +1282,20 @@ PR_STRING _r_config_getstringexpand_ex (
 )
 {
 	PR_STRING string;
-	PR_STRING config_value;
+	PR_STRING value;
 	NTSTATUS status;
 
-	config_value = _r_config_getstring_ex (key_name, def_value, section_name);
+	value = _r_config_getstring_ex (key_name, def_value, section_name);
 
-	if (!config_value)
+	if (!value)
 		return NULL;
 
-	status = _r_str_environmentexpandstring (&config_value->sr, &string);
+	status = _r_str_environmentexpandstring (&value->sr, &string);
 
-	if (NT_SUCCESS (status))
-	{
-		_r_obj_dereference (config_value);
+	if (!NT_SUCCESS (status))
+		string = _r_obj_createstring2 (value);
 
-		return string;
-	}
-
-	string = _r_obj_createstring2 (config_value);
-
-	_r_obj_dereference (config_value);
+	_r_obj_dereference (value);
 
 	return string;
 }
@@ -1578,10 +1591,10 @@ VOID _r_config_setstring_ex (
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 
-	WCHAR section_string[128];
-	PR_STRING path;
-	PR_STRING section_string_full;
 	PR_OBJECT_POINTER object_ptr;
+	WCHAR section_string[128];
+	PR_STRING section_string_full;
+	PR_STRING path;
 	ULONG hash_code;
 
 	if (_r_initonce_begin (&init_once))
@@ -1881,7 +1894,7 @@ PR_STRING _r_locale_getstring_ex (
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 
-	PR_STRING hash_string;
+	PR_STRING hash_string = NULL;
 	PR_STRING value_string;
 	ULONG hash_code;
 	NTSTATUS status;
@@ -1899,15 +1912,13 @@ PR_STRING _r_locale_getstring_ex (
 
 	if (app_global.locale.current_name)
 	{
-		hash_string = _r_format_string (L"%s\\%03" TEXT (PRIu32), app_global.locale.current_name->buffer, uid);
+		hash_string = _r_format_string (L"%s\\%03d", app_global.locale.current_name->buffer, uid);
 
 		hash_code = _r_str_gethash2 (hash_string, TRUE);
 
 		_r_queuedlock_acquireshared (&app_global.locale.lock);
 		value_string = _r_obj_findhashtablepointer (app_global.locale.table, hash_code);
 		_r_queuedlock_releaseshared (&app_global.locale.lock);
-
-		_r_obj_dereference (hash_string);
 	}
 	else
 	{
@@ -1918,7 +1929,7 @@ PR_STRING _r_locale_getstring_ex (
 	{
 		if (app_global.locale.resource_name)
 		{
-			hash_string = _r_format_string (L"%s\\%03" TEXT (PRIu32), app_global.locale.resource_name->buffer, uid);
+			hash_string = _r_format_string (L"%s\\%03d", app_global.locale.resource_name->buffer, uid);
 
 			hash_code = _r_str_gethash2 (hash_string, TRUE);
 
@@ -1937,10 +1948,11 @@ PR_STRING _r_locale_getstring_ex (
 					_r_queuedlock_releaseexclusive (&app_global.locale.lock);
 				}
 			}
-
-			_r_obj_dereference (hash_string);
 		}
 	}
+
+	if (hash_string)
+		_r_obj_dereference (hash_string);
 
 	return value_string;
 }
@@ -1967,9 +1979,9 @@ LPWSTR _r_locale_getstring (
 
 LONG64 _r_locale_getversion ()
 {
-	PR_STRING path;
 	WCHAR timestamp_string[64];
 	R_STRINGREF string;
+	PR_STRING path;
 	ULONG length;
 
 	path = _r_app_getlocalepath ();
@@ -2013,7 +2025,7 @@ NTSTATUS _r_autorun_enable (
 
 		_r_obj_dereference (string);
 
-		_r_sys_registerrestart (TRUE);
+		_r_sys_registerrestart (FALSE);
 	}
 	else
 	{
@@ -2022,7 +2034,7 @@ NTSTATUS _r_autorun_enable (
 		if (status == STATUS_OBJECT_NAME_NOT_FOUND)
 			status = STATUS_SUCCESS;
 
-		_r_sys_registerrestart (FALSE);
+		_r_sys_registerrestart (TRUE);
 	}
 
 	NtClose (hkey);
@@ -2038,8 +2050,8 @@ NTSTATUS _r_autorun_enable (
 
 BOOLEAN _r_autorun_isenabled ()
 {
-	HANDLE hkey;
 	PR_STRING path;
+	HANDLE hkey;
 	BOOLEAN is_enabled = FALSE;
 	NTSTATUS status;
 
@@ -2158,13 +2170,15 @@ NTSTATUS NTAPI _r_update_downloadthread (
 	_In_ PVOID arglist
 )
 {
-	PR_UPDATE_INFO update_info = arglist;
-	PR_UPDATE_COMPONENT update_component;
 	TASKDIALOG_COMMON_BUTTON_FLAGS buttons;
+	PR_UPDATE_COMPONENT update_component;
+	PR_UPDATE_INFO update_info;
 	LPCWSTR str_content;
 	LPCWSTR main_icon = NULL;
 	ULONG update_flags = 0;
 	ULONG status = STATUS_SUCCESS;
+
+	update_info = arglist;
 
 	for (ULONG_PTR i = 0; i < _r_obj_getarraysize (update_info->components); i++)
 	{
@@ -2371,18 +2385,7 @@ VOID _r_update_enable (
 	_In_ BOOLEAN is_enable
 )
 {
-	LONG value;
-
-	if (is_enable)
-	{
-		value = APP_UPDATE_PERIOD;
-	}
-	else
-	{
-		value = 0;
-	}
-
-	_r_config_setlong (L"CheckUpdatesPeriod", value);
+	_r_config_setlong (L"CheckUpdatesPeriod", is_enable ? APP_UPDATE_PERIOD : 0);
 }
 
 _Success_ (return)
@@ -2514,15 +2517,12 @@ HRESULT CALLBACK _r_update_pagecallback (
 		case TDN_BUTTON_CLICKED:
 		{
 			PR_UPDATE_COMPONENT update_component;
-			R_ENVIRONMENT environment;
 			LPCWSTR str_content;
 			NTSTATUS status;
 
 			if (wparam == IDYES)
 			{
-				_r_sys_setenvironment (&environment, THREAD_PRIORITY_ABOVE_NORMAL, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
-
-				status = _r_sys_createthread (&_r_update_downloadthread, update_info, &update_info->hthread, &environment, L"UpdateThread");
+				status = _r_sys_createthread (&_r_update_downloadthread, update_info, &update_info->hthread, NULL, L"UpdateThread");
 
 				if (NT_SUCCESS (status))
 				{
@@ -2599,8 +2599,8 @@ VOID _r_update_navigate (
 	_In_ PR_UPDATE_INFO update_info,
 	_In_ TASKDIALOG_COMMON_BUTTON_FLAGS buttons,
 	_In_opt_ TASKDIALOG_FLAGS flags,
-	_In_opt_ LPCWSTR main_icon,
-	_In_opt_ LPCWSTR main,
+	_In_opt_ LPCWSTR icon,
+	_In_opt_ LPCWSTR title,
 	_In_opt_ LPCWSTR content,
 	_In_opt_ LONG error_code
 )
@@ -2610,16 +2610,16 @@ VOID _r_update_navigate (
 	BOOL is_checked;
 
 	tdc.cbSize = sizeof (tdc);
-	tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND | flags;
+	tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | flags;
 	tdc.hwndParent = update_info->hparent ? update_info->hparent : _r_app_gethwnd ();
 	tdc.hInstance = _r_sys_getimagebase ();
 	tdc.dwCommonButtons = buttons;
 	tdc.pfCallback = &_r_update_pagecallback;
 	tdc.lpCallbackData = (LONG_PTR)update_info;
 
-	if (main_icon)
+	if (icon)
 	{
-		tdc.pszMainIcon = main_icon;
+		tdc.pszMainIcon = icon;
 	}
 	else
 	{
@@ -2633,8 +2633,8 @@ VOID _r_update_navigate (
 
 	tdc.pszWindowTitle = _r_app_getname ();
 
-	if (main)
-		tdc.pszMainInstruction = main;
+	if (title)
+		tdc.pszMainInstruction = title;
 
 	if (content)
 		tdc.pszContent = content;
@@ -2691,14 +2691,7 @@ VOID _r_update_addcomponent (
 		is_installer ? L".exe" : L".tmp"
 	);
 
-	if (is_installer)
-	{
-		update_component.flags = PR_UPDATE_FLAG_INSTALLER;
-	}
-	else
-	{
-		update_component.flags = PR_UPDATE_FLAG_FILE;
-	}
+	update_component.flags = is_installer ? PR_UPDATE_FLAG_INSTALLER : PR_UPDATE_FLAG_FILE;
 
 	_r_obj_addarrayitem (app_global.update.info.components, &update_component);
 }
@@ -2737,6 +2730,10 @@ VOID _r_update_install (
 
 	_r_obj_dereference (cmd_string);
 }
+
+//
+// Logging
+//
 
 BOOLEAN _r_log_isenabled (
 	_In_ R_LOG_LEVEL log_level_check
@@ -2777,20 +2774,23 @@ HANDLE _r_log_getfilehandle ()
 
 	status = _r_fs_createfile (string->buffer, FILE_OPEN_IF, GENERIC_WRITE, FILE_SHARE_READ, FILE_ATTRIBUTE_NORMAL, 0, FALSE, NULL, &hfile);
 
-	if (status == STATUS_OBJECT_NAME_COLLISION)
-	{
-		// write utf-16 le byte order mask
-		NtWriteFile (hfile, NULL, NULL, NULL, &isb, bom, sizeof (bom), NULL, NULL);
-
-		// adds csv header
-		NtWriteFile (hfile, NULL, NULL, NULL, &isb, PR_DEBUG_HEADER, (ULONG)(_r_str_getlength (PR_DEBUG_HEADER) * sizeof (WCHAR)), NULL, NULL);
-	}
-	else if (NT_SUCCESS (status))
+	if (NT_SUCCESS (status))
 	{
 		status = _r_fs_getsize (hfile, NULL, &file_size);
 
 		if (NT_SUCCESS (status))
+		{
+			if (!file_size.QuadPart)
+			{
+				// write utf-16 le byte order mask
+				NtWriteFile (hfile, NULL, NULL, NULL, &isb, bom, sizeof (bom), NULL, NULL);
+
+				// adds csv header
+				NtWriteFile (hfile, NULL, NULL, NULL, &isb, PR_DEBUG_HEADER, (ULONG)(_r_str_getlength (PR_DEBUG_HEADER) * sizeof (WCHAR)), NULL, NULL);
+			}
+
 			_r_fs_setpos (hfile, &file_size);
+		}
 	}
 
 	return hfile;
@@ -2808,8 +2808,8 @@ VOID _r_log (
 	PR_STRING date_string;
 	LPCWSTR level_string;
 	IO_STATUS_BLOCK isb;
-	ULONG number = 0;
 	LONG64 current_timestamp;
+	ULONG number = 0;
 	HANDLE hfile;
 
 	if (!_r_log_isenabled (log_level))
@@ -2963,6 +2963,24 @@ ULONG _r_log_leveltrayicon (
 	}
 }
 
+//
+// Messages
+//
+
+VOID _r_report_error (
+	_In_opt_ LPCWSTR title,
+	_In_opt_ LPCWSTR string,
+	_In_ LONG status,
+	_In_ BOOLEAN is_native
+)
+{
+#if defined(APP_CONSOLE)
+	_r_console_writestringformat (L"ERROR: %s (%d, 0x%08" TEXT (PRIX32) L")!\r\n", string, status, status);
+#else
+	_r_show_errormessage (NULL, title, status, string, is_native);
+#endif // APP_CONSOLE
+}
+
 VOID _r_show_aboutmessage (
 	_In_opt_ HWND hwnd
 )
@@ -3026,7 +3044,7 @@ VOID _r_show_aboutmessage (
 
 BOOLEAN _r_show_confirmmessage (
 	_In_opt_ HWND hwnd,
-	_In_opt_ LPCWSTR main,
+	_In_opt_ LPCWSTR title,
 	_In_opt_ LPCWSTR content,
 	_In_opt_ LPCWSTR config_key
 )
@@ -3039,7 +3057,7 @@ BOOLEAN _r_show_confirmmessage (
 		return TRUE;
 
 	tdc.cbSize = sizeof (tdc);
-	tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
+	tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
 	tdc.hwndParent = hwnd;
 	tdc.hInstance = _r_sys_getimagebase ();
 	tdc.pszMainIcon = TD_WARNING_ICON;
@@ -3058,8 +3076,8 @@ BOOLEAN _r_show_confirmmessage (
 #endif // IDS_QUESTION_FLAG_CHK
 	}
 
-	if (main)
-		tdc.pszMainInstruction = main;
+	if (title)
+		tdc.pszMainInstruction = title;
 
 	if (content)
 		tdc.pszContent = content;
@@ -3079,7 +3097,7 @@ BOOLEAN _r_show_confirmmessage (
 
 NTSTATUS _r_show_errormessage (
 	_In_opt_ HWND hwnd,
-	_In_opt_ LPCWSTR main,
+	_In_opt_ LPCWSTR title,
 	_In_ LONG error_code,
 	_In_opt_ LPCWSTR description,
 	_In_ BOOLEAN is_native
@@ -3104,7 +3122,7 @@ NTSTATUS _r_show_errormessage (
 
 	status = _r_sys_formatmessage (error_code, hmodule, 0, &string);
 
-	str_main = main ? main : APP_FAILED_MESSAGE_TITLE;
+	str_main = !_r_str_isempty (title) ? title : APP_FAILED_MESSAGE_TITLE;
 
 	_r_str_printf (
 		str_content,
@@ -3121,7 +3139,7 @@ NTSTATUS _r_show_errormessage (
 	path = _r_app_getcrashdirectory (FALSE);
 
 	tdc.cbSize = sizeof (tdc);
-	tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_ENABLE_HYPERLINKS | TDF_NO_SET_FOREGROUND | TDF_SIZE_TO_CONTENT;
+	tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_ENABLE_HYPERLINKS | TDF_SIZE_TO_CONTENT;
 	tdc.hwndParent = hwnd;
 	tdc.hInstance = _r_sys_getimagebase ();
 	tdc.pszMainIcon = TD_WARNING_ICON;
@@ -3185,7 +3203,7 @@ NTSTATUS _r_show_errormessage (
 INT _r_show_message (
 	_In_opt_ HWND hwnd,
 	_In_ ULONG flags,
-	_In_opt_ LPCWSTR main,
+	_In_opt_ LPCWSTR title,
 	_In_ LPCWSTR content
 )
 {
@@ -3193,12 +3211,12 @@ INT _r_show_message (
 	INT command_id;
 
 	tdc.cbSize = sizeof (tdc);
-	tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_NO_SET_FOREGROUND;
+	tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
 	tdc.hwndParent = hwnd;
 	tdc.hInstance = _r_sys_getimagebase ();
 	tdc.pfCallback = &_r_msg_callback;
 	tdc.pszWindowTitle = _r_app_getname ();
-	tdc.pszMainInstruction = main;
+	tdc.pszMainInstruction = title;
 	tdc.pszContent = content;
 
 	// set icons
@@ -3268,7 +3286,6 @@ VOID _r_window_restoreposition (
 	R_RECTANGLE rectangle_current;
 	LONG_PTR style;
 	LONG dpi_value;
-	BOOLEAN is_maximized;
 
 	if (!_r_wnd_getposition (hwnd, &rectangle_current))
 		return;
@@ -3301,9 +3318,7 @@ VOID _r_window_restoreposition (
 		// HACK!!! Do not maximize main window!
 		if (_r_str_compare (window_name, 0, L"window", 0) != 0)
 		{
-			is_maximized = _r_config_getboolean_ex (L"IsMaximized", FALSE, window_name);
-
-			if (is_maximized)
+			if (_r_config_getboolean_ex (L"IsMaximized", FALSE, window_name))
 				ShowWindow (hwnd, SW_SHOWMAXIMIZED);
 		}
 	}
@@ -3363,7 +3378,7 @@ VOID _r_window_saveposition (
 }
 
 //
-// Settings window
+// Settings
 //
 
 VOID _r_settings_addpage (
