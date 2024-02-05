@@ -9443,7 +9443,7 @@ NTSTATUS _r_sys_createprocess (
 	PUNICODE_STRING message_strings[4] = {0};
 	UNICODE_STRING current_directory_nt = {0};
 	UNICODE_STRING command_line_nt = {0};
-	UNICODE_STRING filename_nt;
+	UNICODE_STRING filename_nt = {0};
 	UNICODE_STRING filename;
 	PCSR_CAPTURE_BUFFER capture_buffer = NULL;
 	SECTION_IMAGE_INFORMATION img_info = {0};
