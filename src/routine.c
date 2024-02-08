@@ -14746,7 +14746,7 @@ ULONG _r_math_getrandomrange (
 }
 
 ULONG _r_math_hashinteger32 (
-	_In_ ULONG value
+	_In_ LONG value
 )
 {
 	// Java style.
@@ -14756,16 +14756,17 @@ ULONG _r_math_hashinteger32 (
 }
 
 ULONG _r_math_hashinteger64 (
-	_In_ ULONG64 value
+	_In_ LONG64 value
 )
 {
 	// http://www.concentric.net/~Ttwang/tech/inthash.htm
+	// https://gist.github.com/badboy/6267743?permalink_comment_id=1938983#64-bit-to-32-bit-hash-functions
 	value = ~value + (value << 18);
-	value ^= value >> 31;
-	value *= 21;
-	value ^= value >> 11;
-	value += value << 6;
-	value ^= value >> 22;
+	value = value ^ (value >> 31);
+	value = value * 21;
+	value = value ^ (value >> 11);
+	value = value + (value << 6);
+	value = value ^ (value >> 22);
 
 	return (ULONG)value;
 }

@@ -3740,11 +3740,11 @@ ULONG _r_math_getrandomrange (
 );
 
 ULONG _r_math_hashinteger32 (
-	_In_ ULONG value
+	_In_ LONG value
 );
 
 ULONG _r_math_hashinteger64 (
-	_In_ ULONG64 value
+	_In_ LONG64 value
 );
 
 ULONG_PTR _r_math_rounduptopoweroftwo (
@@ -3752,7 +3752,7 @@ ULONG_PTR _r_math_rounduptopoweroftwo (
 );
 
 FORCEINLINE ULONG _r_math_hashinteger_ptr (
-	_In_ ULONG_PTR value
+	_In_ LONG_PTR value
 )
 {
 #if defined(_WIN64)
