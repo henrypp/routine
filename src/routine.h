@@ -229,8 +229,24 @@ VOID _r_debug (
 	...
 );
 
-#define RDBG(a) _r_debug ((a))
-#define RDBG2(a, ...) _r_debug ((a), __VA_ARGS__)
+FORCEINLINE VOID RDBG (
+	_In_ LPCWSTR string
+)
+{
+	_r_debug (string);
+}
+
+FORCEINLINE VOID RDBG2 (
+	_In_ _Printf_format_string_ LPCWSTR format,
+	...
+)
+{
+	va_list arg_ptr;
+
+	va_start (arg_ptr, format);
+	_r_debug (format, arg_ptr);
+	va_end (arg_ptr);
+}
 
 //
 // Synchronization: A fast event object.
@@ -745,12 +761,6 @@ VOID NTAPI _r_obj_swapreference (
 // 8-bit string object
 //
 
-#define _r_obj_isbyteempty(string) \
-	((string) == NULL || (string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == ANSI_NULL)
-
-#define _r_obj_isbyteempty2(string) \
-	((string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == ANSI_NULL)
-
 PR_BYTE _r_obj_createbyte (
 	_In_ LPSTR string
 );
@@ -864,12 +874,12 @@ VOID _r_obj_removestring (
 );
 
 VOID _r_obj_setstringlength (
-	_Inout_ PR_STRING string,
+	_Inout_ PR_STRINGREF string,
 	_In_ ULONG_PTR new_length
 );
 
 VOID _r_obj_setstringlength_ex (
-	_Inout_ PR_STRING string,
+	_Inout_ PR_STRINGREF string,
 	_In_ ULONG_PTR new_length,
 	_In_ ULONG_PTR allocated_length
 );
@@ -880,11 +890,11 @@ VOID _r_obj_skipstringlength (
 );
 
 VOID _r_obj_trimstringtonullterminator (
-	_In_ PR_STRING string
+	_In_ PR_STRINGREF string
 );
 
 VOID _r_obj_writestringnullterminator (
-	_In_ PR_STRING string
+	_In_ PR_STRINGREF string
 );
 
 _Ret_maybenull_
@@ -1279,14 +1289,14 @@ FORCEINLINE ULONG_PTR _r_obj_indexfromhash (
 	return hash_code & (hashtable->allocated_buckets - 1);
 }
 
-PR_HASHTABLE _r_obj_createhashtable_ex (
+PR_HASHTABLE _r_obj_createhashtable (
 	_In_ ULONG_PTR entry_size,
-	_In_ ULONG_PTR initial_capacity,
 	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 );
 
-PR_HASHTABLE _r_obj_createhashtable (
+PR_HASHTABLE _r_obj_createhashtable_ex (
 	_In_ ULONG_PTR entry_size,
+	_In_ ULONG_PTR initial_capacity,
 	_In_opt_ PR_OBJECT_CLEANUP_CALLBACK cleanup_callback
 );
 
@@ -1361,11 +1371,6 @@ BOOLEAN _r_obj_enumhashtablepointer (
 _Ret_maybenull_
 PVOID _r_obj_findhashtablepointer (
 	_In_ PR_HASHTABLE hashtable,
-	_In_ ULONG_PTR hash_code
-);
-
-BOOLEAN _r_obj_removehashtablepointer (
-	_Inout_ PR_HASHTABLE hashtable,
 	_In_ ULONG_PTR hash_code
 );
 
@@ -2097,6 +2102,9 @@ FORCEINLINE VOID _r_shell_opendefault (
 #define _r_str_isbyteempty(string) \
 	((string) == NULL || (string)[0] == ANSI_NULL)
 
+#define _r_obj_isbyteempty2(string) \
+	((string)->length == 0 || (string)->buffer == NULL || (string)->buffer[0] == ANSI_NULL)
+
 #define _r_str_isempty(string) \
 	((string) == NULL || (string)[0] == UNICODE_NULL)
 
@@ -2118,9 +2126,8 @@ VOID _r_str_appendformat (
 
 INT _r_str_compare (
 	_In_ LPCWSTR string1,
-	_In_opt_ ULONG_PTR length1,
 	_In_ LPCWSTR string2,
-	_In_opt_ ULONG_PTR length2
+	_In_opt_ ULONG_PTR max_count
 );
 
 INT _r_str_compare_logical (
@@ -2506,37 +2513,67 @@ FORCEINLINE WCHAR _r_str_lower (
 	_In_ WCHAR str
 )
 {
-	WCHAR chr;
-
-	chr = RtlDowncaseUnicodeChar (str);
-
-	return chr;
+	return RtlDowncaseUnicodeChar (str);
 }
 
 FORCEINLINE WCHAR _r_str_upper (
 	_In_ WCHAR str
 )
 {
-	WCHAR chr;
-
-	chr = RtlUpcaseUnicodeChar (str);
-
-	return chr;
+	return RtlUpcaseUnicodeChar (str);
 }
 
+FORCEINLINE VOID _r_str_fromlong_ptr (
+	_Out_writes_ (buffer_size) LPWSTR buffer,
+	_In_ ULONG_PTR buffer_size,
+	_In_ LONG_PTR value
+)
+{
 #if defined(_WIN64)
-#define _r_str_fromlong_ptr _r_str_fromlong64
-#define _r_str_fromulong_ptr _r_str_fromulong64
+	_r_str_fromlong64 (buffer, buffer_size, value);
 
-#define _r_str_tolong_ptr _r_str_tolong64
-#define _r_str_toulong_ptr _r_str_toulong64
 #else
-#define _r_str_fromlong_ptr _r_str_fromlong
-#define _r_str_fromulong_ptr _r_str_fromulong
-
-#define _r_str_tolong_ptr _r_str_tolong
-#define _r_str_toulong_ptr _r_str_toulong
+	_r_str_fromlong (buffer, buffer_size, value);
 #endif // _WIN64
+}
+
+FORCEINLINE VOID _r_str_fromulong_ptr (
+	_Out_writes_ (buffer_size) LPWSTR buffer,
+	_In_ ULONG_PTR buffer_size,
+	_In_ LONG_PTR value
+)
+{
+#if defined(_WIN64)
+	_r_str_fromulong64 (buffer, buffer_size, value);
+
+#else
+	_r_str_fromulong (buffer, buffer_size, value);
+#endif // _WIN64
+}
+
+FORCEINLINE LONG_PTR _r_str_tolong_ptr (
+	_In_ PR_STRINGREF string
+)
+{
+#if defined(_WIN64)
+	return _r_str_tolong64 (string);
+
+#else
+	return _r_str_tolong (string);
+#endif // _WIN64
+}
+
+FORCEINLINE LONG_PTR _r_str_toulong_ptr (
+	_In_ PR_STRINGREF string
+)
+{
+#if defined(_WIN64)
+	return _r_str_toulong64 (string);
+
+#else
+	return _r_str_toulong (string);
+#endif // _WIN64
+}
 
 //
 // Performance
@@ -2865,7 +2902,7 @@ NTSTATUS _r_sys_sleep (
 
 NTSTATUS _r_sys_waitformultipleobjects (
 	_In_ ULONG count,
-	_In_reads_ (count) HANDLE* hevents,
+	_In_reads_ (count) PVOID_PTR hevents,
 	_In_ ULONG milliseconds,
 	_In_ BOOLEAN is_waitall
 );
@@ -3714,11 +3751,16 @@ ULONG_PTR _r_math_rounduptopoweroftwo (
 	_In_ ULONG_PTR number
 );
 
+FORCEINLINE ULONG _r_math_hashinteger_ptr (
+	_In_ ULONG_PTR value
+)
+{
 #if defined(_WIN64)
-#define _r_math_hashinteger_ptr _r_math_hashinteger64
+	return _r_math_hashinteger64 (value);
 #else
-#define _r_math_hashinteger_ptr _r_math_hashinteger32
+	return _r_math_hashinteger32 (value);
 #endif // _WIN64
+}
 
 //
 // Resources

@@ -2066,7 +2066,7 @@ BOOLEAN _r_autorun_isenabled ()
 			PathRemoveArgsW (path->buffer);
 			PathUnquoteSpacesW (path->buffer);
 
-			_r_obj_trimstringtonullterminator (path);
+			_r_obj_trimstringtonullterminator (&path->sr);
 
 			if (_r_str_isequal2 (&path->sr, _r_sys_getimagepath (), TRUE))
 				is_enabled = TRUE;
@@ -3316,7 +3316,7 @@ VOID _r_window_restoreposition (
 	if (style & WS_MAXIMIZEBOX)
 	{
 		// HACK!!! Do not maximize main window!
-		if (_r_str_compare (window_name, 0, L"window", 0) != 0)
+		if (_r_str_compare (window_name, L"window", 0) != 0)
 		{
 			if (_r_config_getboolean_ex (L"IsMaximized", FALSE, window_name))
 				ShowWindow (hwnd, SW_SHOWMAXIMIZED);
@@ -4125,7 +4125,7 @@ HRESULT _r_skipuac_checkmodulepath (
 	// check path is for current module
 	PathUnquoteSpacesW (task_path);
 
-	if (_r_str_compare (task_path, 0, _r_sys_getimagepath (), 0) != 0)
+	if (_r_str_compare (task_path, _r_sys_getimagepath (), 0) != 0)
 		status = SCHED_E_INVALID_TASK;
 
 CleanupExit:
