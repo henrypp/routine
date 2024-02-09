@@ -8966,6 +8966,21 @@ PR_STRING _r_sys_gettempdirectory ()
 	return path;
 }
 
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_gettimezoneinfo (
+	_Out_ PRTL_TIME_ZONE_INFORMATION out_buffer
+)
+{
+	NTSTATUS status;
+
+	status = NtQuerySystemInformation (SystemCurrentTimeZoneInformation, out_buffer, sizeof (RTL_TIME_ZONE_INFORMATION), NULL);
+
+	if (!NT_SUCCESS (status))
+		RtlZeroMemory (out_buffer, sizeof (RTL_TIME_ZONE_INFORMATION));
+
+	return status;
+}
+
 BOOLEAN _r_sys_getopt (
 	_In_ LPCWSTR args,
 	_In_ LPWSTR name,

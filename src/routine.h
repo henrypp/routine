@@ -2660,6 +2660,11 @@ PR_STRING _r_sys_getsystemdirectory ();
 
 PR_STRING _r_sys_gettempdirectory ();
 
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_gettimezoneinfo (
+	_Out_ PRTL_TIME_ZONE_INFORMATION out_buffer
+);
+
 BOOLEAN _r_sys_getopt (
 	_In_ LPCWSTR args,
 	_In_ LPWSTR name,
