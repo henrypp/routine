@@ -191,7 +191,7 @@ HRESULT _r_format_bytesize64 (
 
 _Ret_maybenull_
 PR_STRING _r_format_filetime (
-	_In_ LPFILETIME file_time,
+	_In_ PFILETIME file_time,
 	_In_ ULONG flags
 )
 {
@@ -3984,36 +3984,52 @@ NTSTATUS _r_fs_createfile (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_copyfile (
 	_In_ LPCWSTR path_from,
-	_In_ LPCWSTR path_to
+	_In_ LPCWSTR path_to,
+	_In_ BOOLEAN is_failifexists
 )
 {
 	IO_STATUS_BLOCK isb;
-	HANDLE hfile1;
-	HANDLE hfile2;
+	FILETIME creation_time;
+	FILETIME access_time;
+	FILETIME write_time;
+	HANDLE hfile_src;
+	HANDLE hfile_dst;
 	PBYTE buffer;
+	ULONG attributes;
 	ULONG length;
 	NTSTATUS status;
 
-	status = _r_fs_openfile (path_from, FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0, FALSE, &hfile1);
+	status = _r_fs_openfile (path_from, FILE_GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0, FALSE, &hfile_src);
 
 	if (!NT_SUCCESS (status))
 		return status;
 
+	_r_fs_getattributes (path_from, &attributes);
+
+	status = _r_fs_gettimestamp (hfile_src, &creation_time, &access_time, &write_time);
+
+	if (!NT_SUCCESS (status))
+	{
+		NtClose (hfile_src);
+
+		return status;
+	}
+
 	status = _r_fs_createfile (
 		path_to,
-		FILE_OVERWRITE_IF,
+		is_failifexists ? FILE_CREATE : FILE_OVERWRITE_IF,
 		FILE_GENERIC_WRITE,
 		FILE_SHARE_READ,
-		FILE_ATTRIBUTE_NORMAL,
+		attributes,
 		FILE_SEQUENTIAL_ONLY,
 		FALSE,
 		NULL,
-		&hfile2
+		&hfile_dst
 	);
 
 	if (!NT_SUCCESS (status))
 	{
-		NtClose (hfile1);
+		NtClose (hfile_src);
 
 		return status;
 	}
@@ -4023,12 +4039,12 @@ NTSTATUS _r_fs_copyfile (
 
 	while (TRUE)
 	{
-		status = NtReadFile (hfile1, NULL, NULL, NULL, &isb, buffer, length, NULL, NULL);
+		status = NtReadFile (hfile_src, NULL, NULL, NULL, &isb, buffer, length, NULL, NULL);
 
 		if (!NT_SUCCESS (status) || isb.Information == 0)
 			break;
 
-		status = NtWriteFile (hfile2, NULL, NULL, NULL, &isb, buffer, (ULONG)isb.Information, NULL, NULL);
+		status = NtWriteFile (hfile_dst, NULL, NULL, NULL, &isb, buffer, (ULONG)isb.Information, NULL, NULL);
 
 		if (!NT_SUCCESS (status) || isb.Information == 0)
 			break;
@@ -4037,10 +4053,19 @@ NTSTATUS _r_fs_copyfile (
 	if (status == STATUS_END_OF_FILE)
 		status = STATUS_SUCCESS;
 
+	if (NT_SUCCESS (status))
+	{
+		_r_fs_settimestamp (hfile_dst, &creation_time, &access_time, &write_time);
+	}
+	else
+	{
+		_r_fs_deletefile (NULL, hfile_dst);
+	}
+
 	_r_mem_free (buffer);
 
-	NtClose (hfile1);
-	NtClose (hfile2);
+	NtClose (hfile_src);
+	NtClose (hfile_dst);
 
 	return status;
 }
@@ -4782,9 +4807,9 @@ NTSTATUS _r_fs_getsize2 (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_gettimestamp (
 	_In_ HANDLE hfile,
-	_Out_opt_ LPFILETIME creation_time,
-	_Out_opt_ LPFILETIME access_time,
-	_Out_opt_ LPFILETIME write_time
+	_Out_opt_ PFILETIME creation_time,
+	_Out_opt_ PFILETIME access_time,
+	_Out_opt_ PFILETIME write_time
 )
 {
 	FILE_BASIC_INFORMATION info = {0};
@@ -4831,7 +4856,8 @@ NTSTATUS _r_fs_gettimestamp (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_movefile (
 	_In_ LPCWSTR path_from,
-	_In_ LPCWSTR path_to
+	_In_ LPCWSTR path_to,
+	_In_ BOOLEAN is_failifexists
 )
 {
 	PFILE_RENAME_INFORMATION rename_info;
@@ -4871,7 +4897,7 @@ NTSTATUS _r_fs_movefile (
 
 	rename_info = _r_mem_allocate (length);
 
-	rename_info->ReplaceIfExists = TRUE;
+	rename_info->ReplaceIfExists = is_failifexists ? FALSE : TRUE;
 	rename_info->RootDirectory = NULL;
 	rename_info->FileNameLength = nt_path.Length;
 
@@ -4881,7 +4907,7 @@ NTSTATUS _r_fs_movefile (
 
 	if (status == STATUS_NOT_SAME_DEVICE)
 	{
-		status = _r_fs_copyfile (path_from, path_to);
+		status = _r_fs_copyfile (path_from, path_to, is_failifexists);
 
 		if (NT_SUCCESS (status))
 			_r_fs_deletefile (NULL, hfile);
@@ -5126,9 +5152,9 @@ NTSTATUS _r_fs_setsize (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_settimestamp (
 	_In_ HANDLE hfile,
-	_In_opt_ LPFILETIME creation_time,
-	_In_opt_ LPFILETIME access_time,
-	_In_opt_ LPFILETIME write_time
+	_In_opt_ PFILETIME creation_time,
+	_In_opt_ PFILETIME access_time,
+	_In_opt_ PFILETIME write_time
 )
 {
 	FILE_BASIC_INFORMATION info = {0};
@@ -5553,18 +5579,19 @@ NTSTATUS _r_path_makebackup (
 
 	if (is_removesourcefile)
 	{
-		status = _r_fs_movefile (path->buffer, new_path->buffer);
+		status = _r_fs_movefile (path->buffer, new_path->buffer, FALSE);
 
 		if (!NT_SUCCESS (status))
 		{
-			status = _r_fs_copyfile (path->buffer, new_path->buffer);
+			status = _r_fs_copyfile (path->buffer, new_path->buffer, FALSE);
 
-			_r_fs_deletefile (path->buffer, NULL);
+			if (NT_SUCCESS (status))
+				_r_fs_deletefile (path->buffer, NULL);
 		}
 	}
 	else
 	{
-		status = _r_fs_copyfile (path->buffer, new_path->buffer);
+		status = _r_fs_copyfile (path->buffer, new_path->buffer, FALSE);
 	}
 
 	_r_obj_dereference (directory);
@@ -10880,7 +10907,7 @@ LONG64 _r_unixtime_now ()
 }
 
 LONG64 _r_unixtime_from_filetime (
-	_In_ const LPFILETIME file_time
+	_In_ const PFILETIME file_time
 )
 {
 	LARGE_INTEGER time_value = {0};
@@ -10922,7 +10949,7 @@ LONG64 _r_unixtime_from_systemtime (
 
 VOID _r_unixtime_to_filetime (
 	_In_ LONG64 unixtime,
-	_Out_ LPFILETIME file_time
+	_Out_ PFILETIME file_time
 )
 {
 	LARGE_INTEGER time_value = {0};

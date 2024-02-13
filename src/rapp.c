@@ -2144,10 +2144,10 @@ NTSTATUS _r_update_downloadupdate (
 			_r_fs_deletefile (update_component->target_path->buffer, NULL);
 
 		// move target files
-		status = _r_fs_movefile (update_component->cache_path->buffer, update_component->target_path->buffer);
+		status = _r_fs_movefile (update_component->cache_path->buffer, update_component->target_path->buffer, FALSE);
 
 		if (!NT_SUCCESS (status))
-			_r_fs_copyfile (update_component->cache_path->buffer, update_component->target_path->buffer);
+			_r_fs_copyfile (update_component->cache_path->buffer, update_component->target_path->buffer, FALSE);
 
 		// remove if it exists
 		if (_r_fs_exists (update_component->cache_path->buffer))

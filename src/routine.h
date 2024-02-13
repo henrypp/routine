@@ -1432,7 +1432,7 @@ HRESULT _r_format_bytesize64 (
 
 _Ret_maybenull_
 PR_STRING _r_format_filetime (
-	_In_ LPFILETIME file_time,
+	_In_ PFILETIME file_time,
 	_In_ ULONG flags
 );
 
@@ -1505,7 +1505,7 @@ FORCEINLINE ULONG _r_calc_countbits (
 }
 
 FORCEINLINE VOID _r_calc_filetime2largeinteger (
-	_In_ LPFILETIME file_time,
+	_In_ PFILETIME file_time,
 	_Out_ PLARGE_INTEGER out_buffer
 )
 {
@@ -1774,7 +1774,8 @@ NTSTATUS _r_fs_createfile (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_copyfile (
 	_In_ LPCWSTR path_from,
-	_In_ LPCWSTR path_to
+	_In_ LPCWSTR path_to,
+	_In_ BOOLEAN is_failifexists
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -1885,15 +1886,16 @@ NTSTATUS _r_fs_getsize2 (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_gettimestamp (
 	_In_ HANDLE hfile,
-	_Out_opt_ LPFILETIME creation_time,
-	_Out_opt_ LPFILETIME access_time,
-	_Out_opt_ LPFILETIME write_time
+	_Out_opt_ PFILETIME creation_time,
+	_Out_opt_ PFILETIME access_time,
+	_Out_opt_ PFILETIME write_time
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_movefile (
 	_In_ LPCWSTR path_from,
-	_In_ LPCWSTR path_to
+	_In_ LPCWSTR path_to,
+	_In_ BOOLEAN is_failifexists
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -1939,9 +1941,9 @@ NTSTATUS _r_fs_setsize (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_settimestamp (
 	_In_ HANDLE hfile,
-	_In_opt_ LPFILETIME creation_time,
-	_In_opt_ LPFILETIME access_time,
-	_In_opt_ LPFILETIME write_time
+	_In_opt_ PFILETIME creation_time,
+	_In_opt_ PFILETIME access_time,
+	_In_opt_ PFILETIME write_time
 );
 
 #define _r_fs_isvalidhandle(handle) \
@@ -2954,7 +2956,7 @@ FORCEINLINE HANDLE _r_sys_getstdout ()
 LONG64 _r_unixtime_now ();
 
 LONG64 _r_unixtime_from_filetime (
-	_In_ const LPFILETIME file_time
+	_In_ const PFILETIME file_time
 );
 
 LONG64 _r_unixtime_from_largeinteger (
@@ -2967,7 +2969,7 @@ LONG64 _r_unixtime_from_systemtime (
 
 VOID _r_unixtime_to_filetime (
 	_In_ LONG64 unixtime,
-	_Out_ LPFILETIME file_time
+	_Out_ PFILETIME file_time
 );
 
 VOID _r_unixtime_to_systemtime (
