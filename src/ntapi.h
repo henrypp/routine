@@ -1244,6 +1244,7 @@ typedef struct _SYSTEM_PAGEFILE_INFORMATION_EX
 	union
 	{
 		SYSTEM_PAGEFILE_INFORMATION Info;
+
 		struct
 		{
 			ULONG NextEntryOffset;
@@ -1260,79 +1261,84 @@ typedef struct _SYSTEM_PAGEFILE_INFORMATION_EX
 
 typedef struct _SYSTEM_PERFORMANCE_INFORMATION
 {
-	LARGE_INTEGER IdleTime;
-	LARGE_INTEGER ReadTransferCount;
-	LARGE_INTEGER WriteTransferCount;
-	LARGE_INTEGER OtherTransferCount;
-	ULONG ReadOperationCount;
-	ULONG WriteOperationCount;
-	ULONG OtherOperationCount;
+	LARGE_INTEGER IdleProcessTime;
+	LARGE_INTEGER IoReadTransferCount;
+	LARGE_INTEGER IoWriteTransferCount;
+	LARGE_INTEGER IoOtherTransferCount;
+	ULONG IoReadOperationCount;
+	ULONG IoWriteOperationCount;
+	ULONG IoOtherOperationCount;
 	ULONG AvailablePages;
-	ULONG TotalCommittedPages;
-	ULONG TotalCommitLimit;
+	ULONG CommittedPages;
+	ULONG CommitLimit;
 	ULONG PeakCommitment;
-	ULONG PageFaults;
-	ULONG WriteCopyFaults;
-	ULONG TransitionFaults;
-	ULONG Reserved1;
-	ULONG DemandZeroFaults;
-	ULONG PagesRead;
-	ULONG PageReadIos;
-	ULONG Reserved2[2];
-	ULONG PagefilePagesWritten;
-	ULONG PagefilePageWriteIos;
-	ULONG MappedFilePagesWritten;
-	ULONG MappedFilePageWriteIos;
-	ULONG PagedPoolUsage;
-	ULONG NonPagedPoolUsage;
+	ULONG PageFaultCount;
+	ULONG CopyOnWriteCount;
+	ULONG TransitionCount;
+	ULONG CacheTransitionCount;
+	ULONG DemandZeroCount;
+	ULONG PageReadCount;
+	ULONG PageReadIoCount;
+	ULONG CacheReadCount;
+	ULONG CacheIoCount;
+	ULONG DirtyPagesWriteCount;
+	ULONG DirtyWriteIoCount;
+	ULONG MappedPagesWriteCount;
+	ULONG MappedWriteIoCount;
+	ULONG PagedPoolPages;
+	ULONG NonPagedPoolPages;
 	ULONG PagedPoolAllocs;
 	ULONG PagedPoolFrees;
 	ULONG NonPagedPoolAllocs;
 	ULONG NonPagedPoolFrees;
-	ULONG TotalFreeSystemPtes;
-	ULONG SystemCodePage;
+	ULONG FreeSystemPtes;
+	ULONG ResidentSystemCodePage;
 	ULONG TotalSystemDriverPages;
 	ULONG TotalSystemCodePages;
-	ULONG SmallNonPagedLookasideListAllocateHits;
-	ULONG SmallPagedLookasideListAllocateHits;
-	ULONG Reserved3;
-	ULONG MmSystemCachePage;
-	ULONG PagedPoolPage;
-	ULONG SystemDriverPage;
-	ULONG FastReadNoWait;
-	ULONG FastReadWait;
-	ULONG FastReadResourceMiss;
-	ULONG FastReadNotPossible;
-	ULONG FastMdlReadNoWait;
-	ULONG FastMdlReadWait;
-	ULONG FastMdlReadResourceMiss;
-	ULONG FastMdlReadNotPossible;
-	ULONG MapDataNoWait;
-	ULONG MapDataWait;
-	ULONG MapDataNoWaitMiss;
-	ULONG MapDataWaitMiss;
-	ULONG PinMappedDataCount;
-	ULONG PinReadNoWait;
-	ULONG PinReadWait;
-	ULONG PinReadNoWaitMiss;
-	ULONG PinReadWaitMiss;
-	ULONG CopyReadNoWait;
-	ULONG CopyReadWait;
-	ULONG CopyReadNoWaitMiss;
-	ULONG CopyReadWaitMiss;
-	ULONG MdlReadNoWait;
-	ULONG MdlReadWait;
-	ULONG MdlReadNoWaitMiss;
-	ULONG MdlReadWaitMiss;
-	ULONG ReadAheadIos;
-	ULONG LazyWriteIos;
-	ULONG LazyWritePages;
-	ULONG DataFlushes;
-	ULONG DataPages;
+	ULONG NonPagedPoolLookasideHits;
+	ULONG PagedPoolLookasideHits;
+	ULONG AvailablePagedPoolPages;
+	ULONG ResidentSystemCachePage;
+	ULONG ResidentPagedPoolPage;
+	ULONG ResidentSystemDriverPage;
+	ULONG CcFastReadNoWait;
+	ULONG CcFastReadWait;
+	ULONG CcFastReadResourceMiss;
+	ULONG CcFastReadNotPossible;
+	ULONG CcFastMdlReadNoWait;
+	ULONG CcFastMdlReadWait;
+	ULONG CcFastMdlReadResourceMiss;
+	ULONG CcFastMdlReadNotPossible;
+	ULONG CcMapDataNoWait;
+	ULONG CcMapDataWait;
+	ULONG CcMapDataNoWaitMiss;
+	ULONG CcMapDataWaitMiss;
+	ULONG CcPinMappedDataCount;
+	ULONG CcPinReadNoWait;
+	ULONG CcPinReadWait;
+	ULONG CcPinReadNoWaitMiss;
+	ULONG CcPinReadWaitMiss;
+	ULONG CcCopyReadNoWait;
+	ULONG CcCopyReadWait;
+	ULONG CcCopyReadNoWaitMiss;
+	ULONG CcCopyReadWaitMiss;
+	ULONG CcMdlReadNoWait;
+	ULONG CcMdlReadWait;
+	ULONG CcMdlReadNoWaitMiss;
+	ULONG CcMdlReadWaitMiss;
+	ULONG CcReadAheadIos;
+	ULONG CcLazyWriteIos;
+	ULONG CcLazyWritePages;
+	ULONG CcDataFlushes;
+	ULONG CcDataPages;
 	ULONG ContextSwitches;
 	ULONG FirstLevelTbFills;
 	ULONG SecondLevelTbFills;
 	ULONG SystemCalls;
+	ULONG64 CcTotalDirtyPages; // since THRESHOLD
+	ULONG64 CcDirtyPageThreshold; // since THRESHOLD
+	LONG64 ResidentAvailablePages; // since THRESHOLD
+	ULONG64 SharedCommittedPages; // since THRESHOLD
 } SYSTEM_PERFORMANCE_INFORMATION, *PSYSTEM_PERFORMANCE_INFORMATION;
 
 // Can be used instead of SYSTEM_FILECACHE_INFORMATION
@@ -1690,7 +1696,7 @@ typedef enum _IO_PRIORITY_HINT
 #define DIRECTORY_TRAVERSE 0x0002
 #define DIRECTORY_CREATE_OBJECT 0x0004
 #define DIRECTORY_CREATE_SUBDIRECTORY 0x0008
-#define DIRECTORY_ALL_ACCESS (STANDARD_RIGHTS_REQUIRED | 0xf)
+#define DIRECTORY_ALL_ACCESS (STANDARD_RIGHTS_REQUIRED | 0xF)
 
 #define SYMBOLIC_LINK_QUERY 0x0001
 #define SYMBOLIC_LINK_SET 0x0002
@@ -1717,6 +1723,7 @@ typedef struct _PROCESS_DEVICEMAP_INFORMATION
 		{
 			HANDLE DirectoryHandle;
 		} Set;
+
 		struct
 		{
 			ULONG DriveMap;
@@ -1735,6 +1742,7 @@ typedef struct _PROCESS_DEVICEMAP_INFORMATION_EX
 		{
 			HANDLE DirectoryHandle;
 		} Set;
+
 		struct
 		{
 			ULONG DriveMap;
@@ -2131,33 +2139,33 @@ C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TickCountMultiplier) == 0x0004);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, InterruptTime) == 0x0008);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, SystemTime) == 0x0014);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TimeZoneBias) == 0x0020);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ImageNumberLow) == 0x002c);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ImageNumberHigh) == 0x002e);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ImageNumberLow) == 0x002C);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ImageNumberHigh) == 0x002E);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtSystemRoot) == 0x0030);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, MaxStackTraceDepth) == 0x0238);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, CryptoExponent) == 0x023c);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, CryptoExponent) == 0x023C);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TimeZoneId) == 0x0240);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, LargePageMinimum) == 0x0244);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, AitSamplingValue) == 0x0248);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, RNGSeedVersion) == 0x0250);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtProductType) == 0x0264);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtMajorVersion) == 0x026c);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtMajorVersion) == 0x026C);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtMinorVersion) == 0x0270);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ProcessorFeatures) == 0x0274);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Reserved1) == 0x02b4);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Reserved3) == 0x02b8);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, KdDebuggerEnabled) == 0x02d4);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ActiveConsoleId) == 0x02d8);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NumberOfPhysicalPages) == 0x02e8);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, SafeBootMode) == 0x02ec);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, KdDebuggerEnabled) == 0x02D4);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ActiveConsoleId) == 0x02D8);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NumberOfPhysicalPages) == 0X02E8);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, SafeBootMode) == 0x02EC);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TickCount) == 0x0320);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TickCountQuad) == 0x0320);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Cookie) == 0x0330);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, QpcBias) == 0x03b8);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ActiveProcessorCount) == 0x03c0);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ActiveGroupCount) == 0x03c4);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Reserved9) == 0x03c5);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, XState) == 0x03d8);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, QpcBias) == 0x03B8);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ActiveProcessorCount) == 0x03C0);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ActiveGroupCount) == 0x03C4);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Reserved9) == 0x03C5);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, XState) == 0x03D8);
 
 #define USER_SHARED_DATA ((PKUSER_SHARED_DATA const)0x7FFE0000)
 
@@ -2681,6 +2689,7 @@ typedef struct _TEB
 	union
 	{
 		USHORT SameTebFlags;
+
 		struct
 		{
 			USHORT SafeThunkCall : 1;
@@ -2882,7 +2891,7 @@ typedef struct _OBJECT_DIRECTORY_INFORMATION
 #define DIRECTORY_TRAVERSE 0x0002
 #define DIRECTORY_CREATE_OBJECT 0x0004
 #define DIRECTORY_CREATE_SUBDIRECTORY 0x0008
-#define DIRECTORY_ALL_ACCESS (STANDARD_RIGHTS_REQUIRED | 0xf)
+#define DIRECTORY_ALL_ACCESS (STANDARD_RIGHTS_REQUIRED | 0xF)
 
 typedef struct _RTLP_CURDIR_REF
 {
@@ -3293,7 +3302,7 @@ typedef enum _BASESRV_API_NUMBER
 #define USERSRV_SERVERDLL_INDEX 3
 #define USERSRV_FIRST_API_NUMBER 1024
 
-typedef struct
+typedef struct _BASE_SXS_CREATEPROCESS_MSG
 {
 	ULONG Flags; // +00 // direct set, value = 0x40
 	ULONG ProcessParameterFlags; // +04 // direct set, value = 0x4001
@@ -3307,9 +3316,9 @@ typedef struct
 	BYTE Field98[0x10]; // +98 // blank, ignore
 	UNICODE_STRING FileName4; // +a8 // UNICODE_STRING, we can build!
 	BYTE OtherFileds[0x110]; // +b8 // blank, ignore
-} BASE_SXS_CREATEPROCESS_MSG;
+} BASE_SXS_CREATEPROCESS_MSG, *PBASE_SXS_CREATEPROCESS_MSG;
 
-typedef struct
+typedef struct _BASE_CREATEPROCESS_MSG
 {
 	HANDLE ProcessHandle; // +00 // can get
 	HANDLE ThreadHandle; // +08 // can get
@@ -3323,7 +3332,7 @@ typedef struct
 	ULONG64 PebAddressNative; // +200 // can get
 	ULONG_PTR PebAddressWow64; // +208 // direct set, must be zero (Win64 limit)
 	USHORT ProcessorArchitecture; // +210 // direct set, must be 9 (AMD64 limit)
-} BASE_CREATEPROCESS_MSG;
+} BASE_CREATEPROCESS_MSG, *PBASE_CREATEPROCESS_MSG;
 
 typedef struct _PORT_MESSAGE_HEADER
 {
@@ -3399,12 +3408,12 @@ typedef struct
 
 #define GUID_VARIANT_NCS_MASK 0x80
 #define GUID_VARIANT_NCS 0x00
-#define GUID_VARIANT_STANDARD_MASK 0xc0
+#define GUID_VARIANT_STANDARD_MASK 0xC0
 #define GUID_VARIANT_STANDARD 0x80
-#define GUID_VARIANT_MICROSOFT_MASK 0xe0
-#define GUID_VARIANT_MICROSOFT 0xc0
-#define GUID_VARIANT_RESERVED_MASK 0xe0
-#define GUID_VARIANT_RESERVED 0xe0
+#define GUID_VARIANT_MICROSOFT_MASK 0xE0
+#define GUID_VARIANT_MICROSOFT 0xC0
+#define GUID_VARIANT_RESERVED_MASK 0xE0
+#define GUID_VARIANT_RESERVED 0xE0
 
 typedef union _GUID_EX
 {
@@ -3489,7 +3498,7 @@ NTAPI
 NtAllocateVirtualMemoryEx (
 	_In_ HANDLE ProcessHandle,
 	_Inout_ _At_ (*BaseAddress, _Readable_bytes_ (*RegionSize) _Writable_bytes_ (*RegionSize) _Post_readable_byte_size_ (*RegionSize)) PVOID *BaseAddress,
-	_Inout_ PSIZE_T RegionSize,
+	_Inout_ PULONG_PTR RegionSize,
 	_In_ ULONG AllocationType,
 	_In_ ULONG PageProtection,
 	_Inout_updates_opt_ (ExtendedParameterCount) PMEM_EXTENDED_PARAMETER ExtendedParameters,
@@ -3535,8 +3544,8 @@ NtReadVirtualMemoryEx (
 	_In_ HANDLE ProcessHandle,
 	_In_opt_ PVOID BaseAddress,
 	_Out_writes_bytes_ (BufferSize) PVOID Buffer,
-	_In_ SIZE_T BufferSize,
-	_Out_opt_ PSIZE_T NumberOfBytesRead,
+	_In_ ULONG_PTR BufferSize,
+	_Out_opt_ PULONG_PTR NumberOfBytesRead,
 	_In_ ULONG Flags
 );
 
@@ -3557,7 +3566,7 @@ NTAPI
 NtProtectVirtualMemory (
 	_In_ HANDLE ProcessHandle,
 	_Inout_ PVOID *BaseAddress,
-	_Inout_ PSIZE_T RegionSize,
+	_Inout_ PULONG_PTR RegionSize,
 	_In_ ULONG NewProtect,
 	_Out_ PULONG OldProtect
 );
@@ -5313,8 +5322,7 @@ NtSetThreadExecutionState (
 
 #define KEYEDEVENT_WAIT 0x0001
 #define KEYEDEVENT_WAKE 0x0002
-#define KEYEDEVENT_ALL_ACCESS \
-	(STANDARD_RIGHTS_REQUIRED | KEYEDEVENT_WAIT | KEYEDEVENT_WAKE)
+#define KEYEDEVENT_ALL_ACCESS (STANDARD_RIGHTS_REQUIRED | KEYEDEVENT_WAIT | KEYEDEVENT_WAKE)
 
 NTSYSCALLAPI
 NTSTATUS

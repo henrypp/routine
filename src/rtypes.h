@@ -139,6 +139,7 @@ typedef struct _R_EVENT
 	union
 	{
 		volatile ULONG_PTR value;
+
 		struct
 		{
 			USHORT is_set : 1;
@@ -150,6 +151,7 @@ typedef struct _R_EVENT
 #endif // _WIN64
 		};
 	};
+
 	HANDLE event_handle;
 } R_EVENT, *PR_EVENT;
 
@@ -296,6 +298,7 @@ typedef struct _R_QUEUED_LOCK R_CONDITION, *PR_CONDITION;
 typedef struct _R_RUNDOWN_WAIT_BLOCK
 {
 	R_EVENT wake_event;
+
 	volatile ULONG_PTR count;
 } R_RUNDOWN_WAIT_BLOCK, *PR_RUNDOWN_WAIT_BLOCK;
 
@@ -374,11 +377,9 @@ typedef struct _R_OBJECT_HEADER
 	QUAD_PTR body;
 } R_OBJECT_HEADER, *PR_OBJECT_HEADER;
 
-#define PR_OBJECT_HEADER_TO_OBJECT(object_header) \
-	(&((PR_OBJECT_HEADER)(object_header))->body)
+#define PR_OBJECT_HEADER_TO_OBJECT(object_header) (&((PR_OBJECT_HEADER)(object_header))->body)
 
-#define PR_OBJECT_TO_OBJECT_HEADER(object) \
-	(CONTAINING_RECORD((object), R_OBJECT_HEADER, body))
+#define PR_OBJECT_TO_OBJECT_HEADER(object) (CONTAINING_RECORD((object), R_OBJECT_HEADER, body))
 
 //
 // 8-bit string object
@@ -395,6 +396,7 @@ typedef struct _R_BYTE
 	union
 	{
 		R_BYTEREF sr;
+
 		struct
 		{
 			ULONG_PTR length;
@@ -424,6 +426,7 @@ typedef struct _R_STRING
 	union
 	{
 		R_STRINGREF sr;
+
 		struct
 		{
 			ULONG_PTR length;
@@ -589,6 +592,8 @@ typedef struct _R_MEMORY_INFO
 // System information
 //
 
+//#define WINDOWS_7 0x0601
+//#define WINDOWS_8 0x0602
 #define WINDOWS_8_1 0x0603
 #define WINDOWS_10_TH1 0x0A00 // build 10240 [TH1]
 #define WINDOWS_10_TH2 0x0A01 // build 10586 [TH2]
@@ -637,10 +642,7 @@ typedef struct _R_TOKEN_ATTRIBUTES
 
 typedef struct _R_FILE_DIALOG
 {
-	struct
-	{
-		IFileDialog *ifd; // vista+
-	} u;
+	IFileDialog *ifd; // vista+
 
 	ULONG flags;
 } R_FILE_DIALOG, *PR_FILE_DIALOG;
@@ -669,6 +671,7 @@ typedef struct _R_RECTANGLE
 	union
 	{
 		R_SIZE position;
+
 		struct
 		{
 			LONG left;
@@ -679,6 +682,7 @@ typedef struct _R_RECTANGLE
 	union
 	{
 		R_SIZE size;
+
 		struct
 		{
 			LONG width;
@@ -842,7 +846,6 @@ typedef struct _R_UPDATE_COMPONENT
 	PR_STRING cache_path;
 	PR_STRING target_path;
 	PR_STRING url;
-	//PR_STRING hash_string;
 	ULONG flags;
 } R_UPDATE_COMPONENT, *PR_UPDATE_COMPONENT;
 

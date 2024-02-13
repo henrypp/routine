@@ -11650,7 +11650,7 @@ HRESULT _r_filedialog_initialize (
 	if (SUCCEEDED (status))
 	{
 		file_dialog->flags = flags;
-		file_dialog->u.ifd = ifd;
+		file_dialog->ifd = ifd;
 	}
 
 	return status;
@@ -11660,7 +11660,7 @@ VOID _r_filedialog_destroy (
 	_In_ PR_FILE_DIALOG file_dialog
 )
 {
-	IFileDialog_Release (file_dialog->u.ifd);
+	IFileDialog_Release (file_dialog->ifd);
 }
 
 _Success_ (SUCCEEDED (return))
@@ -11674,7 +11674,7 @@ HRESULT _r_filedialog_getpath (
 	LPWSTR name;
 	HRESULT status;
 
-	status = IFileDialog_GetResult (file_dialog->u.ifd, &result);
+	status = IFileDialog_GetResult (file_dialog->ifd, &result);
 
 	if (SUCCEEDED (status))
 	{
@@ -11692,7 +11692,7 @@ HRESULT _r_filedialog_getpath (
 
 	if (!file_name)
 	{
-		status = IFileDialog_GetFileName (file_dialog->u.ifd, &name);
+		status = IFileDialog_GetFileName (file_dialog->ifd, &name);
 
 		if (SUCCEEDED (status))
 		{
@@ -11716,16 +11716,16 @@ HRESULT _r_filedialog_show (
 	FILEOPENDIALOGOPTIONS options = 0;
 	HRESULT status;
 
-	IFileDialog_SetDefaultExtension (file_dialog->u.ifd, L"");
+	IFileDialog_SetDefaultExtension (file_dialog->ifd, L"");
 
-	IFileDialog_GetOptions (file_dialog->u.ifd, &options);
+	IFileDialog_GetOptions (file_dialog->ifd, &options);
 
 	if ((file_dialog->flags & PR_FILEDIALOG_OPENDIR))
 		options |= FOS_PICKFOLDERS;
 
-	IFileDialog_SetOptions (file_dialog->u.ifd, options | FOS_DONTADDTORECENT | FOS_FORCESHOWHIDDEN);
+	IFileDialog_SetOptions (file_dialog->ifd, options | FOS_DONTADDTORECENT | FOS_FORCESHOWHIDDEN);
 
-	status = IFileDialog_Show (file_dialog->u.ifd, hwnd);
+	status = IFileDialog_Show (file_dialog->ifd, hwnd);
 
 	return status;
 }
@@ -11736,7 +11736,7 @@ VOID _r_filedialog_setfilter (
 	_In_ ULONG count
 )
 {
-	IFileDialog_SetFileTypes (file_dialog->u.ifd, count, filters);
+	IFileDialog_SetFileTypes (file_dialog->ifd, count, filters);
 }
 
 VOID _r_filedialog_setpath (
@@ -11773,14 +11773,14 @@ VOID _r_filedialog_setpath (
 
 	if (shell_item)
 	{
-		IFileDialog_SetFolder (file_dialog->u.ifd, shell_item);
-		IFileDialog_SetFileName (file_dialog->u.ifd, basename_part.buffer);
+		IFileDialog_SetFolder (file_dialog->ifd, shell_item);
+		IFileDialog_SetFileName (file_dialog->ifd, basename_part.buffer);
 
 		IShellItem_Release (shell_item);
 	}
 	else
 	{
-		IFileDialog_SetFileName (file_dialog->u.ifd, path);
+		IFileDialog_SetFileName (file_dialog->ifd, path);
 	}
 }
 
