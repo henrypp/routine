@@ -1976,7 +1976,7 @@ PR_STRING _r_path_getbasedirectory (
 	_In_ PR_STRINGREF path
 );
 
-LPCWSTR _r_path_getbasename (
+LPWSTR _r_path_getbasename (
 	_In_ LPWSTR path
 );
 

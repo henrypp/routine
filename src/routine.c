@@ -5294,7 +5294,7 @@ PR_STRING _r_path_getbasedirectory (
 	return _r_obj_createstring3 (&directory_part);
 }
 
-LPCWSTR _r_path_getbasename (
+LPWSTR _r_path_getbasename (
 	_In_ LPWSTR path
 )
 {
