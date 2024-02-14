@@ -2413,6 +2413,7 @@ ULONG64 _r_str_toulong64 (
 	_In_ PR_STRINGREF string
 );
 
+_Success_ (return)
 BOOLEAN _r_str_tointeger64 (
 	_In_ PR_STRINGREF string,
 	_In_opt_ ULONG base,

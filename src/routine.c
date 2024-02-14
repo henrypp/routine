@@ -7730,6 +7730,7 @@ ULONG64 _r_str_toulong64 (
 	return 0;
 }
 
+_Success_ (return)
 BOOLEAN _r_str_tointeger64 (
 	_In_ PR_STRINGREF string,
 	_In_opt_ ULONG base,
@@ -7737,7 +7738,7 @@ BOOLEAN _r_str_tointeger64 (
 	_Out_ PLONG64 integer_ptr
 )
 {
-	R_STRINGREF input;
+	R_STRINGREF sr;
 	ULONG64 result;
 	ULONG base_used;
 	BOOLEAN is_negative = FALSE;
@@ -7748,20 +7749,14 @@ BOOLEAN _r_str_tointeger64 (
 	if (new_base_ptr)
 		*new_base_ptr = 0;
 
-	if (!string->length)
-		return FALSE;
+	_r_obj_initializestringref3 (&sr, string);
 
-	if (base > 69)
-		return FALSE;
-
-	_r_obj_initializestringref3 (&input, string);
-
-	if ((input.buffer[0] == L'-' || input.buffer[0] == L'+'))
+	if (sr.length != 0 && (sr.buffer[0] == L'-' || sr.buffer[0] == L'+'))
 	{
-		if (input.buffer[0] == L'-')
+		if (sr.buffer[0] == L'-')
 			is_negative = TRUE;
 
-		_r_obj_skipstringlength (&input, sizeof (WCHAR));
+		_r_obj_skipstringlength (&sr, sizeof (WCHAR));
 	}
 
 	// If the caller specified a base, don't perform any additional processing.
@@ -7773,9 +7768,9 @@ BOOLEAN _r_str_tointeger64 (
 	{
 		base_used = 10;
 
-		if (input.length >= 2 * sizeof (WCHAR) && input.buffer[0] == L'0')
+		if (sr.length >= 2 * sizeof (WCHAR) && sr.buffer[0] == L'0')
 		{
-			switch (input.buffer[1])
+			switch (sr.buffer[1])
 			{
 				case L'x':
 				case L'X':
@@ -7828,11 +7823,11 @@ BOOLEAN _r_str_tointeger64 (
 			}
 
 			if (base_used != 10)
-				_r_obj_skipstringlength (&input, 2 * sizeof (WCHAR));
+				_r_obj_skipstringlength (&sr, 2 * sizeof (WCHAR));
 		}
 	}
 
-	is_valid = _r_str_touinteger64 (&input, base_used, &result);
+	is_valid = _r_str_touinteger64 (&sr, base_used, &result);
 
 	*integer_ptr = is_negative ? -(LONG64)result : result;
 
@@ -7855,9 +7850,9 @@ BOOLEAN _r_str_touinteger64 (
 		36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, // ' ' - '/'
 		0, 1, 2, 3, 4, 5, 6, 7, 8, 9, // '0' - '9'
 		52, 53, 54, 55, 56, 57, 58, // ':' - '@'
-		10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, // 'A' - 'Z
+		10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, // 'A' - 'Z'
 		59, 60, 61, 62, 63, 64, // '[' - '`'
-		10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, // 'a' - 'z
+		10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, // 'a' - 'z'
 		65, 66, 67, 68, -1, // '{' - 127
 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 128 - 143
 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 144 - 159
@@ -7876,20 +7871,17 @@ BOOLEAN _r_str_touinteger64 (
 
 	length = _r_str_getlength3 (string);
 
-	if (length)
+	for (ULONG_PTR i = 0; i < length; i++)
 	{
-		for (ULONG_PTR i = 0; i < length; i++)
-		{
-			value = char_to_integer[(UCHAR)string->buffer[i]];
+		value = char_to_integer[(UCHAR)string->buffer[i]];
 
-			if (value < base)
-			{
-				result = result * base + value;
-			}
-			else
-			{
-				is_valid = FALSE;
-			}
+		if (value < base)
+		{
+			result = result * base + value;
+		}
+		else
+		{
+			is_valid = FALSE;
 		}
 	}
 
