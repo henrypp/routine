@@ -3586,6 +3586,26 @@ NtQueryVirtualMemory (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
+NtLockVirtualMemory (
+	_In_ HANDLE ProcessHandle,
+	_Inout_ PVOID *BaseAddress,
+	_Inout_ PULONG_PTR RegionSize,
+	_In_ ULONG MapType
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtUnlockVirtualMemory (
+	_In_ HANDLE ProcessHandle,
+	_Inout_ PVOID *BaseAddress,
+	_Inout_ PULONG_PTR RegionSize,
+	_In_ ULONG MapType
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
 LdrSetDllDirectory (
 	_In_ PUNICODE_STRING DllDirectory
 );
