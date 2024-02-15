@@ -53,6 +53,7 @@
 #include <aclapi.h>
 #include <commctrl.h>
 #include <commdlg.h>
+#include <commoncontrols.h>
 #include <dbghelp.h>
 #include <dde.h>
 #include <dwmapi.h>
@@ -3413,12 +3414,14 @@ VOID _r_wnd_setrectangle (
 
 VOID _r_wnd_setstyle (
 	_In_ HWND hwnd,
-	_In_ LONG_PTR style
+    _In_ LONG_PTR mask,
+    _In_ LONG_PTR value
 );
 
 VOID _r_wnd_setstyle_ex (
 	_In_ HWND hwnd,
-	_In_ LONG_PTR ex_style
+    _In_ LONG_PTR mask,
+    _In_ LONG_PTR value
 );
 
 VOID _r_wnd_toggle (
@@ -4394,6 +4397,13 @@ VOID _r_menu_checkitem (
 
 VOID _r_menu_clearitems (
 	_In_ HMENU hmenu
+);
+
+_Ret_maybenull_
+PR_STRING _r_menu_getitemtext (
+	_In_ HMENU hmenu,
+	_In_ UINT item_id,
+	_In_ BOOL is_byposition
 );
 
 VOID _r_menu_setitembitmap (

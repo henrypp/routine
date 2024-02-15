@@ -13019,18 +13019,32 @@ VOID _r_wnd_setrectangle (
 
 VOID _r_wnd_setstyle (
 	_In_ HWND hwnd,
-	_In_ LONG_PTR style
+	_In_ LONG_PTR mask,
+	_In_ LONG_PTR value
 )
 {
+	LONG_PTR style;
+
+	style = GetWindowLongPtrW (hwnd, GWL_STYLE);
+
+	style = (style & ~mask) | (value & mask);
+
 	SetWindowLongPtrW (hwnd, GWL_STYLE, style);
 }
 
 VOID _r_wnd_setstyle_ex (
 	_In_ HWND hwnd,
-	_In_ LONG_PTR ex_style
+	_In_ LONG_PTR mask,
+	_In_ LONG_PTR value
 )
 {
-	SetWindowLongPtrW (hwnd, GWL_EXSTYLE, ex_style);
+	LONG_PTR style;
+
+	style = GetWindowLongPtrW (hwnd, GWL_EXSTYLE);
+
+	style = (style & ~mask) | (value & mask);
+
+	SetWindowLongPtrW (hwnd, GWL_EXSTYLE, style);
 }
 
 VOID _r_wnd_toggle (
@@ -16712,6 +16726,37 @@ VOID _r_menu_clearitems (
 			break;
 		}
 	}
+}
+
+_Ret_maybenull_
+PR_STRING _r_menu_getitemtext (
+	_In_ HMENU hmenu,
+	_In_ UINT item_id,
+	_In_ BOOL is_byposition
+)
+{
+	MENUITEMINFO mii = {0};
+	PR_STRING string;
+	UINT length;
+
+	length = 100;
+	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
+
+	mii.cbSize = sizeof (mii);
+	mii.fMask = MIIM_STRING;
+	mii.dwTypeData = string->buffer;
+	mii.cch = length;
+
+	if (!GetMenuItemInfoW (hmenu, item_id, is_byposition, &mii))
+	{
+		_r_obj_dereference (string);
+
+		return NULL;
+	}
+
+	_r_obj_trimstringtonullterminator (&string->sr);
+
+	return string;
 }
 
 VOID _r_menu_setitembitmap (
