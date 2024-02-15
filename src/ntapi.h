@@ -2615,7 +2615,7 @@ typedef struct _TEB
 	WCHAR StaticUnicodeBuffer[261];
 
 	PVOID DeallocationStack;
-	PVOID TlsSlots[64];
+	PVOID TlsSlots[TLS_MINIMUM_AVAILABLE];
 	LIST_ENTRY TlsLinks;
 
 	PVOID Vdm;
