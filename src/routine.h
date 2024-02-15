@@ -2742,7 +2742,8 @@ NTSTATUS _r_sys_enumprocesses (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getprocaddress (
 	_In_ PVOID hinst,
-	_In_ LPSTR procedure,
+	_In_opt_ LPSTR name,
+	_In_opt_ ULONG ordinal,
 	_Out_ PVOID_PTR out_buffer
 );
 

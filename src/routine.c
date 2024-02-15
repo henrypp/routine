@@ -8520,7 +8520,7 @@ BOOLEAN _r_sys_iswine ()
 	if (!NT_SUCCESS (status))
 		return FALSE;
 
-	status = _r_sys_getprocaddress (hntdll, "wine_get_version", &procedure);
+	status = _r_sys_getprocaddress (hntdll, "wine_get_version", 0, &procedure);
 
 	_r_sys_freelibrary (hntdll, FALSE);
 
@@ -9840,25 +9840,21 @@ NTSTATUS _r_sys_enumprocesses (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getprocaddress (
 	_In_ PVOID hinst,
-	_In_ LPSTR procedure,
+	_In_opt_ LPSTR name,
+	_In_opt_ ULONG ordinal,
 	_Out_ PVOID_PTR out_buffer
 )
 {
 	ANSI_STRING procedure_name = {0};
 	PANSI_STRING ptr = NULL;
 	PVOID proc_address;
-	ULONG ordinal = 0;
 	NTSTATUS status;
 
-	if ((ULONG_PTR)procedure >> 16)
+	if (name)
 	{
-		RtlInitAnsiString (&procedure_name, procedure);
+		RtlInitAnsiString (&procedure_name, name);
 
 		ptr = &procedure_name;
-	}
-	else
-	{
-		ordinal = LOWORD (procedure);
 	}
 
 	status = LdrGetProcedureAddressEx (hinst, ptr, ordinal, &proc_address, 0);
@@ -10453,7 +10449,7 @@ PR_STRING _r_sys_querytaginformation (
 
 		if (NT_SUCCESS (status))
 		{
-			status = _r_sys_getprocaddress (hsechost, "I_QueryTagInformation", (PVOID_PTR)&_I_QueryTagInformation);
+			status = _r_sys_getprocaddress (hsechost, "I_QueryTagInformation", 0, (PVOID_PTR)&_I_QueryTagInformation);
 
 			//_r_sys_freelibrary (hsechost, FALSE);
 		}
@@ -11004,7 +11000,7 @@ BOOLEAN _r_dc_adjustwindowrect (
 		if (NT_SUCCESS (status))
 		{
 			// win10rs1+
-			status = _r_sys_getprocaddress (huser32, "AdjustWindowRectExForDpi", (PVOID_PTR)&_AdjustWindowRectExForDpi);
+			status = _r_sys_getprocaddress (huser32, "AdjustWindowRectExForDpi", 0, (PVOID_PTR)&_AdjustWindowRectExForDpi);
 
 			//_r_sys_freelibrary (huser32, FALSE);
 		}
@@ -11453,10 +11449,10 @@ LONG _r_dc_getdpivalue (
 		if (NT_SUCCESS (status))
 		{
 			// win10rs1+
-			_r_sys_getprocaddress (huser32, "GetDpiForWindow", (PVOID_PTR)&_GetDpiForWindow);
+			_r_sys_getprocaddress (huser32, "GetDpiForWindow", 0, (PVOID_PTR)&_GetDpiForWindow);
 
 			// win10rs1+
-			_r_sys_getprocaddress (huser32, "GetDpiForSystem", (PVOID_PTR)&_GetDpiForSystem);
+			_r_sys_getprocaddress (huser32, "GetDpiForSystem", 0, (PVOID_PTR)&_GetDpiForSystem);
 
 			//_r_sys_freelibrary (huser32, FALSE);
 		}
@@ -11569,7 +11565,7 @@ LONG _r_dc_getsystemmetrics (
 		if (NT_SUCCESS (status))
 		{
 			// win10rs1+
-			status = _r_sys_getprocaddress (huser32, "GetSystemMetricsForDpi", (PVOID_PTR)&_GetSystemMetricsForDpi);
+			status = _r_sys_getprocaddress (huser32, "GetSystemMetricsForDpi", 0, (PVOID_PTR)&_GetSystemMetricsForDpi);
 
 			//_r_sys_freelibrary (huser32, FALSE);
 		}
@@ -11606,7 +11602,7 @@ BOOLEAN _r_dc_getsystemparametersinfo (
 		if (NT_SUCCESS (status))
 		{
 			// win10rs1+
-			status = _r_sys_getprocaddress (huser32, "SystemParametersInfoForDpi", (PVOID_PTR)&_SystemParametersInfoForDpi);
+			status = _r_sys_getprocaddress (huser32, "SystemParametersInfoForDpi", 0, (PVOID_PTR)&_SystemParametersInfoForDpi);
 
 			//_r_sys_freelibrary (huser32, FALSE);
 		}
