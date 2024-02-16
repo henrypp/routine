@@ -230,24 +230,7 @@ VOID _r_debug (
 	...
 );
 
-FORCEINLINE VOID RDBG (
-	_In_ LPCWSTR string
-)
-{
-	_r_debug (string);
-}
-
-FORCEINLINE VOID RDBG2 (
-	_In_ _Printf_format_string_ LPCWSTR format,
-	...
-)
-{
-	va_list arg_ptr;
-
-	va_start (arg_ptr, format);
-	_r_debug (format, arg_ptr);
-	va_end (arg_ptr);
-}
+#define RDBG _r_debug
 
 //
 // Synchronization: A fast event object.
