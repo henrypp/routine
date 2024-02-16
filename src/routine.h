@@ -3818,6 +3818,33 @@ PR_STRING _r_res_queryversionstring (
 );
 
 //
+// Imagelist
+//
+
+_Success_ (SUCCEEDED (return))
+HRESULT _r_imagelist_create (
+	_In_ INT width,
+	_In_ INT height,
+	_In_ UINT flags,
+	_In_ INT32 initial_count,
+	_In_ INT32 grow_count,
+	_Out_ HIMAGELIST_PTR out_buffer
+);
+
+_Success_ (SUCCEEDED (return))
+HRESULT _r_imagelist_draw (
+	_In_ HIMAGELIST himg,
+	_In_ INT32 index,
+	_In_ HDC hdc,
+	_In_ INT32 x,
+	_In_ INT32 y,
+	_In_opt_ COLORREF BackColor,
+	_In_opt_ COLORREF ForeColor,
+	_In_ UINT32 style,
+	_In_ BOOLEAN is_enabled
+);
+
+//
 // Other
 //
 

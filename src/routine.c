@@ -14907,7 +14907,11 @@ NTSTATUS _r_res_loadimage (
 	status = _r_res_loadresource (hinst, type, name, 0, &buffer);
 
 	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
 		return status;
+	}
 
 	// Create the ImagingFactory (win8+)
 	status = CoCreateInstance (&CLSID_WICImagingFactory2, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory2, &wicFactory);
@@ -15247,6 +15251,78 @@ CleanupExit:
 	_r_mem_free (ver_block);
 
 	return NULL;
+}
+
+//
+// Imagelist
+//
+
+_Success_ (SUCCEEDED (return))
+HRESULT _r_imagelist_create (
+	_In_ INT width,
+	_In_ INT height,
+	_In_ UINT flags,
+	_In_ INT32 initial_count,
+	_In_ INT32 grow_count,
+	_Out_ HIMAGELIST_PTR out_buffer
+)
+{
+	IImageList2* imagelist = NULL;
+	HRESULT status;
+
+	status = ImageList_CoCreateInstance (&CLSID_ImageList, NULL, &IID_IImageList2, &imagelist);
+
+	if (FAILED (status))
+	{
+		*out_buffer = NULL;
+
+		return status;
+	}
+
+	status = IImageList2_Initialize (imagelist, width, height, flags, initial_count, grow_count);
+
+	if (SUCCEEDED (status))
+	{
+		*out_buffer = IImageListToHIMAGELIST (imagelist);
+	}
+	else
+	{
+		*out_buffer = NULL;
+	}
+
+	return status;
+}
+
+_Success_ (SUCCEEDED (return))
+HRESULT _r_imagelist_draw (
+	_In_ HIMAGELIST himg,
+	_In_ INT32 index,
+	_In_ HDC hdc,
+	_In_ INT32 x,
+	_In_ INT32 y,
+	_In_opt_ COLORREF BackColor,
+	_In_opt_ COLORREF ForeColor,
+	_In_ UINT32 style,
+	_In_ BOOLEAN is_enabled
+)
+{
+	IMAGELISTDRAWPARAMS ildp = {0};
+	HRESULT status;
+
+	ildp.cbSize = sizeof (IMAGELISTDRAWPARAMS);
+	ildp.himl = himg;
+	ildp.hdcDst = hdc;
+	ildp.i = index;
+	ildp.cx = x;
+	ildp.cy = y;
+	ildp.rgbBk = BackColor ? BackColor : CLR_DEFAULT;
+	ildp.rgbFg = ForeColor ? ForeColor : CLR_DEFAULT;
+	ildp.fStyle = style;
+	ildp.fState = is_enabled ? ILS_NORMAL : ILS_SATURATE;
+
+	status = IImageList2_Draw ((IImageList2*)himg, &ildp);
+
+	return status;
 }
 
 //
