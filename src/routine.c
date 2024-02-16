@@ -17997,7 +17997,7 @@ VOID _r_rebar_deleteband (
 
 VOID _r_toolbar_addbutton (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ UINT command_id,
 	_In_ INT style,
 	_In_opt_ INT_PTR string,
@@ -18019,9 +18019,31 @@ VOID _r_toolbar_addbutton (
 	_r_wnd_sendmessage (hwnd, ctrl_id, TB_INSERTBUTTON, (WPARAM)button_id, (LPARAM)&tbi);
 }
 
+_Ret_maybenull_
+PR_STRING _r_toolbar_gettext (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ UINT command_id
+)
+{
+	PR_STRING string;
+	LONG_PTR length;
+
+	length = _r_wnd_sendmessage (hwnd, ctrl_id, TB_GETBUTTONTEXTW, (WPARAM)command_id, 0);
+
+	if (length == INT_ERROR)
+		return NULL;
+
+	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
+
+	_r_wnd_sendmessage (hwnd, ctrl_id, TB_GETBUTTONTEXTW, (WPARAM)command_id, (LPARAM)string->buffer);
+
+	return string;
+}
+
 INT _r_toolbar_getwidth (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	RECT rect = {0};
@@ -18038,7 +18060,7 @@ INT _r_toolbar_getwidth (
 
 VOID _r_toolbar_setbutton (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ UINT command_id,
 	_In_opt_ LPWSTR string,
 	_In_opt_ INT style,
@@ -18083,7 +18105,7 @@ VOID _r_toolbar_setbutton (
 
 VOID _r_toolbar_setstyle (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_opt_ ULONG ex_style
 )
 {

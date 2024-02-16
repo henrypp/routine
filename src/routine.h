@@ -3397,14 +3397,14 @@ VOID _r_wnd_setrectangle (
 
 VOID _r_wnd_setstyle (
 	_In_ HWND hwnd,
-    _In_ LONG_PTR mask,
-    _In_ LONG_PTR value
+	_In_ LONG_PTR mask,
+	_In_ LONG_PTR value
 );
 
 VOID _r_wnd_setstyle_ex (
 	_In_ HWND hwnd,
-    _In_ LONG_PTR mask,
-    _In_ LONG_PTR value
+	_In_ LONG_PTR mask,
+	_In_ LONG_PTR value
 );
 
 VOID _r_wnd_toggle (
@@ -5064,7 +5064,7 @@ FORCEINLINE LONG _r_rebar_getheight (
 
 VOID _r_toolbar_addbutton (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ UINT command_id,
 	_In_ INT style,
 	_In_opt_ INT_PTR string,
@@ -5072,29 +5072,37 @@ VOID _r_toolbar_addbutton (
 	_In_ INT image_id
 );
 
+_Ret_maybenull_
+PR_STRING _r_toolbar_gettext (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ UINT command_id
+);
+
 INT _r_toolbar_getwidth (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 );
 
 VOID _r_toolbar_setbutton (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ UINT command_id,
 	_In_opt_ LPWSTR string,
 	_In_opt_ INT style,
 	_In_opt_ INT state,
-	_In_ INT image);
+	_In_ INT image
+);
 
 VOID _r_toolbar_setstyle (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_opt_ ULONG ex_style
 );
 
 FORCEINLINE VOID _r_toolbar_addseparator (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	_r_toolbar_addbutton (hwnd, ctrl_id, 0, BTNS_SEP, 0, 0, I_IMAGENONE);
@@ -5102,7 +5110,7 @@ FORCEINLINE VOID _r_toolbar_addseparator (
 
 FORCEINLINE VOID _r_toolbar_enablebutton (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ UINT command_id,
 	_In_ BOOLEAN is_enable
 )
@@ -5112,7 +5120,7 @@ FORCEINLINE VOID _r_toolbar_enablebutton (
 
 FORCEINLINE INT _r_toolbar_getbuttoncount (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, TB_BUTTONCOUNT, 0, 0);
@@ -5120,24 +5128,56 @@ FORCEINLINE INT _r_toolbar_getbuttoncount (
 
 FORCEINLINE ULONG _r_toolbar_getbuttonsize (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	return (ULONG)_r_wnd_sendmessage (hwnd, ctrl_id, TB_GETBUTTONSIZE, 0, 0);
 }
 
-FORCEINLINE BOOLEAN _r_toolbar_isbuttonenabled (
+_Ret_maybenull_
+FORCEINLINE HIMAGELIST _r_toolbar_getimagelist (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id
+)
+{
+	return (HIMAGELIST)_r_wnd_sendmessage (hwnd, ctrl_id, TB_GETIMAGELIST, 0, 0);
+}
+
+FORCEINLINE LRESULT _r_toolbar_getinfo (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ UINT command_id,
+	_Inout_ LPTBBUTTONINFOW out_buffer
+)
+{
+	return _r_wnd_sendmessage (hwnd, ctrl_id, TB_GETBUTTONINFO, (WPARAM)command_id, (LPARAM)out_buffer);
+}
+
+FORCEINLINE BOOLEAN _r_toolbar_isenabled (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
 	_In_ UINT command_id
 )
 {
-	return !!((INT)_r_wnd_sendmessage (hwnd, ctrl_id, TB_ISBUTTONENABLED, (WPARAM)command_id, 0));
+	return _r_wnd_sendmessage (hwnd, ctrl_id, TB_ISBUTTONENABLED, (WPARAM)command_id, 0) != 0;
+}
+
+FORCEINLINE BOOLEAN _r_toolbar_ishighlighted (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ UINT command_id
+)
+{
+	ULONG current_index;
+
+	current_index = (ULONG)_r_wnd_sendmessage (hwnd, ctrl_id, TB_COMMANDTOINDEX, (WPARAM)command_id, 0);
+
+	return _r_wnd_sendmessage (hwnd, ctrl_id, TB_GETHOTITEM, 0, 0) == current_index;
 }
 
 FORCEINLINE VOID _r_toolbar_resize (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	_r_wnd_sendmessage (hwnd, ctrl_id, TB_AUTOSIZE, 0, 0);
