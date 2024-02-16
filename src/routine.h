@@ -3072,7 +3072,8 @@ LONG _r_dc_getdpivalue (
 _Success_ (return != 0)
 LONG _r_dc_getfontwidth (
 	_In_ HDC hdc,
-	_In_ PR_STRINGREF string
+	_In_ PR_STRINGREF string,
+	_Out_opt_ PLONG out_height
 );
 
 LONG _r_dc_getmonitordpi (
@@ -3103,6 +3104,16 @@ LONG _r_dc_gettaskbardpi ();
 LONG _r_dc_getwindowdpi (
 	_In_ HWND hwnd
 );
+
+FORCEINLINE VOID _r_dc_drawtext (
+	_In_ HDC hdc,
+	_In_ PR_STRINGREF string,
+	_Inout_ LPRECT rect,
+	_In_ UINT flags
+)
+{
+	DrawTextExW (hdc, string->buffer, (UINT)_r_str_getlength3 (string), rect, flags, NULL);
+}
 
 //
 // File dialog
@@ -4068,7 +4079,7 @@ VOID _r_tray_toggle (
 
 BOOLEAN _r_ctrl_isbuttonchecked (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 );
 
 BOOLEAN _r_ctrl_isenabled (
@@ -4345,6 +4356,27 @@ FORCEINLINE VOID _r_combobox_setitemlparam (
 //
 // Control: editbox
 //
+
+_Ret_maybenull_
+FORCEINLINE PR_STRING _r_edit_getcuebanner (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id
+)
+{
+	PR_STRING string;
+	ULONG length = 128;
+
+	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
+
+	if (!_r_wnd_sendmessage (hwnd, ctrl_id, EM_GETCUEBANNER, (WPARAM)string->buffer, (LPARAM)length))
+	{
+		_r_obj_dereference (string);
+
+		return NULL;
+	}
+
+	return string;
+}
 
 FORCEINLINE VOID _r_edit_setcuebanner (
 	_In_ HWND hwnd,

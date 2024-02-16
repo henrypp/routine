@@ -11501,15 +11501,24 @@ LONG _r_dc_getdpivalue (
 _Success_ (return != 0)
 LONG _r_dc_getfontwidth (
 	_In_ HDC hdc,
-	_In_ PR_STRINGREF string
+	_In_ PR_STRINGREF string,
+	_Out_opt_ PLONG out_height
 )
 {
 	SIZE size;
 
-	if (!GetTextExtentPoint32W (hdc, string->buffer, (ULONG)_r_str_getlength3 (string), &size))
-		return 0;
+	if (GetTextExtentPoint32W (hdc, string->buffer, (ULONG)_r_str_getlength3 (string), &size))
+	{
+		if (out_height)
+			*out_height = size.cy;
 
-	return size.cx;
+		return size.cx;
+	}
+
+	if (out_height)
+		*out_height = 0;
+
+	return 0;
 }
 
 LONG _r_dc_getmonitordpi (
@@ -16152,10 +16161,10 @@ VOID _r_tray_toggle (
 
 BOOLEAN _r_ctrl_isbuttonchecked (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
-	if (IsDlgButtonChecked (hwnd, ctrl_id) == BST_CHECKED)
+	if ((UINT)_r_wnd_sendmessage (hwnd, ctrl_id, BM_GETCHECK, 0, 0) == BST_CHECKED)
 		return TRUE;
 
 	return FALSE;
@@ -16413,7 +16422,7 @@ VOID _r_ctrl_settablestring (
 	LONG wnd_spacing;
 	LONG ctrl1_width;
 	LONG ctrl2_width;
-	UINT swp_flags;
+	UINT flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER;
 
 	hctrl1 = GetDlgItem (hwnd, ctrl_id1);
 	hctrl2 = GetDlgItem (hwnd, ctrl_id2);
@@ -16440,13 +16449,11 @@ VOID _r_ctrl_settablestring (
 	_r_dc_fixfont (hdc1, hctrl1, 0); // fix
 	_r_dc_fixfont (hdc2, hctrl2, 0); // fix
 
-	ctrl1_width = _r_dc_getfontwidth (hdc1, text1) + wnd_spacing;
-	ctrl2_width = _r_dc_getfontwidth (hdc2, text2) + wnd_spacing;
+	ctrl1_width = _r_dc_getfontwidth (hdc1, text1, NULL) + wnd_spacing;
+	ctrl2_width = _r_dc_getfontwidth (hdc2, text2, NULL) + wnd_spacing;
 
 	ctrl2_width = min (ctrl2_width, wnd_width - ctrl1_width - wnd_spacing);
 	ctrl1_width = min (ctrl1_width, wnd_width - ctrl2_width - wnd_spacing);
-
-	swp_flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER;
 
 	// set control rectangles
 	SetRect (&rect1, rect1.left, rect1.top, ctrl1_width, _r_calc_rectheight (&rect1));
@@ -16463,7 +16470,7 @@ VOID _r_ctrl_settablestring (
 			rect1.top,
 			rect1.right,
 			rect1.bottom,
-			swp_flags
+			flags
 		);
 
 		// resize control #2
@@ -16475,7 +16482,7 @@ VOID _r_ctrl_settablestring (
 			rect2.top,
 			rect2.right,
 			rect2.bottom,
-			swp_flags
+			flags
 		);
 	}
 	else
@@ -16488,7 +16495,7 @@ VOID _r_ctrl_settablestring (
 			rect1.top,
 			rect1.right,
 			rect1.bottom,
-			swp_flags
+			flags
 		);
 
 		// resize control #2
@@ -16499,7 +16506,7 @@ VOID _r_ctrl_settablestring (
 			rect2.top,
 			rect2.right,
 			rect2.bottom,
-			swp_flags
+			flags
 		);
 	}
 
