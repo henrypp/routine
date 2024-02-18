@@ -1005,6 +1005,13 @@ typedef enum _FSINFOCLASS
 	FileFsMaximumInformation
 } FSINFOCLASS, *PFSINFOCLASS;
 
+typedef enum _PreferredAppMode
+{
+	PreferredAppModeDisabled,
+	PreferredAppModeDarkOnDark,
+	PreferredAppModeDarkAlways
+} PreferredAppMode;
+
 //
 // structs
 //
@@ -1770,7 +1777,7 @@ typedef struct _PROCESS_DEVICEMAP_INFORMATION_EX
 #define NtCurrentProcessId() (NtCurrentTeb()->ClientId.UniqueProcess)
 #define NtCurrentThreadId() (NtCurrentTeb()->ClientId.UniqueThread)
 
-#define PebLastError() (NtCurrentTeb()->LastErrorValue)
+#define NtLastError() (NtCurrentTeb()->LastErrorValue)
 
 #define InitializeObjectAttributes(p, n, a, r, s) { \
 	(p)->Length = sizeof (OBJECT_ATTRIBUTES); \
@@ -2720,7 +2727,7 @@ typedef struct _TEB
 	PVOID ReservedForWdf;
 	ULONG64 ReservedForCrt;
 	GUID EffectiveContainerId;
-	ULONG64 LastSleepCounter; // Win11
+	ULONG64 LastSleepCounter; // win11
 	ULONG SpinCallCount;
 	ULONG64 ExtendedFeatureDisableMask;
 } TEB, *PTEB;
