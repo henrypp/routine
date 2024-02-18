@@ -6967,7 +6967,7 @@ ULONG _r_str_fromsecuritydescriptor (
 	}
 	else
 	{
-		status = PebLastError ();
+		status = NtLastError ();
 
 		*out_buffer = NULL;
 	}
@@ -12824,7 +12824,7 @@ ULONG CALLBACK _r_wnd_message_callback (
 		haccelerator = LoadAcceleratorsW (NULL, accelerator_table);
 
 		if (!haccelerator)
-			return PebLastError ();
+			return NtLastError ();
 	}
 
 	while (TRUE)
@@ -13073,7 +13073,7 @@ VOID _r_wnd_toggle (
 		if (!is_success)
 		{
 			// uipi fix
-			if (PebLastError () == ERROR_ACCESS_DENIED)
+			if (NtLastError () == ERROR_ACCESS_DENIED)
 				_r_wnd_sendmessage (hwnd, 0, WM_SYSCOMMAND, SC_RESTORE, 0);
 		}
 
@@ -13265,13 +13265,13 @@ ULONG _r_inet_openurl (
 		*total_length_ptr = 0;
 
 	if (!_r_inet_queryurlparts (url, PR_URLPARTS_SCHEME | PR_URLPARTS_HOST | PR_URLPARTS_PORT | PR_URLPARTS_PATH, &url_parts))
-		return PebLastError ();
+		return NtLastError ();
 
 	hconnect = WinHttpConnect (hsession, url_parts.host->buffer, url_parts.port, 0);
 
 	if (!hconnect)
 	{
-		status = PebLastError ();
+		status = NtLastError ();
 
 		goto CleanupExit;
 	}
@@ -13283,7 +13283,7 @@ ULONG _r_inet_openurl (
 
 	if (!hrequest)
 	{
-		status = PebLastError ();
+		status = NtLastError ();
 
 		_r_inet_close (hconnect);
 
@@ -13299,7 +13299,7 @@ ULONG _r_inet_openurl (
 
 		if (!is_valid)
 		{
-			status = PebLastError ();
+			status = NtLastError ();
 
 			if (status == ERROR_WINHTTP_RESEND_REQUEST)
 			{
@@ -13647,7 +13647,7 @@ BOOLEAN _r_inet_queryurlparts (
 
 	if (!WinHttpCrackUrl (url->buffer, (ULONG)_r_str_getlength2 (url), ICU_DECODE, &url_comp))
 	{
-		if (PebLastError () != ERROR_WINHTTP_UNRECOGNIZED_SCHEME)
+		if (NtLastError () != ERROR_WINHTTP_UNRECOGNIZED_SCHEME)
 		{
 			_r_inet_destroyurlparts (url_parts);
 
@@ -15307,10 +15307,10 @@ HRESULT _r_imagelist_draw (
 	_In_ HIMAGELIST himg,
 	_In_ INT32 index,
 	_In_ HDC hdc,
-	_In_ INT32 x,
-	_In_ INT32 y,
-	_In_opt_ COLORREF BackColor,
-	_In_opt_ COLORREF ForeColor,
+	_In_ INT32 width,
+	_In_ INT32 height,
+	_In_opt_ COLORREF bg_clr,
+	_In_opt_ COLORREF fore_clr,
 	_In_ UINT32 style,
 	_In_ BOOLEAN is_enabled
 )
@@ -15322,10 +15322,12 @@ HRESULT _r_imagelist_draw (
 	ildp.himl = himg;
 	ildp.hdcDst = hdc;
 	ildp.i = index;
-	ildp.cx = x;
-	ildp.cy = y;
-	ildp.rgbBk = BackColor ? BackColor : CLR_DEFAULT;
-	ildp.rgbFg = ForeColor ? ForeColor : CLR_DEFAULT;
+	ildp.x = 0;
+	ildp.y = 0;
+	ildp.cx = width;
+	ildp.cy = height;
+	ildp.rgbBk = bg_clr ? bg_clr : CLR_DEFAULT;
+	ildp.rgbFg = fore_clr ? fore_clr : CLR_DEFAULT;
 	ildp.fStyle = style;
 	ildp.fState = is_enabled ? ILS_NORMAL : ILS_SATURATE;
 

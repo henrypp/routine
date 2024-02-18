@@ -3847,10 +3847,10 @@ HRESULT _r_imagelist_draw (
 	_In_ HIMAGELIST himg,
 	_In_ INT32 index,
 	_In_ HDC hdc,
-	_In_ INT32 x,
-	_In_ INT32 y,
-	_In_opt_ COLORREF BackColor,
-	_In_opt_ COLORREF ForeColor,
+	_In_ INT32 width,
+	_In_ INT32 height,
+	_In_opt_ COLORREF bg_clr,
+	_In_opt_ COLORREF fore_clr,
 	_In_ UINT32 style,
 	_In_ BOOLEAN is_enabled
 );
@@ -5227,9 +5227,9 @@ FORCEINLINE BOOLEAN _r_toolbar_ishighlighted (
 	_In_ UINT command_id
 )
 {
-	ULONG current_index;
+	LRESULT current_index;
 
-	current_index = (ULONG)_r_wnd_sendmessage (hwnd, ctrl_id, TB_COMMANDTOINDEX, (WPARAM)command_id, 0);
+	current_index = _r_wnd_sendmessage (hwnd, ctrl_id, TB_COMMANDTOINDEX, (WPARAM)command_id, 0);
 
 	return _r_wnd_sendmessage (hwnd, ctrl_id, TB_GETHOTITEM, 0, 0) == current_index;
 }
