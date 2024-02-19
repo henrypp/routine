@@ -13160,7 +13160,7 @@ ULONG _r_wnd_getcontext_hash (
 {
 	ULONG hash_code;
 
-	hash_code = _r_math_hashinteger_ptr ((ULONG_PTR)hwnd) ^ _r_math_hashinteger32 (property_id);
+	hash_code = _r_math_hashinteger_ptr ((ULONG_PTR)hwnd) ^ property_id;
 
 	return hash_code;
 }
