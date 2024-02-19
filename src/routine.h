@@ -3105,6 +3105,13 @@ LONG _r_dc_getwindowdpi (
 	_In_ HWND hwnd
 );
 
+_Ret_maybenull_
+HTHEME _r_dc_openthemedata (
+	_In_opt_ HWND hwnd,
+	_In_ PCWSTR class_list,
+	_In_opt_ LONG dpi_value
+);
+
 FORCEINLINE VOID _r_dc_drawtext (
 	_In_ HDC hdc,
 	_In_ PR_STRINGREF string,
@@ -4286,6 +4293,13 @@ FORCEINLINE VOID _r_ctrl_settextmargin (
 //
 // Control: combobox
 //
+
+_Ret_maybenull_
+PR_STRING _r_combobox_getitemtext (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ INT item_id
+);
 
 VOID _r_combobox_insertitem (
 	_In_ HWND hwnd,

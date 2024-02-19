@@ -71,6 +71,13 @@ typedef BOOL (WINAPI *SPIFP)(
 	_In_ UINT dpi
 	);
 
+// OpenThemeDataForDpi (win10rs2+)
+typedef HTHEME (WINAPI *OTDFD)(
+	_In_opt_ HWND hwnd,
+	_In_ LPCWSTR pszClassList,
+	_In_ UINT dpi
+	);
+
 //
 // Printf specifiers
 //
@@ -907,13 +914,13 @@ typedef struct _APP_GLOBAL_CONFIG
 
 	struct
 	{
-		R_UPDATE_INFO info;
-	} update;
-
-	struct
-	{
 		DLGPROC wnd_proc;
 		PR_ARRAY page_list;
 		HWND hwnd;
 	} settings;
+
+	struct
+	{
+		R_UPDATE_INFO info;
+	} update;
 } APP_GLOBAL_CONFIG, *PAPP_GLOBAL_CONFIG;

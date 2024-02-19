@@ -11582,11 +11582,11 @@ LONG _r_dc_getsystemmetrics (
 		_r_initonce_end (&init_once);
 	}
 
-	if (!dpi_value || !_GetSystemMetricsForDpi)
-		return GetSystemMetrics (index);
-
 	// win10rs1+
-	return _GetSystemMetricsForDpi (index, dpi_value);
+	if (dpi_value && _GetSystemMetricsForDpi)
+		return _GetSystemMetricsForDpi (index, dpi_value);
+
+	return GetSystemMetrics (index);
 }
 
 _Success_ (return)
@@ -11619,11 +11619,11 @@ BOOLEAN _r_dc_getsystemparametersinfo (
 		_r_initonce_end (&init_once);
 	}
 
-	if (!dpi_value || !_SystemParametersInfoForDpi)
-		return !!SystemParametersInfoW (action, param1, param2, 0);
-
 	// win10rs1+
-	return !!_SystemParametersInfoForDpi (action, param1, param2, 0, dpi_value);
+	if (dpi_value && _SystemParametersInfoForDpi)
+		return !!_SystemParametersInfoForDpi (action, param1, param2, 0, dpi_value);
+
+	return !!SystemParametersInfoW (action, param1, param2, 0);
 }
 
 LONG _r_dc_gettaskbardpi ()
@@ -11648,6 +11648,43 @@ LONG _r_dc_getwindowdpi (
 		return _r_dc_getdpivalue (hwnd, NULL);
 
 	return _r_dc_getdpivalue (NULL, &rect);
+}
+
+_Ret_maybenull_
+HTHEME _r_dc_openthemedata (
+	_In_opt_ HWND hwnd,
+	_In_ PCWSTR class_list,
+	_In_opt_ LONG dpi_value
+)
+{
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static OTDFD _OpenThemeDataForDpi = NULL;
+
+	PVOID huxtheme;
+	NTSTATUS status;
+
+	// initialize library calls
+	if (_r_initonce_begin (&init_once))
+	{
+		status = _r_sys_loadlibrary (L"uxtheme.dll", 0, &huxtheme);
+
+		if (NT_SUCCESS (status))
+		{
+			// win10rs2+
+			status = _r_sys_getprocaddress (huxtheme, "OpenThemeDataForDpi", 0, (PVOID_PTR)&_OpenThemeDataForDpi);
+
+			//_r_sys_freelibrary (huxtheme, FALSE);
+		}
+
+		_r_initonce_end (&init_once);
+	}
+
+	// wind10rs2+
+	if (dpi_value && _OpenThemeDataForDpi)
+		return _OpenThemeDataForDpi (hwnd, class_list, dpi_value);
+
+	// vista+
+	return OpenThemeData (hwnd, class_list);
 }
 
 //
@@ -16656,6 +16693,33 @@ VOID _r_ctrl_showballoontipformat (
 //
 // Control: combobox
 //
+
+_Ret_maybenull_
+PR_STRING _r_combobox_getitemtext (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ INT item_id
+)
+{
+	PR_STRING string;
+	INT length;
+
+	length = (INT)_r_wnd_sendmessage (hwnd, ctrl_id, CB_GETLBTEXTLEN, (WPARAM)item_id, 0);
+
+	if (length == CB_ERR)
+		return NULL;
+
+	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
+
+	if (_r_wnd_sendmessage (hwnd, ctrl_id, CB_GETLBTEXT, (WPARAM)item_id, (LPARAM)string->buffer) == CB_ERR)
+	{
+		_r_obj_dereference (string);
+
+		return NULL;
+	}
+
+	return string;
+}
 
 VOID _r_combobox_insertitem (
 	_In_ HWND hwnd,
