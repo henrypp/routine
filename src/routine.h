@@ -4207,6 +4207,22 @@ VOID _r_ctrl_showballoontipformat (
 	...
 );
 
+_Ret_maybenull_
+FORCEINLINE HICON _r_ctrl_geticon (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id
+)
+{
+	HICON hicon;
+
+	hicon = (HICON)_r_wnd_sendmessage (hwnd, ctrl_id, STM_GETICON, 0, 0);
+
+	if (!hicon)
+		hicon = (HICON)_r_wnd_sendmessage (hwnd, ctrl_id, BM_GETIMAGE, IMAGE_ICON, 0);
+
+	return hicon;
+}
+
 FORCEINLINE LONG_PTR _r_ctrl_getselection (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id
