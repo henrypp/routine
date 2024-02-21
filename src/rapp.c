@@ -284,14 +284,14 @@ VOID _r_app_initialize_mitigations ()
 		_r_report_error (NULL, L"ProcessDynamicCodePolicy", status, TRUE);
 
 	// the RedirectionGuard policy of the process.
-	policy.Policy = ProcessRedirectionTrustPolicy;
-	policy.RedirectionTrustPolicy.Flags = 0;
-	policy.RedirectionTrustPolicy.EnforceRedirectionTrust = TRUE;
-
-	status = NtSetInformationProcess (NtCurrentProcess (), ProcessMitigationPolicy, &policy, sizeof (policy));
-
-	if (!NT_SUCCESS (status))
-		_r_report_error (NULL, L"ProcessRedirectionTrustPolicy", status, TRUE);
+	//policy.Policy = ProcessRedirectionTrustPolicy;
+	//policy.RedirectionTrustPolicy.Flags = 0;
+	//policy.RedirectionTrustPolicy.EnforceRedirectionTrust = TRUE;
+	//
+	//status = NtSetInformationProcess (NtCurrentProcess (), ProcessMitigationPolicy, &policy, sizeof (policy));
+	//
+	//if (!NT_SUCCESS (status))
+	//	_r_report_error (NULL, L"ProcessRedirectionTrustPolicy", status, TRUE);
 }
 
 VOID _r_app_initialize_seh ()
@@ -697,6 +697,7 @@ LRESULT CALLBACK _r_app_maindlgproc (
 		case WM_QUERYENDSESSION:
 		{
 			SetWindowLongPtrW (hwnd, DWLP_MSGRESULT, TRUE);
+
 			return TRUE;
 		}
 
@@ -891,6 +892,7 @@ HWND _r_app_createwindow (
 
 	// subclass window
 	app_global.main.wnd_proc = (WNDPROC)GetWindowLongPtrW (hwnd, DWLP_DLGPROC);
+
 	SetWindowLongPtrW (hwnd, DWLP_DLGPROC, (LONG_PTR)_r_app_maindlgproc);
 
 	// restore window position
@@ -2726,7 +2728,7 @@ VOID _r_update_install (
 	cmd_string = _r_format_string (L"\"%s\" /u /S /D=%s", update_component->cache_path->buffer, update_component->target_path->buffer);
 
 	if (!_r_sys_runasadmin (update_component->cache_path->buffer, cmd_string->buffer, NULL))
-		_r_show_errormessage (NULL, NULL, PebLastError (), update_component->cache_path->buffer, FALSE);
+		_r_show_errormessage (NULL, NULL, NtLastError (), update_component->cache_path->buffer, FALSE);
 
 	_r_obj_dereference (cmd_string);
 }
