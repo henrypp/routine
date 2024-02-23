@@ -1007,9 +1007,11 @@ typedef enum _FSINFOCLASS
 
 typedef enum _PreferredAppMode
 {
-	PreferredAppModeDisabled,
-	PreferredAppModeDarkOnDark,
-	PreferredAppModeDarkAlways
+	Default,
+	AllowDark,
+	ForceDark,
+	ForceLight,
+	Max
 } PreferredAppMode;
 
 //
@@ -2533,17 +2535,17 @@ typedef struct _PEB
 } PEB, *PPEB;
 
 #if defined(_WIN64)
-C_ASSERT(FIELD_OFFSET(PEB, SessionId) == 0x2C0);
-//C_ASSERT(sizeof(PEB) == 0x7B0); // REDSTONE3
-//C_ASSERT(sizeof(PEB) == 0x7B8); // REDSTONE4
-//C_ASSERT(sizeof(PEB) == 0x7C8); // REDSTONE5 // 19H1
-C_ASSERT(sizeof(PEB) == 0x7D0); // WIN11
+C_ASSERT (FIELD_OFFSET (PEB, SessionId) == 0x2C0);
+//C_ASSERT (sizeof (PEB) == 0x7B0); // REDSTONE3
+//C_ASSERT (sizeof (PEB) == 0x7B8); // REDSTONE4
+//C_ASSERT (sizeof (PEB) == 0x7C8); // REDSTONE5 // 19H1
+C_ASSERT (sizeof (PEB) == 0x7D0); // WIN11
 #else
-C_ASSERT(FIELD_OFFSET(PEB, SessionId) == 0x1D4);
-//C_ASSERT(sizeof(PEB) == 0x468); // REDSTONE3
-//C_ASSERT(sizeof(PEB) == 0x470); // REDSTONE4
-//C_ASSERT(sizeof(PEB) == 0x480); // REDSTONE5 // 19H1
-C_ASSERT(sizeof(PEB) == 0x488); // WIN11
+C_ASSERT (FIELD_OFFSET (PEB, SessionId) == 0x1D4);
+//C_ASSERT (sizeof (PEB) == 0x468); // REDSTONE3
+//C_ASSERT (sizeof (PEB) == 0x470); // REDSTONE4
+//C_ASSERT (sizeof (PEB) == 0x480); // REDSTONE5 // 19H1
+C_ASSERT (sizeof (PEB) == 0x488); // WIN11
 #endif // _WIN64
 
 typedef struct _TEB
@@ -4617,7 +4619,7 @@ RtlGetVersion (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-NtCreateIoCompletion(
+NtCreateIoCompletion (
 	_Out_ PHANDLE IoCompletionHandle,
 	_In_ ACCESS_MASK DesiredAccess,
 	_In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
@@ -4654,7 +4656,7 @@ NTSYSCALLAPI
 NTSTATUS
 NTAPI
 RtlGetSearchPath (
-	_Out_ PWSTR *SearchPath
+	_Out_ PWSTR *Path
 );
 
 NTSYSCALLAPI
@@ -4940,7 +4942,7 @@ RtlUnicodeToUTF8N (
 	_Out_writes_bytes_to_ (UTF8StringMaxByteCount, *UTF8StringActualByteCount) PCHAR UTF8StringDestination,
 	_In_ ULONG UTF8StringMaxByteCount,
 	_Out_opt_ PULONG UTF8StringActualByteCount,
-	_In_reads_bytes_(UnicodeStringByteCount) PCWCH UnicodeStringSource,
+	_In_reads_bytes_ (UnicodeStringByteCount) PCWCH UnicodeStringSource,
 	_In_ ULONG UnicodeStringByteCount
 );
 
@@ -5312,7 +5314,7 @@ NtClearEvent (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-NtResetEvent(
+NtResetEvent (
 	_In_ HANDLE EventHandle,
 	_Out_opt_ PLONG PreviousState
 );
