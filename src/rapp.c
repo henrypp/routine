@@ -260,8 +260,8 @@ VOID _r_app_initialize_mitigations ()
 
 	status = NtSetInformationProcess (NtCurrentProcess (), ProcessMitigationPolicy, &policy, sizeof (policy));
 
-	if (!NT_SUCCESS (status))
-		_r_report_error (NULL, L"ProcessSignaturePolicy", status, TRUE);
+	//if (!NT_SUCCESS (status))
+	//	_r_report_error (NULL, L"ProcessSignaturePolicy", status, TRUE);
 
 	// prevents legacy extension point DLLs from being loaded into the process
 	policy.Policy = ProcessExtensionPointDisablePolicy;
@@ -270,8 +270,8 @@ VOID _r_app_initialize_mitigations ()
 
 	status = NtSetInformationProcess (NtCurrentProcess (), ProcessMitigationPolicy, &policy, sizeof (policy));
 
-	if (!NT_SUCCESS (status))
-		_r_report_error (NULL, L"ProcessExtensionPointDisablePolicy", status, TRUE);
+	//if (!NT_SUCCESS (status))
+	//	_r_report_error (NULL, L"ProcessExtensionPointDisablePolicy", status, TRUE);
 
 	// when turned on, the process cannot generate dynamic code or modify existing executable code
 	policy.Policy = ProcessDynamicCodePolicy;
@@ -280,8 +280,8 @@ VOID _r_app_initialize_mitigations ()
 
 	status = NtSetInformationProcess (NtCurrentProcess (), ProcessMitigationPolicy, &policy, sizeof (policy));
 
-	if (!NT_SUCCESS (status))
-		_r_report_error (NULL, L"ProcessDynamicCodePolicy", status, TRUE);
+	//if (!NT_SUCCESS (status))
+	//	_r_report_error (NULL, L"ProcessDynamicCodePolicy", status, TRUE);
 
 	// the RedirectionGuard policy of the process.
 	//policy.Policy = ProcessRedirectionTrustPolicy;
