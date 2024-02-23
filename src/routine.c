@@ -11008,11 +11008,11 @@ BOOLEAN _r_dc_adjustwindowrect (
 		_r_initonce_end (&init_once);
 	}
 
-	if (!dpi_value || !_AdjustWindowRectExForDpi)
-		return !!AdjustWindowRectEx (rect, style, is_menu, ex_style);
-
 	// win10rs1+
-	return !!_AdjustWindowRectExForDpi (rect, style, is_menu, ex_style, dpi_value);
+	if (dpi_value && _AdjustWindowRectExForDpi)
+		return !!_AdjustWindowRectExForDpi (rect, style, is_menu, ex_style, dpi_value);
+
+	return !!AdjustWindowRectEx (rect, style, is_menu, ex_style);
 }
 
 _Ret_maybenull_
@@ -11507,7 +11507,7 @@ LONG _r_dc_getfontwidth (
 {
 	SIZE size;
 
-	if (GetTextExtentPoint32W (hdc, string->buffer, (ULONG)_r_str_getlength3 (string), &size))
+	if (GetTextExtentExPointW (hdc, string->buffer, (ULONG)_r_str_getlength3 (string), 0, NULL, NULL, &size))
 	{
 		if (out_height)
 			*out_height = size.cy;
@@ -16203,10 +16203,7 @@ BOOLEAN _r_ctrl_isbuttonchecked (
 	_In_opt_ INT ctrl_id
 )
 {
-	if ((UINT)_r_wnd_sendmessage (hwnd, ctrl_id, BM_GETCHECK, 0, 0) == BST_CHECKED)
-		return TRUE;
-
-	return FALSE;
+	return _r_wnd_sendmessage (hwnd, ctrl_id, BM_GETCHECK, 0, 0) == BST_CHECKED;
 }
 
 BOOLEAN _r_ctrl_isenabled (
@@ -16998,7 +16995,7 @@ INT _r_menu_popup (
 
 VOID _r_tab_adjustchild (
 	_In_ HWND hwnd,
-	_In_ INT tab_id,
+	_In_ INT ctrl_id,
 	_In_ HWND hchild
 )
 {
@@ -17006,7 +17003,7 @@ VOID _r_tab_adjustchild (
 	RECT new_rect;
 	HWND htab;
 
-	htab = GetDlgItem (hwnd, tab_id);
+	htab = GetDlgItem (hwnd, ctrl_id);
 
 	if (!htab || !GetClientRect (htab, &new_rect) || !GetWindowRect (htab, &tab_rect))
 		return;
@@ -17015,7 +17012,7 @@ VOID _r_tab_adjustchild (
 
 	OffsetRect (&new_rect, tab_rect.left, tab_rect.top);
 
-	_r_wnd_sendmessage (hwnd, tab_id, TCM_ADJUSTRECT, FALSE, (LPARAM)&new_rect);
+	_r_wnd_sendmessage (hwnd, ctrl_id, TCM_ADJUSTRECT, FALSE, (LPARAM)&new_rect);
 
 	SetWindowPos (
 		hchild,
@@ -17070,7 +17067,7 @@ LPARAM _r_tab_getitemlparam (
 
 	tci.mask = TCIF_PARAM;
 
-	if ((INT)_r_wnd_sendmessage (hwnd, ctrl_id, TCM_GETITEM, (WPARAM)item_id, (LPARAM)&tci))
+	if (_r_wnd_sendmessage (hwnd, ctrl_id, TCM_GETITEM, (WPARAM)item_id, (LPARAM)&tci))
 		return tci.lParam;
 
 	return 0;

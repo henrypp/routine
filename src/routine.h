@@ -4208,6 +4208,15 @@ VOID _r_ctrl_showballoontipformat (
 );
 
 _Ret_maybenull_
+FORCEINLINE HFONT _r_ctrl_getfont (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id
+)
+{
+	return (HFONT)_r_wnd_sendmessage (hwnd, ctrl_id, WM_GETFONT, 0, 0);
+}
+
+_Ret_maybenull_
 FORCEINLINE HICON _r_ctrl_geticon (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id
@@ -4240,11 +4249,7 @@ FORCEINLINE ULONG _r_ctrl_getstringlength (
 	_In_opt_ INT ctrl_id
 )
 {
-	ULONG length;
-
-	length = (ULONG)_r_wnd_sendmessage (hwnd, ctrl_id, WM_GETTEXTLENGTH, 0, 0);
-
-	return length;
+	return (ULONG)_r_wnd_sendmessage (hwnd, ctrl_id, WM_GETTEXTLENGTH, 0, 0);
 }
 
 FORCEINLINE VOID _r_ctrl_setacceleration (
@@ -4572,7 +4577,7 @@ FORCEINLINE VOID _r_updown_setvalue (
 
 VOID _r_tab_adjustchild (
 	_In_ HWND hwnd,
-	_In_ INT tab_id,
+	_In_ INT ctrl_id,
 	_In_ HWND hchild
 );
 
@@ -5221,6 +5226,14 @@ FORCEINLINE ULONG _r_toolbar_getbuttonsize (
 )
 {
 	return (ULONG)_r_wnd_sendmessage (hwnd, ctrl_id, TB_GETBUTTONSIZE, 0, 0);
+}
+
+FORCEINLINE LRESULT _r_toolbar_getexstyle (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id
+)
+{
+	return _r_wnd_sendmessage (hwnd, ctrl_id, TB_GETEXTENDEDSTYLE, 0, 0);
 }
 
 _Ret_maybenull_
