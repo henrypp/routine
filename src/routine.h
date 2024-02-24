@@ -3300,14 +3300,6 @@ BOOLEAN _r_wnd_getposition (
 	_Out_ PR_RECTANGLE rectangle
 );
 
-LONG_PTR _r_wnd_getstyle (
-	_In_ HWND hwnd
-);
-
-LONG_PTR _r_wnd_getstyle_ex (
-	_In_ HWND hwnd
-);
-
 BOOLEAN _r_wnd_isdesktop (
 	_In_ HWND hwnd
 );
@@ -3456,6 +3448,20 @@ VOID _r_wnd_setcontext (
 	_In_ ULONG property_id,
 	_In_ PVOID context
 );
+
+FORCEINLINE LONG_PTR _r_wnd_getstyle (
+	_In_ HWND hwnd
+)
+{
+	return GetWindowLongPtrW (hwnd, GWL_STYLE);
+}
+
+FORCEINLINE LONG_PTR _r_wnd_getstyle_ex (
+	_In_ HWND hwnd
+)
+{
+	return GetWindowLongPtrW (hwnd, GWL_EXSTYLE);
+}
 
 //
 // Inernet access (WinHTTP)
@@ -4237,11 +4243,23 @@ FORCEINLINE LONG_PTR _r_ctrl_getselection (
 	_In_opt_ INT ctrl_id
 )
 {
-	LONG_PTR pos;
+	return _r_wnd_sendmessage (hwnd, ctrl_id, EM_GETSEL, 0, 0);
+}
 
-	pos = _r_wnd_sendmessage (hwnd, ctrl_id, EM_GETSEL, 0, 0);
+FORCEINLINE ULONG _r_ctrl_getbtnstate (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id
+)
+{
+	return (ULONG)_r_wnd_sendmessage (hwnd, ctrl_id, BM_GETSTATE, 0, 0);
+}
 
-	return pos;
+FORCEINLINE ULONG _r_ctrl_getuistate (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id
+)
+{
+	return (ULONG)_r_wnd_sendmessage (hwnd, ctrl_id, WM_QUERYUISTATE, 0, 0);
 }
 
 FORCEINLINE ULONG _r_ctrl_getstringlength (
@@ -4386,6 +4404,65 @@ FORCEINLINE VOID _r_combobox_setitemlparam (
 )
 {
 	_r_wnd_sendmessage (hwnd, ctrl_id, CB_SETITEMDATA, (WPARAM)item_id, lparam);
+}
+
+//
+// Control: datetime
+//
+
+_Ret_maybenull_
+FORCEINLINE HWND _r_datetime_gethandle (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id
+)
+{
+	return (HWND)_r_wnd_sendmessage (hwnd, ctrl_id, DTM_GETMONTHCAL, 0, 0);
+}
+
+FORCEINLINE VOID _r_datetime_getrect (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_Out_ PRECT out_buffer
+)
+{
+	_r_wnd_sendmessage (hwnd, ctrl_id, MCM_GETMINREQRECT, 0, (LPARAM)out_buffer);
+}
+
+FORCEINLINE LRESULT _r_datetime_gettime (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_Out_ PSYSTEMTIME out_buffer
+)
+{
+	return _r_wnd_sendmessage (hwnd, ctrl_id, DTM_GETSYSTEMTIME, GDT_VALID, (LPARAM)out_buffer);
+}
+
+FORCEINLINE ULONG _r_datetime_setcolor (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ WPARAM type,
+	_In_ ULONG clr
+)
+{
+	return (ULONG)_r_wnd_sendmessage (hwnd, 0, DTM_SETMCCOLOR, type, (LPARAM)clr);
+}
+
+FORCEINLINE LRESULT _r_datetime_setformat (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ LPCWSTR format
+)
+{
+	return _r_wnd_sendmessage (hwnd, ctrl_id, DTM_SETFORMATW, 0, (LPARAM)format);
+}
+
+FORCEINLINE LRESULT _r_datetime_settime (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ const LPSYSTEMTIME system_time
+)
+{
+	return _r_wnd_sendmessage (hwnd, ctrl_id, DTM_SETSYSTEMTIME, GDT_VALID, (LPARAM)system_time);
 }
 
 //

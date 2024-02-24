@@ -12558,20 +12558,6 @@ BOOLEAN _r_wnd_getposition (
 	return TRUE;
 }
 
-LONG_PTR _r_wnd_getstyle (
-	_In_ HWND hwnd
-)
-{
-	return GetWindowLongPtrW (hwnd, GWL_STYLE);
-}
-
-LONG_PTR _r_wnd_getstyle_ex (
-	_In_ HWND hwnd
-)
-{
-	return GetWindowLongPtrW (hwnd, GWL_EXSTYLE);
-}
-
 BOOLEAN _r_wnd_isdesktop (
 	_In_ HWND hwnd
 )
