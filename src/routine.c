@@ -12000,31 +12000,28 @@ ULONG _r_layout_getcontrolflags (
 	_In_ HWND hwnd
 )
 {
-	WCHAR class_name[128];
-	R_STRINGREF sr;
-	ULONG length;
+	PR_STRING class_name;
+	ULONG flags = 0;
 
-	length = GetClassNameW (hwnd, class_name, RTL_NUMBER_OF (class_name));
+	class_name = _r_wnd_getclassname (hwnd);
 
-	if (!length)
+	if (!class_name)
 		return 0;
 
-	_r_obj_initializestringref_ex (&sr, class_name, length * sizeof (WCHAR));
-
-	if (_r_str_isequal2 (&sr, WC_STATIC, TRUE))
+	if (_r_str_isequal2 (&class_name->sr, WC_STATIC, TRUE))
 	{
-		return PR_LAYOUT_FORCE_INVALIDATE;
+		flags = PR_LAYOUT_FORCE_INVALIDATE;
 	}
-	else if (_r_str_isequal2 (&sr, STATUSCLASSNAME, TRUE))
+	else if (_r_str_isequal2 (&class_name->sr, STATUSCLASSNAME, TRUE))
 	{
-		return PR_LAYOUT_SEND_NOTIFY | PR_LAYOUT_NO_ANCHOR;
+		flags = PR_LAYOUT_SEND_NOTIFY | PR_LAYOUT_NO_ANCHOR;
 	}
-	else if (_r_str_isequal2 (&sr, REBARCLASSNAME, TRUE))
+	else if (_r_str_isequal2 (&class_name->sr, REBARCLASSNAME, TRUE))
 	{
-		return PR_LAYOUT_SEND_NOTIFY | PR_LAYOUT_NO_ANCHOR;
+		flags = PR_LAYOUT_SEND_NOTIFY | PR_LAYOUT_NO_ANCHOR;
 	}
 
-	return 0;
+	return flags;
 }
 
 BOOLEAN _r_layout_resize (
@@ -12531,6 +12528,30 @@ HWND _r_wnd_createwindow (
 	hwnd = CreateDialogIndirectParamW (hinst, (LPCDLGTEMPLATE)buffer.buffer, hparent, dlg_proc, (LPARAM)lparam);
 
 	return hwnd;
+}
+
+_Ret_maybenull_
+PR_STRING _r_wnd_getclassname (
+	_In_ HWND hwnd
+)
+{
+	PR_STRING string;
+	ULONG length = 128;
+
+	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
+
+	length = GetClassNameW (hwnd, string->buffer, length);
+
+	if (!length)
+	{
+		_r_obj_dereference (string);
+
+		return NULL;
+	}
+
+	_r_obj_setstringlength (&string->sr, length * sizeof (WCHAR));
+
+	return string;
 }
 
 _Success_ (return)

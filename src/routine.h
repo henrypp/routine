@@ -3288,6 +3288,11 @@ HWND _r_wnd_createwindow (
 	_In_opt_ PVOID lparam
 );
 
+_Ret_maybenull_
+PR_STRING _r_wnd_getclassname (
+	_In_ HWND hwnd
+);
+
 _Success_ (return)
 BOOLEAN _r_wnd_getclientsize (
 	_In_ HWND hwnd,
