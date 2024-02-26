@@ -9850,6 +9850,13 @@ NTSTATUS _r_sys_getprocaddress (
 	PVOID proc_address;
 	NTSTATUS status;
 
+	if (!name && !ordinal)
+	{
+		*out_buffer = NULL;
+
+		return STATUS_INVALID_PARAMETER;
+	}
+
 	if (name)
 	{
 		RtlInitAnsiString (&procedure_name, name);
