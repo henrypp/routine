@@ -3005,16 +3005,6 @@ BOOLEAN _r_dc_drawwindow (
 	_In_ BOOLEAN is_drawfooter
 );
 
-BOOLEAN _r_dc_drawimagelisticon (
-	_In_ HDC hdc,
-	_In_ HIMAGELIST himglist,
-	_In_ INT index,
-	_In_ LONG x,
-	_In_ LONG y,
-	_In_opt_ ULONG state,
-	_In_opt_ UINT style
-);
-
 VOID _r_dc_fillrect (
 	_In_ HDC hdc,
 	_In_ LPCRECT rect,
