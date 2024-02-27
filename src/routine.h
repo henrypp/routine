@@ -2998,6 +2998,17 @@ HBITMAP _r_dc_createbitmap (
 	_Out_ _When_ (return != NULL, _Notnull_) PVOID_PTR bits
 );
 
+VOID _r_dc_drawtext (
+	_In_opt_ HTHEME htheme,
+	_In_ HDC hdc,
+	_In_ PR_STRINGREF string,
+	_Inout_ LPRECT rect,
+	_In_ INT part_id,
+	_In_ INT state_id,
+	_In_ UINT flags,
+	_In_opt_ COLORREF clr_text
+);
+
 BOOLEAN _r_dc_drawwindow (
 	_In_ HDC hdc,
 	_In_ HWND hwnd,
@@ -3101,16 +3112,6 @@ HTHEME _r_dc_openthemedata (
 	_In_ PCWSTR class_list,
 	_In_opt_ LONG dpi_value
 );
-
-FORCEINLINE VOID _r_dc_drawtext (
-	_In_ HDC hdc,
-	_In_ PR_STRINGREF string,
-	_Inout_ LPRECT rect,
-	_In_ UINT flags
-)
-{
-	DrawTextExW (hdc, string->buffer, (UINT)_r_str_getlength3 (string), rect, flags, NULL);
-}
 
 //
 // File dialog

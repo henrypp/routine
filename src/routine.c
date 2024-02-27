@@ -11182,6 +11182,52 @@ HBITMAP _r_dc_createbitmap (
 	return hbitmap;
 }
 
+VOID _r_dc_drawtext (
+	_In_opt_ HTHEME htheme,
+	_In_ HDC hdc,
+	_In_ PR_STRINGREF string,
+	_Inout_ LPRECT rect,
+	_In_ INT part_id,
+	_In_ INT state_id,
+	_In_ UINT flags,
+	_In_opt_ COLORREF clr_text
+)
+{
+	DTTOPTS dtto = {0};
+
+	if (htheme)
+	{
+		dtto.dwSize = sizeof (DTTOPTS);
+
+		if (clr_text)
+		{
+			dtto.dwFlags = DTT_TEXTCOLOR;
+
+			dtto.crText = clr_text;
+		}
+
+		//if (state_id)
+		//{
+		//	dtto.dwFlags |= DTT_STATEID;
+		//
+		//	dtto.iStateId = state_id;
+		//}
+
+		DrawThemeTextEx (htheme, hdc, part_id, state_id, string->buffer, (UINT)_r_str_getlength3 (string), flags, rect, &dtto);
+	}
+	else
+	{
+		if (clr_text)
+		{
+			SetBkMode (hdc, TRANSPARENT);
+
+			SetTextColor (hdc, clr_text);
+		}
+
+		DrawTextExW (hdc, string->buffer, (UINT)_r_str_getlength3 (string), rect, flags, NULL);
+	}
+}
+
 BOOLEAN _r_dc_drawwindow (
 	_In_ HDC hdc,
 	_In_ HWND hwnd,
