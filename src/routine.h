@@ -3074,7 +3074,7 @@ _Success_ (return != 0)
 LONG _r_dc_getfontwidth (
 	_In_ HDC hdc,
 	_In_ PR_STRINGREF string,
-	_Out_opt_ PLONG out_height
+	_Out_opt_ PSIZE out_buffer
 );
 
 LONG _r_dc_getmonitordpi (
@@ -4151,7 +4151,7 @@ VOID _r_ctrl_setbuttonmargins (
 	_In_ LONG dpi_value
 );
 
-VOID _r_ctrl_settablestring (
+BOOLEAN _r_ctrl_settablestring (
 	_In_ HWND hwnd,
 	_Inout_opt_ HDWP_PTR hdefer,
 	_In_ INT ctrl_id1,
@@ -5164,26 +5164,26 @@ VOID _r_status_setstyle (
 	_In_opt_ INT height
 );
 
-VOID _r_status_settextformat (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ INT part_id,
-	_In_ _Printf_format_string_ LPCWSTR format,
-	...
-);
-
 VOID _r_status_settext (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
-	_In_ INT part_id,
+	_In_ LONG part_id,
 	_In_opt_ LPCWSTR string
+);
+
+VOID _r_status_settextformat (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ LONG part_id,
+	_In_ _Printf_format_string_ LPCWSTR format,
+	...
 );
 
 FORCEINLINE VOID _r_status_setparts (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
-	_In_reads_ (count) PINT parts,
-	_In_ INT count
+	_In_reads_ (count) PLONG parts,
+	_In_ ULONG_PTR count
 )
 {
 	_r_wnd_sendmessage (hwnd, ctrl_id, SB_SETPARTS, (WPARAM)count, (LPARAM)parts);

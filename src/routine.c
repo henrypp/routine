@@ -11195,6 +11195,8 @@ VOID _r_dc_drawtext (
 {
 	DTTOPTS dtto = {0};
 
+	SetBkMode (hdc, TRANSPARENT);
+
 	if (htheme)
 	{
 		dtto.dwSize = sizeof (DTTOPTS);
@@ -11531,21 +11533,21 @@ _Success_ (return != 0)
 LONG _r_dc_getfontwidth (
 	_In_ HDC hdc,
 	_In_ PR_STRINGREF string,
-	_Out_opt_ PLONG out_height
+	_Out_opt_ PSIZE out_buffer
 )
 {
-	SIZE size;
+	SIZE size = {0};
 
 	if (GetTextExtentExPointW (hdc, string->buffer, (ULONG)_r_str_getlength3 (string), 0, NULL, NULL, &size))
 	{
-		if (out_height)
-			*out_height = size.cy;
+		if (out_buffer)
+			RtlCopyMemory (out_buffer, &size, sizeof (SIZE));
 
 		return size.cx;
 	}
 
-	if (out_height)
-		*out_height = 0;
+	if (out_buffer)
+		RtlSecureZeroMemory (out_buffer, sizeof (SIZE));
 
 	return 0;
 }
@@ -16475,7 +16477,7 @@ VOID _r_ctrl_setbuttonmargins (
 	}
 }
 
-VOID _r_ctrl_settablestring (
+BOOLEAN _r_ctrl_settablestring (
 	_In_ HWND hwnd,
 	_Inout_opt_ HDWP_PTR hdefer,
 	_In_ INT ctrl_id1,
@@ -16490,25 +16492,25 @@ VOID _r_ctrl_settablestring (
 	HWND hctrl2;
 	HDC hdc1;
 	HDC hdc2;
-	LONG wnd_width;
-	LONG wnd_spacing;
 	LONG ctrl1_width;
 	LONG ctrl2_width;
+	LONG wnd_spacing;
+	LONG wnd_width;
 	UINT flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER;
 
 	hctrl1 = GetDlgItem (hwnd, ctrl_id1);
 	hctrl2 = GetDlgItem (hwnd, ctrl_id2);
 
 	if (!hctrl1 || !hctrl2)
-		return;
+		return FALSE;
 
 	wnd_width = _r_ctrl_getwidth (hwnd, 0);
 
 	if (!wnd_width)
-		return;
+		return FALSE;
 
 	if (!GetWindowRect (hctrl1, &rect1))
-		return;
+		return FALSE;
 
 	MapWindowPoints (HWND_DESKTOP, hwnd, (PPOINT)&rect1, 2);
 
@@ -16518,8 +16520,8 @@ VOID _r_ctrl_settablestring (
 	hdc1 = GetDC (hctrl1);
 	hdc2 = GetDC (hctrl2);
 
-	_r_dc_fixfont (hdc1, hctrl1, 0); // fix
-	_r_dc_fixfont (hdc2, hctrl2, 0); // fix
+	_r_dc_fixfont (hdc1, hwnd, ctrl_id1); // fix
+	_r_dc_fixfont (hdc2, hwnd, ctrl_id2); // fix
 
 	ctrl1_width = _r_dc_getfontwidth (hdc1, text1, NULL) + wnd_spacing;
 	ctrl2_width = _r_dc_getfontwidth (hdc2, text2, NULL) + wnd_spacing;
@@ -16587,6 +16589,8 @@ VOID _r_ctrl_settablestring (
 
 	ReleaseDC (hctrl1, hdc1);
 	ReleaseDC (hctrl2, hdc2);
+
+	return TRUE;
 }
 
 VOID _r_ctrl_setstringformat (
@@ -18099,7 +18103,7 @@ VOID _r_status_setstyle (
 VOID _r_status_settext (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
-	_In_ INT part_id,
+	_In_ LONG part_id,
 	_In_opt_ LPCWSTR string
 )
 {
@@ -18109,7 +18113,7 @@ VOID _r_status_settext (
 VOID _r_status_settextformat (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
-	_In_ INT part_id,
+	_In_ LONG part_id,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 )
