@@ -891,9 +891,7 @@ HWND _r_app_createwindow (
 	_r_wnd_changemessagefilter (hwnd, messages, RTL_NUMBER_OF (messages), MSGFLT_ALLOW);
 
 	// subclass window
-	app_global.main.wnd_proc = (WNDPROC)GetWindowLongPtrW (hwnd, DWLP_DLGPROC);
-
-	SetWindowLongPtrW (hwnd, DWLP_DLGPROC, (LONG_PTR)_r_app_maindlgproc);
+	app_global.main.wnd_proc = _r_wnd_setsubclass (hwnd, DWLP_DLGPROC, &_r_app_maindlgproc);
 
 	// restore window position
 	_r_window_restoreposition (hwnd, L"window");
