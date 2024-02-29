@@ -13149,7 +13149,7 @@ WNDPROC _r_wnd_getsubclass (
 	return NULL;
 }
 
-VOID _r_wnd_removesubclass (
+BOOLEAN _r_wnd_removesubclass (
 	_In_ HWND hwnd
 )
 {
@@ -13162,7 +13162,11 @@ VOID _r_wnd_removesubclass (
 		_r_wnd_removecontext (hwnd, LONG_MAX);
 
 		SetWindowLongPtrW (hwnd, GWLP_WNDPROC, (LONG_PTR)wnd_proc);
+
+		return TRUE;
 	}
+
+	return FALSE;
 }
 
 WNDPROC _r_wnd_setsubclass (

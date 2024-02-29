@@ -3419,7 +3419,7 @@ WNDPROC _r_wnd_getsubclass (
 	_In_ HWND hwnd
 );
 
-VOID _r_wnd_removesubclass (
+BOOLEAN _r_wnd_removesubclass (
 	_In_ HWND hwnd
 );
 
