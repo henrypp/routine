@@ -3888,6 +3888,13 @@ HRESULT _r_imagelist_draw (
 	_In_ BOOLEAN is_enabled
 );
 
+FORCEINLINE VOID _r_imagelist_destroy (
+	_In_ HIMAGELIST himg
+)
+{
+	(((IImageList2*)himg)->lpVtbl->Release ((IImageList2*)himg));
+}
+
 //
 // Other
 //
