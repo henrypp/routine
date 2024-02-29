@@ -13157,9 +13157,12 @@ VOID _r_wnd_removesubclass (
 
 	wnd_proc = _r_wnd_getcontext (hwnd, LONG_MAX);
 
-	_r_wnd_removecontext (hwnd, LONG_MAX);
+	if (wnd_proc)
+	{
+		_r_wnd_removecontext (hwnd, LONG_MAX);
 
-	SetWindowLongPtrW (hwnd, GWLP_WNDPROC, (LONG_PTR)wnd_proc);
+		SetWindowLongPtrW (hwnd, GWLP_WNDPROC, (LONG_PTR)wnd_proc);
+	}
 }
 
 WNDPROC _r_wnd_setsubclass (
