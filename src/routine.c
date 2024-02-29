@@ -11340,6 +11340,17 @@ LONG _r_dc_fontheighttosize (
 	return _r_calc_multipledivide (-height, 72, dpi_value);
 }
 
+VOID _r_dc_framerect (
+	_In_ HDC hdc,
+	_In_ LPCRECT rect,
+	_In_ COLORREF clr
+)
+{
+	SetDCBrushColor (hdc, clr);
+
+	FrameRect (hdc, rect, GetStockObject (DC_BRUSH));
+}
+
 _Success_ (return != 0)
 COLORREF _r_dc_getcoloraccent ()
 {
@@ -12371,8 +12382,8 @@ VOID _r_wnd_adjustrectangletoworkingarea (
 )
 {
 	MONITORINFO monitor_info = {0};
-	HMONITOR hmonitor;
 	R_RECTANGLE bounds;
+	HMONITOR hmonitor;
 	RECT rect;
 
 	if (hwnd)
@@ -12400,8 +12411,8 @@ VOID _r_wnd_calculateoverlappedrect (
 	_Inout_ PRECT window_rect
 )
 {
-	RECT rect_current;
 	RECT rect_intersection;
+	RECT rect_current;
 	HWND hwnd_current;
 
 	hwnd_current = hwnd;
@@ -12499,14 +12510,6 @@ VOID _r_wnd_changemessagefilter (
 	{
 		ChangeWindowMessageFilterEx (hwnd, messages[i], action, NULL); // win7+
 	}
-}
-
-VOID _r_wnd_copyrectangle (
-	_Out_ PR_RECTANGLE rectangle_dst,
-	_In_ PR_RECTANGLE rectangle_src
-)
-{
-	RtlCopyMemory (rectangle_dst, rectangle_src, sizeof (R_RECTANGLE));
 }
 
 INT_PTR _r_wnd_createmodalwindow (
@@ -13131,6 +13134,54 @@ VOID _r_wnd_setstyle_ex (
 	SetWindowLongPtrW (hwnd, GWL_EXSTYLE, style);
 }
 
+_Ret_maybenull_
+WNDPROC _r_wnd_getsubclass (
+	_In_ HWND hwnd
+)
+{
+	WNDPROC wnd_proc;
+
+	wnd_proc = _r_wnd_getcontext (hwnd, LONG_MAX);
+
+	if (wnd_proc)
+		return wnd_proc;
+
+	return NULL;
+}
+
+VOID _r_wnd_removesubclass (
+	_In_ HWND hwnd
+)
+{
+	WNDPROC wnd_proc;
+
+	wnd_proc = _r_wnd_getcontext (hwnd, LONG_MAX);
+
+	_r_wnd_removecontext (hwnd, LONG_MAX);
+
+	SetWindowLongPtrW (hwnd, GWLP_WNDPROC, (LONG_PTR)wnd_proc);
+}
+
+WNDPROC _r_wnd_setsubclass (
+	_In_ HWND hwnd,
+	_In_ LONG index,
+	_In_ WNDPROC subclass_proc
+)
+{
+	WNDPROC wnd_proc;
+
+	wnd_proc = (WNDPROC)GetWindowLongPtrW (hwnd, index);
+
+	if (wnd_proc != subclass_proc)
+	{
+		_r_wnd_setcontext (hwnd, LONG_MAX, wnd_proc);
+
+		SetWindowLongPtrW (hwnd, index, (LONG_PTR)subclass_proc);
+	}
+
+	return wnd_proc;
+}
+
 VOID _r_wnd_toggle (
 	_In_ HWND hwnd,
 	_In_ BOOLEAN is_show
@@ -13257,9 +13308,9 @@ VOID _r_wnd_setcontext (
 
 	object_pointer.object_body = context;
 
-	_r_queuedlock_acquireshared (&_r_context_lock);
+	_r_queuedlock_acquireexclusive (&_r_context_lock);
 	_r_obj_addhashtableitem (hashtable, hash_code, &object_pointer);
-	_r_queuedlock_releaseshared (&_r_context_lock);
+	_r_queuedlock_releaseexclusive (&_r_context_lock);
 }
 
 //

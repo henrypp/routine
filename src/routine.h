@@ -3038,6 +3038,12 @@ LONG _r_dc_fontsizetoheight (
 	_In_ LONG dpi_value
 );
 
+VOID _r_dc_framerect (
+	_In_ HDC hdc,
+	_In_ LPCRECT rect,
+	_In_ COLORREF clr
+);
+
 _Success_ (return != 0)
 COLORREF _r_dc_getcoloraccent ();
 
@@ -3257,11 +3263,6 @@ VOID _r_wnd_changemessagefilter (
 	_In_ ULONG action
 );
 
-VOID _r_wnd_copyrectangle (
-	_Out_ PR_RECTANGLE rectangle_dst,
-	_In_ PR_RECTANGLE rectangle_src
-);
-
 INT_PTR _r_wnd_createmodalwindow (
 	_In_ PVOID hinst,
 	_In_ LPCWSTR name,
@@ -3413,6 +3414,21 @@ VOID _r_wnd_setstyle_ex (
 	_In_ LONG_PTR value
 );
 
+_Ret_maybenull_
+WNDPROC _r_wnd_getsubclass (
+	_In_ HWND hwnd
+);
+
+VOID _r_wnd_removesubclass (
+	_In_ HWND hwnd
+);
+
+WNDPROC _r_wnd_setsubclass (
+	_In_ HWND hwnd,
+	_In_ LONG index,
+	_In_ WNDPROC subclass_proc
+);
+
 VOID _r_wnd_toggle (
 	_In_ HWND hwnd,
 	_In_ BOOLEAN is_show
@@ -3444,6 +3460,14 @@ VOID _r_wnd_setcontext (
 	_In_ ULONG property_id,
 	_In_ PVOID context
 );
+
+FORCEINLINE VOID _r_wnd_copyrectangle (
+	_Out_ PR_RECTANGLE rectangle_dst,
+	_In_ PR_RECTANGLE rectangle_src
+)
+{
+	RtlCopyMemory (rectangle_dst, rectangle_src, sizeof (R_RECTANGLE));
+}
 
 FORCEINLINE LONG_PTR _r_wnd_getstyle (
 	_In_ HWND hwnd
