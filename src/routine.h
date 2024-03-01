@@ -5193,6 +5193,14 @@ LONG _r_status_getheight (
 	_In_ INT ctrl_id
 );
 
+_Ret_maybenull_
+PR_STRING _r_status_gettext (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ LONG part_id,
+	_Out_opt_ PLONG state
+);
+
 VOID _r_status_setstyle (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
@@ -5213,6 +5221,24 @@ VOID _r_status_settextformat (
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 );
+
+FORCEINLINE LONG _r_status_getparts (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id
+)
+{
+	return (LONG)_r_wnd_sendmessage (hwnd, 0, SB_GETPARTS, 0, 0);
+}
+
+FORCEINLINE BOOLEAN _r_status_getrect (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ LONG part_id,
+	_Out_ PRECT out_buffer
+)
+{
+	return !!_r_wnd_sendmessage (hwnd, 0, SB_GETRECT, (WPARAM)part_id, (LPARAM)out_buffer);
+}
 
 FORCEINLINE VOID _r_status_setparts (
 	_In_ HWND hwnd,

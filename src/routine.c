@@ -11220,11 +11220,7 @@ VOID _r_dc_drawtext (
 	else
 	{
 		if (clr_text)
-		{
-			SetBkMode (hdc, TRANSPARENT);
-
 			SetTextColor (hdc, clr_text);
-		}
 
 		DrawTextExW (hdc, string->buffer, (UINT)_r_str_getlength3 (string), rect, flags, NULL);
 	}
@@ -18144,6 +18140,37 @@ LONG _r_status_getheight (
 		return rect.bottom;
 
 	return 0;
+}
+
+_Ret_maybenull_
+PR_STRING _r_status_gettext (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ LONG part_id,
+	_Out_opt_ PLONG state
+)
+{
+	PR_STRING string;
+	LRESULT length;
+
+	length = _r_wnd_sendmessage (hwnd, ctrl_id, SB_GETTEXTLENGTH, part_id, 0);
+
+	if (!length)
+	{
+		if (state)
+			*state = 0;
+
+		return NULL;
+	}
+
+	if (state)
+		*state = HIWORD (length);
+
+	string = _r_obj_createstring_ex (NULL, LOWORD (length) * sizeof (WCHAR));
+
+	_r_wnd_sendmessage (hwnd, ctrl_id, SB_GETTEXT, part_id, (LPARAM)string->buffer);
+
+	return string;
 }
 
 VOID _r_status_setstyle (
