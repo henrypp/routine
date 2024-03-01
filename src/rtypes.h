@@ -154,6 +154,7 @@ typedef struct _R_EVENT
 			USHORT ref_count : 15;
 			UCHAR reserved;
 			UCHAR available_for_use;
+
 #if defined(_WIN64)
 			ULONG spare_bit;
 #endif // _WIN64
@@ -214,8 +215,8 @@ typedef struct _R_FREE_LIST
 
 	ULONG_PTR size;
 
-	volatile ULONG count;
-	volatile ULONG maximum_count;
+	ULONG count;
+	ULONG maximum_count;
 } R_FREE_LIST, *PR_FREE_LIST;
 
 typedef struct _R_FREE_LIST_ENTRY
@@ -224,13 +225,13 @@ typedef struct _R_FREE_LIST_ENTRY
 	QUAD_PTR body;
 } R_FREE_LIST_ENTRY, *PR_FREE_LIST_ENTRY;
 
-#ifdef _WIN64
+#if defined(_WIN64)
 C_ASSERT (FIELD_OFFSET (R_FREE_LIST_ENTRY, list_entry) == 0x00);
 C_ASSERT (FIELD_OFFSET (R_FREE_LIST_ENTRY, body) == 0x10);
 #else
 C_ASSERT (FIELD_OFFSET (R_FREE_LIST_ENTRY, list_entry) == 0x00);
 C_ASSERT (FIELD_OFFSET (R_FREE_LIST_ENTRY, body) == 0x08);
-#endif
+#endif // _WIN64
 
 //
 // Synchronization: Queued lock
@@ -246,8 +247,7 @@ typedef struct DECLSPEC_ALIGN (16) _R_QUEUED_WAIT_BLOCK
 	// A pointer to the next wait block, i.e. the wait block pushed onto the list before this one.
 	struct _R_QUEUED_WAIT_BLOCK *next_block;
 
-	// A pointer to the previous wait block, i.e. the wait block pushed onto the list after this
-	// one.
+	// A pointer to the previous wait block, i.e. the wait block pushed onto the list after this one.
 	struct _R_QUEUED_WAIT_BLOCK *previous_block;
 
 	// A pointer to the last wait block, i.e. the first waiter pushed onto the list.
