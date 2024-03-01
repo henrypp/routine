@@ -3434,20 +3434,23 @@ VOID _r_settings_createwindow (
 	static SHORT width = 0;
 	static SHORT height = 0;
 
-	PVOID buffer;
-	PBYTE buffer_ptr;
-	R_STORAGE dlg_buffer;
 	LPDLGTEMPLATEEX dlg_template;
 	PR_SETTINGS_PAGE ptr_page;
+	R_STORAGE dlg_buffer;
+	PBYTE buffer_ptr;
+	PVOID buffer;
+	HWND hsettings;
 	ULONG_PTR size;
 	WORD controls;
 	NTSTATUS status;
 
 	assert (!_r_obj_isempty (app_global.settings.page_list));
 
-	if (_r_settings_getwindow ())
+	hsettings = _r_settings_getwindow ();
+
+	if (hsettings)
 	{
-		_r_wnd_toggle (_r_settings_getwindow (), TRUE);
+		_r_wnd_toggle (hsettings, TRUE);
 
 		return;
 	}
