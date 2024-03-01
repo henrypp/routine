@@ -4379,7 +4379,7 @@ VOID _r_combobox_insertitem (
 	_In_opt_ LPARAM lparam
 );
 
-VOID _r_combobox_setcurrentitembylparam (
+BOOLEAN _r_combobox_setcurrentitembylparam (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ LPARAM lparam
