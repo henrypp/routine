@@ -3892,7 +3892,11 @@ FORCEINLINE VOID _r_imagelist_destroy (
 	_In_ HIMAGELIST himg
 )
 {
-	(((IImageList2*)himg)->lpVtbl->Release ((IImageList2*)himg));
+	// error C3861: 'IImageList2_Release': identifier not found
+	// don't know why!
+	//IImageList2_Release ((IImageList2*)himg);
+
+	((IImageList2*)himg)->lpVtbl->Release ((IImageList2*)himg);
 }
 
 //
