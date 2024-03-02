@@ -11249,14 +11249,7 @@ BOOLEAN _r_dc_drawwindow (
 	}
 	else
 	{
-		if (is_drawfooter)
-		{
-			clr = GetSysColor (COLOR_WINDOW);
-		}
-		else
-		{
-			clr = GetSysColor (COLOR_BTNFACE);
-		}
+		clr = GetSysColor (is_drawfooter ? COLOR_WINDOW : COLOR_BTNFACE);
 	}
 
 	// fill background color
