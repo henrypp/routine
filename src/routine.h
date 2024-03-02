@@ -5389,6 +5389,14 @@ FORCEINLINE LRESULT _r_toolbar_getinfo (
 	return _r_wnd_sendmessage (hwnd, ctrl_id, TB_GETBUTTONINFO, (WPARAM)command_id, (LPARAM)out_buffer);
 }
 
+FORCEINLINE ULONG _r_toolbar_getpadding (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id
+)
+{
+	return (ULONG)_r_wnd_sendmessage (hwnd, ctrl_id, TB_GETPADDING, 0, 0);
+}
+
 FORCEINLINE BOOLEAN _r_toolbar_isenabled (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
@@ -5409,6 +5417,16 @@ FORCEINLINE BOOLEAN _r_toolbar_ishighlighted (
 	current_index = _r_wnd_sendmessage (hwnd, ctrl_id, TB_COMMANDTOINDEX, (WPARAM)command_id, 0);
 
 	return _r_wnd_sendmessage (hwnd, ctrl_id, TB_GETHOTITEM, 0, 0) == current_index;
+}
+
+FORCEINLINE BOOLEAN _r_toolbar_pressbutton (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ UINT command_id,
+	_In_opt_ BOOLEAN is_enabled
+)
+{
+	return !!_r_wnd_sendmessage (hwnd, ctrl_id, TB_PRESSBUTTON, command_id, MAKELPARAM (is_enabled, 0));
 }
 
 FORCEINLINE VOID _r_toolbar_resize (
