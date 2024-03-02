@@ -87,6 +87,7 @@
 #include "app.h"
 #include "rconfig.h"
 #include "rtypes.h"
+#include "rapp.h"
 
 // libs
 #pragma comment(lib, "bcrypt.lib")
@@ -3012,7 +3013,6 @@ VOID _r_dc_drawtext (
 BOOLEAN _r_dc_drawwindow (
 	_In_ HDC hdc,
 	_In_ HWND hwnd,
-	_In_opt_ COLORREF cust_clr,
 	_In_ BOOLEAN is_drawfooter
 );
 

@@ -11229,7 +11229,6 @@ VOID _r_dc_drawtext (
 BOOLEAN _r_dc_drawwindow (
 	_In_ HDC hdc,
 	_In_ HWND hwnd,
-	_In_opt_ COLORREF cust_clr,
 	_In_ BOOLEAN is_drawfooter
 )
 {
@@ -11237,15 +11236,14 @@ BOOLEAN _r_dc_drawwindow (
 	COLORREF clr;
 	LONG footer_height;
 	LONG wnd_height;
-	LONG wnd_width;
 	LONG dpi_value;
 
 	if (!GetClientRect (hwnd, &rect))
 		return FALSE;
 
-	if (cust_clr)
+	if (_r_theme_isenabled ())
 	{
-		clr = cust_clr;
+		clr = WND_BACKGROUND_CLR;
 	}
 	else
 	{
@@ -11260,12 +11258,11 @@ BOOLEAN _r_dc_drawwindow (
 
 	dpi_value = _r_dc_getwindowdpi (hwnd);
 
-	wnd_width = rect.right;
 	wnd_height = rect.bottom;
 
 	footer_height = _r_dc_getdpi (PR_SIZE_FOOTERHEIGHT, dpi_value);
 
-	SetRect (&rect, 0, wnd_height - footer_height, wnd_width, wnd_height);
+	SetRect (&rect, 0, wnd_height - footer_height, rect.right, wnd_height);
 
 	// fill footer color
 	clr = _r_dc_getcolorshade (clr, 94);
@@ -11338,9 +11335,13 @@ VOID _r_dc_framerect (
 	_In_ COLORREF clr
 )
 {
-	SetDCBrushColor (hdc, clr);
+	COLORREF clr_pref;
+
+	clr_pref = SetDCBrushColor (hdc, clr);
 
 	FrameRect (hdc, rect, GetStockObject (DC_BRUSH));
+
+	SetDCBrushColor (hdc, clr_pref);
 }
 
 _Success_ (return != 0)
@@ -12888,6 +12889,7 @@ ULONG CALLBACK _r_wnd_message_callback (
 	HACCEL haccelerator = NULL;
 	INT result;
 	BOOLEAN is_processed;
+	ULONG status = ERROR_SUCCESS;
 
 	if (accelerator_table)
 	{
@@ -12900,6 +12902,9 @@ ULONG CALLBACK _r_wnd_message_callback (
 	while (TRUE)
 	{
 		result = GetMessageW (&msg, NULL, 0, 0);
+
+		if (msg.message == WM_QUIT)
+			status = (INT)msg.wParam;
 
 		if (result <= 0)
 			break;
@@ -12939,7 +12944,7 @@ ULONG CALLBACK _r_wnd_message_callback (
 	if (haccelerator)
 		DestroyAcceleratorTable (haccelerator);
 
-	return ERROR_SUCCESS;
+	return status;
 }
 
 VOID CALLBACK _r_wnd_message_dpichanged (
