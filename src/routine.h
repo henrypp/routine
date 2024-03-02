@@ -3016,7 +3016,7 @@ BOOLEAN _r_dc_drawwindow (
 	_In_ BOOLEAN is_drawfooter
 );
 
-VOID _r_dc_fillrect (
+BOOLEAN _r_dc_fillrect (
 	_In_ HDC hdc,
 	_In_ LPCRECT rect,
 	_In_ COLORREF clr

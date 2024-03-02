@@ -11234,11 +11234,11 @@ BOOLEAN _r_dc_drawwindow (
 )
 {
 	RECT rect;
-	LONG dpi_value;
-	LONG footer_height;
-	LONG wnd_width;
-	LONG wnd_height;
 	COLORREF clr;
+	LONG footer_height;
+	LONG wnd_height;
+	LONG wnd_width;
+	LONG dpi_value;
 
 	if (!GetClientRect (hwnd, &rect))
 		return FALSE;
@@ -11291,19 +11291,22 @@ BOOLEAN _r_dc_drawwindow (
 }
 
 // Optimized version of WinAPI function "FillRect"
-VOID _r_dc_fillrect (
+BOOLEAN _r_dc_fillrect (
 	_In_ HDC hdc,
 	_In_ LPCRECT rect,
 	_In_ COLORREF clr
 )
 {
 	COLORREF clr_prev;
+	BOOLEAN is_success;
 
 	clr_prev = SetBkColor (hdc, clr);
 
-	ExtTextOutW (hdc, 0, 0, ETO_OPAQUE, rect, NULL, 0, NULL);
+	is_success = !!ExtTextOutW (hdc, 0, 0, ETO_OPAQUE, rect, NULL, 0, NULL);
 
 	SetBkColor (hdc, clr_prev);
+
+	return is_success;
 }
 
 VOID _r_dc_fixfont (
