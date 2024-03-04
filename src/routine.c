@@ -2493,7 +2493,6 @@ VOID _r_obj_initializestringref2 (
 	{
 		_r_obj_initializestringrefempty (string);
 	}
-
 }
 
 VOID _r_obj_initializestringref3 (
@@ -11194,6 +11193,7 @@ VOID _r_dc_drawtext (
 )
 {
 	DTTOPTS dtto = {0};
+	COLORREF clr_old = 0;
 
 	SetBkMode (hdc, TRANSPARENT);
 
@@ -11220,9 +11220,12 @@ VOID _r_dc_drawtext (
 	else
 	{
 		if (clr_text)
-			SetTextColor (hdc, clr_text);
+			clr_old = SetTextColor (hdc, clr_text);
 
 		DrawTextExW (hdc, string->buffer, (UINT)_r_str_getlength3 (string), rect, flags, NULL);
+
+		if (clr_text)
+			SetTextColor (hdc, clr_old);
 	}
 }
 
