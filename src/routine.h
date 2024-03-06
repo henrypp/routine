@@ -4277,7 +4277,7 @@ FORCEINLINE LONG_PTR _r_ctrl_getselection (
 	return _r_wnd_sendmessage (hwnd, ctrl_id, EM_GETSEL, 0, 0);
 }
 
-FORCEINLINE ULONG _r_ctrl_getbtnstate (
+FORCEINLINE ULONG _r_ctrl_getbuttonstate (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id
 )
