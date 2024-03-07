@@ -2816,7 +2816,7 @@ VOID _r_log (
 		return;
 
 	current_timestamp = _r_unixtime_now ();
-	date_string = _r_format_unixtime (current_timestamp, FDTF_SHORTDATE | FDTF_LONGTIME);
+	date_string = _r_format_unixtime (current_timestamp, FDTF_SHORTDATE | FDTF_LONGTIME | FDTF_NOAUTOREADINGORDER);
 
 	level_string = _r_log_leveltostring (log_level);
 
@@ -3603,7 +3603,7 @@ VOID _r_settings_createwindow (
 	_r_util_templatewritecontrol (
 		&buffer_ptr,
 		IDC_SAVE,
-		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON,
+		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_DEFPUSHBUTTON,
 		(width - 112),
 		(height - 22),
 		50,
