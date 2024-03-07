@@ -40,9 +40,9 @@ typedef ULONG (NTAPI *IQTI) (
 // AdjustWindowRectExForDpi (win10rs1+)
 typedef BOOL (WINAPI *AWRFD)(
 	_Inout_ LPRECT lpRect,
-	_In_ DWORD dwStyle,
+	_In_ ULONG dwStyle,
 	_In_ BOOL bMenu,
-	_In_ DWORD dwExStyle,
+	_In_ ULONG dwExStyle,
 	_In_ UINT dpi
 	);
 
@@ -76,6 +76,19 @@ typedef HTHEME (WINAPI *OTDFD)(
 	_In_opt_ HWND hwnd,
 	_In_ LPCWSTR pszClassList,
 	_In_ UINT dpi
+	);
+
+// AllowDarkModeForApp (win10rs5+)
+typedef BOOL (WINAPI* ADMFA)(
+	_In_ BOOL Enabled
+	);
+
+// FlushMenuThemes (win10rs5+)
+typedef VOID (WINAPI* FMT)();
+
+// SetPreferredAppMode (win10rs5+)
+typedef BOOL (WINAPI* SPAM)(
+	_In_ PreferredAppMode AppMode
 	);
 
 //
@@ -123,6 +136,116 @@ typedef HTHEME (WINAPI *OTDFD)(
 #define PR_SIZE_BUFFER 0x8000
 #define PR_SIZE_CONCAT_LENGTH_CACHE 16
 #define PR_SIZE_MAX_STRING_LENGTH (LONG_MAX - 1)
+
+//
+// Dark theme
+//
+
+typedef struct _R_THEME_STATUSBAR_CONTEXT
+{
+	RECT rect;
+
+	WNDPROC wnd_proc;
+
+	HTHEME htheme;
+
+	HDC hdc;
+} R_THEME_STATUSBAR_CONTEXT, *PR_THEME_STATUSBAR_CONTEXT;
+
+typedef struct _R_THEME_HEADER_CONTEXT
+{
+	POINT pt;
+
+	WNDPROC wnd_proc;
+
+	HTHEME htheme;
+
+	BOOLEAN is_mouseactive;
+} R_THEME_HEADER_CONTEXT, *PR_THEME_HEADER_CONTEXT;
+
+typedef struct _R_THEME_COMBO_CONTEXT
+{
+	POINT pt;
+
+	WNDPROC wnd_proc;
+
+	HTHEME htheme;
+} R_THEME_COMBO_CONTEXT, *PR_THEME_COMBO_CONTEXT;
+
+typedef struct _R_THEME_TAB_CONTEXT
+{
+	POINT pt;
+
+	WNDPROC wnd_proc;
+
+	BOOLEAN is_mouseactive;
+} R_THEME_TAB_CONTEXT, *PR_THEME_TAB_CONTEXT;
+
+//
+// Messages
+//
+
+// not really used in our case but part of the other structures
+typedef struct _UAHMENUPOPUPMETRICS
+{
+	ULONG rgcx[4];
+	ULONG fUpdateMaxWidths : 2; // from kernel symbols, padded to full dword
+} UAHMENUPOPUPMETRICS, *LPUAHMENUPOPUPMETRICS;
+
+// describes the sizes of the menu bar or menu item
+typedef union _UAHMENUITEMMETRICS
+{
+	// cx appears to be 14 / 0xE less than rcItem's width!
+	// cy 0x14 seems stable, i wonder if it is 4 less than rcItem's height which is always 24 atm
+	struct
+	{
+		ULONG cx;
+		ULONG cy;
+	} rgSizeBar[2];
+
+	struct
+	{
+		ULONG cx;
+		ULONG cy;
+	} rgSizePopup[4];
+} UAHMENUITEMMETRICS, *LPUAHMENUITEMMETRICS;
+
+// menu items are always referred to by iPosition here
+typedef struct _UAHMENUITEM
+{
+	LONG iPosition; // 0-based position of menu item in menubar
+	UAHMENUITEMMETRICS umim;
+	UAHMENUPOPUPMETRICS umpm;
+} UAHMENUITEM, *LPUAHMENUITEM;
+
+// hmenu is the main window menu; hdc is the context to draw in
+typedef struct _UAHMENU
+{
+	HMENU hmenu;
+	HDC hdc;
+	ULONG dwFlags; // no idea what these mean, in my testing it's either 0x00000a00 or sometimes 0x00000a10
+} UAHMENU, *LPDUAHMENU;
+
+// the DRAWITEMSTRUCT contains the states of the menu items, as well as
+// the position index of the item in the menu, which is duplicated in
+// the UAHMENUITEM's iPosition as well
+typedef struct _UAHDRAWMENUITEM
+{
+	DRAWITEMSTRUCT dis;
+	UAHMENU um;
+	UAHMENUITEM umi;
+} UAHDRAWMENUITEM, *LPUAHDRAWMENUITEM;
+
+// window messages related to menu bar drawing
+#define WM_UAHDRAWMENU 0x0091
+#define WM_UAHDRAWMENUITEM 0x0092
+
+#define EM_SETBKGNDCOLOR (WM_USER + 67)
+
+#define HRGN_FULL ((HRGN)1) // passed by WM_NCPAINT even though it's completely undocumented (wj32)
+
+#define DCX_USESTYLE 0x00010000
+#define DCX_NODELETERGN 0x00040000
 
 //
 // Logging
@@ -837,8 +960,8 @@ typedef struct _R_XML_LIBRARY
 typedef struct _R_SETTINGS_PAGE
 {
 	HWND hwnd;
-	UINT locale_id;
-	INT dlg_id;
+	ULONG locale_id;
+	LONG dlg_id;
 } R_SETTINGS_PAGE, *PR_SETTINGS_PAGE;
 
 #define PR_UPDATE_FLAG_AVAILABLE 0x000001
@@ -873,8 +996,8 @@ typedef struct _R_SHARED_IMAGE
 {
 	PVOID hinst;
 	HICON hicon;
-	INT icon_id;
-	INT icon_size;
+	LONG icon_id;
+	LONG icon_size;
 } R_SHARED_IMAGE, *PR_SHARED_IMAGE;
 
 typedef struct _APP_GLOBAL_CONFIG
@@ -896,7 +1019,7 @@ typedef struct _APP_GLOBAL_CONFIG
 		HANDLE hmutex;
 		HWND hwnd;
 
-		UINT taskbar_msg;
+		ULONG taskbar_msg;
 
 		BOOLEAN is_needmaximize;
 	} main;
@@ -918,6 +1041,11 @@ typedef struct _APP_GLOBAL_CONFIG
 		PR_ARRAY page_list;
 		HWND hwnd;
 	} settings;
+
+	struct
+	{
+		HBRUSH bg_brush;
+	} theme;
 
 	struct
 	{
