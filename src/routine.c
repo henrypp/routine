@@ -11310,7 +11310,7 @@ VOID _r_dc_fixfont (
 {
 	HFONT hfont;
 
-	hfont = (HFONT)_r_wnd_sendmessage (hwnd, ctrl_id, WM_GETFONT, 0, 0);
+	hfont = _r_ctrl_getfont (hwnd, ctrl_id);
 
 	if (hfont)
 		SelectObject (hdc, hfont);
