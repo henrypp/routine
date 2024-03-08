@@ -11366,11 +11366,11 @@ COLORREF _r_dc_getcolorbrightness (
 	_In_ COLORREF clr
 )
 {
+	COLORREF min;
+	COLORREF max;
 	COLORREF r;
 	COLORREF g;
 	COLORREF b;
-	COLORREF min;
-	COLORREF max;
 
 	r = GetRValue (clr);
 	g = GetGValue (clr);
