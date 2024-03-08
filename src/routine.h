@@ -5198,7 +5198,7 @@ PR_STRING _r_status_gettext (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ LONG part_id,
-	_Out_opt_ PLONG state
+	_Out_opt_ PLONG out_style
 );
 
 VOID _r_status_setstyle (
@@ -5221,6 +5221,15 @@ VOID _r_status_settextformat (
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 );
+
+FORCEINLINE LONG _r_status_getborders (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ PVOID out_buffer
+)
+{
+	return !!_r_wnd_sendmessage (hwnd, 0, SB_GETBORDERS, 0, (LPARAM)out_buffer);
+}
 
 FORCEINLINE LONG _r_status_getparts (
 	_In_ HWND hwnd,

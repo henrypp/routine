@@ -18153,7 +18153,7 @@ PR_STRING _r_status_gettext (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ LONG part_id,
-	_Out_opt_ PLONG state
+	_Out_opt_ PLONG out_style
 )
 {
 	PR_STRING string;
@@ -18163,14 +18163,14 @@ PR_STRING _r_status_gettext (
 
 	if (!length)
 	{
-		if (state)
-			*state = 0;
+		if (out_style)
+			*out_style = 0;
 
 		return NULL;
 	}
 
-	if (state)
-		*state = HIWORD (length);
+	if (out_style)
+		*out_style = HIWORD (length);
 
 	string = _r_obj_createstring_ex (NULL, LOWORD (length) * sizeof (WCHAR));
 
