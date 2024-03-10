@@ -3377,8 +3377,8 @@ typedef struct _PORT_MESSAGE_HEADER
 
 	union
 	{
-		ULONG_PTR ClientViewSize;
-		ULONG CallbackId;
+		ULONG_PTR ClientViewSize; // only valid for LPC_CONNECTION_REQUEST messages
+		ULONG CallbackId; // only valid for LPC_REQUEST messages
 	};
 } PORT_MESSAGE_HEADER, *PPORT_MESSAGE_HEADER;
 
