@@ -11332,19 +11332,15 @@ LONG _r_dc_fontheighttosize (
 	return _r_calc_multipledivide (-height, 72, dpi_value);
 }
 
-VOID _r_dc_framerect (
+BOOLEAN _r_dc_framerect (
 	_In_ HDC hdc,
 	_In_ LPCRECT rect,
 	_In_ COLORREF clr
 )
 {
-	COLORREF clr_pref;
+	SetDCBrushColor (hdc, clr);
 
-	clr_pref = SetDCBrushColor (hdc, clr);
-
-	FrameRect (hdc, rect, GetStockObject (DC_BRUSH));
-
-	SetDCBrushColor (hdc, clr_pref);
+	return FrameRect (hdc, rect, GetStockObject (DC_BRUSH)) != 0;
 }
 
 _Success_ (return != 0)

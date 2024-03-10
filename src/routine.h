@@ -3038,7 +3038,7 @@ LONG _r_dc_fontsizetoheight (
 	_In_ LONG dpi_value
 );
 
-VOID _r_dc_framerect (
+BOOLEAN _r_dc_framerect (
 	_In_ HDC hdc,
 	_In_ LPCRECT rect,
 	_In_ COLORREF clr
