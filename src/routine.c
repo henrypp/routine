@@ -14155,10 +14155,18 @@ NTSTATUS _r_reg_querybinary (
 	status = _r_reg_queryvalue (hkey, value_name, NULL, &size, &type);
 
 	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
 		return status;
+	}
 
 	if (type != REG_BINARY)
+	{
+		*out_buffer = NULL;
+
 		return STATUS_OBJECT_TYPE_MISMATCH;
+	}
 
 	bytes = _r_obj_createbyte_ex (NULL, size);
 
@@ -14194,10 +14202,18 @@ NTSTATUS _r_reg_querystring (
 	status = _r_reg_queryvalue (hkey, value_name, NULL, &size, &type);
 
 	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = NULL;
+
 		return status;
+	}
 
 	if (type != REG_SZ && type != REG_EXPAND_SZ && type != REG_MULTI_SZ)
+	{
+		*out_buffer = NULL;
+
 		return STATUS_OBJECT_TYPE_MISMATCH;
+	}
 
 	string = _r_obj_createstring_ex (NULL, size * sizeof (WCHAR));
 
@@ -14252,7 +14268,11 @@ NTSTATUS _r_reg_queryulong (
 	status = _r_reg_queryvalue (hkey, value_name, &buffer, &buffer_size, &type);
 
 	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = 0;
+
 		return status;
+	}
 
 	if (type != REG_DWORD)
 	{
@@ -14282,7 +14302,11 @@ NTSTATUS _r_reg_queryulong64 (
 	status = _r_reg_queryvalue (hkey, value_name, &buffer, &buffer_size, &type);
 
 	if (!NT_SUCCESS (status))
+	{
+		*out_buffer = 0;
+
 		return status;
+	}
 
 	if (type != REG_QWORD)
 	{
