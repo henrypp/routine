@@ -224,7 +224,7 @@ typedef struct _UAHMENU
 	HMENU hmenu;
 	HDC hdc;
 	ULONG dwFlags; // no idea what these mean, in my testing it's either 0x00000a00 or sometimes 0x00000a10
-} UAHMENU, *LPDUAHMENU;
+} UAHMENU, *LPUAHMENU;
 
 // the DRAWITEMSTRUCT contains the states of the menu items, as well as
 // the position index of the item in the menu, which is duplicated in
