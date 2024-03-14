@@ -16121,15 +16121,10 @@ VOID _r_tray_initialize (
 	_In_ LPCGUID guid
 )
 {
-	ULONG hash_code;
-
-	hash_code = _r_str_gethash (_r_sys_getimagepath (), TRUE);
-
 	nid->cbSize = sizeof (NOTIFYICONDATA);
 
 	nid->uFlags |= NIF_GUID;
 	nid->hWnd = hwnd;
-	nid->uID = guid->Data2;
 
 	RtlCopyMemory (&nid->guidItem, guid, sizeof (GUID));
 }
@@ -17854,7 +17849,7 @@ VOID _r_listview_setstyle (
 	if (hctrl)
 		SetWindowTheme (hctrl, L"Explorer", NULL);
 
-	htip = (HWND)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_GETTOOLTIPS, 0, 0);
+	htip = _r_listview_gettooltips (hwnd, ctrl_id);
 
 	if (htip)
 		_r_ctrl_settipstyle (htip);
@@ -18118,8 +18113,8 @@ VOID _r_treeview_setstyle (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_opt_ ULONG ex_style,
-	_In_opt_ INT height,
-	_In_opt_ INT indent
+	_In_opt_ ULONG height,
+	_In_opt_ ULONG indent
 )
 {
 	HWND hctrl;
@@ -18130,7 +18125,7 @@ VOID _r_treeview_setstyle (
 	if (hctrl)
 		SetWindowTheme (hctrl, L"Explorer", NULL);
 
-	htip = (HWND)_r_wnd_sendmessage (hwnd, ctrl_id, TVM_GETTOOLTIPS, 0, 0);
+	htip = _r_treeview_gettooltips (hwnd, ctrl_id);
 
 	if (htip)
 		_r_ctrl_settipstyle (htip);
@@ -18202,7 +18197,7 @@ PR_STRING _r_status_gettext (
 VOID _r_status_setstyle (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
-	_In_opt_ INT height
+	_In_opt_ ULONG height
 )
 {
 	if (height)
@@ -18414,7 +18409,7 @@ VOID _r_toolbar_setstyle (
 	if (hctrl)
 		SetWindowTheme (hctrl, L"Explorer", NULL);
 
-	htip = (HWND)_r_wnd_sendmessage (hwnd, ctrl_id, TB_GETTOOLTIPS, 0, 0);
+	htip = _r_toolbar_gettooltips (hwnd, ctrl_id);
 
 	if (htip)
 		_r_ctrl_settipstyle (htip);

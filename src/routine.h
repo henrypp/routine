@@ -3899,6 +3899,19 @@ FORCEINLINE VOID _r_imagelist_destroy (
 	((IImageList2*)himg)->lpVtbl->Release ((IImageList2*)himg);
 }
 
+_Success_ (SUCCEEDED (return))
+FORCEINLINE HRESULT _r_imagelist_getsize (
+	_In_ HIMAGELIST himg,
+	_Out_ PINT out_size_x,
+	_Out_ PINT out_size_y
+)
+{
+	// error C3861: 'IImageList2_GetIconSize': identifier not found
+	// don't know why!
+
+	return ((IImageList2*)himg)->lpVtbl->GetIconSize ((IImageList2*)himg, out_size_x, out_size_y);
+}
+
 //
 // Other
 //
@@ -4976,6 +4989,15 @@ FORCEINLINE INT _r_listview_getitemcount (
 	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_GETITEMCOUNT, 0, 0);
 }
 
+FORCEINLINE INT _r_listview_getnextselected (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ INT item_id
+)
+{
+	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_GETNEXTITEM, (WPARAM)item_id, (LPARAM)LVNI_SELECTED);
+}
+
 FORCEINLINE INT _r_listview_getselectedcount (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id
@@ -4992,13 +5014,13 @@ FORCEINLINE INT _r_listview_getselecteditem (
 	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_GETNEXTITEM, (WPARAM)-1, (LPARAM)LVNI_SELECTED);
 }
 
-FORCEINLINE INT _r_listview_getnextselected (
+_Ret_maybenull_
+FORCEINLINE HWND _r_listview_gettooltips (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ INT item_id
+	_In_opt_ INT ctrl_id
 )
 {
-	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_GETNEXTITEM, (WPARAM)item_id, (LPARAM)LVNI_SELECTED);
+	return (HWND)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_GETTOOLTIPS, 0, 0);
 }
 
 FORCEINLINE ULONG _r_listview_getview (
@@ -5162,9 +5184,18 @@ VOID _r_treeview_setstyle (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_opt_ ULONG ex_style,
-	_In_opt_ INT height,
-	_In_opt_ INT indent
+	_In_opt_ ULONG height,
+	_In_opt_ ULONG indent
 );
+
+_Ret_maybenull_
+FORCEINLINE HWND _r_treeview_gettooltips (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id
+)
+{
+	return (HWND)_r_wnd_sendmessage (hwnd, ctrl_id, TVM_GETTOOLTIPS, 0, 0);
+}
 
 FORCEINLINE VOID _r_treeview_selectitem (
 	_In_ HWND hwnd,
@@ -5204,7 +5235,7 @@ PR_STRING _r_status_gettext (
 VOID _r_status_setstyle (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
-	_In_opt_ INT height
+	_In_opt_ ULONG height
 );
 
 VOID _r_status_settext (
@@ -5406,6 +5437,25 @@ FORCEINLINE ULONG _r_toolbar_getpadding (
 	return (ULONG)_r_wnd_sendmessage (hwnd, ctrl_id, TB_GETPADDING, 0, 0);
 }
 
+FORCEINLINE BOOLEAN _r_toolbar_getstring (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_opt_ LONG item_id,
+	_Out_ LPWSTR out_buffer
+)
+{
+	return !!_r_wnd_sendmessage (hwnd, ctrl_id, TB_GETBUTTONTEXT, (WPARAM)item_id, (LPARAM)out_buffer);
+}
+
+_Ret_maybenull_
+FORCEINLINE HWND _r_toolbar_gettooltips (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id
+)
+{
+	return (HWND)_r_wnd_sendmessage (hwnd, ctrl_id, TB_GETTOOLTIPS, 0, 0);
+}
+
 FORCEINLINE BOOLEAN _r_toolbar_isenabled (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
@@ -5444,6 +5494,15 @@ FORCEINLINE VOID _r_toolbar_resize (
 )
 {
 	_r_wnd_sendmessage (hwnd, ctrl_id, TB_AUTOSIZE, 0, 0);
+}
+
+FORCEINLINE VOID _r_toolbar_setcolorscheme (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_opt_ LPCOLORSCHEME scheme
+)
+{
+	_r_wnd_sendmessage (hwnd, ctrl_id, TB_SETCOLORSCHEME, 0, (LPARAM)scheme);
 }
 
 //
