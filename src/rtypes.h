@@ -141,45 +141,18 @@ typedef BOOL (WINAPI* SPAM)(
 // Dark theme
 //
 
-typedef struct _R_THEME_STATUSBAR_CONTEXT
+typedef struct _R_THEME_CONTEXT
 {
-	RECT rect;
+	POINT pt;
 
 	WNDPROC wnd_proc;
 
 	HTHEME htheme;
 
 	HDC hdc;
-} R_THEME_STATUSBAR_CONTEXT, *PR_THEME_STATUSBAR_CONTEXT;
-
-typedef struct _R_THEME_HEADER_CONTEXT
-{
-	POINT pt;
-
-	WNDPROC wnd_proc;
-
-	HTHEME htheme;
 
 	BOOLEAN is_mouseactive;
-} R_THEME_HEADER_CONTEXT, *PR_THEME_HEADER_CONTEXT;
-
-typedef struct _R_THEME_COMBO_CONTEXT
-{
-	POINT pt;
-
-	WNDPROC wnd_proc;
-
-	HTHEME htheme;
-} R_THEME_COMBO_CONTEXT, *PR_THEME_COMBO_CONTEXT;
-
-typedef struct _R_THEME_TAB_CONTEXT
-{
-	POINT pt;
-
-	WNDPROC wnd_proc;
-
-	BOOLEAN is_mouseactive;
-} R_THEME_TAB_CONTEXT, *PR_THEME_TAB_CONTEXT;
+} R_THEME_CONTEXT, *PR_THEME_CONTEXT;
 
 //
 // Messages
