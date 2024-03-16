@@ -12104,7 +12104,7 @@ BOOLEAN _r_layout_resize (
 		}
 
 		if (layout_item->flags & PR_LAYOUT_FORCE_INVALIDATE)
-			InvalidateRect (layout_item->hwnd, NULL, FALSE);
+			SetWindowPos (layout_item->hwnd, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
 	}
 
 	if (layout_manager->root_item.defer_handle)
@@ -17462,14 +17462,14 @@ INT _r_listview_getcolumncount (
 	_In_ INT ctrl_id
 )
 {
-	HWND header;
+	HWND hhdr;
 
-	header = (HWND)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_GETHEADER, 0, 0);
+	hhdr = _r_listview_getheader (hwnd, ctrl_id);
 
-	if (!header)
+	if (!hhdr)
 		return 0;
 
-	return (INT)_r_wnd_sendmessage (header, 0, HDM_GETITEMCOUNT, 0, 0);
+	return (INT)_r_wnd_sendmessage (hhdr, 0, HDM_GETITEMCOUNT, 0, 0);
 }
 
 _Ret_maybenull_
@@ -17676,33 +17676,33 @@ VOID _r_listview_setcolumnsortindex (
 	_In_ INT arrow
 )
 {
-	HDITEMW hitem = {0};
-	HWND header;
+	HDITEMW hdi = {0};
+	HWND hhdr;
 
-	header = (HWND)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_GETHEADER, 0, 0);
+	hhdr = _r_listview_getheader (hwnd, ctrl_id);
 
-	if (!header)
+	if (!hhdr)
 		return;
 
-	hitem.mask = HDI_FORMAT;
+	hdi.mask = HDI_FORMAT;
 
-	if (!_r_wnd_sendmessage (header, 0, HDM_GETITEM, (WPARAM)column_id, (LPARAM)&hitem))
+	if (!_r_wnd_sendmessage (hhdr, 0, HDM_GETITEM, (WPARAM)column_id, (LPARAM)&hdi))
 		return;
 
 	if (arrow == 1)
 	{
-		hitem.fmt = (hitem.fmt & ~HDF_SORTDOWN) | HDF_SORTUP;
+		hdi.fmt = (hdi.fmt & ~HDF_SORTDOWN) | HDF_SORTUP;
 	}
 	else if (arrow == -1)
 	{
-		hitem.fmt = (hitem.fmt & ~HDF_SORTUP) | HDF_SORTDOWN;
+		hdi.fmt = (hdi.fmt & ~HDF_SORTUP) | HDF_SORTDOWN;
 	}
 	else
 	{
-		hitem.fmt = hitem.fmt & ~(HDF_SORTDOWN | HDF_SORTUP);
+		hdi.fmt = hdi.fmt & ~(HDF_SORTDOWN | HDF_SORTUP);
 	}
 
-	_r_wnd_sendmessage (header, 0, HDM_SETITEM, (WPARAM)column_id, (LPARAM)&hitem);
+	_r_wnd_sendmessage (hhdr, 0, HDM_SETITEM, (WPARAM)column_id, (LPARAM)&hdi);
 }
 
 VOID _r_listview_setitem (

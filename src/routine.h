@@ -4973,6 +4973,14 @@ FORCEINLINE VOID _r_listview_ensurevisible (
 	_r_wnd_sendmessage (hwnd, ctrl_id, LVM_ENSUREVISIBLE, (WPARAM)item_id, FALSE);
 }
 
+FORCEINLINE HWND _r_listview_getheader (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id
+)
+{
+	return (HWND)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_GETHEADER, 0, 0);
+}
+
 FORCEINLINE ULONG _r_listview_getstyle_ex (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id
@@ -5444,6 +5452,8 @@ FORCEINLINE BOOLEAN _r_toolbar_getstring (
 	_Out_ LPWSTR out_buffer
 )
 {
+	*out_buffer = UNICODE_NULL;
+
 	return !!_r_wnd_sendmessage (hwnd, ctrl_id, TB_GETBUTTONTEXT, (WPARAM)item_id, (LPARAM)out_buffer);
 }
 
