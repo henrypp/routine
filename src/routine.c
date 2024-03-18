@@ -12973,8 +12973,13 @@ VOID CALLBACK _r_wnd_message_settingchange (
 	_In_opt_ LPARAM lparam
 )
 {
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static RICPS _RefreshImmersiveColorPolicyState = NULL;
+
 	R_STRINGREF sr;
+	PVOID hlib;
 	LPWSTR type;
+	NTSTATUS status;
 
 	UNREFERENCED_PARAMETER (wparam);
 
@@ -12986,7 +12991,24 @@ VOID CALLBACK _r_wnd_message_settingchange (
 	_r_obj_initializestringref (&sr, type);
 
 	if (_r_str_isequal2 (&sr, L"WindowMetrics", TRUE))
+	{
 		_r_wnd_sendmessage (hwnd, 0, RM_LOCALIZE, 0, 0);
+	}
+	else if (_r_str_isequal2 (&sr, L"ImmersiveColorSet", TRUE))
+	{
+		if (_r_initonce_begin (&init_once))
+		{
+			status = _r_sys_getmodulehandle (L"uxtheme.dll", &hlib);
+
+			if (NT_SUCCESS (status))
+				_r_sys_getprocaddress (hlib, NULL, 104, (PVOID_PTR)&_RefreshImmersiveColorPolicyState);
+
+			_r_initonce_end (&init_once);
+		}
+
+		if (_RefreshImmersiveColorPolicyState)
+			_RefreshImmersiveColorPolicyState ();
+	}
 }
 
 VOID _r_wnd_rectangletorect (
