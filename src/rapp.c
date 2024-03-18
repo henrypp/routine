@@ -655,12 +655,14 @@ LRESULT CALLBACK _r_app_maindlgproc (
 	_In_ LPARAM lparam
 )
 {
+	if (!app_global.main.wnd_proc)
+		return FALSE;
+
 	if (app_global.main.taskbar_msg)
 	{
 		if (msg == app_global.main.taskbar_msg)
 		{
-			if (app_global.main.wnd_proc)
-				return CallWindowProcW (app_global.main.wnd_proc, hwnd, RM_TASKBARCREATED, 0, 0);
+			return CallWindowProcW (app_global.main.wnd_proc, hwnd, RM_TASKBARCREATED, 0, 0);
 
 			return FALSE;
 		}
@@ -670,9 +672,6 @@ LRESULT CALLBACK _r_app_maindlgproc (
 	{
 		case RM_LOCALIZE:
 		{
-			if (!app_global.main.wnd_proc)
-				break;
-
 			CallWindowProcW (app_global.main.wnd_proc, hwnd, msg, wparam, lparam);
 
 			RedrawWindow (hwnd, NULL, NULL, RDW_ERASENOW | RDW_INVALIDATE);
@@ -767,9 +766,6 @@ LRESULT CALLBACK _r_app_maindlgproc (
 			break;
 		}
 	}
-
-	if (!app_global.main.wnd_proc)
-		return FALSE;
 
 	return CallWindowProcW (app_global.main.wnd_proc, hwnd, msg, wparam, lparam);
 }
@@ -4007,7 +4003,6 @@ INT_PTR CALLBACK _r_settings_wndproc (
 				case IDC_CLOSE:
 				{
 					EndDialog (hwnd, 0);
-
 					break;
 				}
 
