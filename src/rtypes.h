@@ -91,6 +91,9 @@ typedef BOOL (WINAPI* SPAM)(
 	_In_ PreferredAppMode AppMode
 	);
 
+// RefreshImmersiveColorPolicyState (win10rs5+)
+typedef VOID (WINAPI* RICPS)();
+
 //
 // Printf specifiers
 //
@@ -977,17 +980,6 @@ typedef struct _APP_GLOBAL_CONFIG
 {
 	struct
 	{
-		R_QUEUED_LOCK lock;
-		PR_HASHTABLE table;
-	} config;
-
-	struct
-	{
-		LONG64 last_timestamp;
-	} error;
-
-	struct
-	{
 		WNDPROC wnd_proc;
 		HANDLE hmutex;
 		HWND hwnd;
@@ -1010,10 +1002,21 @@ typedef struct _APP_GLOBAL_CONFIG
 
 	struct
 	{
+		R_QUEUED_LOCK lock;
+		PR_HASHTABLE table;
+	} config;
+
+	struct
+	{
 		DLGPROC wnd_proc;
 		PR_ARRAY page_list;
 		HWND hwnd;
 	} settings;
+
+	struct
+	{
+		R_UPDATE_INFO info;
+	} update;
 
 	struct
 	{
@@ -1022,6 +1025,6 @@ typedef struct _APP_GLOBAL_CONFIG
 
 	struct
 	{
-		R_UPDATE_INFO info;
-	} update;
+		LONG64 last_timestamp;
+	} error;
 } APP_GLOBAL_CONFIG, *PAPP_GLOBAL_CONFIG;
