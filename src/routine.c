@@ -4077,20 +4077,17 @@ BOOLEAN NTAPI _r_fs_recursivedirectorydelete_callback (
 	_In_opt_ PVOID context
 )
 {
-	PR_STRING string;
-
-	string = _r_format_string (L"\\\\.\\%s", path->buffer);
-
 	if (attributes & FILE_ATTRIBUTE_DIRECTORY)
 	{
-		_r_fs_deletedirectory (string->buffer, TRUE);
+		_r_fs_deletedirectory (path->buffer, TRUE);
 	}
 	else
 	{
-		_r_fs_deletefile (string->buffer, NULL);
-	}
+		if (attributes & FILE_ATTRIBUTE_READONLY && _r_sys_isosversionlower (WINDOWS_10_RS5))
+			_r_fs_setattributes (NULL, path->buffer, attributes & ~FILE_ATTRIBUTE_READONLY);
 
-	_r_obj_dereference (string);
+		_r_fs_deletefile (path->buffer, NULL);
+	}
 
 	return TRUE;
 }
@@ -4145,6 +4142,8 @@ NTSTATUS _r_fs_deletedirectory (
 
 		status = NtSetInformationFile (hdirectory, &isb, &fdi, sizeof (fdi), FileDispositionInformation);
 	}
+
+	NtClose (hdirectory);
 
 	return status;
 }
