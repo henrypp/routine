@@ -4653,6 +4653,26 @@ FORCEINLINE VOID _r_menu_enableitem (
 }
 
 //
+// Control: hotkey
+//
+
+FORCEINLINE LONG _r_hotkey_get (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id
+)
+{
+	return (LONG)SendDlgItemMessageW (hwnd, ctrl_id, HKM_GETHOTKEY, 0, 0);
+}
+
+FORCEINLINE VOID _r_hotkey_set (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_opt_ LONG hotkey
+)
+{
+	_r_wnd_sendmessage (hwnd, ctrl_id, HKM_SETHOTKEY, (WPARAM)hotkey, 0);
+}
+//
 // Control: up-down
 //
 
