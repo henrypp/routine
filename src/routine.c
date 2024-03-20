@@ -18222,7 +18222,7 @@ VOID _r_status_setstyle (
 )
 {
 	if (height)
-		_r_wnd_sendmessage (hwnd, ctrl_id, SB_SETMINHEIGHT, (WPARAM)height, 0);
+		_r_wnd_sendmessage (hwnd, ctrl_id, SB_SETMINHEIGHT, height, 0);
 
 	_r_wnd_sendmessage (hwnd, ctrl_id, WM_SIZE, 0, 0);
 }
