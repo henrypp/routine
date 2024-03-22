@@ -4488,7 +4488,7 @@ FORCEINLINE ULONG _r_datetime_setcolor (
 	_In_ ULONG clr
 )
 {
-	return (ULONG)_r_wnd_sendmessage (hwnd, 0, DTM_SETMCCOLOR, type, (LPARAM)clr);
+	return (ULONG)_r_wnd_sendmessage (hwnd, ctrl_id, DTM_SETMCCOLOR, type, (LPARAM)clr);
 }
 
 FORCEINLINE LRESULT _r_datetime_setformat (
