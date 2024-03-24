@@ -1646,6 +1646,12 @@ typedef enum _FOCUS_ASSIST_INFO
 	FOCUS_ASSIST_ALARMS_ONLY = 2
 } FOCUS_ASSIST_INFO, *PFOCUS_ASSIST_INFO;
 
+typedef struct _RTL_BITMAP
+{
+	ULONG SizeOfBitMap;
+	PULONG Buffer;
+} RTL_BITMAP, *PRTL_BITMAP;
+
 //
 // Synchronization enumerations
 //
@@ -2410,7 +2416,7 @@ typedef struct _PEB
 	ULONG AtlThunkSListPtr32;
 	PAPI_SET_NAMESPACE ApiSetMap;
 	ULONG TlsExpansionCounter;
-	PVOID TlsBitmap;
+	PRTL_BITMAP TlsBitmap;
 	ULONG TlsBitmapBits[2]; // TLS_MINIMUM_AVAILABLE
 
 	PVOID ReadOnlySharedMemoryBase;
@@ -2452,7 +2458,7 @@ typedef struct _PEB
 	GDI_HANDLE_BUFFER GdiHandleBuffer;
 	PVOID PostProcessInitRoutine;
 
-	PVOID TlsExpansionBitmap;
+	PRTL_BITMAP TlsExpansionBitmap;
 	ULONG TlsExpansionBitmapBits[32]; // TLS_EXPANSION_SLOTS
 
 	ULONG SessionId;
@@ -3006,6 +3012,7 @@ typedef struct _PS_CREATE_INFO
 					USHORT ProhibitedImageCharacteristics : 16;
 				};
 			};
+
 			ACCESS_MASK AdditionalFileAccess;
 		} InitState;
 
@@ -3062,16 +3069,16 @@ typedef struct _PS_CREATE_INFO
 
 typedef struct _PS_ATTRIBUTE
 {
-	ULONG_PTR Attribute;
-	ULONG_PTR Size;
+	ULONG64 Attribute; // PROC_THREAD_ATTRIBUTE_XXX modifiers, see ProcThreadAttributeValue macro and Windows Internals 6 (372)
+	ULONG_PTR Size; // size of Value or *ValuePtr
 
 	union
 	{
-		ULONG_PTR Value;
-		PVOID ValuePtr;
+		ULONG_PTR Value; // reserve 8 bytes for data (such as a Handle or a data pointer)
+		PVOID ValuePtr; // data pointer
 	};
 
-	PULONG_PTR ReturnLength;
+	PULONG_PTR ReturnLength; // either 0 or specifies size of data returned to caller via "ValuePtr"
 } PS_ATTRIBUTE, *PPS_ATTRIBUTE;
 
 typedef struct _PS_ATTRIBUTE_LIST
@@ -3080,13 +3087,48 @@ typedef struct _PS_ATTRIBUTE_LIST
 	PS_ATTRIBUTE Attributes[5];
 } PS_ATTRIBUTE_LIST, *PPS_ATTRIBUTE_LIST;
 
+typedef enum _PS_PROTECTED_TYPE
+{
+	PsProtectedTypeNone,
+	PsProtectedTypeProtectedLight,
+	PsProtectedTypeProtected,
+	PsProtectedTypeMax
+} PS_PROTECTED_TYPE;
+
+typedef enum _PS_PROTECTED_SIGNER
+{
+	PsProtectedSignerNone,
+	PsProtectedSignerAuthenticode,
+	PsProtectedSignerCodeGen,
+	PsProtectedSignerAntimalware,
+	PsProtectedSignerLsa,
+	PsProtectedSignerWindows,
+	PsProtectedSignerWinTcb,
+	PsProtectedSignerMax
+} PS_PROTECTED_SIGNER;
+
+typedef struct _PS_PROTECTION
+{
+	union
+	{
+		UCHAR Level;
+
+		struct
+		{
+			UCHAR Type : 3;
+			UCHAR Audit : 1;
+			UCHAR Signer : 4;
+		};
+	};
+} PS_PROTECTION, *PPS_PROTECTION;
+
 typedef enum _PS_ATTRIBUTE_NUM
 {
 	PsAttributeParentProcess, // in HANDLE
 	PsAttributeDebugObject, // in HANDLE
 	PsAttributeToken, // in HANDLE
 	PsAttributeClientId, // out PCLIENT_ID
-	PsAttributeTebAddress, // out PTEB *
+	PsAttributeTebAddress, // out PTEB
 	PsAttributeImageName, // in PWSTR
 	PsAttributeImageInfo, // out PSECTION_IMAGE_INFORMATION
 	PsAttributeMemoryReserve, // in PPS_MEMORY_RESERVE
@@ -3097,10 +3139,10 @@ typedef enum _PS_ATTRIBUTE_NUM
 	PsAttributeGroupAffinity, // in PGROUP_AFFINITY
 	PsAttributePreferredNode, // in PUSHORT
 	PsAttributeIdealProcessor, // in PPROCESSOR_NUMBER
-	PsAttributeUmsThread, // ? in PUMS_CREATE_THREAD_ATTRIBUTES
+	PsAttributeUmsThread, // ? in PUMS_CREATE_THREAD_ATTRIBUTES, see UpdateProceThreadAttributeList in msdn (CreateProcessW...)
 	PsAttributeMitigationOptions, // in PPS_MITIGATION_OPTIONS_MAP (PROCESS_CREATION_MITIGATION_POLICY_*) // since WIN8
 	PsAttributeProtectionLevel, // in PS_PROTECTION // since WINBLUE
-	PsAttributeSecureProcess, // in PPS_TRUSTLET_CREATE_ATTRIBUTES, since THRESHOLD
+	PsAttributeSecureProcess, // in PPS_TRUSTLET_CREATE_ATTRIBUTES, since THRESHOLD (Virtual Secure Mode, Device Guard)
 	PsAttributeJobList, // in HANDLE[]
 	PsAttributeChildProcessPolicy, // 20, in PULONG (PROCESS_CREATION_CHILD_PROCESS_*) // since THRESHOLD2
 	PsAttributeAllApplicationPackagesPolicy, // in PULONG (PROCESS_CREATION_ALL_APPLICATION_PACKAGES_*) // since REDSTONE
