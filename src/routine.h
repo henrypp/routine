@@ -5249,33 +5249,33 @@ FORCEINLINE VOID _r_treeview_setimagelist (
 
 LONG _r_status_getheight (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 );
 
 _Ret_maybenull_
 PR_STRING _r_status_gettext (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ LONG part_id,
 	_Out_opt_ PLONG out_style
 );
 
 VOID _r_status_setstyle (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_opt_ ULONG height
 );
 
 VOID _r_status_settext (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ LONG part_id,
 	_In_opt_ LPCWSTR string
 );
 
 VOID _r_status_settextformat (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ LONG part_id,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
@@ -5283,7 +5283,7 @@ VOID _r_status_settextformat (
 
 FORCEINLINE LONG _r_status_getborders (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ PVOID out_buffer
 )
 {
@@ -5292,7 +5292,7 @@ FORCEINLINE LONG _r_status_getborders (
 
 FORCEINLINE LONG _r_status_getparts (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	return (LONG)_r_wnd_sendmessage (hwnd, 0, SB_GETPARTS, 0, 0);
@@ -5300,7 +5300,7 @@ FORCEINLINE LONG _r_status_getparts (
 
 FORCEINLINE BOOLEAN _r_status_getrect (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ LONG part_id,
 	_Out_ PRECT out_buffer
 )
@@ -5310,7 +5310,7 @@ FORCEINLINE BOOLEAN _r_status_getrect (
 
 FORCEINLINE VOID _r_status_setparts (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_reads_ (count) PLONG parts,
 	_In_ ULONG_PTR count
 )

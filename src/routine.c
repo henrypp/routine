@@ -18167,16 +18167,23 @@ VOID _r_treeview_setstyle (
 
 LONG _r_status_getheight (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	RECT rect;
 	HWND hctrl;
 
-	hctrl = GetDlgItem (hwnd, ctrl_id);
+	if (ctrl_id)
+	{
+		hctrl = GetDlgItem (hwnd, ctrl_id);
 
-	if (!hctrl)
-		return 0;
+		if (!hctrl)
+			return 0;
+	}
+	else
+	{
+		hctrl = hwnd;
+	}
 
 	if (GetClientRect (hctrl, &rect))
 		return rect.bottom;
@@ -18187,7 +18194,7 @@ LONG _r_status_getheight (
 _Ret_maybenull_
 PR_STRING _r_status_gettext (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ LONG part_id,
 	_Out_opt_ PLONG out_style
 )
@@ -18217,7 +18224,7 @@ PR_STRING _r_status_gettext (
 
 VOID _r_status_setstyle (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_opt_ ULONG height
 )
 {
@@ -18229,7 +18236,7 @@ VOID _r_status_setstyle (
 
 VOID _r_status_settext (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ LONG part_id,
 	_In_opt_ LPCWSTR string
 )
@@ -18239,7 +18246,7 @@ VOID _r_status_settext (
 
 VOID _r_status_settextformat (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ LONG part_id,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
