@@ -3713,21 +3713,6 @@ PVOID _r_obj_findhashtablepointer (
 // System messages
 //
 
-_Success_ (SUCCEEDED (return))
-HRESULT _r_msg_taskdialog (
-	_In_ const LPTASKDIALOGCONFIG task_dialog,
-	_Out_opt_ PINT button_ptr,
-	_Out_opt_ PINT radio_button_ptr,
-	_Out_opt_ PBOOL is_flagchecked_ptr
-)
-{
-	HRESULT status;
-
-	status = TaskDialogIndirect (task_dialog, button_ptr, radio_button_ptr, is_flagchecked_ptr);
-
-	return status;
-}
-
 HRESULT CALLBACK _r_msg_callback (
 	_In_ HWND hwnd,
 	_In_ UINT msg,
@@ -5100,13 +5085,13 @@ NTSTATUS _r_fs_setattributes (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_setcurrentdirectory (
-	_In_ PR_STRING path
+	_In_ PR_STRINGREF path
 )
 {
 	UNICODE_STRING us;
 	NTSTATUS status;
 
-	_r_obj_initializeunicodestring2 (&us, path);
+	_r_obj_initializeunicodestring3 (&us, path);
 
 	status = RtlSetCurrentDirectory_U (&us);
 
@@ -5355,7 +5340,7 @@ PR_STRING _r_path_getextensionstring (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_getfullpath (
 	_In_ LPCWSTR filename,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 )
 {
 	PR_STRING full_path;
@@ -7029,13 +7014,10 @@ ULONG _r_str_gethash (
 )
 {
 	R_STRINGREF sr;
-	ULONG hash;
 
 	_r_obj_initializestringref (&sr, string);
 
-	hash = _r_str_gethash3 (&sr, is_ignorecase);
-
-	return hash;
+	return _r_str_gethash3 (&sr, is_ignorecase);
 }
 
 ULONG _r_str_gethash2 (
@@ -7043,11 +7025,7 @@ ULONG _r_str_gethash2 (
 	_In_ BOOLEAN is_ignorecase
 )
 {
-	ULONG hash;
-
-	hash = _r_str_gethash3 (&string->sr, is_ignorecase);
-
-	return hash;
+	return _r_str_gethash3 (&string->sr, is_ignorecase);
 }
 
 ULONG _r_str_gethash3 (
@@ -7055,22 +7033,14 @@ ULONG _r_str_gethash3 (
 	_In_ BOOLEAN is_ignorecase
 )
 {
-	ULONG hash;
-
-	hash = _r_str_x65599 (string, is_ignorecase);
-
-	return hash;
+	return _r_str_x65599 (string, is_ignorecase);
 }
 
 ULONG_PTR _r_str_getbytelength (
 	_In_ LPCSTR string
 )
 {
-	ULONG_PTR length;
-
-	length = _r_str_getbytelength_ex (string, PR_SIZE_MAX_STRING_LENGTH);
-
-	return length;
+	return _r_str_getbytelength_ex (string, PR_SIZE_MAX_STRING_LENGTH);
 }
 
 ULONG_PTR _r_str_getbytelength2 (
@@ -7167,13 +7137,6 @@ ULONG_PTR _r_str_getlength_ex (
 		return 0;
 
 	return original_length - max_length;
-}
-
-BOOLEAN _r_str_isdigit (
-	_In_ WCHAR chr
-)
-{
-	return (USHORT)(chr - L'0') < 10;
 }
 
 BOOLEAN _r_str_isequal (
@@ -8403,15 +8366,6 @@ ULONG _r_str_x65599 (
 // Performance
 //
 
-LONG64 _r_perf_getexecutionstart ()
-{
-	LONG64 current_time;
-
-	current_time = _r_perf_querycounter ();
-
-	return current_time;
-}
-
 DOUBLE _r_perf_getexecutionfinal (
 	_In_ LONG64 start_time
 )
@@ -8450,62 +8404,6 @@ LONG64 _r_perf_queryfrequency ()
 //
 // System information
 //
-
-BOOLEAN _r_sys_iselevated ()
-{
-	return !!_r_sys_getcurrenttoken ()->is_elevated;
-}
-
-BOOLEAN _r_sys_isosversionequal (
-	_In_ ULONG version
-)
-{
-	ULONG windows_version;
-
-	windows_version = _r_sys_getwindowsversion ();
-
-	return windows_version == version;
-}
-
-BOOLEAN _r_sys_isosversiongreaterorequal (
-	_In_ ULONG version
-)
-{
-	ULONG windows_version;
-
-	windows_version = _r_sys_getwindowsversion ();
-
-	return windows_version >= version;
-}
-
-BOOLEAN _r_sys_isosversionlower (
-	_In_ ULONG version
-)
-{
-	ULONG windows_version;
-
-	windows_version = _r_sys_getwindowsversion ();
-
-	return windows_version < version;
-}
-
-BOOLEAN _r_sys_isosversionlowerorequal (
-	_In_ ULONG version
-)
-{
-	ULONG windows_version;
-
-	windows_version = _r_sys_getwindowsversion ();
-
-	return windows_version <= version;
-}
-
-BOOLEAN _r_sys_isprocessimmersive (
-	_In_ HANDLE hprocess
-)
-{
-	return !!IsImmersiveProcess (hprocess);
-}
 
 BOOLEAN _r_sys_iswine ()
 {
@@ -9237,8 +9135,7 @@ ULONG _r_sys_gettickcount ()
 	}
 
 	return (ULONG)((UInt32x32To64 (tick_count.LowPart, USER_SHARED_DATA->TickCountMultiplier) >> 24) +
-				   UInt32x32To64 ((tick_count.HighPart << 8) & 0xFFFFFFFF,
-				   USER_SHARED_DATA->TickCountMultiplier));
+				   UInt32x32To64 ((tick_count.HighPart << 8) & 0xFFFFFFFF, USER_SHARED_DATA->TickCountMultiplier));
 
 #endif // _WIN64
 }
@@ -10800,19 +10697,6 @@ NTSTATUS _r_sys_setthreadenvironment (
 }
 
 _Success_ (NT_SUCCESS (return))
-NTSTATUS _r_sys_setthreadexecutionstate (
-	_In_ EXECUTION_STATE new_flag
-)
-{
-	EXECUTION_STATE old_flag;
-	NTSTATUS status;
-
-	status = NtSetThreadExecutionState (new_flag, &old_flag);
-
-	return status;
-}
-
-_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_setthreadname (
 	_In_ HANDLE thread_handle,
 	_In_ LPCWSTR thread_name
@@ -10909,13 +10793,6 @@ LONG64 _r_unixtime_from_filetime (
 	time_value.LowPart = file_time->dwLowDateTime;
 
 	return _r_unixtime_from_largeinteger (&time_value);
-}
-
-LONG64 _r_unixtime_from_largeinteger (
-	_In_ const PLARGE_INTEGER large_integer
-)
-{
-	return (large_integer->QuadPart - 116444736000000000LL) / 10000000LL;
 }
 
 LONG64 _r_unixtime_from_systemtime (
@@ -11315,22 +11192,6 @@ VOID _r_dc_fixfont (
 		SelectObject (hdc, hfont);
 }
 
-LONG _r_dc_fontsizetoheight (
-	_In_ LONG size,
-	_In_ LONG dpi_value
-)
-{
-	return -_r_calc_multipledivide (size, dpi_value, 72);
-}
-
-LONG _r_dc_fontheighttosize (
-	_In_ LONG height,
-	_In_ LONG dpi_value
-)
-{
-	return _r_calc_multipledivide (-height, 72, dpi_value);
-}
-
 BOOLEAN _r_dc_framerect (
 	_In_ HDC hdc,
 	_In_ LPCRECT rect,
@@ -11361,8 +11222,8 @@ COLORREF _r_dc_getcolorbrightness (
 	_In_ COLORREF clr
 )
 {
-	COLORREF min;
 	COLORREF max;
+	COLORREF min;
 	COLORREF r;
 	COLORREF g;
 	COLORREF b;
@@ -11449,14 +11310,6 @@ BOOLEAN _r_dc_getdefaultfont (
 		logfont->lfWeight = system_font->lfWeight;
 
 	return TRUE;
-}
-
-LONG _r_dc_getdpi (
-	_In_ LONG number,
-	_In_ LONG dpi_value
-)
-{
-	return _r_calc_multipledivide (number, dpi_value, USER_DEFAULT_SCREEN_DPI);
 }
 
 LONG _r_dc_getdpivalue (
@@ -11552,13 +11405,6 @@ LONG _r_dc_getfontwidth (
 		RtlSecureZeroMemory (out_buffer, sizeof (SIZE));
 
 	return 0;
-}
-
-LONG _r_dc_getmonitordpi (
-	_In_ LPCRECT rect
-)
-{
-	return _r_dc_getdpivalue (NULL, rect);
 }
 
 VOID _r_dc_getsizedpivalue (
@@ -12446,7 +12292,7 @@ BOOLEAN _r_wnd_center (
 
 	if (hparent)
 	{
-		if (!_r_wnd_isvisible_ex (hparent))
+		if (!_r_wnd_isvisible (hparent, TRUE))
 			return FALSE;
 
 		if (IsIconic (hparent))
@@ -12604,36 +12450,6 @@ BOOLEAN _r_wnd_getposition (
 	return TRUE;
 }
 
-BOOLEAN _r_wnd_isdesktop (
-	_In_ HWND hwnd
-)
-{
-	ULONG_PTR atom;
-
-	atom = GetClassLongPtrW (hwnd, GCW_ATOM);
-
-	// #32769
-	if (atom == 0x8001)
-		return TRUE;
-
-	return FALSE;
-}
-
-BOOLEAN _r_wnd_isdialog (
-	_In_ HWND hwnd
-)
-{
-	ULONG_PTR atom;
-
-	atom = GetClassLongPtrW (hwnd, GCW_ATOM);
-
-	// #32770
-	if (atom == 0x8002)
-		return TRUE;
-
-	return FALSE;
-}
-
 BOOLEAN _r_wnd_isfocusassist ()
 {
 	WNF_CHANGE_STAMP change_stamp;
@@ -12765,56 +12581,13 @@ BOOLEAN _r_wnd_isfullscreenmode ()
 	return _r_wnd_isfullscreenwindowmode (hwnd) || _r_wnd_isfullscreenconsolemode (hwnd);
 }
 
-BOOLEAN _r_wnd_ismaximized (
-	_In_ HWND hwnd
-)
-{
-	LONG_PTR style;
-
-	style = _r_wnd_getstyle (hwnd);
-
-	if (style & WS_MAXIMIZE)
-		return TRUE;
-
-	return FALSE;
-}
-
-BOOLEAN _r_wnd_ismenu (
-	_In_ HWND hwnd
-)
-{
-	ULONG_PTR atom;
-
-	atom = GetClassLongPtrW (hwnd, GCW_ATOM);
-
-	// #32768
-	if (atom == 0x8000)
-		return TRUE;
-
-	return FALSE;
-}
-
-BOOLEAN _r_wnd_isminimized (
-	_In_ HWND hwnd
-)
-{
-	LONG_PTR style;
-
-	style = _r_wnd_getstyle (hwnd);
-
-	if (style & WS_MINIMIZE)
-		return TRUE;
-
-	return FALSE;
-}
-
 BOOLEAN _r_wnd_isoverlapped (
 	_In_ HWND hwnd
 )
 {
+	RECT rect_intersection;
 	RECT rect_original;
 	RECT rect_current;
-	RECT rect_intersection;
 	HWND hwnd_current;
 
 	if (!GetWindowRect (hwnd, &rect_original))
@@ -12847,7 +12620,7 @@ BOOLEAN _r_wnd_isundercursor (
 	RECT rect;
 	POINT point;
 
-	if (!_r_wnd_isvisible_ex (hwnd))
+	if (!_r_wnd_isvisible (hwnd, TRUE))
 		return FALSE;
 
 	if (!GetCursorPos (&point) || !GetWindowRect (hwnd, &rect))
@@ -12857,21 +12630,11 @@ BOOLEAN _r_wnd_isundercursor (
 }
 
 BOOLEAN _r_wnd_isvisible (
-	_In_ HWND hwnd
+	_In_ HWND hwnd,
+	_In_ BOOLEAN is_checkminimize
 )
 {
-	return !!IsWindowVisible (hwnd);
-}
-
-BOOLEAN _r_wnd_isvisible_ex (
-	_In_ HWND hwnd
-)
-{
-	LONG_PTR style;
-
-	style = _r_wnd_getstyle (hwnd);
-
-	if (style & WS_MINIMIZE)
+	if (is_checkminimize && _r_wnd_isminimized (hwnd))
 		return FALSE;
 
 	return !!IsWindowVisible (hwnd);
@@ -13011,31 +12774,6 @@ VOID CALLBACK _r_wnd_message_settingchange (
 	}
 }
 
-VOID _r_wnd_rectangletorect (
-	_Out_ PRECT rect,
-	_In_ PR_RECTANGLE rectangle
-)
-{
-	SetRect (
-		rect,
-		rectangle->left,
-		rectangle->top,
-		rectangle->left + rectangle->width,
-		rectangle->top + rectangle->height
-	);
-}
-
-VOID _r_wnd_recttorectangle (
-	_Out_ PR_RECTANGLE rectangle,
-	_In_ LPCRECT rect
-)
-{
-	rectangle->left = rect->left;
-	rectangle->top = rect->top;
-	rectangle->width = rect->right - rect->left;
-	rectangle->height = rect->bottom - rect->top;
-}
-
 LRESULT _r_wnd_sendmessage (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
@@ -13056,16 +12794,6 @@ LRESULT _r_wnd_sendmessage (
 	}
 
 	return val;
-}
-
-VOID _r_wnd_seticon (
-	_In_ HWND hwnd,
-	_In_opt_ HICON hicon_small,
-	_In_opt_ HICON hicon_big
-)
-{
-	_r_wnd_sendmessage (hwnd, 0, WM_SETICON, ICON_SMALL, (LPARAM)hicon_small);
-	_r_wnd_sendmessage (hwnd, 0, WM_SETICON, ICON_BIG, (LPARAM)hicon_big);
 }
 
 VOID _r_wnd_setposition (
@@ -13216,7 +12944,7 @@ VOID _r_wnd_toggle (
 
 	is_minimized = _r_wnd_isminimized (hwnd);
 
-	if (is_show || !_r_wnd_isvisible (hwnd) || is_minimized || _r_wnd_isoverlapped (hwnd))
+	if (is_show || !_r_wnd_isvisible (hwnd, FALSE) || is_minimized || _r_wnd_isoverlapped (hwnd))
 	{
 		is_success = !!ShowWindow (hwnd, is_minimized ? SW_RESTORE : SW_SHOW);
 
@@ -13235,22 +12963,6 @@ VOID _r_wnd_toggle (
 	}
 }
 
-VOID _r_wnd_top (
-	_In_ HWND hwnd,
-	_In_ BOOLEAN is_enable
-)
-{
-	SetWindowPos (
-		hwnd,
-		is_enable ? HWND_TOPMOST : HWND_NOTOPMOST,
-		0,
-		0,
-		0,
-		0,
-		SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER
-	);
-}
-
 PR_HASHTABLE _r_wnd_getcontext_table ()
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
@@ -13266,16 +12978,12 @@ PR_HASHTABLE _r_wnd_getcontext_table ()
 	return hashtable;
 }
 
-ULONG _r_wnd_getcontext_hash (
+FORCEINLINE ULONG _r_wnd_getcontext_hash (
 	_In_ HWND hwnd,
 	_In_ ULONG property_id
 )
 {
-	ULONG hash_code;
-
-	hash_code = _r_math_hashinteger_ptr ((ULONG_PTR)hwnd) ^ property_id;
-
-	return hash_code;
+	return _r_math_hashinteger_ptr ((ULONG_PTR)hwnd) ^ property_id;
 }
 
 _Ret_maybenull_
@@ -13995,18 +13703,6 @@ NTSTATUS _r_reg_openkey (
 	InitializeObjectAttributes (&oa, &us, OBJ_CASE_INSENSITIVE, hroot_handle, NULL);
 
 	status = NtOpenKey (hkey, desired_access, &oa);
-
-	return status;
-}
-
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_reg_deletekey (
-	_In_ HANDLE hkey
-)
-{
-	NTSTATUS status;
-
-	status = NtDeleteKey (hkey);
 
 	return status;
 }
@@ -14837,34 +14533,6 @@ NTSTATUS _r_crypt_getfilehash (
 	return status;
 }
 
-PR_BYTE _r_crypt_getivblock (
-	_In_ PR_CRYPT_CONTEXT crypt_context
-)
-{
-	return crypt_context->block_data;
-}
-
-PR_BYTE _r_crypt_getkeyblock (
-	_In_ PR_CRYPT_CONTEXT crypt_context
-)
-{
-	return crypt_context->object_data;
-}
-
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_crypt_hashbuffer (
-	_In_ PR_CRYPT_CONTEXT hash_context,
-	_In_reads_bytes_ (buffer_length) PVOID buffer,
-	_In_ ULONG buffer_length
-)
-{
-	NTSTATUS status;
-
-	status = BCryptHashData (hash_context->u.hash_handle, buffer, buffer_length, 0);
-
-	return status;
-}
-
 //
 // Math
 //
@@ -15362,20 +15030,6 @@ ULONG _r_res_querytranslation (
 		return PR_LANG_TO_LCID (buffer->lang_id, buffer->code_page);
 
 	return PR_LANG_TO_LCID (MAKELANGID (LANG_ENGLISH, SUBLANG_ENGLISH_US), 1252);
-}
-
-_Success_ (return)
-BOOLEAN _r_res_queryversion (
-	_In_ LPCVOID ver_block,
-	_Outptr_ PVOID_PTR out_buffer
-)
-{
-	UINT length;
-	BOOL is_success;
-
-	is_success = VerQueryValueW (ver_block, L"\\", out_buffer, &length);
-
-	return !!is_success;
 }
 
 _Ret_maybenull_
@@ -16330,14 +15984,6 @@ VOID _r_tray_toggle (
 // Control: common
 //
 
-BOOLEAN _r_ctrl_isbuttonchecked (
-	_In_ HWND hwnd,
-	_In_opt_ INT ctrl_id
-)
-{
-	return _r_wnd_sendmessage (hwnd, ctrl_id, BM_GETCHECK, 0, 0) == BST_CHECKED;
-}
-
 BOOLEAN _r_ctrl_isenabled (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id
@@ -16373,15 +16019,6 @@ INT _r_ctrl_isradiochecked (
 	}
 
 	return 0;
-}
-
-VOID _r_ctrl_checkbutton (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ BOOLEAN is_check
-)
-{
-	CheckDlgButton (hwnd, ctrl_id, is_check ? BST_CHECKED : BST_UNCHECKED);
 }
 
 _Ret_maybenull_
@@ -16730,7 +16367,7 @@ VOID _r_ctrl_setstringlength (
 }
 
 VOID _r_ctrl_settiptext (
-	_In_ HWND htip,
+	_In_ HWND hwnd,
 	_In_ HWND hparent,
 	_In_ INT ctrl_id,
 	_In_ LPWSTR string
@@ -16739,7 +16376,7 @@ VOID _r_ctrl_settiptext (
 	TTTOOLINFOW tool_info = {0};
 
 	tool_info.cbSize = sizeof (tool_info);
-	tool_info.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
+	tool_info.uFlags = TTF_IDISHWND | TTF_SUBCLASS | TTF_PARSELINKS;
 	tool_info.hwnd = hparent;
 	tool_info.hinst = _r_sys_getimagebase ();
 	tool_info.uId = (UINT_PTR)GetDlgItem (hparent, ctrl_id);
@@ -16747,11 +16384,11 @@ VOID _r_ctrl_settiptext (
 
 	GetClientRect (hparent, &tool_info.rect);
 
-	_r_wnd_sendmessage (htip, 0, TTM_ADDTOOL, 0, (LPARAM)&tool_info);
+	_r_wnd_sendmessage (hwnd, 0, TTM_ADDTOOL, 0, (LPARAM)&tool_info);
 }
 
 VOID _r_ctrl_settiptextformat (
-	_In_ HWND htip,
+	_In_ HWND hwnd,
 	_In_ HWND hparent,
 	_In_ INT ctrl_id,
 	_In_ _Printf_format_string_ LPCWSTR format,
@@ -16765,7 +16402,7 @@ VOID _r_ctrl_settiptextformat (
 	string = _r_format_string_v (format, arg_ptr);
 	va_end (arg_ptr);
 
-	_r_ctrl_settiptext (htip, hparent, ctrl_id, string->buffer);
+	_r_ctrl_settiptext (hwnd, hparent, ctrl_id, string->buffer);
 
 	_r_obj_dereference (string);
 }
@@ -16833,9 +16470,9 @@ PR_STRING _r_combobox_getitemtext (
 )
 {
 	PR_STRING string;
-	INT length;
+	LONG_PTR length;
 
-	length = (INT)_r_wnd_sendmessage (hwnd, ctrl_id, CB_GETLBTEXTLEN, (WPARAM)item_id, 0);
+	length = _r_wnd_sendmessage (hwnd, ctrl_id, CB_GETLBTEXTLEN, (WPARAM)item_id, 0);
 
 	if (length == CB_ERR)
 		return NULL;
@@ -16850,18 +16487,6 @@ PR_STRING _r_combobox_getitemtext (
 	}
 
 	return string;
-}
-
-VOID _r_combobox_insertitem (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ INT item_id,
-	_In_ LPCWSTR string,
-	_In_opt_ LPARAM lparam
-)
-{
-	_r_wnd_sendmessage (hwnd, ctrl_id, CB_INSERTSTRING, (WPARAM)item_id, (LPARAM)string);
-	_r_wnd_sendmessage (hwnd, ctrl_id, CB_SETITEMDATA, (WPARAM)item_id, lparam);
 }
 
 BOOLEAN _r_combobox_setcurrentitembylparam (
@@ -16893,15 +16518,6 @@ BOOLEAN _r_combobox_setcurrentitembylparam (
 //
 // Control: menu
 //
-
-VOID _r_menu_additem (
-	_In_ HMENU hmenu,
-	_In_opt_ UINT item_id,
-	_In_opt_ LPWSTR string
-)
-{
-	_r_menu_additem_ex (hmenu, item_id, string, MF_UNCHECKED);
-}
 
 VOID _r_menu_additem_ex (
 	_In_ HMENU hmenu,
@@ -17021,7 +16637,7 @@ PR_STRING _r_menu_getitemtext (
 	PR_STRING string;
 	UINT length;
 
-	length = 100;
+	length = 128;
 	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
 	mii.cbSize = sizeof (mii);
@@ -17364,16 +16980,6 @@ INT _r_listview_addgroup (
 	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_INSERTGROUP, (WPARAM)group_id, (LPARAM)&lvg);
 }
 
-INT _r_listview_additem (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ INT item_id,
-	_In_ LPWSTR string
-)
-{
-	return _r_listview_additem_ex (hwnd, ctrl_id, item_id, string, I_IMAGENONE, I_GROUPIDNONE, 0);
-}
-
 INT _r_listview_additem_ex (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
@@ -17637,14 +17243,6 @@ PR_STRING _r_listview_getitemtext (
 	return NULL;
 }
 
-VOID _r_listview_redraw (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id
-)
-{
-	_r_wnd_sendmessage (hwnd, ctrl_id, LVM_REDRAWITEMS, 0, (LPARAM)INT_MAX);
-}
-
 VOID _r_listview_setcolumn (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
@@ -17726,17 +17324,6 @@ VOID _r_listview_setcolumnsortindex (
 	_r_wnd_sendmessage (hhdr, 0, HDM_SETITEM, (WPARAM)column_id, (LPARAM)&hdi);
 }
 
-VOID _r_listview_setitem (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ INT item_id,
-	_In_ INT subitem_id,
-	_In_opt_ LPWSTR string
-)
-{
-	_r_listview_setitem_ex (hwnd, ctrl_id, item_id, subitem_id, string, I_IMAGENONE, I_GROUPIDNONE, 0);
-}
-
 VOID _r_listview_setitem_ex (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
@@ -17785,16 +17372,6 @@ VOID _r_listview_setitem_ex (
 	}
 
 	_r_wnd_sendmessage (hwnd, ctrl_id, LVM_SETITEM, 0, (LPARAM)&lvi);
-}
-
-VOID _r_listview_setitemcheck (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ INT item_id,
-	_In_ BOOLEAN is_check
-)
-{
-	_r_listview_setitemstate (hwnd, ctrl_id, item_id, INDEXTOSTATEIMAGEMASK (is_check ? 2 : 1), LVIS_STATEIMAGEMASK);
 }
 
 VOID _r_listview_setitemstate (
@@ -17933,14 +17510,6 @@ HTREEITEM _r_treeview_additem (
 	return (HTREEITEM)_r_wnd_sendmessage (hwnd, ctrl_id, TVM_INSERTITEM, 0, (LPARAM)&tvi);
 }
 
-VOID _r_treeview_deleteallitems (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id
-)
-{
-	_r_wnd_sendmessage (hwnd, ctrl_id, TVM_DELETEITEM, 0, (LPARAM)TVI_ROOT);
-}
-
 INT _r_treeview_getitemcount (
 	_In_ HWND hwnd,
 	_In_ INT ctrl_id
@@ -18002,19 +17571,6 @@ HTREEITEM _r_treeview_getnextitem (
 	return tvi.hItem;
 }
 
-BOOLEAN _r_treeview_isitemchecked (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ HTREEITEM item_id
-)
-{
-	UINT state;
-
-	state = _r_treeview_getitemstate (hwnd, ctrl_id, item_id);
-
-	return (state >> 12) - 1;
-}
-
 _Ret_maybenull_
 PR_STRING _r_treeview_getitemtext (
 	_In_ HWND hwnd,
@@ -18062,16 +17618,6 @@ VOID _r_treeview_selectfirstchild (
 	_r_wnd_sendmessage (hwnd, ctrl_id, TVM_GETITEM, 0, (LPARAM)&tvi);
 
 	_r_treeview_selectitem (hwnd, ctrl_id, tvi.hItem);
-}
-
-VOID _r_treeview_setitemcheck (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ HTREEITEM item_id,
-	_In_ BOOLEAN is_check
-)
-{
-	_r_treeview_setitemstate (hwnd, ctrl_id, item_id, INDEXTOSTATEIMAGEMASK (is_check ? 2 : 1), TVIS_STATEIMAGEMASK);
 }
 
 VOID _r_treeview_setitemstate (
@@ -18232,16 +17778,6 @@ VOID _r_status_setstyle (
 		_r_wnd_sendmessage (hwnd, ctrl_id, SB_SETMINHEIGHT, height, 0);
 
 	_r_wnd_sendmessage (hwnd, ctrl_id, WM_SIZE, 0, 0);
-}
-
-VOID _r_status_settext (
-	_In_ HWND hwnd,
-	_In_opt_ INT ctrl_id,
-	_In_ LONG part_id,
-	_In_opt_ LPCWSTR string
-)
-{
-	_r_wnd_sendmessage (hwnd, ctrl_id, SB_SETTEXT, MAKEWPARAM (part_id, 0), (LPARAM)string);
 }
 
 VOID _r_status_settextformat (
@@ -18498,7 +18034,7 @@ BOOL CALLBACK _r_util_activate_window_callback (
 	if (_r_str_isequal (app_name, &string->sr, FALSE))
 	{
 		// check window prop
-		if (GetProp (hwnd, app_name->buffer))
+		if (GetPropW (hwnd, app_name->buffer))
 		{
 			_r_wnd_toggle (hwnd, TRUE);
 
@@ -18546,14 +18082,6 @@ VOID _r_util_templatewritecontrol (
 	_r_util_templatewriteshort (ptr, 0); // extraCount
 }
 
-VOID _r_util_templatewriteshort (
-	_Inout_ PBYTE_PTR ptr,
-	_In_ WORD data
-)
-{
-	_r_util_templatewrite_ex (ptr, &data, sizeof (data));
-}
-
 VOID _r_util_templatewritestring (
 	_Inout_ PBYTE_PTR ptr,
 	_In_ LPCWSTR string
@@ -18566,14 +18094,6 @@ VOID _r_util_templatewritestring (
 	*(LPWSTR)PTR_ADD_OFFSET (*ptr, length) = UNICODE_NULL; // terminate
 
 	_r_util_templatewrite_ex (ptr, string, length + sizeof (UNICODE_NULL));
-}
-
-VOID _r_util_templatewriteulong (
-	_Inout_ PBYTE_PTR ptr,
-	_In_ ULONG data
-)
-{
-	_r_util_templatewrite_ex (ptr, &data, sizeof (data));
 }
 
 VOID _r_util_templatewrite_ex (
