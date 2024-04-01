@@ -26,6 +26,13 @@
 #define IDC_CLOSE 1003
 #endif // IDC_CLOSE
 
+#define WND_BACKGROUND_CLR RGB(0x2A, 0x2A, 0x2A)
+#define WND_BACKGROUND2_CLR RGB(0x40, 0x40, 0x40)
+#define WND_HIGHLIGHT_CLR RGB(0x80, 0x80, 0x80)
+#define WND_HOT_CLR RGB(0x00, 0x80, 0xD7)
+#define WND_TEXT_CLR RGB(0xFF, 0xFF, 0xFF)
+#define WND_GRAYTEXT_CLR RGB(0x50, 0x50, 0x50)
+
 //
 // Global variables
 //
@@ -331,6 +338,108 @@ HRESULT _r_skipuac_enable (
 BOOLEAN _r_skipuac_run ();
 
 //
+// Theme
+//
+
+VOID _r_theme_cleanup (
+	_In_ HWND hwnd,
+	_In_ PR_THEME_CONTEXT context
+);
+
+VOID _r_theme_enable (
+	_In_ HWND hwnd,
+	_In_ BOOLEAN is_enable
+);
+
+BOOL CALLBACK _r_theme_enumchildwindows (
+	_In_ HWND hwnd,
+	_In_ LPARAM context
+);
+
+VOID _r_theme_initialize (
+	_In_ HWND hwnd,
+	_In_ BOOLEAN is_enable
+);
+
+VOID _r_theme_initializecontext (
+	_In_ HWND hwnd,
+	_In_opt_ LPCWSTR class_list,
+	_In_ WNDPROC subclass_proc,
+	_In_ BOOLEAN is_enable
+);
+
+BOOLEAN _r_theme_isenabled ();
+
+VOID _r_theme_setwindowframe (
+	_In_ HWND hwnd,
+	_In_ BOOLEAN is_enable
+);
+
+LRESULT CALLBACK _r_theme_combobox_subclassproc (
+	_In_ HWND hwnd,
+	_In_ UINT msg,
+	_In_ WPARAM wparam,
+	_In_ LPARAM lparam
+);
+
+LRESULT CALLBACK _r_theme_edit_subclass (
+	_In_ HWND hwnd,
+	_In_ UINT msg,
+	_In_ WPARAM wparam,
+	_In_ LPARAM lparam
+);
+
+LRESULT CALLBACK _r_theme_groupbox_subclass (
+	_In_ HWND hwnd,
+	_In_ UINT msg,
+	_In_ WPARAM wparam,
+	_In_ LPARAM lparam
+);
+
+LRESULT CALLBACK _r_theme_header_subclass (
+	_In_ HWND hwnd,
+	_In_ UINT msg,
+	_In_ WPARAM wparam,
+	_In_ LPARAM lparam
+);
+
+LRESULT CALLBACK _r_theme_rebar_subclass (
+	_In_ HWND hwnd,
+	_In_ UINT msg,
+	_In_ WPARAM wparam,
+	_In_ LPARAM lparam
+);
+
+LRESULT CALLBACK _r_theme_statusbar_subclass (
+	_In_ HWND hwnd,
+	_In_ UINT msg,
+	_In_ WPARAM wparam,
+	_In_ LPARAM lparam
+);
+
+LRESULT CALLBACK _r_theme_tabcontrol_subclass (
+	_In_ HWND hwnd,
+	_In_ UINT msg,
+	_In_ WPARAM wparam,
+	_In_ LPARAM lparam
+);
+
+LRESULT CALLBACK _r_theme_subclassproc (
+	_In_ HWND hwnd,
+	_In_ UINT msg,
+	_In_ WPARAM wparam,
+	_In_ LPARAM lparam
+);
+
+FORCEINLINE VOID _r_theme_setdarkmode (
+	_In_ HWND hwnd,
+	_In_ BOOLEAN is_enable
+)
+{
+	SetWindowTheme (hwnd, is_enable ? L"DarkMode_Explorer" : L"Explorer", NULL);
+}
+
+//
 // Update checker (optional feature)
 //
 
@@ -596,7 +705,7 @@ FORCEINLINE VOID _r_app_sethwnd (
 
 FORCEINLINE LPWSTR _r_app_getname ()
 {
-	return APP_NAME;
+	return (LPWSTR)APP_NAME;
 }
 
 FORCEINLINE LPCWSTR _r_app_getnameshort ()

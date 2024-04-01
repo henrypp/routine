@@ -883,6 +883,9 @@ HWND _r_app_createwindow (
 	// center window position
 	_r_wnd_center (hwnd, NULL);
 
+	// enable dark theme support
+	_r_theme_initialize (hwnd, _r_theme_isenabled ());
+
 	// enable messages bypass uipi (win7+)
 	_r_wnd_changemessagefilter (hwnd, messages, RTL_NUMBER_OF (messages), MSGFLT_ALLOW);
 
@@ -1556,14 +1559,7 @@ VOID _r_config_setstringexpand_ex (
 	}
 	else
 	{
-		if (value)
-		{
-			string = _r_obj_createstring (value);
-		}
-		else
-		{
-			string = _r_obj_referenceemptystring ();
-		}
+		string = _r_obj_referenceemptystring ();
 	}
 
 	_r_config_setstring_ex (key_name, string->buffer, section_name);
@@ -1771,7 +1767,11 @@ VOID _r_locale_apply (
 	hwindow = _r_settings_getwindow ();
 
 	if (hwindow)
+	{
 		_r_wnd_sendmessage (hwindow, 0, RM_LOCALIZE, 0, 0);
+
+		_r_theme_initialize (hwindow, _r_theme_isenabled ()); // HACK!
+	}
 }
 
 VOID _r_locale_enum (
@@ -3741,6 +3741,8 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 			_r_wnd_sendmessage (hwnd, 0, RM_LOCALIZE, 0, 0);
 
+			_r_theme_initialize (hwnd, _r_theme_isenabled ());
+
 			break;
 		}
 
@@ -3767,7 +3769,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 			_r_treeview_setstyle (
 				hwnd,
 				IDC_NAV,
-				0,
+				TVS_EX_AUTOHSCROLL | TVS_EX_DOUBLEBUFFER | TVS_EX_FADEINOUTEXPANDOS,
 				_r_dc_getdpi (PR_SIZE_ITEMHEIGHT, dpi_value),
 				_r_dc_getdpi (PR_SIZE_TREEINDENT, dpi_value)
 			);
@@ -3784,7 +3786,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 					if (ptr_page->hwnd)
 					{
-						if (_r_wnd_isvisible (ptr_page->hwnd))
+						if (_r_wnd_isvisible (ptr_page->hwnd, FALSE))
 							_r_wnd_sendmessage (ptr_page->hwnd, 0, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
 					}
 				}
@@ -3800,7 +3802,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 				{
 					_r_tab_setitem (hwnd, IDC_NAV, i, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, 0);
 
-					if (ptr_page->hwnd && _r_wnd_isvisible (ptr_page->hwnd))
+					if (ptr_page->hwnd && _r_wnd_isvisible (ptr_page->hwnd, FALSE))
 						_r_wnd_sendmessage (ptr_page->hwnd, 0, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
 				}
 			}
@@ -3902,10 +3904,10 @@ INT_PTR CALLBACK _r_settings_wndproc (
 					ptr_page_old = (PR_SETTINGS_PAGE)lpnmtv->itemOld.lParam;
 					ptr_page_new = (PR_SETTINGS_PAGE)lpnmtv->itemNew.lParam;
 
-					if (ptr_page_old && ptr_page_old->hwnd && _r_wnd_isvisible (ptr_page_old->hwnd))
+					if (ptr_page_old && ptr_page_old->hwnd && _r_wnd_isvisible (ptr_page_old->hwnd, FALSE))
 						ShowWindow (ptr_page_old->hwnd, SW_HIDE);
 
-					if (!ptr_page_new || !ptr_page_new->hwnd || _r_wnd_isvisible (ptr_page_new->hwnd))
+					if (!ptr_page_new || !ptr_page_new->hwnd || _r_wnd_isvisible (ptr_page_new->hwnd, FALSE))
 						break;
 
 					_r_config_setlong (L"SettingsLastPage", ptr_page_new->dlg_id);
@@ -3941,7 +3943,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 					tab_id = _r_tab_getcurrentitem (hwnd, ctrl_id);
 					ptr_page = (PR_SETTINGS_PAGE)_r_tab_getitemlparam (hwnd, ctrl_id, tab_id);
 
-					if (!ptr_page || !ptr_page->hwnd || _r_wnd_isvisible (ptr_page->hwnd))
+					if (!ptr_page || !ptr_page->hwnd || _r_wnd_isvisible (ptr_page->hwnd, FALSE))
 						break;
 
 					_r_config_setlong (L"SettingsLastPage", ptr_page->dlg_id);
@@ -4053,7 +4055,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 						if (!ptr_page->hwnd)
 							continue;
 
-						if (_r_wnd_isvisible (ptr_page->hwnd))
+						if (_r_wnd_isvisible (ptr_page->hwnd, FALSE))
 							_r_wnd_sendmessage (ptr_page->hwnd, 0, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
 
 						_r_wnd_sendmessage (ptr_page->hwnd, 0, RM_INITIALIZE, (WPARAM)ptr_page->dlg_id, 0);
@@ -4559,4 +4561,2019 @@ CleanupExit:
 		ITaskService_Release (task_service);
 
 	return SUCCEEDED (status);
+}
+
+//
+// Theme
+//
+
+VOID _r_theme_cleanup (
+	_In_ HWND hwnd,
+	_In_ PR_THEME_CONTEXT context
+)
+{
+	_r_wnd_removecontext (hwnd, 666);
+	_r_wnd_removesubclass (hwnd);
+
+	if (context->htheme)
+		CloseThemeData (context->htheme);
+
+	_r_mem_free (context);
+}
+
+VOID _r_theme_enable (
+	_In_ HWND hwnd,
+	_In_ BOOLEAN is_enable
+)
+{
+	_r_config_setboolean (L"IsDarkThemeEnabled", is_enable);
+
+	_r_theme_initialize (hwnd, is_enable);
+}
+
+BOOL CALLBACK _r_theme_enumchildwindows (
+	_In_ HWND hwnd,
+	_In_ LPARAM context
+)
+{
+	COLORSCHEME scheme = {0};
+	COMBOBOXINFO info = {0};
+	PR_STRING class_name;
+	LONG_PTR ex_style;
+	LONG_PTR style;
+	HWND htip;
+	BOOLEAN is_enable;
+
+	is_enable = !!context;
+
+	class_name = _r_wnd_getclassname (hwnd);
+
+	if (!class_name)
+		return TRUE;
+
+	if (_r_str_isequal2 (&class_name->sr, L"#32770", TRUE))
+	{
+		_r_theme_initialize (hwnd, is_enable);
+	}
+	else if (_r_str_isequal2 (&class_name->sr, REBARCLASSNAMEW, TRUE))
+	{
+		_r_theme_initializecontext (hwnd, NULL, &_r_theme_rebar_subclass, is_enable);
+	}
+	else if (_r_str_isequal2 (&class_name->sr, STATUSCLASSNAMEW, TRUE))
+	{
+		_r_theme_initializecontext (hwnd, VSCLASS_STATUS, &_r_theme_statusbar_subclass, is_enable);
+	}
+	else if (_r_str_isequal2 (&class_name->sr, TOOLBARCLASSNAMEW, TRUE))
+	{
+		scheme.dwSize = sizeof (COLORSCHEME);
+
+		scheme.clrBtnHighlight = is_enable ? WND_TEXT_CLR : CLR_DEFAULT;
+		scheme.clrBtnShadow = is_enable ? WND_TEXT_CLR : CLR_DEFAULT;
+
+		_r_toolbar_setcolorscheme (hwnd, 0, &scheme);
+
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
+		{
+			htip = _r_toolbar_gettooltips (hwnd, 0);
+
+			if (htip)
+				_r_theme_setdarkmode (htip, is_enable);
+		}
+	}
+	else if (_r_str_isequal2 (&class_name->sr, UPDOWN_CLASSW, TRUE))
+	{
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
+			_r_theme_setdarkmode (hwnd, is_enable);
+	}
+	else if (_r_str_isequal2 (&class_name->sr, WC_BUTTONW, TRUE))
+	{
+		style = _r_wnd_getstyle (hwnd) & BS_TYPEMASK;
+
+		switch (style)
+		{
+			case BS_CHECKBOX:
+			case BS_AUTOCHECKBOX:
+			case BS_3STATE:
+			case BS_AUTO3STATE:
+			case BS_RADIOBUTTON:
+			case BS_AUTORADIOBUTTON:
+			case BS_PUSHBUTTON:
+			case BS_DEFPUSHBUTTON:
+			case BS_SPLITBUTTON:
+			case BS_DEFSPLITBUTTON:
+			{
+				if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
+					_r_theme_setdarkmode (hwnd, is_enable);
+
+				break;
+			}
+
+			case BS_GROUPBOX:
+			{
+				_r_theme_initializecontext (hwnd, WC_BUTTONW, &_r_theme_groupbox_subclass, is_enable);
+				break;
+			}
+		}
+	}
+	else if (_r_str_isequal2 (&class_name->sr, WC_COMBOBOXW, TRUE))
+	{
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
+		{
+			style = _r_wnd_getstyle (hwnd);
+
+			if ((style & CBS_DROPDOWNLIST) == CBS_DROPDOWNLIST || (style & CBS_DROPDOWN) == CBS_DROPDOWN)
+			{
+				info.cbSize = sizeof (COMBOBOXINFO);
+
+				if (GetComboBoxInfo (hwnd, &info))
+				{
+					// dark scrollbar for listbox of combobox
+					if (info.hwndList)
+						_r_theme_setdarkmode (info.hwndList, is_enable);
+				}
+			}
+		}
+
+		_r_theme_initializecontext (hwnd, VSCLASS_COMBOBOX, &_r_theme_combobox_subclassproc, is_enable);
+	}
+	else if (_r_str_isequal2 (&class_name->sr, WC_EDITW, TRUE))
+	{
+		ex_style = _r_wnd_getstyle_ex (hwnd);
+		style = _r_wnd_getstyle (hwnd);
+
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
+		{
+			if ((style & WS_HSCROLL) == WS_HSCROLL || ((style & WS_VSCROLL) == WS_VSCROLL))
+				_r_theme_setdarkmode (hwnd, is_enable); // dark scrollbar for edit control
+		}
+
+		if ((style & WS_BORDER) == WS_BORDER || (ex_style & WS_EX_CLIENTEDGE) == WS_EX_CLIENTEDGE)
+			_r_theme_initializecontext (hwnd, NULL, &_r_theme_edit_subclass, is_enable);
+
+		_r_wnd_sendmessage (hwnd, 0, WM_THEMECHANGED, 0, 0); // search.c
+	}
+	else if (_r_str_isequal2 (&class_name->sr, WC_HEADERW, TRUE))
+	{
+		SetWindowTheme (hwnd, is_enable ? L"DarkMode_ItemsView" : L"Explorer", NULL);
+
+		_r_theme_initializecontext (hwnd, VSCLASS_HEADER, &_r_theme_header_subclass, is_enable);
+	}
+	else if (_r_str_isequal2 (&class_name->sr, WC_LISTVIEWW, TRUE))
+	{
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
+		{
+			_r_theme_setdarkmode (hwnd, is_enable);
+
+			htip = _r_listview_gettooltips (hwnd, 0);
+
+			if (htip)
+				_r_theme_setdarkmode (htip, is_enable);
+		}
+
+		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : CLR_NONE);
+		_r_wnd_sendmessage (hwnd, 0, LVM_SETBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : CLR_NONE);
+		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTCOLOR, 0, is_enable ? WND_TEXT_CLR : GetSysColor (COLOR_WINDOWTEXT));
+	}
+	else if (_r_str_isequal2 (&class_name->sr, WC_SCROLLBARW, TRUE))
+	{
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
+			_r_theme_setdarkmode (hwnd, is_enable);
+	}
+	else if (_r_str_isequal2 (&class_name->sr, WC_TABCONTROLW, TRUE))
+	{
+		_r_theme_initializecontext (hwnd, VSCLASS_HEADER, &_r_theme_tabcontrol_subclass, is_enable);
+	}
+	else if (_r_str_isequal2 (&class_name->sr, WC_TREEVIEWW, TRUE))
+	{
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
+		{
+			_r_theme_setdarkmode (hwnd, is_enable);
+
+			htip = _r_treeview_gettooltips (hwnd, 0);
+
+			if (htip)
+				_r_theme_setdarkmode (htip, is_enable);
+		}
+
+		_r_wnd_sendmessage (hwnd, 0, TVM_SETBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : -1);
+		_r_wnd_sendmessage (hwnd, 0, TVM_SETTEXTCOLOR, 0, is_enable ? WND_TEXT_CLR : -1);
+	}
+
+	InvalidateRect (hwnd, NULL, FALSE);
+
+	_r_obj_dereference (class_name);
+
+	return TRUE;
+}
+
+VOID _r_theme_initialize (
+	_In_ HWND hwnd,
+	_In_ BOOLEAN is_enable
+)
+{
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static SPAM _SetPreferredAppMode = NULL;
+	static FMT _FlushMenuThemes = NULL;
+
+	PVOID huxtheme;
+	NTSTATUS status;
+
+	if (_r_initonce_begin (&init_once))
+	{
+		status = _r_sys_loadlibrary (L"uxtheme.dll", 0, &huxtheme);
+
+		if (NT_SUCCESS (status))
+		{
+			_r_sys_getprocaddress (huxtheme, NULL, 135, (PVOID_PTR)&_SetPreferredAppMode);
+			_r_sys_getprocaddress (huxtheme, NULL, 136, (PVOID_PTR)&_FlushMenuThemes);
+
+			//_r_sys_freelibrary (huxtheme, FALSE);
+		}
+
+		app_global.theme.bg_brush = CreateSolidBrush (WND_BACKGROUND_CLR);
+
+		_r_initonce_end (&init_once);
+	}
+
+	if (_SetPreferredAppMode)
+		_SetPreferredAppMode (is_enable ? AllowDark : Default);
+
+	if (_FlushMenuThemes)
+		_FlushMenuThemes ();
+
+	_r_theme_setwindowframe (hwnd, is_enable);
+
+	_r_wnd_setsubclass (hwnd, GWLP_WNDPROC, &_r_theme_subclassproc);
+
+	EnumChildWindows (hwnd, &_r_theme_enumchildwindows, is_enable);
+
+	InvalidateRect (hwnd, NULL, FALSE);
+
+	DrawMenuBar (hwnd); // HACK!
+}
+
+VOID _r_theme_initializecontext (
+	_In_ HWND hwnd,
+	_In_opt_ LPCWSTR class_list,
+	_In_ WNDPROC subclass_proc,
+	_In_ BOOLEAN is_enable
+)
+{
+	PR_THEME_CONTEXT context;
+
+	context = _r_wnd_getcontext (hwnd, 666);
+
+	if (context)
+	{
+		_r_wnd_removecontext (hwnd, 666);
+
+		_r_mem_free (context);
+	}
+
+	_r_wnd_removesubclass (hwnd);
+
+	if (is_enable)
+	{
+		context = _r_mem_allocate (sizeof (R_THEME_CONTEXT));
+
+		if (class_list)
+			context->htheme = _r_dc_openthemedata (hwnd, class_list, _r_dc_getwindowdpi (hwnd));
+
+		context->pt.x = LONG_MIN;
+		context->pt.y = LONG_MIN;
+
+		_r_wnd_setcontext (hwnd, 666, context);
+
+		context->wnd_proc = _r_wnd_setsubclass (hwnd, GWLP_WNDPROC, subclass_proc);
+	}
+}
+
+BOOLEAN _r_theme_isenabled ()
+{
+	HANDLE hkey;
+	ULONG value;
+	BOOLEAN is_enabled = FALSE;
+	NTSTATUS status;
+
+	// "ShouldAppsUseDarkMode" is incorrect started from 1903+, use this instead!
+	// https://github.com/ysc3839/win32-darkmode/issues/3
+	status = _r_reg_openkey (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", KEY_READ, &hkey);
+
+	if (NT_SUCCESS (status))
+	{
+		status = _r_reg_queryulong (hkey, L"AppsUseLightTheme", &value);
+
+		if (NT_SUCCESS (status))
+			is_enabled = (value == 0);
+
+		NtClose (hkey);
+	}
+
+	return _r_config_getboolean (L"IsDarkThemeEnabled", is_enabled);
+}
+
+VOID _r_theme_setwindowframe (
+	_In_ HWND hwnd,
+	_In_ BOOLEAN is_enable
+)
+{
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
+	{
+		if (FAILED (DwmSetWindowAttribute (hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &(BOOL){ is_enable }, sizeof (BOOL))))
+			DwmSetWindowAttribute (hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE - 1, &(BOOL){ is_enable }, sizeof (BOOL));
+	}
+
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_11))
+		DwmSetWindowAttribute (hwnd, DWMWA_CAPTION_COLOR, &(BOOL){ is_enable ? WND_BACKGROUND_CLR : DWMWA_COLOR_DEFAULT}, sizeof (COLORREF));
+
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_11_22H2))
+		DwmSetWindowAttribute (hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &(ULONG){is_enable ? DWMSBT_NONE : DWMSBT_AUTO}, sizeof (ULONG));
+}
+
+VOID _r_theme_comboboxrender (
+	_In_ PR_THEME_CONTEXT context,
+	_In_ HWND hwnd,
+	_In_ HDC hdc,
+	_In_ HDC hdc_buffer,
+	_In_ PRECT client_rect,
+	_In_ WNDPROC wnd_proc
+)
+{
+	COMBOBOXINFO info = {0};
+	RECT rect;
+	SIZE size = {0};
+	PR_STRING string;
+	LONG_PTR style;
+	INT index;
+
+	style = _r_wnd_getstyle (hwnd);
+
+	// exclude rect
+	if ((style & CBS_DROPDOWNLIST) != CBS_DROPDOWNLIST || (style & CBS_DROPDOWN) != CBS_DROPDOWN)
+	{
+		info.cbSize = sizeof (COMBOBOXINFO);
+
+		if (CallWindowProcW (wnd_proc, hwnd, CB_GETCOMBOBOXINFO, 0, (LPARAM)&info))
+			ExcludeClipRect (hdc, info.rcItem.left, info.rcItem.top, info.rcItem.right, info.rcItem.bottom);
+	}
+
+	SetRect (&rect, 0, 0, client_rect->right - client_rect->left, client_rect->bottom - client_rect->top);
+
+	SetBkMode (hdc_buffer, TRANSPARENT);
+	SetTextColor (hdc_buffer, WND_TEXT_CLR);
+
+	SelectObject (hdc_buffer, (HGDIOBJ)CallWindowProcW (wnd_proc, hwnd, WM_GETFONT, 0, 0));
+
+	_r_dc_fillrect (hdc_buffer, client_rect, WND_BACKGROUND2_CLR);
+
+	_r_dc_framerect (hdc_buffer, client_rect, PtInRect (client_rect, context->pt) ? WND_HOT_CLR : WND_HIGHLIGHT_CLR);
+
+	if (context->htheme)
+	{
+		GetThemePartSize (context->htheme, hdc_buffer, CP_DROPDOWNBUTTONRIGHT, CBXSR_NORMAL, NULL, TS_TRUE, &size);
+
+		rect.left = client_rect->right - size.cy;
+
+		DrawThemeBackground (context->htheme, hdc_buffer, CP_DROPDOWNBUTTONRIGHT, CBXSR_DISABLED, &rect, NULL);
+
+		rect.left = 0;
+	}
+	else
+	{
+		DrawFrameControl (hdc_buffer, &rect, DFC_SCROLL, DFCS_SCROLLDOWN);
+	}
+
+	if ((style & CBS_DROPDOWNLIST) == CBS_DROPDOWNLIST)
+	{
+		index = _r_combobox_getcurrentitem (hwnd, 0);
+
+		if (index == CB_ERR)
+			return;
+
+		string = _r_combobox_getitemtext (hwnd, 0, index);
+
+		if (!string)
+			return;
+
+		rect.left += 6;
+		rect.right -= 14;
+
+		_r_dc_drawtext (context->htheme, hdc_buffer, &string->sr, &rect, CP_DROPDOWNITEM, CBXSR_NORMAL, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS, WND_TEXT_CLR);
+	}
+}
+
+LRESULT CALLBACK _r_theme_combobox_subclassproc (
+	_In_ HWND hwnd,
+	_In_ UINT msg,
+	_In_ WPARAM wparam,
+	_In_ LPARAM lparam
+)
+{
+	PR_THEME_CONTEXT context;
+	WNDPROC wnd_proc;
+
+	context = _r_wnd_getcontext (hwnd, 666);
+
+	if (!context)
+		return FALSE;
+
+	wnd_proc = context->wnd_proc;
+
+	switch (msg)
+	{
+		case WM_NCDESTROY:
+		{
+			_r_theme_cleanup (hwnd, context);
+			break;
+		}
+
+		case WM_THEMECHANGED:
+		{
+			if (context->htheme)
+				CloseThemeData (context->htheme);
+
+			context->htheme = _r_dc_openthemedata (hwnd, VSCLASS_COMBOBOX, _r_dc_getwindowdpi (hwnd));
+
+			break;
+		}
+
+		case WM_ERASEBKGND:
+		{
+			return TRUE;
+		}
+
+		case WM_MOUSEMOVE:
+		{
+			context->pt.x = GET_X_LPARAM (lparam);
+			context->pt.y = GET_Y_LPARAM (lparam);
+
+			break;
+		}
+
+		case WM_MOUSELEAVE:
+		{
+			context->pt.x = LONG_MIN;
+			context->pt.y = LONG_MIN;
+
+			break;
+		}
+
+		case WM_PAINT:
+		{
+			RECT rect;
+			HBITMAP holdbitmap;
+			HBITMAP hbitmap;
+			HDC hdc_buffer;
+			HDC hdc;
+
+			if (!GetClientRect (hwnd, &rect))
+				break;
+
+			hdc = GetDC (hwnd);
+
+			hdc_buffer = CreateCompatibleDC (hdc);
+
+			hbitmap = CreateCompatibleBitmap (hdc, rect.right, rect.bottom);
+			holdbitmap = SelectObject (hdc_buffer, hbitmap);
+
+			_r_theme_comboboxrender (context, hwnd, hdc, hdc_buffer, &rect, wnd_proc);
+
+			BitBlt (hdc, rect.left, rect.top, rect.right, rect.bottom, hdc_buffer, 0, 0, SRCCOPY);
+
+			SelectObject (hdc_buffer, holdbitmap);
+			DeleteObject (hbitmap);
+
+			DeleteDC (hdc_buffer);
+			ReleaseDC (hwnd, hdc);
+
+			return DefWindowProcW (hwnd, msg, wparam, lparam);
+		}
+	}
+
+	return CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
+}
+
+LRESULT CALLBACK _r_theme_edit_subclass (
+	_In_ HWND hwnd,
+	_In_ UINT msg,
+	_In_ WPARAM wparam,
+	_In_ LPARAM lparam
+)
+{
+	PR_THEME_CONTEXT context;
+	WNDPROC wnd_proc;
+
+	context = _r_wnd_getcontext (hwnd, 666);
+
+	if (!context)
+		return FALSE;
+
+	wnd_proc = context->wnd_proc;
+
+	switch (msg)
+	{
+		case WM_NCDESTROY:
+		{
+			_r_theme_cleanup (hwnd, context);
+			break;
+		}
+
+		case WM_DPICHANGED:
+		{
+			SetWindowPos (hwnd, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+			break;
+		}
+
+		case WM_NCPAINT:
+		{
+			RECT rect = {0};
+			RECT inner;
+			POINT pt = {0};
+			HDC hdc;
+			LONG_PTR style;
+			LONG dpi_value;
+
+			// The searchbox control does it's own theme drawing.
+			if (_r_wnd_getcontext (hwnd, SHORT_MAX))
+				break;
+
+			hdc = GetWindowDC (hwnd);
+
+			if (hdc)
+			{
+				style = _r_wnd_getstyle (hwnd);
+
+				GetWindowRect (hwnd, &rect);
+
+				OffsetRect (&rect, -rect.left, -rect.top);
+
+				dpi_value = _r_dc_getwindowdpi (hwnd);
+
+				if ((style & WS_HSCROLL) == WS_HSCROLL)
+					rect.right += _r_dc_getsystemmetrics (SM_CYHSCROLL, dpi_value);
+
+				if ((style & WS_VSCROLL) == WS_VSCROLL)
+					rect.right += _r_dc_getsystemmetrics (SM_CXVSCROLL, dpi_value);
+
+				inner = rect;
+
+				InflateRect (&inner, -1, -1);
+
+				_r_dc_framerect (hdc, &inner, WND_BACKGROUND_CLR);
+
+				GetCursorPos (&pt);
+				ScreenToClient (hwnd, &pt);
+
+				if ((context->is_mouseactive && PtInRect (&rect, pt)) || GetFocus () == hwnd)
+				{
+					_r_dc_framerect (hdc, &rect, GetSysColor (COLOR_HOTLIGHT));
+				}
+				else
+				{
+					_r_dc_framerect (hdc, &rect, WND_BACKGROUND2_CLR);
+				}
+
+				ReleaseDC (hwnd, hdc);
+
+				return 0;
+			}
+
+			break;
+		}
+
+		case WM_NCCALCSIZE:
+		{
+			LPRECT rect;
+			LONG_PTR style;
+			LONG dpi_value;
+
+			// The searchbox control does it's own theme drawing.
+			if (_r_wnd_getcontext (hwnd, SHORT_MAX))
+				break;
+
+			rect = (LPRECT)lparam;
+
+			dpi_value = _r_dc_getwindowdpi (hwnd);
+
+			InflateRect (rect, -_r_dc_getsystemmetrics (SM_CXEDGE, dpi_value), -_r_dc_getsystemmetrics (SM_CYEDGE, dpi_value));
+
+			style = _r_wnd_getstyle (hwnd);
+
+			if ((style & WS_VSCROLL) == WS_VSCROLL)
+				rect->right -= _r_dc_getsystemmetrics (SM_CXVSCROLL, dpi_value);
+
+			if ((style & WS_HSCROLL) == WS_HSCROLL)
+				rect->bottom -= _r_dc_getsystemmetrics (SM_CYHSCROLL, dpi_value);
+
+			return 0;
+		}
+
+		case WM_PAINT:
+		{
+			HBITMAP holdbitmap;
+			HBITMAP hbitmap;
+			PR_STRING string;
+			RECT rect;
+			HDC buffer_dc;
+			HDC hdc;
+
+			string = _r_edit_getcuebanner (hwnd, 0);
+
+			if (
+				_r_obj_isstringempty (string) ||
+				GetFocus () == hwnd ||
+				CallWindowProcW (wnd_proc, hwnd, WM_GETTEXTLENGTH, 0, 0) > 0 // Edit_GetTextLength
+				)
+			{
+				if (string)
+					_r_obj_dereference (string);
+
+				return CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
+			}
+
+			hdc = (HDC)wparam ? (HDC)wparam : GetDC (hwnd);
+
+			if (hdc)
+			{
+				GetClientRect (hwnd, &rect);
+
+				buffer_dc = CreateCompatibleDC (hdc);
+				hbitmap = CreateCompatibleBitmap (hdc, rect.right, rect.bottom);
+
+				holdbitmap = SelectObject (buffer_dc, hbitmap);
+
+				SetBkMode (buffer_dc, TRANSPARENT);
+
+				if (_r_theme_isenabled ())
+				{
+					SetTextColor (buffer_dc, RGB (170, 170, 170));
+
+					_r_dc_fillrect (buffer_dc, &rect, WND_BACKGROUND2_CLR);
+				}
+				else
+				{
+					SetTextColor (buffer_dc, GetSysColor (COLOR_GRAYTEXT));
+
+					_r_dc_fillrect (buffer_dc, &rect, GetSysColor (COLOR_WINDOW));
+				}
+
+				_r_dc_fixfont (buffer_dc, hwnd, 0);
+
+				rect.left += 2;
+
+				_r_dc_drawtext (NULL, buffer_dc, &string->sr, &rect, 0, 0, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP, 0);
+
+				rect.left -= 2;
+
+				BitBlt (hdc, rect.left, rect.top, rect.right, rect.bottom, buffer_dc, 0, 0, SRCCOPY);
+
+				SelectObject (buffer_dc, holdbitmap);
+
+				DeleteObject (hbitmap);
+				DeleteDC (buffer_dc);
+
+				if (!(HDC)wparam)
+					ReleaseDC (hwnd, hdc);
+			}
+
+			if (string)
+				_r_obj_dereference (string);
+
+			return DefWindowProcW (hwnd, msg, wparam, lparam);
+		}
+
+		case WM_MOUSEMOVE:
+		{
+			TRACKMOUSEEVENT tme = {0};
+
+			if (!context->is_mouseactive)
+			{
+				tme.cbSize = sizeof (TRACKMOUSEEVENT);
+				tme.dwFlags = TME_LEAVE;
+				tme.hwndTrack = hwnd;
+				tme.dwHoverTime = HOVER_DEFAULT;
+
+				TrackMouseEvent (&tme);
+
+				context->is_mouseactive = TRUE;
+			}
+
+			InvalidateRect (hwnd, NULL, FALSE);
+
+			break;
+		}
+
+		case WM_MOUSELEAVE:
+		{
+			TRACKMOUSEEVENT tme = {0};
+
+			if (context->is_mouseactive)
+			{
+				tme.cbSize = sizeof (TRACKMOUSEEVENT);
+				tme.dwFlags = TME_LEAVE | TME_CANCEL;
+				tme.hwndTrack = hwnd;
+				tme.dwHoverTime = HOVER_DEFAULT;
+
+				TrackMouseEvent (&tme);
+
+				context->is_mouseactive = FALSE;
+			}
+
+			break;
+		}
+	}
+
+	return CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
+}
+
+VOID _r_theme_drawgroupbox (
+	_In_opt_ HTHEME htheme,
+	_In_ PPAINTSTRUCT ps,
+	_In_ HWND hwnd
+)
+{
+	RECT rc_background;
+	RECT rc_content;
+	RECT rc_text;
+	RECT rect;
+	SIZE size = {0};
+	PR_STRING string;
+	LONG_PTR style;
+	COLORREF clr_text;
+	ULONG flags;
+	INT state_id;
+	BOOLEAN is_disabled;
+
+	string = _r_ctrl_getstring (hwnd, 0);
+
+	if (!string)
+		return;
+
+	_r_dc_fixfont (ps->hdc, hwnd, 0);
+
+	GetClientRect (hwnd, &rect);
+
+	rc_text = rect;
+	rc_background = rect;
+
+	_r_dc_getfontwidth (ps->hdc, &string->sr, &size);
+
+	rc_background.top += size.cy / 2;
+
+	style = _r_wnd_getstyle (hwnd);
+
+	is_disabled = (style & WS_DISABLED) == WS_DISABLED;
+
+	rc_text.left += ((style & BS_CENTER) == BS_CENTER) ? ((rc_background.right - rc_background.left - size.cx) / 2) : 8;
+	rc_text.bottom = rc_text.top + size.cy;
+	rc_text.right = rc_text.left + size.cx + 4;
+
+	ExcludeClipRect (ps->hdc, rc_text.left, rc_text.top, rc_text.right, rc_text.bottom);
+
+	state_id = is_disabled ? GBS_DISABLED : GBS_NORMAL;
+
+	if (htheme)
+	{
+		rc_content = rc_background;
+
+		GetThemeBackgroundContentRect (htheme, ps->hdc, BP_GROUPBOX, state_id, &rc_background, &rc_content);
+
+		ExcludeClipRect (ps->hdc, rc_content.left, rc_content.top, rc_content.right, rc_content.bottom);
+	}
+
+	_r_dc_framerect (ps->hdc, &rc_background, WND_BACKGROUND2_CLR);
+
+	SelectClipRgn (ps->hdc, NULL);
+
+	flags = (((style & BS_CENTER) == BS_CENTER) ? DT_CENTER : DT_LEFT) | DT_SINGLELINE;
+
+	if (_r_ctrl_getuistate (hwnd, 0))
+		flags |= DT_HIDEPREFIX;
+
+	rc_text.right -= 2;
+	rc_text.left += 2;
+
+	clr_text = is_disabled ? WND_GRAYTEXT_CLR : WND_TEXT_CLR;
+
+	_r_dc_drawtext (htheme, ps->hdc, &string->sr, &rc_text, BP_GROUPBOX, state_id, flags, clr_text);
+
+	_r_obj_dereference (string);
+}
+
+LRESULT CALLBACK _r_theme_groupbox_subclass (
+	_In_ HWND hwnd,
+	_In_ UINT msg,
+	_In_ WPARAM wparam,
+	_In_ LPARAM lparam
+)
+{
+	PR_THEME_CONTEXT context;
+	WNDPROC wnd_proc;
+
+	context = _r_wnd_getcontext (hwnd, 666);
+
+	if (!context)
+		return FALSE;
+
+	wnd_proc = context->wnd_proc;
+
+	switch (msg)
+	{
+		case WM_NCDESTROY:
+		{
+			_r_theme_cleanup (hwnd, context);
+			break;
+		}
+
+		case WM_THEMECHANGED:
+		{
+			if (context->htheme)
+				CloseThemeData (context->htheme);
+
+			context->htheme = _r_dc_openthemedata (hwnd, WC_BUTTONW, _r_dc_getwindowdpi (hwnd));
+
+			break;
+		}
+
+		case WM_ERASEBKGND:
+		{
+			return TRUE;
+		}
+
+		case WM_PAINT:
+		{
+			PAINTSTRUCT ps = {0};
+
+			if (!BeginPaint (hwnd, &ps))
+				break;
+
+			_r_theme_drawgroupbox (context->htheme, &ps, hwnd);
+
+			EndPaint (hwnd, &ps);
+
+			return DefWindowProcW (hwnd, msg, wparam, lparam);
+		}
+	}
+
+	return CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
+}
+
+VOID _r_theme_headercontrol (
+	_In_ PR_THEME_CONTEXT context,
+	_In_ HWND hwnd,
+	_In_ HDC hdc,
+	_In_ LPCRECT rect
+)
+{
+	HDITEMW hdi = {0};
+	WCHAR buffer[128] = {0};
+	R_STRINGREF sr;
+	RECT arrow_rect;
+	RECT head_rect;
+	SIZE arrow_size = {0};
+	INT flags = DT_VCENTER | DT_SINGLELINE | DT_HIDEPREFIX | DT_WORD_ELLIPSIS;
+	INT state_id;
+	INT count;
+
+	SetBkMode (hdc, TRANSPARENT);
+
+	SetTextColor (hdc, WND_TEXT_CLR);
+
+	_r_dc_fixfont (hdc, hwnd, 0);
+
+	_r_dc_fillrect (hdc, rect, WND_BACKGROUND_CLR);
+
+	count = (INT)CallWindowProcW (context->wnd_proc, hwnd, HDM_GETITEMCOUNT, 0, 0);
+
+	for (INT i = 0; i < count; i++)
+	{
+		RtlZeroMemory (&head_rect, sizeof (head_rect));
+
+		if (!CallWindowProcW (context->wnd_proc, hwnd, HDM_GETITEMRECT, (WPARAM)i, (LPARAM)&head_rect))
+			continue;
+
+		if (PtInRect (&head_rect, context->pt))
+		{
+			_r_dc_fillrect (hdc, &head_rect, WND_HOT_CLR);
+		}
+		else
+		{
+			_r_dc_fillrect (hdc, &head_rect, WND_BACKGROUND_CLR);
+
+			if (context->htheme)
+			{
+				DrawThemeEdge (context->htheme, hdc, HP_HEADERITEM, HIS_NORMAL, &head_rect, BDR_RAISEDOUTER, BF_RIGHT, NULL); // vista+
+			}
+			else
+			{
+				DrawEdge (hdc, &head_rect, BDR_RAISEDOUTER, BF_RIGHT);
+			}
+		}
+
+		RtlZeroMemory (&hdi, sizeof (hdi));
+
+		hdi.mask = HDI_TEXT | HDI_FORMAT;
+		hdi.pszText = buffer;
+		hdi.cchTextMax = RTL_NUMBER_OF (buffer);
+
+		if (!CallWindowProcW (context->wnd_proc, hwnd, HDM_GETITEM, (WPARAM)i, (LPARAM)&hdi))
+			break;
+
+		if (hdi.fmt & HDF_SORTUP)
+		{
+			state_id = HSAS_SORTEDUP;
+		}
+		else if (hdi.fmt & HDF_SORTDOWN)
+		{
+			state_id = HSAS_SORTEDDOWN;
+		}
+
+		if ((hdi.fmt & HDF_SORTUP) == HDF_SORTUP || (hdi.fmt & HDF_SORTDOWN) == HDF_SORTDOWN)
+		{
+			if (context->htheme)
+			{
+				arrow_rect = head_rect;
+
+				if (SUCCEEDED (GetThemePartSize (context->htheme, hdc, HP_HEADERSORTARROW, state_id, NULL, TS_TRUE, &arrow_size))) // vista+
+					arrow_rect.bottom = arrow_size.cy;
+
+				DrawThemeBackground (context->htheme, hdc, HP_HEADERSORTARROW, state_id, &arrow_rect, NULL); // vista+
+			}
+		}
+
+		if (hdi.fmt & HDF_RIGHT)
+		{
+			flags |= DT_RIGHT;
+		}
+		else if (hdi.fmt & HDF_CENTER)
+		{
+			flags |= DT_CENTER;
+		}
+		else
+		{
+			flags |= DT_LEFT;
+		}
+
+		head_rect.left += 4;
+		head_rect.right -= 8;
+
+		_r_obj_initializestringref (&sr, buffer);
+
+		_r_dc_drawtext (NULL, hdc, &sr, &head_rect, 0, 0, flags, 0);
+	}
+}
+
+LRESULT CALLBACK _r_theme_header_subclass (
+	_In_ HWND hwnd,
+	_In_ UINT msg,
+	_In_ WPARAM wparam,
+	_In_ LPARAM lparam
+)
+{
+	PR_THEME_CONTEXT context;
+	WNDPROC wnd_proc;
+
+	context = _r_wnd_getcontext (hwnd, 666);
+
+	if (!context)
+		return FALSE;
+
+	wnd_proc = context->wnd_proc;
+
+	switch (msg)
+	{
+		case WM_NCDESTROY:
+		{
+			_r_theme_cleanup (hwnd, context);
+			break;
+		}
+
+		case WM_THEMECHANGED:
+		{
+			if (context->htheme)
+				CloseThemeData (context->htheme);
+
+			context->htheme = _r_dc_openthemedata (hwnd, VSCLASS_HEADER, _r_dc_getwindowdpi (hwnd));
+
+			break;
+		}
+
+		case WM_ERASEBKGND:
+		{
+			return TRUE;
+		}
+
+		case WM_CONTEXTMENU:
+		{
+			LRESULT result;
+
+			result = CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
+
+			InvalidateRect (hwnd, NULL, TRUE);
+
+			return result;
+		}
+
+		case WM_PAINT:
+		{
+			RECT rect = {0};
+			HBITMAP holdbitmap;
+			HBITMAP hbitmap;
+			HDC hdc_buffer;
+			HDC hdc;
+
+			GetClientRect (hwnd, &rect);
+
+			hdc = GetDC (hwnd);
+
+			hdc_buffer = CreateCompatibleDC (hdc);
+			hbitmap = CreateCompatibleBitmap (hdc, rect.right, rect.bottom);
+
+			holdbitmap = SelectObject (hdc_buffer, hbitmap);
+
+			_r_theme_headercontrol (context, hwnd, hdc_buffer, &rect);
+
+			BitBlt (hdc, rect.left, rect.top, rect.right, rect.bottom, hdc_buffer, 0, 0, SRCCOPY);
+
+			SelectObject (hdc_buffer, holdbitmap);
+
+			DeleteObject (hbitmap);
+			DeleteDC (hdc_buffer);
+
+			ReleaseDC (hwnd, hdc);
+
+			return DefWindowProcW (hwnd, msg, wparam, lparam);
+		}
+
+		case WM_MOUSEMOVE:
+		{
+			TRACKMOUSEEVENT tme = {0};
+
+			if (GetCapture () == hwnd)
+				break;
+
+			if (!context->is_mouseactive)
+			{
+				tme.cbSize = sizeof (TRACKMOUSEEVENT);
+				tme.dwFlags = TME_LEAVE;
+				tme.hwndTrack = hwnd;
+
+				TrackMouseEvent (&tme);
+
+				context->is_mouseactive = TRUE;
+			}
+
+			context->pt.x = GET_X_LPARAM (lparam);
+			context->pt.y = GET_Y_LPARAM (lparam);
+
+			InvalidateRect (hwnd, NULL, FALSE);
+
+			break;
+		}
+
+		case WM_MOUSELEAVE:
+		{
+			LRESULT result;
+
+			result = CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
+
+			context->is_mouseactive = FALSE;
+			context->pt.x = LONG_MIN;
+			context->pt.y = LONG_MIN;
+
+			InvalidateRect (hwnd, NULL, TRUE);
+
+			return result;
+		}
+	}
+
+	return CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
+}
+
+LRESULT CALLBACK _r_theme_rebar_subclass (
+	_In_ HWND hwnd,
+	_In_ UINT msg,
+	_In_ WPARAM wparam,
+	_In_ LPARAM lparam
+)
+{
+	PR_THEME_CONTEXT context;
+	WNDPROC wnd_proc;
+
+	context = _r_wnd_getcontext (hwnd, 666);
+
+	if (!context)
+		return FALSE;
+
+	wnd_proc = context->wnd_proc;
+
+	switch (msg)
+	{
+		case WM_NCDESTROY:
+		{
+			_r_theme_cleanup (hwnd, context);
+			break;
+		}
+
+		case WM_CTLCOLOREDIT:
+		{
+			HDC hdc = (HDC)wparam;
+
+			SetBkMode (hdc, TRANSPARENT);
+			SetTextColor (hdc, WND_TEXT_CLR);
+			SetDCBrushColor (hdc, WND_BACKGROUND2_CLR);
+
+			return (LRESULT)GetStockObject (DC_BRUSH);
+		}
+
+		case WM_CTLCOLORSTATIC:
+		{
+			HDC hdc = (HDC)wparam;
+
+			SetBkMode (hdc, TRANSPARENT);
+			SetTextColor (hdc, WND_TEXT_CLR);
+			SetBkColor (hdc, WND_BACKGROUND_CLR);
+
+			return (LRESULT)app_global.theme.bg_brush;
+		}
+	}
+
+	return CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
+}
+
+LRESULT CALLBACK _r_theme_statusbar_subclass (
+	_In_ HWND hwnd,
+	_In_ UINT msg,
+	_In_ WPARAM wparam,
+	_In_ LPARAM lparam
+)
+{
+	PR_THEME_CONTEXT context;
+	WNDPROC wnd_proc;
+
+	context = _r_wnd_getcontext (hwnd, 666);
+
+	if (!context)
+		return FALSE;
+
+	wnd_proc = context->wnd_proc;
+
+	switch (msg)
+	{
+		case WM_NCDESTROY:
+		{
+			_r_theme_cleanup (hwnd, context);
+			break;
+		}
+
+		case WM_THEMECHANGED:
+		{
+			if (context->htheme)
+				CloseThemeData (context->htheme);
+
+			context->htheme = _r_dc_openthemedata (hwnd, VSCLASS_STATUS, _r_dc_getwindowdpi (hwnd));
+
+			break;
+		}
+
+		case WM_ERASEBKGND:
+		{
+			return TRUE;
+		}
+
+		case WM_PAINT:
+		{
+			DRAWITEMSTRUCT dis = {0};
+			PAINTSTRUCT ps;
+			RECT intersect = {0};
+			RECT divider;
+			RECT rect = {0};
+			RECT part = {0};
+			SIZE grip = {0};
+			PR_STRING string;
+			HDC hdc;
+			LONG borders[3] = {0};
+			LONG parts;
+			INT ctrl_id;
+			BOOLEAN is_sizegrip;
+
+			hdc = BeginPaint (hwnd, &ps);
+
+			if (!hdc)
+				break;
+
+			_r_dc_fixfont (hdc, hwnd, 0);
+
+			GetClientRect (hwnd, &rect);
+
+			_r_dc_fillrect (hdc, &ps.rcPaint, WND_BACKGROUND_CLR);
+
+			parts = _r_status_getparts (hwnd, 0);
+
+			ctrl_id = GetDlgCtrlID (hwnd);
+
+			_r_status_getborders (hwnd, 0, &borders);
+
+			is_sizegrip = _r_wnd_getstyle (hwnd) && SBARS_SIZEGRIP;
+
+			for (LONG i = 0; i < parts; i++)
+			{
+				if (!_r_status_getrect (hwnd, 0, i, &part))
+					continue;
+
+				if (!IntersectRect (&intersect, &part, &ps.rcPaint))
+					continue;
+
+				SetRect (&divider, part.right - borders[1], part.top, part.right, part.bottom);
+
+				SetBkMode (hdc, TRANSPARENT);
+				SetTextColor (hdc, WND_TEXT_CLR);
+
+				part.left += borders[2];
+				part.right -= borders[1];
+
+				string = _r_status_gettext (hwnd, 0, i, NULL);
+
+				if (string)
+				{
+					_r_dc_drawtext (context->htheme, hdc, &string->sr, &part, SP_PANE, 0, DT_SINGLELINE | DT_VCENTER | DT_LEFT, WND_TEXT_CLR);
+
+					_r_obj_dereference (string);
+				}
+
+				if (i < (parts - 1))
+					_r_dc_fillrect (hdc, &divider, WND_BACKGROUND2_CLR);
+			}
+
+			if (is_sizegrip)
+			{
+				GetThemePartSize (context->htheme, hdc, SP_GRIPPER, 0, &rect, TS_DRAW, &grip);
+
+				intersect = rect;
+
+				intersect.left = intersect.right - grip.cx;
+				intersect.top = intersect.bottom - grip.cy;
+
+				if (context->htheme)
+				{
+					DrawThemeBackground (context->htheme, hdc, SP_GRIPPER, 0, &intersect, &intersect);
+				}
+				else
+				{
+					DrawFrameControl (hdc, &intersect, DFC_SCROLL, DFCS_SCROLLSIZEGRIP);
+				}
+			}
+
+			EndPaint (hwnd, &ps);
+
+			return DefWindowProcW (hwnd, msg, wparam, lparam);
+		}
+	}
+
+	return CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
+}
+
+VOID _r_theme_rendertabcontrol (
+	_In_ PR_THEME_CONTEXT context,
+	_In_ HWND hwnd,
+	_In_ HDC hdc,
+	_In_ PRECT client_rect
+)
+{
+	TCITEMW tci = {0};
+	WCHAR buffer[128] = {0};
+	RECT rect = {0};
+	R_STRINGREF sr;
+	INT current_item;
+	INT count;
+
+	SetBkMode (hdc, TRANSPARENT);
+	SetTextColor (hdc, WND_TEXT_CLR);
+
+	_r_dc_fixfont (hdc, hwnd, 0);
+
+	_r_dc_fillrect (hdc, client_rect, WND_BACKGROUND_CLR);
+
+	current_item = _r_tab_getcurrentitem (hwnd, 0);
+	count = _r_tab_getitemcount (hwnd, 0);
+
+	for (INT i = 0; i < count; i++)
+	{
+		_r_wnd_sendmessage (hwnd, 0, TCM_GETITEMRECT, (WPARAM)i, (LPARAM)&rect);
+
+		if (PtInRect (&rect, context->pt))
+		{
+			OffsetRect (&rect, 2, 2);
+
+			_r_dc_fillrect (hdc, &rect, WND_HOT_CLR);
+		}
+		else
+		{
+			OffsetRect (&rect, 2, 2);
+
+			_r_dc_fillrect (hdc, &rect, (current_item == i) ? WND_BACKGROUND2_CLR : WND_BACKGROUND_CLR);
+		}
+
+		tci.mask = TCIF_TEXT | TCIF_IMAGE | TCIF_STATE;
+		tci.dwStateMask = TCIS_BUTTONPRESSED | TCIS_HIGHLIGHTED;
+		tci.pszText = buffer;
+		tci.cchTextMax = RTL_NUMBER_OF (buffer);
+
+		if (_r_wnd_sendmessage (hwnd, 0, TCM_GETITEM, (WPARAM)i, (LPARAM)&tci))
+		{
+			_r_obj_initializestringref (&sr, tci.pszText);
+
+			_r_dc_drawtext (NULL, hdc, &sr, &rect, 0, 0, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_HIDEPREFIX, 0);
+		}
+	}
+}
+
+LRESULT CALLBACK _r_theme_tabcontrol_subclass (
+	_In_ HWND hwnd,
+	_In_ UINT msg,
+	_In_ WPARAM wparam,
+	_In_ LPARAM lparam
+)
+{
+	PR_THEME_CONTEXT context;
+	WNDPROC wnd_proc;
+
+	context = _r_wnd_getcontext (hwnd, 666);
+
+	if (!context)
+		return FALSE;
+
+	wnd_proc = context->wnd_proc;
+
+	switch (msg)
+	{
+		case WM_NCDESTROY:
+		{
+			_r_theme_cleanup (hwnd, context);
+			break;
+		}
+
+		case WM_ERASEBKGND:
+		{
+			return TRUE;
+		}
+
+		case WM_MOUSEMOVE:
+		{
+			TRACKMOUSEEVENT tme = {0};
+
+			if (GetCapture () == hwnd)
+				break;
+
+			if (!context->is_mouseactive)
+			{
+				tme.cbSize = sizeof (TRACKMOUSEEVENT);
+				tme.dwFlags = TME_LEAVE;
+				tme.hwndTrack = hwnd;
+
+				TrackMouseEvent (&tme);
+
+				context->is_mouseactive = TRUE;
+			}
+
+			context->pt.x = GET_X_LPARAM (lparam);
+			context->pt.y = GET_Y_LPARAM (lparam);
+
+			InvalidateRect (hwnd, NULL, FALSE);
+
+			break;
+		}
+
+		case WM_MOUSELEAVE:
+		{
+			context->pt.x = LONG_MIN;
+			context->pt.y = LONG_MIN;
+
+			context->is_mouseactive = FALSE;
+
+			InvalidateRect (hwnd, NULL, FALSE);
+
+			break;
+		}
+
+		case WM_PAINT:
+		{
+			RECT client_rect;
+			RECT rect;
+			HDC buffer_dc;
+			HDC hdc;
+			HBITMAP hold_bitmap;
+			HBITMAP hbitmap;
+
+			GetClientRect (hwnd, &client_rect);
+
+			hdc = GetDC (hwnd);
+
+			buffer_dc = CreateCompatibleDC (hdc);
+			hbitmap = CreateCompatibleBitmap (hdc, client_rect.right, client_rect.bottom);
+			hold_bitmap = SelectObject (buffer_dc, hbitmap);
+
+			rect = client_rect;
+
+			_r_wnd_sendmessage (hwnd, 0, TCM_ADJUSTRECT, 0, (LPARAM)&rect);
+
+			ExcludeClipRect (hdc, rect.left, rect.top, rect.right, rect.bottom);
+
+			_r_theme_rendertabcontrol (context, hwnd, buffer_dc, &client_rect);
+
+			BitBlt (hdc, client_rect.left, client_rect.top, client_rect.right, client_rect.bottom, buffer_dc, 0, 0, SRCCOPY);
+
+			SelectObject (buffer_dc, hold_bitmap);
+
+			DeleteObject (hbitmap);
+			DeleteDC (buffer_dc);
+
+			ReleaseDC (hwnd, hdc);
+
+			return DefWindowProcW (hwnd, msg, wparam, lparam);
+		}
+	}
+
+	return CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
+}
+
+VOID _r_theme_rendercheckbox (
+	_In_ LPNMCUSTOMDRAW draw_info,
+	_In_ HTHEME htheme,
+	_In_ HDC hdc,
+	_In_ PR_STRING string,
+	_In_ INT part_id,
+	_In_ INT state_id,
+	_In_ LONG_PTR style
+)
+{
+	LOGFONT lf = {0};
+	RECT rect_text = {0};
+	RECT rect_focus;
+	RECT rect_client;
+	RECT rect_bg;
+	SIZE size = {0};
+	HFONT hfont = NULL;
+	HFONT hold_font = NULL;
+	HFONT hnew_font = NULL;
+	LONG_PTR btn_style;
+	COLORREF clr_text;
+	ULONG flags = DT_LEFT;
+	ULONG ui_state;
+	HRESULT status;
+
+	hfont = _r_ctrl_getfont (draw_info->hdr.hwndFrom, 0);
+
+	if (!hfont)
+	{
+		if (SUCCEEDED (GetThemeFont (htheme, hdc, part_id, state_id, TMT_FONT, &lf)))
+		{
+			hnew_font = CreateFontIndirectW (&lf);
+
+			hfont = hnew_font;
+		}
+	}
+
+	ui_state = _r_ctrl_getuistate (draw_info->hdr.hwndFrom, 0);
+
+	btn_style = style & BS_TYPEMASK;
+
+	hold_font = (HFONT)SelectObject (hdc, hfont);
+
+	flags |= (style & BS_MULTILINE) ? DT_WORDBREAK : DT_SINGLELINE;
+	flags |= ((style & BS_CENTER) == BS_CENTER) ? DT_CENTER : (style & BS_RIGHT) ? DT_RIGHT : 0;
+	flags |= ((style & BS_VCENTER) == BS_VCENTER) ? DT_VCENTER : (style & BS_BOTTOM) ? DT_BOTTOM : 0;
+	flags |= (ui_state & UISF_HIDEACCEL) ? DT_HIDEPREFIX : 0;
+
+	if (!(style & BS_MULTILINE) && !(style & BS_BOTTOM) && !(style & BS_TOP))
+		flags |= DT_VCENTER;
+
+	GetThemePartSize (htheme, hdc, part_id, state_id, NULL, TS_DRAW, &size);
+
+	status = GetThemeBackgroundContentRect (htheme, hdc, part_id, state_id, &draw_info->rc, &rect_text);
+
+	if (FAILED (status))
+		rect_text = draw_info->rc;
+
+	rect_bg = draw_info->rc;
+
+	if (flags & DT_SINGLELINE)
+		rect_bg.top += (_r_calc_rectheight (&rect_text) - size.cy) / 2;
+
+	rect_bg.bottom = rect_bg.top + size.cy;
+	rect_bg.right = rect_bg.left + size.cx;
+
+	rect_text.left = rect_bg.right + 4;
+
+	rect_client = draw_info->rc;
+
+	DrawThemeParentBackground (draw_info->hdr.hwndFrom, hdc, &rect_client);
+
+	DrawThemeBackground (htheme, hdc, part_id, state_id, &rect_bg, NULL);
+
+	clr_text = style & WS_DISABLED ? WND_GRAYTEXT_CLR : WND_TEXT_CLR;
+
+	_r_dc_drawtext (htheme, hdc, &string->sr, &rect_text, part_id, state_id, flags, clr_text);
+
+	if ((draw_info->uItemState & BST_FOCUS) && !(ui_state & UISF_HIDEFOCUS))
+	{
+		_r_dc_drawtext (htheme, hdc, &string->sr, &rect_text, part_id, state_id, flags | DTT_CALCRECT, clr_text);
+
+		rect_focus = rect_text;
+
+		InflateRect (&rect_focus, -GetSystemMetrics (SM_CXEDGE), -GetSystemMetrics (SM_CYEDGE));
+
+		DrawFocusRect (hdc, &rect_focus);
+	}
+
+	if (hnew_font)
+		DeleteObject (hnew_font);
+
+	SelectObject (hdc, hold_font);
+}
+
+VOID _r_theme_paintcheckbox (
+	_In_ LPNMCUSTOMDRAW draw_info,
+	_In_ HTHEME htheme,
+	_In_ PR_STRING string,
+	_In_ INT part_id,
+	_In_ INT state_id,
+	_In_ LONG_PTR style
+)
+{
+	BP_ANIMATIONPARAMS anim_params = {0};
+	HANIMATIONBUFFER hanimation;
+	HDC hdc_from = NULL;
+	HDC hdc_to = NULL;
+
+	if (BufferedPaintRenderAnimation (draw_info->hdr.hwndFrom, draw_info->hdc))
+		return;
+
+	anim_params.cbSize = sizeof (BP_ANIMATIONPARAMS);
+	anim_params.style = BPAS_LINEAR;
+
+	GetThemeTransitionDuration (htheme, part_id, state_id, state_id, TMT_TRANSITIONDURATIONS, &anim_params.dwDuration);
+
+	hanimation = BeginBufferedAnimation (draw_info->hdr.hwndFrom, draw_info->hdc, &draw_info->rc, BPBF_COMPATIBLEBITMAP, NULL, &anim_params, &hdc_from, &hdc_to);
+
+	if (hanimation)
+	{
+		if (hdc_from)
+			_r_theme_rendercheckbox (draw_info, htheme, hdc_from, string, part_id, state_id, style);
+
+		if (hdc_to)
+			_r_theme_rendercheckbox (draw_info, htheme, hdc_to, string, part_id, state_id, style);
+
+		EndBufferedAnimation (hanimation, TRUE);
+	}
+	else
+	{
+		_r_theme_rendercheckbox (draw_info, htheme, draw_info->hdc, string, part_id, state_id, style);
+	}
+}
+
+LRESULT CALLBACK _r_theme_drawcheckbox (
+	_In_ LPNMCUSTOMDRAW draw_info
+)
+{
+	switch (draw_info->dwDrawStage)
+	{
+		case CDDS_PREPAINT:
+		{
+			RECT rect = {0};
+			PR_STRING string;
+			HTHEME htheme;
+			LONG_PTR style;
+			LONG dpi_value;
+			INT part_id;
+			INT state_id = RBS_UNCHECKEDNORMAL;
+			BOOLEAN is_checked;
+
+			style = _r_wnd_getstyle (draw_info->hdr.hwndFrom) & BS_TYPEMASK;
+
+			if (style == BS_CHECKBOX || style == BS_AUTOCHECKBOX || style == BS_3STATE || style == BS_AUTO3STATE)
+			{
+				part_id = BP_CHECKBOX;
+			}
+			else if (style == BS_RADIOBUTTON || style == BS_AUTORADIOBUTTON)
+
+			{
+				part_id = BP_RADIOBUTTON;
+			}
+			else
+			{
+				return CDRF_DODEFAULT;
+			}
+
+			is_checked = _r_ctrl_isbuttonchecked (draw_info->hdr.hwndFrom, 0);
+
+			// states of BP_CHECKBOX and BP_RADIOBUTTON are the same
+			if ((draw_info->uItemState & CDIS_DISABLED) == CDIS_DISABLED)
+			{
+				state_id = is_checked ? RBS_CHECKEDDISABLED : RBS_UNCHECKEDDISABLED;
+			}
+			else if ((draw_info->uItemState & CDIS_SELECTED) == CDIS_SELECTED)
+			{
+				state_id = is_checked ? RBS_CHECKEDPRESSED : RBS_UNCHECKEDPRESSED;
+			}
+			else if ((draw_info->uItemState & CDIS_HOT) == CDIS_HOT)
+			{
+				state_id = is_checked ? RBS_CHECKEDHOT : RBS_UNCHECKEDHOT;
+			}
+			else
+			{
+				state_id = is_checked ? RBS_CHECKEDNORMAL : RBS_UNCHECKEDNORMAL;
+			}
+
+			dpi_value = _r_dc_getwindowdpi (draw_info->hdr.hwndFrom);
+
+			htheme = _r_dc_openthemedata (draw_info->hdr.hwndFrom, VSCLASS_BUTTON, dpi_value);
+
+			if (!htheme)
+				return CDRF_DODEFAULT;
+
+			string = _r_ctrl_getstring (draw_info->hdr.hwndFrom, 0);
+
+			if (string)
+			{
+				_r_theme_paintcheckbox (draw_info, htheme, string, part_id, state_id, style);
+
+				_r_obj_dereference (string);
+			}
+
+			CloseThemeData (htheme);
+
+			return CDRF_SKIPDEFAULT;
+		}
+	}
+
+	return CDRF_DODEFAULT;
+}
+
+LRESULT CALLBACK _r_theme_drawrebar (
+	_In_ LPNMCUSTOMDRAW draw_info
+)
+{
+	// Temp chevron workaround until location/state supported.
+	if (draw_info->dwDrawStage != CDDS_PREPAINT)
+		return CDRF_DODEFAULT;
+
+	switch (draw_info->dwDrawStage)
+	{
+		case CDDS_PREPAINT:
+		{
+			SetTextColor (draw_info->hdc, WND_TEXT_CLR);
+
+			_r_dc_fillrect (draw_info->hdc, &draw_info->rc, WND_BACKGROUND_CLR);
+
+			return CDRF_NOTIFYITEMDRAW;
+		}
+
+		case CDDS_ITEMPREPAINT:
+		{
+			return CDRF_SKIPDEFAULT;
+		}
+	}
+
+	return CDRF_DODEFAULT;
+}
+
+LRESULT CALLBACK _r_theme_drawtoolbar (
+	_In_ LPNMTBCUSTOMDRAW draw_info
+)
+{
+	switch (draw_info->nmcd.dwDrawStage)
+	{
+		case CDDS_PREPAINT:
+		{
+			return CDRF_NOTIFYITEMDRAW;
+		}
+
+		case CDDS_ITEMPREPAINT:
+		{
+			draw_info->clrText = WND_TEXT_CLR;
+			draw_info->clrBtnHighlight = WND_HIGHLIGHT_CLR;
+			draw_info->clrHighlightHotTrack = WND_HOT_CLR;
+
+			draw_info->nStringBkMode = TRANSPARENT;
+			draw_info->nHLStringBkMode = TRANSPARENT;
+
+			return TBCDRF_HILITEHOTTRACK | TBCDRF_USECDCOLORS;
+		}
+
+		return CDRF_SKIPDEFAULT;
+	}
+
+	return CDRF_DODEFAULT;
+}
+
+LRESULT CALLBACK _r_theme_drawlistviewgroup (
+	_In_ LPNMLVCUSTOMDRAW draw_info
+)
+{
+	switch (draw_info->nmcd.dwDrawStage)
+	{
+		case CDDS_PREPAINT:
+		{
+			LVGROUP lvg = {0};
+			R_STRINGREF sr;
+			ULONG flags = DT_VCENTER | DT_SINGLELINE | DT_HIDEPREFIX;
+			LONG dpi_value;
+
+			dpi_value = _r_dc_getwindowdpi (draw_info->nmcd.hdr.hwndFrom);
+
+			SetBkMode (draw_info->nmcd.hdc, TRANSPARENT);
+
+			_r_dc_fixfont (draw_info->nmcd.hdc, draw_info->nmcd.hdr.hwndFrom, 0);
+
+			lvg.cbSize = sizeof (LVGROUP);
+			lvg.mask = LVGF_HEADER | LVGF_ALIGN;
+
+			if (_r_wnd_sendmessage (draw_info->nmcd.hdr.hwndFrom, 0, LVM_GETGROUPINFO, draw_info->nmcd.dwItemSpec, (LPARAM)&lvg) != INT_ERROR)
+			{
+				SetTextColor (draw_info->nmcd.hdc, WND_TEXT_CLR);
+
+				draw_info->rcText.top += _r_dc_getdpi (2, dpi_value);
+				draw_info->rcText.bottom -= _r_dc_getdpi (2, dpi_value);
+
+				_r_dc_fillrect (draw_info->nmcd.hdc, &draw_info->rcText, WND_BACKGROUND2_CLR);
+
+				draw_info->rcText.top -= _r_dc_getdpi (2, dpi_value);
+				draw_info->rcText.bottom += _r_dc_getdpi (2, dpi_value);
+
+				if (lvg.pszHeader)
+				{
+					draw_info->rcText.left += _r_dc_getdpi (10, dpi_value);
+
+					if (lvg.uAlign & LVGA_HEADER_LEFT)
+					{
+						flags |= DT_LEFT;
+					}
+					else if (lvg.uAlign & LVGA_HEADER_CENTER)
+					{
+						flags |= DT_CENTER;
+					}
+					else if (lvg.uAlign & LVGA_HEADER_RIGHT)
+					{
+						flags |= DT_RIGHT;
+					}
+
+					_r_obj_initializestringref (&sr, lvg.pszHeader);
+
+					_r_dc_drawtext (NULL, draw_info->nmcd.hdc, &sr, &draw_info->rcText, 0, 0, flags, 0);
+
+					draw_info->rcText.left -= _r_dc_getdpi (10, dpi_value);
+				}
+			}
+
+			return CDRF_SKIPDEFAULT;
+		}
+	}
+
+	return CDRF_DODEFAULT;
+}
+
+LRESULT CALLBACK _r_theme_subclassproc (
+	_In_ HWND hwnd,
+	_In_ UINT msg,
+	_In_ WPARAM wparam,
+	_In_ LPARAM lparam
+)
+{
+	WNDPROC wnd_proc;
+
+	wnd_proc = _r_wnd_getsubclass (hwnd);
+
+	if (!wnd_proc)
+		return FALSE;
+
+	if (!_r_theme_isenabled ())
+		return CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
+
+	switch (msg)
+	{
+		case WM_NCDESTROY:
+		{
+			_r_wnd_removesubclass (hwnd);
+			break;
+		}
+
+		case WM_UAHDRAWMENU:
+		{
+			LPUAHMENU menu_item;
+			MENUBARINFO mbi = {0};
+			RECT rect_wnd;
+			RECT rect = {0};
+
+			menu_item = (LPUAHMENU)lparam;
+
+			mbi.cbSize = sizeof (mbi);
+
+			// get the menubar rect
+			if (!GetMenuBarInfo (hwnd, OBJID_MENU, 0, &mbi))
+				break;
+
+			if (!GetWindowRect (hwnd, &rect_wnd))
+				break;
+
+			// the rcBar is offset by the window rect
+			OffsetRect (&mbi.rcBar, -rect_wnd.left, -rect_wnd.top);
+
+			mbi.rcBar.top -= 1;
+
+			_r_dc_fillrect (menu_item->hdc, &mbi.rcBar, WND_BACKGROUND_CLR);
+
+			return TRUE;
+		}
+
+		case WM_UAHDRAWMENUITEM:
+		{
+			LPUAHDRAWMENUITEM menu_item;
+			MENUITEMINFO mii = {0};
+			R_STRINGREF sr;
+			WCHAR buffer[128] = {0};
+			HTHEME htheme;
+			ULONG flags = DT_CENTER | DT_SINGLELINE | DT_VCENTER;
+			COLORREF clr = WND_BACKGROUND_CLR;
+			INT state_id = MPI_NORMAL;
+
+			menu_item = (LPUAHDRAWMENUITEM)lparam;
+
+			mii.cbSize = sizeof (mii);
+			mii.fMask = MIIM_STRING;
+			mii.dwTypeData = buffer;
+			mii.cch = RTL_NUMBER_OF (buffer);
+
+			if (!GetMenuItemInfoW (menu_item->um.hmenu, menu_item->umi.iPosition, TRUE, &mii))
+				break;
+
+			if ((menu_item->dis.itemState & ODS_INACTIVE) || (menu_item->dis.itemState & ODS_DEFAULT))
+				state_id = MPI_NORMAL; // normal display
+
+			if ((menu_item->dis.itemState & ODS_HOTLIGHT) || (menu_item->dis.itemState & ODS_SELECTED))
+			{
+				state_id = MPI_HOT; // hot tracking
+
+				clr = WND_HIGHLIGHT_CLR;
+			}
+
+			if ((menu_item->dis.itemState & ODS_GRAYED) || (menu_item->dis.itemState & ODS_DISABLED))
+				state_id = MPI_DISABLED;
+
+			if (menu_item->dis.itemState & ODS_NOACCEL)
+				flags |= DT_HIDEPREFIX;
+
+			htheme = _r_dc_openthemedata (hwnd, VSCLASS_MENU, _r_dc_getwindowdpi (hwnd));
+
+			if (!htheme)
+				break;
+
+			_r_dc_fillrect (menu_item->um.hdc, &menu_item->dis.rcItem, clr);
+
+			DrawThemeBackground (htheme, menu_item->um.hdc, MENU_POPUPITEM, state_id, &menu_item->dis.rcItem, NULL);
+
+			_r_obj_initializestringref (&sr, buffer);
+
+			_r_dc_drawtext (htheme, menu_item->um.hdc, &sr, &menu_item->dis.rcItem, MENU_POPUPITEM, state_id, flags, WND_TEXT_CLR);
+
+			CloseThemeData (htheme);
+
+			return TRUE;
+		}
+
+		case WM_NOTIFY:
+		{
+			LPNMHDR data = (LPNMHDR)lparam;
+
+			switch (data->code)
+			{
+				case NM_CUSTOMDRAW:
+				{
+					LPNMCUSTOMDRAW custom_draw;
+					LPNMLVCUSTOMDRAW lvcd;
+					WCHAR class_name[128];
+					LONG_PTR style;
+
+					custom_draw = (LPNMCUSTOMDRAW)lparam;
+
+					if (!GetClassNameW (custom_draw->hdr.hwndFrom, class_name, RTL_NUMBER_OF (class_name)))
+						break;
+
+					if (_r_str_compare (class_name, WC_BUTTONW, 0) == 0)
+					{
+						style = _r_wnd_getstyle (custom_draw->hdr.hwndFrom) & BS_TYPEMASK;
+
+						switch (style)
+						{
+							case BS_CHECKBOX:
+							case BS_AUTOCHECKBOX:
+							case BS_3STATE:
+							case BS_AUTO3STATE:
+							case BS_RADIOBUTTON:
+							case BS_AUTORADIOBUTTON:
+							{
+								return _r_theme_drawcheckbox (custom_draw);
+							}
+						}
+					}
+					else if (_r_str_compare (class_name, REBARCLASSNAMEW, 0) == 0)
+					{
+						return _r_theme_drawrebar (custom_draw);
+					}
+					else if (_r_str_compare (class_name, TOOLBARCLASSNAMEW, 0) == 0)
+					{
+						return _r_theme_drawtoolbar ((LPNMTBCUSTOMDRAW)custom_draw);
+					}
+					else if (_r_str_compare (class_name, WC_LISTVIEWW, 0) == 0)
+					{
+						lvcd = (LPNMLVCUSTOMDRAW)custom_draw;
+
+						if (lvcd->dwItemType == LVCDI_GROUP)
+							return _r_theme_drawlistviewgroup (lvcd);
+					}
+
+					break;
+				}
+			}
+
+			break;
+		}
+
+		case WM_SYNCPAINT:
+		{
+			RedrawWindow (hwnd, NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
+			break;
+		}
+
+		case WM_PRINTCLIENT:
+		{
+			return TRUE;
+		}
+
+		case WM_CTLCOLOREDIT:
+		{
+			HDC hdc = (HDC)wparam;
+
+			SetBkMode (hdc, TRANSPARENT);
+			SetTextColor (hdc, WND_TEXT_CLR);
+			SetDCBrushColor (hdc, WND_BACKGROUND2_CLR);
+
+			return (LRESULT)GetStockObject (DC_BRUSH);
+		}
+
+		case WM_CTLCOLORBTN:
+		case WM_CTLCOLORDLG:
+		case WM_CTLCOLORSTATIC:
+		case WM_CTLCOLORLISTBOX:
+		{
+			HDC hdc = (HDC)wparam;
+
+			SetBkMode (hdc, TRANSPARENT);
+			SetTextColor (hdc, WND_TEXT_CLR);
+			SetBkColor (hdc, WND_BACKGROUND_CLR);
+
+			return (LRESULT)app_global.theme.bg_brush;
+		}
+
+		case WM_NCACTIVATE:
+		case WM_NCPAINT:
+		{
+			RECT client_rect;
+			RECT rect;
+			RECT line;
+			HDC hdc;
+			LRESULT result;
+
+			result = CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
+
+			if (GetMenu (hwnd))
+			{
+				GetClientRect (hwnd, &client_rect);
+				GetWindowRect (hwnd, &rect);
+
+				MapWindowPoints (hwnd, NULL, (PPOINT)&client_rect, 2);
+
+				OffsetRect (&client_rect, -rect.left, -rect.top);
+
+				// the rcBar is offset by the window rect (thanks to adzm) (dmex)
+				line = client_rect;
+
+				line.bottom = line.top;
+				line.top -= 1;
+
+				hdc = GetWindowDC (hwnd);
+
+				if (hdc)
+				{
+					_r_dc_fillrect (hdc, &line, WND_BACKGROUND_CLR);
+
+					ReleaseDC (hwnd, hdc);
+				}
+			}
+
+			return result;
+		}
+	}
+
+	return CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
 }
