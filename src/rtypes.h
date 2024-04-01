@@ -94,6 +94,12 @@ typedef BOOL (WINAPI* SPAM)(
 // RefreshImmersiveColorPolicyState (win10rs5+)
 typedef VOID (WINAPI* RICPS)();
 
+// OpenNcThemeData (win10rs5+)
+typedef HTHEME (WINAPI* ONCTD)(
+	_In_ HWND hWnd,
+	_In_ LPCWSTR classList
+	);
+
 //
 // Printf specifiers
 //
