@@ -4840,6 +4840,7 @@ FORCEINLINE VOID _r_hotkey_set (
 {
 	_r_wnd_sendmessage (hwnd, ctrl_id, HKM_SETHOTKEY, (WPARAM)hotkey, 0);
 }
+
 //
 // Control: up-down
 //
