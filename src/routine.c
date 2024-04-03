@@ -3833,8 +3833,9 @@ BOOLEAN _r_clipboard_set (
 
 			GlobalUnlock (base_address);
 
-			if (EmptyClipboard ())
-				is_success = !!(SetClipboardData (CF_UNICODETEXT, hdata));
+			EmptyClipboard ();
+
+			is_success = !!SetClipboardData (CF_UNICODETEXT, hdata);
 		}
 	}
 
