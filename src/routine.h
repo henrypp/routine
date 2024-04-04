@@ -5496,6 +5496,16 @@ FORCEINLINE BOOLEAN _r_status_getrect (
 	return !!_r_wnd_sendmessage (hwnd, 0, SB_GETRECT, (WPARAM)part_id, (LPARAM)out_buffer);
 }
 
+FORCEINLINE VOID _r_status_seticon (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ LONG part_id,
+	_In_ HICON hicon
+)
+{
+	_r_wnd_sendmessage (hwnd, ctrl_id, SB_SETICON, (WPARAM)part_id, (LPARAM)hicon);
+}
+
 FORCEINLINE VOID _r_status_setparts (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
