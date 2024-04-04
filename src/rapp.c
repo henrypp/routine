@@ -4730,8 +4730,8 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 				_r_theme_setdarkmode (htip, is_enable);
 		}
 
-		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : CLR_NONE);
-		_r_wnd_sendmessage (hwnd, 0, LVM_SETBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : CLR_NONE);
+		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : GetSysColor (COLOR_WINDOW));
+		_r_wnd_sendmessage (hwnd, 0, LVM_SETBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : GetSysColor (COLOR_WINDOW));
 		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTCOLOR, 0, is_enable ? WND_TEXT_CLR : GetSysColor (COLOR_WINDOWTEXT));
 	}
 	else if (_r_str_isequal2 (&class_name->sr, WC_SCROLLBARW, TRUE))
