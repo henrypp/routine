@@ -84,9 +84,7 @@
 #endif /// APP_COMMENT
 
 // update checking period (in days)
-#if defined(APP_UPDATE_PERIOD)
-#pragma PR_PRINT_WARNING_DEFINE(APP_UPDATE_PERIOD)
-#else
+#if !defined(APP_UPDATE_PERIOD)
 #define APP_UPDATE_PERIOD 4
 #endif // APP_UPDATE_PERIOD
 
