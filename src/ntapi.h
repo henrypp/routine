@@ -3994,17 +3994,50 @@ NtAlertResumeThread (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-NtTestAlert (
-	VOID
+NtImpersonateThread (
+	_In_ HANDLE ServerThreadHandle,
+	_In_ HANDLE ClientThreadHandle,
+	_In_ PSECURITY_QUALITY_OF_SERVICE SecurityQos
 );
 
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-NtImpersonateThread (
-	_In_ HANDLE ServerThreadHandle,
-	_In_ HANDLE ClientThreadHandle,
-	_In_ PSECURITY_QUALITY_OF_SERVICE SecurityQos
+NtTestAlert (
+	VOID
+);
+
+#define DUPLICATE_CLOSE_SOURCE 0x00000001
+#define DUPLICATE_SAME_ACCESS 0x00000002
+#define DUPLICATE_SAME_ATTRIBUTES 0x00000004
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtDuplicateObject (
+	_In_ HANDLE SourceProcessHandle,
+	_In_ HANDLE SourceHandle,
+	_In_opt_ HANDLE TargetProcessHandle,
+	_Out_opt_ PHANDLE TargetHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ ULONG HandleAttributes,
+	_In_ ULONG Options
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtFlushInstructionCache (
+	_In_ HANDLE ProcessHandle,
+	_In_opt_ PVOID BaseAddress,
+	_In_ SIZE_T Length
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtFlushWriteBuffer (
+	VOID
 );
 
 NTSYSCALLAPI
