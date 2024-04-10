@@ -16412,6 +16412,13 @@ VOID _r_ctrl_settipstyle (
 	_In_ HWND htip
 )
 {
+	// set dark theme
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
+	{
+		if (_r_theme_isenabled ())
+			_r_theme_setdarkmode (htip, TRUE);
+	}
+
 	//_r_wnd_sendmessage (htip, 0, TTM_SETDELAYTIME, TTDT_INITIAL, 0); // 0 means instant, default is -1
 	_r_wnd_sendmessage (htip, 0, TTM_SETDELAYTIME, TTDT_AUTOPOP, MAXSHORT);
 
