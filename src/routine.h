@@ -1697,6 +1697,7 @@ HRESULT CALLBACK _r_msg_callback (
 	_In_ LPARAM lparam,
 	_In_opt_ LONG_PTR lpdata
 );
+
 // TaskDialogIndirect (vista+)
 _Success_ (SUCCEEDED (return))
 FORCEINLINE HRESULT _r_msg_taskdialog (

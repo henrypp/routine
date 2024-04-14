@@ -3008,7 +3008,7 @@ VOID _r_show_aboutmessage (
 		_r_app_getarch (),
 		_r_app_getcopyright (),
 		_r_app_getwebsite_url (),
-		_r_app_getwebsite_url () + 8
+		_r_app_getwebsite_url ()
 	);
 
 	tdc.cbSize = sizeof (tdc);
@@ -4596,6 +4596,7 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 	_In_ LPARAM context
 )
 {
+	WINDOWPLACEMENT pos = {0};
 	COLORSCHEME scheme = {0};
 	COMBOBOXINFO info = {0};
 	PR_STRING class_name;
@@ -4701,6 +4702,8 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 		ex_style = _r_wnd_getstyle_ex (hwnd);
 		style = _r_wnd_getstyle (hwnd);
 
+		GetWindowPlacement (hwnd, &pos);
+
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
 		{
 			if ((style & WS_HSCROLL) == WS_HSCROLL || ((style & WS_VSCROLL) == WS_VSCROLL))
@@ -4709,6 +4712,8 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 
 		if ((style & WS_BORDER) == WS_BORDER || (ex_style & WS_EX_CLIENTEDGE) == WS_EX_CLIENTEDGE)
 			_r_theme_initializecontext (hwnd, NULL, &_r_theme_edit_subclass, is_enable);
+
+		SetWindowPlacement (hwnd, &pos);
 
 		_r_wnd_sendmessage (hwnd, 0, WM_THEMECHANGED, 0, 0); // search.c
 	}
