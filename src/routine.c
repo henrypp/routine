@@ -3750,6 +3750,8 @@ HRESULT CALLBACK _r_msg_callback (
 			// remove window icon
 			_r_wnd_seticon (hwnd, NULL, NULL);
 
+			//_r_theme_initialize (hwnd, TRUE);
+
 			break;
 		}
 
@@ -12451,6 +12453,30 @@ BOOLEAN _r_wnd_getposition (
 	return TRUE;
 }
 
+BOOLEAN _r_wnd_isdarkmodeenabled ()
+{
+	HANDLE hkey;
+	ULONG value;
+	BOOLEAN is_enabled = FALSE;
+	NTSTATUS status;
+
+	// "ShouldAppsUseDarkMode" is incorrect started from 1903+, use this instead!
+	// https://github.com/ysc3839/win32-darkmode/issues/3
+	status = _r_reg_openkey (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", KEY_READ, &hkey);
+
+	if (NT_SUCCESS (status))
+	{
+		status = _r_reg_queryulong (hkey, L"AppsUseLightTheme", &value);
+
+		if (NT_SUCCESS (status))
+			is_enabled = (value == 0);
+
+		NtClose (hkey);
+	}
+
+	return is_enabled;
+}
+
 BOOLEAN _r_wnd_isfocusassist ()
 {
 	WNF_CHANGE_STAMP change_stamp;
@@ -12739,6 +12765,7 @@ VOID CALLBACK _r_wnd_message_settingchange (
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static RICPS _RefreshImmersiveColorPolicyState = NULL;
+	static GIICUHC _GetIsImmersiveColorUsingHighContrast = NULL;
 
 	R_STRINGREF sr;
 	PVOID hlib;
@@ -12765,13 +12792,21 @@ VOID CALLBACK _r_wnd_message_settingchange (
 			status = _r_sys_getmodulehandle (L"uxtheme.dll", &hlib);
 
 			if (NT_SUCCESS (status))
+			{
 				_r_sys_getprocaddress (hlib, NULL, 104, (PVOID_PTR)&_RefreshImmersiveColorPolicyState);
+				_r_sys_getprocaddress (hlib, NULL, 106, (PVOID_PTR)&_GetIsImmersiveColorUsingHighContrast);
+			}
 
 			_r_initonce_end (&init_once);
 		}
 
 		if (_RefreshImmersiveColorPolicyState)
 			_RefreshImmersiveColorPolicyState ();
+
+		if (_GetIsImmersiveColorUsingHighContrast)
+			_GetIsImmersiveColorUsingHighContrast (IHCM_REFRESH);
+
+		_r_theme_initialize (hwnd, _r_wnd_isdarkmodeenabled ());
 	}
 }
 

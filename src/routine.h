@@ -3349,6 +3349,8 @@ BOOLEAN _r_wnd_getposition (
 	_Out_ PR_RECTANGLE rectangle
 );
 
+BOOLEAN _r_wnd_isdarkmodeenabled ();
+
 BOOLEAN _r_wnd_isfocusassist ();
 
 BOOLEAN _r_wnd_isfullscreenconsolemode (
