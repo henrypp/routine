@@ -94,6 +94,11 @@ typedef BOOL (WINAPI* SPAM)(
 // RefreshImmersiveColorPolicyState (win10rs5+)
 typedef VOID (WINAPI* RICPS)();
 
+// GetIsImmersiveColorUsingHighContrast (win10rs5+)
+typedef BOOL (WINAPI* GIICUHC)(
+	_In_ IMMERSIVE_HC_CACHE_MODE Mode
+	);
+
 // OpenNcThemeData (win10rs5+)
 typedef HTHEME (WINAPI* ONCTD)(
 	_In_ HWND hWnd,

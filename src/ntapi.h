@@ -163,7 +163,9 @@
 #define SE_DELEGATE_SESSION_USER_IMPERSONATE_PRIVILEGE (36L)
 #define SE_MAX_WELL_KNOWN_PRIVILEGE SE_DELEGATE_SESSION_USER_IMPERSONATE_PRIVILEGE
 
+//
 // Create disposition
+//
 
 #define FILE_SUPERSEDE 0x00000000
 #define FILE_OPEN 0x00000001
@@ -1013,6 +1015,12 @@ typedef enum _PreferredAppMode
 	ForceLight,
 	Max
 } PreferredAppMode;
+
+typedef enum _IMMERSIVE_HC_CACHE_MODE
+{
+	IHCM_USE_CACHED_VALUE,
+	IHCM_REFRESH
+} IMMERSIVE_HC_CACHE_MODE;
 
 //
 // structs
