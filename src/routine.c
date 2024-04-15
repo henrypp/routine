@@ -12806,7 +12806,7 @@ VOID CALLBACK _r_wnd_message_settingchange (
 		if (_GetIsImmersiveColorUsingHighContrast)
 			_GetIsImmersiveColorUsingHighContrast (IHCM_REFRESH);
 
-		_r_theme_initialize (hwnd, _r_wnd_isdarkmodeenabled ());
+		//_r_theme_initialize (hwnd, _r_wnd_isdarkmodeenabled ());
 	}
 }
 

@@ -2602,7 +2602,9 @@ VOID _r_update_navigate (
 )
 {
 	TASKDIALOGCONFIG tdc = {0};
-	WCHAR buffer[64];
+	WCHAR buffer[512];
+	PR_STRING string = NULL;
+	PVOID hlib;
 	BOOL is_checked;
 
 	tdc.cbSize = sizeof (tdc);
@@ -2637,7 +2639,18 @@ VOID _r_update_navigate (
 
 	if (error_code != STATUS_SUCCESS)
 	{
-		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"Status:\r\n%" TEXT (PR_LONG) L" (0x%08" TEXT (PRIX32)")", error_code, error_code);
+		_r_sys_getmodulehandle (L"winhttp.dll", &hlib);
+
+		_r_sys_formatmessage (error_code, hlib, 0, &string);
+
+		_r_str_printf (
+			buffer,
+			RTL_NUMBER_OF (buffer),
+			L"Description:\r\n%s\r\nStatus:\r\n%" TEXT (PR_LONG) L" (0x%08" TEXT (PRIX32)")",
+			_r_obj_getstringordefault (string, L"n/a"),
+			error_code,
+			error_code
+		);
 
 		tdc.pszExpandedInformation = buffer;
 	}
@@ -2656,6 +2669,9 @@ VOID _r_update_navigate (
 	{
 		_r_msg_taskdialog (&tdc, NULL, NULL, &is_checked);
 	}
+
+	if (string)
+		_r_obj_dereference (string);
 }
 
 VOID _r_update_addcomponent (
@@ -4616,6 +4632,14 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 	{
 		_r_theme_initialize (hwnd, is_enable);
 	}
+	else if (_r_str_isequal2 (&class_name->sr, L"DirectUIHWND", TRUE))
+	{
+		GetWindowPlacement (GetParent (hwnd), &pos);
+
+		_r_theme_setdarkmode (hwnd, is_enable);
+
+		SetWindowPlacement (GetParent (hwnd), &pos);
+	}
 	else if (_r_str_isequal2 (&class_name->sr, REBARCLASSNAMEW, TRUE))
 	{
 		_r_theme_initializecontext (hwnd, NULL, &_r_theme_rebar_subclass, is_enable);
@@ -4855,26 +4879,7 @@ VOID _r_theme_initializecontext (
 
 BOOLEAN _r_theme_isenabled ()
 {
-	HANDLE hkey;
-	ULONG value;
-	BOOLEAN is_enabled = FALSE;
-	NTSTATUS status;
-
-	// "ShouldAppsUseDarkMode" is incorrect started from 1903+, use this instead!
-	// https://github.com/ysc3839/win32-darkmode/issues/3
-	status = _r_reg_openkey (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", KEY_READ, &hkey);
-
-	if (NT_SUCCESS (status))
-	{
-		status = _r_reg_queryulong (hkey, L"AppsUseLightTheme", &value);
-
-		if (NT_SUCCESS (status))
-			is_enabled = (value == 0);
-
-		NtClose (hkey);
-	}
-
-	return _r_config_getboolean (L"IsDarkThemeEnabled", is_enabled);
+	return _r_config_getboolean (L"IsDarkThemeEnabled", _r_wnd_isdarkmodeenabled ());
 }
 
 VOID _r_theme_setwindowframe (
@@ -5312,7 +5317,7 @@ VOID _r_theme_drawgroupbox (
 	string = _r_ctrl_getstring (hwnd, 0);
 
 	if (!string)
-		return;
+		string = _r_obj_referenceemptystring ();
 
 	_r_dc_fixfont (ps->hdc, hwnd, 0);
 
@@ -6352,7 +6357,7 @@ LRESULT CALLBACK _r_theme_subclassproc (
 	if (!wnd_proc)
 		return FALSE;
 
-	if (!_r_theme_isenabled ())
+	if (!_r_theme_isenabled () || !_r_wnd_isdarkmodeenabled ())
 		return CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
 
 	switch (msg)
