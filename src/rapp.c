@@ -95,7 +95,9 @@ LPWSTR _r_app_getmutexname ()
 
 BOOLEAN _r_app_isportable ()
 {
-#if !defined(APP_NO_APPDATA) || !defined(APP_CONSOLE)
+#if defined(APP_NO_APPDATA) || defined(APP_CONSOLE)
+	return TRUE;
+#else
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static BOOLEAN is_portable = FALSE;
 
@@ -141,8 +143,7 @@ BOOLEAN _r_app_isportable ()
 	}
 
 	return is_portable;
-#else
-	return TRUE;
+
 #endif // !APP_NO_APPDATA || !APP_CONSOLE
 }
 
