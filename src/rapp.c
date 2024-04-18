@@ -4937,7 +4937,7 @@ VOID _r_theme_comboboxrender (
 
 	_r_dc_fillrect (hdc_buffer, client_rect, WND_BACKGROUND2_CLR);
 
-	_r_dc_framerect (hdc_buffer, client_rect, PtInRect (client_rect, context->pt) ? WND_HOT_CLR : WND_HIGHLIGHT_CLR);
+	_r_dc_framerect (hdc_buffer, client_rect, PtInRect (client_rect, context->pt) || GetFocus () == hwnd ? WND_HOT_CLR : WND_HIGHLIGHT_CLR);
 
 	if (context->htheme)
 	{
@@ -5137,7 +5137,7 @@ LRESULT CALLBACK _r_theme_edit_subclass (
 
 				if ((context->is_mouseactive && PtInRect (&rect, pt)) || GetFocus () == hwnd)
 				{
-					_r_dc_framerect (hdc, &rect, GetSysColor (COLOR_HOTLIGHT));
+					_r_dc_framerect (hdc, &rect, WND_HOT_CLR);
 				}
 				else
 				{
@@ -6187,7 +6187,7 @@ LRESULT CALLBACK _r_theme_drawcheckbox (
 			{
 				state_id = is_checked ? RBS_CHECKEDPRESSED : RBS_UNCHECKEDPRESSED;
 			}
-			else if ((draw_info->uItemState & CDIS_HOT) == CDIS_HOT)
+			else if ((draw_info->uItemState & CDIS_HOT) == CDIS_HOT || (draw_info->uItemState & CDIS_FOCUS) == CDIS_FOCUS)
 			{
 				state_id = is_checked ? RBS_CHECKEDHOT : RBS_UNCHECKEDHOT;
 			}
@@ -6205,12 +6205,12 @@ LRESULT CALLBACK _r_theme_drawcheckbox (
 
 			string = _r_ctrl_getstring (draw_info->hdr.hwndFrom, 0);
 
-			if (string)
-			{
-				_r_theme_paintcheckbox (draw_info, htheme, string, part_id, state_id, style);
+			if (!string)
+				string = _r_obj_referenceemptystring ();
 
-				_r_obj_dereference (string);
-			}
+			_r_theme_paintcheckbox (draw_info, htheme, string, part_id, state_id, style);
+
+			_r_obj_dereference (string);
 
 			CloseThemeData (htheme);
 
