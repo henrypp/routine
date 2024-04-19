@@ -2039,7 +2039,7 @@ NTSTATUS _r_autorun_enable (
 	if (hwnd)
 	{
 		if (!NT_SUCCESS (status))
-			_r_show_errormessage (hwnd, NULL, status, NULL, TRUE);
+			_r_show_errormessage (hwnd, NULL, status, NULL, ET_NATIVE);
 	}
 
 	return status;
@@ -2739,7 +2739,7 @@ VOID _r_update_install (
 	cmd_string = _r_format_string (L"\"%s\" /u /S /D=%s", update_component->cache_path->buffer, update_component->target_path->buffer);
 
 	if (!_r_sys_runasadmin (update_component->cache_path->buffer, cmd_string->buffer, NULL))
-		_r_show_errormessage (NULL, NULL, NtLastError (), update_component->cache_path->buffer, FALSE);
+		_r_show_errormessage (NULL, NULL, NtLastError (), update_component->cache_path->buffer, ET_WINDOWS);
 
 	_r_obj_dereference (cmd_string);
 }
@@ -2984,13 +2984,13 @@ VOID _r_report_error (
 	_In_opt_ LPCWSTR title,
 	_In_opt_ LPCWSTR string,
 	_In_ LONG status,
-	_In_ BOOLEAN is_native
+	_In_ R_ERROR_TYPE type
 )
 {
 #if defined(APP_CONSOLE)
 	_r_console_writestringformat (L"ERROR: %s (%d, 0x%08" TEXT (PRIX32) L")!\r\n", string, status, status);
 #else
-	_r_show_errormessage (NULL, title, status, string, is_native);
+	_r_show_errormessage (NULL, title, status, string, type);
 #endif // APP_CONSOLE
 }
 
@@ -3113,7 +3113,7 @@ NTSTATUS _r_show_errormessage (
 	_In_opt_ LPCWSTR title,
 	_In_ LONG error_code,
 	_In_opt_ LPCWSTR description,
-	_In_ BOOLEAN is_native
+	_In_ R_ERROR_TYPE type
 )
 {
 	TASKDIALOGCONFIG tdc = {0};
@@ -3123,12 +3123,39 @@ NTSTATUS _r_show_errormessage (
 	R_STRINGREF sr;
 	LPCWSTR str_main;
 	LPCWSTR path;
+	LPWSTR name;
 	PVOID hmodule = NULL;
-	INT command_id;
 	UINT btn_cnt = 0;
+	INT command_id;
 	NTSTATUS status;
 
-	status = _r_sys_loadlibraryasresource (is_native ? L"ntdll.dll" : L"kernel32.dll", &hmodule);
+	switch (type)
+	{
+		case ET_WINDOWS:
+		{
+			name = L"kernel32.dll";
+			break;
+		}
+
+		case ET_NATIVE:
+		{
+			name = L"ntdll.dll";
+			break;
+		}
+
+		case ET_WINHTTP:
+		{
+			name = L"winhttp.dll";
+			break;
+		}
+
+		default:
+		{
+			return STATUS_INVALID_INFO_CLASS;
+		}
+	}
+
+	status = _r_sys_loadlibraryasresource (name, &hmodule);
 
 	if (!NT_SUCCESS (status))
 		return status;
@@ -3137,10 +3164,12 @@ NTSTATUS _r_show_errormessage (
 
 	str_main = !_r_str_isempty (title) ? title : APP_FAILED_MESSAGE_TITLE;
 
+	_r_str_trimstring2 (&string->sr, L"\r\n", PR_TRIM_END_ONLY);
+
 	_r_str_printf (
 		str_content,
 		RTL_NUMBER_OF (str_content),
-		L"Message:\r\n%s\r\nStatus:\r\n%" TEXT (PR_LONG) " (0x%08" TEXT (PRIX32) L")",
+		L"Message:\r\n%s\r\n\r\nStatus:\r\n%" TEXT (PR_LONG) " (0x%08" TEXT (PRIX32) L")",
 		_r_obj_getstringordefault (string, L"n/a"),
 		error_code,
 		error_code
@@ -4438,7 +4467,7 @@ CleanupExit:
 		ITaskService_Release (task_service);
 
 	if (hwnd && FAILED (status))
-		_r_show_errormessage (hwnd, NULL, status, NULL, FALSE);
+		_r_show_errormessage (hwnd, NULL, status, NULL, ET_WINDOWS);
 
 	return status;
 }

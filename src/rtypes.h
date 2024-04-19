@@ -248,6 +248,13 @@ typedef enum _R_LOG_LEVEL
 	LOG_LEVEL_CRITICAL = 5,
 } R_LOG_LEVEL, *PR_LOG_LEVEL;
 
+typedef enum _R_ERROR_TYPE
+{
+	ET_WINDOWS = 0,
+	ET_NATIVE = 1,
+	ET_WINHTTP = 2,
+} R_ERROR_TYPE, *PR_ERROR_TYPE;
+
 //
 // Synchronization: A fast event object.
 //
@@ -664,8 +671,8 @@ typedef struct _R_STORAGE
 	((ULONG64)(build) << 16) | \
 	((ULONG64)(revision) << 0))
 
-#define PR_TRIM_END_ONLY 0x0001
-#define PR_TRIM_START_ONLY 0x002
+#define PR_TRIM_START_ONLY 0x0001
+#define PR_TRIM_END_ONLY 0x0002
 
 //
 // Cryptography

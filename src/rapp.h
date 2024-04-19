@@ -552,7 +552,7 @@ VOID _r_report_error (
 	_In_opt_ LPCWSTR title,
 	_In_opt_ LPCWSTR string,
 	_In_ LONG status,
-	_In_ BOOLEAN is_native
+	_In_ R_ERROR_TYPE type
 );
 
 VOID _r_show_aboutmessage (
@@ -571,7 +571,7 @@ NTSTATUS _r_show_errormessage (
 	_In_opt_ LPCWSTR title,
 	_In_ LONG error_code,
 	_In_opt_ LPCWSTR description,
-	_In_ BOOLEAN is_native
+	_In_ R_ERROR_TYPE type
 );
 
 INT _r_show_message (
