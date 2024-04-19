@@ -5614,7 +5614,7 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 
 	_r_obj_initializestringref3 (&args_sr, args);
 
-	_r_str_trimstringref (&args_sr, &whitespace, 0);
+	_r_str_trimstring (&args_sr, &whitespace, 0);
 
 	if (args_sr.length == 0)
 	{
@@ -5647,7 +5647,7 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 			return FALSE;
 		}
 
-		_r_str_trimstringref (&arguments, &whitespace, PR_TRIM_START_ONLY);
+		_r_str_trimstring (&arguments, &whitespace, PR_TRIM_START_ONLY);
 
 		_r_obj_initializestringref3 (path, &args_sr);
 		_r_obj_initializestringref3 (command_line, &arguments);
@@ -5717,7 +5717,7 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 			path->buffer = args_sr.buffer;
 			path->length = (ULONG_PTR)PTR_SUB_OFFSET (current_part.buffer, temp.buffer) + current_part.length;
 
-			_r_str_trimstringref (&remaining_part, &whitespace, PR_TRIM_START_ONLY);
+			_r_str_trimstring (&remaining_part, &whitespace, PR_TRIM_START_ONLY);
 
 			*command_line = remaining_part;
 
@@ -7889,50 +7889,26 @@ VOID _r_str_toupper (
 }
 
 VOID _r_str_trimstring (
-	_Inout_ PR_STRING string,
-	_In_ PR_STRINGREF charset,
-	_In_opt_ ULONG flags
-)
-{
-	_r_str_trimstringref (&string->sr, charset, flags);
-
-	_r_obj_writestringnullterminator (&string->sr);
-}
-
-VOID _r_str_trimstring2 (
-	_Inout_ PR_STRING string,
-	_In_ LPWSTR charset,
-	_In_opt_ ULONG flags
-)
-{
-	_r_str_trimstringref2 (&string->sr, charset, flags);
-
-	_r_obj_writestringnullterminator (&string->sr);
-}
-
-VOID _r_str_trimstringref (
 	_Inout_ PR_STRINGREF string,
 	_In_ PR_STRINGREF charset,
 	_In_opt_ ULONG flags
 )
 {
-	LPCWSTR charset_buff;
 	LPCWSTR buffer;
-	ULONG_PTR charset_count;
+	WCHAR chr;
 	ULONG_PTR trim_count;
 	ULONG_PTR length;
-	USHORT chr;
-	BOOLEAN charset_table[256] = {0};
-	BOOLEAN charset_table_complete;
+	BOOLEAN chr_table_complete = TRUE;
+	BOOLEAN chr_table[256] = {0};
 
-	if (!string->length || !charset->length)
+	if (!string->buffer || !string->length || !charset->buffer || !charset->length)
 		return;
 
 	if (charset->length == sizeof (WCHAR))
 	{
 		chr = charset->buffer[0];
 
-		if (!(flags & PR_TRIM_END_ONLY))
+		if (!flags || (flags & PR_TRIM_START_ONLY))
 		{
 			trim_count = 0;
 
@@ -7951,7 +7927,7 @@ VOID _r_str_trimstringref (
 				_r_obj_skipstringlength (string, trim_count * sizeof (WCHAR));
 		}
 
-		if (!(flags & PR_TRIM_START_ONLY))
+		if (!flags || (flags & PR_TRIM_END_ONLY))
 		{
 			trim_count = 0;
 
@@ -7970,24 +7946,23 @@ VOID _r_str_trimstringref (
 				string->length -= trim_count * sizeof (WCHAR);
 		}
 
+		_r_obj_writestringnullterminator (string);
+
 		return;
 	}
 
-	charset_buff = charset->buffer;
-	charset_count = _r_str_getlength3 (charset);
-
-	charset_table_complete = TRUE;
-
-	for (ULONG_PTR i = 0; i < charset_count; i++)
+	// Build the character set lookup table.
+	for (ULONG_PTR i = 0; i < _r_str_getlength3 (charset); i++)
 	{
-		chr = charset_buff[i];
-		charset_table[chr & 0xFF] = TRUE;
+		chr = charset->buffer[i];
+		chr_table[chr & 0xFF] = TRUE;
 
-		if (chr >= RTL_NUMBER_OF (charset_table))
-			charset_table_complete = FALSE;
+		if (chr >= RTL_NUMBER_OF (chr_table))
+			chr_table_complete = FALSE;
 	}
 
-	if (!(flags & PR_TRIM_END_ONLY))
+	// Trim the string.
+	if (!flags || (flags & PR_TRIM_START_ONLY))
 	{
 		trim_count = 0;
 
@@ -7998,14 +7973,14 @@ VOID _r_str_trimstringref (
 		{
 			chr = *buffer++;
 
-			if (!charset_table[chr & 0xFF])
+			if (!chr_table[chr & 0xFF])
 				break;
 
-			if (!charset_table_complete)
+			if (!chr_table_complete)
 			{
-				for (ULONG_PTR i = 0; i < charset_count; i++)
+				for (ULONG_PTR i = 0; i < _r_str_getlength3 (charset); i++)
 				{
-					if (charset_buff[i] == chr)
+					if (charset->buffer[i] == chr)
 						goto CharFound;
 				}
 
@@ -8013,13 +7988,15 @@ VOID _r_str_trimstringref (
 			}
 
 CharFound:
+
 			trim_count += 1;
 		}
 
-		_r_obj_skipstringlength (string, trim_count * sizeof (WCHAR));
+		if (trim_count)
+			_r_obj_skipstringlength (string, trim_count * sizeof (WCHAR));
 	}
 
-	if (!(flags & PR_TRIM_START_ONLY))
+	if (!flags || (flags & PR_TRIM_END_ONLY))
 	{
 		trim_count = 0;
 
@@ -8030,14 +8007,14 @@ CharFound:
 		{
 			chr = *buffer--;
 
-			if (!charset_table[chr & 0xFF])
+			if (!chr_table[chr & 0xFF])
 				break;
 
-			if (!charset_table_complete)
+			if (!chr_table_complete)
 			{
-				for (ULONG_PTR i = 0; i < charset_count; i++)
+				for (ULONG_PTR i = 0; i < _r_str_getlength3 (charset); i++)
 				{
-					if (charset_buff[i] == chr)
+					if (charset->buffer[i] == chr)
 						goto CharFound2;
 				}
 
@@ -8048,11 +8025,14 @@ CharFound2:
 			trim_count += 1;
 		}
 
-		string->length -= trim_count * sizeof (WCHAR);
+		if (trim_count)
+			string->length -= trim_count * sizeof (WCHAR);
 	}
+
+	_r_obj_writestringnullterminator (string);
 }
 
-VOID _r_str_trimstringref2 (
+VOID _r_str_trimstring2 (
 	_Inout_ PR_STRINGREF string,
 	_In_ LPWSTR charset,
 	_In_opt_ ULONG flags
@@ -8062,7 +8042,7 @@ VOID _r_str_trimstringref2 (
 
 	_r_obj_initializestringref (&sr, charset);
 
-	_r_str_trimstringref (string, &sr, flags);
+	_r_str_trimstring (string, &sr, flags);
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -8237,12 +8217,12 @@ PR_HASHTABLE _r_str_unserialize (
 	{
 		_r_str_splitatchar (&remaining_part, key_delimeter, &values_part, &remaining_part);
 
-		_r_str_trimstringref (&values_part, &whitespace, 0);
+		_r_str_trimstring (&values_part, &whitespace, 0);
 
 		if (_r_str_splitatchar (&values_part, value_delimeter, &key_part, &value_part))
 		{
 			// trim key string whitespaces
-			_r_str_trimstringref (&key_part, &whitespace, 0);
+			_r_str_trimstring (&key_part, &whitespace, 0);
 
 			hash_code = _r_str_gethash3 (&key_part, TRUE);
 
@@ -8251,7 +8231,7 @@ PR_HASHTABLE _r_str_unserialize (
 				if (!_r_obj_findhashtable (hashtable, hash_code))
 				{
 					// trim value string whitespaces
-					_r_str_trimstringref (&value_part, &whitespace, 0);
+					_r_str_trimstring (&value_part, &whitespace, 0);
 
 					_r_obj_addhashtablepointer (
 						hashtable,
@@ -8472,7 +8452,7 @@ NTSTATUS _r_sys_formatmessage (
 	{
 		if (entry->Flags & MESSAGE_RESOURCE_UNICODE)
 		{
-			string = _r_obj_createstring_ex ((LPCWSTR)entry->Text, entry->Length);
+			string = _r_obj_createstring ((LPCWSTR)entry->Text);
 		}
 		else if (entry->Flags & MESSAGE_RESOURCE_UTF8)
 		{

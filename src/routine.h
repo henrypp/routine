@@ -2424,24 +2424,12 @@ VOID _r_str_toupper (
 );
 
 VOID _r_str_trimstring (
-	_Inout_ PR_STRING string,
-	_In_ PR_STRINGREF charset,
-	_In_opt_ ULONG flags
-);
-
-VOID _r_str_trimstring2 (
-	_Inout_ PR_STRING string,
-	_In_ LPWSTR charset,
-	_In_opt_ ULONG flags
-);
-
-VOID _r_str_trimstringref (
 	_Inout_ PR_STRINGREF string,
 	_In_ PR_STRINGREF charset,
 	_In_opt_ ULONG flags
 );
 
-VOID _r_str_trimstringref2 (
+VOID _r_str_trimstring2 (
 	_Inout_ PR_STRINGREF string,
 	_In_ LPWSTR charset,
 	_In_opt_ ULONG flags
