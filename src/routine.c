@@ -10171,24 +10171,31 @@ HRESULT _r_sys_registerrestart (
 BOOLEAN _r_sys_runasadmin (
 	_In_ LPCWSTR file_name,
 	_In_opt_ LPCWSTR command_line,
-	_In_opt_ LPCWSTR directory
+	_In_opt_ LPCWSTR directory,
+	_In_ BOOLEAN is_wait
 )
 {
 	SHELLEXECUTEINFO shex = {0};
 	BOOL result;
 
 	shex.cbSize = sizeof (shex);
-	shex.fMask = SEE_MASK_UNICODE | SEE_MASK_NOZONECHECKS | SEE_MASK_FLAG_NO_UI | SEE_MASK_NOCLOSEPROCESS;
+	shex.fMask = SEE_MASK_UNICODE | SEE_MASK_NOZONECHECKS | SEE_MASK_FLAG_NO_UI;
 	shex.lpVerb = L"runas";
 	shex.nShow = SW_SHOW;
 	shex.lpFile = file_name;
 	shex.lpParameters = command_line;
 	shex.lpDirectory = directory;
 
+	if (is_wait)
+		shex.fMask |= SEE_MASK_NOCLOSEPROCESS;
+
 	result = ShellExecuteExW (&shex);
 
-	if (shex.hProcess)
-		_r_sys_waitforsingleobject (shex.hProcess, INFINITE);
+	if (is_wait)
+	{
+		if (shex.hProcess)
+			_r_sys_waitforsingleobject (shex.hProcess, INFINITE);
+	}
 
 	return !!result;
 }

@@ -924,7 +924,7 @@ BOOLEAN _r_app_runasadmin ()
 		return TRUE;
 #endif // APP_HAVE_SKIPUAC
 
-	if (_r_sys_runasadmin (_r_sys_getimagepath (), _r_sys_getimagecommandline (), _r_sys_getcurrentdirectory ()))
+	if (_r_sys_runasadmin (_r_sys_getimagepath (), _r_sys_getimagecommandline (), _r_sys_getcurrentdirectory (), TRUE))
 		return TRUE;
 
 	// restore mutex on error
@@ -2738,7 +2738,7 @@ VOID _r_update_install (
 
 	cmd_string = _r_format_string (L"\"%s\" /u /S /D=%s", update_component->cache_path->buffer, update_component->target_path->buffer);
 
-	if (!_r_sys_runasadmin (update_component->cache_path->buffer, cmd_string->buffer, NULL))
+	if (!_r_sys_runasadmin (update_component->cache_path->buffer, cmd_string->buffer, NULL, TRUE))
 		_r_show_errormessage (NULL, NULL, NtLastError (), update_component->cache_path->buffer, ET_WINDOWS);
 
 	_r_obj_dereference (cmd_string);

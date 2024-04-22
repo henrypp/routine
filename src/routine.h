@@ -2776,7 +2776,8 @@ HRESULT _r_sys_registerrestart (
 BOOLEAN _r_sys_runasadmin (
 	_In_ LPCWSTR file_name,
 	_In_opt_ LPCWSTR command_line,
-	_In_opt_ LPCWSTR directory
+	_In_opt_ LPCWSTR directory,
+	_In_ BOOLEAN is_wait
 );
 
 NTSTATUS NTAPI _r_sys_basethreadstart (
