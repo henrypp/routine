@@ -10171,20 +10171,26 @@ HRESULT _r_sys_registerrestart (
 BOOLEAN _r_sys_runasadmin (
 	_In_ LPCWSTR file_name,
 	_In_opt_ LPCWSTR command_line,
-	_In_opt_ LPCWSTR current_directory
+	_In_opt_ LPCWSTR directory
 )
 {
 	SHELLEXECUTEINFO shex = {0};
+	BOOL result;
 
 	shex.cbSize = sizeof (shex);
-	shex.fMask = SEE_MASK_UNICODE | SEE_MASK_NOZONECHECKS | SEE_MASK_FLAG_NO_UI | SEE_MASK_NOASYNC;
+	shex.fMask = SEE_MASK_UNICODE | SEE_MASK_NOZONECHECKS | SEE_MASK_FLAG_NO_UI | SEE_MASK_NOCLOSEPROCESS;
 	shex.lpVerb = L"runas";
 	shex.nShow = SW_SHOW;
 	shex.lpFile = file_name;
 	shex.lpParameters = command_line;
-	shex.lpDirectory = current_directory;
+	shex.lpDirectory = directory;
 
-	return !!ShellExecuteExW (&shex);
+	result = ShellExecuteExW (&shex);
+
+	if (shex.hProcess)
+		_r_sys_waitforsingleobject (shex.hProcess, INFINITE);
+
+	return !!result;
 }
 
 NTSTATUS NTAPI _r_sys_basethreadstart (
