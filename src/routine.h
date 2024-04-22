@@ -5759,9 +5759,18 @@ FORCEINLINE VOID _r_toolbar_setimagelist (
 
 VOID _r_progress_setmarquee (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ BOOL is_enable
 );
+
+FORCEINLINE VOID _r_progress_setvalue (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ LONG percent
+)
+{
+	_r_wnd_sendmessage (hwnd, ctrl_id, PBM_SETPOS, (WPARAM)percent, 0);
+}
 
 //
 // Util

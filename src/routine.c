@@ -18019,7 +18019,7 @@ VOID _r_toolbar_setstyle (
 
 VOID _r_progress_setmarquee (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ BOOL is_enable
 )
 {
