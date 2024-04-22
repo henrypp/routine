@@ -2776,7 +2776,7 @@ HRESULT _r_sys_registerrestart (
 BOOLEAN _r_sys_runasadmin (
 	_In_ LPCWSTR file_name,
 	_In_opt_ LPCWSTR command_line,
-	_In_opt_ LPCWSTR current_directory
+	_In_opt_ LPCWSTR directory
 );
 
 NTSTATUS NTAPI _r_sys_basethreadstart (
@@ -4398,7 +4398,17 @@ FORCEINLINE VOID _r_ctrl_checkbutton (
 	_In_ BOOLEAN is_check
 )
 {
-	CheckDlgButton (hwnd, ctrl_id, is_check ? BST_CHECKED : BST_UNCHECKED);
+	_r_wnd_sendmessage (hwnd, ctrl_id, BM_SETCHECK, is_check ? BST_CHECKED : BST_UNCHECKED, 0);
+}
+
+FORCEINLINE VOID _r_ctrl_checkradio (
+	_In_ HWND hwnd,
+	_In_ LONG first_id,
+	_In_ LONG last_id,
+	_In_ LONG check_id
+)
+{
+	CheckRadioButton (hwnd, last_id, last_id, check_id);
 }
 
 _Ret_maybenull_
