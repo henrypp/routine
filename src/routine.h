@@ -4409,7 +4409,7 @@ FORCEINLINE VOID _r_ctrl_checkradio (
 	_In_ LONG check_id
 )
 {
-	CheckRadioButton (hwnd, last_id, last_id, check_id);
+	CheckRadioButton (hwnd, first_id, last_id, check_id);
 }
 
 _Ret_maybenull_
