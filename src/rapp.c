@@ -4670,6 +4670,14 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 
 		SetWindowPlacement (GetParent (hwnd), &pos);
 	}
+	else if (_r_str_isequal2 (&class_name->sr, PROGRESS_CLASSW, TRUE))
+	{
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
+			_r_theme_setdarkmode (hwnd, is_enable);
+
+		_r_wnd_sendmessage (hwnd, 0, PBM_SETBARCOLOR, 0, is_enable ? WND_TEXT_CLR : CLR_DEFAULT);
+		_r_wnd_sendmessage (hwnd, 0, PBM_SETBKCOLOR, 0, is_enable ? WND_BACKGROUND2_CLR : CLR_DEFAULT);
+	}
 	else if (_r_str_isequal2 (&class_name->sr, REBARCLASSNAMEW, TRUE))
 	{
 		_r_theme_initializecontext (hwnd, NULL, &_r_theme_rebar_subclass, is_enable);
