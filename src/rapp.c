@@ -6313,8 +6313,6 @@ LRESULT CALLBACK _r_theme_drawtoolbar (
 
 			return TBCDRF_HILITEHOTTRACK | TBCDRF_USECDCOLORS;
 		}
-
-		return CDRF_SKIPDEFAULT;
 	}
 
 	return CDRF_DODEFAULT;
