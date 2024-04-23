@@ -4767,10 +4767,7 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 		GetWindowPlacement (hwnd, &pos);
 
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
-		{
-			if ((style & WS_HSCROLL) == WS_HSCROLL || ((style & WS_VSCROLL) == WS_VSCROLL))
-				_r_theme_setdarkmode (hwnd, is_enable); // dark scrollbar for edit control
-		}
+			_r_theme_setdarkmode (hwnd, is_enable); // dark scrollbar for edit control
 
 		if ((style & WS_BORDER) == WS_BORDER || (ex_style & WS_EX_CLIENTEDGE) == WS_EX_CLIENTEDGE)
 			_r_theme_initializecontext (hwnd, NULL, &_r_theme_edit_subclass, is_enable);
@@ -4800,11 +4797,6 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : GetSysColor (COLOR_WINDOW));
 		_r_wnd_sendmessage (hwnd, 0, LVM_SETBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : GetSysColor (COLOR_WINDOW));
 		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTCOLOR, 0, is_enable ? WND_TEXT_CLR : GetSysColor (COLOR_WINDOWTEXT));
-	}
-	else if (_r_str_isequal2 (&class_name->sr, WC_SCROLLBARW, TRUE))
-	{
-		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
-			_r_theme_setdarkmode (hwnd, is_enable);
 	}
 	else if (_r_str_isequal2 (&class_name->sr, WC_TABCONTROLW, TRUE))
 	{
@@ -5144,6 +5136,8 @@ LRESULT CALLBACK _r_theme_edit_subclass (
 			// The searchbox control does it's own theme drawing.
 			if (_r_wnd_getcontext (hwnd, SHORT_MAX))
 				break;
+
+			CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
 
 			hdc = GetWindowDC (hwnd);
 
