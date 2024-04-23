@@ -5119,8 +5119,9 @@ LRESULT CALLBACK _r_theme_edit_subclass (
 		}
 
 		case WM_DPICHANGED:
+		case WM_DPICHANGED_AFTERPARENT:
 		{
-			SetWindowPos (hwnd, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+			InvalidateRect (hwnd, NULL, FALSE);
 			break;
 		}
 
@@ -5132,6 +5133,7 @@ LRESULT CALLBACK _r_theme_edit_subclass (
 			HDC hdc;
 			LONG_PTR style;
 			LONG dpi_value;
+			COLORREF clr;
 
 			// The searchbox control does it's own theme drawing.
 			if (_r_wnd_getcontext (hwnd, SHORT_MAX))
@@ -5143,16 +5145,18 @@ LRESULT CALLBACK _r_theme_edit_subclass (
 
 			if (hdc)
 			{
-				style = _r_wnd_getstyle (hwnd);
-
-				GetWindowRect (hwnd, &rect);
-
-				OffsetRect (&rect, -rect.left, -rect.top);
-
 				dpi_value = _r_dc_getwindowdpi (hwnd);
+
+				GetClientRect (hwnd, &rect);
+
+				rect.right += 2 * _r_dc_getsystemmetrics (SM_CXEDGE, dpi_value);
+
+				style = _r_wnd_getstyle (hwnd);
 
 				if ((style & WS_HSCROLL) == WS_HSCROLL)
 					rect.right += _r_dc_getsystemmetrics (SM_CYHSCROLL, dpi_value);
+
+				rect.bottom += 2 * _r_dc_getsystemmetrics (SM_CYEDGE, dpi_value);
 
 				if ((style & WS_VSCROLL) == WS_VSCROLL)
 					rect.right += _r_dc_getsystemmetrics (SM_CXVSCROLL, dpi_value);
@@ -5168,12 +5172,14 @@ LRESULT CALLBACK _r_theme_edit_subclass (
 
 				if ((context->is_mouseactive && PtInRect (&rect, pt)) || GetFocus () == hwnd)
 				{
-					_r_dc_framerect (hdc, &rect, WND_HOT_CLR);
+					clr = WND_HOT_CLR;
 				}
 				else
 				{
-					_r_dc_framerect (hdc, &rect, WND_BACKGROUND2_CLR);
+					clr = WND_BACKGROUND2_CLR;
 				}
+
+				_r_dc_framerect (hdc, &rect, clr);
 
 				ReleaseDC (hwnd, hdc);
 
@@ -5224,7 +5230,7 @@ LRESULT CALLBACK _r_theme_edit_subclass (
 			if (
 				_r_obj_isstringempty (string) ||
 				GetFocus () == hwnd ||
-				CallWindowProcW (wnd_proc, hwnd, WM_GETTEXTLENGTH, 0, 0) > 0 // Edit_GetTextLength
+				CallWindowProcW (wnd_proc, hwnd, WM_GETTEXTLENGTH, 0, 0) > 0
 				)
 			{
 				if (string)
@@ -5288,19 +5294,22 @@ LRESULT CALLBACK _r_theme_edit_subclass (
 		{
 			TRACKMOUSEEVENT tme = {0};
 
+			if (GetFocus () == hwnd)
+				break;
+
 			if (!context->is_mouseactive)
 			{
-				tme.cbSize = sizeof (TRACKMOUSEEVENT);
-				tme.dwFlags = TME_LEAVE;
-				tme.hwndTrack = hwnd;
-				tme.dwHoverTime = HOVER_DEFAULT;
-
-				TrackMouseEvent (&tme);
-
 				context->is_mouseactive = TRUE;
+
+				InvalidateRect (hwnd, NULL, FALSE);
 			}
 
-			InvalidateRect (hwnd, NULL, FALSE);
+			tme.cbSize = sizeof (TRACKMOUSEEVENT);
+			tme.dwFlags = TME_LEAVE;
+			tme.hwndTrack = hwnd;
+			tme.dwHoverTime = HOVER_DEFAULT;
+
+			TrackMouseEvent (&tme);
 
 			break;
 		}
@@ -5311,15 +5320,17 @@ LRESULT CALLBACK _r_theme_edit_subclass (
 
 			if (context->is_mouseactive)
 			{
-				tme.cbSize = sizeof (TRACKMOUSEEVENT);
-				tme.dwFlags = TME_LEAVE | TME_CANCEL;
-				tme.hwndTrack = hwnd;
-				tme.dwHoverTime = HOVER_DEFAULT;
-
-				TrackMouseEvent (&tme);
-
 				context->is_mouseactive = FALSE;
+
+				InvalidateRect (hwnd, NULL, FALSE);
 			}
+
+			tme.cbSize = sizeof (TRACKMOUSEEVENT);
+			tme.dwFlags = TME_LEAVE | TME_CANCEL;
+			tme.hwndTrack = hwnd;
+			tme.dwHoverTime = HOVER_DEFAULT;
+
+			TrackMouseEvent (&tme);
 
 			break;
 		}
