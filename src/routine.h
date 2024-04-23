@@ -853,7 +853,7 @@ BOOLEAN _r_obj_isstringnullterminated (
 PR_STRING _r_obj_referenceemptystring ();
 
 VOID _r_obj_removestring (
-	_In_ PR_STRING string,
+	_In_ PR_STRINGREF string,
 	_In_ ULONG_PTR start_pos,
 	_In_ ULONG_PTR length
 );
