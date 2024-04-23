@@ -1189,7 +1189,7 @@ VOID _r_config_getfont_ex (
 
 	if (font_config)
 	{
-		_r_obj_initializestringref2 (&remaining_part, font_config);
+		_r_obj_initializestringref2 (&remaining_part, &font_config->sr);
 
 		// get font face name
 		if (_r_str_splitatchar (&remaining_part, L';', &first_part, &remaining_part))
@@ -1236,7 +1236,7 @@ VOID _r_config_getsize (
 
 	if (pair_config)
 	{
-		_r_obj_initializestringref2 (&remaining_part, pair_config);
+		_r_obj_initializestringref2 (&remaining_part, &pair_config->sr);
 
 		// get x-value
 		_r_str_splitatchar (&remaining_part, L',', &first_part, &remaining_part);
@@ -1293,7 +1293,7 @@ PR_STRING _r_config_getstringexpand_ex (
 	status = _r_str_environmentexpandstring (&value->sr, &string);
 
 	if (!NT_SUCCESS (status))
-		string = _r_obj_createstring2 (value);
+		string = _r_obj_createstring2 (&value->sr);
 
 	_r_obj_dereference (value);
 
@@ -1358,7 +1358,7 @@ PR_STRING _r_config_getstring_ex (
 		);
 	}
 
-	hash_code = _r_str_gethash2 (section_string, TRUE);
+	hash_code = _r_str_gethash2 (&section_string->sr, TRUE);
 
 	_r_obj_dereference (section_string);
 
@@ -1626,7 +1626,7 @@ VOID _r_config_setstring_ex (
 		);
 	}
 
-	hash_code = _r_str_gethash2 (section_string_full, TRUE);
+	hash_code = _r_str_gethash2 (&section_string_full->sr, TRUE);
 
 	_r_obj_dereference (section_string_full);
 
@@ -1911,7 +1911,7 @@ PR_STRING _r_locale_getstring_ex (
 	{
 		hash_string = _r_format_string (L"%s\\%03d", app_global.locale.current_name->buffer, uid);
 
-		hash_code = _r_str_gethash2 (hash_string, TRUE);
+		hash_code = _r_str_gethash2 (&hash_string->sr, TRUE);
 
 		_r_queuedlock_acquireshared (&app_global.locale.lock);
 		value_string = _r_obj_findhashtablepointer (app_global.locale.table, hash_code);
@@ -1928,7 +1928,7 @@ PR_STRING _r_locale_getstring_ex (
 		{
 			hash_string = _r_format_string (L"%s\\%03d", app_global.locale.resource_name->buffer, uid);
 
-			hash_code = _r_str_gethash2 (hash_string, TRUE);
+			hash_code = _r_str_gethash2 (&hash_string->sr, TRUE);
 
 			_r_queuedlock_acquireshared (&app_global.locale.lock);
 			value_string = _r_obj_findhashtablepointer (app_global.locale.table, hash_code);
@@ -2127,7 +2127,7 @@ NTSTATUS _r_update_downloadupdate (
 
 	_r_inet_initializedownload (&download_info, hfile, &_r_update_downloadcallback, update_info);
 
-	status = _r_inet_begindownload (update_info->hsession, update_component->url, &download_info);
+	status = _r_inet_begindownload (update_info->hsession, &update_component->url->sr, &download_info);
 
 	NtClose (hfile); // required!
 
@@ -2250,7 +2250,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 
 	_r_inet_initializedownload (&download_info, NULL, NULL, NULL);
 
-	status = _r_inet_begindownload (update_info->hsession, update_url, &download_info);
+	status = _r_inet_begindownload (update_info->hsession, &update_url->sr, &download_info);
 
 	if (status != STATUS_SUCCESS)
 	{
@@ -2272,7 +2272,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 		{
 			update_component = _r_obj_getarrayitem (update_info->components, i);
 
-			hash_code = _r_str_gethash2 (update_component->short_name, TRUE);
+			hash_code = _r_str_gethash2 (&update_component->short_name->sr, TRUE);
 			string = _r_obj_findhashtablepointer (string_table, hash_code);
 
 			_r_obj_movereference (&string_value, string);
@@ -2288,8 +2288,8 @@ NTSTATUS NTAPI _r_update_checkthread (
 
 			_r_str_splitatchar (&remaining_part, L'|', &new_url_sr, &remaining_part);
 
-			_r_obj_movereference (&update_component->url, _r_obj_createstring3 (&new_url_sr));
-			_r_obj_movereference (&update_component->new_version, _r_obj_createstring3 (&new_version_sr));
+			_r_obj_movereference (&update_component->url, _r_obj_createstring2 (&new_url_sr));
+			_r_obj_movereference (&update_component->new_version, _r_obj_createstring2 (&new_version_sr));
 
 			update_component->flags |= PR_UPDATE_FLAG_AVAILABLE;
 

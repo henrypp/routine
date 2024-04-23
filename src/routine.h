@@ -171,6 +171,40 @@ static SID SeNetworkServiceSid = {SID_REVISION, 1, SECURITY_NT_AUTHORITY, {SECUR
 #endif
 
 //
+// Strings
+//
+
+ULONG_PTR _r_str_getlength_ex (
+	_In_reads_or_z_ (max_length) LPCWSTR string,
+	_In_ _In_range_ (<= , PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR max_length
+);
+
+FORCEINLINE ULONG_PTR _r_str_getlength (
+	_In_ LPCWSTR string
+)
+{
+	return _r_str_getlength_ex (string, PR_SIZE_MAX_STRING_LENGTH);
+}
+
+FORCEINLINE ULONG_PTR _r_str_getlength2 (
+	_In_ PR_STRINGREF string
+)
+{
+	assert (!(string->length & 0x01));
+
+	return string->length / sizeof (WCHAR);
+}
+
+FORCEINLINE ULONG_PTR _r_str_getlength3 (
+	_In_ PUNICODE_STRING string
+)
+{
+	assert (!(string->Length & 0x01));
+
+	return string->Length / sizeof (WCHAR);
+}
+
+//
 // Synchronization
 //
 
@@ -809,18 +843,6 @@ PR_STRING _r_obj_createstring (
 	_In_ LPCWSTR string
 );
 
-PR_STRING _r_obj_createstring2 (
-	_In_ PR_STRING string
-);
-
-PR_STRING _r_obj_createstring3 (
-	_In_ PR_STRINGREF string
-);
-
-PR_STRING _r_obj_createstring4 (
-	_In_ PUNICODE_STRING string
-);
-
 PR_STRING _r_obj_createstring_ex (
 	_In_opt_ LPCWSTR buffer,
 	_In_ ULONG_PTR length
@@ -881,6 +903,27 @@ VOID _r_obj_trimstringtonullterminator (
 VOID _r_obj_writestringnullterminator (
 	_In_ PR_STRINGREF string
 );
+
+FORCEINLINE PR_STRING _r_obj_createstring (
+	_In_ LPCWSTR string
+)
+{
+	return _r_obj_createstring_ex (string, _r_str_getlength (string) * sizeof (WCHAR));
+}
+
+FORCEINLINE PR_STRING _r_obj_createstring2 (
+	_In_ PR_STRINGREF string
+)
+{
+	return _r_obj_createstring_ex (string->buffer, string->length);
+}
+
+FORCEINLINE PR_STRING _r_obj_createstring3 (
+	_In_ PUNICODE_STRING string
+)
+{
+	return _r_obj_createstring_ex (string->Buffer, string->Length);
+}
 
 _Ret_maybenull_
 FORCEINLINE LPWSTR _r_obj_getstring (
@@ -954,15 +997,10 @@ VOID _r_obj_initializestringref (
 
 VOID _r_obj_initializestringref2 (
 	_Out_ PR_STRINGREF string,
-	_In_opt_ PR_STRING buffer
+	_In_opt_ PR_STRINGREF buffer
 );
 
 VOID _r_obj_initializestringref3 (
-	_Out_ PR_STRINGREF string,
-	_In_ PR_STRINGREF buffer
-);
-
-VOID _r_obj_initializestringref4 (
 	_Out_ PR_STRINGREF string,
 	_In_ PUNICODE_STRING buffer
 );
@@ -977,6 +1015,44 @@ VOID _r_obj_initializestringref_ex (
 	_In_opt_ ULONG_PTR length
 );
 
+FORCEINLINE VOID _r_obj_initializestringref (
+	_Out_ PR_STRINGREF string,
+	_In_ LPWSTR buffer
+)
+{
+	_r_obj_initializestringref_ex (string, buffer, _r_str_getlength (buffer) * sizeof (WCHAR));
+}
+
+FORCEINLINE VOID _r_obj_initializestringref2 (
+	_Out_ PR_STRINGREF string,
+	_In_opt_ PR_STRINGREF buffer
+)
+{
+	if (buffer)
+	{
+		_r_obj_initializestringref_ex (string, buffer->buffer, buffer->length);
+	}
+	else
+	{
+		_r_obj_initializestringrefempty (string);
+	}
+}
+
+FORCEINLINE VOID _r_obj_initializestringref3 (
+	_Out_ PR_STRINGREF string,
+	_In_ PUNICODE_STRING buffer
+)
+{
+	_r_obj_initializestringref_ex (string, buffer->Buffer, buffer->Length);
+}
+
+FORCEINLINE VOID _r_obj_initializestringrefempty (
+	_Out_ PR_STRINGREF string
+)
+{
+	_r_obj_initializestringref_ex (string, NULL, 0);
+}
+
 //
 // Unicode string object
 //
@@ -986,22 +1062,20 @@ BOOLEAN _r_obj_initializeunicodestring (
 	_In_opt_ LPWSTR buffer
 );
 
-BOOLEAN _r_obj_initializeunicodestring2 (
-	_Out_ PUNICODE_STRING string,
-	_In_ PR_STRING buffer
-);
-
-BOOLEAN _r_obj_initializeunicodestring3 (
-	_Out_ PUNICODE_STRING string,
-	_In_ PR_STRINGREF buffer
-);
-
 BOOLEAN _r_obj_initializeunicodestring_ex (
 	_Out_ PUNICODE_STRING string,
 	_In_opt_ LPWSTR buffer,
 	_In_opt_ USHORT length,
 	_In_opt_ USHORT max_length
 );
+
+FORCEINLINE BOOLEAN _r_obj_initializeunicodestring2 (
+	_Out_ PUNICODE_STRING string,
+	_In_ PR_STRINGREF buffer
+)
+{
+	return _r_obj_initializeunicodestring_ex (string, buffer->buffer, (USHORT)buffer->length, (USHORT)buffer->length + sizeof (UNICODE_NULL));
+}
 
 //
 // Pointer storage
@@ -1037,15 +1111,10 @@ VOID _r_obj_appendstringbuilder (
 
 VOID _r_obj_appendstringbuilder2 (
 	_Inout_ PR_STRINGBUILDER sb,
-	_In_ PR_STRING string
-);
-
-VOID _r_obj_appendstringbuilder3 (
-	_Inout_ PR_STRINGBUILDER sb,
 	_In_ PR_STRINGREF string
 );
 
-VOID _r_obj_appendstringbuilder4 (
+VOID _r_obj_appendstringbuilder3 (
 	_Inout_ PR_STRINGBUILDER sb,
 	_In_ PUNICODE_STRING string
 );
@@ -1116,6 +1185,37 @@ VOID _r_obj_resizestringbuilder (
 	_Inout_ PR_STRINGBUILDER sb,
 	_In_ ULONG_PTR new_capacity
 );
+
+FORCEINLINE PR_STRING _r_obj_finalstringbuilder (
+	_In_ PR_STRINGBUILDER sb
+)
+{
+	return sb->string;
+}
+
+FORCEINLINE VOID _r_obj_appendstringbuilder (
+	_Inout_ PR_STRINGBUILDER sb,
+	_In_ LPCWSTR string
+)
+{
+	_r_obj_appendstringbuilder_ex (sb, string, _r_str_getlength (string) * sizeof (WCHAR));
+}
+
+FORCEINLINE VOID _r_obj_appendstringbuilder2 (
+	_Inout_ PR_STRINGBUILDER sb,
+	_In_ PR_STRINGREF string
+)
+{
+	_r_obj_appendstringbuilder_ex (sb, string->buffer, string->length);
+}
+
+FORCEINLINE VOID _r_obj_appendstringbuilder3 (
+	_Inout_ PR_STRINGBUILDER sb,
+	_In_ PUNICODE_STRING string
+)
+{
+	_r_obj_appendstringbuilder_ex (sb, string->Buffer, string->Length);
+}
 
 //
 // Array object
@@ -1363,25 +1463,10 @@ PVOID _r_obj_findhashtablepointer (
 // Console
 //
 
-_Ret_maybenull_
-HANDLE _r_console_gethandle ();
-
 WORD _r_console_getcolor ();
 
 VOID _r_console_setcolor (
 	_In_ WORD clr
-);
-
-VOID _r_console_writestring (
-	_In_ LPCWSTR string
-);
-
-VOID _r_console_writestring2 (
-	_In_ PR_STRING string
-);
-
-VOID _r_console_writestring3 (
-	_In_ PR_STRINGREF string
 );
 
 VOID _r_console_writestring_ex (
@@ -1393,6 +1478,20 @@ VOID _r_console_writestringformat (
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 );
+
+FORCEINLINE VOID _r_console_writestring (
+	_In_ LPCWSTR string
+)
+{
+	_r_console_writestring_ex (string, (ULONG)_r_str_getlength (string));
+}
+
+FORCEINLINE VOID _r_console_writestring2 (
+	_In_ PR_STRINGREF string
+)
+{
+	_r_console_writestring_ex (string->buffer, (ULONG)_r_str_getlength2 (string));
+}
 
 //
 // Format strings, dates, numbers
@@ -2120,11 +2219,6 @@ INT _r_str_compare (
 	_In_opt_ ULONG_PTR max_count
 );
 
-INT _r_str_compare_logical (
-	_In_ PR_STRING string1,
-	_In_ PR_STRING string2
-);
-
 VOID _r_str_copy (
 	_Out_writes_z_ (buffer_size) LPWSTR buffer,
 	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_size,
@@ -2234,11 +2328,6 @@ ULONG _r_str_gethash (
 );
 
 ULONG _r_str_gethash2 (
-	_In_ PR_STRING string,
-	_In_ BOOLEAN is_ignorecase
-);
-
-ULONG _r_str_gethash3 (
 	_In_ PR_STRINGREF string,
 	_In_ BOOLEAN is_ignorecase
 );
@@ -2257,27 +2346,6 @@ ULONG_PTR _r_str_getbytelength3 (
 
 ULONG_PTR _r_str_getbytelength_ex (
 	_In_reads_or_z_ (max_length) LPCSTR string,
-	_In_ _In_range_ (<= , PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR max_length
-);
-
-ULONG_PTR _r_str_getlength (
-	_In_ LPCWSTR string
-);
-
-ULONG_PTR _r_str_getlength2 (
-	_In_ PR_STRING string
-);
-
-ULONG_PTR _r_str_getlength3 (
-	_In_ PR_STRINGREF string
-);
-
-ULONG_PTR _r_str_getlength4 (
-	_In_ PUNICODE_STRING string
-);
-
-ULONG_PTR _r_str_getlength_ex (
-	_In_reads_or_z_ (max_length) LPCWSTR string,
 	_In_ _In_range_ (<= , PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR max_length
 );
 
@@ -2479,6 +2547,14 @@ ULONG _r_str_x65599 (
 	_In_ PR_STRINGREF string,
 	_In_ BOOLEAN is_ignorecase
 );
+
+FORCEINLINE INT _r_str_compare_logical (
+	_In_ PR_STRING string1,
+	_In_ PR_STRING string2
+)
+{
+	return StrCmpLogicalW (string1->buffer, string2->buffer);
+}
 
 FORCEINLINE VOID _r_str_trim (
 	_In_ LPWSTR string,
@@ -3591,7 +3667,7 @@ HINTERNET _r_inet_createsession (
 _Success_ (return == ERROR_SUCCESS)
 ULONG _r_inet_openurl (
 	_In_ HINTERNET hsession,
-	_In_ PR_STRING url,
+	_In_ PR_STRINGREF url,
 	_Out_ LPHINTERNET hconnect_ptr,
 	_Out_ LPHINTERNET hrequest_ptr,
 	_Out_opt_ PULONG total_length_ptr
@@ -3630,7 +3706,7 @@ VOID _r_inet_initializedownload (
 
 NTSTATUS _r_inet_begindownload (
 	_In_ HINTERNET hsession,
-	_In_ PR_STRING url,
+	_In_ PR_STRINGREF url,
 	_Inout_ PR_DOWNLOAD_INFO download_info
 );
 
@@ -3640,7 +3716,7 @@ VOID _r_inet_destroydownload (
 
 _Success_ (return)
 BOOLEAN _r_inet_queryurlparts (
-	_In_ PR_STRING url,
+	_In_ PR_STRINGREF url,
 	_In_ ULONG flags,
 	_Out_ PR_URLPARTS url_parts
 );
