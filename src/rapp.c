@@ -4675,8 +4675,8 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
 			_r_theme_setdarkmode (hwnd, is_enable);
 
-		_r_wnd_sendmessage (hwnd, 0, PBM_SETBARCOLOR, 0, is_enable ? WND_TEXT_CLR : CLR_DEFAULT);
-		_r_wnd_sendmessage (hwnd, 0, PBM_SETBKCOLOR, 0, is_enable ? WND_BACKGROUND2_CLR : CLR_DEFAULT);
+		_r_progress_setbarcolor (hwnd, 0, is_enable ? WND_TEXT_CLR : CLR_DEFAULT);
+		_r_progress_setbkcolor (hwnd, 0, is_enable ? WND_BACKGROUND2_CLR : CLR_DEFAULT);
 	}
 	else if (_r_str_isequal2 (&class_name->sr, REBARCLASSNAMEW, TRUE))
 	{
