@@ -5849,6 +5849,24 @@ FORCEINLINE VOID _r_progress_setvalue (
 	_r_wnd_sendmessage (hwnd, ctrl_id, PBM_SETPOS, (WPARAM)percent, 0);
 }
 
+FORCEINLINE VOID _r_progress_setbarcolor (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ COLORREF clr
+)
+{
+	_r_wnd_sendmessage (hwnd, ctrl_id, PBM_SETBARCOLOR, 0, clr);
+}
+
+FORCEINLINE VOID _r_progress_setbkcolor (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ COLORREF clr
+)
+{
+	_r_wnd_sendmessage (hwnd, ctrl_id, PBM_SETBKCOLOR, 0, clr);
+}
+
 //
 // Util
 //
