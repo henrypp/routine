@@ -17615,9 +17615,23 @@ VOID _r_status_settextformat (
 // Control: rebar
 //
 
+VOID _r_rebar_deleteband (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ UINT band_id
+)
+{
+	UINT index;
+
+	index = (UINT)_r_wnd_sendmessage (hwnd, ctrl_id, RB_IDTOINDEX, (WPARAM)band_id, 0);
+
+	if (index != UINT_MAX)
+		_r_wnd_sendmessage (hwnd, ctrl_id, RB_DELETEBAND, (WPARAM)index, 0);
+}
+
 VOID _r_rebar_insertband (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ UINT band_id,
 	_In_ HWND hchild,
 	_In_opt_ UINT style,
@@ -17644,9 +17658,9 @@ VOID _r_rebar_insertband (
 	_r_wnd_sendmessage (hwnd, ctrl_id, RB_INSERTBAND, (WPARAM)-1, (LPARAM)&rbi);
 }
 
-VOID _r_rebar_deleteband (
+BOOLEAN _r_rebar_isbandexists (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ UINT band_id
 )
 {
@@ -17654,8 +17668,7 @@ VOID _r_rebar_deleteband (
 
 	index = (UINT)_r_wnd_sendmessage (hwnd, ctrl_id, RB_IDTOINDEX, (WPARAM)band_id, 0);
 
-	if (index != UINT_MAX)
-		_r_wnd_sendmessage (hwnd, ctrl_id, RB_DELETEBAND, (WPARAM)index, 0);
+	return (index != UINT_MAX) ? TRUE : FALSE;
 }
 
 //

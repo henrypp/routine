@@ -5608,9 +5608,15 @@ FORCEINLINE VOID _r_status_settext (
 // Control: rebar
 //
 
+VOID _r_rebar_deleteband (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ UINT band_id
+);
+
 VOID _r_rebar_insertband (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ UINT band_id,
 	_In_ HWND hchild,
 	_In_opt_ UINT style,
@@ -5618,15 +5624,15 @@ VOID _r_rebar_insertband (
 	_In_ UINT height
 );
 
-VOID _r_rebar_deleteband (
+BOOLEAN _r_rebar_isbandexists (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ UINT band_id
 );
 
 FORCEINLINE UINT _r_rebar_getcount (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	return (UINT)_r_wnd_sendmessage (hwnd, ctrl_id, RB_GETBANDCOUNT, 0, 0);
@@ -5634,7 +5640,7 @@ FORCEINLINE UINT _r_rebar_getcount (
 
 FORCEINLINE LONG _r_rebar_getheight (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	return (LONG)_r_wnd_sendmessage (hwnd, ctrl_id, RB_GETBARHEIGHT, 0, 0);
