@@ -9031,7 +9031,11 @@ ULONG _r_sys_getwindowsversion ()
 			}
 			else if (version_info.dwMajorVersion == 10 && version_info.dwMinorVersion == 0)
 			{
-				if (version_info.dwBuildNumber >= 22631)
+				if (version_info.dwBuildNumber >= 26000)
+				{
+					windows_version = WINDOWS_11_24H2;
+				}
+				else if (version_info.dwBuildNumber >= 22631)
 				{
 					windows_version = WINDOWS_11_23H2;
 				}
