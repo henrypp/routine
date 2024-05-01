@@ -175,7 +175,7 @@ BOOLEAN _r_app_initialize_com ()
 
 	if (FAILED (status))
 	{
-		_r_report_error (NULL, APP_FAILED_COM_INITIALIZE, status, FALSE);
+		_r_report_error (NULL, APP_FAILED_COM_INITIALIZE, status, ET_WINDOWS);
 
 		return FALSE;
 	}
@@ -262,7 +262,7 @@ VOID _r_app_initialize_mitigations ()
 	status = NtSetInformationProcess (NtCurrentProcess (), ProcessMitigationPolicy, &policy, sizeof (policy));
 
 	//if (!NT_SUCCESS (status))
-	//	_r_report_error (NULL, L"ProcessSignaturePolicy", status, TRUE);
+	//	_r_report_error (NULL, L"ProcessSignaturePolicy", status, ET_NATIVE);
 
 	// prevents legacy extension point DLLs from being loaded into the process
 	policy.Policy = ProcessExtensionPointDisablePolicy;
@@ -272,7 +272,7 @@ VOID _r_app_initialize_mitigations ()
 	status = NtSetInformationProcess (NtCurrentProcess (), ProcessMitigationPolicy, &policy, sizeof (policy));
 
 	//if (!NT_SUCCESS (status))
-	//	_r_report_error (NULL, L"ProcessExtensionPointDisablePolicy", status, TRUE);
+	//	_r_report_error (NULL, L"ProcessExtensionPointDisablePolicy", status, ET_NATIVE);
 
 	// when turned on, the process cannot generate dynamic code or modify existing executable code
 	policy.Policy = ProcessDynamicCodePolicy;
@@ -282,7 +282,7 @@ VOID _r_app_initialize_mitigations ()
 	status = NtSetInformationProcess (NtCurrentProcess (), ProcessMitigationPolicy, &policy, sizeof (policy));
 
 	//if (!NT_SUCCESS (status))
-	//	_r_report_error (NULL, L"ProcessDynamicCodePolicy", status, TRUE);
+	//	_r_report_error (NULL, L"ProcessDynamicCodePolicy", status, ET_NATIVE);
 
 	// the RedirectionGuard policy of the process.
 	//policy.Policy = ProcessRedirectionTrustPolicy;
@@ -292,7 +292,7 @@ VOID _r_app_initialize_mitigations ()
 	//status = NtSetInformationProcess (NtCurrentProcess (), ProcessMitigationPolicy, &policy, sizeof (policy));
 	//
 	//if (!NT_SUCCESS (status))
-	//	_r_report_error (NULL, L"ProcessRedirectionTrustPolicy", status, TRUE);
+	//	_r_report_error (NULL, L"ProcessRedirectionTrustPolicy", status, ET_NATIVE);
 }
 
 VOID _r_app_initialize_seh ()
@@ -357,7 +357,7 @@ BOOLEAN _r_app_initialize (
 	if (!_r_sys_iselevated ())
 	{
 		if (!_r_app_runasadmin ())
-			_r_report_error (NULL, APP_FAILED_ADMIN_RIGHTS, STATUS_ACCESS_DENIED, TRUE);
+			_r_report_error (NULL, APP_FAILED_ADMIN_RIGHTS, STATUS_ACCESS_DENIED, ET_NATIVE);
 
 		return FALSE;
 	}
@@ -376,7 +376,7 @@ BOOLEAN _r_app_initialize (
 #if !defined(_DEBUG) && !defined(_WIN64)
 	if (_r_sys_iswow64 () && !_r_sys_getopt (_r_sys_getimagecommandline (), L"nowow64", NULL))
 	{
-		_r_report_error (APP_WARNING_WOW64_TITLE, APP_WARNING_WOW64_TEXT, STATUS_IMAGE_MACHINE_TYPE_MISMATCH, TRUE);
+		_r_report_error (APP_WARNING_WOW64_TITLE, APP_WARNING_WOW64_TEXT, STATUS_IMAGE_MACHINE_TYPE_MISMATCH, ET_NATIVE);
 
 		return FALSE;
 	}

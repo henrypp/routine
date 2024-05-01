@@ -1628,7 +1628,7 @@ NTSTATUS _r_mutex_create (
 	HANDLE hmutex;
 	NTSTATUS status;
 
-	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\Sessions\\%u\\BaseNamedObjects\\%s", NtCurrentPeb ()->SessionId, name);
+	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\Sessions\\%d\\BaseNamedObjects\\%s", NtCurrentPeb ()->SessionId, name);
 
 	_r_obj_initializeunicodestring (&us, buffer);
 
@@ -1681,7 +1681,7 @@ BOOLEAN _r_mutex_isexists (
 	HANDLE hmutex;
 	NTSTATUS status;
 
-	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\Sessions\\%u\\BaseNamedObjects\\%s", NtCurrentPeb ()->SessionId, name);
+	_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"\\Sessions\\%d\\BaseNamedObjects\\%s", NtCurrentPeb ()->SessionId, name);
 
 	_r_obj_initializeunicodestring (&us, buffer);
 
