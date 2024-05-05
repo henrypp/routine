@@ -30,11 +30,49 @@ typedef IRegisteredTask *IRegisteredTaskPtr;
 // Exported function definitions
 //
 
+// VerQueryValue
+typedef BOOL (WINAPI *VQV) (
+	_In_ LPCVOID pBlock,
+	_In_ LPCWSTR lpSubBlock,
+	_Outptr_ PVOID_PTR lplpBuffer,
+	_Out_ PUINT puLen
+	);
+
 // I_QueryTagInformation
 typedef ULONG (NTAPI *IQTI) (
 	_In_opt_ PCWSTR MachineName,
 	_In_ TAG_INFO_LEVEL InfoLevel,
 	_Inout_ PTAG_INFO_NAME_FROM_TAG TagInfo
+	);
+
+// IsImmersiveProcess (win8+)
+typedef BOOL (WINAPI *IIP) (
+	_In_ HANDLE hProcess
+	);
+
+// NtQueryWnfStateData (win8+)
+typedef NTSTATUS (NTAPI *NTQWNFSD) (
+	_In_ PCWNF_STATE_NAME StateName,
+	_In_opt_ PCWNF_TYPE_ID TypeId,
+	_In_opt_ const VOID *ExplicitScope,
+	_Out_ PWNF_CHANGE_STAMP ChangeStamp,
+	_Out_writes_bytes_to_opt_ (*BufferSize, *BufferSize) PVOID Buffer,
+	_Inout_ PULONG BufferSize
+	);
+
+// GetDpiForMonitor (win81+)
+typedef HRESULT (WINAPI *GDFM)(
+	_In_ HMONITOR hmonitor,
+	_In_ MONITOR_DPI_TYPE dpiType,
+	_Out_ PUINT dpiX,
+	_Out_ PUINT dpiY
+	);
+
+// GetStagedPackagePathByFullName (win81+)
+typedef LONG (WINAPI *GSPPBF)(
+	_In_ PCWSTR packageFullName,
+	_Inout_ UINT32 * pathLength,
+	_Out_opt_ PWSTR  path
 	);
 
 // AdjustWindowRectExForDpi (win10rs1+)
@@ -717,8 +755,8 @@ typedef struct _R_MEMORY_INFO
 // System information
 //
 
-//#define WINDOWS_7 0x0601
-//#define WINDOWS_8 0x0602
+#define WINDOWS_7 0x0601
+#define WINDOWS_8 0x0602
 #define WINDOWS_8_1 0x0603
 #define WINDOWS_10_TH1 0x0A00 // build 10240 [TH1]
 #define WINDOWS_10_TH2 0x0A01 // build 10586 [TH2]
@@ -755,7 +793,7 @@ typedef struct _R_TOKEN_ATTRIBUTES
 	struct
 	{
 		ULONG is_elevated : 1;
-		TOKEN_ELEVATION_TYPE elevation_type : 2;
+		ULONG elevation_type : 2;
 		ULONG spare_bits : 29;
 	};
 

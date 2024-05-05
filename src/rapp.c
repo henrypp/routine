@@ -216,19 +216,15 @@ VOID _r_app_initialize_controls ()
 
 VOID _r_app_initialize_dll ()
 {
-	UNICODE_STRING us;
-
 	// Safe DLL loading
 	// This prevents DLL planting in the application directory.
-
-	_r_obj_initializeunicodestring (&us, L"");
-
-	LdrSetDllDirectory (&us);
+	SetDllDirectoryW (L"");
 
 	// win7+
-	RtlSetSearchPathMode (BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
+	SetSearchPathMode (BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
 
-	LdrSetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
+	// win7 has required KB2533623
+	SetDefaultDllDirectories (LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 }
 
 VOID _r_app_initialize_locale ()
@@ -2219,7 +2215,7 @@ NTSTATUS NTAPI _r_update_downloadthread (
 		str_content = L"Update server connection error.";
 	}
 
-	_r_update_navigate (update_info, buttons, 0, main_icon, NULL, str_content, status);
+	_r_update_navigate (update_info, buttons, 0, main_icon, NULL, str_content, status, ET_WINHTTP);
 
 	return STATUS_SUCCESS;
 }
@@ -2258,7 +2254,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 		{
 			str_content = L"Update server connection error.";
 
-			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, TD_WARNING_ICON, NULL, str_content, status);
+			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, TD_WARNING_ICON, NULL, str_content, status, ET_WINHTTP);
 		}
 
 		goto CleanupExit;
@@ -2339,7 +2335,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 
 		str_content = L"Update available. Download and install now?";
 
-		_r_update_navigate (update_info, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, 0, NULL, str_content, str_updates, 0);
+		_r_update_navigate (update_info, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, 0, NULL, str_content, str_updates, 0, ET_WINDOWS);
 	}
 	else
 	{
@@ -2361,7 +2357,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 				}
 			}
 
-			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, NULL, NULL, str_content, status);
+			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, NULL, NULL, str_content, status, ET_WINHTTP);
 		}
 	}
 
@@ -2462,7 +2458,7 @@ BOOLEAN _r_update_check (
 
 		update_info->hthread = hthread;
 
-		_r_update_navigate (update_info, TDCBF_CANCEL_BUTTON, TDF_SHOW_PROGRESS_BAR, NULL, NULL, str_content, 0);
+		_r_update_navigate (update_info, TDCBF_CANCEL_BUTTON, TDF_SHOW_PROGRESS_BAR, NULL, NULL, str_content, 0, ET_WINDOWS);
 	}
 	else
 	{
@@ -2532,7 +2528,7 @@ HRESULT CALLBACK _r_update_pagecallback (
 
 					str_content = L"Downloading update...";
 
-					_r_update_navigate (update_info, TDCBF_CANCEL_BUTTON, TDF_SHOW_PROGRESS_BAR, NULL, NULL, str_content, 0);
+					_r_update_navigate (update_info, TDCBF_CANCEL_BUTTON, TDF_SHOW_PROGRESS_BAR, NULL, NULL, str_content, 0, ET_WINDOWS);
 
 					return S_FALSE;
 				}
@@ -2599,14 +2595,16 @@ VOID _r_update_navigate (
 	_In_opt_ LPCWSTR icon,
 	_In_opt_ LPCWSTR title,
 	_In_opt_ LPCWSTR content,
-	_In_opt_ LONG error_code
+	_In_opt_ LONG error_code,
+	_In_ R_ERROR_TYPE type
 )
 {
 	TASKDIALOGCONFIG tdc = {0};
-	WCHAR buffer[512];
+	WCHAR buffer[0x0800];
 	PR_STRING string = NULL;
 	PVOID hlib;
 	BOOL is_checked;
+	NTSTATUS status;
 
 	tdc.cbSize = sizeof (tdc);
 	tdc.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | flags;
@@ -2640,20 +2638,24 @@ VOID _r_update_navigate (
 
 	if (error_code != STATUS_SUCCESS)
 	{
-		_r_sys_getmodulehandle (L"winhttp.dll", &hlib);
+		status = _r_sys_loadlibrarytype (type, &hlib);
 
-		_r_sys_formatmessage (error_code, hlib, 0, &string);
+		if (NT_SUCCESS (status))
+		{
+			_r_sys_formatmessage (error_code, hlib, 0, &string);
 
-		_r_str_printf (
-			buffer,
-			RTL_NUMBER_OF (buffer),
-			L"Description:\r\n%s\r\nStatus:\r\n%" TEXT (PR_LONG) L" (0x%08" TEXT (PRIX32)")",
-			_r_obj_getstringordefault (string, L"n/a"),
-			error_code,
-			error_code
-		);
+			_r_str_printf (
+				buffer,
+				RTL_NUMBER_OF (buffer),
+				L"%s\r\n\r\nDescription:\r\n%s\r\nStatus:\r\n%" TEXT (PR_LONG) L" (0x%08" TEXT (PRIX32)")",
+				content,
+				_r_obj_getstringordefault (string, L"n/a"),
+				error_code,
+				error_code
+			);
 
-		tdc.pszExpandedInformation = buffer;
+			tdc.pszContent = buffer;
+		}
 	}
 
 	if (buttons & TDCBF_YES_BUTTON)
@@ -3123,39 +3125,12 @@ NTSTATUS _r_show_errormessage (
 	R_STRINGREF sr;
 	LPCWSTR str_main;
 	LPCWSTR path;
-	LPWSTR name;
 	PVOID hmodule = NULL;
 	UINT btn_cnt = 0;
 	INT command_id;
 	NTSTATUS status;
 
-	switch (type)
-	{
-		case ET_WINDOWS:
-		{
-			name = L"kernel32.dll";
-			break;
-		}
-
-		case ET_NATIVE:
-		{
-			name = L"ntdll.dll";
-			break;
-		}
-
-		case ET_WINHTTP:
-		{
-			name = L"winhttp.dll";
-			break;
-		}
-
-		default:
-		{
-			return STATUS_INVALID_INFO_CLASS;
-		}
-	}
-
-	status = _r_sys_loadlibraryasresource (name, &hmodule);
+	status = _r_sys_loadlibrarytype (type, &hmodule);
 
 	if (!NT_SUCCESS (status))
 		return status;
@@ -4666,7 +4641,8 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 	{
 		GetWindowPlacement (GetParent (hwnd), &pos);
 
-		_r_theme_setdarkmode (hwnd, is_enable);
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
+			_r_theme_setdarkmode (hwnd, is_enable);
 
 		SetWindowPlacement (GetParent (hwnd), &pos);
 	}
@@ -4839,14 +4815,17 @@ VOID _r_theme_initialize (
 
 	if (_r_initonce_begin (&init_once))
 	{
-		status = _r_sys_loadlibrary (L"uxtheme.dll", 0, &huxtheme);
-
-		if (NT_SUCCESS (status))
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
 		{
-			_r_sys_getprocaddress (huxtheme, NULL, 135, (PVOID_PTR)&_SetPreferredAppMode);
-			_r_sys_getprocaddress (huxtheme, NULL, 136, (PVOID_PTR)&_FlushMenuThemes);
+			status = _r_sys_loadlibrary (L"uxtheme.dll", 0, &huxtheme);
 
-			//_r_sys_freelibrary (huxtheme, FALSE);
+			if (NT_SUCCESS (status))
+			{
+				_r_sys_getprocaddress (huxtheme, NULL, 135, (PVOID_PTR)&_SetPreferredAppMode);
+				_r_sys_getprocaddress (huxtheme, NULL, 136, (PVOID_PTR)&_FlushMenuThemes);
+
+				//_r_sys_freelibrary (huxtheme, FALSE);
+			}
 		}
 
 		app_global.theme.bg_brush = CreateSolidBrush (WND_BACKGROUND_CLR);
@@ -5808,7 +5787,6 @@ LRESULT CALLBACK _r_theme_statusbar_subclass (
 			LONG borders[3] = {0};
 			LONG parts;
 			INT ctrl_id;
-			BOOLEAN is_sizegrip;
 
 			hdc = BeginPaint (hwnd, &ps);
 
@@ -5826,8 +5804,6 @@ LRESULT CALLBACK _r_theme_statusbar_subclass (
 			ctrl_id = GetDlgCtrlID (hwnd);
 
 			_r_status_getborders (hwnd, 0, &borders);
-
-			is_sizegrip = _r_wnd_getstyle (hwnd) && SBARS_SIZEGRIP;
 
 			for (LONG i = 0; i < parts; i++)
 			{
@@ -5858,7 +5834,7 @@ LRESULT CALLBACK _r_theme_statusbar_subclass (
 					_r_dc_fillrect (hdc, &divider, WND_BACKGROUND2_CLR);
 			}
 
-			if (is_sizegrip)
+			if (_r_wnd_getstyle (hwnd) && SBARS_SIZEGRIP)
 			{
 				GetThemePartSize (context->htheme, hdc, SP_GRIPPER, 0, &rect, TS_DRAW, &grip);
 

@@ -6,9 +6,9 @@
 #pragma once
 
 #include "routine.h"
-#include "resource.h"
-
 #include "rconfig.h"
+
+#include "resource.h"
 
 #if !defined(IDC_NAV)
 #define IDC_NAV 1000
@@ -491,7 +491,8 @@ VOID _r_update_navigate (
 	_In_opt_ LPCWSTR icon,
 	_In_opt_ LPCWSTR title,
 	_In_opt_ LPCWSTR content,
-	_In_opt_ LONG error_code
+	_In_opt_ LONG error_code,
+	_In_ R_ERROR_TYPE type
 );
 
 VOID _r_update_addcomponent (

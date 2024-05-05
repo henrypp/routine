@@ -2745,6 +2745,9 @@ NTSTATUS _r_sys_getusernamefromsid (
 
 ULONG _r_sys_getwindowsversion ();
 
+BOOLEAN _r_sys_isprocessimmersive (
+	_In_ HANDLE hprocess
+);
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_createprocess (
@@ -2828,6 +2831,12 @@ NTSTATUS _r_sys_loadlibrary (
 	_In_ LPWSTR lib_name,
 	_In_opt_ ULONG lib_flags,
 	_Outptr_ PVOID_PTR out_buffer
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_loadlibrarytype (
+	_In_ R_ERROR_TYPE type,
+	_Out_ PVOID_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -3019,13 +3028,6 @@ FORCEINLINE BOOLEAN _r_sys_isosversionlowerorequal (
 )
 {
 	return _r_sys_getwindowsversion () <= version;
-}
-
-FORCEINLINE BOOLEAN _r_sys_isprocessimmersive (
-	_In_ HANDLE hprocess
-)
-{
-	return !!IsImmersiveProcess (hprocess);
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -4025,21 +4027,16 @@ ULONG _r_res_querytranslation (
 	_In_ LPCVOID ver_block
 );
 
+_Success_ (return)
+BOOLEAN _r_res_queryversion (
+	_In_ LPCVOID ver_block,
+	_Outptr_ PVOID_PTR out_buffer
+);
+
 _Ret_maybenull_
 PR_STRING _r_res_queryversionstring (
 	_In_ LPCWSTR path
 );
-
-_Success_ (return)
-FORCEINLINE BOOLEAN _r_res_queryversion (
-	_In_ LPCVOID ver_block,
-	_Outptr_ PVOID_PTR out_buffer
-)
-{
-	UINT length;
-
-	return !!VerQueryValueW (ver_block, L"\\", out_buffer, &length);
-}
 
 //
 // Imagelist

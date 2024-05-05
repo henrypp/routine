@@ -147,6 +147,7 @@ HRESULT _r_format_bytesize64 (
 {
 	HRESULT status;
 
+	// vista (sp1)+
 	status = StrFormatByteSizeEx (bytes, SFBS_FLAGS_ROUND_TO_NEAREST_DISPLAYED_DIGIT, buffer, buffer_size);
 
 	if (FAILED (status))
@@ -1710,7 +1711,7 @@ HANDLE NTAPI _r_mem_getheap ()
 
 	if (_r_initonce_begin (&init_once))
 	{
-		// win10rs1 preview (14295)+
+		// win10rs1+
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS1))
 			heap_handle = RtlCreateHeap (HEAP_GROWABLE | HEAP_CLASS_1 | HEAP_CREATE_SEGMENT_HEAP, NULL, 0, 0, NULL, NULL);
 
@@ -6129,12 +6130,14 @@ NTSTATUS _r_path_search (
 	_Out_ PR_STRING_PTR out_buffer
 )
 {
+	static R_STRINGREF sr = PR_STRINGREF_INIT (L"%PATH%");
+
 	UNICODE_STRING path_us;
 	UNICODE_STRING filename_us;
 	UNICODE_STRING extension_us;
 	UNICODE_STRING buffer = {0};
 	PR_STRING full_path;
-	LPWSTR path;
+	PR_STRING string;
 	ULONG_PTR return_length;
 	NTSTATUS status;
 
@@ -6145,7 +6148,7 @@ NTSTATUS _r_path_search (
 		return STATUS_SUCCESS;
 	}
 
-	status = RtlGetSearchPath (&path);
+	status = _r_str_environmentexpandstring (&sr, &string);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -6154,12 +6157,12 @@ NTSTATUS _r_path_search (
 		return status;
 	}
 
-	_r_obj_initializeunicodestring (&path_us, path);
+	_r_obj_initializeunicodestring2 (&path_us, &string->sr);
 	_r_obj_initializeunicodestring (&filename_us, filename);
 	_r_obj_initializeunicodestring (&extension_us, extension);
 
 	status = RtlDosSearchPath_Ustr (
-		RTL_DOS_SEARCH_PATH_FLAG_DISALLOW_DOT_RELATIVE_PATH_SEARCH | RTL_DOS_SEARCH_PATH_FLAG_APPLY_DEFAULT_EXTENSION_WHEN_NOT_RELATIVE_PATH_EVEN_IF_FILE_HAS_EXTENSION,
+		RTL_DSP_FLAG_APPLY_ISOLATION_REDIRECTION | RTL_DSP_FLAG_DISALLOW_DOT_RELATIVE_PATH_SEARCH | RTL_DSP_FLAG_APPLY_DEFAULT_EXTENSION,
 		&path_us,
 		&filename_us,
 		&extension_us,
@@ -6177,7 +6180,7 @@ NTSTATUS _r_path_search (
 		_r_obj_initializeunicodestring_ex (&buffer, full_path->buffer, 0, (USHORT)full_path->length);
 
 		status = RtlDosSearchPath_Ustr (
-			RTL_DOS_SEARCH_PATH_FLAG_DISALLOW_DOT_RELATIVE_PATH_SEARCH | RTL_DOS_SEARCH_PATH_FLAG_APPLY_DEFAULT_EXTENSION_WHEN_NOT_RELATIVE_PATH_EVEN_IF_FILE_HAS_EXTENSION,
+			RTL_DSP_FLAG_APPLY_ISOLATION_REDIRECTION | RTL_DSP_FLAG_DISALLOW_DOT_RELATIVE_PATH_SEARCH | RTL_DSP_FLAG_APPLY_DEFAULT_EXTENSION,
 			&path_us,
 			&filename_us,
 			&extension_us,
@@ -6207,6 +6210,8 @@ NTSTATUS _r_path_search (
 
 		*out_buffer = NULL;
 	}
+
+	_r_obj_dereference (string);
 
 	return status;
 }
@@ -6679,14 +6684,10 @@ NTSTATUS _r_str_fromguid (
 )
 {
 	UNICODE_STRING us;
-	WCHAR buffer[42] = {0};
 	PR_STRING string;
 	NTSTATUS status;
 
-	_r_obj_initializeunicodestring_ex (&us, buffer, 0, RTL_NUMBER_OF (buffer) * sizeof (WCHAR));
-
-	// win 8.1+
-	status = RtlStringFromGUIDEx (guid, &us, FALSE);
+	status = RtlStringFromGUID (guid, &us);
 
 	if (NT_SUCCESS (status))
 	{
@@ -6696,6 +6697,8 @@ NTSTATUS _r_str_fromguid (
 			_r_str_toupper (&string->sr);
 
 		*out_buffer = string;
+
+		RtlFreeUnicodeString (&us);
 	}
 	else
 	{
@@ -8355,28 +8358,31 @@ PR_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
 	TOKEN_ELEVATION elevation = {0};
 	TOKEN_ELEVATION_TYPE elevation_type = 0;
 	PTOKEN_USER token_user = NULL;
+	HANDLE token_handle = NULL;
 	ULONG return_length;
 	NTSTATUS status;
 
 	if (_r_initonce_begin (&init_once))
 	{
-		status = NtQueryInformationToken (NtCurrentProcessToken (), TokenElevation, &elevation, sizeof (elevation), &return_length);
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_8_1))
+		{
+			token_handle = NtCurrentProcessToken ();
+		}
+		else
+		{
+			NtOpenProcessToken (NtCurrentProcess (), TOKEN_QUERY, &token_handle);
+		}
+
+		status = NtQueryInformationToken (token_handle, TokenElevation, &elevation, sizeof (elevation), &return_length);
 
 		if (NT_SUCCESS (status))
 			attributes.is_elevated = !!elevation.TokenIsElevated;
 
-		status = NtQueryInformationToken (NtCurrentProcessToken (), TokenElevationType, &elevation_type, sizeof (elevation_type), &return_length);
+		status = NtQueryInformationToken (token_handle, TokenElevationType, &elevation_type, sizeof (elevation_type), &return_length);
 
-		if (NT_SUCCESS (status))
-		{
-			attributes.elevation_type = elevation_type;
-		}
-		else
-		{
-			attributes.elevation_type = TokenElevationTypeDefault;
-		}
+		attributes.elevation_type = NT_SUCCESS (status) ? elevation_type : TokenElevationTypeDefault;
 
-		status = _r_sys_querytokeninformation (NtCurrentProcessToken (), TokenUser, &token_user);
+		status = _r_sys_querytokeninformation (token_handle, TokenUser, &token_user);
 
 		if (NT_SUCCESS (status))
 		{
@@ -8480,23 +8486,12 @@ NTSTATUS _r_sys_getmodulehandle (
 )
 {
 	UNICODE_STRING us;
-	LPWSTR load_path;
-	LPWSTR dummy;
 	PVOID dll_handle;
 	NTSTATUS status;
 
-	status = LdrGetDllPath (lib_name, LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32, &load_path, &dummy);
-
-	if (!NT_SUCCESS (status))
-	{
-		*out_buffer = NULL;
-
-		return status;
-	}
-
 	_r_obj_initializeunicodestring (&us, lib_name);
 
-	status = LdrGetDllHandleEx (LDR_GET_DLL_HANDLE_EX_UNCHANGED_REFCOUNT, load_path, NULL, &us, &dll_handle);
+	status = LdrGetDllHandleEx (LDR_GET_DLL_HANDLE_EX_UNCHANGED_REFCOUNT, NULL, NULL, &us, &dll_handle);
 
 	if (NT_SUCCESS (status))
 	{
@@ -8506,8 +8501,6 @@ NTSTATUS _r_sys_getmodulehandle (
 	{
 		*out_buffer = NULL;
 	}
-
-	RtlReleasePath (load_path);
 
 	return status;
 }
@@ -8774,11 +8767,33 @@ LONG _r_sys_getpackagepath (
 	_Out_ PR_STRING_PTR out_buffer
 )
 {
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static GSPPBF _GetStagedPackagePathByFullName = NULL;
+
+	PVOID hkernel32;
 	PR_STRING string;
 	UINT32 length = 0;
 	LONG status;
 
-	status = GetStagedPackagePathByFullName (package_full_name->buffer, &length, NULL);
+	if (_r_initonce_begin (&init_once))
+	{
+		status = _r_sys_loadlibrary (L"kernel32.dll", 0, &hkernel32);
+
+		if (NT_SUCCESS (status))
+		{
+			// win81+
+			_r_sys_getprocaddress (hkernel32, "GetStagedPackagePathByFullName", 0, (PVOID_PTR)&_GetStagedPackagePathByFullName);
+
+			//_r_sys_freelibrary (hkernel32, FALSE);
+		}
+
+		_r_initonce_end (&init_once);
+	}
+
+	if (!_GetStagedPackagePathByFullName)
+		return ERROR_NOT_SUPPORTED;
+
+	status = _GetStagedPackagePathByFullName (package_full_name->buffer, &length, NULL);
 
 	if (status != ERROR_INSUFFICIENT_BUFFER)
 	{
@@ -8789,7 +8804,7 @@ LONG _r_sys_getpackagepath (
 
 	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
-	status = GetStagedPackagePathByFullName (package_full_name->buffer, &length, string->buffer);
+	status = _GetStagedPackagePathByFullName (package_full_name->buffer, &length, string->buffer);
 
 	if (status == ERROR_SUCCESS)
 	{
@@ -9021,7 +9036,15 @@ ULONG _r_sys_getwindowsversion ()
 
 		if (NT_SUCCESS (status))
 		{
-			if (version_info.dwMajorVersion == 6 && version_info.dwMinorVersion == 3)
+			if (version_info.dwMajorVersion == 6 && version_info.dwMinorVersion == 1)
+			{
+				windows_version = WINDOWS_7;
+			}
+			else if (version_info.dwMajorVersion == 6 && version_info.dwMinorVersion == 2)
+			{
+				windows_version = WINDOWS_8;
+			}
+			else if (version_info.dwMajorVersion == 6 && version_info.dwMinorVersion == 3)
 			{
 				windows_version = WINDOWS_8_1;
 			}
@@ -9116,6 +9139,37 @@ ULONG _r_sys_getwindowsversion ()
 	return windows_version;
 }
 
+BOOLEAN _r_sys_isprocessimmersive (
+	_In_ HANDLE hprocess
+)
+{
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static IIP _IsImmersiveProcess = NULL;
+
+	HINSTANCE huser32;
+	NTSTATUS status;
+
+	if (_r_initonce_begin (&init_once))
+	{
+		status = _r_sys_loadlibrary (L"user32.dll", 0, &huser32);
+
+		if (NT_SUCCESS (status))
+		{
+			// win8+
+			status = _r_sys_getprocaddress (huser32, "IsImmersiveProcess", 0, (PVOID_PTR)&_IsImmersiveProcess);
+
+			//_r_sys_freelibrary (huser32, FALSE);
+		}
+
+		_r_initonce_end (&init_once);
+	}
+
+	if (!_IsImmersiveProcess)
+		return FALSE;
+
+	return !!_IsImmersiveProcess (hprocess);
+}
+
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_createprocess (
 	_In_ LPWSTR file_name,
@@ -9128,7 +9182,6 @@ NTSTATUS _r_sys_createprocess (
 	UNICODE_STRING current_directory_nt = {0};
 	UNICODE_STRING command_line_nt = {0};
 	UNICODE_STRING filename_nt = {0};
-	UNICODE_STRING filename;
 	PCSR_CAPTURE_BUFFER capture_buffer = NULL;
 	SECTION_IMAGE_INFORMATION img_info = {0};
 	PS_CREATE_INFO create_info = {0};
@@ -9147,15 +9200,18 @@ NTSTATUS _r_sys_createprocess (
 
 	file_name_string = _r_obj_createstring (file_name);
 
-	status = _r_path_search (file_name, L".exe", &new_path);
+	if (!_r_fs_exists (file_name))
+	{
+		status = _r_path_search (file_name, L".exe", &new_path);
 
-	if (NT_SUCCESS (status))
-	{
-		_r_obj_movereference (&file_name_string, new_path);
-	}
-	else
-	{
-		goto CleanupExit;
+		if (NT_SUCCESS (status))
+		{
+			_r_obj_movereference (&file_name_string, new_path);
+		}
+		else
+		{
+			goto CleanupExit;
+		}
 	}
 
 	status = RtlDosPathNameToNtPathName_U_WithStatus (file_name_string->buffer, &filename_nt, NULL, NULL);
@@ -9163,34 +9219,23 @@ NTSTATUS _r_sys_createprocess (
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
-	_r_obj_initializeunicodestring2 (&filename, &file_name_string->sr);
-
 	if (command_line)
 	{
-		cmdline_string = _r_format_string (L"\"%s\" %s", file_name_string->buffer, command_line);
+		cmdline_string = _r_obj_createstring (command_line);
 	}
 	else
 	{
-		cmdline_string = _r_format_string (L"\"%s\"", file_name_string->buffer);
+		cmdline_string = _r_obj_reference (file_name_string);
 	}
 
 	_r_obj_initializeunicodestring2 (&command_line_nt, &cmdline_string->sr);
 
 	if (directory && _r_fs_exists (directory))
-	{
 		_r_obj_initializeunicodestring (&current_directory_nt, directory);
-	}
-	else
-	{
-		directory_string = _r_path_getbasedirectory (&file_name_string->sr);
-
-		if (directory_string)
-			_r_obj_initializeunicodestring2 (&current_directory_nt, &directory_string->sr);
-	}
 
 	status = RtlCreateProcessParametersEx (
 		&upi,
-		&filename,
+		&filename_nt,
 		NULL,
 		current_directory_nt.Length ? &current_directory_nt : NULL,
 		&command_line_nt,
@@ -9237,8 +9282,8 @@ NTSTATUS _r_sys_createprocess (
 	status = NtCreateUserProcess (
 		&hprocess,
 		&hthread,
-		PROCESS_ALL_ACCESS,
-		THREAD_ALL_ACCESS,
+		MAXIMUM_ALLOWED,
+		MAXIMUM_ALLOWED,
 		NULL,
 		NULL,
 		PROCESS_CREATE_FLAGS_SUSPENDED,
@@ -9655,6 +9700,7 @@ HRESULT _r_sys_loadicon (
 	HICON hicon;
 	HRESULT status;
 
+	// vista+
 	status = LoadIconWithScaleDown (hinst, icon_name, icon_size, icon_size, &hicon);
 
 	if (SUCCEEDED (status))
@@ -9680,8 +9726,8 @@ HICON _r_sys_loadsharedicon (
 	static R_QUEUED_LOCK queued_lock = PR_QUEUED_LOCK_INIT;
 	static PR_HASHTABLE shared_icons = NULL;
 
-	PR_OBJECT_POINTER object_ptr;
 	R_OBJECT_POINTER object_data = {0};
+	PR_OBJECT_POINTER object_ptr;
 	HICON hicon;
 	ULONG hash_code;
 	ULONG name_hash;
@@ -9709,9 +9755,9 @@ HICON _r_sys_loadsharedicon (
 	object_ptr = _r_obj_findhashtable (shared_icons, hash_code);
 	_r_queuedlock_releaseshared (&queued_lock);
 
-	// found shared icon
 	if (object_ptr)
 	{
+		// found shared icon
 		hicon = (HICON)object_ptr->object_body;
 	}
 	else
@@ -9739,19 +9785,26 @@ NTSTATUS _r_sys_loadlibraryasresource (
 )
 {
 	LARGE_INTEGER offset = {0};
+	PVOID base_address = NULL;
+	PR_STRING path;
 	HANDLE hsection = NULL;
 	HANDLE hfile;
-	PR_STRING path;
-	PVOID base_address = NULL;
 	ULONG_PTR base_size = 0;
 	NTSTATUS status;
 
 	*out_buffer = NULL;
 
-	status = _r_path_search (lib_name, NULL, &path);
+	if (_r_fs_exists (lib_name))
+	{
+		path = _r_obj_createstring (lib_name);
+	}
+	else
+	{
+		status = _r_path_search (lib_name, NULL, &path);
 
-	if (!NT_SUCCESS (status))
-		return status;
+		if (!NT_SUCCESS (status))
+			return status;
+	}
 
 	status = _r_fs_openfile (path->buffer, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, 0, FALSE, &hfile);
 
@@ -9764,7 +9817,7 @@ NTSTATUS _r_sys_loadlibraryasresource (
 		NULL,
 		NULL,
 		PAGE_READONLY,
-		SEC_IMAGE_NO_EXECUTE, // win8+
+		_r_sys_isosversiongreaterorequal (WINDOWS_8) ? SEC_IMAGE_NO_EXECUTE : SEC_IMAGE, // win8+
 		hfile
 	);
 
@@ -9811,8 +9864,6 @@ NTSTATUS _r_sys_loadlibrary (
 )
 {
 	UNICODE_STRING us;
-	LPWSTR load_path;
-	LPWSTR dummy;
 	PVOID hmodule;
 	ULONG flags;
 	NTSTATUS status;
@@ -9826,15 +9877,6 @@ NTSTATUS _r_sys_loadlibrary (
 		flags = LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32;
 	}
 
-	status = LdrGetDllPath (lib_name, flags, &load_path, &dummy);
-
-	if (!NT_SUCCESS (status))
-	{
-		*out_buffer = NULL;
-
-		return status;
-	}
-
 	_r_obj_initializeunicodestring (&us, lib_name);
 
 	if (flags & (LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_AS_DATAFILE_EXCLUSIVE | LOAD_LIBRARY_AS_IMAGE_RESOURCE))
@@ -9843,7 +9885,7 @@ NTSTATUS _r_sys_loadlibrary (
 	}
 	else
 	{
-		status = LdrLoadDll (load_path, &flags, &us, &hmodule);
+		status = LdrLoadDll (NULL, &flags, &us, &hmodule);
 	}
 
 	if (NT_SUCCESS (status))
@@ -9855,7 +9897,57 @@ NTSTATUS _r_sys_loadlibrary (
 		*out_buffer = NULL;
 	}
 
-	RtlReleasePath (load_path);
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_loadlibrarytype (
+	_In_ R_ERROR_TYPE type,
+	_Out_ PVOID_PTR out_buffer
+)
+{
+	PVOID hmodule;
+	LPWSTR name;
+	NTSTATUS status;
+
+	switch (type)
+	{
+		case ET_WINDOWS:
+		{
+			name = L"kernel32.dll";
+			break;
+		}
+
+		case ET_NATIVE:
+		{
+			name = L"ntdll.dll";
+			break;
+		}
+
+		case ET_WINHTTP:
+		{
+			name = L"winhttp.dll";
+			break;
+		}
+
+		default:
+		{
+			*out_buffer = NULL;
+
+			return STATUS_INVALID_INFO_CLASS;
+		}
+	}
+
+	status = _r_sys_loadlibraryasresource (name, &hmodule);
+
+	if (NT_SUCCESS (status))
+	{
+		*out_buffer = hmodule;
+	}
+	else
+	{
+		*out_buffer = NULL;
+	}
 
 	return status;
 }
@@ -11093,11 +11185,13 @@ LONG _r_dc_getdpivalue (
 )
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static GDFM _GetDpiForMonitor = NULL; // win81+
 	static GDFW _GetDpiForWindow = NULL; // win10rs1+
 	static GDFS _GetDpiForSystem = NULL; // win10rs1+
 
 	HMONITOR hmonitor;
 	PVOID huser32;
+	PVOID hshcore;
 	UINT dpi_x;
 	UINT dpi_y;
 	NTSTATUS status;
@@ -11105,6 +11199,16 @@ LONG _r_dc_getdpivalue (
 	// initialize library calls
 	if (_r_initonce_begin (&init_once))
 	{
+		status = _r_sys_loadlibrary (L"shcore.dll", 0, &hshcore);
+
+		if (NT_SUCCESS (status))
+		{
+			// win81+
+			_r_sys_getprocaddress (hshcore, "GetDpiForMonitor", 0, (PVOID_PTR)&_GetDpiForMonitor);
+
+			//_r_sys_freelibrary (hshcore, FALSE);
+		}
+
 		status = _r_sys_loadlibrary (L"user32.dll", 0, &huser32);
 
 		if (NT_SUCCESS (status))
@@ -11136,27 +11240,29 @@ LONG _r_dc_getdpivalue (
 		}
 
 		// win81+
-		if (rect)
+		if (_GetDpiForMonitor)
 		{
-			hmonitor = MonitorFromRect (rect, MONITOR_DEFAULTTONEAREST);
-		}
-		else
-		{
-			hmonitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
-		}
+			if (rect)
+			{
+				hmonitor = MonitorFromRect (rect, MONITOR_DEFAULTTONEAREST);
+			}
+			else
+			{
+				hmonitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+			}
 
-		status = GetDpiForMonitor (hmonitor, MDT_EFFECTIVE_DPI, &dpi_x, &dpi_y);
+			status = _GetDpiForMonitor (hmonitor, MDT_EFFECTIVE_DPI, &dpi_x, &dpi_y);
 
-		if (SUCCEEDED (status))
-			return dpi_x;
+			if (SUCCEEDED (status))
+				return dpi_x;
+		}
 	}
 
 	// win10rs1+
 	if (_GetDpiForSystem)
 		return _GetDpiForSystem ();
 
-	// fallback
-	return USER_DEFAULT_SCREEN_DPI;
+	return USER_DEFAULT_SCREEN_DPI; // fallback
 }
 
 _Success_ (return != 0)
@@ -12251,11 +12357,33 @@ BOOLEAN _r_wnd_isdarkmodeenabled ()
 
 BOOLEAN _r_wnd_isfocusassist ()
 {
+	static R_INITONCE init_once = {0};
+	static NTQWNFSD _NtQueryWnfStateData = NULL;
+
 	WNF_CHANGE_STAMP change_stamp;
 	WNF_STATE_NAME state_name = {0};
+	PVOID hntdll;
 	ULONG buffer = 0;
 	ULONG buffer_size;
 	NTSTATUS status;
+
+	if (_r_initonce_begin (&init_once))
+	{
+		status = _r_sys_loadlibrary (L"ntdll.dll", 0, &hntdll);
+
+		if (NT_SUCCESS (status))
+		{
+			// win10rs3+
+			status = _r_sys_getprocaddress (hntdll, "NtQueryWnfStateData", 0, (PVOID_PTR)&_NtQueryWnfStateData);
+
+			//_r_sys_freelibrary (hntdll, FALSE);
+		}
+
+		_r_initonce_end (&init_once);
+	}
+
+	if (!_NtQueryWnfStateData)
+		return FALSE;
 
 	// WNF_SHEL_QUIETHOURS_ACTIVE_PROFILE_CHANGED
 	// This wnf is signaled whenever active quiet hours profile / mode changes.
@@ -12267,7 +12395,7 @@ BOOLEAN _r_wnd_isfocusassist ()
 
 	buffer_size = sizeof (ULONG);
 
-	status = NtQueryWnfStateData (&state_name, NULL, NULL, &change_stamp, &buffer, &buffer_size);
+	status = _NtQueryWnfStateData (&state_name, NULL, NULL, &change_stamp, &buffer, &buffer_size);
 
 	if (NT_SUCCESS (status))
 	{
@@ -12305,6 +12433,7 @@ BOOLEAN _r_wnd_isfullscreenusermode ()
 	QUERY_USER_NOTIFICATION_STATE state = QUNS_NOT_PRESENT;
 	HRESULT status;
 
+	// vista+
 	status = SHQueryUserNotificationState (&state);
 
 	if (FAILED (status))
@@ -12866,6 +12995,19 @@ HINTERNET _r_inet_createsession (
 	R_URLPARTS proxy_parts;
 	WCHAR proxy_buffer[256];
 	HINTERNET hsession = NULL;
+	ULONG access_type;
+	ULONG protocols;
+
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_8_1))
+	{
+		access_type = WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY;
+		protocols = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3;
+	}
+	else
+	{
+		access_type = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
+		protocols = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
+	}
 
 	// proxy configuration
 	if (!_r_obj_isstringempty (proxy))
@@ -12881,14 +13023,14 @@ HINTERNET _r_inet_createsession (
 	}
 	else
 	{
-		hsession = WinHttpOpen (_r_obj_getstring (useragent), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+		hsession = WinHttpOpen (_r_obj_getstring (useragent), access_type, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
 	}
 
 	if (!hsession)
 		return NULL;
 
-	// enable secure protocols (win8.1+)
-	WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &(ULONG){WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3}, sizeof (ULONG));
+	// enable secure protocols
+	WinHttpSetOption (hsession, WINHTTP_OPTION_SECURE_PROTOCOLS, &(ULONG){protocols}, sizeof (ULONG));
 
 	// disable redirect from https to http
 	WinHttpSetOption (hsession, WINHTTP_OPTION_REDIRECT_POLICY, &(ULONG){WINHTTP_OPTION_REDIRECT_POLICY_DISALLOW_HTTPS_TO_HTTP}, sizeof (ULONG));
@@ -14798,6 +14940,41 @@ PR_STRING _r_res_querystring (
 	return NULL;
 }
 
+BOOL _r_res_verqueryvalue (
+	_In_ LPCVOID pBlock,
+	_In_ LPCWSTR lpSubBlock,
+	_Outptr_ PVOID_PTR lplpBuffer,
+	_Out_ PUINT puLen
+)
+{
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static VQV _VerQueryValue = NULL;
+
+	PVOID hversion;
+	BOOL is_success;
+	NTSTATUS status;
+
+	if (_r_initonce_begin (&init_once))
+	{
+		status = _r_sys_loadlibrary (L"version.dll", 0, &hversion);
+
+		if (NT_SUCCESS (status))
+		{
+			_r_sys_getprocaddress (hversion, "VerQueryValueW", 0, (PVOID_PTR)&_VerQueryValue);
+
+			//_r_sys_freelibrary (hkernel32, FALSE);
+		}
+
+		_r_initonce_end (&init_once);
+	}
+
+	*lplpBuffer = NULL;
+
+	is_success = _VerQueryValue (pBlock, lpSubBlock, lplpBuffer, puLen);
+
+	return is_success && lplpBuffer;
+}
+
 _Ret_maybenull_
 PR_STRING _r_res_querystring_ex (
 	_In_ LPCVOID ver_block,
@@ -14806,13 +14983,13 @@ PR_STRING _r_res_querystring_ex (
 )
 {
 	WCHAR entry[128];
-	PVOID buffer = NULL;
+	PVOID buffer;
 	PR_STRING string;
 	UINT length;
 
 	_r_str_printf (entry, RTL_NUMBER_OF (entry), L"\\StringFileInfo\\%08X\\%s", lcid, entry_name);
 
-	if (!VerQueryValueW (ver_block, entry, &buffer, &length) || !buffer)
+	if (!_r_res_verqueryvalue (ver_block, entry, &buffer, &length))
 		return NULL;
 
 	if (length <= sizeof (UNICODE_NULL))
@@ -14834,10 +15011,21 @@ ULONG _r_res_querytranslation (
 	PR_VERSION_TRANSLATION buffer = NULL;
 	UINT length;
 
-	if (VerQueryValueW (ver_block, L"\\VarFileInfo\\Translation", &buffer, &length))
+	if (_r_res_verqueryvalue (ver_block, L"\\VarFileInfo\\Translation", &buffer, &length))
 		return PR_LANG_TO_LCID (buffer->lang_id, buffer->code_page);
 
 	return PR_LANG_TO_LCID (MAKELANGID (LANG_ENGLISH, SUBLANG_ENGLISH_US), 1252);
+}
+
+_Success_ (return)
+BOOLEAN _r_res_queryversion (
+	_In_ LPCVOID ver_block,
+	_Outptr_ PVOID_PTR out_buffer
+)
+{
+	UINT length;
+
+	return !!_r_res_verqueryvalue (ver_block, L"\\", out_buffer, &length);
 }
 
 _Ret_maybenull_
@@ -15654,6 +15842,7 @@ VOID _r_tray_create (
 
 	Shell_NotifyIconW (NIM_ADD, &nid);
 
+	// vista+
 	nid.uVersion = NOTIFYICON_VERSION_4;
 
 	Shell_NotifyIconW (NIM_SETVERSION, &nid);
