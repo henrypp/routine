@@ -3539,7 +3539,6 @@ HRESULT CALLBACK _r_msg_callback (
 		case TDN_CREATED:
 		{
 			HWND hparent;
-			BOOL is_topmost;
 
 			// center window
 			hparent = GetParent (hwnd);
@@ -3547,10 +3546,12 @@ HRESULT CALLBACK _r_msg_callback (
 			_r_wnd_center (hwnd, hparent);
 
 			// set on top
-			is_topmost = HIWORD (lpdata);
-
-			if (is_topmost)
+			if (HIWORD (lpdata))
 				_r_wnd_top (hwnd, TRUE);
+
+			// don't round corners
+			if (_r_sys_isosversiongreaterorequal (WINDOWS_11))
+				DwmSetWindowAttribute (hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &(DWM_WINDOW_CORNER_PREFERENCE){ DWMWCP_DONOTROUND }, sizeof (DWM_WINDOW_CORNER_PREFERENCE));
 
 			break;
 		}
@@ -9018,7 +9019,7 @@ CleanupExit:
 ULONG _r_sys_getwindowsversion ()
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static ULONG windows_version = 0;
+	static ULONG windows_version = WINDOWS_ANCIENT;
 
 	RTL_OSVERSIONINFOEXW version_info = {0};
 	NTSTATUS status;
@@ -9049,7 +9050,11 @@ ULONG _r_sys_getwindowsversion ()
 			}
 			else if (version_info.dwMajorVersion == 10 && version_info.dwMinorVersion == 0)
 			{
-				if (version_info.dwBuildNumber >= 26000)
+				if (version_info.dwBuildNumber > 26000)
+				{
+					windows_version = WINDOWS_NEW;
+				}
+				else if (version_info.dwBuildNumber >= 26000)
 				{
 					windows_version = WINDOWS_11_24H2;
 				}
@@ -9124,7 +9129,7 @@ ULONG _r_sys_getwindowsversion ()
 			}
 			else
 			{
-				windows_version = ULONG_MAX;
+				windows_version = WINDOWS_NEW;
 			}
 		}
 

@@ -755,6 +755,7 @@ typedef struct _R_MEMORY_INFO
 // System information
 //
 
+#define WINDOWS_ANCIENT 0x0000
 #define WINDOWS_7 0x0601
 #define WINDOWS_8 0x0602
 #define WINDOWS_8_1 0x0603
@@ -776,6 +777,7 @@ typedef struct _R_MEMORY_INFO
 #define WINDOWS_11_22H2 0x0B01 // build 22621 [22H2]
 #define WINDOWS_11_23H2 0x0B02 // build 22631 [23H2]
 #define WINDOWS_11_24H2 0x0B03 // build 26000 [24H2]
+#define WINDOWS_NEW ULONG_MAX
 
 #define WINDOWS_10 WINDOWS_10_TH1
 #define WINDOWS_11 WINDOWS_11_21H2
