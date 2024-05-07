@@ -2268,17 +2268,6 @@ PR_STRING _r_obj_concatstringrefs_v (
 	return string;
 }
 
-BOOLEAN _r_obj_isstringnullterminated (
-	_In_ PR_STRINGREF string
-)
-{
-	ULONG_PTR length;
-
-	length = _r_str_getlength2 (string);
-
-	return (string->buffer[length] == UNICODE_NULL);
-}
-
 PR_STRING _r_obj_referenceemptystring ()
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
@@ -2295,7 +2284,7 @@ PR_STRING _r_obj_referenceemptystring ()
 }
 
 VOID _r_obj_removestring (
-	_In_ PR_STRINGREF string,
+	_Inout_ PR_STRINGREF string,
 	_In_ ULONG_PTR start_pos,
 	_In_ ULONG_PTR length
 )
@@ -2305,14 +2294,6 @@ VOID _r_obj_removestring (
 	string->length -= (length * sizeof (WCHAR));
 
 	_r_obj_writestringnullterminator (string);
-}
-
-VOID _r_obj_setstringlength (
-	_Inout_ PR_STRINGREF string,
-	_In_ ULONG_PTR new_length
-)
-{
-	_r_obj_setstringlength_ex (string, new_length, string->length);
 }
 
 VOID _r_obj_setstringlength_ex (
@@ -7969,6 +7950,21 @@ NTSTATUS _r_str_utf16toutf8 (
 	}
 
 	return status;
+}
+
+VOID _r_str_reversestring (
+	_Inout_ PR_STRINGREF string
+)
+{
+	WCHAR chr;
+
+	for (ULONG_PTR i = 0, j = _r_str_getlength2 (string) - 1; i <= j; i++, j--)
+	{
+		chr = string->buffer[i];
+
+		string->buffer[i] = string->buffer[j];
+		string->buffer[j] = chr;
+	}
 }
 
 _Ret_maybenull_
@@ -16349,7 +16345,7 @@ VOID _r_ctrl_setstringlength (
 	PR_STRING tmp_string;
 
 	// Note: PR_STRINGREF can be not null terminated.
-	if (!_r_obj_isstringnullterminated (string))
+	if (!_r_str_isnullterminated (string))
 	{
 		tmp_string = _r_obj_createstring2 (string);
 

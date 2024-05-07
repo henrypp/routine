@@ -2229,6 +2229,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 	WCHAR str_updates[256] = {0};
 	LPCWSTR str_content;
 	R_DOWNLOAD_INFO download_info;
+	R_STRINGREF sr;
 	PR_HASHTABLE string_table;
 	PR_STRING string_value = NULL;
 	PR_STRING update_url;
@@ -2331,11 +2332,13 @@ NTSTATUS NTAPI _r_update_checkthread (
 
 	if (update_info->flags)
 	{
-		_r_str_trim (str_updates, L"\r\n ");
+		_r_obj_initializestringref (&sr, str_updates);
+
+		_r_str_trimstring2 (&sr, L"\r\n ", 0);
 
 		str_content = L"Update available. Download and install now?";
 
-		_r_update_navigate (update_info, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, 0, NULL, str_content, str_updates, 0, ET_WINDOWS);
+		_r_update_navigate (update_info, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, 0, NULL, str_content, sr.buffer, 0, ET_WINDOWS);
 	}
 	else
 	{
@@ -4506,7 +4509,7 @@ BOOLEAN _r_skipuac_run ()
 				_r_str_appendformat (arguments, RTL_NUMBER_OF (arguments), L"%s ", arga[i]);
 			}
 
-			_r_str_trim (arguments, L" ");
+			StrTrimW (arguments, L" ");
 		}
 
 		LocalFree (arga);

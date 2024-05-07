@@ -868,21 +868,12 @@ PR_STRING _r_obj_concatstringrefs_v (
 	_In_ va_list arg_ptr
 );
 
-BOOLEAN _r_obj_isstringnullterminated (
-	_In_ PR_STRINGREF string
-);
-
 PR_STRING _r_obj_referenceemptystring ();
 
 VOID _r_obj_removestring (
-	_In_ PR_STRINGREF string,
+	_Inout_ PR_STRINGREF string,
 	_In_ ULONG_PTR start_pos,
 	_In_ ULONG_PTR length
-);
-
-VOID _r_obj_setstringlength (
-	_Inout_ PR_STRINGREF string,
-	_In_ ULONG_PTR new_length
 );
 
 VOID _r_obj_setstringlength_ex (
@@ -955,6 +946,14 @@ FORCEINLINE LPWSTR _r_obj_getstringordefault (
 		return string->buffer;
 
 	return def;
+}
+
+FORCEINLINE VOID _r_obj_setstringlength (
+	_Inout_ PR_STRINGREF string,
+	_In_ ULONG_PTR new_length
+)
+{
+	_r_obj_setstringlength_ex (string, new_length, string->length);
 }
 
 //
@@ -2527,6 +2526,10 @@ NTSTATUS _r_str_utf16toutf8 (
 	_Outptr_ PR_BYTE_PTR out_buffer
 );
 
+VOID _r_str_reversestring (
+	_Inout_ PR_STRINGREF string
+);
+
 _Ret_maybenull_
 PR_HASHTABLE _r_str_unserialize (
 	_In_ PR_STRINGREF string,
@@ -2556,12 +2559,11 @@ FORCEINLINE INT _r_str_compare_logical (
 	return StrCmpLogicalW (string1->buffer, string2->buffer);
 }
 
-FORCEINLINE VOID _r_str_trim (
-	_In_ LPWSTR string,
-	_In_ LPCWSTR trim
+FORCEINLINE BOOLEAN _r_str_isnullterminated (
+	_In_ PR_STRINGREF string
 )
 {
-	StrTrimW (string, trim);
+	return (string->buffer[_r_str_getlength2 (string)] == UNICODE_NULL);
 }
 
 FORCEINLINE WCHAR _r_str_lower (
