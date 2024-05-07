@@ -4914,7 +4914,7 @@ VOID _r_theme_setwindowframe (
 	}
 
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_11_22H2))
-		DwmSetWindowAttribute (hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &(ULONG){is_enable ? DWMSBT_NONE : DWMSBT_AUTO}, sizeof (ULONG));
+		DwmSetWindowAttribute (hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &(ULONG){ DWMSBT_NONE }, sizeof (ULONG));
 }
 
 VOID _r_theme_comboboxrender (
