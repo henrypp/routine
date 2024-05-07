@@ -4903,10 +4903,15 @@ VOID _r_theme_setwindowframe (
 	{
 		if (FAILED (DwmSetWindowAttribute (hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &(BOOL){ is_enable }, sizeof (BOOL))))
 			DwmSetWindowAttribute (hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE - 1, &(BOOL){ is_enable }, sizeof (BOOL));
+
 	}
 
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_11))
-		DwmSetWindowAttribute (hwnd, DWMWA_CAPTION_COLOR, &(BOOL){ is_enable ? WND_BACKGROUND_CLR : DWMWA_COLOR_DEFAULT}, sizeof (COLORREF));
+	{
+		DwmSetWindowAttribute (hwnd, DWMWA_BORDER_COLOR, &(COLORREF){ is_enable ? WND_BORDER_CLR : DWMWA_COLOR_DEFAULT}, sizeof (COLORREF));
+		DwmSetWindowAttribute (hwnd, DWMWA_CAPTION_COLOR, &(COLORREF){ is_enable ? WND_BACKGROUND_CLR : DWMWA_COLOR_DEFAULT}, sizeof (COLORREF));
+		DwmSetWindowAttribute (hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &(DWM_WINDOW_CORNER_PREFERENCE){ DWMWCP_DONOTROUND }, sizeof (DWM_WINDOW_CORNER_PREFERENCE));
+	}
 
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_11_22H2))
 		DwmSetWindowAttribute (hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &(ULONG){is_enable ? DWMSBT_NONE : DWMSBT_AUTO}, sizeof (ULONG));
@@ -4948,7 +4953,7 @@ VOID _r_theme_comboboxrender (
 
 	_r_dc_fillrect (hdc_buffer, client_rect, WND_BACKGROUND2_CLR);
 
-	_r_dc_framerect (hdc_buffer, client_rect, PtInRect (client_rect, context->pt) || GetFocus () == hwnd ? WND_HOT_CLR : WND_HIGHLIGHT_CLR);
+	_r_dc_framerect (hdc_buffer, client_rect, PtInRect (client_rect, context->pt) || GetFocus () == hwnd ? WND_BORDER_CLR : WND_HIGHLIGHT_CLR);
 
 	if (context->htheme)
 	{
@@ -5154,7 +5159,7 @@ LRESULT CALLBACK _r_theme_edit_subclass (
 
 				if ((context->is_mouseactive && PtInRect (&rect, pt)) || GetFocus () == hwnd)
 				{
-					clr = WND_HOT_CLR;
+					clr = WND_BORDER_CLR;
 				}
 				else
 				{
