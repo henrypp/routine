@@ -317,11 +317,11 @@ BOOLEAN _r_initonce_begin (
 	_Inout_ PR_INITONCE init_once
 );
 
-FORCEINLINE VOID _r_initonce_end (
+FORCEINLINE NTSTATUS _r_initonce_end (
 	_Inout_ PR_INITONCE init_once
 )
 {
-	RtlRunOnceComplete (init_once, 0, NULL);
+	return RtlRunOnceComplete (init_once, 0, NULL);
 }
 
 //
