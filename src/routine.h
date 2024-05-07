@@ -1521,8 +1521,7 @@ PR_STRING _r_format_filetime (
 
 _Ret_maybenull_
 PR_STRING _r_format_interval (
-	_In_ LONG64 seconds,
-	_In_ INT digits
+	_In_ LONG64 seconds
 );
 
 VOID _r_format_number (

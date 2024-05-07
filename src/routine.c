@@ -184,26 +184,25 @@ PR_STRING _r_format_filetime (
 
 _Ret_maybenull_
 PR_STRING _r_format_interval (
-	_In_ LONG64 seconds,
-	_In_ INT digits
+	_In_ LONG64 seconds
 )
 {
 	PR_STRING string;
-	LONG seconds32;
+	ULONG_PTR return_length;
 	ULONG buffer_length = 128;
-	ULONG return_length;
+	ULONG seconds32;
 	HRESULT status;
 
 	seconds = _r_calc_seconds2milliseconds64 (seconds);
 
-	status = LongLongToLong (seconds, &seconds32);
+	status = LongLongToULong (seconds, &seconds32);
 
 	if (FAILED (status))
 		return NULL;
 
 	string = _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR));
 
-	return_length = StrFromTimeIntervalW (string->buffer, buffer_length, seconds32, digits);
+	return_length = StrFromTimeIntervalW (string->buffer, buffer_length, seconds32, 1);
 
 	if (return_length)
 	{
