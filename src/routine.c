@@ -8936,8 +8936,9 @@ ULONG64 _r_sys_gettickcount64 ()
 }
 
 _Success_ (NT_SUCCESS (return))
-NTSTATUS _r_sys_getusernamefromsid (
+NTSTATUS _r_sys_getusername (
 	_In_ PSID sid,
+	_In_ BOOLEAN is_withdomain,
 	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
@@ -8972,7 +8973,7 @@ NTSTATUS _r_sys_getusernamefromsid (
 
 	_r_obj_initializestringbuilder (&sb, 256);
 
-	is_hasdomain = (referenced_domains && names[0].DomainIndex >= 0);
+	is_hasdomain = is_withdomain && (referenced_domains && names[0].DomainIndex >= 0);
 	is_hasname = (names[0].Name.Buffer != NULL);
 
 	if (is_hasdomain)

@@ -2739,8 +2739,9 @@ ULONG _r_sys_gettickcount ();
 ULONG64 _r_sys_gettickcount64 ();
 
 _Success_ (NT_SUCCESS (return))
-NTSTATUS _r_sys_getusernamefromsid (
+NTSTATUS _r_sys_getusername (
 	_In_ PSID sid,
+	_In_ BOOLEAN is_withdomain,
 	_Outptr_ PR_STRING_PTR out_buffer
 );
 
