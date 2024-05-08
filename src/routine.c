@@ -11223,6 +11223,8 @@ LONG _r_dc_getdpivalue (
 	HMONITOR hmonitor;
 	PVOID huser32;
 	PVOID hshcore;
+	HDC hdc;
+	LONG dpi_value;
 	UINT dpi_x;
 	UINT dpi_y;
 	NTSTATUS status;
@@ -11292,6 +11294,18 @@ LONG _r_dc_getdpivalue (
 	// win10rs1+
 	if (_GetDpiForSystem)
 		return _GetDpiForSystem ();
+
+	// win8 and lower fallback
+	hdc = GetDC (NULL);
+
+	if (hdc)
+	{
+		dpi_value = GetDeviceCaps (hdc, LOGPIXELSX);
+
+		ReleaseDC (NULL, hdc);
+
+		return dpi_value;
+	}
 
 	return USER_DEFAULT_SCREEN_DPI; // fallback
 }
@@ -14749,7 +14763,13 @@ NTSTATUS _r_res_loadimage (
 	status = CoCreateInstance (&CLSID_WICImagingFactory2, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory2, &wicFactory);
 
 	if (FAILED (status))
-		goto CleanupExit;
+	{
+		// winxp+
+		status = CoCreateInstance (&CLSID_WICImagingFactory1, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory, &wicFactory);
+
+		if (FAILED (status))
+			goto CleanupExit;
+	}
 
 	// Create the Stream
 	status = IWICImagingFactory_CreateStream (wicFactory, &wicStream);

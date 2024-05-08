@@ -4237,7 +4237,7 @@ HRESULT _r_skipuac_enable (
 	IRegistrationInfo *registration_info = NULL;
 	IRegisteredTask *registered_task = NULL;
 	ITaskDefinition *task_definition = NULL;
-	ITaskSettings3 *task_settings3 = NULL;
+	ITaskSettings2 *task_settings2 = NULL;
 	ITaskSettings *task_settings = NULL;
 	ITaskService *task_service = NULL;
 	ITaskFolder *task_folder = NULL;
@@ -4307,10 +4307,20 @@ HRESULT _r_skipuac_enable (
 			goto CleanupExit;
 
 		// Set task compatibility (win7+)
-		status = ITaskSettings_put_Compatibility (task_settings, TASK_COMPATIBILITY_V2_4); // win10
+		// Set task compatibility (win7+)
+		//
+		// TASK_COMPATIBILITY_V2_4 - win10
+		// TASK_COMPATIBILITY_V2_3 - win8.1
+		// TASK_COMPATIBILITY_V2_2 - win8
+		// TASK_COMPATIBILITY_V2_1 - win7
 
-		if (FAILED (status))
-			ITaskSettings_put_Compatibility (task_settings, TASK_COMPATIBILITY_V2_3); // win8.1
+		for (INT i = TASK_COMPATIBILITY_V2_4; i != TASK_COMPATIBILITY_V2; --i)
+		{
+			status = ITaskSettings_put_Compatibility (task_settings, i);
+
+			if (SUCCEEDED (status))
+				break;
+		}
 
 		// Set task settings (win7+)
 		task_time_limit = SysAllocString (L"PT0S");
@@ -4324,15 +4334,15 @@ HRESULT _r_skipuac_enable (
 		ITaskSettings_put_AllowDemandStart (task_settings, VARIANT_TRUE);
 		ITaskSettings_put_Priority (task_settings, 1); // HIGH_PRIORITY_CLASS
 
-		// win8+
-		status = ITaskSettings_QueryInterface (task_settings, &IID_ITaskSettings3, &task_settings3);
+		// win7+
+		status = ITaskSettings_QueryInterface (task_settings, &IID_ITaskSettings2, &task_settings2);
 
 		if (SUCCEEDED (status))
 		{
-			ITaskSettings3_put_UseUnifiedSchedulingEngine (task_settings3, VARIANT_TRUE);
-			ITaskSettings3_put_DisallowStartOnRemoteAppSession (task_settings3, VARIANT_TRUE);
+			ITaskSettings2_put_UseUnifiedSchedulingEngine (task_settings2, VARIANT_TRUE);
+			ITaskSettings2_put_DisallowStartOnRemoteAppSession (task_settings2, VARIANT_TRUE);
 
-			ITaskSettings3_Release (task_settings3);
+			ITaskSettings2_Release (task_settings2);
 		}
 
 		status = ITaskDefinition_get_Principal (task_definition, &principal);
