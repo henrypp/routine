@@ -10260,7 +10260,7 @@ PR_STRING _r_sys_querytaginformation (
 	if (!_I_QueryTagInformation)
 		return NULL;
 
-	tag_query.InParams.dwPid = HandleToUlong (hprocess);
+	tag_query.InParams.dwPid = HandleToULong (hprocess);
 	tag_query.InParams.dwTag = PtrToUlong (tag);
 
 	_I_QueryTagInformation (NULL, TagInfoLevelNameFromTag, &tag_query);
