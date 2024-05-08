@@ -105,6 +105,13 @@ IsCloseToTray=TRUE
 
 # Auto install non-executable updates if found (boolean)
 IsAutoinstallUpdates=FALSE
+
+#
+#2.7.2+
+#
+
+# Show window border in Windows 11 and above (boolean)
+IsWindowBorderEnabled=TRUE
 ~~~
 ---
 </details>
