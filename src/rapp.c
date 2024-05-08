@@ -4955,7 +4955,7 @@ VOID _r_theme_comboboxrender (
 
 	_r_dc_fillrect (hdc_buffer, client_rect, WND_BACKGROUND2_CLR);
 
-	_r_dc_framerect (hdc_buffer, client_rect, PtInRect (client_rect, context->pt) || GetFocus () == hwnd ? WND_BORDER_CLR : WND_HIGHLIGHT_CLR);
+	_r_dc_framerect (hdc_buffer, client_rect, PtInRect (client_rect, context->pt) || GetFocus () == hwnd ? WND_HOT_CLR : WND_HIGHLIGHT_CLR);
 
 	if (context->htheme)
 	{
@@ -5159,14 +5159,7 @@ LRESULT CALLBACK _r_theme_edit_subclass (
 				GetCursorPos (&pt);
 				ScreenToClient (hwnd, &pt);
 
-				if ((context->is_mouseactive && PtInRect (&rect, pt)) || GetFocus () == hwnd)
-				{
-					clr = WND_BORDER_CLR;
-				}
-				else
-				{
-					clr = WND_BACKGROUND2_CLR;
-				}
+				clr = ((context->is_mouseactive && PtInRect (&rect, pt)) || GetFocus () == hwnd) ? WND_HOT_CLR : WND_BACKGROUND2_CLR;
 
 				_r_dc_framerect (hdc, &rect, clr);
 
