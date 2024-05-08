@@ -2677,6 +2677,11 @@ NTSTATUS _r_sys_getbinarytype (
 	_Out_ PULONG out_buffer
 );
 
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_getcomputername (
+	_Outptr_ PR_STRING_PTR out_buffer
+);
+
 PR_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ();
 
 _Success_ (NT_SUCCESS (return))

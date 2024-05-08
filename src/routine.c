@@ -8346,6 +8346,36 @@ NTSTATUS _r_sys_getbinarytype (
 	return status;
 }
 
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_getcomputername (
+	_Outptr_ PR_STRING_PTR out_buffer
+)
+{
+	PR_STRING string = NULL;
+	HANDLE hkey;
+	NTSTATUS status;
+
+	status = _r_reg_openkey (HKEY_LOCAL_MACHINE, L"System\\CurrentControlSet\\Control\\ComputerName\\ActiveComputerName", KEY_READ, &hkey);
+
+	if (NT_SUCCESS (status))
+	{
+		status = _r_reg_querystring (hkey, L"ComputerName", &string);
+
+		NtClose (hkey);
+	}
+
+	if (NT_SUCCESS (status))
+	{
+		*out_buffer = string;
+	}
+	else
+	{
+		*out_buffer = NULL;
+	}
+
+	return status;
+}
+
 PR_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
