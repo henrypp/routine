@@ -1028,6 +1028,8 @@ typedef enum _IMMERSIVE_HC_CACHE_MODE
 
 typedef const UNICODE_STRING *PCUNICODE_STRING;
 
+#define RTL_CONSTANT_STRING(s) {sizeof(s) - sizeof((s)[0]), sizeof(s), s}
+
 typedef struct _FILE_FS_SIZE_INFORMATION
 {
 	LARGE_INTEGER TotalAllocationUnits;
@@ -2974,6 +2976,28 @@ typedef struct _LDR_RESOURCE_INFO
 	ULONG_PTR Language;
 } LDR_RESOURCE_INFO, *PLDR_RESOURCE_INFO;
 
+typedef struct _LDR_ENUM_RESOURCE_ENTRY
+{
+	union
+	{
+		ULONG_PTR NameOrId;
+		PIMAGE_RESOURCE_DIRECTORY_STRING Name;
+
+		struct
+		{
+			USHORT Id;
+			USHORT NameIsPresent;
+		};
+	} Path[3];
+
+	PVOID Data;
+	ULONG Size;
+	ULONG Reserved;
+} LDR_ENUM_RESOURCE_ENTRY, *PLDR_ENUM_RESOURCE_ENTRY;
+
+#define NAME_FROM_RESOURCE_ENTRY(RootDirectory, Entry) \
+    ((Entry)->NameIsString ? (ULONG_PTR)((ULONG_PTR)(RootDirectory) + (ULONG_PTR)((Entry)->NameOffset)) : (Entry)->Id)
+
 typedef enum _PS_CREATE_STATE
 {
 	PsCreateInitialState,
@@ -3788,6 +3812,27 @@ LdrFindResource_U (
 	_In_ PLDR_RESOURCE_INFO ResourceInfo,
 	_In_ ULONG Level,
 	_Out_ PIMAGE_RESOURCE_DATA_ENTRY *ResourceDataEntry
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+LdrFindResourceDirectory_U (
+	_In_ PVOID DllHandle,
+	_In_ PLDR_RESOURCE_INFO ResourceInfo,
+	_In_ ULONG Level,
+	_Out_ PIMAGE_RESOURCE_DIRECTORY *ResourceDirectory
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+LdrEnumResources (
+	_In_ PVOID DllHandle,
+	_In_ PLDR_RESOURCE_INFO ResourceInfo,
+	_In_ ULONG Level,
+	_Inout_ ULONG *ResourceCount,
+	_Out_writes_to_opt_ (*ResourceCount, *ResourceCount) PLDR_ENUM_RESOURCE_ENTRY Resources
 );
 
 NTSYSCALLAPI
@@ -5655,7 +5700,7 @@ NTAPI
 NtQueryKey (
 	_In_ HANDLE KeyHandle,
 	_In_ KEY_INFORMATION_CLASS KeyInformationClass,
-	_Out_writes_bytes_opt_ (Length) PVOID KeyInformation,
+	_Out_writes_bytes_to_opt_ (Length, *ResultLength) PVOID KeyInformation,
 	_In_ ULONG Length,
 	_Out_ PULONG ResultLength
 );
@@ -5677,7 +5722,7 @@ NtQueryValueKey (
 	_In_ HANDLE KeyHandle,
 	_In_ PUNICODE_STRING ValueName,
 	_In_ KEY_VALUE_INFORMATION_CLASS KeyValueInformationClass,
-	_Out_writes_bytes_opt_ (Length) PVOID KeyValueInformation,
+	_Out_writes_bytes_to_opt_ (Length, *ResultLength) PVOID KeyValueInformation,
 	_In_ ULONG Length,
 	_Out_ PULONG ResultLength
 );
@@ -5701,7 +5746,7 @@ NtEnumerateKey (
 	_In_ HANDLE KeyHandle,
 	_In_ ULONG Index,
 	_In_ KEY_INFORMATION_CLASS KeyInformationClass,
-	_Out_writes_bytes_opt_ (Length) PVOID KeyInformation,
+	_Out_writes_bytes_to_opt_ (Length, *ResultLength) PVOID KeyInformation,
 	_In_ ULONG Length,
 	_Out_ PULONG ResultLength
 );
@@ -5713,7 +5758,7 @@ NtEnumerateValueKey (
 	_In_ HANDLE KeyHandle,
 	_In_ ULONG Index,
 	_In_ KEY_VALUE_INFORMATION_CLASS KeyValueInformationClass,
-	_Out_writes_bytes_opt_ (Length) PVOID KeyValueInformation,
+	_Out_writes_bytes_to_opt_ (Length, *ResultLength) PVOID KeyValueInformation,
 	_In_ ULONG Length,
 	_Out_ PULONG ResultLength
 );
