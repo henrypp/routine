@@ -353,7 +353,7 @@ BOOLEAN _r_app_initialize (
 	if (!_r_sys_iselevated ())
 	{
 		if (!_r_app_runasadmin ())
-			_r_report_error (NULL, APP_FAILED_ADMIN_RIGHTS, STATUS_ACCESS_DENIED, ET_NATIVE);
+			_r_report_error (NULL, APP_FAILED_ADMIN_RIGHTS, STATUS_ELEVATION_REQUIRED, ET_NATIVE);
 
 		return FALSE;
 	}
@@ -920,7 +920,7 @@ BOOLEAN _r_app_runasadmin ()
 		return TRUE;
 #endif // APP_HAVE_SKIPUAC
 
-	if (_r_sys_runasadmin (_r_sys_getimagepath (), _r_sys_getimagecommandline (), _r_sys_getcurrentdirectory (), TRUE))
+	if (_r_sys_runasadmin (_r_sys_getimagepath (), _r_sys_getimagecommandline (), _r_sys_getcurrentdirectory (), FALSE))
 		return TRUE;
 
 	// restore mutex on error
