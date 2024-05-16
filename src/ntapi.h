@@ -167,13 +167,23 @@
 // Create disposition
 //
 
+// If the file already exists, replace it with the given file. If it does not, create the given file.
 #define FILE_SUPERSEDE 0x00000000
+
+// If the file already exists, open it instead of creating a new file. If it does not, fail the request and do not create a new file.
 #define FILE_OPEN 0x00000001
+
+// If the file already exists, fail the request and do not create or open the given file. If it does not, create the given file.
 #define FILE_CREATE 0x00000002
+
+// If the file already exists, open it. If it does not, create the given file.
 #define FILE_OPEN_IF 0x00000003
+
+// If the file already exists, open it and overwrite it. If it does not, fail the request.
 #define FILE_OVERWRITE 0x00000004
+
+// If the file already exists, open it and overwrite it. If it does not, create the given file.
 #define FILE_OVERWRITE_IF 0x00000005
-#define FILE_MAXIMUM_DISPOSITION 0x00000005
 
 //
 // Create/open flags
@@ -199,17 +209,17 @@
 #define FILE_OPEN_FOR_BACKUP_INTENT 0x00004000
 #define FILE_NO_COMPRESSION 0x00008000
 
+#define FILE_RESERVE_OPFILTER 0x00100000
+#define FILE_OPEN_REPARSE_POINT 0x00200000
+#define FILE_OPEN_NO_RECALL 0x00400000
+#define FILE_OPEN_FOR_FREE_SPACE_QUERY 0x00800000
+
 // win7+
 #define FILE_OPEN_REQUIRING_OPLOCK 0x00010000
 #define FILE_DISALLOW_EXCLUSIVE 0x00020000
 
 // win8+
 #define FILE_SESSION_AWARE 0x00040000
-
-#define FILE_RESERVE_OPFILTER 0x00100000
-#define FILE_OPEN_REPARSE_POINT 0x00200000
-#define FILE_OPEN_NO_RECALL 0x00400000
-#define FILE_OPEN_FOR_FREE_SPACE_QUERY 0x00800000
 
 //
 // Process parameters flags
@@ -5568,7 +5578,8 @@ RtlDecompressBuffer (
 	_Out_ PULONG FinalUncompressedSize
 );
 
-NTSYSCALLAPI// win8+
+// win8+
+NTSYSCALLAPI
 NTSTATUS
 NTAPI
 RtlDecompressBufferEx (
