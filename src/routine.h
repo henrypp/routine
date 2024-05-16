@@ -2985,7 +2985,7 @@ FORCEINLINE LPWSTR _r_sys_getimagepath ()
 	return NtCurrentPeb ()->ProcessParameters->ImagePathName.Buffer;
 }
 
-FORCEINLINE LPWSTR _r_sys_getimagecommandline ()
+FORCEINLINE LPWSTR _r_sys_getcommandline ()
 {
 	return NtCurrentPeb ()->ProcessParameters->CommandLine.Buffer;
 }

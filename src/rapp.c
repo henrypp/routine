@@ -81,7 +81,7 @@ LPWSTR _r_app_getmutexname ()
 			L"%s-%" TEXT (PR_ULONG) L"-%" TEXT (PR_ULONG),
 			_r_app_getnameshort (),
 			_r_str_gethash (_r_sys_getimagepath (), TRUE),
-			_r_str_gethash (_r_sys_getimagecommandline (), TRUE)
+			_r_str_gethash (_r_sys_getcommandline (), TRUE)
 		);
 #else
 		cached_name = _r_obj_createstring (_r_app_getnameshort ());
@@ -110,7 +110,7 @@ BOOLEAN _r_app_isportable ()
 
 	if (_r_initonce_begin (&init_once))
 	{
-		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"portable", NULL))
+		if (_r_sys_getopt (_r_sys_getcommandline (), L"portable", NULL))
 		{
 			is_portable = TRUE;
 		}
@@ -155,7 +155,7 @@ BOOLEAN _r_app_isreadonly ()
 
 	if (_r_initonce_begin (&init_once))
 	{
-		is_readonly = _r_sys_getopt (_r_sys_getimagecommandline (), L"readonly", NULL);
+		is_readonly = _r_sys_getopt (_r_sys_getcommandline (), L"readonly", NULL);
 
 		_r_initonce_end (&init_once);
 	}
@@ -370,7 +370,7 @@ BOOLEAN _r_app_initialize (
 
 	// check for wow64 working and show warning if it is TRUE!
 #if !defined(_DEBUG) && !defined(_WIN64)
-	if (_r_sys_iswow64 () && !_r_sys_getopt (_r_sys_getimagecommandline (), L"nowow64", NULL))
+	if (_r_sys_iswow64 () && !_r_sys_getopt (_r_sys_getcommandline (), L"nowow64", NULL))
 	{
 		_r_report_error (APP_WARNING_WOW64_TITLE, APP_WARNING_WOW64_TEXT, STATUS_IMAGE_MACHINE_TYPE_MISMATCH, ET_NATIVE);
 
@@ -390,25 +390,25 @@ BOOLEAN _r_app_initialize (
 
 	if (cmd_callback)
 	{
-		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"help", NULL))
+		if (_r_sys_getopt (_r_sys_getcommandline (), L"help", NULL))
 		{
 			if (cmd_callback (CmdlineHelp))
 				return FALSE;
 		}
 
-		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"clean", NULL))
+		if (_r_sys_getopt (_r_sys_getcommandline (), L"clean", NULL))
 		{
 			if (cmd_callback (CmdlineClean))
 				return FALSE;
 		}
 
-		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"install", NULL))
+		if (_r_sys_getopt (_r_sys_getcommandline (), L"install", NULL))
 		{
 			if (cmd_callback (CmdlineInstall))
 				return FALSE;
 		}
 
-		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"uninstall", NULL))
+		if (_r_sys_getopt (_r_sys_getcommandline (), L"uninstall", NULL))
 		{
 			if (cmd_callback (CmdlineUninstall))
 				return FALSE;
@@ -416,16 +416,16 @@ BOOLEAN _r_app_initialize (
 	}
 	else
 	{
-		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"help", NULL))
+		if (_r_sys_getopt (_r_sys_getcommandline (), L"help", NULL))
 			return FALSE;
 
-		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"clean", NULL))
+		if (_r_sys_getopt (_r_sys_getcommandline (), L"clean", NULL))
 			return FALSE;
 
-		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"install", NULL))
+		if (_r_sys_getopt (_r_sys_getcommandline (), L"install", NULL))
 			return FALSE;
 
-		if (_r_sys_getopt (_r_sys_getimagecommandline (), L"uninstall", NULL))
+		if (_r_sys_getopt (_r_sys_getcommandline (), L"uninstall", NULL))
 			return FALSE;
 	}
 
@@ -790,7 +790,7 @@ ULONG _r_app_getshowcode (
 #if defined(APP_HAVE_TRAY)
 	if (!is_windowhidden)
 	{
-		if (_r_config_getboolean (L"IsStartMinimized", FALSE) || _r_sys_getopt (_r_sys_getimagecommandline (), L"minimized", NULL))
+		if (_r_config_getboolean (L"IsStartMinimized", FALSE) || _r_sys_getopt (_r_sys_getcommandline (), L"minimized", NULL))
 			is_windowhidden = TRUE;
 	}
 #endif // APP_HAVE_TRAY
@@ -920,7 +920,7 @@ BOOLEAN _r_app_runasadmin ()
 		return TRUE;
 #endif // APP_HAVE_SKIPUAC
 
-	if (_r_sys_runasadmin (_r_sys_getimagepath (), _r_sys_getimagecommandline (), _r_sys_getcurrentdirectory (), FALSE))
+	if (_r_sys_runasadmin (_r_sys_getimagepath (), _r_sys_getcommandline (), _r_sys_getcurrentdirectory (), FALSE))
 		return TRUE;
 
 	// restore mutex on error
@@ -943,7 +943,7 @@ VOID _r_app_restart (
 
 	_r_mutex_destroy (&app_global.main.hmutex);
 
-	status = _r_sys_createprocess (_r_sys_getimagepath (), _r_sys_getimagecommandline (), _r_sys_getcurrentdirectory ());
+	status = _r_sys_createprocess (_r_sys_getimagepath (), _r_sys_getcommandline (), _r_sys_getcurrentdirectory ());
 
 	if (!NT_SUCCESS (status))
 	{
@@ -4509,7 +4509,7 @@ BOOLEAN _r_skipuac_run ()
 		goto CleanupExit;
 
 	// set arguments for task
-	arga = CommandLineToArgvW (_r_sys_getimagecommandline (), &numargs);
+	arga = CommandLineToArgvW (_r_sys_getcommandline (), &numargs);
 
 	if (arga)
 	{

@@ -10067,7 +10067,7 @@ HRESULT _r_sys_registerrestart (
 
 	if (is_register)
 	{
-		status = RegisterApplicationRestart (_r_sys_getimagecommandline (), RESTART_NO_CRASH);
+		status = RegisterApplicationRestart (_r_sys_getcommandline (), RESTART_NO_CRASH);
 	}
 	else
 	{
