@@ -6203,21 +6203,21 @@ NTSTATUS _r_path_search (
 
 _Ret_maybenull_
 PR_STRING _r_locale_getinfo (
-	_In_opt_ LPCWSTR locale_name,
+	_In_ LCID locale,
 	_In_ LCTYPE locale_type
 )
 {
 	PR_STRING string;
 	ULONG return_length;
 
-	return_length = GetLocaleInfoEx (locale_name, locale_type, NULL, 0);
+	return_length = GetLocaleInfoW (locale, locale_type, NULL, 0);
 
 	if (!return_length)
 		return NULL;
 
 	string = _r_obj_createstring_ex (NULL, return_length * sizeof (WCHAR) - sizeof (UNICODE_NULL));
 
-	return_length = GetLocaleInfoEx (locale_name, locale_type, string->buffer, return_length);
+	return_length = GetLocaleInfoW (locale, locale_type, string->buffer, return_length);
 
 	if (return_length)
 		return string;
@@ -6227,8 +6227,9 @@ PR_STRING _r_locale_getinfo (
 	return NULL;
 }
 
-LCID _r_locale_getlcid (
-	_In_ BOOLEAN is_userprofile
+NTSTATUS _r_locale_getlcid (
+	_In_ BOOLEAN is_userprofile,
+	_Out_ PLCID out_buffer
 )
 {
 	LCID locale_id = is_userprofile ? LOCALE_USER_DEFAULT : LOCALE_SYSTEM_DEFAULT;
@@ -6237,9 +6238,15 @@ LCID _r_locale_getlcid (
 	status = NtQueryDefaultLocale (is_userprofile, &locale_id);
 
 	if (NT_SUCCESS (status))
-		return locale_id;
+	{
+		*out_buffer = locale_id;
+	}
+	else
+	{
+		*out_buffer = is_userprofile ? LOCALE_USER_DEFAULT : LOCALE_SYSTEM_DEFAULT;
+	}
 
-	return is_userprofile ? LOCALE_USER_DEFAULT : LOCALE_SYSTEM_DEFAULT;
+	return status;
 }
 
 NTSTATUS _r_locale_lcidtoname (
@@ -8213,7 +8220,7 @@ NTSTATUS _r_sys_formatmessage (
 	// Try using the system LANGID.
 	if (!NT_SUCCESS (status))
 	{
-		locale_id = _r_locale_getlcid (FALSE);
+		_r_locale_getlcid (FALSE, &locale_id);
 
 		status = RtlFindMessage (hinst, 11, locale_id, error_code, &entry);
 	}
@@ -14697,7 +14704,7 @@ NTSTATUS _r_res_loadresource (
 
 	resource_info.Type = (ULONG_PTR)type;
 	resource_info.Name = (ULONG_PTR)name;
-	resource_info.Language = lang_id; // MAKELANGID (LANG_NEUTRAL, SUBLANG_NEUTRAL);
+	resource_info.Language = lang_id ? lang_id : MAKELANGID (LANG_NEUTRAL, SUBLANG_NEUTRAL);
 
 	status = LdrFindResource_U (hinst, &resource_info, RESOURCE_DATA_LEVEL, &resource_data);
 

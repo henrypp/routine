@@ -2154,12 +2154,13 @@ NTSTATUS _r_path_search (
 
 _Ret_maybenull_
 PR_STRING _r_locale_getinfo (
-	_In_opt_ LPCWSTR locale_name,
+	_In_ LCID locale,
 	_In_ LCTYPE locale_type
 );
 
-LCID _r_locale_getlcid (
-	_In_ BOOLEAN is_userprofile
+NTSTATUS _r_locale_getlcid (
+	_In_ BOOLEAN is_userprofile,
+	_Out_ PLCID out_buffer
 );
 
 NTSTATUS _r_locale_lcidtoname (

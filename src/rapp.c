@@ -233,10 +233,10 @@ VOID _r_app_initialize_locale ()
 
 	_r_obj_clearreference (&app_global.locale.default_name);
 
-	string = _r_locale_getinfo (LOCALE_NAME_USER_DEFAULT, LOCALE_SENGLISHLANGUAGENAME);
+	string = _r_locale_getinfo (LOCALE_USER_DEFAULT, LOCALE_SENGLISHLANGUAGENAME);
 
 	if (!string)
-		string = _r_locale_getinfo (LOCALE_NAME_SYSTEM_DEFAULT, LOCALE_SENGLISHLANGUAGENAME);
+		string = _r_locale_getinfo (LOCALE_SYSTEM_DEFAULT, LOCALE_SENGLISHLANGUAGENAME);
 
 	app_global.locale.default_name = string;
 }
@@ -3142,7 +3142,8 @@ NTSTATUS _r_show_errormessage (
 
 	str_main = !_r_str_isempty (title) ? title : APP_FAILED_MESSAGE_TITLE;
 
-	_r_str_trimstring2 (&string->sr, L"\r\n", PR_TRIM_END_ONLY);
+	if (string)
+		_r_str_trimstring2 (&string->sr, L"\r\n", PR_TRIM_END_ONLY);
 
 	_r_str_printf (
 		str_content,
