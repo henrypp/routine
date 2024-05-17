@@ -777,7 +777,7 @@ typedef enum _PROCESSINFOCLASS
 	ProcessCreateStateChange, // since WIN11
 	ProcessApplyStateChange,
 	ProcessEnableOptionalXStateFeatures,
-	ProcessAltPrefetchParam, // since 22H1
+	ProcessAltPrefetchParam, // qs: OVERRIDE_PREFETCH_PARAMETER // App Launch Prefetch (ALPF) // since 22H1
 	ProcessAssignCpuPartitions,
 	ProcessPriorityClassEx,
 	ProcessMembershipInformation,
@@ -4851,7 +4851,7 @@ VOID
 NTAPI
 RtlInitAnsiString (
 	_Out_ PANSI_STRING DestinationString,
-	_In_opt_ PCSTR SourceString
+	_In_opt_z_ PCSTR SourceString
 );
 
 NTSYSCALLAPI
