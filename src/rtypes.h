@@ -288,6 +288,7 @@ typedef enum _R_LOG_LEVEL
 
 typedef enum _R_ERROR_TYPE
 {
+	ET_NONE = -1,
 	ET_WINDOWS = 0,
 	ET_NATIVE = 1,
 	ET_WINHTTP = 2,

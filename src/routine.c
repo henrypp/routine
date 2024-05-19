@@ -9950,6 +9950,13 @@ NTSTATUS _r_sys_loadlibrarytype (
 
 	switch (type)
 	{
+		case ET_NONE:
+		{
+			*out_buffer = NULL;
+
+			return STATUS_SUCCESS;
+		}
+
 		case ET_WINDOWS:
 		{
 			name = L"kernel32.dll";

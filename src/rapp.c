@@ -3124,11 +3124,10 @@ NTSTATUS _r_show_errormessage (
 	TASKDIALOGCONFIG tdc = {0};
 	TASKDIALOG_BUTTON td_buttons[3] = {0};
 	WCHAR str_content[1024];
-	PR_STRING string;
+	PR_STRING string = NULL;
 	R_STRINGREF sr;
-	LPCWSTR str_main;
 	LPCWSTR path;
-	PVOID hmodule = NULL;
+	PVOID hmodule;
 	UINT btn_cnt = 0;
 	INT command_id;
 	NTSTATUS status;
@@ -3138,12 +3137,13 @@ NTSTATUS _r_show_errormessage (
 	if (!NT_SUCCESS (status))
 		return status;
 
-	status = _r_sys_formatmessage (error_code, hmodule, 0, &string);
+	if (hmodule)
+	{
+		status = _r_sys_formatmessage (error_code, hmodule, 0, &string);
 
-	str_main = !_r_str_isempty (title) ? title : APP_FAILED_MESSAGE_TITLE;
-
-	if (string)
-		_r_str_trimstring2 (&string->sr, L"\r\n", PR_TRIM_END_ONLY);
+		if (NT_SUCCESS (status))
+			_r_str_trimstring2 (&string->sr, L"\r\n", PR_TRIM_END_ONLY);
+	}
 
 	_r_str_printf (
 		str_content,
@@ -3166,7 +3166,7 @@ NTSTATUS _r_show_errormessage (
 	tdc.pszMainIcon = TD_WARNING_ICON;
 	tdc.pszFooterIcon = TD_INFORMATION_ICON;
 	tdc.pszWindowTitle = _r_app_getname ();
-	tdc.pszMainInstruction = str_main;
+	tdc.pszMainInstruction = !_r_str_isempty (title) ? title : APP_FAILED_MESSAGE_TITLE;
 	tdc.pszContent = str_content;
 	tdc.pszFooter = APP_FAILED_MESSAGE_FOOTER;
 	tdc.pfCallback = &_r_msg_callback;
