@@ -4857,6 +4857,13 @@ RtlInitAnsiString (
 NTSYSCALLAPI
 VOID
 NTAPI
+RtlFreeAnsiString (
+	_Inout_ _At_ (AnsiString->Buffer, _Frees_ptr_opt_) PANSI_STRING AnsiString
+);
+
+NTSYSCALLAPI
+VOID
+NTAPI
 RtlInitUnicodeString (
 	_Out_ PUNICODE_STRING DestinationString,
 	_In_opt_z_ PCWSTR SourceString
