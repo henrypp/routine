@@ -3738,6 +3738,36 @@ RtlTimeFieldsToTime (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
+RtlSystemTimeToLocalTime (
+	_In_ PLARGE_INTEGER SystemTime,
+	_Out_ PLARGE_INTEGER LocalTime
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlLocalTimeToSystemTime (
+	_In_ PLARGE_INTEGER LocalTime,
+	_Out_ PLARGE_INTEGER SystemTime
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlQueryTimeZoneInformation (
+	_Out_ PRTL_TIME_ZONE_INFORMATION TimeZoneInformation
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlSetTimeZoneInformation (
+	_In_ PRTL_TIME_ZONE_INFORMATION TimeZoneInformation
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
 LdrLoadDll (
 	_In_opt_ PWSTR DllPath,
 	_In_opt_ PULONG DllCharacteristics,
@@ -3750,6 +3780,16 @@ NTSTATUS
 NTAPI
 LdrUnloadDll (
 	_In_ PVOID DllHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+LdrGetProcedureAddress (
+	_In_ PVOID DllHandle,
+	_In_opt_ PANSI_STRING ProcedureName,
+	_In_opt_ ULONG ProcedureNumber,
+	_Out_ PVOID *ProcedureAddress
 );
 
 #define LDR_GET_PROCEDURE_ADDRESS_DONT_RECORD_FORWARDER 0x00000001
@@ -3827,6 +3867,17 @@ LdrFindResource_U (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
+LdrFindResourceEx_U (
+	_In_ ULONG Flags,
+	_In_ PVOID DllHandle,
+	_In_ PLDR_RESOURCE_INFO ResourceInfo,
+	_In_ ULONG Level,
+	_Out_ PIMAGE_RESOURCE_DATA_ENTRY *ResourceDataEntry
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
 LdrFindResourceDirectory_U (
 	_In_ PVOID DllHandle,
 	_In_ PLDR_RESOURCE_INFO ResourceInfo,
@@ -3843,15 +3894,6 @@ LdrEnumResources (
 	_In_ ULONG Level,
 	_Inout_ ULONG *ResourceCount,
 	_Out_writes_to_opt_ (*ResourceCount, *ResourceCount) PLDR_ENUM_RESOURCE_ENTRY Resources
-);
-
-NTSYSCALLAPI
-LONG
-WINAPI
-GetStagedPackagePathByFullName (
-	_In_ PCWSTR packageFullName,
-	_Inout_ PUINT32 pathLength,
-	_Out_opt_ PWSTR path
 );
 
 NTSYSCALLAPI
@@ -3940,6 +3982,8 @@ RtlGetLocaleFileMappingAddress (
 	_Out_opt_ PULONG CurrentNLSVersion
 );
 
+// Threads
+
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -3956,6 +4000,7 @@ RtlCreateUserThread (
 	_Out_opt_ PCLIENT_ID ClientId
 );
 
+// vista+
 DECLSPEC_NORETURN
 NTSYSCALLAPI
 VOID
@@ -4070,25 +4115,16 @@ NtImpersonateThread (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-NtTestAlert (
-	VOID
+NtSetThreadExecutionState (
+	_In_ EXECUTION_STATE NewFlags, // ES_* flags
+	_Out_ PEXECUTION_STATE PreviousFlags
 );
-
-#define DUPLICATE_CLOSE_SOURCE 0x00000001
-#define DUPLICATE_SAME_ACCESS 0x00000002
-#define DUPLICATE_SAME_ATTRIBUTES 0x00000004
 
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-NtDuplicateObject (
-	_In_ HANDLE SourceProcessHandle,
-	_In_ HANDLE SourceHandle,
-	_In_opt_ HANDLE TargetProcessHandle,
-	_Out_opt_ PHANDLE TargetHandle,
-	_In_ ACCESS_MASK DesiredAccess,
-	_In_ ULONG HandleAttributes,
-	_In_ ULONG Options
+NtTestAlert (
+	VOID
 );
 
 NTSYSCALLAPI
@@ -4097,7 +4133,7 @@ NTAPI
 NtFlushInstructionCache (
 	_In_ HANDLE ProcessHandle,
 	_In_opt_ PVOID BaseAddress,
-	_In_ SIZE_T Length
+	_In_ ULONG_PTR Length
 );
 
 NTSYSCALLAPI
@@ -4165,6 +4201,66 @@ RtlSetHeapInformation (
 );
 
 NTSYSCALLAPI
+ULONG_PTR
+NTAPI
+RtlSizeHeap (
+	_In_ PVOID HeapHandle,
+	_In_ ULONG Flags,
+	_In_ PVOID BaseAddress
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlZeroHeap (
+	_In_ PVOID HeapHandle,
+	_In_ ULONG Flags
+);
+
+NTSYSCALLAPI
+VOID
+NTAPI
+RtlProtectHeap (
+	_In_ PVOID HeapHandle,
+	_In_ BOOLEAN MakeReadOnly
+);
+
+#define RtlProcessHeap() (NtCurrentPeb()->ProcessHeap)
+
+NTSYSCALLAPI
+BOOLEAN
+NTAPI
+RtlLockHeap (
+	_In_ PVOID HeapHandle
+);
+
+NTSYSCALLAPI
+BOOLEAN
+NTAPI
+RtlUnlockHeap (
+	_In_ PVOID HeapHandle
+);
+
+NTSYSCALLAPI
+ULONG_PTR
+NTAPI
+RtlCompactHeap (
+	_In_ PVOID HeapHandle,
+	_In_ ULONG Flags
+);
+
+NTSYSCALLAPI
+BOOLEAN
+NTAPI
+RtlValidateHeap (
+	_In_opt_ PVOID HeapHandle,
+	_In_ ULONG Flags,
+	_In_opt_ PVOID BaseAddress
+);
+
+// Messages
+
+NTSYSCALLAPI
 NTSTATUS
 NTAPI
 RtlFindMessage (
@@ -4178,19 +4274,33 @@ RtlFindMessage (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-NtDelayExecution (
-	_In_ BOOLEAN Alertable,
-	_In_opt_ PLARGE_INTEGER DelayInterval
+RtlFormatMessage (
+	_In_ PWSTR MessageFormat,
+	_In_ ULONG MaximumWidth,
+	_In_ BOOLEAN IgnoreInserts,
+	_In_ BOOLEAN ArgumentsAreAnsi,
+	_In_ BOOLEAN ArgumentsAreAnArray,
+	_In_ va_list *Arguments,
+	_Out_writes_bytes_to_ (Length, *ReturnLength) PWSTR Buffer,
+	_In_ ULONG Length,
+	_Out_opt_ PULONG ReturnLength
 );
 
-// win10+
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-RtlDelayExecution (
-	_In_ BOOLEAN Alertable,
-	_In_opt_ PLARGE_INTEGER DelayInterval
+RtlLoadString (
+	_In_ PVOID DllHandle,
+	_In_ ULONG StringId,
+	_In_opt_ PCWSTR StringLanguage,
+	_In_ ULONG Flags,
+	_Out_ PCWSTR *ReturnString,
+	_Out_opt_ PUSHORT ReturnStringLen,
+	_Out_writes_ (ReturnLanguageLen) PWSTR ReturnLanguageName,
+	_Inout_opt_ PULONG ReturnLanguageLen
 );
+
+// Environment values
 
 NTSYSCALLAPI
 NTSTATUS
@@ -4236,17 +4346,6 @@ NtSetSystemEnvironmentValue (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-NtQueryObject (
-	_In_opt_ HANDLE Handle,
-	_In_ OBJECT_INFORMATION_CLASS ObjectInformationClass,
-	_Out_writes_bytes_opt_ (ObjectInformationLength) PVOID ObjectInformation,
-	_In_ ULONG ObjectInformationLength,
-	_Out_opt_ PULONG ReturnLength
-);
-
-NTSYSCALLAPI
-NTSTATUS
-NTAPI
 NtSetSystemInformation (
 	_In_ SYSTEM_INFORMATION_CLASS SystemInformationClass,
 	_In_reads_bytes_opt_ (SystemInformationLength) PVOID SystemInformation,
@@ -4263,16 +4362,20 @@ NtQuerySystemInformation (
 	_Out_opt_ PULONG ReturnLength
 );
 
+// Timers
+
+// winbase:CreateThreadpoolTimer
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
 TpAllocTimer (
-	_Out_ PTP_TIMER * Timer,
+	_Out_ PTP_TIMER* Timer,
 	_In_ PTP_TIMER_CALLBACK Callback,
 	_Inout_opt_ PVOID Context,
 	_In_opt_ PTP_CALLBACK_ENVIRON CallbackEnviron
 );
 
+// winbase:CloseThreadpoolTimer
 NTSYSCALLAPI
 VOID
 NTAPI
@@ -4280,6 +4383,7 @@ TpReleaseTimer (
 	_Inout_ PTP_TIMER Timer
 );
 
+// winbase:SetThreadpoolTimer
 NTSYSCALLAPI
 VOID
 NTAPI
@@ -4290,7 +4394,7 @@ TpSetTimer (
 	_In_opt_ ULONG WindowLength
 );
 
-// win8+
+// winbase:SetThreadpoolTimerEx (win8+)
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -4301,6 +4405,7 @@ TpSetTimerEx (
 	_In_opt_ ULONG WindowLength
 );
 
+// winbase:WaitForThreadpoolTimerCallbacks
 NTSYSCALLAPI
 VOID
 NTAPI
@@ -4315,6 +4420,8 @@ NTAPI
 TpIsTimerSet (
 	_In_ PTP_TIMER Timer
 );
+
+// Processes
 
 // vista+
 NTSYSCALLAPI
@@ -4532,6 +4639,8 @@ NtSetInformationToken (
 	_In_ ULONG TokenInformationLength
 );
 
+// Privileges
+
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -4556,18 +4665,67 @@ NtPrivilegeCheck (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-NtImpersonateAnonymousToken (
-	_In_ HANDLE ThreadHandle
+RtlAdjustPrivilege (
+	_In_ ULONG Privilege,
+	_In_ BOOLEAN Enable,
+	_In_ BOOLEAN Client,
+	_Out_ PBOOLEAN WasEnabled
 );
 
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-NtCreateDirectoryObject (
-	_Out_ PHANDLE DirectoryHandle,
-	_In_ ACCESS_MASK DesiredAccess,
-	_In_ POBJECT_ATTRIBUTES ObjectAttributes
+RtlAcquirePrivilege (
+	_In_ PULONG Privilege,
+	_In_ ULONG NumPriv,
+	_In_ ULONG Flags,
+	_Out_ PVOID *ReturnedState
 );
+
+NTSYSCALLAPI
+VOID
+NTAPI
+RtlReleasePrivilege (
+	_In_ PVOID StatePointer
+);
+
+// vista+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlRemovePrivileges (
+	_In_ HANDLE TokenHandle,
+	_In_ PULONG PrivilegesToKeep,
+	_In_ ULONG PrivilegeCount
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtImpersonateAnonymousToken (
+	_In_ HANDLE ThreadHandle
+);
+
+// Thread execution
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtDelayExecution (
+	_In_ BOOLEAN Alertable,
+	_In_opt_ PLARGE_INTEGER DelayInterval
+);
+
+// win10+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlDelayExecution (
+	_In_ BOOLEAN Alertable,
+	_In_opt_ PLARGE_INTEGER DelayInterval
+);
+
+// System calls
 
 NTSYSCALLAPI
 NTSTATUS
@@ -4720,13 +4878,6 @@ NtQueryDirectoryFile (
 	_In_ BOOLEAN ReturnSingleEntry,
 	_In_opt_ PUNICODE_STRING FileName,
 	_In_ BOOLEAN RestartScan
-);
-
-NTSYSCALLAPI
-NTSTATUS
-NTAPI
-NtClose (
-	_In_ _Post_ptr_invalid_ HANDLE Handle
 );
 
 NTSYSCALLAPI
@@ -5123,6 +5274,8 @@ RtlSetEnvironmentVariable (
 	_In_opt_ PUNICODE_STRING Value
 );
 
+// Errors
+
 NTSYSCALLAPI
 ULONG
 NTAPI
@@ -5172,6 +5325,29 @@ RtlRestoreLastWin32Error (
 	_In_ LONG Win32Error
 );
 
+// Directory objects
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtCreateDirectoryObject (
+	_Out_ PHANDLE DirectoryHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes
+);
+
+// win8+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtCreateDirectoryObjectEx (
+	_Out_ PHANDLE DirectoryHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes,
+	_In_ HANDLE ShadowDirectoryHandle,
+	_In_ ULONG Flags
+);
+
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -5194,6 +5370,8 @@ NtQueryDirectoryObject (
 	_Out_opt_ PULONG ReturnLength
 );
 
+// Semaphore
+
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -5208,11 +5386,22 @@ NtCreateSemaphore (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
+NtOpenSemaphore (
+	_Out_ PHANDLE SemaphoreHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
 NtReleaseSemaphore (
 	_In_ HANDLE SemaphoreHandle,
 	_In_ LONG ReleaseCount,
 	_Out_opt_ PLONG PreviousCount
 );
+
+// Exception
 
 NTSYSCALLAPI
 BOOLEAN
@@ -5311,7 +5500,6 @@ RtlSetUnhandledExceptionFilter (
 	_In_ PRTLP_UNHANDLED_EXCEPTION_FILTER UnhandledExceptionFilter
 );
 
-// rev
 NTSYSCALLAPI
 LONG
 NTAPI
@@ -5319,7 +5507,6 @@ RtlUnhandledExceptionFilter (
 	_In_ PEXCEPTION_POINTERS ExceptionPointers
 );
 
-// rev
 NTSYSCALLAPI
 LONG
 NTAPI
@@ -5328,7 +5515,6 @@ RtlUnhandledExceptionFilter2 (
 	_In_ ULONG Flags
 );
 
-// rev
 NTSYSCALLAPI
 LONG
 NTAPI
@@ -5427,6 +5613,9 @@ RtlReleasePebLock (
 	VOID
 );
 
+// Run once
+
+// vista+
 NTSYSCALLAPI
 NTSTATUS
 RtlRunOnceBeginInitialize (
@@ -5435,6 +5624,7 @@ RtlRunOnceBeginInitialize (
 	_Outptr_opt_result_maybenull_ PVOID *Context
 );
 
+// vista+
 NTSYSCALLAPI
 NTSTATUS
 RtlRunOnceComplete (
@@ -5442,6 +5632,8 @@ RtlRunOnceComplete (
 	_In_ ULONG Flags,
 	_In_opt_ PVOID Context
 );
+
+// Event
 
 NTSYSCALLAPI
 NTSTATUS
@@ -5452,6 +5644,15 @@ NtCreateEvent (
 	_In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
 	_In_ EVENT_TYPE EventType,
 	_In_ BOOLEAN InitialState
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtOpenEvent (
+	_Out_ PHANDLE EventHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes
 );
 
 NTSYSCALLAPI
@@ -5472,9 +5673,47 @@ NtClearEvent (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
+NtPulseEvent (
+	_In_ HANDLE EventHandle,
+	_Out_opt_ PLONG PreviousState
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
 NtResetEvent (
 	_In_ HANDLE EventHandle,
 	_Out_opt_ PLONG PreviousState
+);
+
+// Objects, handles
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtQueryObject (
+	_In_opt_ HANDLE Handle,
+	_In_ OBJECT_INFORMATION_CLASS ObjectInformationClass,
+	_Out_writes_bytes_opt_ (ObjectInformationLength) PVOID ObjectInformation,
+	_In_ ULONG ObjectInformationLength,
+	_Out_opt_ PULONG ReturnLength
+);
+
+#define DUPLICATE_CLOSE_SOURCE 0x00000001
+#define DUPLICATE_SAME_ACCESS 0x00000002
+#define DUPLICATE_SAME_ATTRIBUTES 0x00000004
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtDuplicateObject (
+	_In_ HANDLE SourceProcessHandle,
+	_In_ HANDLE SourceHandle,
+	_In_opt_ HANDLE TargetProcessHandle,
+	_Out_opt_ PHANDLE TargetHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ ULONG HandleAttributes,
+	_In_ ULONG Options
 );
 
 NTSYSCALLAPI
@@ -5500,9 +5739,8 @@ NtWaitForMultipleObjects (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-NtSetThreadExecutionState (
-	_In_ EXECUTION_STATE NewFlags, // ES_* flags
-	_Out_ PEXECUTION_STATE PreviousFlags
+NtClose (
+	_In_ _Post_ptr_invalid_ HANDLE Handle
 );
 
 // Keyed Event
@@ -5924,6 +6162,87 @@ RtlCreateAcl (
 );
 
 NTSYSCALLAPI
+BOOLEAN
+NTAPI
+RtlValidAcl (
+	_In_ PACL Acl
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlQueryInformationAcl (
+	_In_ PACL Acl,
+	_Out_writes_bytes_ (AclInformationLength) PVOID AclInformation,
+	_In_ ULONG AclInformationLength,
+	_In_ ACL_INFORMATION_CLASS AclInformationClass
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlSetInformationAcl (
+	_Inout_ PACL Acl,
+	_In_reads_bytes_ (AclInformationLength) PVOID AclInformation,
+	_In_ ULONG AclInformationLength,
+	_In_ ACL_INFORMATION_CLASS AclInformationClass
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlAddAce (
+	_Inout_ PACL Acl,
+	_In_ ULONG AceRevision,
+	_In_ ULONG StartingAceIndex,
+	_In_reads_bytes_ (AceListLength) PVOID AceList,
+	_In_ ULONG AceListLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlDeleteAce (
+	_Inout_ PACL Acl,
+	_In_ ULONG AceIndex
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlGetAce (
+	_In_ PACL Acl,
+	_In_ ULONG AceIndex,
+	_Outptr_ PVOID *Ace
+);
+
+NTSYSCALLAPI
+BOOLEAN
+NTAPI
+RtlFirstFreeAce (
+	_In_ PACL Acl,
+	_Out_ PVOID *FirstFree
+);
+
+// vista+
+NTSYSCALLAPI
+PVOID
+NTAPI
+RtlFindAceByType (
+	_In_ PACL Acl,
+	_In_ UCHAR AceType,
+	_Out_opt_ PULONG Index
+);
+
+// vista+
+NTSYSCALLAPI
+BOOLEAN
+NTAPI
+RtlOwnerAcesPresent (
+	_In_ PACL pAcl
+);
+
+NTSYSCALLAPI
 NTSTATUS
 NTAPI
 RtlAddAccessAllowedAce (
@@ -5931,6 +6250,104 @@ RtlAddAccessAllowedAce (
 	_In_ ULONG AceRevision,
 	_In_ ACCESS_MASK AccessMask,
 	_In_ PSID Sid
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlAddAccessAllowedAceEx (
+	_Inout_ PACL Acl,
+	_In_ ULONG AceRevision,
+	_In_ ULONG AceFlags,
+	_In_ ACCESS_MASK AccessMask,
+	_In_ PSID Sid
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlAddAccessDeniedAce (
+	_Inout_ PACL Acl,
+	_In_ ULONG AceRevision,
+	_In_ ACCESS_MASK AccessMask,
+	_In_ PSID Sid
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlAddAccessDeniedAceEx (
+	_Inout_ PACL Acl,
+	_In_ ULONG AceRevision,
+	_In_ ULONG AceFlags,
+	_In_ ACCESS_MASK AccessMask,
+	_In_ PSID Sid
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlAddAuditAccessAce (
+	_Inout_ PACL Acl,
+	_In_ ULONG AceRevision,
+	_In_ ACCESS_MASK AccessMask,
+	_In_ PSID Sid,
+	_In_ BOOLEAN AuditSuccess,
+	_In_ BOOLEAN AuditFailure
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlAddAuditAccessAceEx (
+	_Inout_ PACL Acl,
+	_In_ ULONG AceRevision,
+	_In_ ULONG AceFlags,
+	_In_ ACCESS_MASK AccessMask,
+	_In_ PSID Sid,
+	_In_ BOOLEAN AuditSuccess,
+	_In_ BOOLEAN AuditFailure
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlAddAccessAllowedObjectAce (
+	_Inout_ PACL Acl,
+	_In_ ULONG AceRevision,
+	_In_ ULONG AceFlags,
+	_In_ ACCESS_MASK AccessMask,
+	_In_opt_ LPGUID ObjectTypeGuid,
+	_In_opt_ LPGUID InheritedObjectTypeGuid,
+	_In_ PSID Sid
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlAddAccessDeniedObjectAce (
+	_Inout_ PACL Acl,
+	_In_ ULONG AceRevision,
+	_In_ ULONG AceFlags,
+	_In_ ACCESS_MASK AccessMask,
+	_In_opt_ LPGUID ObjectTypeGuid,
+	_In_opt_ LPGUID InheritedObjectTypeGuid,
+	_In_ PSID Sid
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlAddAuditAccessObjectAce (
+	_Inout_ PACL Acl,
+	_In_ ULONG AceRevision,
+	_In_ ULONG AceFlags,
+	_In_ ACCESS_MASK AccessMask,
+	_In_opt_ LPGUID ObjectTypeGuid,
+	_In_opt_ LPGUID InheritedObjectTypeGuid,
+	_In_ PSID Sid,
+	_In_ BOOLEAN AuditSuccess,
+	_In_ BOOLEAN AuditFailure
 );
 
 NTSYSCALLAPI
@@ -5960,8 +6377,255 @@ NTAPI
 RtlGetDaclSecurityDescriptor (
 	_In_ PSECURITY_DESCRIPTOR SecurityDescriptor,
 	_Out_ PBOOLEAN DaclPresent,
-	_Outptr_result_maybenull_ PACL * Dacl,
+	_Outptr_result_maybenull_ PACL *Dacl,
 	_Out_ PBOOLEAN DaclDefaulted
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlSetSaclSecurityDescriptor (
+	_Inout_ PSECURITY_DESCRIPTOR SecurityDescriptor,
+	_In_ BOOLEAN SaclPresent,
+	_In_opt_ PACL Sacl,
+	_In_ BOOLEAN SaclDefaulted
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlGetSaclSecurityDescriptor (
+	_In_ PSECURITY_DESCRIPTOR SecurityDescriptor,
+	_Out_ PBOOLEAN SaclPresent,
+	_Out_ PACL *Sacl,
+	_Out_ PBOOLEAN SaclDefaulted
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlSetOwnerSecurityDescriptor (
+	_Inout_ PSECURITY_DESCRIPTOR SecurityDescriptor,
+	_In_opt_ PSID Owner,
+	_In_ BOOLEAN OwnerDefaulted
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlGetOwnerSecurityDescriptor (
+	_In_ PSECURITY_DESCRIPTOR SecurityDescriptor,
+	_Outptr_result_maybenull_ PSID *Owner,
+	_Out_ PBOOLEAN OwnerDefaulted
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlSetGroupSecurityDescriptor (
+	_Inout_ PSECURITY_DESCRIPTOR SecurityDescriptor,
+	_In_opt_ PSID Group,
+	_In_ BOOLEAN GroupDefaulted
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlGetGroupSecurityDescriptor (
+	_In_ PSECURITY_DESCRIPTOR SecurityDescriptor,
+	_Outptr_result_maybenull_ PSID *Group,
+	_Out_ PBOOLEAN GroupDefaulted
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlMakeSelfRelativeSD (
+	_In_ PSECURITY_DESCRIPTOR AbsoluteSecurityDescriptor,
+	_Out_writes_bytes_ (*BufferLength) PSECURITY_DESCRIPTOR SelfRelativeSecurityDescriptor,
+	_Inout_ PULONG BufferLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlAbsoluteToSelfRelativeSD (
+	_In_ PSECURITY_DESCRIPTOR AbsoluteSecurityDescriptor,
+	_Out_writes_bytes_to_opt_ (*BufferLength, *BufferLength) PSECURITY_DESCRIPTOR SelfRelativeSecurityDescriptor,
+	_Inout_ PULONG BufferLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlSelfRelativeToAbsoluteSD (
+	_In_ PSECURITY_DESCRIPTOR SelfRelativeSecurityDescriptor,
+	_Out_writes_bytes_to_opt_ (*AbsoluteSecurityDescriptorSize, *AbsoluteSecurityDescriptorSize) PSECURITY_DESCRIPTOR AbsoluteSecurityDescriptor,
+	_Inout_ PULONG AbsoluteSecurityDescriptorSize,
+	_Out_writes_bytes_to_opt_ (*DaclSize, *DaclSize) PACL Dacl,
+	_Inout_ PULONG DaclSize,
+	_Out_writes_bytes_to_opt_ (*SaclSize, *SaclSize) PACL Sacl,
+	_Inout_ PULONG SaclSize,
+	_Out_writes_bytes_to_opt_ (*OwnerSize, *OwnerSize) PSID Owner,
+	_Inout_ PULONG OwnerSize,
+	_Out_writes_bytes_to_opt_ (*PrimaryGroupSize, *PrimaryGroupSize) PSID PrimaryGroup,
+	_Inout_ PULONG PrimaryGroupSize
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlSelfRelativeToAbsoluteSD2 (
+	_Inout_ PSECURITY_DESCRIPTOR SelfRelativeSecurityDescriptor,
+	_Inout_ PULONG BufferSize
+);
+
+// win10 19h2+
+__drv_maxIRQL (APC_LEVEL)
+NTSYSCALLAPI
+BOOLEAN
+NTAPI
+RtlNormalizeSecurityDescriptor (
+	_Inout_ PSECURITY_DESCRIPTOR *SecurityDescriptor,
+	_In_ ULONG SecurityDescriptorLength,
+	_Out_opt_ PSECURITY_DESCRIPTOR *NewSecurityDescriptor,
+	_Out_opt_ PULONG NewSecurityDescriptorLength,
+	_In_ BOOLEAN CheckOnly
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlNewSecurityObject (
+	_In_opt_ PSECURITY_DESCRIPTOR ParentDescriptor,
+	_In_opt_ PSECURITY_DESCRIPTOR CreatorDescriptor,
+	_Out_ PSECURITY_DESCRIPTOR *NewDescriptor,
+	_In_ BOOLEAN IsDirectoryObject,
+	_In_opt_ HANDLE Token,
+	_In_ PGENERIC_MAPPING GenericMapping
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlNewSecurityObjectEx (
+	_In_opt_ PSECURITY_DESCRIPTOR ParentDescriptor,
+	_In_opt_ PSECURITY_DESCRIPTOR CreatorDescriptor,
+	_Out_ PSECURITY_DESCRIPTOR *NewDescriptor,
+	_In_opt_ GUID *ObjectType,
+	_In_ BOOLEAN IsDirectoryObject,
+	_In_ ULONG AutoInheritFlags, // SEF_*
+	_In_opt_ HANDLE Token,
+	_In_ PGENERIC_MAPPING GenericMapping
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlNewSecurityObjectWithMultipleInheritance (
+	_In_opt_ PSECURITY_DESCRIPTOR ParentDescriptor,
+	_In_opt_ PSECURITY_DESCRIPTOR CreatorDescriptor,
+	_Out_ PSECURITY_DESCRIPTOR *NewDescriptor,
+	_In_opt_ GUID **ObjectType,
+	_In_ ULONG GuidCount,
+	_In_ BOOLEAN IsDirectoryObject,
+	_In_ ULONG AutoInheritFlags, // SEF_*
+	_In_opt_ HANDLE Token,
+	_In_ PGENERIC_MAPPING GenericMapping
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlDeleteSecurityObject (
+	_Inout_ PSECURITY_DESCRIPTOR *ObjectDescriptor
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlQuerySecurityObject (
+	_In_ PSECURITY_DESCRIPTOR ObjectDescriptor,
+	_In_ SECURITY_INFORMATION SecurityInformation,
+	_Out_opt_ PSECURITY_DESCRIPTOR ResultantDescriptor,
+	_In_ ULONG DescriptorLength,
+	_Out_ PULONG ReturnLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlSetSecurityObject (
+	_In_ SECURITY_INFORMATION SecurityInformation,
+	_In_ PSECURITY_DESCRIPTOR ModificationDescriptor,
+	_Inout_ PSECURITY_DESCRIPTOR *ObjectsSecurityDescriptor,
+	_In_ PGENERIC_MAPPING GenericMapping,
+	_In_opt_ HANDLE TokenHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlSetSecurityObjectEx (
+	_In_ SECURITY_INFORMATION SecurityInformation,
+	_In_ PSECURITY_DESCRIPTOR ModificationDescriptor,
+	_Inout_ PSECURITY_DESCRIPTOR *ObjectsSecurityDescriptor,
+	_In_ ULONG AutoInheritFlags, // SEF_*
+	_In_ PGENERIC_MAPPING GenericMapping,
+	_In_opt_ HANDLE TokenHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlConvertToAutoInheritSecurityObject (
+	_In_opt_ PSECURITY_DESCRIPTOR ParentDescriptor,
+	_In_ PSECURITY_DESCRIPTOR CurrentSecurityDescriptor,
+	_Out_ PSECURITY_DESCRIPTOR *NewSecurityDescriptor,
+	_In_opt_ GUID *ObjectType,
+	_In_ BOOLEAN IsDirectoryObject,
+	_In_ PGENERIC_MAPPING GenericMapping
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlNewInstanceSecurityObject (
+	_In_ BOOLEAN ParentDescriptorChanged,
+	_In_ BOOLEAN CreatorDescriptorChanged,
+	_In_ PLUID OldClientTokenModifiedId,
+	_Out_ PLUID NewClientTokenModifiedId,
+	_In_opt_ PSECURITY_DESCRIPTOR ParentDescriptor,
+	_In_opt_ PSECURITY_DESCRIPTOR CreatorDescriptor,
+	_Out_ PSECURITY_DESCRIPTOR *NewDescriptor,
+	_In_ BOOLEAN IsDirectoryObject,
+	_In_ HANDLE TokenHandle,
+	_In_ PGENERIC_MAPPING GenericMapping
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlCopySecurityDescriptor (
+	_In_ PSECURITY_DESCRIPTOR InputSecurityDescriptor,
+	_Out_ PSECURITY_DESCRIPTOR *OutputSecurityDescriptor
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlImpersonateSelf (
+	_In_ SECURITY_IMPERSONATION_LEVEL ImpersonationLevel
+);
+
+// vista+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlImpersonateSelfEx (
+	_In_ SECURITY_IMPERSONATION_LEVEL ImpersonationLevel,
+	_In_opt_ ACCESS_MASK AdditionalAccess,
+	_Out_opt_ PHANDLE ThreadToken
 );
 
 // win7+
@@ -6067,6 +6731,32 @@ NTSTATUS
 NTAPI
 NtUnsubscribeWnfStateChange (
 	_In_ PCWNF_STATE_NAME StateName
+);
+
+// win8+
+NTSYSCALLAPI
+BOOLEAN
+NTAPI
+RtlIsCapabilitySid (
+	_In_ PSID Sid
+);
+
+// win8+
+NTSYSCALLAPI
+BOOLEAN
+NTAPI
+RtlIsPackageSid (
+	_In_ PSID Sid
+);
+
+// win8.1+
+NTSYSCALLAPI
+LONG
+WINAPI
+GetStagedPackagePathByFullName (
+	_In_ PCWSTR packageFullName,
+	_Inout_ PUINT32 pathLength,
+	_Out_opt_ PWSTR path
 );
 
 // extern c end
