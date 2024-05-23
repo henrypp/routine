@@ -3561,7 +3561,7 @@ HRESULT CALLBACK _r_msg_callback (
 			// remove window icon
 			_r_wnd_seticon (hwnd, NULL, NULL);
 
-			//_r_theme_initialize (hwnd, TRUE);
+			//_r_theme_initialize (hwnd, _r_theme_isenabled ());
 
 			break;
 		}
@@ -9184,7 +9184,7 @@ BOOLEAN _r_sys_isprocessimmersive (
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static IIP _IsImmersiveProcess = NULL;
 
-	HINSTANCE huser32;
+	PVOID huser32;
 	NTSTATUS status;
 
 	if (_r_initonce_begin (&init_once))
