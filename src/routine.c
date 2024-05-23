@@ -420,6 +420,7 @@ BOOLEAN _r_initonce_begin (
 {
 	NTSTATUS status;
 
+	// vista+
 	status = RtlRunOnceBeginInitialize (init_once, RTL_RUN_ONCE_CHECK_ONLY, NULL);
 
 	if (NT_SUCCESS (status))
@@ -10629,14 +10630,34 @@ NTSTATUS _r_sys_sleep (
 	_In_ ULONG milliseconds
 )
 {
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static RDE _RtlDelayExecution = NULL;
+
 	LARGE_INTEGER timeout;
+	PVOID ntdll;
 	NTSTATUS status;
+
+	if (_r_initonce_begin (&init_once))
+	{
+		status = _r_sys_loadlibrary (L"ntdll.dll", 0, &ntdll);
+
+		if (NT_SUCCESS (status))
+		{
+			// win10+
+			status = _r_sys_getprocaddress (ntdll, "RtlDelayExecution", 0, (PVOID_PTR)&_RtlDelayExecution);
+
+			//_r_sys_freelibrary (ntdll, FALSE);
+		}
+
+		_r_initonce_end (&init_once);
+	}
 
 	_r_calc_millisecondstolargeinteger (&timeout, milliseconds);
 
-	status = NtDelayExecution (FALSE, &timeout);
+	if (_RtlDelayExecution)
+		return _RtlDelayExecution (FALSE, &timeout);
 
-	return status;
+	return NtDelayExecution (FALSE, &timeout);
 }
 
 NTSTATUS _r_sys_waitformultipleobjects (

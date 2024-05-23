@@ -84,6 +84,12 @@ typedef BOOL (WINAPI *AWRFD)(
 	_In_ UINT dpi
 	);
 
+// RtlDelayExecution (win10+)
+typedef NTSTATUS (NTAPI* RDE)(
+	_In_ BOOLEAN Alertable,
+	_In_opt_ PLARGE_INTEGER DelayInterval
+	);
+
 // GetDpiForSystem (win10rs1+)
 typedef UINT (WINAPI *GDFS)(
 	VOID
