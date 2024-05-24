@@ -9730,7 +9730,7 @@ NTSTATUS _r_sys_getprocessimagepathbyid (
 
 _Success_ (SUCCEEDED (return))
 HRESULT _r_sys_loadicon (
-	_In_opt_ PVOID hinst,
+	_In_ PVOID hinst,
 	_In_ LPCWSTR icon_name,
 	_In_ LONG icon_size,
 	_Out_ HICON_PTR out_buffer
@@ -9756,7 +9756,7 @@ HRESULT _r_sys_loadicon (
 
 _Ret_maybenull_
 HICON _r_sys_loadsharedicon (
-	_In_opt_ PVOID hinst,
+	_In_ PVOID hinst,
 	_In_ LPWSTR icon_name,
 	_In_ LONG icon_size
 )

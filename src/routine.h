@@ -2815,7 +2815,7 @@ NTSTATUS _r_sys_getprocessimagepathbyid (
 
 _Success_ (SUCCEEDED (return))
 HRESULT _r_sys_loadicon (
-	_In_opt_ PVOID hinst,
+	_In_ PVOID hinst,
 	_In_ LPCWSTR icon_name,
 	_In_ LONG icon_size,
 	_Out_ HICON_PTR out_buffer
@@ -2823,7 +2823,7 @@ HRESULT _r_sys_loadicon (
 
 _Ret_maybenull_
 HICON _r_sys_loadsharedicon (
-	_In_opt_ PVOID hinst,
+	_In_ PVOID hinst,
 	_In_ LPWSTR icon_name,
 	_In_ LONG icon_size
 );
@@ -5027,6 +5027,25 @@ FORCEINLINE VOID _r_tab_setimagelist (
 )
 {
 	_r_wnd_sendmessage (hwnd, ctrl_id, TCM_SETIMAGELIST, 0, (LPARAM)himglist);
+}
+
+//
+// Control: link
+//
+
+FORCEINLINE BOOLEAN _r_link_setcolor (
+	_In_ HWND hwnd,
+	_In_ INT ctrl_id,
+	_In_ ULONG clr
+)
+{
+	LITEM lc = {0};
+
+	lc.mask = LIF_ITEMINDEX | LIF_STATE;
+	lc.state = clr;
+	lc.stateMask = LIS_DEFAULTCOLORS;
+
+	return !!_r_wnd_sendmessage (hwnd, ctrl_id, LM_SETITEM, 0, (LPARAM)&lc);
 }
 
 //
