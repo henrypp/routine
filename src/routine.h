@@ -5845,7 +5845,7 @@ FORCEINLINE VOID _r_toolbar_resize (
 FORCEINLINE VOID _r_toolbar_setcolorscheme (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
-	_In_opt_ LPCOLORSCHEME scheme
+	_In_ LPCOLORSCHEME scheme
 )
 {
 	_r_wnd_sendmessage (hwnd, ctrl_id, TB_SETCOLORSCHEME, 0, (LPARAM)scheme);

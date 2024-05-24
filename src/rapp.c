@@ -147,25 +147,6 @@ BOOLEAN _r_app_isportable ()
 #endif // !APP_NO_APPDATA || !APP_CONSOLE
 }
 
-BOOLEAN _r_app_isreadonly ()
-{
-#if !defined(APP_NO_CONFIG) || !defined(APP_CONSOLE)
-	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static BOOLEAN is_readonly = FALSE;
-
-	if (_r_initonce_begin (&init_once))
-	{
-		is_readonly = _r_sys_getopt (_r_sys_getcommandline (), L"readonly", NULL);
-
-		_r_initonce_end (&init_once);
-	}
-
-	return is_readonly;
-#else
-	return TRUE;
-#endif // !APP_NO_CONFIG || !APP_CONSOLE
-}
-
 BOOLEAN _r_app_initialize_com ()
 {
 	HRESULT status;
@@ -385,8 +366,7 @@ BOOLEAN _r_app_initialize (
 	AllowSetForegroundWindow (ASFW_ANY);
 
 	// if profile directory does not exist, we cannot save configuration
-	if (!_r_app_isreadonly ())
-		_r_app_getprofiledirectory (); // create profile directory if it does not exists
+	_r_app_getprofiledirectory ();
 
 	if (cmd_callback)
 	{
@@ -484,7 +464,6 @@ PR_STRING _r_app_getconfigpath ()
 			if (SUCCEEDED (status))
 				cached_result = string;
 		}
-
 
 		_r_initonce_end (&init_once);
 	}
@@ -587,7 +566,7 @@ PR_STRING _r_app_getprofiledirectory ()
 		_r_initonce_end (&init_once);
 	}
 
-	if (cached_path)
+	if (cached_path && !_r_fs_exists (cached_path->buffer))
 		_r_fs_createdirectory (cached_path->buffer, FILE_ATTRIBUTE_NORMAL);
 
 	return cached_path;
@@ -655,15 +634,8 @@ LRESULT CALLBACK _r_app_maindlgproc (
 	if (!app_global.main.wnd_proc)
 		return FALSE;
 
-	if (app_global.main.taskbar_msg)
-	{
-		if (msg == app_global.main.taskbar_msg)
-		{
-			return CallWindowProcW (app_global.main.wnd_proc, hwnd, RM_TASKBARCREATED, 0, 0);
-
-			return FALSE;
-		}
-	}
+	if (app_global.main.taskbar_msg && msg == app_global.main.taskbar_msg)
+		return CallWindowProcW (app_global.main.wnd_proc, hwnd, RM_TASKBARCREATED, 0, 0);
 
 	switch (msg)
 	{
@@ -692,7 +664,7 @@ LRESULT CALLBACK _r_app_maindlgproc (
 
 		case WM_QUERYENDSESSION:
 		{
-			SetWindowLongPtrW (hwnd, DWLP_MSGRESULT, TRUE);
+			SetWindowLongPtrW (hwnd, DWLP_MSGRESULT, TRUE); // required!
 
 			return TRUE;
 		}
@@ -774,14 +746,7 @@ ULONG _r_app_getshowcode (
 	ULONG show_code;
 	BOOLEAN is_windowhidden = FALSE;
 
-	if (NtCurrentPeb ()->ProcessParameters->WindowFlags & STARTF_USESHOWWINDOW)
-	{
-		show_code = NtCurrentPeb ()->ProcessParameters->ShowWindowFlags;
-	}
-	else
-	{
-		show_code = SW_SHOWNORMAL;
-	}
+	show_code = NtCurrentPeb ()->ProcessParameters->WindowFlags & STARTF_USESHOWWINDOW ? NtCurrentPeb ()->ProcessParameters->ShowWindowFlags : SW_SHOWNORMAL;
 
 	if (show_code == SW_HIDE || show_code == SW_MINIMIZE || show_code == SW_SHOWMINNOACTIVE || show_code == SW_FORCEMINIMIZE)
 		is_windowhidden = TRUE;
@@ -1550,14 +1515,7 @@ VOID _r_config_setstringexpand_ex (
 {
 	PR_STRING string;
 
-	if (value)
-	{
-		string = _r_str_environmentunexpandstring (value);
-	}
-	else
-	{
-		string = _r_obj_referenceemptystring ();
-	}
+	string = value ? _r_str_environmentunexpandstring (value) : _r_obj_referenceemptystring ();
 
 	_r_config_setstring_ex (key_name, string->buffer, section_name);
 
@@ -1652,10 +1610,6 @@ VOID _r_config_setstring_ex (
 		_r_obj_clearreference (&object_ptr->object_body);
 	}
 
-	// write to configuration file
-	if (_r_app_isreadonly ())
-		return;
-
 	path = _r_app_getconfigpath ();
 
 	WritePrivateProfileStringW (section_string, key_name, _r_obj_getstring (object_ptr->object_body), path->buffer);
@@ -1667,10 +1621,10 @@ VOID _r_config_setstring_ex (
 
 VOID _r_locale_initialize ()
 {
-	PR_HASHTABLE locale_table = NULL;
-	PR_LIST locale_names;
+	PR_HASHTABLE locale_table;
 	PR_STRING language_config;
 	PR_STRING language_path;
+	PR_LIST locale_names;
 
 	language_config = _r_config_getstring (L"Language", NULL);
 
@@ -1700,8 +1654,8 @@ VOID _r_locale_initialize ()
 
 	_r_queuedlock_acquireexclusive (&app_global.locale.lock);
 
-	_r_obj_movereference (&app_global.locale.table, locale_table);
 	_r_obj_movereference (&app_global.locale.available_list, locale_names);
+	_r_obj_movereference (&app_global.locale.table, locale_table);
 
 	_r_queuedlock_releaseexclusive (&app_global.locale.lock);
 }
@@ -1722,14 +1676,7 @@ VOID _r_locale_apply (
 
 	if (is_menu)
 	{
-		if (menu_id == ctrl_id)
-		{
-			locale_index = SIZE_MAX;
-		}
-		else
-		{
-			locale_index = (UINT_PTR)ctrl_id - (UINT_PTR)menu_id - 2;
-		}
+		locale_index = (menu_id == ctrl_id) ? SIZE_MAX : (UINT_PTR)ctrl_id - (UINT_PTR)menu_id - 2;
 	}
 	else
 	{
@@ -1990,6 +1937,10 @@ LONG64 _r_locale_getversion ()
 	return _r_str_tolong64 (&string);
 }
 
+//
+// Autorun (optional feature)
+//
+
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_autorun_enable (
 	_In_opt_ HWND hwnd,
@@ -2061,8 +2012,7 @@ BOOLEAN _r_autorun_isenabled ()
 
 			_r_obj_trimstringtonullterminator (&path->sr);
 
-			if (_r_str_isequal2 (&path->sr, _r_sys_getimagepath (), TRUE))
-				is_enabled = TRUE;
+			is_enabled = _r_str_isequal2 (&path->sr, _r_sys_getimagepath (), TRUE);
 
 			_r_obj_dereference (path);
 		}
@@ -2072,6 +2022,10 @@ BOOLEAN _r_autorun_isenabled ()
 
 	return is_enabled;
 }
+
+//
+// Update checker (optional feature)
+//
 
 BOOLEAN NTAPI _r_update_downloadcallback (
 	_In_ ULONG total_written,
@@ -2110,7 +2064,7 @@ NTSTATUS _r_update_downloadupdate (
 		update_component->cache_path->buffer,
 		FILE_OVERWRITE_IF,
 		GENERIC_WRITE,
-		FILE_SHARE_READ,
+		FILE_SHARE_READ | FILE_SHARE_WRITE,
 		FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_TEMPORARY,
 		0,
 		FALSE,
@@ -2194,18 +2148,8 @@ NTSTATUS NTAPI _r_update_downloadthread (
 		if (update_flags & PR_UPDATE_FLAG_FILE)
 			_r_update_applyconfig ();
 
-		if (update_flags & PR_UPDATE_FLAG_INSTALLER)
-		{
-			buttons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
-
-			str_content = L"Update available. Do you want to install it now?";
-		}
-		else
-		{
-			buttons = TDCBF_CLOSE_BUTTON;
-
-			str_content = L"Downloading update finished.";
-		}
+		str_content = (update_flags & PR_UPDATE_FLAG_INSTALLER) ? L"Update available. Do you want to install it now?" : L"Downloading update finished.";
+		buttons = (update_flags & PR_UPDATE_FLAG_INSTALLER) ? TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON : TDCBF_CLOSE_BUTTON;
 	}
 	else
 	{
@@ -2350,14 +2294,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 			}
 			else
 			{
-				if (downloads_count)
-				{
-					str_content = L"Downloading update finished.";
-				}
-				else
-				{
-					str_content = L"No updates available.";
-				}
+				str_content = downloads_count ? L"Downloading update finished." : L"No updates available.";
 			}
 
 			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, NULL, NULL, str_content, status, ET_WINHTTP);
@@ -2389,10 +2326,9 @@ BOOLEAN _r_update_isenabled (
 	_In_ BOOLEAN is_checktimestamp
 )
 {
-	LONG64 current_timestamp;
 	LONG64 update_last_timestamp;
+	LONG64 current_timestamp;
 	LONG update_period;
-	LONG update_current_timestamp;
 
 	update_period = _r_config_getlong (L"CheckUpdatesPeriod", APP_UPDATE_PERIOD);
 
@@ -2404,9 +2340,8 @@ BOOLEAN _r_update_isenabled (
 		current_timestamp = _r_unixtime_now ();
 
 		update_last_timestamp = _r_config_getlong64 (L"CheckUpdatesLast", 0);
-		update_current_timestamp = _r_calc_days2seconds (update_period);
 
-		if ((current_timestamp - update_last_timestamp) <= update_current_timestamp)
+		if ((current_timestamp - update_last_timestamp) <= _r_calc_days2seconds (update_period))
 			return FALSE;
 	}
 
@@ -2498,8 +2433,7 @@ HRESULT CALLBACK _r_update_pagecallback (
 
 			_r_wnd_center (hwnd, hparent);
 
-			if (update_info->hparent)
-				_r_wnd_top (hwnd, TRUE);
+			_r_wnd_top (hwnd, TRUE); // always on top
 
 			break;
 		}
@@ -2548,10 +2482,23 @@ HRESULT CALLBACK _r_update_pagecallback (
 			}
 			else if (wparam == IDCANCEL)
 			{
-				if (!update_info->hthread)
-					break;
+				if (update_info->hthread)
+				{
+					NtTerminateThread (update_info->hthread, STATUS_CANCELLED);
+					NtClose (update_info->hthread);
 
-				NtTerminateThread (update_info->hthread, STATUS_CANCELLED);
+					update_info->hthread = NULL;
+				}
+			}
+
+			break;
+		}
+
+		case TDN_DIALOG_CONSTRUCTED:
+		{
+			if (update_info->hthread)
+			{
+				NtResumeThread (update_info->hthread, NULL);
 				NtClose (update_info->hthread);
 
 				update_info->hthread = NULL;
@@ -2560,29 +2507,17 @@ HRESULT CALLBACK _r_update_pagecallback (
 			break;
 		}
 
-		case TDN_DIALOG_CONSTRUCTED:
-		{
-			if (!update_info->hthread)
-				break;
-
-			NtResumeThread (update_info->hthread, NULL);
-			NtClose (update_info->hthread);
-
-			update_info->hthread = NULL;
-
-			break;
-		}
-
 		case TDN_DESTROYED:
 		{
 			update_info->htaskdlg = NULL;
 
-			if (!update_info->hthread)
-				break;
+			if (update_info->hthread)
+			{
+				NtTerminateThread (update_info->hthread, STATUS_CANCELLED);
+				NtClose (update_info->hthread);
 
-			NtClose (update_info->hthread);
-
-			update_info->hthread = NULL;
+				update_info->hthread = NULL;
+			}
 
 			break;
 		}
@@ -2617,21 +2552,8 @@ VOID _r_update_navigate (
 	tdc.pfCallback = &_r_update_pagecallback;
 	tdc.lpCallbackData = (LONG_PTR)update_info;
 
-	if (icon)
-	{
-		tdc.pszMainIcon = icon;
-	}
-	else
-	{
-#if defined(IDI_MAIN)
-		tdc.pszMainIcon = MAKEINTRESOURCEW (IDI_MAIN);
-#else
-		tdc.pszMainIcon = MAKEINTRESOURCEW (100);
-#pragma PR_PRINT_WARNING(IDI_MAIN)
-#endif // IDI_MAIN
-	}
-
 	tdc.pszWindowTitle = _r_app_getname ();
+	tdc.pszMainIcon = icon ? icon : MAKEINTRESOURCEW (IDI_MAIN);
 
 	if (title)
 		tdc.pszMainInstruction = title;
@@ -2777,20 +2699,10 @@ HANDLE _r_log_getfilehandle ()
 	LARGE_INTEGER file_size;
 	BYTE bom[] = {0xFF, 0xFE};
 	IO_STATUS_BLOCK isb;
-	PR_STRING string;
 	HANDLE hfile;
 	NTSTATUS status;
 
-	// write to file only when readonly mode is not specified
-	if (_r_app_isreadonly ())
-		return NULL;
-
-	string = _r_app_getlogpath ();
-
-	if (!string)
-		return NULL;
-
-	status = _r_fs_createfile (string->buffer, FILE_OPEN_IF, GENERIC_WRITE, FILE_SHARE_READ, FILE_ATTRIBUTE_NORMAL, 0, FALSE, NULL, &hfile);
+	status = _r_fs_createfile (_r_app_getlogpath ()->buffer, FILE_OPEN_IF, GENERIC_WRITE, FILE_SHARE_READ, FILE_ATTRIBUTE_NORMAL, 0, FALSE, NULL, &hfile);
 
 	if (NT_SUCCESS (status))
 	{
@@ -3038,21 +2950,15 @@ VOID _r_show_aboutmessage (
 	tdc.hwndParent = hwnd;
 	tdc.hInstance = _r_sys_getimagebase ();
 	tdc.dwCommonButtons = TDCBF_CLOSE_BUTTON;
+	tdc.pszMainIcon = MAKEINTRESOURCEW (IDI_MAIN);
 	tdc.pszFooterIcon = TD_INFORMATION_ICON;
 	tdc.pszWindowTitle = str_title;
 	tdc.pszMainInstruction = _r_app_getname ();
 	tdc.pszContent = str_content;
 	tdc.pfCallback = &_r_msg_callback;
 	tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
-
-#if defined(IDI_MAIN)
-	tdc.pszMainIcon = MAKEINTRESOURCEW (IDI_MAIN);
-#else
-#pragma PR_PRINT_WARNING(IDI_MAIN)
-#endif // IDI_MAIN
-
 	tdc.pszExpandedInformation = APP_ABOUT_DONATE;
-	tdc.pszCollapsedControlText = L"Donate";
+	tdc.pszCollapsedControlText = _r_locale_getstring (IDS_DONATE);
 	tdc.pszFooter = APP_ABOUT_FOOTER;
 
 	_r_msg_taskdialog (&tdc, NULL, NULL, NULL);
@@ -3243,12 +3149,7 @@ INT _r_show_message (
 	// set icons
 	if ((flags & MB_ICONMASK) == MB_USERICON)
 	{
-#if defined(IDI_MAIN)
 		tdc.pszMainIcon = MAKEINTRESOURCEW (IDI_MAIN);
-#else
-		tdc.pszMainIcon = TD_INFORMATION_ICON;
-#pragma PR_PRINT_WARNING(IDI_MAIN)
-#endif // IDI_MAIN
 	}
 	else if ((flags & MB_ICONMASK) == MB_ICONWARNING)
 	{
@@ -3288,10 +3189,6 @@ INT _r_show_message (
 	// set default buttons
 	//if ((flags & MB_DEFMASK) == MB_DEFBUTTON2)
 	//	tdc.nDefaultButton = IDNO;
-
-	// set options
-	if (flags & MB_TOPMOST)
-		tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
 
 	_r_msg_taskdialog (&tdc, &command_id, NULL, NULL);
 
@@ -3409,8 +3306,8 @@ VOID _r_settings_addpage (
 {
 	R_SETTINGS_PAGE settings_page = {0};
 
-	settings_page.dlg_id = dlg_id;
 	settings_page.locale_id = locale_id;
+	settings_page.dlg_id = dlg_id;
 
 	_r_obj_addarrayitem (app_global.settings.page_list, &settings_page);
 }
@@ -3446,7 +3343,7 @@ VOID _r_settings_adjustchild (
 }
 
 VOID _r_settings_createwindow (
-	_In_ HWND hwnd,
+	_In_opt_ HWND hparent,
 	_In_opt_ DLGPROC dlg_proc,
 	_In_opt_ LONG dlg_id
 )
@@ -3509,7 +3406,7 @@ VOID _r_settings_createwindow (
 		width += 18;
 #else
 		width += 112;
-#endif
+#endif // APP_HAVE_SETTINGS_TABS
 
 		_r_initonce_end (&init_once);
 	}
@@ -3518,7 +3415,7 @@ VOID _r_settings_createwindow (
 	controls = 4;
 #else
 	controls = 3;
-#endif
+#endif // APP_HAVE_SETTINGS_TABS
 
 	size = ((sizeof (DLGTEMPLATEEX) + (sizeof (WORD) * 8)) + ((sizeof (DLGITEMTEMPLATEEX) + (sizeof (WORD) * 3)) * controls)) + 128;
 
@@ -3548,12 +3445,9 @@ VOID _r_settings_createwindow (
 	_r_util_templatewriteulong (&buffer_ptr, WS_EX_APPWINDOW | WS_EX_CONTROLPARENT);
 
 	// style
-	_r_util_templatewriteulong (
-		&buffer_ptr,
-		WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP | WS_BORDER | WS_SYSMENU | WS_CAPTION | DS_SHELLFONT | DS_MODALFRAME
-	);
+	_r_util_templatewriteulong (&buffer_ptr, WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP | WS_BORDER | WS_SYSMENU | WS_CAPTION | DS_SHELLFONT | DS_MODALFRAME);
 
-	// cdit
+	// cDlgItems
 	_r_util_templatewriteshort (&buffer_ptr, controls);
 
 	// x
@@ -3568,11 +3462,7 @@ VOID _r_settings_createwindow (
 	// cy
 	_r_util_templatewriteshort (&buffer_ptr, height);
 
-	//
-	// set dialog additional data
-	//
-
-	 // menu
+	// menu
 	_r_util_templatewritestring (&buffer_ptr, L"");
 
 	// windowClass
@@ -3613,7 +3503,7 @@ VOID _r_settings_createwindow (
 	_r_util_templatewritecontrol (
 		&buffer_ptr,
 		IDC_RESET,
-		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON,
+		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON | BS_CENTER | BS_VCENTER,
 		8,
 		(height - 22),
 		50,
@@ -3624,7 +3514,7 @@ VOID _r_settings_createwindow (
 	_r_util_templatewritecontrol (
 		&buffer_ptr,
 		IDC_SAVE,
-		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_DEFPUSHBUTTON,
+		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_DEFPUSHBUTTON | BS_CENTER | BS_VCENTER,
 		(width - 112),
 		(height - 22),
 		50,
@@ -3647,7 +3537,7 @@ VOID _r_settings_createwindow (
 	_r_util_templatewritecontrol (
 		&buffer_ptr,
 		IDC_RESET,
-		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON,
+		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON | BS_CENTER | BS_VCENTER,
 		88 + 14,
 		(height - 22),
 		50,
@@ -3660,7 +3550,7 @@ VOID _r_settings_createwindow (
 	_r_util_templatewritecontrol (
 		&buffer_ptr,
 		IDC_CLOSE,
-		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON,
+		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON | BS_CENTER | BS_VCENTER,
 		(width - 58),
 		(height - 22),
 		50,
@@ -3668,7 +3558,7 @@ VOID _r_settings_createwindow (
 		WC_BUTTON
 	);
 
-	DialogBoxIndirectParamW (_r_sys_getimagebase (), buffer, hwnd, &_r_settings_wndproc, 0);
+	DialogBoxIndirectParamW (_r_sys_getimagebase (), buffer, hparent, &_r_settings_wndproc, 0);
 
 	_r_mem_free (buffer);
 }
@@ -3685,25 +3575,21 @@ INT_PTR CALLBACK _r_settings_wndproc (
 		case WM_INITDIALOG:
 		{
 			PR_SETTINGS_PAGE ptr_page;
+			LONG icon_small;
+			LONG icon_large;
+			LONG dpi_value;
 			LONG dlg_id;
 
 #if !defined(APP_HAVE_SETTINGS_TABS)
 			HTREEITEM hitem;
 #endif // !APP_HAVE_SETTINGS_TABS
 
-#if defined(IDI_MAIN)
-			LONG dpi_value;
-			LONG icon_small;
-			LONG icon_large;
-#endif // IDI_MAIN
-
 #if defined(APP_HAVE_SETTINGS_TABS)
 			INT index = 0;
-#endif
+#endif // APP_HAVE_SETTINGS_TABS
 
 			app_global.settings.hwnd = hwnd;
 
-#if defined( IDI_MAIN)
 			dpi_value = _r_dc_getwindowdpi (hwnd);
 
 			icon_small = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
@@ -3714,11 +3600,10 @@ INT_PTR CALLBACK _r_settings_wndproc (
 				_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCEW (IDI_MAIN), icon_small),
 				_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCEW (IDI_MAIN), icon_large)
 			);
-#else
-#pragma PR_PRINT_WARNING(IDI_MAIN)
-#endif // IDI_MAIN
 
 			// configure window
+			_r_wnd_top (hwnd, TRUE);
+
 			_r_wnd_center (hwnd, GetParent (hwnd));
 
 			// configure navigation control
@@ -3740,12 +3625,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 				_r_wnd_sendmessage (ptr_page->hwnd, 0, RM_INITIALIZE, (WPARAM)ptr_page->dlg_id, 0);
 
-#if !defined(APP_HAVE_SETTINGS_TABS)
-				hitem = _r_treeview_additem (hwnd, IDC_NAV, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, 0, NULL, NULL, (LPARAM)ptr_page);
-
-				if (dlg_id && ptr_page->dlg_id == dlg_id)
-					_r_treeview_selectitem (hwnd, IDC_NAV, hitem);
-#else
+#if defined(APP_HAVE_SETTINGS_TABS)
 				EnableThemeDialogTexture (ptr_page->hwnd, ETDT_ENABLETAB);
 
 				_r_tab_additem (hwnd, IDC_NAV, index, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, (LPARAM)ptr_page);
@@ -3754,6 +3634,11 @@ INT_PTR CALLBACK _r_settings_wndproc (
 					_r_tab_selectitem (hwnd, IDC_NAV, index);
 
 				index += 1;
+#else
+				hitem = _r_treeview_additem (hwnd, IDC_NAV, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, 0, NULL, NULL, (LPARAM)ptr_page);
+
+				if (dlg_id && ptr_page->dlg_id == dlg_id)
+					_r_treeview_selectitem (hwnd, IDC_NAV, hitem);
 #endif // APP_HAVE_SETTINGS_TABS
 
 				_r_settings_adjustchild (hwnd, IDC_NAV, ptr_page->hwnd);
@@ -3788,7 +3673,20 @@ INT_PTR CALLBACK _r_settings_wndproc (
 #endif // IDS_SETTINGS
 
 			// localize navigation
-#if !defined(APP_HAVE_SETTINGS_TABS)
+#if defined(APP_HAVE_SETTINGS_TABS)
+			for (INT i = 0; i < _r_tab_getitemcount (hwnd, IDC_NAV); i++)
+			{
+				ptr_page = (PR_SETTINGS_PAGE)_r_tab_getitemlparam (hwnd, IDC_NAV, i);
+
+				if (ptr_page)
+				{
+					_r_tab_setitem (hwnd, IDC_NAV, i, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, 0);
+
+					if (ptr_page->hwnd && _r_wnd_isvisible (ptr_page->hwnd, FALSE))
+						_r_wnd_sendmessage (ptr_page->hwnd, 0, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
+				}
+			}
+#else
 			dpi_value = _r_dc_getwindowdpi (hwnd);
 
 			_r_treeview_setstyle (
@@ -3818,19 +3716,6 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 				hitem = (HTREEITEM)_r_wnd_sendmessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_NEXT, (LPARAM)hitem);
 			}
-#else
-			for (INT i = 0; i < _r_tab_getitemcount (hwnd, IDC_NAV); i++)
-			{
-				ptr_page = (PR_SETTINGS_PAGE)_r_tab_getitemlparam (hwnd, IDC_NAV, i);
-
-				if (ptr_page)
-				{
-					_r_tab_setitem (hwnd, IDC_NAV, i, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, 0);
-
-					if (ptr_page->hwnd && _r_wnd_isvisible (ptr_page->hwnd, FALSE))
-						_r_wnd_sendmessage (ptr_page->hwnd, 0, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
-				}
-			}
 #endif // APP_HAVE_SETTINGS_TABS
 
 			// localize buttons
@@ -3845,7 +3730,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 #if defined(IDS_SAVE)
 			_r_ctrl_setstring (hwnd, IDC_SAVE, _r_locale_getstring (IDS_SAVE));
 #else
-			_r_ctrl_setstring (hwnd, IDC_SAVE, L"OK");
+			_r_ctrl_setstring (hwnd, IDC_SAVE, L"Save");
 #pragma PR_PRINT_WARNING(IDS_SAVE)
 #endif // IDS_SAVE
 #endif // APP_HAVE_SETTINGS_TABS
@@ -3917,35 +3802,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 			switch (lphdr->code)
 			{
-#if !defined(APP_HAVE_SETTINGS_TABS)
-				case TVN_SELCHANGING:
-				{
-					LPNMTREEVIEWW lpnmtv;
-					PR_SETTINGS_PAGE ptr_page_old;
-					PR_SETTINGS_PAGE ptr_page_new;
-
-					lpnmtv = (LPNMTREEVIEWW)lparam;
-
-					ptr_page_old = (PR_SETTINGS_PAGE)lpnmtv->itemOld.lParam;
-					ptr_page_new = (PR_SETTINGS_PAGE)lpnmtv->itemNew.lParam;
-
-					if (ptr_page_old && ptr_page_old->hwnd && _r_wnd_isvisible (ptr_page_old->hwnd, FALSE))
-						ShowWindow (ptr_page_old->hwnd, SW_HIDE);
-
-					if (!ptr_page_new || !ptr_page_new->hwnd || _r_wnd_isvisible (ptr_page_new->hwnd, FALSE))
-						break;
-
-					_r_config_setlong (L"SettingsLastPage", ptr_page_new->dlg_id);
-
-					_r_settings_adjustchild (hwnd, IDC_NAV, ptr_page_new->hwnd);
-
-					_r_wnd_sendmessage (ptr_page_new->hwnd, 0, RM_LOCALIZE, (WPARAM)ptr_page_new->dlg_id, 0);
-
-					ShowWindow (ptr_page_new->hwnd, SW_SHOW);
-
-					break;
-				}
-#else
+#if defined(APP_HAVE_SETTINGS_TABS)
 				case TCN_SELCHANGING:
 				{
 					PR_SETTINGS_PAGE ptr_page;
@@ -3978,6 +3835,34 @@ INT_PTR CALLBACK _r_settings_wndproc (
 					_r_wnd_sendmessage (ptr_page->hwnd, 0, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
 
 					ShowWindow (ptr_page->hwnd, SW_SHOW);
+
+					break;
+				}
+#else
+				case TVN_SELCHANGING:
+				{
+					LPNMTREEVIEWW lpnmtv;
+					PR_SETTINGS_PAGE ptr_page_old;
+					PR_SETTINGS_PAGE ptr_page_new;
+
+					lpnmtv = (LPNMTREEVIEWW)lparam;
+
+					ptr_page_old = (PR_SETTINGS_PAGE)lpnmtv->itemOld.lParam;
+					ptr_page_new = (PR_SETTINGS_PAGE)lpnmtv->itemNew.lParam;
+
+					if (ptr_page_old && ptr_page_old->hwnd && _r_wnd_isvisible (ptr_page_old->hwnd, FALSE))
+						ShowWindow (ptr_page_old->hwnd, SW_HIDE);
+
+					if (!ptr_page_new || !ptr_page_new->hwnd || _r_wnd_isvisible (ptr_page_new->hwnd, FALSE))
+						break;
+
+					_r_config_setlong (L"SettingsLastPage", ptr_page_new->dlg_id);
+
+					_r_settings_adjustchild (hwnd, IDC_NAV, ptr_page_new->hwnd);
+
+					_r_wnd_sendmessage (ptr_page_new->hwnd, 0, RM_LOCALIZE, (WPARAM)ptr_page_new->dlg_id, 0);
+
+					ShowWindow (ptr_page_new->hwnd, SW_SHOW);
 
 					break;
 				}
@@ -4660,14 +4545,14 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 
 		SetWindowPlacement (GetParent (hwnd), &pos);
 	}
-	else if (_r_str_isequal2 (&class_name->sr, PROGRESS_CLASSW, TRUE))
-	{
-		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
-			_r_theme_setdarkmode (hwnd, is_enable);
-
-		_r_progress_setbarcolor (hwnd, 0, is_enable ? WND_TEXT_CLR : CLR_DEFAULT);
-		_r_progress_setbkcolor (hwnd, 0, is_enable ? WND_BACKGROUND2_CLR : CLR_DEFAULT);
-	}
+	//else if (_r_str_isequal2 (&class_name->sr, PROGRESS_CLASSW, TRUE))
+	//{
+	//	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
+	//		_r_theme_setdarkmode (hwnd, is_enable);
+	//
+	//	_r_progress_setbarcolor (hwnd, 0, is_enable ? WND_TEXT_CLR : CLR_DEFAULT);
+	//	_r_progress_setbkcolor (hwnd, 0, is_enable ? WND_BACKGROUND2_CLR : CLR_DEFAULT);
+	//}
 	else if (_r_str_isequal2 (&class_name->sr, REBARCLASSNAMEW, TRUE))
 	{
 		_r_theme_initializecontext (hwnd, NULL, &_r_theme_rebar_subclass, is_enable);
@@ -4764,7 +4649,7 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 
 		SetWindowPlacement (hwnd, &pos);
 
-		_r_wnd_sendmessage (hwnd, 0, WM_THEMECHANGED, 0, 0); // search.c
+		_r_wnd_sendmessage (hwnd, 0, WM_THEMECHANGED, 0, 0);
 	}
 	else if (_r_str_isequal2 (&class_name->sr, WC_HEADERW, TRUE))
 	{
@@ -4787,6 +4672,11 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : GetSysColor (COLOR_WINDOW));
 		_r_wnd_sendmessage (hwnd, 0, LVM_SETBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : GetSysColor (COLOR_WINDOW));
 		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTCOLOR, 0, is_enable ? WND_TEXT_CLR : GetSysColor (COLOR_WINDOWTEXT));
+	}
+	else if (_r_str_isequal2 (&class_name->sr, WC_SCROLLBARW, TRUE))
+	{
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
+			_r_theme_setdarkmode (hwnd, is_enable);
 	}
 	else if (_r_str_isequal2 (&class_name->sr, WC_TABCONTROLW, TRUE))
 	{
@@ -4914,7 +4804,6 @@ VOID _r_theme_setwindowframe (
 	{
 		if (FAILED (DwmSetWindowAttribute (hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &(BOOL){ is_enable }, sizeof (BOOL))))
 			DwmSetWindowAttribute (hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE - 1, &(BOOL){ is_enable }, sizeof (BOOL));
-
 	}
 
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_11))
@@ -4999,6 +4888,8 @@ VOID _r_theme_comboboxrender (
 		rect.right -= 14;
 
 		_r_dc_drawtext (context->htheme, hdc_buffer, &string->sr, &rect, CP_DROPDOWNITEM, CBXSR_NORMAL, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS, WND_TEXT_CLR);
+
+		_r_obj_dereference (string);
 	}
 }
 
@@ -6040,6 +5931,26 @@ LRESULT CALLBACK _r_theme_tabcontrol_subclass (
 	return CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
 }
 
+ULONG _r_theme_getbuttondrawstyle (
+	_In_ HWND hwnd
+)
+{
+	LONG_PTR style;
+	ULONG flags = DT_LEFT; // DT_LEFT is 0
+
+	style = _r_wnd_getstyle (hwnd);
+
+	flags |= (style & BS_MULTILINE) ? DT_WORDBREAK : DT_SINGLELINE;
+	flags |= ((style & BS_CENTER) == BS_CENTER) ? DT_CENTER : (style & BS_RIGHT) ? DT_RIGHT : 0;
+	flags |= ((style & BS_VCENTER) == BS_VCENTER) ? DT_VCENTER : (style & BS_BOTTOM) ? DT_BOTTOM : 0;
+	flags |= (_r_ctrl_getuistate (hwnd, 0) & UISF_HIDEACCEL) ? DT_HIDEPREFIX : 0;
+
+	if (!(style & BS_MULTILINE) && !(style & BS_BOTTOM) && !(style & BS_TOP))
+		flags |= DT_VCENTER;
+
+	return flags;
+}
+
 VOID _r_theme_rendercheckbox (
 	_In_ LPNMCUSTOMDRAW draw_info,
 	_In_ HTHEME htheme,
@@ -6056,40 +5967,25 @@ VOID _r_theme_rendercheckbox (
 	RECT rect_client;
 	RECT rect_bg;
 	SIZE size = {0};
-	HFONT hfont = NULL;
-	HFONT hold_font = NULL;
 	HFONT hnew_font = NULL;
-	LONG_PTR btn_style;
+	HFONT hold_font = NULL;
+	HFONT hfont = NULL;
 	COLORREF clr_text;
 	ULONG flags = DT_LEFT;
-	ULONG ui_state;
 	HRESULT status;
 
-	hfont = _r_ctrl_getfont (draw_info->hdr.hwndFrom, 0);
-
-	if (!hfont)
+	if (SUCCEEDED (GetThemeFont (htheme, hdc, part_id, state_id, TMT_FONT, &lf)))
 	{
-		if (SUCCEEDED (GetThemeFont (htheme, hdc, part_id, state_id, TMT_FONT, &lf)))
-		{
-			hnew_font = CreateFontIndirectW (&lf);
+		hnew_font = CreateFontIndirectW (&lf);
 
-			hfont = hnew_font;
-		}
+		hfont = hnew_font;
 	}
 
-	ui_state = _r_ctrl_getuistate (draw_info->hdr.hwndFrom, 0);
+	if (!hfont)
+		hfont = _r_ctrl_getfont (draw_info->hdr.hwndFrom, 0);
 
-	btn_style = style & BS_TYPEMASK;
-
-	hold_font = (HFONT)SelectObject (hdc, hfont);
-
-	flags |= (style & BS_MULTILINE) ? DT_WORDBREAK : DT_SINGLELINE;
-	flags |= ((style & BS_CENTER) == BS_CENTER) ? DT_CENTER : (style & BS_RIGHT) ? DT_RIGHT : 0;
-	flags |= ((style & BS_VCENTER) == BS_VCENTER) ? DT_VCENTER : (style & BS_BOTTOM) ? DT_BOTTOM : 0;
-	flags |= (ui_state & UISF_HIDEACCEL) ? DT_HIDEPREFIX : 0;
-
-	if (!(style & BS_MULTILINE) && !(style & BS_BOTTOM) && !(style & BS_TOP))
-		flags |= DT_VCENTER;
+	if (hfont)
+		hold_font = SelectObject (hdc, hfont);
 
 	GetThemePartSize (htheme, hdc, part_id, state_id, NULL, TS_DRAW, &size);
 
@@ -6099,6 +5995,8 @@ VOID _r_theme_rendercheckbox (
 		rect_text = draw_info->rc;
 
 	rect_bg = draw_info->rc;
+
+	flags = _r_theme_getbuttondrawstyle (draw_info->hdr.hwndFrom);
 
 	if (flags & DT_SINGLELINE)
 		rect_bg.top += (_r_calc_rectheight (&rect_text) - size.cy) / 2;
@@ -6118,7 +6016,7 @@ VOID _r_theme_rendercheckbox (
 
 	_r_dc_drawtext (htheme, hdc, &string->sr, &rect_text, part_id, state_id, flags, clr_text);
 
-	if ((draw_info->uItemState & BST_FOCUS) && !(ui_state & UISF_HIDEFOCUS))
+	if (draw_info->uItemState & BST_FOCUS)
 	{
 		_r_dc_drawtext (htheme, hdc, &string->sr, &rect_text, part_id, state_id, flags | DTT_CALCRECT, clr_text);
 
@@ -6132,7 +6030,8 @@ VOID _r_theme_rendercheckbox (
 	if (hnew_font)
 		DeleteObject (hnew_font);
 
-	SelectObject (hdc, hold_font);
+	if (hold_font)
+		SelectObject (hdc, hold_font);
 }
 
 VOID _r_theme_paintcheckbox (
@@ -6175,6 +6074,116 @@ VOID _r_theme_paintcheckbox (
 	}
 }
 
+LRESULT CALLBACK _r_theme_drawbutton (
+	_In_ LPNMCUSTOMDRAW draw_info
+)
+{
+	switch (draw_info->dwDrawStage)
+	{
+		case CDDS_PREPAINT:
+		{
+			PR_STRING string;
+			RECT rect_client;
+			RECT rect_bg;
+			RECT rect = {0};
+			SIZE size = {0};
+			HTHEME htheme;
+			COLORREF clr = WND_BACKGROUND2_CLR;
+			LONG_PTR style;
+			ULONG flags;
+			INT part_id;
+			INT state_id = PBS_NORMAL;
+
+			style = _r_wnd_getstyle (draw_info->hdr.hwndFrom) & BS_TYPEMASK;
+
+			if (style == BS_PUSHBUTTON || style == BS_DEFPUSHBUTTON)
+			{
+				part_id = BP_PUSHBUTTON;
+			}
+			else if (style == BS_SPLITBUTTON || style == BS_DEFSPLITBUTTON)
+			{
+				part_id = BP_PUSHBUTTONDROPDOWN;
+			}
+			else
+			{
+				return CDRF_DODEFAULT;
+			}
+
+			if ((draw_info->uItemState & CDIS_DISABLED) == CDIS_DISABLED)
+			{
+				state_id = PBS_DISABLED;
+			}
+			else if ((draw_info->uItemState & CDIS_DEFAULT) == CDIS_DEFAULT)
+			{
+				state_id = PBS_DEFAULTED;
+			}
+			else if ((draw_info->uItemState & CDIS_SELECTED) == CDIS_SELECTED)
+			{
+				state_id = PBS_PRESSED;
+			}
+			else if ((draw_info->uItemState & CDIS_HOT) == CDIS_HOT || (draw_info->uItemState & CDIS_FOCUS) == CDIS_FOCUS)
+			{
+				state_id = PBS_HOT;
+			}
+
+			htheme = _r_dc_openthemedata (draw_info->hdr.hwndFrom, VSCLASS_BUTTON, _r_dc_getwindowdpi (draw_info->hdr.hwndFrom));
+
+			flags = _r_theme_getbuttondrawstyle (draw_info->hdr.hwndFrom);
+
+			if (!htheme)
+				return CDRF_DODEFAULT;
+
+			rect_client = draw_info->rc;
+
+			rect_bg = draw_info->rc;
+
+			GetThemePartSize (htheme, draw_info->hdc, part_id, state_id, NULL, TS_DRAW, &size);
+
+			if (flags & DT_SINGLELINE)
+				rect_bg.top += (_r_calc_rectheight (&draw_info->rc) - size.cy) / 2;
+
+			rect_bg.bottom = rect_bg.top + size.cy;
+			rect_bg.right = rect_bg.left + size.cx;
+
+			DrawThemeParentBackground (draw_info->hdr.hwndFrom, draw_info->hdc, &rect_client);
+
+			DrawThemeBackground (htheme, draw_info->hdc, part_id, state_id, &rect_bg, NULL);
+
+			string = _r_ctrl_getstring (draw_info->hdr.hwndFrom, 0);
+
+			if (!string)
+				string = _r_obj_referenceemptystring ();
+
+			if ((draw_info->uItemState & CDIS_SELECTED) == CDIS_SELECTED)
+			{
+				clr = WND_GRAYTEXT_CLR;
+			}
+			else if ((draw_info->uItemState & CDIS_HOT) == CDIS_HOT)
+			{
+				clr = WND_HIGHLIGHT_CLR;
+			}
+			else
+			{
+				clr = WND_BACKGROUND_CLR;
+			}
+
+			_r_dc_fillrect (draw_info->hdc, &draw_info->rc, clr);
+
+			_r_dc_framerect (draw_info->hdc, &draw_info->rc, WND_BACKGROUND2_CLR);
+
+			_r_dc_drawtext (htheme, draw_info->hdc, &string->sr, &draw_info->rc, part_id, state_id, flags, WND_TEXT_CLR);
+
+			_r_obj_dereference (string);
+
+			CloseThemeData (htheme);
+
+			return CDRF_SKIPDEFAULT;
+		}
+	}
+
+	return CDRF_DODEFAULT;
+}
+
 LRESULT CALLBACK _r_theme_drawcheckbox (
 	_In_ LPNMCUSTOMDRAW draw_info
 )
@@ -6199,7 +6208,6 @@ LRESULT CALLBACK _r_theme_drawcheckbox (
 				part_id = BP_CHECKBOX;
 			}
 			else if (style == BS_RADIOBUTTON || style == BS_AUTORADIOBUTTON)
-
 			{
 				part_id = BP_RADIOBUTTON;
 			}
@@ -6403,8 +6411,7 @@ LRESULT CALLBACK _r_theme_subclassproc (
 		{
 			LPUAHMENU menu_item;
 			MENUBARINFO mbi = {0};
-			RECT rect_wnd;
-			RECT rect = {0};
+			RECT rect;
 
 			menu_item = (LPUAHMENU)lparam;
 
@@ -6414,11 +6421,11 @@ LRESULT CALLBACK _r_theme_subclassproc (
 			if (!GetMenuBarInfo (hwnd, OBJID_MENU, 0, &mbi))
 				break;
 
-			if (!GetWindowRect (hwnd, &rect_wnd))
+			if (!GetWindowRect (hwnd, &rect))
 				break;
 
 			// the rcBar is offset by the window rect
-			OffsetRect (&mbi.rcBar, -rect_wnd.left, -rect_wnd.top);
+			OffsetRect (&mbi.rcBar, -rect.left, -rect.top);
 
 			mbi.rcBar.top -= 1;
 
@@ -6514,6 +6521,17 @@ LRESULT CALLBACK _r_theme_subclassproc (
 							case BS_AUTORADIOBUTTON:
 							{
 								return _r_theme_drawcheckbox (custom_draw);
+							}
+
+							case BS_PUSHBUTTON:
+							case BS_DEFPUSHBUTTON:
+							case BS_SPLITBUTTON:
+							case BS_DEFSPLITBUTTON:
+							{
+								if (_r_sys_isosversionlower (WINDOWS_10_RS5))
+									return _r_theme_drawbutton (custom_draw);
+
+								break;
 							}
 						}
 					}

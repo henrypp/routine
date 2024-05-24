@@ -292,7 +292,7 @@ VOID _r_settings_adjustchild (
 );
 
 VOID _r_settings_createwindow (
-	_In_ HWND hwnd,
+	_In_opt_ HWND hparent,
 	_In_opt_ DLGPROC dlg_proc,
 	_In_opt_ LONG dlg_id
 );
@@ -432,12 +432,12 @@ LRESULT CALLBACK _r_theme_subclassproc (
 	_In_ LPARAM lparam
 );
 
-FORCEINLINE VOID _r_theme_setdarkmode (
+FORCEINLINE HRESULT _r_theme_setdarkmode (
 	_In_ HWND hwnd,
 	_In_ BOOLEAN is_enable
 )
 {
-	SetWindowTheme (hwnd, is_enable ? L"DarkMode_Explorer" : L"Explorer", NULL);
+	return SetWindowTheme (hwnd, is_enable ? L"DarkMode_Explorer" : L"Explorer", NULL);
 }
 
 //
@@ -612,8 +612,6 @@ ULONG NTAPI _r_app_exceptionfilter_callback (
 LPWSTR _r_app_getmutexname ();
 
 BOOLEAN _r_app_isportable ();
-
-BOOLEAN _r_app_isreadonly ();
 
 BOOLEAN _r_app_initialize_com ();
 
