@@ -29,6 +29,7 @@
 #define WND_BACKGROUND_CLR RGB(0x2A, 0x2A, 0x2A)
 #define WND_BACKGROUND2_CLR RGB(0x40, 0x40, 0x40)
 #define WND_BORDER_CLR RGB(0x90, 0x10, 0x20)
+#define WND_BUTTON_CLR RGB(0x24, 0x24, 0x24)
 #define WND_HIGHLIGHT_CLR RGB(0x80, 0x80, 0x80)
 #define WND_HOT_CLR RGB(0x00, 0x80, 0xD7)
 #define WND_TEXT_CLR RGB(0xFF, 0xFF, 0xFF)
@@ -381,6 +382,10 @@ LRESULT CALLBACK _r_theme_combobox_subclassproc (
 	_In_ UINT msg,
 	_In_ WPARAM wparam,
 	_In_ LPARAM lparam
+);
+
+LRESULT CALLBACK _r_theme_drawbutton (
+	_In_ LPNMCUSTOMDRAW draw_info
 );
 
 LRESULT CALLBACK _r_theme_edit_subclass (

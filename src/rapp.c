@@ -190,7 +190,7 @@ VOID _r_app_initialize_controls ()
 	INITCOMMONCONTROLSEX icex = {0};
 
 	icex.dwSize = sizeof (icex);
-	icex.dwICC = ICC_LISTVIEW_CLASSES | ICC_TREEVIEW_CLASSES;
+	icex.dwICC = ICC_STANDARD_CLASSES | ICC_LINK_CLASS | ICC_LISTVIEW_CLASSES | ICC_TREEVIEW_CLASSES | ICC_WIN95_CLASSES;
 
 	InitCommonControlsEx (&icex);
 }
@@ -1517,9 +1517,10 @@ VOID _r_config_setstringexpand_ex (
 
 	string = value ? _r_str_environmentunexpandstring (value) : _r_obj_referenceemptystring ();
 
-	_r_config_setstring_ex (key_name, string->buffer, section_name);
+	_r_config_setstring_ex (key_name, _r_obj_getstring (string), section_name);
 
-	_r_obj_dereference (string);
+	if (string)
+		_r_obj_dereference (string);
 }
 
 VOID _r_config_setstring (
@@ -3503,7 +3504,7 @@ VOID _r_settings_createwindow (
 	_r_util_templatewritecontrol (
 		&buffer_ptr,
 		IDC_RESET,
-		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON | BS_CENTER | BS_VCENTER,
+		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_TABSTOP | BS_PUSHBUTTON | BS_CENTER | BS_VCENTER | BS_SPLITBUTTON,
 		8,
 		(height - 22),
 		50,
@@ -3796,9 +3797,6 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 			lphdr = (LPNMHDR)lparam;
 			ctrl_id = (INT)(INT_PTR)lphdr->idFrom;
-
-			if (ctrl_id != IDC_NAV)
-				break;
 
 			switch (lphdr->code)
 			{
@@ -4585,9 +4583,9 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 	}
 	else if (_r_str_isequal2 (&class_name->sr, WC_BUTTONW, TRUE))
 	{
-		style = _r_wnd_getstyle (hwnd) & BS_TYPEMASK;
+		style = _r_wnd_getstyle (hwnd);
 
-		switch (style)
+		switch (style & BS_TYPEMASK)
 		{
 			case BS_CHECKBOX:
 			case BS_AUTOCHECKBOX:
@@ -4608,7 +4606,7 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 
 			case BS_GROUPBOX:
 			{
-				_r_theme_initializecontext (hwnd, WC_BUTTONW, &_r_theme_groupbox_subclass, is_enable);
+				_r_theme_initializecontext (hwnd, VSCLASS_BUTTON, &_r_theme_groupbox_subclass, is_enable);
 				break;
 			}
 		}
@@ -4951,14 +4949,13 @@ LRESULT CALLBACK _r_theme_combobox_subclassproc (
 
 		case WM_PAINT:
 		{
-			RECT rect;
+			RECT rect = {0};
 			HBITMAP holdbitmap;
 			HBITMAP hbitmap;
 			HDC hdc_buffer;
 			HDC hdc;
 
-			if (!GetClientRect (hwnd, &rect))
-				break;
+			GetClientRect (hwnd, &rect);
 
 			hdc = GetDC (hwnd);
 
@@ -5236,7 +5233,6 @@ VOID _r_theme_drawgroupbox (
 	SIZE size = {0};
 	PR_STRING string;
 	LONG_PTR style;
-	COLORREF clr_text;
 	ULONG flags;
 	INT state_id;
 	BOOLEAN is_disabled;
@@ -5250,8 +5246,8 @@ VOID _r_theme_drawgroupbox (
 
 	GetClientRect (hwnd, &rect);
 
-	rc_text = rect;
 	rc_background = rect;
+	rc_text = rect;
 
 	_r_dc_getfontwidth (ps->hdc, &string->sr, &size);
 
@@ -5290,9 +5286,7 @@ VOID _r_theme_drawgroupbox (
 	rc_text.right -= 2;
 	rc_text.left += 2;
 
-	clr_text = is_disabled ? WND_GRAYTEXT_CLR : WND_TEXT_CLR;
-
-	_r_dc_drawtext (htheme, ps->hdc, &string->sr, &rc_text, BP_GROUPBOX, state_id, flags, clr_text);
+	_r_dc_drawtext (htheme, ps->hdc, &string->sr, &rc_text, BP_GROUPBOX, state_id, flags, is_disabled ? WND_GRAYTEXT_CLR : WND_TEXT_CLR);
 
 	_r_obj_dereference (string);
 }
@@ -5327,7 +5321,7 @@ LRESULT CALLBACK _r_theme_groupbox_subclass (
 			if (context->htheme)
 				CloseThemeData (context->htheme);
 
-			context->htheme = _r_dc_openthemedata (hwnd, WC_BUTTONW, _r_dc_getwindowdpi (hwnd));
+			context->htheme = _r_dc_openthemedata (hwnd, VSCLASS_BUTTON, _r_dc_getwindowdpi (hwnd));
 
 			break;
 		}
@@ -5341,12 +5335,12 @@ LRESULT CALLBACK _r_theme_groupbox_subclass (
 		{
 			PAINTSTRUCT ps = {0};
 
-			if (!BeginPaint (hwnd, &ps))
-				break;
+			if (BeginPaint (hwnd, &ps))
+			{
+				_r_theme_drawgroupbox (context->htheme, &ps, hwnd);
 
-			_r_theme_drawgroupbox (context->htheme, &ps, hwnd);
-
-			EndPaint (hwnd, &ps);
+				EndPaint (hwnd, &ps);
+			}
 
 			return DefWindowProcW (hwnd, msg, wparam, lparam);
 		}
@@ -5369,7 +5363,7 @@ VOID _r_theme_headercontrol (
 	RECT head_rect;
 	SIZE arrow_size = {0};
 	INT flags = DT_VCENTER | DT_SINGLELINE | DT_HIDEPREFIX | DT_WORD_ELLIPSIS;
-	INT state_id;
+	INT state_id = 0;
 	INT count;
 
 	SetBkMode (hdc, TRANSPARENT);
@@ -5695,70 +5689,70 @@ LRESULT CALLBACK _r_theme_statusbar_subclass (
 
 			hdc = BeginPaint (hwnd, &ps);
 
-			if (!hdc)
-				break;
-
-			_r_dc_fixfont (hdc, hwnd, 0);
-
-			GetClientRect (hwnd, &rect);
-
-			_r_dc_fillrect (hdc, &ps.rcPaint, WND_BACKGROUND_CLR);
-
-			parts = _r_status_getparts (hwnd, 0);
-
-			ctrl_id = GetDlgCtrlID (hwnd);
-
-			_r_status_getborders (hwnd, 0, &borders);
-
-			for (LONG i = 0; i < parts; i++)
+			if (hdc)
 			{
-				if (!_r_status_getrect (hwnd, 0, i, &part))
-					continue;
+				_r_dc_fixfont (hdc, hwnd, 0);
 
-				if (!IntersectRect (&intersect, &part, &ps.rcPaint))
-					continue;
+				GetClientRect (hwnd, &rect);
 
-				SetRect (&divider, part.right - borders[1], part.top, part.right, part.bottom);
+				_r_dc_fillrect (hdc, &ps.rcPaint, WND_BACKGROUND_CLR);
 
-				SetBkMode (hdc, TRANSPARENT);
-				SetTextColor (hdc, WND_TEXT_CLR);
+				parts = _r_status_getparts (hwnd, 0);
 
-				part.left += borders[2];
-				part.right -= borders[1];
+				ctrl_id = GetDlgCtrlID (hwnd);
 
-				string = _r_status_gettext (hwnd, 0, i, NULL);
+				_r_status_getborders (hwnd, 0, &borders);
 
-				if (string)
+				for (LONG i = 0; i < parts; i++)
 				{
-					_r_dc_drawtext (context->htheme, hdc, &string->sr, &part, SP_PANE, 0, DT_SINGLELINE | DT_VCENTER | DT_LEFT, WND_TEXT_CLR);
+					if (!_r_status_getrect (hwnd, 0, i, &part))
+						continue;
 
-					_r_obj_dereference (string);
+					if (!IntersectRect (&intersect, &part, &ps.rcPaint))
+						continue;
+
+					SetRect (&divider, part.right - borders[1], part.top, part.right, part.bottom);
+
+					SetBkMode (hdc, TRANSPARENT);
+					SetTextColor (hdc, WND_TEXT_CLR);
+
+					part.left += borders[2];
+					part.right -= borders[1];
+
+					string = _r_status_gettext (hwnd, 0, i, NULL);
+
+					if (string)
+					{
+						_r_dc_drawtext (context->htheme, hdc, &string->sr, &part, SP_PANE, 0, DT_SINGLELINE | DT_VCENTER | DT_LEFT, WND_TEXT_CLR);
+
+						_r_obj_dereference (string);
+					}
+
+					if (i < (parts - 1))
+						_r_dc_fillrect (hdc, &divider, WND_BACKGROUND2_CLR);
 				}
 
-				if (i < (parts - 1))
-					_r_dc_fillrect (hdc, &divider, WND_BACKGROUND2_CLR);
+				if (_r_wnd_getstyle (hwnd) && SBARS_SIZEGRIP)
+				{
+					GetThemePartSize (context->htheme, hdc, SP_GRIPPER, 0, &rect, TS_DRAW, &grip);
+
+					intersect = rect;
+
+					intersect.left = intersect.right - grip.cx;
+					intersect.top = intersect.bottom - grip.cy;
+
+					if (context->htheme)
+					{
+						DrawThemeBackground (context->htheme, hdc, SP_GRIPPER, 0, &intersect, &intersect);
+					}
+					else
+					{
+						DrawFrameControl (hdc, &intersect, DFC_SCROLL, DFCS_SCROLLSIZEGRIP);
+					}
+				}
+
+				EndPaint (hwnd, &ps);
 			}
-
-			if (_r_wnd_getstyle (hwnd) && SBARS_SIZEGRIP)
-			{
-				GetThemePartSize (context->htheme, hdc, SP_GRIPPER, 0, &rect, TS_DRAW, &grip);
-
-				intersect = rect;
-
-				intersect.left = intersect.right - grip.cx;
-				intersect.top = intersect.bottom - grip.cy;
-
-				if (context->htheme)
-				{
-					DrawThemeBackground (context->htheme, hdc, SP_GRIPPER, 0, &intersect, &intersect);
-				}
-				else
-				{
-					DrawFrameControl (hdc, &intersect, DFC_SCROLL, DFCS_SCROLLSIZEGRIP);
-				}
-			}
-
-			EndPaint (hwnd, &ps);
 
 			return DefWindowProcW (hwnd, msg, wparam, lparam);
 		}
@@ -5932,13 +5926,11 @@ LRESULT CALLBACK _r_theme_tabcontrol_subclass (
 }
 
 ULONG _r_theme_getbuttondrawstyle (
-	_In_ HWND hwnd
+	_In_ HWND hwnd,
+	_In_ LONG_PTR style
 )
 {
-	LONG_PTR style;
 	ULONG flags = DT_LEFT; // DT_LEFT is 0
-
-	style = _r_wnd_getstyle (hwnd);
 
 	flags |= (style & BS_MULTILINE) ? DT_WORDBREAK : DT_SINGLELINE;
 	flags |= ((style & BS_CENTER) == BS_CENTER) ? DT_CENTER : (style & BS_RIGHT) ? DT_RIGHT : 0;
@@ -5971,7 +5963,7 @@ VOID _r_theme_rendercheckbox (
 	HFONT hold_font = NULL;
 	HFONT hfont = NULL;
 	COLORREF clr_text;
-	ULONG flags = DT_LEFT;
+	ULONG flags;
 	HRESULT status;
 
 	if (SUCCEEDED (GetThemeFont (htheme, hdc, part_id, state_id, TMT_FONT, &lf)))
@@ -5987,8 +5979,6 @@ VOID _r_theme_rendercheckbox (
 	if (hfont)
 		hold_font = SelectObject (hdc, hfont);
 
-	GetThemePartSize (htheme, hdc, part_id, state_id, NULL, TS_DRAW, &size);
-
 	status = GetThemeBackgroundContentRect (htheme, hdc, part_id, state_id, &draw_info->rc, &rect_text);
 
 	if (FAILED (status))
@@ -5996,7 +5986,9 @@ VOID _r_theme_rendercheckbox (
 
 	rect_bg = draw_info->rc;
 
-	flags = _r_theme_getbuttondrawstyle (draw_info->hdr.hwndFrom);
+	GetThemePartSize (htheme, hdc, part_id, state_id, NULL, TS_DRAW, &size);
+
+	flags = _r_theme_getbuttondrawstyle (draw_info->hdr.hwndFrom, style);
 
 	if (flags & DT_SINGLELINE)
 		rect_bg.top += (_r_calc_rectheight (&rect_text) - size.cy) / 2;
@@ -6074,6 +6066,104 @@ VOID _r_theme_paintcheckbox (
 	}
 }
 
+VOID _r_theme_drawicon (
+	_In_ LPNMCUSTOMDRAW draw_info,
+	_In_ PR_STRING string,
+	_In_ HICON hicon,
+	_In_ LONG dpi_value
+)
+{
+	BUTTON_IMAGELIST btn_imagelist = {0};
+	ICONINFO ii = {0};
+	BITMAP bmp = {0};
+	RECT rect;
+	LONG width;
+	LONG height;
+	BOOL result;
+
+	GetClientRect (draw_info->hdr.hwndFrom, &rect);
+
+	width = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
+	height = _r_dc_getsystemmetrics (SM_CYSMICON, dpi_value);
+
+	result = GetIconInfo (hicon, &ii);
+
+	if (ii.hbmColor)
+	{
+		if (GetObjectW (ii.hbmColor, sizeof (BITMAP), &bmp))
+		{
+			width = bmp.bmWidth;
+			height = bmp.bmHeight;
+		}
+
+		DeleteObject (ii.hbmColor);
+	}
+	else if (ii.hbmMask)
+	{
+		if (GetObjectW (ii.hbmMask, sizeof (BITMAP), &bmp))
+		{
+			width = bmp.bmWidth;
+			height = bmp.bmHeight / 2;
+		}
+
+		DeleteObject (ii.hbmMask);
+	}
+
+	DrawIconEx (
+		draw_info->hdc,
+		_r_str_getlength2 (&string->sr) > 1 ? width / 2 : (_r_calc_rectwidth (&rect) - width + 1) / 2,
+		rect.top + (_r_calc_rectheight (&rect) - height + 1) / 2,
+		hicon,
+		width,
+		height,
+		0,
+		NULL,
+		DI_NORMAL
+	);
+
+	if (!result) // HACK
+	{
+		if (_r_wnd_sendmessage (draw_info->hdr.hwndFrom, 0, BCM_GETIMAGELIST, 0, (LPARAM)&btn_imagelist) && btn_imagelist.himl)
+		{
+			rect.left += _r_dc_getdpi (1, dpi_value);
+
+			_r_imagelist_draw (
+				btn_imagelist.himl,
+				0,
+				draw_info->hdc,
+				rect.left,
+				rect.top + ((rect.bottom - rect.top) - height) / 2,
+				0,
+				0,
+				ILD_NORMAL,
+				TRUE
+			);
+		}
+	}
+}
+
+VOID _r_theme_getsplitbtnrect (
+	_In_ PBUTTON_SPLITINFO split,
+	_In_ LPCRECT button_rect,
+	_Out_ PRECT push_rect,
+	_Out_ PRECT dropdown_rect
+)
+{
+	*push_rect = *dropdown_rect = *button_rect;
+
+	// The dropdown takes priority if the client rect is too small, it will only have a dropdown
+	if (split->uSplitStyle & BCSS_ALIGNLEFT)
+	{
+		dropdown_rect->right = min (button_rect->left + split->size.cx, button_rect->right);
+		push_rect->left = dropdown_rect->right;
+	}
+	else
+	{
+		dropdown_rect->left = max (button_rect->right - split->size.cy, button_rect->left);
+		push_rect->right = dropdown_rect->left;
+	}
+}
+
 LRESULT CALLBACK _r_theme_drawbutton (
 	_In_ LPNMCUSTOMDRAW draw_info
 )
@@ -6082,72 +6172,124 @@ LRESULT CALLBACK _r_theme_drawbutton (
 	{
 		case CDDS_PREPAINT:
 		{
+			BUTTON_SPLITINFO split_info = {0};
 			PR_STRING string;
-			RECT rect_client;
+			RECT rect_client = {0};
+			RECT rect_text = {0};
 			RECT rect_bg;
-			RECT rect = {0};
+			RECT dropdown_rect;
+			RECT push_rect;
+			RECT edge;
+			LPRECT clip = NULL;
 			SIZE size = {0};
 			HTHEME htheme;
-			COLORREF clr = WND_BACKGROUND2_CLR;
+			HICON hicon;
+			COLORREF clr = WND_BUTTON_CLR;
 			LONG_PTR style;
+			LONG dpi_value;
 			ULONG flags;
 			INT part_id;
-			INT state_id = PBS_NORMAL;
+			INT state_id = PBS_NORMAL; // same as CBXSR_NORMAL
 
-			style = _r_wnd_getstyle (draw_info->hdr.hwndFrom) & BS_TYPEMASK;
+			dpi_value = _r_dc_getwindowdpi (draw_info->hdr.hwndFrom);
 
-			if (style == BS_PUSHBUTTON || style == BS_DEFPUSHBUTTON)
-			{
-				part_id = BP_PUSHBUTTON;
-			}
-			else if (style == BS_SPLITBUTTON || style == BS_DEFSPLITBUTTON)
-			{
-				part_id = BP_PUSHBUTTONDROPDOWN;
-			}
-			else
-			{
+			htheme = _r_dc_openthemedata (draw_info->hdr.hwndFrom, VSCLASS_BUTTON, dpi_value);
+
+			if (!htheme)
 				return CDRF_DODEFAULT;
+
+			style = _r_wnd_getstyle (draw_info->hdr.hwndFrom);
+
+			switch (style & BS_TYPEMASK)
+			{
+				case BS_PUSHBUTTON:
+				case BS_DEFPUSHBUTTON:
+				{
+					part_id = BP_PUSHBUTTON;
+					break;
+				}
+
+				case BS_SPLITBUTTON:
+				case BS_DEFSPLITBUTTON:
+				{
+					part_id = BP_PUSHBUTTONDROPDOWN;
+					break;
+				}
+
+				default:
+				{
+					return CDRF_DODEFAULT;
+				}
 			}
 
-			if ((draw_info->uItemState & CDIS_DISABLED) == CDIS_DISABLED)
+			if ((draw_info->uItemState & CDIS_HOT) == CDIS_HOT || (draw_info->uItemState & CDIS_FOCUS) == CDIS_FOCUS)
 			{
-				state_id = PBS_DISABLED;
+				state_id = PBS_HOT; // same as CBXSR_HOT
+			}
+			else if ((draw_info->uItemState & CDIS_SELECTED) == CDIS_SELECTED)
+			{
+				state_id = PBS_PRESSED; // same as CBXSR_PRESSED
+			}
+			else if ((draw_info->uItemState & CDIS_DISABLED) == CDIS_DISABLED)
+			{
+				state_id = PBS_DISABLED; // same as CBXSR_DISABLED
 			}
 			else if ((draw_info->uItemState & CDIS_DEFAULT) == CDIS_DEFAULT)
 			{
 				state_id = PBS_DEFAULTED;
 			}
-			else if ((draw_info->uItemState & CDIS_SELECTED) == CDIS_SELECTED)
-			{
-				state_id = PBS_PRESSED;
-			}
-			else if ((draw_info->uItemState & CDIS_HOT) == CDIS_HOT || (draw_info->uItemState & CDIS_FOCUS) == CDIS_FOCUS)
-			{
-				state_id = PBS_HOT;
-			}
 
-			htheme = _r_dc_openthemedata (draw_info->hdr.hwndFrom, VSCLASS_BUTTON, _r_dc_getwindowdpi (draw_info->hdr.hwndFrom));
+			GetClientRect (draw_info->hdr.hwndFrom, &rect_client);
 
-			flags = _r_theme_getbuttondrawstyle (draw_info->hdr.hwndFrom);
+			GetThemePartSize (htheme, draw_info->hdc, part_id, state_id, NULL, TS_TRUE, &size);
 
-			if (!htheme)
-				return CDRF_DODEFAULT;
+			rect_text = rect_client;
 
-			rect_client = draw_info->rc;
+			GetThemeBackgroundContentRect (htheme, draw_info->hdc, part_id, state_id, &rect_client, &rect_text);
 
-			rect_bg = draw_info->rc;
+			flags = _r_theme_getbuttondrawstyle (draw_info->hdr.hwndFrom, style);
 
-			GetThemePartSize (htheme, draw_info->hdc, part_id, state_id, NULL, TS_DRAW, &size);
+			rect_bg = rect_client;
 
 			if (flags & DT_SINGLELINE)
-				rect_bg.top += (_r_calc_rectheight (&draw_info->rc) - size.cy) / 2;
+				rect_bg.top += (_r_calc_rectheight (&rect_text) - size.cy) / 2;
 
 			rect_bg.bottom = rect_bg.top + size.cy;
 			rect_bg.right = rect_bg.left + size.cx;
 
-			DrawThemeParentBackground (draw_info->hdr.hwndFrom, draw_info->hdc, &rect_client);
+			if (IsThemeBackgroundPartiallyTransparent (htheme, part_id, state_id))
+				DrawThemeParentBackground (draw_info->hdr.hwndFrom, draw_info->hdc, NULL);
 
-			DrawThemeBackground (htheme, draw_info->hdc, part_id, state_id, &rect_bg, NULL);
+			DrawThemeBackgroundEx (htheme, draw_info->hdc, part_id, state_id, &rect_bg, NULL);
+
+			_r_wnd_sendmessage (draw_info->hdr.hwndFrom, BCM_GETSPLITINFO, 0, 0, (LPARAM)&split_info);
+
+			_r_theme_getsplitbtnrect (&split_info, &rect_client, &push_rect, &dropdown_rect);
+
+			if (split_info.uSplitStyle & BCSS_NOSPLIT)
+			{
+				push_rect = rect_client;
+
+				DrawThemeBackground (htheme, draw_info->hdc, part_id, state_id, &rect_client, NULL);
+
+				GetThemeBackgroundContentRect (htheme, draw_info->hdc, part_id, state_id, &rect_client, &rect_text);
+			}
+			else
+			{
+				if (state_id != PBS_PRESSED && (_r_ctrl_getbuttonstate (draw_info->hdr.hwndFrom, 0) & BST_DROPDOWNPUSHED))
+				{
+					DrawThemeBackground (htheme, draw_info->hdc, part_id, state_id, &rect_client, &dropdown_rect);
+
+					clip = &push_rect;
+				}
+
+				DrawThemeBackground (htheme, draw_info->hdc, part_id, state_id, &rect_client, clip);
+
+				// Draw the separator
+				SetRect (&edge, dropdown_rect.left, rect_text.top, dropdown_rect.right, rect_text.bottom);
+
+				DrawThemeEdge (htheme, draw_info->hdc, part_id, state_id, &edge, EDGE_ETCHED, (split_info.uSplitStyle & BCSS_ALIGNLEFT) ? BF_RIGHT : BF_LEFT, NULL);
+			}
 
 			string = _r_ctrl_getstring (draw_info->hdr.hwndFrom, 0);
 
@@ -6160,18 +6302,26 @@ LRESULT CALLBACK _r_theme_drawbutton (
 			}
 			else if ((draw_info->uItemState & CDIS_HOT) == CDIS_HOT)
 			{
-				clr = WND_HIGHLIGHT_CLR;
-			}
-			else
-			{
-				clr = WND_BACKGROUND_CLR;
+				clr = WND_HOT_CLR;
 			}
 
 			_r_dc_fillrect (draw_info->hdc, &draw_info->rc, clr);
 
-			_r_dc_framerect (draw_info->hdc, &draw_info->rc, WND_BACKGROUND2_CLR);
+			hicon = _r_ctrl_geticon (draw_info->hdr.hwndFrom, 0);
 
-			_r_dc_drawtext (htheme, draw_info->hdc, &string->sr, &draw_info->rc, part_id, state_id, flags, WND_TEXT_CLR);
+			if (hicon)
+				_r_theme_drawicon (draw_info, string, hicon, dpi_value);
+
+			_r_dc_drawtext (htheme, draw_info->hdc, &string->sr, &rect_text, part_id, state_id, flags, (style & WS_DISABLED) ? WND_GRAYTEXT_CLR : WND_TEXT_CLR);
+
+			if ((draw_info->uItemState & CDIS_FOCUS) == CDIS_FOCUS)
+			{
+				DrawFocusRect (draw_info->hdc, &draw_info->rc);
+			}
+			else
+			{
+				_r_dc_framerect (draw_info->hdc, &draw_info->rc, WND_BACKGROUND2_CLR);
+			}
 
 			_r_obj_dereference (string);
 
@@ -6201,19 +6351,30 @@ LRESULT CALLBACK _r_theme_drawcheckbox (
 			INT state_id = RBS_UNCHECKEDNORMAL;
 			BOOLEAN is_checked;
 
-			style = _r_wnd_getstyle (draw_info->hdr.hwndFrom) & BS_TYPEMASK;
+			style = _r_wnd_getstyle (draw_info->hdr.hwndFrom);
 
-			if (style == BS_CHECKBOX || style == BS_AUTOCHECKBOX || style == BS_3STATE || style == BS_AUTO3STATE)
+			switch (style & BS_TYPEMASK)
 			{
-				part_id = BP_CHECKBOX;
-			}
-			else if (style == BS_RADIOBUTTON || style == BS_AUTORADIOBUTTON)
-			{
-				part_id = BP_RADIOBUTTON;
-			}
-			else
-			{
-				return CDRF_DODEFAULT;
+				case BS_CHECKBOX:
+				case BS_AUTOCHECKBOX:
+				case BS_3STATE:
+				case BS_AUTO3STATE:
+				{
+					part_id = BP_CHECKBOX;
+					break;
+				}
+
+				case BS_RADIOBUTTON:
+				case BS_AUTORADIOBUTTON:
+				{
+					part_id = BP_RADIOBUTTON;
+					break;
+				}
+
+				default:
+				{
+					return CDRF_DODEFAULT;
+				}
 			}
 
 			is_checked = _r_ctrl_isbuttonchecked (draw_info->hdr.hwndFrom, 0);
@@ -6345,7 +6506,7 @@ LRESULT CALLBACK _r_theme_drawlistviewgroup (
 				draw_info->rcText.top += _r_dc_getdpi (2, dpi_value);
 				draw_info->rcText.bottom -= _r_dc_getdpi (2, dpi_value);
 
-				_r_dc_fillrect (draw_info->nmcd.hdc, &draw_info->rcText, WND_BACKGROUND2_CLR);
+				_r_dc_fillrect (draw_info->nmcd.hdc, &draw_info->rcText, WND_BUTTON_CLR);
 
 				draw_info->rcText.top -= _r_dc_getdpi (2, dpi_value);
 				draw_info->rcText.bottom += _r_dc_getdpi (2, dpi_value);
@@ -6396,7 +6557,7 @@ LRESULT CALLBACK _r_theme_subclassproc (
 	if (!wnd_proc)
 		return FALSE;
 
-	if (!_r_theme_isenabled () || !_r_wnd_isdarkmodeenabled ())
+	if (!_r_theme_isenabled ())
 		return CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
 
 	switch (msg)
@@ -6409,8 +6570,8 @@ LRESULT CALLBACK _r_theme_subclassproc (
 
 		case WM_UAHDRAWMENU:
 		{
-			LPUAHMENU menu_item;
 			MENUBARINFO mbi = {0};
+			LPUAHMENU menu_item;
 			RECT rect;
 
 			menu_item = (LPUAHMENU)lparam;
@@ -6455,18 +6616,18 @@ LRESULT CALLBACK _r_theme_subclassproc (
 			if (!GetMenuItemInfoW (menu_item->um.hmenu, menu_item->umi.iPosition, TRUE, &mii))
 				break;
 
-			if ((menu_item->dis.itemState & ODS_INACTIVE) || (menu_item->dis.itemState & ODS_DEFAULT))
-				state_id = MPI_NORMAL; // normal display
+			if ((menu_item->dis.itemState & ODS_DEFAULT) || (menu_item->dis.itemState & ODS_INACTIVE))
+				state_id = MBI_NORMAL; // normal display
 
-			if ((menu_item->dis.itemState & ODS_HOTLIGHT) || (menu_item->dis.itemState & ODS_SELECTED))
+			if ((menu_item->dis.itemState & ODS_SELECTED) || (menu_item->dis.itemState & ODS_HOTLIGHT))
 			{
-				state_id = MPI_HOT; // hot tracking
+				state_id = MBI_HOT; // hot tracking
 
 				clr = WND_HIGHLIGHT_CLR;
 			}
 
 			if ((menu_item->dis.itemState & ODS_GRAYED) || (menu_item->dis.itemState & ODS_DISABLED))
-				state_id = MPI_DISABLED;
+				state_id = MBI_DISABLED;
 
 			if (menu_item->dis.itemState & ODS_NOACCEL)
 				flags |= DT_HIDEPREFIX;
@@ -6482,7 +6643,7 @@ LRESULT CALLBACK _r_theme_subclassproc (
 
 			_r_obj_initializestringref (&sr, buffer);
 
-			_r_dc_drawtext (htheme, menu_item->um.hdc, &sr, &menu_item->dis.rcItem, MENU_POPUPITEM, state_id, flags, WND_TEXT_CLR);
+			_r_dc_drawtext (htheme, menu_item->um.hdc, &sr, &menu_item->dis.rcItem, MENU_BARITEM, state_id, flags, WND_TEXT_CLR);
 
 			CloseThemeData (htheme);
 
@@ -6509,10 +6670,18 @@ LRESULT CALLBACK _r_theme_subclassproc (
 
 					if (_r_str_compare (class_name, WC_BUTTONW, 0) == 0)
 					{
-						style = _r_wnd_getstyle (custom_draw->hdr.hwndFrom) & BS_TYPEMASK;
+						style = _r_wnd_getstyle (custom_draw->hdr.hwndFrom);
 
-						switch (style)
+						switch (style & BS_TYPEMASK)
 						{
+							case BS_PUSHBUTTON:
+							case BS_DEFPUSHBUTTON:
+							case BS_SPLITBUTTON:
+							case BS_DEFSPLITBUTTON:
+							{
+								return _r_theme_drawbutton (custom_draw);
+							}
+
 							case BS_CHECKBOX:
 							case BS_AUTOCHECKBOX:
 							case BS_3STATE:
@@ -6521,17 +6690,6 @@ LRESULT CALLBACK _r_theme_subclassproc (
 							case BS_AUTORADIOBUTTON:
 							{
 								return _r_theme_drawcheckbox (custom_draw);
-							}
-
-							case BS_PUSHBUTTON:
-							case BS_DEFPUSHBUTTON:
-							case BS_SPLITBUTTON:
-							case BS_DEFSPLITBUTTON:
-							{
-								if (_r_sys_isosversionlower (WINDOWS_10_RS5))
-									return _r_theme_drawbutton (custom_draw);
-
-								break;
 							}
 						}
 					}
