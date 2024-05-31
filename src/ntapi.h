@@ -3006,7 +3006,7 @@ typedef struct _LDR_ENUM_RESOURCE_ENTRY
 } LDR_ENUM_RESOURCE_ENTRY, *PLDR_ENUM_RESOURCE_ENTRY;
 
 #define NAME_FROM_RESOURCE_ENTRY(RootDirectory, Entry) \
-    ((Entry)->NameIsString ? (ULONG_PTR)((ULONG_PTR)(RootDirectory) + (ULONG_PTR)((Entry)->NameOffset)) : (Entry)->Id)
+	((Entry)->NameIsString ? (ULONG_PTR)((ULONG_PTR)(RootDirectory) + (ULONG_PTR)((Entry)->NameOffset)) : (Entry)->Id)
 
 typedef enum _PS_CREATE_STATE
 {
@@ -3067,7 +3067,7 @@ typedef struct _PS_CREATE_INFO
 		// PsCreateFailExeFormat
 		struct
 		{
-			USHORT DllCharacteristics;
+			USHORT DllCharacteristics; // win8+
 		} ExeFormat;
 
 		// PsCreateFailExeName
@@ -3712,6 +3712,7 @@ RtlSetSearchPathMode (
 	_In_ ULONG Flags
 );
 
+// win8+
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -3835,6 +3836,27 @@ LdrGetDllPath (
 	_In_ ULONG Flags, // LOAD_LIBRARY_SEARCH_*
 	_Out_ PWSTR *DllPath,
 	_Out_ PWSTR *SearchPaths
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+LdrOpenImageFileOptionsKey (
+	_In_ PUNICODE_STRING SubKey,
+	_In_ BOOLEAN Wow64,
+	_Out_ PHANDLE NewKeyHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+LdrQueryImageFileKeyOption (
+	_In_ HANDLE KeyHandle,
+	_In_ PCWSTR ValueName,
+	_In_ ULONG Type,
+	_Out_ PVOID Buffer,
+	_In_ ULONG BufferSize,
+	_Out_opt_ PULONG ReturnedLength
 );
 
 NTSYSCALLAPI
@@ -3983,7 +4005,6 @@ RtlGetLocaleFileMappingAddress (
 );
 
 // Threads
-
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -4301,7 +4322,6 @@ RtlLoadString (
 );
 
 // Environment values
-
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -4363,7 +4383,6 @@ NtQuerySystemInformation (
 );
 
 // Timers
-
 // winbase:CreateThreadpoolTimer
 NTSYSCALLAPI
 NTSTATUS
@@ -4421,9 +4440,7 @@ TpIsTimerSet (
 	_In_ PTP_TIMER Timer
 );
 
-// Processes
-
-// vista+
+// Processes // vista+
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -4640,7 +4657,6 @@ NtSetInformationToken (
 );
 
 // Privileges
-
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -4707,7 +4723,6 @@ NtImpersonateAnonymousToken (
 );
 
 // Thread execution
-
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -4726,7 +4741,6 @@ RtlDelayExecution (
 );
 
 // System calls
-
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -5275,7 +5289,6 @@ RtlSetEnvironmentVariable (
 );
 
 // Errors
-
 NTSYSCALLAPI
 ULONG
 NTAPI
@@ -5326,7 +5339,6 @@ RtlRestoreLastWin32Error (
 );
 
 // Directory objects
-
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -5371,7 +5383,6 @@ NtQueryDirectoryObject (
 );
 
 // Semaphore
-
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -5402,7 +5413,6 @@ NtReleaseSemaphore (
 );
 
 // Exception
-
 NTSYSCALLAPI
 BOOLEAN
 NTAPI
@@ -5613,9 +5623,7 @@ RtlReleasePebLock (
 	VOID
 );
 
-// Run once
-
-// vista+
+// Run once (vista+)
 NTSYSCALLAPI
 NTSTATUS
 RtlRunOnceBeginInitialize (
@@ -5634,7 +5642,6 @@ RtlRunOnceComplete (
 );
 
 // Event
-
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -5687,7 +5694,6 @@ NtResetEvent (
 );
 
 // Objects, handles
-
 NTSYSCALLAPI
 NTSTATUS
 NTAPI

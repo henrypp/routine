@@ -184,7 +184,8 @@ PR_STRING _r_format_filetime (
 
 _Ret_maybenull_
 PR_STRING _r_format_interval (
-	_In_ LONG64 seconds
+	_In_ LONG64 seconds,
+	_In_ BOOLEAN is_precise
 )
 {
 	PR_STRING string;
@@ -202,7 +203,7 @@ PR_STRING _r_format_interval (
 
 	string = _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR));
 
-	return_length = StrFromTimeIntervalW (string->buffer, buffer_length, seconds32, 1);
+	return_length = StrFromTimeIntervalW (string->buffer, buffer_length, seconds32, is_precise ? 3 : 1);
 
 	if (return_length)
 	{
@@ -9089,11 +9090,11 @@ ULONG _r_sys_getwindowsversion ()
 			}
 			else if (version_info.dwMajorVersion == 10 && version_info.dwMinorVersion == 0)
 			{
-				if (version_info.dwBuildNumber > 26000)
+				if (version_info.dwBuildNumber > 26100)
 				{
 					windows_version = WINDOWS_NEW;
 				}
-				else if (version_info.dwBuildNumber >= 26000)
+				else if (version_info.dwBuildNumber >= 26100)
 				{
 					windows_version = WINDOWS_11_24H2;
 				}
@@ -9221,18 +9222,22 @@ NTSTATUS _r_sys_createprocess (
 	UNICODE_STRING current_directory_nt = {0};
 	UNICODE_STRING command_line_nt = {0};
 	UNICODE_STRING filename_nt = {0};
+	UNICODE_STRING filename;
 	PCSR_CAPTURE_BUFFER capture_buffer = NULL;
 	SECTION_IMAGE_INFORMATION img_info = {0};
 	PS_CREATE_INFO create_info = {0};
+	WCHAR buffer[0x400] = {0};
 	PS_ATTRIBUTE_LIST attr = {0};
 	CLIENT_ID client_id = {0};
 	BASE_API_MSG msg = {0};
+	R_STRINGREF sr;
 	PR_STRING directory_string = NULL;
 	PR_STRING cmdline_string = NULL;
 	PR_STRING file_name_string;
 	PR_STRING new_path;
 	HANDLE hprocess = NULL;
 	HANDLE hthread = NULL;
+	HANDLE hkey = NULL;
 	BYTE locale[0x14] = {0};
 	ULONG64 policy;
 	NTSTATUS status;
@@ -9250,6 +9255,34 @@ NTSTATUS _r_sys_createprocess (
 		else
 		{
 			goto CleanupExit;
+		}
+	}
+
+	// attempt to read IFEO
+	if (_r_path_getpathinfo (&file_name_string->sr, NULL, &sr))
+	{
+		_r_obj_initializeunicodestring2 (&filename, &sr);
+
+		status = LdrOpenImageFileOptionsKey (&filename, FALSE, &hkey);
+
+		if (NT_SUCCESS (status))
+		{
+			status = LdrQueryImageFileKeyOption (
+				hkey,
+				L"Debugger",
+				REG_SZ,
+				buffer,
+				RTL_NUMBER_OF (buffer),
+				NULL
+			);
+
+			if (NT_SUCCESS (status))
+			{
+				PathRemoveArgsW (buffer);
+				PathUnquoteSpacesW (buffer);
+
+				_r_obj_movereference (&file_name_string, _r_obj_createstring (buffer));
+			}
 		}
 	}
 
@@ -9307,11 +9340,14 @@ NTSTATUS _r_sys_createprocess (
 	attr.Attributes[3].Size = sizeof (SECTION_IMAGE_INFORMATION);
 	attr.Attributes[3].ValuePtr = &img_info;
 
-	policy = PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_OFF;
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_8))
+	{
+		policy = PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_OFF;
 
-	attr.Attributes[4].Attribute = PS_ATTRIBUTE_MITIGATION_OPTIONS;
-	attr.Attributes[4].ValuePtr = &policy;
-	attr.Attributes[4].Size = sizeof (ULONG64);
+		attr.Attributes[4].Attribute = PS_ATTRIBUTE_MITIGATION_OPTIONS;
+		attr.Attributes[4].ValuePtr = &policy;
+		attr.Attributes[4].Size = sizeof (ULONG64);
+	}
 
 	create_info.Size = sizeof (PS_CREATE_INFO);
 	create_info.State = PsCreateInitialState;
@@ -9321,11 +9357,11 @@ NTSTATUS _r_sys_createprocess (
 	status = NtCreateUserProcess (
 		&hprocess,
 		&hthread,
-		MAXIMUM_ALLOWED,
-		MAXIMUM_ALLOWED,
+		PROCESS_ALL_ACCESS,
+		THREAD_ALL_ACCESS,
 		NULL,
 		NULL,
-		PROCESS_CREATE_FLAGS_SUSPENDED,
+		PROCESS_CREATE_FLAGS_SUSPENDED | PROCESS_CREATE_FLAGS_RELEASE_SECTION,
 		THREAD_CREATE_FLAGS_CREATE_SUSPENDED,
 		upi,
 		&create_info,
@@ -9417,6 +9453,9 @@ CleanupExit:
 
 	if (filename_nt.Buffer)
 		RtlFreeUnicodeString (&filename_nt);
+
+	if (hkey)
+		NtClose (hkey);
 
 	return status;
 }
@@ -11024,6 +11063,7 @@ VOID _r_dc_drawtext (
 		//	dtto.iStateId = state_id;
 		//}
 
+		// vista+
 		DrawThemeTextEx (htheme, hdc, part_id, state_id, string->buffer, (UINT)_r_str_getlength2 (string), flags, rect, &dtto);
 	}
 	else
@@ -15215,13 +15255,13 @@ HRESULT _r_imagelist_create (
 _Success_ (SUCCEEDED (return))
 HRESULT _r_imagelist_draw (
 	_In_ HIMAGELIST himg,
-	_In_ INT32 index,
+	_In_ LONG index,
 	_In_ HDC hdc,
-	_In_ INT32 width,
-	_In_ INT32 height,
+	_In_ LONG width,
+	_In_ LONG height,
 	_In_opt_ COLORREF bg_clr,
 	_In_opt_ COLORREF fore_clr,
-	_In_ UINT32 style,
+	_In_ ULONG style,
 	_In_ BOOLEAN is_enabled
 )
 {
@@ -16263,16 +16303,16 @@ VOID _r_ctrl_setbuttonmargins (
 )
 {
 	BUTTON_SPLITINFO bsi = {0};
-	RECT padding_rect;
+	RECT rect;
 	HWND hctrl;
 	LONG padding;
 
 	// set button margin
 	padding = _r_dc_getdpi (4, dpi_value);
 
-	SetRect (&padding_rect, padding, 0, padding, 0);
+	SetRect (&rect, padding, 0, padding, 0);
 
-	_r_wnd_sendmessage (hwnd, ctrl_id, BCM_SETTEXTMARGIN, 0, (LPARAM)&padding_rect);
+	_r_wnd_sendmessage (hwnd, ctrl_id, BCM_SETTEXTMARGIN, 0, (LPARAM)&rect);
 
 	// set button split margin
 	hctrl = GetDlgItem (hwnd, ctrl_id);

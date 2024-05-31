@@ -71,8 +71,8 @@ typedef HRESULT (WINAPI *GDFM)(
 // GetStagedPackagePathByFullName (win81+)
 typedef LONG (WINAPI *GSPPBF)(
 	_In_ PCWSTR packageFullName,
-	_Inout_ UINT32 * pathLength,
-	_Out_opt_ PWSTR  path
+	_Inout_ PUINT32 pathLength,
+	_Out_opt_ PWSTR path
 	);
 
 // AdjustWindowRectExForDpi (win10rs1+)
@@ -268,8 +268,12 @@ typedef struct _UAHDRAWMENUITEM
 } UAHDRAWMENUITEM, *LPUAHDRAWMENUITEM;
 
 // window messages related to menu bar drawing
-#define WM_UAHDRAWMENU 0x0091
-#define WM_UAHDRAWMENUITEM 0x0092
+#define WM_UAHDESTROYWINDOW 0x0090 // handled by DefWindowProc
+#define WM_UAHDRAWMENU 0x0091 // lParam is UAHMENU
+#define WM_UAHDRAWMENUITEM 0x0092 // lParam is UAHDRAWMENUITEM
+#define WM_UAHINITMENU 0x0093 // handled by DefWindowProc
+#define WM_UAHMEASUREMENUITEM 0x0094 // lParam is UAHMEASUREMENUITEM
+#define WM_UAHNCPAINTMENUPOPUP 0x0095 // handled by DefWindowProc
 
 #define EM_SETBKGNDCOLOR (WM_USER + 67)
 

@@ -1521,7 +1521,8 @@ PR_STRING _r_format_filetime (
 
 _Ret_maybenull_
 PR_STRING _r_format_interval (
-	_In_ LONG64 seconds
+	_In_ LONG64 seconds,
+	_In_ BOOLEAN is_precise
 );
 
 VOID _r_format_number (
@@ -4063,13 +4064,13 @@ HRESULT _r_imagelist_create (
 _Success_ (SUCCEEDED (return))
 HRESULT _r_imagelist_draw (
 	_In_ HIMAGELIST himg,
-	_In_ INT32 index,
+	_In_ LONG index,
 	_In_ HDC hdc,
-	_In_ INT32 width,
-	_In_ INT32 height,
+	_In_ LONG width,
+	_In_ LONG height,
 	_In_opt_ COLORREF bg_clr,
 	_In_opt_ COLORREF fore_clr,
-	_In_ UINT32 style,
+	_In_ ULONG style,
 	_In_ BOOLEAN is_enabled
 );
 
@@ -4569,6 +4570,15 @@ FORCEINLINE VOID _r_ctrl_setfont (
 )
 {
 	_r_wnd_sendmessage (hwnd, ctrl_id, WM_SETFONT, (WPARAM)hfont, TRUE);
+}
+
+FORCEINLINE VOID _r_ctrl_seticon (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_opt_ HICON hicon
+)
+{
+	_r_wnd_sendmessage (hwnd, ctrl_id, BM_SETIMAGE, IMAGE_ICON, (LPARAM)hicon);
 }
 
 FORCEINLINE VOID _r_ctrl_setselection (
