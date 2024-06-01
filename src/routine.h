@@ -2890,6 +2890,7 @@ PR_FREE_LIST _r_sys_getthreadfreelist ();
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_createthread (
+	_In_ HANDLE hprocess,
 	_In_ PUSER_THREAD_START_ROUTINE base_address,
 	_In_opt_ PVOID arglist,
 	_Out_opt_ PHANDLE thread_handle,

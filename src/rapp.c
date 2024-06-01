@@ -2376,7 +2376,7 @@ BOOLEAN _r_update_check (
 
 	_r_sys_setenvironment (&environment, THREAD_PRIORITY_LOWEST, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
 
-	status = _r_sys_createthread (&_r_update_checkthread, update_info, &hthread, &environment, L"UpdateThread");
+	status = _r_sys_createthread (NtCurrentProcess (), &_r_update_checkthread, update_info, &hthread, &environment, L"UpdateThread");
 
 	if (!NT_SUCCESS (status))
 		return FALSE;
@@ -2453,7 +2453,7 @@ HRESULT CALLBACK _r_update_pagecallback (
 
 			if (wparam == IDYES)
 			{
-				status = _r_sys_createthread (&_r_update_downloadthread, update_info, &update_info->hthread, NULL, L"UpdateThread");
+				status = _r_sys_createthread (NtCurrentProcess (), &_r_update_downloadthread, update_info, &update_info->hthread, NULL, L"UpdateThread");
 
 				if (NT_SUCCESS (status))
 				{

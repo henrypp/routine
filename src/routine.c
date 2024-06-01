@@ -1584,7 +1584,7 @@ VOID NTAPI _r_workqueue_queueitem (
 		// Make sure the structure doesn't get deleted while the thread is running.
 		if (_r_protection_acquire (&work_queue->rundown_protect))
 		{
-			status = _r_sys_createthread (&_r_workqueue_threadproc, work_queue, NULL, &work_queue->environment, _r_obj_getstring (work_queue->thread_name));
+			status = _r_sys_createthread (NtCurrentProcess (), &_r_workqueue_threadproc, work_queue, NULL, &work_queue->environment, _r_obj_getstring (work_queue->thread_name));
 
 			if (NT_SUCCESS (status))
 			{
@@ -10219,6 +10219,7 @@ PR_FREE_LIST _r_sys_getthreadfreelist ()
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_createthread (
+	_In_ HANDLE hprocess,
 	_In_ PUSER_THREAD_START_ROUTINE base_address,
 	_In_opt_ PVOID arglist,
 	_Out_opt_ PHANDLE thread_handle,
@@ -10239,7 +10240,7 @@ NTSTATUS _r_sys_createthread (
 	context->arglist = arglist;
 
 	status = RtlCreateUserThread (
-		NtCurrentProcess (),
+		hprocess,
 		NULL,
 		TRUE,
 		0,
