@@ -2234,6 +2234,7 @@ VOID _r_str_copystring (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_environmentexpandstring (
+	_In_opt_ PVOID environment,
 	_In_ PR_STRINGREF string,
 	_Outptr_ PR_STRING_PTR out_buffer
 );
@@ -2938,6 +2939,7 @@ VOID _r_sys_setenvironment (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_setenvironmentvariable (
+	_Inout_opt_ PVOID_PTR environment,
 	_In_ PR_STRINGREF name_sr,
 	_In_opt_ PR_STRINGREF value_sr
 );

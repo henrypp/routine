@@ -6129,7 +6129,7 @@ NTSTATUS _r_path_search (
 		return STATUS_SUCCESS;
 	}
 
-	status = _r_str_environmentexpandstring (&sr, &string);
+	status = _r_str_environmentexpandstring (NULL, &sr, &string);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -6393,6 +6393,7 @@ VOID _r_str_copystring (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_environmentexpandstring (
+	_In_opt_ PVOID environment,
 	_In_ PR_STRINGREF string,
 	_Outptr_ PR_STRING_PTR out_buffer
 )
@@ -6400,25 +6401,25 @@ NTSTATUS _r_str_environmentexpandstring (
 	UNICODE_STRING input_string;
 	UNICODE_STRING output_string;
 	PR_STRING buffer_string;
-	ULONG buffer_size;
+	ULONG buffer_length;
 	NTSTATUS status;
 
 	_r_obj_initializeunicodestring2 (&input_string, string);
 
-	buffer_size = 512 * sizeof (WCHAR);
-	buffer_string = _r_obj_createstring_ex (NULL, buffer_size);
+	buffer_length = 512 * sizeof (WCHAR);
+	buffer_string = _r_obj_createstring_ex (NULL, buffer_length);
 
-	_r_obj_initializeunicodestring_ex (&output_string, buffer_string->buffer, 0, (USHORT)buffer_size);
+	_r_obj_initializeunicodestring_ex (&output_string, buffer_string->buffer, 0, (USHORT)buffer_length);
 
-	status = RtlExpandEnvironmentStrings_U (NULL, &input_string, &output_string, &buffer_size);
+	status = RtlExpandEnvironmentStrings_U (environment, &input_string, &output_string, &buffer_length);
 
 	if (status == STATUS_BUFFER_TOO_SMALL)
 	{
-		_r_obj_movereference (&buffer_string, _r_obj_createstring_ex (NULL, buffer_size));
+		_r_obj_movereference (&buffer_string, _r_obj_createstring_ex (NULL, buffer_length));
 
-		_r_obj_initializeunicodestring_ex (&output_string, buffer_string->buffer, 0, (USHORT)buffer_size);
+		_r_obj_initializeunicodestring_ex (&output_string, buffer_string->buffer, 0, (USHORT)buffer_length);
 
-		status = RtlExpandEnvironmentStrings_U (NULL, &input_string, &output_string, &buffer_size);
+		status = RtlExpandEnvironmentStrings_U (environment, &input_string, &output_string, &buffer_length);
 	}
 
 	if (NT_SUCCESS (status))
@@ -10528,6 +10529,7 @@ VOID _r_sys_setenvironment (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_setenvironmentvariable (
+	_Inout_opt_ PVOID_PTR environment,
 	_In_ PR_STRINGREF name_sr,
 	_In_opt_ PR_STRINGREF value_sr
 )
@@ -10542,11 +10544,11 @@ NTSTATUS _r_sys_setenvironmentvariable (
 	{
 		_r_obj_initializeunicodestring2 (&value_us, value_sr);
 
-		status = RtlSetEnvironmentVariable (NULL, &name_us, &value_us);
+		status = RtlSetEnvironmentVariable (environment, &name_us, &value_us);
 	}
 	else
 	{
-		status = RtlSetEnvironmentVariable (NULL, &name_us, NULL);
+		status = RtlSetEnvironmentVariable (environment, &name_us, NULL);
 	}
 
 	return status;
@@ -14019,7 +14021,7 @@ NTSTATUS _r_reg_querystring (
 
 		if (type == REG_EXPAND_SZ)
 		{
-			status = _r_str_environmentexpandstring (&string->sr, &expanded_string);
+			status = _r_str_environmentexpandstring (NULL, &string->sr, &expanded_string);
 
 			if (NT_SUCCESS (status))
 				_r_obj_movereference (&string, expanded_string);

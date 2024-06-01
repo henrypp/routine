@@ -1251,7 +1251,7 @@ PR_STRING _r_config_getstringexpand_ex (
 	if (!value)
 		return NULL;
 
-	status = _r_str_environmentexpandstring (&value->sr, &string);
+	status = _r_str_environmentexpandstring (NULL, &value->sr, &string);
 
 	if (!NT_SUCCESS (status))
 		string = _r_obj_createstring2 (&value->sr);
