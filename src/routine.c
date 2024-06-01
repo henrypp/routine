@@ -6028,7 +6028,8 @@ PR_STRING _r_path_dospathfromnt (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_ntpathfromdos (
-	_In_ PR_STRING path,
+	_In_ PR_STRINGREF path,
+	_In_ BOOLEAN is_lowercase,
 	_Outptr_ PR_STRING_PTR out_buffer
 )
 {
@@ -6042,15 +6043,12 @@ NTSTATUS _r_path_ntpathfromdos (
 
 	_r_fs_getattributes (path->buffer, &attributes);
 
-	status = _r_fs_createfile (
+	status = _r_fs_openfile (
 		path->buffer,
-		FILE_OPEN,
 		GENERIC_READ,
 		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-		FILE_ATTRIBUTE_NORMAL,
 		FILE_OPEN_FOR_BACKUP_INTENT | FILE_OPEN_REPARSE_POINT,
 		attributes & FILE_ATTRIBUTE_DIRECTORY ? TRUE : FALSE,
-		NULL,
 		&hfile
 	);
 

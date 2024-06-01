@@ -2138,7 +2138,8 @@ PR_STRING _r_path_dospathfromnt (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_ntpathfromdos (
-	_In_ PR_STRING path,
+	_In_ PR_STRINGREF path,
+	_In_ BOOLEAN is_lowercase,
 	_Outptr_ PR_STRING_PTR out_buffer
 );
 
