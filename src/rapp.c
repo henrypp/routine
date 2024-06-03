@@ -4723,8 +4723,8 @@ VOID _r_theme_initialize (
 
 			if (NT_SUCCESS (status))
 			{
-				_r_sys_getprocaddress (huxtheme, NULL, 135, (PVOID_PTR)&_SetPreferredAppMode);
-				_r_sys_getprocaddress (huxtheme, NULL, 136, (PVOID_PTR)&_FlushMenuThemes);
+				_SetPreferredAppMode = _r_sys_getprocaddress (huxtheme, NULL, 135);
+				_FlushMenuThemes = _r_sys_getprocaddress (huxtheme, NULL, 136);
 
 				//_r_sys_freelibrary (huxtheme, FALSE);
 			}

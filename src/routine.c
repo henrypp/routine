@@ -4073,7 +4073,7 @@ NTSTATUS _r_fs_dospathnametontpathname (
 			status = _r_sys_loadlibrary (L"ntdll.dll", 0, &hntdll);
 
 			if (NT_SUCCESS (status))
-				_r_sys_getprocaddress (hntdll, "RtlDosLongPathNameToNtPathName_U_WithStatus", 0, (PVOID_PTR)&_RtlDosLongPathNameToNtPathName_I_WithStatus);
+				_RtlDosLongPathNameToNtPathName_I_WithStatus = _r_sys_getprocaddress (hntdll, "RtlDosLongPathNameToNtPathName_U_WithStatus", 0);
 		}
 
 		_r_initonce_end (&init_once);
@@ -8218,7 +8218,7 @@ BOOLEAN _r_sys_iswine ()
 	if (!NT_SUCCESS (status))
 		return FALSE;
 
-	status = _r_sys_getprocaddress (hntdll, "wine_get_version", 0, &procedure);
+	procedure = _r_sys_getprocaddress (hntdll, "wine_get_version", 0);
 
 	_r_sys_freelibrary (hntdll, FALSE);
 
@@ -8853,7 +8853,7 @@ LONG _r_sys_getpackagepath (
 		if (NT_SUCCESS (status))
 		{
 			// win81+
-			_r_sys_getprocaddress (hkernel32, "GetStagedPackagePathByFullName", 0, (PVOID_PTR)&_GetStagedPackagePathByFullName);
+			_GetStagedPackagePathByFullName = _r_sys_getprocaddress (hkernel32, "GetStagedPackagePathByFullName", 0);
 
 			//_r_sys_freelibrary (hkernel32, FALSE);
 		}
@@ -9232,7 +9232,7 @@ BOOLEAN _r_sys_isprocessimmersive (
 		if (NT_SUCCESS (status))
 		{
 			// win8+
-			status = _r_sys_getprocaddress (huser32, "IsImmersiveProcess", 0, (PVOID_PTR)&_IsImmersiveProcess);
+			_IsImmersiveProcess = _r_sys_getprocaddress (huser32, "IsImmersiveProcess", 0);
 
 			//_r_sys_freelibrary (huser32, FALSE);
 		}
@@ -9653,12 +9653,11 @@ NTSTATUS _r_sys_enumprocesses (
 	return status;
 }
 
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_sys_getprocaddress (
+_Ret_maybenull_
+PVOID _r_sys_getprocaddress (
 	_In_ PVOID hinst,
 	_In_opt_ LPSTR name,
-	_In_opt_ ULONG ordinal,
-	_Out_ PVOID_PTR out_buffer
+	_In_opt_ ULONG ordinal
 )
 {
 	ANSI_STRING procedure_name = {0};
@@ -9667,11 +9666,7 @@ NTSTATUS _r_sys_getprocaddress (
 	NTSTATUS status;
 
 	if (!name && !ordinal)
-	{
-		*out_buffer = NULL;
-
-		return STATUS_INVALID_PARAMETER;
-	}
+		return NULL;
 
 	if (name)
 	{
@@ -9683,15 +9678,9 @@ NTSTATUS _r_sys_getprocaddress (
 	status = LdrGetProcedureAddressEx (hinst, ptr, ordinal, &proc_address, 0);
 
 	if (NT_SUCCESS (status))
-	{
-		*out_buffer = proc_address;
-	}
-	else
-	{
-		*out_buffer = NULL;
-	}
+		return proc_address;
 
-	return status;
+	return NULL;
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -10340,7 +10329,7 @@ PR_STRING _r_sys_querytaginformation (
 
 		if (NT_SUCCESS (status))
 		{
-			status = _r_sys_getprocaddress (hsechost, "I_QueryTagInformation", 0, (PVOID_PTR)&_I_QueryTagInformation);
+			_I_QueryTagInformation = _r_sys_getprocaddress (hsechost, "I_QueryTagInformation", 0);
 
 			//_r_sys_freelibrary (hsechost, FALSE);
 		}
@@ -10721,7 +10710,7 @@ NTSTATUS _r_sys_sleep (
 		if (NT_SUCCESS (status))
 		{
 			// win10+
-			status = _r_sys_getprocaddress (ntdll, "RtlDelayExecution", 0, (PVOID_PTR)&_RtlDelayExecution);
+			_RtlDelayExecution = _r_sys_getprocaddress (ntdll, "RtlDelayExecution", 0);
 
 			//_r_sys_freelibrary (ntdll, FALSE);
 		}
@@ -10892,7 +10881,7 @@ BOOLEAN _r_dc_adjustwindowrect (
 		if (NT_SUCCESS (status))
 		{
 			// win10rs1+
-			status = _r_sys_getprocaddress (huser32, "AdjustWindowRectExForDpi", 0, (PVOID_PTR)&_AdjustWindowRectExForDpi);
+			_AdjustWindowRectExForDpi = _r_sys_getprocaddress (huser32, "AdjustWindowRectExForDpi", 0);
 
 			//_r_sys_freelibrary (huser32, FALSE);
 		}
@@ -11350,7 +11339,7 @@ LONG _r_dc_getdpivalue (
 		if (NT_SUCCESS (status))
 		{
 			// win81+
-			_r_sys_getprocaddress (hshcore, "GetDpiForMonitor", 0, (PVOID_PTR)&_GetDpiForMonitor);
+			_GetDpiForMonitor = _r_sys_getprocaddress (hshcore, "GetDpiForMonitor", 0);
 
 			//_r_sys_freelibrary (hshcore, FALSE);
 		}
@@ -11360,10 +11349,10 @@ LONG _r_dc_getdpivalue (
 		if (NT_SUCCESS (status))
 		{
 			// win10rs1+
-			_r_sys_getprocaddress (huser32, "GetDpiForWindow", 0, (PVOID_PTR)&_GetDpiForWindow);
+			_GetDpiForWindow = _r_sys_getprocaddress (huser32, "GetDpiForWindow", 0);
 
 			// win10rs1+
-			_r_sys_getprocaddress (huser32, "GetDpiForSystem", 0, (PVOID_PTR)&_GetDpiForSystem);
+			_GetDpiForSystem = _r_sys_getprocaddress (huser32, "GetDpiForSystem", 0);
 
 			//_r_sys_freelibrary (huser32, FALSE);
 		}
@@ -11492,7 +11481,7 @@ LONG _r_dc_getsystemmetrics (
 		if (NT_SUCCESS (status))
 		{
 			// win10rs1+
-			status = _r_sys_getprocaddress (huser32, "GetSystemMetricsForDpi", 0, (PVOID_PTR)&_GetSystemMetricsForDpi);
+			_GetSystemMetricsForDpi = _r_sys_getprocaddress (huser32, "GetSystemMetricsForDpi", 0);
 
 			//_r_sys_freelibrary (huser32, FALSE);
 		}
@@ -11529,7 +11518,7 @@ BOOLEAN _r_dc_getsystemparametersinfo (
 		if (NT_SUCCESS (status))
 		{
 			// win10rs1+
-			status = _r_sys_getprocaddress (huser32, "SystemParametersInfoForDpi", 0, (PVOID_PTR)&_SystemParametersInfoForDpi);
+			_SystemParametersInfoForDpi = _r_sys_getprocaddress (huser32, "SystemParametersInfoForDpi", 0);
 
 			//_r_sys_freelibrary (huser32, FALSE);
 		}
@@ -11589,7 +11578,7 @@ HTHEME _r_dc_openthemedata (
 		if (NT_SUCCESS (status))
 		{
 			// win10rs2+
-			status = _r_sys_getprocaddress (huxtheme, "OpenThemeDataForDpi", 0, (PVOID_PTR)&_OpenThemeDataForDpi);
+			_OpenThemeDataForDpi = _r_sys_getprocaddress (huxtheme, "OpenThemeDataForDpi", 0);
 
 			//_r_sys_freelibrary (huxtheme, FALSE);
 		}
@@ -12532,7 +12521,7 @@ BOOLEAN _r_wnd_isfocusassist ()
 		if (NT_SUCCESS (status))
 		{
 			// win10rs3+
-			status = _r_sys_getprocaddress (hntdll, "NtQueryWnfStateData", 0, (PVOID_PTR)&_NtQueryWnfStateData);
+			_NtQueryWnfStateData = _r_sys_getprocaddress (hntdll, "NtQueryWnfStateData", 0);
 
 			//_r_sys_freelibrary (hntdll, FALSE);
 		}
@@ -12852,8 +12841,8 @@ VOID CALLBACK _r_wnd_message_settingchange (
 
 			if (NT_SUCCESS (status))
 			{
-				_r_sys_getprocaddress (hlib, NULL, 104, (PVOID_PTR)&_RefreshImmersiveColorPolicyState);
-				_r_sys_getprocaddress (hlib, NULL, 106, (PVOID_PTR)&_GetIsImmersiveColorUsingHighContrast);
+				_RefreshImmersiveColorPolicyState = _r_sys_getprocaddress (hlib, NULL, 104);
+				_GetIsImmersiveColorUsingHighContrast = _r_sys_getprocaddress (hlib, NULL, 106);
 			}
 
 			_r_initonce_end (&init_once);
@@ -15124,7 +15113,7 @@ BOOL _r_res_verqueryvalue (
 
 		if (NT_SUCCESS (status))
 		{
-			_r_sys_getprocaddress (hversion, "VerQueryValueW", 0, (PVOID_PTR)&_VerQueryValue);
+			_VerQueryValue = _r_sys_getprocaddress (hversion, "VerQueryValueW", 0);
 
 			//_r_sys_freelibrary (hkernel32, FALSE);
 		}

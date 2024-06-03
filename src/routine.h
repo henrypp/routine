@@ -2800,12 +2800,11 @@ NTSTATUS _r_sys_enumprocesses (
 	_Outptr_ PSYSTEM_PROCESS_INFORMATION_PTR out_buffer
 );
 
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_sys_getprocaddress (
+_Ret_maybenull_
+PVOID _r_sys_getprocaddress (
 	_In_ PVOID hinst,
 	_In_opt_ LPSTR name,
-	_In_opt_ ULONG ordinal,
-	_Out_ PVOID_PTR out_buffer
+	_In_opt_ ULONG ordinal
 );
 
 _Success_ (NT_SUCCESS (return))
