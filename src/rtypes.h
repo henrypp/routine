@@ -115,6 +115,14 @@ typedef BOOL (WINAPI *SPIFP)(
 	_In_ UINT dpi
 	);
 
+// RtlDosLongPathNameToNtPathName_I_WithStatus (win10rs1+)
+typedef NTSTATUS (NTAPI *RDLPN2NPN)(
+	_In_ LPCWSTR DosFileName,
+	_Out_ PUNICODE_STRING NtFileName,
+	_Out_opt_ LPWSTR *FilePart,
+	_Out_opt_ PRTL_RELATIVE_NAME_U RelativeName
+	);
+
 // OpenThemeDataForDpi (win10rs2+)
 typedef HTHEME (WINAPI *OTDFD)(
 	_In_opt_ HWND hwnd,

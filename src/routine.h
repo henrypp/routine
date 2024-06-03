@@ -1892,6 +1892,12 @@ NTSTATUS _r_fs_deviceiocontrol (
 );
 
 _Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_dospathnametontpathname (
+	_In_ LPCWSTR dos_path,
+	_Out_ PUNICODE_STRING nt_path
+);
+
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_enumfiles (
 	_In_ LPCWSTR path,
 	_In_opt_ HANDLE hdirectory,

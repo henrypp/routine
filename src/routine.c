@@ -3740,7 +3740,7 @@ NTSTATUS _r_fs_createfile (
 	HANDLE hfile;
 	NTSTATUS status;
 
-	status = RtlDosPathNameToNtPathName_U_WithStatus (path, &nt_path, NULL, NULL);
+	status = _r_fs_dospathnametontpathname (path, &nt_path);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -4055,6 +4055,43 @@ NTSTATUS _r_fs_deviceiocontrol (
 }
 
 _Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_dospathnametontpathname (
+	_In_ LPCWSTR dos_path,
+	_Out_ PUNICODE_STRING nt_path
+)
+{
+	static R_INITONCE init_once = PR_INITONCE_INIT;
+	static RDLPN2NPN _RtlDosLongPathNameToNtPathName_I_WithStatus = NULL;
+
+	PVOID hntdll;
+	NTSTATUS status;
+
+	if (_r_initonce_begin (&init_once))
+	{
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS1) && NtCurrentPeb ()->IsLongPathAwareProcess) // RtlAreLongPathsEnabled ()
+		{
+			status = _r_sys_loadlibrary (L"ntdll.dll", 0, &hntdll);
+
+			if (NT_SUCCESS (status))
+				_r_sys_getprocaddress (hntdll, "RtlDosLongPathNameToNtPathName_U_WithStatus", 0, (PVOID_PTR)&_RtlDosLongPathNameToNtPathName_I_WithStatus);
+		}
+
+		_r_initonce_end (&init_once);
+	}
+
+	if (_RtlDosLongPathNameToNtPathName_I_WithStatus)
+	{
+		status = _RtlDosLongPathNameToNtPathName_I_WithStatus (dos_path, nt_path, NULL, NULL);
+	}
+	else
+	{
+		status = RtlDosPathNameToNtPathName_U_WithStatus (dos_path, nt_path, NULL, NULL);
+	}
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_enumfiles (
 	_In_ LPCWSTR path,
 	_In_opt_ HANDLE hdirectory,
@@ -4224,7 +4261,7 @@ NTSTATUS _r_fs_getattributes (
 	UNICODE_STRING nt_path;
 	NTSTATUS status;
 
-	status = RtlDosPathNameToNtPathName_U_WithStatus (path, &nt_path, NULL, NULL);
+	status = _r_fs_dospathnametontpathname (path, &nt_path);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -4667,7 +4704,7 @@ NTSTATUS _r_fs_movefile (
 	ULONG length;
 	NTSTATUS status;
 
-	status = RtlDosPathNameToNtPathName_U_WithStatus (path_to, &nt_path, NULL, NULL);
+	status = _r_fs_dospathnametontpathname (path_to, &nt_path);
 
 	if (!NT_SUCCESS (status))
 		return status;
@@ -4739,7 +4776,7 @@ NTSTATUS _r_fs_openfile (
 	ULONG create_option = 0;
 	NTSTATUS status;
 
-	status = RtlDosPathNameToNtPathName_U_WithStatus (path, &nt_path, NULL, NULL);
+	status = _r_fs_dospathnametontpathname (path, &nt_path);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -9285,7 +9322,7 @@ NTSTATUS _r_sys_createprocess (
 		}
 	}
 
-	status = RtlDosPathNameToNtPathName_U_WithStatus (file_name_string->buffer, &filename_nt, NULL, NULL);
+	status = _r_fs_dospathnametontpathname (file_name_string->buffer, &filename_nt);
 
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
