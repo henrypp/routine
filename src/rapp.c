@@ -2554,7 +2554,10 @@ VOID _r_update_navigate (
 	tdc.lpCallbackData = (LONG_PTR)update_info;
 
 	tdc.pszWindowTitle = _r_app_getname ();
+
+#if defined(IDI_MAIN)
 	tdc.pszMainIcon = icon ? icon : MAKEINTRESOURCEW (IDI_MAIN);
+#endif // IDI_MAIN
 
 	if (title)
 		tdc.pszMainInstruction = title;
@@ -2951,7 +2954,6 @@ VOID _r_show_aboutmessage (
 	tdc.hwndParent = hwnd;
 	tdc.hInstance = _r_sys_getimagebase ();
 	tdc.dwCommonButtons = TDCBF_CLOSE_BUTTON;
-	tdc.pszMainIcon = MAKEINTRESOURCEW (IDI_MAIN);
 	tdc.pszFooterIcon = TD_INFORMATION_ICON;
 	tdc.pszWindowTitle = str_title;
 	tdc.pszMainInstruction = _r_app_getname ();
@@ -2959,7 +2961,14 @@ VOID _r_show_aboutmessage (
 	tdc.pfCallback = &_r_msg_callback;
 	tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
 	tdc.pszExpandedInformation = APP_ABOUT_DONATE;
+
+#if defined(IDI_MAIN)
+	tdc.pszMainIcon = MAKEINTRESOURCEW (IDI_MAIN);
+#endif // IDI_MAIN
+
+#if defined(IDS_DONATE)
 	tdc.pszCollapsedControlText = _r_locale_getstring (IDS_DONATE);
+#endif // IDS_DONATE
 	tdc.pszFooter = APP_ABOUT_FOOTER;
 
 	_r_msg_taskdialog (&tdc, NULL, NULL, NULL);
@@ -3150,7 +3159,9 @@ INT _r_show_message (
 	// set icons
 	if ((flags & MB_ICONMASK) == MB_USERICON)
 	{
+#if defined(IDI_MAIN)
 		tdc.pszMainIcon = MAKEINTRESOURCEW (IDI_MAIN);
+#endif // IDI_MAIN
 	}
 	else if ((flags & MB_ICONMASK) == MB_ICONWARNING)
 	{
@@ -3596,11 +3607,13 @@ INT_PTR CALLBACK _r_settings_wndproc (
 			icon_small = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
 			icon_large = _r_dc_getsystemmetrics (SM_CXICON, dpi_value);
 
+#if defined(IDI_MAIN)
 			_r_wnd_seticon (
 				hwnd,
 				_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCEW (IDI_MAIN), icon_small),
 				_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCEW (IDI_MAIN), icon_large)
 			);
+#endif // IDI_MAIN
 
 			// configure window
 			_r_wnd_top (hwnd, TRUE);
