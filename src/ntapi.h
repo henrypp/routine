@@ -4082,19 +4082,46 @@ NtUnlockVirtualMemory (
 //
 
 NTSYSCALLAPI
-VOID
+NTSTATUS
 NTAPI
-RtlTimeToTimeFields (
-	_In_ PLARGE_INTEGER Time,
-	_Out_ PTIME_FIELDS TimeFields
+NtQuerySystemTime (
+	_Out_ PLARGE_INTEGER SystemTime
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtSetSystemTime (
+	_In_opt_ PLARGE_INTEGER SystemTime,
+	_Out_opt_ PLARGE_INTEGER PreviousTime
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtQueryTimerResolution (
+	_Out_ PULONG MaximumTime,
+	_Out_ PULONG MinimumTime,
+	_Out_ PULONG CurrentTime
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtSetTimerResolution (
+	_In_ ULONG DesiredTime,
+	_In_ BOOLEAN SetResolution,
+	_Out_ PULONG ActualTime
 );
 
 NTSYSCALLAPI
 BOOLEAN
 NTAPI
-RtlTimeFieldsToTime (
-	_In_ PTIME_FIELDS TimeFields, // Weekday is ignored
-	_Out_ PLARGE_INTEGER Time
+RtlCutoverTimeToSystemTime (
+	_In_ PTIME_FIELDS CutoverTime,
+	_Out_ PLARGE_INTEGER SystemTime,
+	_In_ PLARGE_INTEGER CurrentSystemTime,
+	_In_ BOOLEAN ThisYear
 );
 
 NTSYSCALLAPI
@@ -4111,6 +4138,30 @@ NTAPI
 RtlLocalTimeToSystemTime (
 	_In_ PLARGE_INTEGER LocalTime,
 	_Out_ PLARGE_INTEGER SystemTime
+);
+
+NTSYSCALLAPI
+VOID
+NTAPI
+RtlTimeToElapsedTimeFields (
+	_In_ PLARGE_INTEGER Time,
+	_Out_ PTIME_FIELDS TimeFields
+);
+
+NTSYSCALLAPI
+VOID
+NTAPI
+RtlTimeToTimeFields (
+	_In_ PLARGE_INTEGER Time,
+	_Out_ PTIME_FIELDS TimeFields
+);
+
+NTSYSCALLAPI
+BOOLEAN
+NTAPI
+RtlTimeFieldsToTime (
+	_In_ PTIME_FIELDS TimeFields, // Weekday is ignored
+	_Out_ PLARGE_INTEGER Time
 );
 
 //
