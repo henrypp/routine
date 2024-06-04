@@ -4535,6 +4535,15 @@ FORCEINLINE ULONG _r_ctrl_getbuttonstate (
 	return (ULONG)_r_wnd_sendmessage (hwnd, ctrl_id, BM_GETSTATE, 0, 0);
 }
 
+FORCEINLINE BOOLEAN _r_ctrl_getbuttonsplitinfo (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_Out_ PBUTTON_SPLITINFO out_buffer
+)
+{
+	return !!_r_wnd_sendmessage (hwnd, ctrl_id, BCM_GETSPLITINFO, 0, (LPARAM)out_buffer);
+}
+
 FORCEINLINE ULONG _r_ctrl_getuistate (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id
