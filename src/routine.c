@@ -15122,6 +15122,10 @@ BOOL _r_res_verqueryvalue (
 	}
 
 	*lplpBuffer = NULL;
+	*puLen = 0;
+
+	if (!_VerQueryValue)
+		return FALSE;
 
 	is_success = _VerQueryValue (pBlock, lpSubBlock, lplpBuffer, puLen);
 
