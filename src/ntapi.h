@@ -286,27 +286,25 @@ typedef ULONG *PLOGICAL;
 #include <pshpack1.h>
 typedef struct _DLGTEMPLATEEX
 {
-	WORD dlgVer;
-	WORD signature;
+	USHORT dlgVer;
+	USHORT signature;
 	ULONG helpID;
 	ULONG exStyle;
 	ULONG style;
-	WORD cdit;
+	USHORT cDlgItems;
 	SHORT x;
 	SHORT y;
 	SHORT cx;
 	SHORT cy;
 
-	// Everything else in this structure is variable length,
-	// and therefore must be determined dynamically
-
-	// sz_Or_Ord menu;			// name or ordinal of a menu resource
-	// sz_Or_Ord windowClass;	// name or ordinal of a window class
-	// WCHAR title[titleLen];	// title string of the dialog box
-	// SHORT pointsize;			// only if DS_SETFONT is set
-	// SHORT weight;			// only if DS_SETFONT is set
-	// SHORT bItalic;			// only if DS_SETFONT is set
-	// WCHAR font[fontLen];		// typeface name, if DS_SETFONT is set
+	//sz_Or_Ord menu;
+	//sz_Or_Ord windowClass;
+	//WCHAR title[titleLen];
+	//USHORT pointsize;
+	//USHORT weight;
+	//BYTE italic;
+	//BYTE charset;
+	//WCHAR typeface[stringLen];
 } DLGTEMPLATEEX, *LPDLGTEMPLATEEX;
 
 typedef struct _DLGITEMTEMPLATEEX
@@ -582,6 +580,15 @@ typedef enum _SYSTEM_INFORMATION_CLASS
 	SystemPointerAuthInformation, // SYSTEM_POINTER_AUTH_INFORMATION
 	SystemSecureKernelDebuggerInformation,
 	SystemOriginalImageFeatureInformation, // q: in: SYSTEM_ORIGINAL_IMAGE_FEATURE_INFORMATION_INPUT, out: SYSTEM_ORIGINAL_IMAGE_FEATURE_INFORMATION_OUTPUT // NtQuerySystemInformationEx
+	SystemMemoryNumaInformation,
+	SystemMemoryNumaPerformanceInformation, // SYSTEM_MEMORY_NUMA_PERFORMANCE_INFORMATION_INPUT, SYSTEM_MEMORY_NUMA_PERFORMANCE_INFORMATION_OUTPUT // since 24H2 // 240
+	SystemCodeIntegritySignedPoliciesFullInformation,
+	SystemSecureSecretsInformation,
+	SystemTrustedAppsRuntimeInformation, // SYSTEM_TRUSTEDAPPS_RUNTIME_INFORMATION
+	SystemBadPageInformationEx, // SYSTEM_BAD_PAGE_INFORMATION
+	SystemResourceDeadlockTimeout,
+	SystemBreakOnContextUnwindFailureInformation,
+	SystemOslRamdiskInformation, // SYSTEM_OSL_RAMDISK_INFORMATION
 	MaxSystemInfoClass
 } SYSTEM_INFORMATION_CLASS;
 
@@ -662,7 +669,14 @@ typedef enum _FILE_INFORMATION_CLASS
 	FileLinkInformationExBypassAccessCheck, // (kernel-mode only); FILE_LINK_INFORMATION_EX
 	FileStorageReserveIdInformation, // FILE_SET_STORAGE_RESERVE_ID_INFORMATION
 	FileCaseSensitiveInformationForceAccessCheck, // FILE_CASE_SENSITIVE_INFORMATION
-	FileKnownFolderInformation, // FILE_KNOWN_FOLDER_INFORMATION // since WIN11
+	FileKnownFolderInformation, // q; s: FILE_KNOWN_FOLDER_INFORMATION (q: requires FILE_READ_ATTRIBUTES; s: requires FILE_WRITE_ATTRIBUTES) // since WIN11
+	FileStatBasicInformation, // since 23H2
+	FileId64ExtdDirectoryInformation,
+	FileId64ExtdBothDirectoryInformation,
+	FileIdAllExtdDirectoryInformation,
+	FileIdAllExtdBothDirectoryInformation,
+	FileStreamReservationInformation, // FILE_STREAM_RESERVATION_INFORMATION // since 24H2
+	FileMupProviderInfo, // MUP_PROVIDER_INFORMATION
 	FileMaximumInformation
 } FILE_INFORMATION_CLASS, *PFILE_INFORMATION_CLASS;
 
@@ -780,6 +794,10 @@ typedef enum _PROCESSINFOCLASS
 	ProcessMembershipInformation,
 	ProcessEffectiveIoPriority,
 	ProcessEffectivePagePriority,
+	ProcessSchedulerSharedData, // since 24H2
+	ProcessSlistRollbackInformation,
+	ProcessNetworkIoCounters, // q: PROCESS_NETWORK_COUNTERS
+	ProcessFindFirstThreadByTebValue,
 	MaxProcessInfoClass
 } PROCESSINFOCLASS;
 
@@ -841,6 +859,10 @@ typedef enum _THREADINFOCLASS
 	ThreadStrongerBadHandleChecks, // since 22H1
 	ThreadEffectiveIoPriority,
 	ThreadEffectivePagePriority,
+	ThreadUpdateLockOwnership, // since 24H2
+	ThreadSchedulerSharedDataSlot,
+	ThreadTebInformationAtomic, // THREAD_TEB_INFORMATION
+	ThreadIndexInformation, // THREAD_INDEX_INFORMATION
 	MaxThreadInfoClass
 } THREADINFOCLASS;
 
@@ -1330,8 +1352,8 @@ typedef struct _CLIENT_ID32
 
 typedef struct _CLIENT_ID64
 {
-	ULONGLONG UniqueProcess;
-	ULONGLONG UniqueThread;
+	ULONG64 UniqueProcess;
+	ULONG64 UniqueThread;
 } CLIENT_ID64, *PCLIENT_ID64;
 
 typedef struct _SYSTEM_THREAD_INFORMATION
@@ -2130,7 +2152,6 @@ typedef struct _KSYSTEM_TIME
 } KSYSTEM_TIME, *PKSYSTEM_TIME;
 #include <poppack.h>
 
-#include <pshpack4.h>
 typedef struct _KUSER_SHARED_DATA
 {
 	// Current low 32-bit of tick count and tick count multiplier.
@@ -2142,7 +2163,7 @@ typedef struct _KUSER_SHARED_DATA
 	// Current 64-bit interrupt time in 100ns units.
 	volatile KSYSTEM_TIME InterruptTime;
 
-	// Current 64-bit interrupt time in 100ns units.
+	// Current 64-bit system time in 100ns units.
 	volatile KSYSTEM_TIME SystemTime;
 
 	// Current 64-bit time zone bias.
@@ -2195,10 +2216,11 @@ typedef struct _KUSER_SHARED_DATA
 	BOOLEAN Reserved0[1];
 	USHORT NativeProcessorArchitecture;
 
+	// The NT Version.
+	//
 	// N. B. Note that each process sees a version from its PEB, but if the
-	// process is running with an altered view of the system version,
-	// the following two fields are used to correctly identify the
-	// version.
+	//       process is running with an altered view of the system version,
+	//       the following two fields are used to correctly identify the version.
 	ULONG NtMajorVersion;
 	ULONG NtMinorVersion;
 
@@ -2279,7 +2301,20 @@ typedef struct _KUSER_SHARED_DATA
 	BOOLEAN SafeBootMode;
 
 	// Virtualization flags.
-	UCHAR VirtualizationFlags;
+	union
+	{
+		UCHAR VirtualizationFlags;
+
+#if defined(_ARM64_)
+		// N.B. Keep this bitfield in sync with the one in arc.w.
+		struct
+		{
+			UCHAR ArchStartedInEl2 : 1;
+			UCHAR QcSlIsSupported : 1;
+			UCHAR : 6;
+		};
+#endif
+	};
 
 	// Reserved (available for reuse).
 	UCHAR Reserved12[2];
@@ -2288,7 +2323,8 @@ typedef struct _KUSER_SHARED_DATA
 	// the system state. They must be manipulated using interlocked
 	// operations.
 	//
-	// N.B. DbgMultiSessionSku must be accessed via the RtlIsMultiSessionSku API for an accurate result
+	// N.B. DbgMultiSessionSku must be accessed via the RtlIsMultiSessionSku API for an accurate result.
+
 	union
 	{
 		ULONG SharedDataFlags;
@@ -2309,8 +2345,8 @@ typedef struct _KUSER_SHARED_DATA
 			ULONG DbgMultiUsersInSessionSku : 1;
 			ULONG DbgStateSeparationEnabled : 1;
 			ULONG SpareBits : 21;
-		};
-	};
+		} DUMMYSTRUCTNAME2;
+	} DUMMYUNIONNAME2;
 
 	ULONG DataFlagsPad[1];
 
@@ -2325,21 +2361,13 @@ typedef struct _KUSER_SHARED_DATA
 	// operates with an altered view of the system service call mechanism.
 	ULONG SystemCall;
 
-	union
-	{
-		ULONG AllFlags;
+	// Reserved field - do not use. Used to be UserCetAvailableEnvironments.
+	ULONG Reserved2;
 
-		struct
-		{
-			ULONG Win32Process : 1;
-			ULONG Sgx2Enclave : 1;
-			ULONG VbsBasicEnclave : 1;
-			ULONG SpareBits : 29;
-		};
-	} UserCetAvailableEnvironments;
+	ULONG64 FullNumberOfPhysicalPages;
 
 	// Reserved, available for reuse.
-	ULONG64 SystemCallPad[2];
+	ULONG64 SystemCallPad[1];
 
 	// The 64-bit tick count.
 	union
@@ -2351,8 +2379,8 @@ typedef struct _KUSER_SHARED_DATA
 		{
 			ULONG ReservedTickCountOverlay[3];
 			ULONG TickCountPad[1];
-		};
-	};
+		} DUMMYSTRUCTNAME;
+	} DUMMYUNIONNAME3;
 
 	// Cookie for encoding pointers system wide.
 	ULONG Cookie;
@@ -2452,40 +2480,88 @@ typedef struct _KUSER_SHARED_DATA
 	ULONG Spare;
 
 	ULONG64 UserPointerAuthMask;
+
+	ULONG InternsReserved[210];
 } KUSER_SHARED_DATA, *PKUSER_SHARED_DATA;
-#include <poppack.h>
 
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TickCountMultiplier) == 0x0004);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, InterruptTime) == 0x0008);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, SystemTime) == 0x0014);
 C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TimeZoneBias) == 0x0020);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ImageNumberLow) == 0x002C);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ImageNumberHigh) == 0x002E);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtSystemRoot) == 0x0030);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, MaxStackTraceDepth) == 0x0238);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, CryptoExponent) == 0x023C);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TimeZoneId) == 0x0240);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, LargePageMinimum) == 0x0244);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, AitSamplingValue) == 0x0248);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, RNGSeedVersion) == 0x0250);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtProductType) == 0x0264);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtMajorVersion) == 0x026C);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtMinorVersion) == 0x0270);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ProcessorFeatures) == 0x0274);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Reserved1) == 0x02b4);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Reserved3) == 0x02b8);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, KdDebuggerEnabled) == 0x02D4);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ActiveConsoleId) == 0x02D8);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NumberOfPhysicalPages) == 0X02E8);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, SafeBootMode) == 0x02EC);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TickCount) == 0x0320);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TickCountQuad) == 0x0320);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Cookie) == 0x0330);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, QpcBias) == 0x03B8);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ActiveProcessorCount) == 0x03C0);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ActiveGroupCount) == 0x03C4);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Reserved9) == 0x03C5);
-C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, XState) == 0x03D8);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TimeZoneId) == 0x240);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, LargePageMinimum) == 0x244);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, AitSamplingValue) == 0x248);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, AppCompatFlag) == 0x24C);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, RNGSeedVersion) == 0x250);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, GlobalValidationRunlevel) == 0x258);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TimeZoneBiasStamp) == 0x25C);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtBuildNumber) == 0x260);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtProductType) == 0x264);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ProductTypeIsValid) == 0x268);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NativeProcessorArchitecture) == 0x26A);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtMajorVersion) == 0x26C);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NtMinorVersion) == 0x270);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ProcessorFeatures) == 0x274);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Reserved1) == 0x2B4);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Reserved3) == 0x2B8);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TimeSlip) == 0x2BC);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, AlternativeArchitecture) == 0x2C0);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, SystemExpirationDate) == 0x2C8);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, SuiteMask) == 0x2D0);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, KdDebuggerEnabled) == 0x2D4);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, MitigationPolicies) == 0x2D5);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, CyclesPerYield) == 0x2D6);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ActiveConsoleId) == 0x2D8);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, DismountCount) == 0x2DC);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ComPlusPackage) == 0x2E0);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, LastSystemRITEventTickCount) == 0x2E4);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, NumberOfPhysicalPages) == 0x2E8);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, SafeBootMode) == 0x2EC);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, VirtualizationFlags) == 0x2ED);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Reserved12) == 0x2EE);
+#if defined(_MSC_EXTENSIONS)
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, SharedDataFlags) == 0x2F0);
+#endif
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TestRetInstruction) == 0x2F8);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, QpcFrequency) == 0x300);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, SystemCall) == 0x308);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Reserved2) == 0x30C);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, SystemCallPad) == 0x318); // previously 0x310
+#if defined(_MSC_EXTENSIONS)
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TickCount) == 0x320);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TickCountQuad) == 0x320);
+#endif
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Cookie) == 0x330);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ConsoleSessionForegroundProcessId) == 0x338);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TimeUpdateLock) == 0x340);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, BaselineSystemTimeQpc) == 0x348);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, BaselineInterruptTimeQpc) == 0x350);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, QpcSystemTimeIncrement) == 0x358);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, QpcInterruptTimeIncrement) == 0x360);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, QpcSystemTimeIncrementShift) == 0x368);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, QpcInterruptTimeIncrementShift) == 0x369);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, UnparkedProcessorCount) == 0x36A);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, EnclaveFeatureMask) == 0x36C);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TelemetryCoverageRound) == 0x37C);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, UserModeGlobalLogger) == 0x380);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ImageFileExecutionOptions) == 0x3A0);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, LangGenerationCount) == 0x3A4);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Reserved4) == 0x3a8);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, InterruptTimeBias) == 0x3B0);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, QpcBias) == 0x3B8);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ActiveProcessorCount) == 0x3C0);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, ActiveGroupCount) == 0x3C4);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, Reserved9) == 0x3C5);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, QpcData) == 0x3C6);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, QpcBypassEnabled) == 0x3C6);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, QpcShift) == 0x3C7);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TimeZoneBiasEffectiveStart) == 0x3C8);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, TimeZoneBiasEffectiveEnd) == 0x3D0);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, XState) == 0x3D8);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, FeatureConfigurationChangeStamp) == 0x720);
+C_ASSERT (FIELD_OFFSET (KUSER_SHARED_DATA, UserPointerAuthMask) == 0x730);
+
+C_ASSERT (sizeof (KUSER_SHARED_DATA) == 0xA80);
 
 #define USER_SHARED_DATA ((PKUSER_SHARED_DATA const)0x7FFE0000)
 
@@ -2799,9 +2875,9 @@ typedef struct _PEB
 
 	union
 	{
-		PVOID pContextData; // WIN7
-		PVOID pUnused; // WIN10
-		PVOID EcCodeBitMap; // WIN11
+		PVOID pContextData; // win7
+		PVOID pUnused; // win10
+		PVOID EcCodeBitMap; // win11
 	};
 
 	PVOID pImageHeaderHash;
@@ -2823,12 +2899,12 @@ typedef struct _PEB
 	PRTL_CRITICAL_SECTION TppWorkerpListLock;
 	LIST_ENTRY TppWorkerpList;
 	PVOID WaitOnAddressHashTable[128];
-	PTELEMETRY_COVERAGE_HEADER TelemetryCoverageHeader; // REDSTONE3
+	PTELEMETRY_COVERAGE_HEADER TelemetryCoverageHeader; // rs3+
 	ULONG CloudFileFlags;
-	ULONG CloudFileDiagFlags; // REDSTONE4
+	ULONG CloudFileDiagFlags; // rs4+
 	CHAR PlaceholderCompatibilityMode;
 	CHAR PlaceholderCompatibilityModeReserved[7];
-	PLEAP_SECOND_DATA LeapSecondData; // REDSTONE5
+	PLEAP_SECOND_DATA LeapSecondData; // rs5+
 
 	union
 	{
@@ -2842,22 +2918,35 @@ typedef struct _PEB
 	};
 
 	ULONG NtGlobalFlag2;
-	ULONG64 ExtendedFeatureDisableMask; // since WIN11
+	ULONG64 ExtendedFeatureDisableMask; // win11+
 } PEB, *PPEB;
+
+typedef struct _PROCESS_BASIC_INFORMATION
+{
+	NTSTATUS ExitStatus;
+	PPEB PebBaseAddress;
+	KAFFINITY AffinityMask;
+	KPRIORITY BasePriority;
+	HANDLE UniqueProcessId;
+	HANDLE InheritedFromUniqueProcessId;
+} PROCESS_BASIC_INFORMATION, *PPROCESS_BASIC_INFORMATION;
 
 #if defined(_WIN64)
 C_ASSERT (FIELD_OFFSET (PEB, SessionId) == 0x2C0);
-//C_ASSERT (sizeof (PEB) == 0x7B0); // REDSTONE3
-//C_ASSERT (sizeof (PEB) == 0x7B8); // REDSTONE4
-//C_ASSERT (sizeof (PEB) == 0x7C8); // REDSTONE5 // 19H1
-C_ASSERT (sizeof (PEB) == 0x7D0); // WIN11
+//C_ASSERT (sizeof (PEB) == 0x7B0); // rs3
+//C_ASSERT (sizeof (PEB) == 0x7B8); // rs4
+//C_ASSERT (sizeof (PEB) == 0x7C8); // rs5
+C_ASSERT (sizeof (PEB) == 0x7D0); // win11
 #else
 C_ASSERT (FIELD_OFFSET (PEB, SessionId) == 0x1D4);
-//C_ASSERT (sizeof (PEB) == 0x468); // REDSTONE3
-//C_ASSERT (sizeof (PEB) == 0x470); // REDSTONE4
-//C_ASSERT (sizeof (PEB) == 0x480); // REDSTONE5 // 19H1
-C_ASSERT (sizeof (PEB) == 0x488); // WIN11
+//C_ASSERT (sizeof (PEB) == 0x468); // rs3
+//C_ASSERT (sizeof (PEB) == 0x470); // rs4
+//C_ASSERT (sizeof (PEB) == 0x480); // rs5
+C_ASSERT (sizeof (PEB) == 0x488); // win11
 #endif // _WIN64
+
+#define STATIC_UNICODE_BUFFER_LENGTH 261
+#define WIN32_CLIENT_INFO_LENGTH 62
 
 typedef struct _TEB
 {
@@ -2875,13 +2964,17 @@ typedef struct _TEB
 	PVOID Win32ThreadInfo;
 	ULONG User32Reserved[26];
 	ULONG UserReserved[5];
-	PVOID WOW32Reserved; // user-mode 32-bit (WOW64) -> 64-bit context switch function prior to kernel-mode transition
+	PVOID WOW32Reserved;
 	LCID CurrentLocale;
 	ULONG FpSoftwareStatusRegister;
-	PVOID ReservedForDebuggerInstrumentation[16]; // Win10 PRE-RTM+
+	PVOID ReservedForDebuggerInstrumentation[16];
 
 #if defined(_WIN64)
-	PVOID SystemReserved1[30];
+	PVOID SystemReserved1[25];
+
+	PVOID HeapFlsData;
+
+	ULONG_PTR RngState[4];
 #else
 	PVOID SystemReserved1[26];
 #endif // _WIN64
@@ -2893,13 +2986,14 @@ typedef struct _TEB
 	ULONG ProxiedProcessId;
 	ACTIVATION_CONTEXT_STACK ActivationStack;
 
-	UCHAR WorkingOnBehalfOfTicket[8];
+	UCHAR WorkingOnBehalfTicket[8];
+
 	NTSTATUS ExceptionCode;
 
-	PACTIVATION_CONTEXT_STACK ActivationContextStackPointer; // server03+
-	ULONG_PTR InstrumentationCallbackSp; // win10+
-	ULONG_PTR InstrumentationCallbackPreviousPc; // win10+
-	ULONG_PTR InstrumentationCallbackPreviousSp; // win10+
+	PACTIVATION_CONTEXT_STACK ActivationContextStackPointer;
+	ULONG_PTR InstrumentationCallbackSp;
+	ULONG_PTR InstrumentationCallbackPreviousPc;
+	ULONG_PTR InstrumentationCallbackPreviousSp;
 
 #if defined(_WIN64)
 	ULONG TxFsContext;
@@ -2920,7 +3014,8 @@ typedef struct _TEB
 	ULONG GdiClientPID;
 	ULONG GdiClientTID;
 	PVOID GdiThreadLocalInfo;
-	ULONG_PTR Win32ClientInfo[62];
+	ULONG_PTR Win32ClientInfo[WIN32_CLIENT_INFO_LENGTH];
+
 	PVOID glDispatchTable[233];
 	ULONG_PTR glReserved1[29];
 	PVOID glReserved2;
@@ -2931,10 +3026,12 @@ typedef struct _TEB
 	PVOID glContext;
 
 	NTSTATUS LastStatusValue;
+
 	UNICODE_STRING StaticUnicodeString;
-	WCHAR StaticUnicodeBuffer[261];
+	WCHAR StaticUnicodeBuffer[STATIC_UNICODE_BUFFER_LENGTH];
 
 	PVOID DeallocationStack;
+
 	PVOID TlsSlots[TLS_MINIMUM_AVAILABLE];
 	LIST_ENTRY TlsLinks;
 
@@ -2972,9 +3069,9 @@ typedef struct _TEB
 		};
 	};
 
-	ULONG GuaranteedStackBytes; // late WS03+
+	ULONG GuaranteedStackBytes;
 	PVOID ReservedForPerf;
-	PVOID ReservedForOle;
+	PVOID ReservedForOle; // tagSOleTlsData
 	ULONG WaitingOnLoaderLock;
 	PVOID SavedPriorityState;
 	ULONG_PTR ReservedForCodeCoverage;
@@ -2982,8 +3079,8 @@ typedef struct _TEB
 	PVOID *TlsExpansionSlots;
 
 #if defined(_WIN64)
-	PVOID DeallocationBStore;
-	PVOID BStoreLimit;
+	PVOID ChpeV2CpuAreaInfo; // CHPEV2_CPUAREA_INFO // previously DeallocationBStore
+	PVOID Unused; // previously BStoreLimit
 #endif // _WIN64
 
 	ULONG MuiGeneration;
@@ -3043,6 +3140,10 @@ typedef struct _TEB
 	ULONG64 LastSleepCounter; // win11
 	ULONG SpinCallCount;
 	ULONG64 ExtendedFeatureDisableMask;
+	PVOID SchedulerSharedDataSlot; // 24H2
+	PVOID HeapWalkContext;
+	GROUP_AFFINITY PrimaryGroupAffinity;
+	ULONG Rcu[2];
 } TEB, *PTEB;
 
 #if defined(_WIN64)
@@ -3062,16 +3163,6 @@ C_ASSERT (FIELD_OFFSET (TEB, ExceptionCode) == 0x01A4);
 C_ASSERT (FIELD_OFFSET (TEB, InstrumentationCallbackDisabled) == 0x01B8);
 C_ASSERT (FIELD_OFFSET (TEB, LastStatusValue) == 0x0BF4);
 #endif // _WIN64
-
-typedef struct _PROCESS_BASIC_INFORMATION
-{
-	NTSTATUS ExitStatus;
-	PPEB PebBaseAddress;
-	KAFFINITY AffinityMask;
-	KPRIORITY BasePriority;
-	HANDLE UniqueProcessId;
-	HANDLE InheritedFromUniqueProcessId;
-} PROCESS_BASIC_INFORMATION, *PPROCESS_BASIC_INFORMATION;
 
 //
 // Heaps
@@ -3576,6 +3667,8 @@ typedef enum _PS_ATTRIBUTE_NUM
 	PsAttributeMachineType, // in USHORT // since 21H2
 	PsAttributeComponentFilter,
 	PsAttributeEnableOptionalXStateFeatures, // since WIN11
+	PsAttributeSupportedMachines, // since 24H2
+	PsAttributeSveVectorLength,
 	PsAttributeMax
 } PS_ATTRIBUTE_NUM;
 
@@ -5599,7 +5692,7 @@ NTAPI
 RtlVerifyVersionInfo (
 	_In_ PRTL_OSVERSIONINFOEXW VersionInformation, // PRTL_OSVERSIONINFOW
 	_In_ ULONG TypeMask,
-	_In_ ULONGLONG ConditionMask
+	_In_ ULONG64 ConditionMask
 );
 
 NTSYSCALLAPI
@@ -7977,6 +8070,7 @@ NtUnsubscribeWnfStateChange (
 //
 // Appcontainer
 //
+
 // win8+
 NTSYSCALLAPI
 NTSTATUS
@@ -8002,6 +8096,33 @@ BOOLEAN
 NTAPI
 RtlIsPackageSid (
 	_In_ PSID Sid
+);
+
+// win8+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlQueryPackageIdentity (
+	_In_ HANDLE TokenHandle,
+	_Out_writes_bytes_to_ (*PackageSize, *PackageSize) PWSTR PackageFullName,
+	_Inout_ PSIZE_T PackageSize,
+	_Out_writes_bytes_to_opt_ (*AppIdSize, *AppIdSize) PWSTR AppId,
+	_Inout_opt_ PSIZE_T AppIdSize,
+	_Out_opt_ PBOOLEAN Packaged
+);
+
+// win8.1+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlQueryPackageIdentityEx (
+	_In_ HANDLE TokenHandle,
+	_Out_writes_bytes_to_ (*PackageSize, *PackageSize) PWSTR PackageFullName,
+	_Inout_ PSIZE_T PackageSize,
+	_Out_writes_bytes_to_opt_ (*AppIdSize, *AppIdSize) PWSTR AppId,
+	_Inout_opt_ PSIZE_T AppIdSize,
+	_Out_opt_ LPGUID DynamicId,
+	_Out_opt_ PULONG64 Flags
 );
 
 // win8.1+
