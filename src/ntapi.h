@@ -3683,6 +3683,8 @@ typedef enum _PS_ATTRIBUTE_NUM
 	((Input) ? PS_ATTRIBUTE_INPUT : 0) | \
 	((Additive) ? PS_ATTRIBUTE_ADDITIVE : 0))
 
+#define PS_ATTRIBUTE_IMAGE_NAME \
+	PsAttributeValue(PsAttributeImageName, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_PARENT_PROCESS \
 	PsAttributeValue(PsAttributeParentProcess, FALSE, TRUE, TRUE)
 #define PS_ATTRIBUTE_DEBUG_OBJECT \
@@ -3693,8 +3695,6 @@ typedef enum _PS_ATTRIBUTE_NUM
 	PsAttributeValue(PsAttributeClientId, TRUE, FALSE, FALSE)
 #define PS_ATTRIBUTE_TEB_ADDRESS \
 	PsAttributeValue(PsAttributeTebAddress, TRUE, FALSE, FALSE)
-#define PS_ATTRIBUTE_IMAGE_NAME \
-	PsAttributeValue(PsAttributeImageName, FALSE, TRUE, FALSE)
 #define PS_ATTRIBUTE_IMAGE_INFO \
 	PsAttributeValue(PsAttributeImageInfo, FALSE, FALSE, FALSE)
 #define PS_ATTRIBUTE_MEMORY_RESERVE \
@@ -4942,9 +4942,85 @@ NtQuerySystemInformation (
 );
 
 //
+// Thread pool
+//
+
+// vista+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+TpAllocPool (
+	_Out_ PTP_POOL *PoolReturn,
+	_Reserved_ PVOID Reserved
+);
+
+// vista+
+NTSYSCALLAPI
+VOID
+NTAPI
+TpReleasePool (
+	_Inout_ PTP_POOL Pool
+);
+
+// vista+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+TpSetPoolMinThreads (
+	_Inout_ PTP_POOL Pool,
+	_In_ ULONG MinThreads
+);
+
+// vista+
+NTSYSCALLAPI
+VOID
+NTAPI
+TpSetPoolMaxThreads (
+	_Inout_ PTP_POOL Pool,
+	_In_ ULONG MaxThreads
+);
+
+// win7+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+TpAllocWork (
+	_Out_ PTP_WORK *WorkReturn,
+	_In_ PTP_WORK_CALLBACK Callback,
+	_Inout_opt_ PVOID Context,
+	_In_opt_ PTP_CALLBACK_ENVIRON CallbackEnviron
+);
+
+// win7+
+NTSYSCALLAPI
+VOID
+NTAPI
+TpReleaseWork (
+	_Inout_ PTP_WORK Work
+);
+
+// win7+
+NTSYSCALLAPI
+VOID
+NTAPI
+TpPostWork (
+	_Inout_ PTP_WORK Work
+);
+
+// win7+
+NTSYSCALLAPI
+VOID
+NTAPI
+TpWaitForWork (
+	_Inout_ PTP_WORK Work,
+	_In_ LOGICAL CancelPendingCallbacks
+);
+
+//
 // Timers
 //
 
+// vista+
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -4955,6 +5031,7 @@ TpAllocTimer (
 	_In_opt_ PTP_CALLBACK_ENVIRON CallbackEnviron
 );
 
+// vista+
 NTSYSCALLAPI
 VOID
 NTAPI
@@ -4962,6 +5039,7 @@ TpReleaseTimer (
 	_Inout_ PTP_TIMER Timer
 );
 
+// vista+
 NTSYSCALLAPI
 VOID
 NTAPI
@@ -4983,19 +5061,21 @@ TpSetTimerEx (
 	_In_opt_ ULONG WindowLength
 );
 
+// vista+
+NTSYSCALLAPI
+LOGICAL
+NTAPI
+TpIsTimerSet (
+	_In_ PTP_TIMER Timer
+);
+
+// vista+
 NTSYSCALLAPI
 VOID
 NTAPI
 TpWaitForTimer (
 	_Inout_ PTP_TIMER Timer,
 	_In_ LOGICAL CancelPendingCallbacks
-);
-
-NTSYSCALLAPI
-LOGICAL
-NTAPI
-TpIsTimerSet (
-	_In_ PTP_TIMER Timer
 );
 
 //
