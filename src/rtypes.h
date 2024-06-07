@@ -26,6 +26,12 @@ typedef COMDLG_FILTERSPEC *LPCOMDLG_FILTERSPEC;
 typedef TASKDIALOGCONFIG *LPTASKDIALOGCONFIG;
 typedef IRegisteredTask *IRegisteredTaskPtr;
 
+#if defined(_ARM64_)
+typedef int64x2_t R_INT128;
+#else
+typedef __m128i R_INT128;
+#endif
+
 //
 // Exported function definitions
 //
