@@ -25,6 +25,14 @@
 // Errors
 //
 
+#if !defined(NT_CUSTOMER_SHIFT)
+#define NT_CUSTOMER_SHIFT 0x1D
+#endif // !NT_FACILITY_MASK
+
+#if !defined(NT_CUSTOMER)
+#define NT_CUSTOMER(Status) ((((ULONG)(Status)) >> NT_CUSTOMER_SHIFT) & 1)
+#endif // !NT_FACILITY_MASK
+
 #if !defined(NT_FACILITY_MASK)
 #define NT_FACILITY_MASK 0xFFF
 #endif // !NT_FACILITY_MASK
