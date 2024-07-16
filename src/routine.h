@@ -171,6 +171,83 @@ static SID SeNetworkServiceSid = {SID_REVISION, 1, SECURITY_NT_AUTHORITY, {SECUR
 #endif
 
 //
+// Intrinsics
+//
+
+FORCEINLINE R_INT128 _r_intrinsics_compareint128by16 (
+	_In_ R_INT128 var1,
+	_In_ R_INT128 var2
+)
+{
+#if defined(_ARM64_)
+	return vceqq_s16 (var1, var2);
+#else
+	return _mm_cmpeq_epi16 (var1, var2);
+#endif // _ARM64_
+}
+
+FORCEINLINE R_INT128 _r_intrinsics_compareint128by32 (
+	_In_ R_INT128 var1,
+	_In_ R_INT128 var2
+)
+{
+#if defined(_ARM64_)
+	return vceqq_s32 (var1, var2);
+#else
+	return _mm_cmpeq_epi32 (var1, var2);
+#endif // _ARM64_
+}
+
+FORCEINLINE R_INT128 _r_intrinsics_loadint128 (
+	_In_reads_bytes_ (2 * sizeof (LONG)) PLONG memory
+)
+{
+#if defined(_ARM64_)
+	return vld1q_s32 (memory);
+#else
+	return _mm_load_si128 ((__m128i const*)memory);
+#endif // _ARM64_
+}
+
+FORCEINLINE R_INT128 _r_intrinsics_loadint128u (
+	_In_reads_bytes_ (2 * sizeof (LONG)) PLONG memory
+)
+{
+#if defined(_ARM64_)
+	return vld1q_s32 (memory);
+#else
+	return _mm_loadu_si128 ((__m128i const*)memory);
+#endif // _ARM64_
+}
+
+FORCEINLINE ULONG _r_intrinsics_movemaskint128by8 (
+	_In_ R_INT128 value
+)
+{
+#if defined(_ARM64_)
+	// https://github.com/DLTcollab/sse2neon/blob/master/sse2neon.h
+	uint8x16_t input = value;
+	uint16x8_t high_bits = vshrq_n_u8 (input, 7);
+	uint32x4_t paired16 = vsraq_n_u16 (high_bits, high_bits, 7);
+	uint64x2_t paired32 = vsraq_n_u32 (paired16, paired16, 14);
+	uint8x16_t paired64 = vsraq_n_u64 (paired32, paired32, 28);
+
+	return vgetq_lane_u8 (paired64, 0) | ((int)vgetq_lane_u8 (paired64, 8) << 8);
+#else
+	return _mm_movemask_epi8 (value);
+#endif // _ARM64_
+}
+
+FORCEINLINE R_INT128 _r_intrinsics_setzeroint128 ()
+{
+#if defined(_ARM64_)
+	return vdupq_n_s32 (0);
+#else
+	return _mm_setzero_si128 ();
+#endif // _ARM64_
+}
+
+//
 // Strings
 //
 
@@ -656,23 +733,32 @@ VOID _r_workqueue_waitforfinish (
 );
 
 //
-// Synchronization: Mutex
+// Synchronization: Mutant (mutex)
 //
 
 _When_ (NT_SUCCESS (return), _Acquires_lock_ (*hmutex))
-NTSTATUS _r_mutex_create (
-	_In_ LPCWSTR name,
+NTSTATUS _r_mutant_create (
+	_In_ LPWSTR name,
+	_In_ ULONG desired_access,
+	_In_ BOOLEAN is_initowner,
 	_Outptr_ PHANDLE hmutex
 );
 
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_mutant_open (
+	_In_ LPWSTR name,
+	_In_ ULONG desired_access,
+	_Outptr_ PHANDLE out_buffer
+);
+
 _When_ (NT_SUCCESS (return), _Releases_lock_ (*hmutex))
-NTSTATUS _r_mutex_destroy (
+NTSTATUS _r_mutant_destroy (
 	_Inout_ PHANDLE hmutex
 );
 
 _Success_ (return)
-BOOLEAN _r_mutex_isexists (
-	_In_ LPCWSTR name
+BOOLEAN _r_mutant_isexists (
+	_In_ LPWSTR name
 );
 
 //
@@ -1469,7 +1555,7 @@ VOID _r_console_setcolor (
 );
 
 VOID _r_console_writestring_ex (
-	_In_ LPCWSTR string,
+	_In_reads_ (length) LPCWSTR string,
 	_In_ ULONG length
 );
 
@@ -1888,7 +1974,7 @@ NTSTATUS _r_fs_deviceiocontrol (
 	_In_ ULONG in_length,
 	_Out_writes_bytes_opt_ (out_length) PVOID out_buffer,
 	_In_ ULONG out_length,
-	_Out_opt_ PULONG return__length
+	_Out_opt_ PULONG_PTR return_length
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2051,7 +2137,7 @@ PR_STRING _r_path_compact (
 );
 
 BOOLEAN _r_path_geticon (
-	_In_opt_ LPCWSTR path,
+	_In_ LPCWSTR path,
 	_Out_opt_ PLONG icon_id_ptr,
 	_Out_opt_ HICON_PTR hicon_ptr
 );
@@ -2069,7 +2155,7 @@ PR_STRING _r_path_getbasedirectory (
 );
 
 LPWSTR _r_path_getbasename (
-	_In_ LPWSTR path
+	_In_ PR_STRINGREF path
 );
 
 PR_STRING _r_path_getbasenamestring (
@@ -2272,30 +2358,6 @@ ULONG_PTR _r_str_findstring (
 
 PR_STRING _r_str_formatversion (
 	_In_ PR_STRING string
-);
-
-VOID _r_str_fromlong (
-	_Out_writes_ (buffer_size) LPWSTR buffer,
-	_In_ ULONG_PTR buffer_size,
-	_In_ LONG value
-);
-
-VOID _r_str_fromlong64 (
-	_Out_writes_ (buffer_size) LPWSTR buffer,
-	_In_ ULONG_PTR buffer_size,
-	_In_ LONG64 value
-);
-
-VOID _r_str_fromulong (
-	_Out_writes_ (buffer_size) LPWSTR buffer,
-	_In_ ULONG_PTR buffer_size,
-	_In_ ULONG value
-);
-
-VOID _r_str_fromulong64 (
-	_Out_writes_ (buffer_size) LPWSTR buffer,
-	_In_ ULONG_PTR buffer_size,
-	_In_ ULONG64 value
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2561,11 +2623,47 @@ ULONG _r_str_x65599 (
 );
 
 FORCEINLINE INT _r_str_compare_logical (
-	_In_ PR_STRING string1,
-	_In_ PR_STRING string2
+	_In_ LPCWSTR string1,
+	_In_ LPCWSTR string2
 )
 {
-	return StrCmpLogicalW (string1->buffer, string2->buffer);
+	return StrCmpLogicalW (string1, string2);
+}
+
+FORCEINLINE VOID _r_str_fromlong (
+	_Out_writes_ (buffer_size) LPWSTR buffer,
+	_In_ ULONG_PTR buffer_size,
+	_In_ LONG value
+)
+{
+	_r_str_printf (buffer, buffer_size, L"%" TEXT (PR_LONG), value);
+}
+
+FORCEINLINE VOID _r_str_fromlong64 (
+	_Out_writes_ (buffer_size) LPWSTR buffer,
+	_In_ ULONG_PTR buffer_size,
+	_In_ LONG64 value
+)
+{
+	_r_str_printf (buffer, buffer_size, L"%" TEXT (PR_LONG64), value);
+}
+
+FORCEINLINE VOID _r_str_fromulong (
+	_Out_writes_ (buffer_size) LPWSTR buffer,
+	_In_ ULONG_PTR buffer_size,
+	_In_ ULONG value
+)
+{
+	_r_str_printf (buffer, buffer_size, L"%" TEXT (PR_ULONG), value);
+}
+
+FORCEINLINE VOID _r_str_fromulong64 (
+	_Out_writes_ (buffer_size) LPWSTR buffer,
+	_In_ ULONG_PTR buffer_size,
+	_In_ ULONG64 value
+)
+{
+	_r_str_printf (buffer, buffer_size, L"%" TEXT (PR_ULONG64), value);
 }
 
 FORCEINLINE BOOLEAN _r_str_isnullterminated (
@@ -2621,7 +2719,7 @@ FORCEINLINE BOOLEAN _r_str_isdigit (
 	_In_ WCHAR chr
 )
 {
-	return (USHORT)(chr - L'0') < 10;
+	return (USHORT)(chr - '0') < 10;
 }
 
 FORCEINLINE LONG_PTR _r_str_tolong_ptr (
@@ -2787,6 +2885,10 @@ NTSTATUS _r_sys_decompressbuffer (
 	_Outptr_ PR_BYTE_PTR out_buffer
 );
 
+NTSTATUS _r_sys_doserrortontstatus (
+	_In_ ULONG error_code
+);
+
 #define PR_FIRST_PROCESS(buffer) ((PSYSTEM_PROCESS_INFORMATION)(buffer))
 #define PR_NEXT_PROCESS(buffer) ( \
 	((PSYSTEM_PROCESS_INFORMATION)(buffer))->NextEntryOffset ? \
@@ -2823,7 +2925,7 @@ NTSTATUS _r_sys_getprocessimagepathbyid (
 
 _Success_ (SUCCEEDED (return))
 HRESULT _r_sys_loadicon (
-	_In_ PVOID hinst,
+	_In_opt_ PVOID hinst,
 	_In_ LPCWSTR icon_name,
 	_In_ LONG icon_size,
 	_Out_ HICON_PTR out_buffer
@@ -2831,7 +2933,7 @@ HRESULT _r_sys_loadicon (
 
 _Ret_maybenull_
 HICON _r_sys_loadsharedicon (
-	_In_ PVOID hinst,
+	_In_opt_ PVOID hinst,
 	_In_ LPWSTR icon_name,
 	_In_ LONG icon_size
 );
@@ -2858,6 +2960,13 @@ NTSTATUS _r_sys_loadlibrarytype (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_openprocess (
 	_In_opt_ HANDLE process_id,
+	_In_ ACCESS_MASK desired_access,
+	_Outptr_ PHANDLE out_buffer
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_openthread (
+	_In_opt_ HANDLE thread_id,
 	_In_ ACCESS_MASK desired_access,
 	_Outptr_ PHANDLE out_buffer
 );
@@ -2895,10 +3004,10 @@ PR_FREE_LIST _r_sys_getthreadfreelist ();
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_createthread (
+	_Out_opt_ PHANDLE thread_handle,
 	_In_ HANDLE hprocess,
 	_In_ PUSER_THREAD_START_ROUTINE base_address,
 	_In_opt_ PVOID arglist,
-	_Out_opt_ PHANDLE thread_handle,
 	_In_opt_ PR_ENVIRONMENT environment,
 	_In_opt_ LPCWSTR thread_name
 );
@@ -3147,7 +3256,8 @@ BOOLEAN _r_dc_fillrect (
 	_In_ COLORREF clr
 );
 
-VOID _r_dc_fixfont (
+_Ret_maybenull_
+HGDIOBJ _r_dc_fixfont (
 	_In_ HDC hdc,
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id
@@ -3273,7 +3383,7 @@ VOID _r_filedialog_destroy (
 _Success_ (SUCCEEDED (return))
 HRESULT _r_filedialog_getpath (
 	_In_ PR_FILE_DIALOG file_dialog,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 _Success_ (SUCCEEDED (return))
@@ -3282,7 +3392,8 @@ HRESULT _r_filedialog_show (
 	_In_ PR_FILE_DIALOG file_dialog
 );
 
-VOID _r_filedialog_setfilter (
+_Success_ (SUCCEEDED (return))
+HRESULT _r_filedialog_setfilter (
 	_Inout_ PR_FILE_DIALOG file_dialog,
 	_In_ LPCOMDLG_FILTERSPEC filters,
 	_In_ ULONG count
@@ -3517,13 +3628,8 @@ VOID _r_wnd_setrectangle (
 VOID _r_wnd_setstyle (
 	_In_ HWND hwnd,
 	_In_ LONG_PTR mask,
-	_In_ LONG_PTR value
-);
-
-VOID _r_wnd_setstyle_ex (
-	_In_ HWND hwnd,
-	_In_ LONG_PTR mask,
-	_In_ LONG_PTR value
+	_In_ LONG_PTR value,
+	_In_ INT index
 );
 
 _Ret_maybenull_
@@ -3572,17 +3678,11 @@ FORCEINLINE VOID _r_wnd_copyrectangle (
 }
 
 FORCEINLINE LONG_PTR _r_wnd_getstyle (
-	_In_ HWND hwnd
+	_In_ HWND hwnd,
+	_In_ INT index
 )
 {
-	return GetWindowLongPtrW (hwnd, GWL_STYLE);
-}
-
-FORCEINLINE LONG_PTR _r_wnd_getstyle_ex (
-	_In_ HWND hwnd
-)
-{
-	return GetWindowLongPtrW (hwnd, GWL_EXSTYLE);
+	return GetWindowLongPtrW (hwnd, index);
 }
 
 FORCEINLINE BOOLEAN _r_wnd_isdesktop (
@@ -3605,7 +3705,7 @@ FORCEINLINE BOOLEAN _r_wnd_ismaximized (
 	_In_ HWND hwnd
 )
 {
-	return !!(_r_wnd_getstyle (hwnd) & WS_MAXIMIZE);
+	return !!(_r_wnd_getstyle (hwnd, GWL_STYLE) & WS_MAXIMIZE);
 }
 
 FORCEINLINE BOOLEAN _r_wnd_ismenu (
@@ -3620,7 +3720,7 @@ FORCEINLINE BOOLEAN _r_wnd_isminimized (
 	_In_ HWND hwnd
 )
 {
-	return !!(_r_wnd_getstyle (hwnd) & WS_MINIMIZE);
+	return !!(_r_wnd_getstyle (hwnd, GWL_STYLE) & WS_MINIMIZE);
 }
 
 FORCEINLINE VOID _r_wnd_rectangletorect (
@@ -3777,7 +3877,7 @@ NTSTATUS _r_reg_openkey (
 	_In_ HANDLE hroot,
 	_In_opt_ LPWSTR path,
 	_In_ ACCESS_MASK desired_access,
-	_Out_ PHANDLE hkey
+	_Out_ PHANDLE out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -4046,9 +4146,17 @@ ULONG _r_res_querytranslation (
 );
 
 _Success_ (return)
+BOOL _r_res_verqueryvalue (
+	_In_ LPCVOID block,
+	_In_ LPCWSTR sub_block,
+	_Out_ PVOID_PTR out_buffer,
+	_Out_ PUINT out_length
+);
+
+_Success_ (return)
 BOOLEAN _r_res_queryversion (
 	_In_ LPCVOID ver_block,
-	_Outptr_ PVOID_PTR out_buffer
+	_Out_ PVOID_PTR out_buffer
 );
 
 _Ret_maybenull_
@@ -4075,6 +4183,8 @@ HRESULT _r_imagelist_draw (
 	_In_ HIMAGELIST himg,
 	_In_ LONG index,
 	_In_ HDC hdc,
+	_In_ LONG x,
+	_In_ LONG y,
 	_In_ LONG width,
 	_In_ LONG height,
 	_In_opt_ COLORREF bg_clr,
@@ -4302,7 +4412,7 @@ VOID _r_xml_writewhitespace (
 //
 
 VOID _r_tray_initialize (
-	_Inout_ PNOTIFYICONDATA nid,
+	_Out_ PNOTIFYICONDATA nid,
 	_In_ HWND hwnd,
 	_In_ LPCGUID guid
 );
@@ -4395,7 +4505,7 @@ LONG _r_ctrl_getinteger (
 _Success_ (return != 0)
 LONG64 _r_ctrl_getinteger64 (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_Out_opt_ PULONG base_ptr
 );
 
@@ -4413,10 +4523,11 @@ LONG _r_ctrl_getwidth (
 
 VOID _r_ctrl_setbuttonmargins (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ LONG dpi_value
 );
 
+_Success_ (return)
 BOOLEAN _r_ctrl_settablestring (
 	_In_ HWND hwnd,
 	_Inout_opt_ HDWP_PTR hdefer,
@@ -4441,7 +4552,7 @@ VOID _r_ctrl_setstringlength (
 
 VOID _r_ctrl_settiptext (
 	_In_ HWND htip,
-	_In_ HWND hparent,
+	_In_ HWND hwnd,
 	_In_ INT ctrl_id,
 	_In_ LPWSTR string
 );
@@ -4460,7 +4571,7 @@ VOID _r_ctrl_settipstyle (
 
 VOID _r_ctrl_showballoontip (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT icon_id,
 	_In_opt_ LPCWSTR title,
 	_In_ LPCWSTR string
@@ -4468,12 +4579,28 @@ VOID _r_ctrl_showballoontip (
 
 VOID _r_ctrl_showballoontipformat (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT icon_id,
 	_In_opt_ LPCWSTR title,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 );
+
+_Ret_maybenull_
+FORCEINLINE HWND _r_ctrl_getdlgitem (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id
+)
+{
+	if (ctrl_id)
+	{
+		return GetDlgItem (hwnd, ctrl_id);
+	}
+	else
+	{
+		return hwnd;
+	}
+}
 
 _Ret_maybenull_
 FORCEINLINE HFONT _r_ctrl_getfont (
@@ -4503,6 +4630,17 @@ FORCEINLINE VOID _r_ctrl_checkradio (
 	CheckRadioButton (hwnd, first_id, last_id, check_id);
 }
 
+FORCEINLINE BOOLEAN _r_ctrl_getbuttonmargins (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_Out_ LPRECT out_buffer
+)
+{
+	RtlZeroMemory (out_buffer, sizeof (RECT));
+
+	return !!_r_wnd_sendmessage (hwnd, ctrl_id, BCM_GETTEXTMARGIN, 0, (LPARAM)out_buffer);
+}
+
 _Ret_maybenull_
 FORCEINLINE HICON _r_ctrl_geticon (
 	_In_ HWND hwnd,
@@ -4517,6 +4655,28 @@ FORCEINLINE HICON _r_ctrl_geticon (
 		hicon = (HICON)_r_wnd_sendmessage (hwnd, ctrl_id, BM_GETIMAGE, IMAGE_ICON, 0);
 
 	return hicon;
+}
+
+FORCEINLINE BOOLEAN _r_ctrl_getbuttonidealsize (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_Out_ PSIZE out_buffer
+)
+{
+	RtlZeroMemory (out_buffer, sizeof (SIZE));
+
+	return !!_r_wnd_sendmessage (hwnd, ctrl_id, BCM_GETIDEALSIZE, 0, (LPARAM)out_buffer);
+}
+
+FORCEINLINE BOOLEAN _r_ctrl_getbuttonimagelist (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_Out_ PBUTTON_IMAGELIST out_buffer
+)
+{
+	RtlZeroMemory (out_buffer, sizeof (BUTTON_IMAGELIST));
+
+	return !!_r_wnd_sendmessage (hwnd, ctrl_id, BCM_GETIMAGELIST, 0, (LPARAM)out_buffer);
 }
 
 FORCEINLINE LONG_PTR _r_ctrl_getselection (
@@ -4581,6 +4741,15 @@ FORCEINLINE VOID _r_ctrl_setacceleration (
 	_r_wnd_sendmessage (hwnd, ctrl_id, UDM_SETACCEL, 1, (LPARAM)&ud);
 }
 
+FORCEINLINE VOID _r_ctrl_setbuttonshield (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ BOOLEAN is_enable
+)
+{
+	_r_wnd_sendmessage (hwnd, ctrl_id, BCM_SETSHIELD, 0, is_enable);
+}
+
 FORCEINLINE VOID _r_ctrl_setfont (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
@@ -4608,22 +4777,22 @@ FORCEINLINE VOID _r_ctrl_setselection (
 	_r_wnd_sendmessage (hwnd, ctrl_id, EM_SETSEL, LOWORD (pos), HIWORD (pos));
 }
 
-FORCEINLINE VOID _r_ctrl_setreadonly (
+FORCEINLINE BOOLEAN _r_ctrl_setreadonly (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
 	_In_ BOOLEAN is_readonly
 )
 {
-	_r_wnd_sendmessage (hwnd, ctrl_id, EM_SETREADONLY, is_readonly, 0);
+	return !!_r_wnd_sendmessage (hwnd, ctrl_id, EM_SETREADONLY, is_readonly, 0);
 }
 
-FORCEINLINE VOID _r_ctrl_setstring (
+FORCEINLINE LONG _r_ctrl_setstring (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
 	_In_opt_ LPCWSTR string
 )
 {
-	_r_wnd_sendmessage (hwnd, ctrl_id, WM_SETTEXT, 0, (LPARAM)string);
+	return (LONG)_r_wnd_sendmessage (hwnd, ctrl_id, WM_SETTEXT, 0, (LPARAM)string);
 }
 
 FORCEINLINE VOID _r_ctrl_settextlimit (
@@ -4652,19 +4821,19 @@ FORCEINLINE VOID _r_ctrl_settextmargin (
 _Ret_maybenull_
 PR_STRING _r_combobox_getitemtext (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id
 );
 
 BOOLEAN _r_combobox_setcurrentitembylparam (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ LPARAM lparam
 );
 
 FORCEINLINE VOID _r_combobox_clear (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	_r_wnd_sendmessage (hwnd, ctrl_id, CB_RESETCONTENT, 0, 0);
@@ -4680,7 +4849,7 @@ FORCEINLINE INT _r_combobox_getcount (
 
 FORCEINLINE INT _r_combobox_getcurrentitem (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, CB_GETCURSEL, 0, 0);
@@ -4688,7 +4857,7 @@ FORCEINLINE INT _r_combobox_getcurrentitem (
 
 FORCEINLINE LPARAM _r_combobox_getitemlparam (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id
 )
 {
@@ -4697,7 +4866,7 @@ FORCEINLINE LPARAM _r_combobox_getitemlparam (
 
 FORCEINLINE VOID _r_combobox_insertitem (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id,
 	_In_ LPCWSTR string,
 	_In_opt_ LPARAM lparam
@@ -4709,7 +4878,7 @@ FORCEINLINE VOID _r_combobox_insertitem (
 
 FORCEINLINE VOID _r_combobox_setcurrentitem (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id
 )
 {
@@ -4718,7 +4887,7 @@ FORCEINLINE VOID _r_combobox_setcurrentitem (
 
 FORCEINLINE VOID _r_combobox_setitemlparam (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id,
 	_In_ LPARAM lparam
 )
@@ -4800,14 +4969,16 @@ FORCEINLINE PR_STRING _r_edit_getcuebanner (
 
 	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
-	if (!_r_wnd_sendmessage (hwnd, ctrl_id, EM_GETCUEBANNER, (WPARAM)string->buffer, (LPARAM)length))
+	if (_r_wnd_sendmessage (hwnd, ctrl_id, EM_GETCUEBANNER, (WPARAM)string->buffer, (LPARAM)length))
 	{
-		_r_obj_dereference (string);
+		_r_obj_trimstringtonullterminator (&string->sr);
 
-		return NULL;
+		return string;
 	}
 
-	return string;
+	_r_obj_dereference (string);
+
+	return NULL;
 }
 
 FORCEINLINE VOID _r_edit_setcuebanner (
@@ -4998,13 +5169,13 @@ FORCEINLINE VOID _r_updown_setvalue (
 
 VOID _r_tab_adjustchild (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ HWND hchild
 );
 
 INT _r_tab_additem (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id,
 	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
@@ -5013,13 +5184,13 @@ INT _r_tab_additem (
 
 LPARAM _r_tab_getitemlparam (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id
 );
 
 INT _r_tab_setitem (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id,
 	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
@@ -5034,7 +5205,7 @@ VOID _r_tab_selectitem (
 
 FORCEINLINE INT _r_tab_getcurrentitem (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, TCM_GETCURSEL, 0, 0);
@@ -5042,7 +5213,7 @@ FORCEINLINE INT _r_tab_getcurrentitem (
 
 FORCEINLINE INT _r_tab_getitemcount (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, TCM_GETITEMCOUNT, 0, 0);
@@ -5050,7 +5221,7 @@ FORCEINLINE INT _r_tab_getitemcount (
 
 FORCEINLINE VOID _r_tab_setimagelist (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ HIMAGELIST himglist
 )
 {
@@ -5082,7 +5253,7 @@ FORCEINLINE BOOLEAN _r_link_setcolor (
 
 INT _r_listview_addcolumn (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT column_id,
 	_In_opt_ LPWSTR title,
 	_In_opt_ INT width,
@@ -5091,7 +5262,7 @@ INT _r_listview_addcolumn (
 
 INT _r_listview_addgroup (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT group_id,
 	_In_opt_ LPWSTR title,
 	_In_opt_ UINT align,
@@ -5101,7 +5272,7 @@ INT _r_listview_addgroup (
 
 INT _r_listview_additem_ex (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id,
 	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
@@ -5111,12 +5282,12 @@ INT _r_listview_additem_ex (
 
 VOID _r_listview_deleteallcolumns (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 );
 
 VOID _r_listview_fillitems (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_start,
 	_In_ INT item_end,
 	_In_ INT subitem_id,
@@ -5127,57 +5298,57 @@ VOID _r_listview_fillitems (
 _Success_ (return != -1)
 INT _r_listview_finditem (
 	_In_ HWND hwnd,
-	_In_ INT listview_id,
+	_In_opt_ INT listview_id,
 	_In_ INT start_pos,
 	_In_ LPARAM lparam
 );
 
 INT _r_listview_getcolumncount (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 );
 
 _Ret_maybenull_
 PR_STRING _r_listview_getcolumntext (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT column_id
 );
 
 INT _r_listview_getcolumnwidth (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT column_id
 );
 
 INT _r_listview_getitemcheckedcount (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 );
 
 INT _r_listview_getitemgroup (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id
 );
 
 LPARAM _r_listview_getitemlparam (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id
 );
 
 _Ret_maybenull_
 PR_STRING _r_listview_getitemtext (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id,
 	_In_ INT subitem_id
 );
 
 VOID _r_listview_setcolumn (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT column_id,
 	_In_opt_ LPWSTR string,
 	_In_opt_ INT width
@@ -5185,14 +5356,14 @@ VOID _r_listview_setcolumn (
 
 VOID _r_listview_setcolumnsortindex (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT column_id,
 	_In_ INT arrow
 );
 
 VOID _r_listview_setitem_ex (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id,
 	_In_ INT subitem_id,
 	_In_opt_ LPWSTR string,
@@ -5203,7 +5374,7 @@ VOID _r_listview_setitem_ex (
 
 VOID _r_listview_setitemstate (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id,
 	_In_ UINT state,
 	_In_opt_ UINT state_mask
@@ -5211,13 +5382,13 @@ VOID _r_listview_setitemstate (
 
 VOID _r_listview_setitemvisible (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id
 );
 
 VOID _r_listview_setgroup (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT group_id,
 	_In_opt_ LPWSTR title,
 	_In_opt_ UINT state,
@@ -5226,14 +5397,14 @@ VOID _r_listview_setgroup (
 
 VOID _r_listview_setstyle (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_opt_ ULONG ex_style,
 	_In_ BOOL is_groupview
 );
 
 FORCEINLINE INT _r_listview_additem (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id,
 	_In_ LPWSTR string
 )
@@ -5243,32 +5414,32 @@ FORCEINLINE INT _r_listview_additem (
 
 FORCEINLINE VOID _r_listview_deleteallgroups (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	_r_wnd_sendmessage (hwnd, ctrl_id, LVM_REMOVEALLGROUPS, 0, 0);
 }
 
-FORCEINLINE VOID _r_listview_deleteallitems (
+FORCEINLINE BOOLEAN _r_listview_deleteallitems (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
-	_r_wnd_sendmessage (hwnd, ctrl_id, LVM_DELETEALLITEMS, 0, 0);
+	return !!_r_wnd_sendmessage (hwnd, ctrl_id, LVM_DELETEALLITEMS, 0, 0);
 }
 
-FORCEINLINE VOID _r_listview_deleteitem (
+FORCEINLINE BOOLEAN _r_listview_deleteitem (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id
 )
 {
-	_r_wnd_sendmessage (hwnd, ctrl_id, LVM_DELETEITEM, (WPARAM)item_id, 0);
+	return !!_r_wnd_sendmessage (hwnd, ctrl_id, LVM_DELETEITEM, (WPARAM)item_id, 0);
 }
 
 FORCEINLINE VOID _r_listview_ensurevisible (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id
 )
 {
@@ -5285,7 +5456,7 @@ FORCEINLINE HWND _r_listview_getheader (
 
 FORCEINLINE ULONG _r_listview_getstyle_ex (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	return (ULONG)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_GETEXTENDEDLISTVIEWSTYLE, 0, 0);
@@ -5293,7 +5464,7 @@ FORCEINLINE ULONG _r_listview_getstyle_ex (
 
 FORCEINLINE INT _r_listview_getitemcount (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_GETITEMCOUNT, 0, 0);
@@ -5301,7 +5472,7 @@ FORCEINLINE INT _r_listview_getitemcount (
 
 FORCEINLINE INT _r_listview_getnextselected (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id
 )
 {
@@ -5310,7 +5481,7 @@ FORCEINLINE INT _r_listview_getnextselected (
 
 FORCEINLINE INT _r_listview_getselectedcount (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_GETSELECTEDCOUNT, 0, 0);
@@ -5318,7 +5489,7 @@ FORCEINLINE INT _r_listview_getselectedcount (
 
 FORCEINLINE INT _r_listview_getselecteditem (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_GETNEXTITEM, (WPARAM)-1, (LPARAM)LVNI_SELECTED);
@@ -5335,7 +5506,7 @@ FORCEINLINE HWND _r_listview_gettooltips (
 
 FORCEINLINE ULONG _r_listview_getview (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	return (ULONG)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_GETVIEW, 0, 0);
@@ -5343,15 +5514,15 @@ FORCEINLINE ULONG _r_listview_getview (
 
 FORCEINLINE BOOLEAN _r_listview_isgroupviewenabled (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
-	return !!((INT)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_ISGROUPVIEWENABLED, 0, 0));
+	return !!_r_wnd_sendmessage (hwnd, ctrl_id, LVM_ISGROUPVIEWENABLED, 0, 0);
 }
 
 FORCEINLINE BOOLEAN _r_listview_isitemchecked (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id
 )
 {
@@ -5360,7 +5531,7 @@ FORCEINLINE BOOLEAN _r_listview_isitemchecked (
 
 FORCEINLINE BOOLEAN _r_listview_isitemselected (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id
 )
 {
@@ -5369,24 +5540,33 @@ FORCEINLINE BOOLEAN _r_listview_isitemselected (
 
 FORCEINLINE BOOLEAN _r_listview_isitemvisible (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id
 )
 {
-	return !!((INT)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_ISITEMVISIBLE, (WPARAM)item_id, 0));
+	return !!_r_wnd_sendmessage (hwnd, ctrl_id, LVM_ISITEMVISIBLE, (WPARAM)item_id, 0);
 }
 
 FORCEINLINE VOID _r_listview_redraw (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
+	HWND hctrl;
+
 	_r_wnd_sendmessage (hwnd, ctrl_id, LVM_REDRAWITEMS, 0, (LPARAM)INT_MAX);
+
+	// Note: UpdateWindow () is a workaround for ListView_RedrawItems() failing to send LVN_GETDISPINFO
+	// and fixes redraw items graphical artifacts when the listview doesn't have foreground focus. (dmex)
+	hctrl = _r_ctrl_getdlgitem (hwnd, ctrl_id);
+
+	if (hctrl)
+		UpdateWindow (hctrl);
 }
 
 FORCEINLINE VOID _r_listview_setimagelist (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ HIMAGELIST himg
 )
 {
@@ -5396,7 +5576,7 @@ FORCEINLINE VOID _r_listview_setimagelist (
 
 FORCEINLINE VOID _r_listview_setitem (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id,
 	_In_ INT subitem_id,
 	_In_opt_ LPWSTR string
@@ -5407,7 +5587,7 @@ FORCEINLINE VOID _r_listview_setitem (
 
 FORCEINLINE VOID _r_listview_setitemcheck (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ INT item_id,
 	_In_ BOOLEAN is_check
 )
@@ -5417,7 +5597,7 @@ FORCEINLINE VOID _r_listview_setitemcheck (
 
 FORCEINLINE VOID _r_listview_setview (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ LONG view_type
 )
 {
@@ -5430,7 +5610,7 @@ FORCEINLINE VOID _r_listview_setview (
 
 HTREEITEM _r_treeview_additem (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
 	_In_ INT state,
@@ -5439,59 +5619,47 @@ HTREEITEM _r_treeview_additem (
 	_In_opt_ LPARAM lparam
 );
 
-INT _r_treeview_getitemcount (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id
-);
-
 LPARAM _r_treeview_getitemlparam (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ HTREEITEM hitem
 );
 
 UINT _r_treeview_getitemstate (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ HTREEITEM item_id
 );
 
 HTREEITEM _r_treeview_getnextitem (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ HTREEITEM item_id,
 	_In_opt_ ULONG retrieve_id
 );
 
 BOOLEAN _r_treeview_isitemchecked (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ HTREEITEM item_id
 );
 
 _Ret_maybenull_
 PR_STRING _r_treeview_getitemtext (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ HTREEITEM item_id
 );
 
 VOID _r_treeview_selectfirstchild (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ HTREEITEM item_id
-);
-
-VOID _r_treeview_setitemcheck (
-	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
-	_In_ HTREEITEM item_id,
-	_In_ BOOLEAN is_check
 );
 
 VOID _r_treeview_setitemstate (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ HTREEITEM item_id,
 	_In_ UINT state,
 	_In_opt_ UINT state_mask
@@ -5499,7 +5667,7 @@ VOID _r_treeview_setitemstate (
 
 VOID _r_treeview_setitem (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ HTREEITEM hitem,
 	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
@@ -5508,11 +5676,19 @@ VOID _r_treeview_setitem (
 
 VOID _r_treeview_setstyle (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_opt_ ULONG ex_style,
 	_In_opt_ ULONG height,
 	_In_opt_ ULONG indent
 );
+
+FORCEINLINE INT _r_treeview_getitemcount (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id
+)
+{
+	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, TVM_GETCOUNT, 0, 0);
+}
 
 _Ret_maybenull_
 FORCEINLINE HWND _r_treeview_gettooltips (
@@ -5525,7 +5701,7 @@ FORCEINLINE HWND _r_treeview_gettooltips (
 
 FORCEINLINE VOID _r_treeview_deleteallitems (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	_r_wnd_sendmessage (hwnd, ctrl_id, TVM_DELETEITEM, 0, (LPARAM)TVI_ROOT);
@@ -5533,7 +5709,7 @@ FORCEINLINE VOID _r_treeview_deleteallitems (
 
 FORCEINLINE BOOLEAN _r_treeview_isitemchecked (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ HTREEITEM item_id
 )
 {
@@ -5542,7 +5718,7 @@ FORCEINLINE BOOLEAN _r_treeview_isitemchecked (
 
 FORCEINLINE VOID _r_treeview_selectitem (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ HTREEITEM hitem
 )
 {
@@ -5551,7 +5727,7 @@ FORCEINLINE VOID _r_treeview_selectitem (
 
 FORCEINLINE VOID _r_treeview_setimagelist (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_opt_ HIMAGELIST himg
 )
 {
@@ -5560,7 +5736,7 @@ FORCEINLINE VOID _r_treeview_setimagelist (
 
 FORCEINLINE VOID _r_treeview_setitemcheck (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ HTREEITEM item_id,
 	_In_ BOOLEAN is_check
 )
@@ -5605,7 +5781,7 @@ FORCEINLINE LONG _r_status_getborders (
 	_In_ PVOID out_buffer
 )
 {
-	return !!_r_wnd_sendmessage (hwnd, 0, SB_GETBORDERS, 0, (LPARAM)out_buffer);
+	return !!_r_wnd_sendmessage (hwnd, ctrl_id, SB_GETBORDERS, 0, (LPARAM)out_buffer);
 }
 
 FORCEINLINE LONG _r_status_getparts (
@@ -5613,7 +5789,7 @@ FORCEINLINE LONG _r_status_getparts (
 	_In_opt_ INT ctrl_id
 )
 {
-	return (LONG)_r_wnd_sendmessage (hwnd, 0, SB_GETPARTS, 0, 0);
+	return (LONG)_r_wnd_sendmessage (hwnd, ctrl_id, SB_GETPARTS, 0, 0);
 }
 
 FORCEINLINE BOOLEAN _r_status_getrect (
@@ -5623,7 +5799,7 @@ FORCEINLINE BOOLEAN _r_status_getrect (
 	_Out_ PRECT out_buffer
 )
 {
-	return !!_r_wnd_sendmessage (hwnd, 0, SB_GETRECT, (WPARAM)part_id, (LPARAM)out_buffer);
+	return !!_r_wnd_sendmessage (hwnd, ctrl_id, SB_GETRECT, (WPARAM)part_id, (LPARAM)out_buffer);
 }
 
 FORCEINLINE VOID _r_status_seticon (
@@ -5955,19 +6131,18 @@ VOID _r_util_templatewriteulong (
 	_In_ ULONG data
 );
 
-VOID _r_util_templatewrite_ex (
+VOID _r_util_templatewrite (
 	_Inout_ PBYTE_PTR ptr,
 	_In_bytecount_ (size) LPCVOID data,
 	_In_ ULONG_PTR size
 );
-
 
 FORCEINLINE VOID _r_util_templatewriteshort (
 	_Inout_ PBYTE_PTR ptr,
 	_In_ WORD data
 )
 {
-	_r_util_templatewrite_ex (ptr, &data, sizeof (data));
+	_r_util_templatewrite (ptr, &data, sizeof (data));
 }
 
 FORCEINLINE VOID _r_util_templatewriteulong (
@@ -5975,7 +6150,7 @@ FORCEINLINE VOID _r_util_templatewriteulong (
 	_In_ ULONG data
 )
 {
-	_r_util_templatewrite_ex (ptr, &data, sizeof (data));
+	_r_util_templatewrite (ptr, &data, sizeof (data));
 }
 
 //

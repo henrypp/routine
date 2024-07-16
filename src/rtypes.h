@@ -209,6 +209,13 @@ typedef HTHEME (WINAPI* ONCTD)(
 #define PR_SIZE_CONCAT_LENGTH_CACHE 16
 #define PR_SIZE_MAX_STRING_LENGTH (LONG_MAX - 1)
 
+// Macro for telling -Wimplicit-fallthrough that a fallthrough is intentional
+#if defined(__clang__)
+#define FALLTHROUGH [[clang::fallthrough]]
+#else
+#define FALLTHROUGH __fallthrough
+#endif
+
 //
 // Dark theme
 //
