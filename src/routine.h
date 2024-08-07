@@ -155,7 +155,7 @@ static SID SeNetworkServiceSid = {SID_REVISION, 1, SECURITY_NT_AUTHORITY, {SECUR
 #endif
 
 #if !defined(SAFE_DELETE_LIBRARY)
-#define SAFE_DELETE_LIBRARY(p, is_res) {if((p)) {_r_sys_freelibrary ((p), (is_res)); (p)=NULL;}}
+#define SAFE_DELETE_LIBRARY(p) {if((p)) {_r_sys_freelibrary ((p)); (p)=NULL;}}
 #endif
 
 #if !defined(SAFE_DELETE_ICON)
@@ -564,8 +564,8 @@ FORCEINLINE VOID _r_queuedlock_releaseshared (
 	_Inout_ PR_QUEUED_LOCK queued_lock
 )
 {
-	ULONG_PTR value;
 	ULONG_PTR new_value;
+	ULONG_PTR value;
 
 	value = PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC;
 
@@ -773,6 +773,7 @@ PVOID NTAPI _r_mem_allocate (
 );
 
 _Ret_maybenull_
+_Must_inspect_result_
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_allocatesafe (
 	_In_ ULONG_PTR bytes_count
@@ -794,6 +795,7 @@ PVOID NTAPI _r_mem_reallocate (
 );
 
 _Ret_maybenull_
+_Must_inspect_result_
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_reallocatesafe (
 	_Frees_ptr_opt_ PVOID base_address,
@@ -1144,14 +1146,14 @@ FORCEINLINE VOID _r_obj_initializestringrefempty (
 
 BOOLEAN _r_obj_initializeunicodestring (
 	_Out_ PUNICODE_STRING string,
-	_In_opt_ LPWSTR buffer
+	_In_opt_z_ LPWSTR buffer
 );
 
 BOOLEAN _r_obj_initializeunicodestring_ex (
 	_Out_ PUNICODE_STRING string,
-	_In_opt_ LPWSTR buffer,
-	_In_opt_ USHORT length,
-	_In_opt_ USHORT max_length
+	_In_opt_z_ LPWSTR buffer,
+	_In_opt_ ULONG length,
+	_In_opt_ ULONG max_length
 );
 
 FORCEINLINE BOOLEAN _r_obj_initializeunicodestring2 (
@@ -1159,7 +1161,7 @@ FORCEINLINE BOOLEAN _r_obj_initializeunicodestring2 (
 	_In_ PR_STRINGREF buffer
 )
 {
-	return _r_obj_initializeunicodestring_ex (string, buffer->buffer, (USHORT)buffer->length, (USHORT)buffer->length + sizeof (UNICODE_NULL));
+	return _r_obj_initializeunicodestring_ex (string, buffer->buffer, (ULONG)buffer->length, (ULONG)buffer->length + sizeof (UNICODE_NULL));
 }
 
 //
@@ -2044,7 +2046,7 @@ NTSTATUS _r_fs_getsecurityinfo (
 	_In_opt_ HANDLE hfile,
 	_In_opt_ LPCWSTR path,
 	_Out_ PSECURITY_DESCRIPTOR_PTR out_sd,
-	_Out_ PACL_PTR out_dacl
+	_Out_opt_ PACL_PTR out_dacl
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2089,7 +2091,15 @@ NTSTATUS _r_fs_openfile (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_readfile (
 	_In_ HANDLE hfile,
-	_Outptr_ PR_BYTE_PTR out_buffer
+	_Out_writes_bytes_ (length) PVOID buffer,
+	_In_ ULONG length,
+	_Out_opt_ PULONG_PTR out_readed
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_readfilebytes (
+	_In_ HANDLE hfile,
+	_Out_ PR_BYTE_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2122,6 +2132,13 @@ NTSTATUS _r_fs_settimestamp (
 	_In_opt_ PFILETIME creation_time,
 	_In_opt_ PFILETIME access_time,
 	_In_opt_ PFILETIME write_time
+);
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_writefile (
+	_In_ HANDLE hfile,
+	_In_reads_bytes_ (length) PVOID buffer,
+	_In_ ULONG length
 );
 
 #define _r_fs_isvalidhandle(handle) \
@@ -2237,6 +2254,7 @@ NTSTATUS _r_path_ntpathfromdos (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_search (
+	_In_opt_ LPWSTR path,
 	_In_ LPWSTR filename,
 	_In_opt_ LPWSTR extension,
 	_Out_ PR_STRING_PTR out_buffer
@@ -2268,6 +2286,11 @@ NTSTATUS _r_locale_lcidtoname (
 
 HRESULT _r_shell_showfile (
 	_In_ LPCWSTR path
+);
+
+HRESULT _r_shell_resolveshortcut (
+	_In_ LPWSTR lnk_path,
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 FORCEINLINE VOID _r_shell_opendefault (
@@ -2327,8 +2350,8 @@ VOID _r_str_copystring (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_environmentexpandstring (
 	_In_opt_ PVOID environment,
-	_In_ PR_STRINGREF string,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_In_ PR_STRINGREF name,
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 PR_STRING _r_str_environmentunexpandstring (
@@ -2793,6 +2816,13 @@ NTSTATUS _r_sys_getcomputername (
 PR_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ();
 
 _Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_getenvironmentvariable (
+	_In_opt_ PVOID_PTR environment,
+	_In_ PR_STRINGREF name_sr,
+	_Out_ PR_STRING_PTR out_buffer
+);
+
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getmemoryinfo (
 	_Out_ PR_MEMORY_INFO out_buffer
 );
@@ -2855,7 +2885,7 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getusername (
 	_In_ PSID sid,
 	_In_ BOOLEAN is_withdomain,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 ULONG _r_sys_getwindowsversion ();
@@ -2996,8 +3026,7 @@ NTSTATUS NTAPI _r_sys_basethreadstart (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_freelibrary (
-	_In_ PVOID dll_handle,
-	_In_ BOOLEAN is_resource
+	_In_ PVOID dll_handle
 );
 
 PR_FREE_LIST _r_sys_getthreadfreelist ();
@@ -3043,13 +3072,6 @@ NTSTATUS _r_sys_setprocessprivilege (
 	_In_reads_ (count) PULONG privileges,
 	_In_ ULONG count,
 	_In_ BOOLEAN is_enable
-);
-
-VOID _r_sys_setenvironment (
-	_Out_ PR_ENVIRONMENT environment,
-	_In_ KPRIORITY base_priority,
-	_In_ ULONG io_priority,
-	_In_ ULONG page_priority
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -3155,6 +3177,18 @@ FORCEINLINE BOOLEAN _r_sys_isosversionlowerorequal (
 )
 {
 	return _r_sys_getwindowsversion () <= version;
+}
+
+FORCEINLINE VOID _r_sys_setenvironment (
+	_Out_ PR_ENVIRONMENT environment,
+	_In_ KPRIORITY base_priority,
+	_In_ ULONG io_priority,
+	_In_ ULONG page_priority
+)
+{
+	environment->base_priority = base_priority;
+	environment->io_priority = io_priority;
+	environment->page_priority = page_priority;
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -3845,37 +3879,32 @@ VOID _r_inet_destroyurlparts (
 	_Inout_ PR_URLPARTS url_parts
 );
 
-FORCEINLINE VOID _r_inet_close (
+FORCEINLINE BOOLEAN _r_inet_close (
 	_In_ HINTERNET hinet
 )
 {
-	WinHttpCloseHandle (hinet);
+	return !!WinHttpCloseHandle (hinet);
 }
 
 //
 // Registry
 //
 
-typedef BOOLEAN (NTAPI *PR_ENUM_KEY_CALLBACK)(
-	_In_ HANDLE hroot,
-	_In_ PVOID buffer,
-	_In_opt_ PVOID context
-	);
-
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_createkey (
 	_In_ HANDLE hroot,
 	_In_opt_ LPWSTR path,
+	_In_ ULONG flags,
 	_In_ ACCESS_MASK desired_access,
 	_Out_opt_ PULONG disposition,
-	_In_ BOOLEAN is_open,
-	_Out_ PHANDLE hkey
+	_Out_ PHANDLE out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_openkey (
-	_In_ HANDLE hroot,
+	_In_opt_ HANDLE hroot,
 	_In_opt_ LPWSTR path,
+	_In_ ULONG flags,
 	_In_ ACCESS_MASK desired_access,
 	_Out_ PHANDLE out_buffer
 );
@@ -3883,22 +3912,25 @@ NTSTATUS _r_reg_openkey (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_deletevalue (
 	_In_ HANDLE hkey,
-	_In_ LPWSTR value_name
+	_In_opt_ LPWSTR value_name
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_enumkey (
 	_In_ HANDLE hkey,
-	_In_ KEY_INFORMATION_CLASS info,
-	_In_ PR_ENUM_KEY_CALLBACK callback,
-	_In_opt_ PVOID context
+	_In_ ULONG index,
+	_Out_ PR_STRING_PTR out_name,
+	_Out_opt_ PLONG64 out_timestamp
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_enumvalues (
 	_In_ HANDLE hkey,
-	_In_ KEY_INFORMATION_CLASS info,
-	_Outptr_ PVOID_PTR out_buffer
+	_In_ ULONG index,
+	_Out_ PR_STRING_PTR out_name,
+	_Out_opt_ PVOID out_value,
+	_Out_opt_ PULONG out_length,
+	_Out_opt_ PULONG out_type
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -3911,7 +3943,7 @@ NTSTATUS _r_reg_queryinfo (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_querybinary (
 	_In_ HANDLE hkey,
-	_In_ LPWSTR value_name,
+	_In_opt_ LPWSTR value_name,
 	_Outptr_ PR_BYTE_PTR out_buffer
 );
 
@@ -3925,14 +3957,14 @@ NTSTATUS _r_reg_querystring (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_queryulong (
 	_In_ HANDLE hkey,
-	_In_ LPWSTR value_name,
+	_In_opt_ LPWSTR value_name,
 	_Out_ PULONG out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_queryulong64 (
 	_In_ HANDLE hkey,
-	_In_ LPWSTR value_name,
+	_In_opt_ LPWSTR value_name,
 	_Out_ PULONG64 out_buffer
 );
 
@@ -3950,8 +3982,8 @@ NTSTATUS _r_reg_setvalue (
 	_In_ HANDLE hkey,
 	_In_opt_ LPWSTR value_name,
 	_In_ ULONG type,
-	_In_ PVOID buffer,
-	_In_ ULONG buffer_length
+	_In_reads_bytes_opt_ (data_length) PVOID data,
+	_In_ ULONG data_length
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -5615,7 +5647,6 @@ HTREEITEM _r_treeview_additem (
 	_In_ INT image_id,
 	_In_ INT state,
 	_In_opt_ HTREEITEM hparent,
-	_In_opt_ HTREEITEM hinsert_after,
 	_In_opt_ LPARAM lparam
 );
 

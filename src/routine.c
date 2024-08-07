@@ -1773,6 +1773,7 @@ PVOID NTAPI _r_mem_allocate (
 }
 
 _Ret_maybenull_
+_Must_inspect_result_
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_allocatesafe (
 	_In_ ULONG_PTR bytes_count
@@ -1828,6 +1829,7 @@ PVOID NTAPI _r_mem_reallocate (
 }
 
 _Ret_maybenull_
+_Must_inspect_result_
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_reallocatesafe (
 	_Frees_ptr_opt_ PVOID base_address,
@@ -2451,30 +2453,27 @@ VOID _r_obj_initializestringref_ex (
 
 BOOLEAN _r_obj_initializeunicodestring (
 	_Out_ PUNICODE_STRING string,
-	_In_opt_ LPWSTR buffer
+	_In_opt_z_ LPWSTR buffer
 )
 {
 	ULONG length = 0;
-	BOOLEAN is_success;
 
 	if (buffer)
 		length = (ULONG)_r_str_getlength (buffer) * sizeof (WCHAR);
 
-	is_success = _r_obj_initializeunicodestring_ex (string, buffer, (USHORT)length, (USHORT)length + sizeof (UNICODE_NULL));
-
-	return is_success;
+	return _r_obj_initializeunicodestring_ex (string, buffer, length, length + sizeof (UNICODE_NULL));
 }
 
 BOOLEAN _r_obj_initializeunicodestring_ex (
 	_Out_ PUNICODE_STRING string,
-	_In_opt_ LPWSTR buffer,
-	_In_opt_ USHORT length,
-	_In_opt_ USHORT max_length
+	_In_opt_z_ LPWSTR buffer,
+	_In_opt_ ULONG length,
+	_In_opt_ ULONG max_length
 )
 {
 	string->Buffer = buffer;
-	string->Length = length;
-	string->MaximumLength = max_length;
+	string->Length = (USHORT)min (length, UNICODE_STRING_MAX_BYTES);
+	string->MaximumLength = (USHORT)min (max_length, UNICODE_STRING_MAX_BYTES);
 
 	return string->Length <= UNICODE_STRING_MAX_BYTES;
 }
@@ -3638,6 +3637,9 @@ PR_STRING _r_clipboard_get (
 	PVOID base_address;
 	ULONG_PTR length;
 
+	if (!IsClipboardFormatAvailable (CF_UNICODETEXT))
+		return NULL;
+
 	if (!OpenClipboard (hwnd))
 		return NULL;
 
@@ -3688,11 +3690,16 @@ BOOLEAN _r_clipboard_set (
 
 			GlobalUnlock (base_address);
 
-			EmptyClipboard ();
+			is_success = !!EmptyClipboard ();
+
+			if (!is_success)
+				goto CleanupExit;
 
 			is_success = !!SetClipboardData (CF_UNICODETEXT, hdata);
 		}
 	}
+
+CleanupExit:
 
 	if (!is_success)
 		GlobalFree (hdata);
@@ -3730,7 +3737,7 @@ NTSTATUS _r_fs_createdirectory (
 	NTSTATUS status = STATUS_OBJECT_NAME_COLLISION;
 
 	if (_r_fs_exists (path))
-		return STATUS_OBJECT_NAME_COLLISION;
+		return STATUS_SUCCESS;
 
 	_r_str_copy (buffer, RTL_NUMBER_OF (buffer), path);
 
@@ -3828,13 +3835,13 @@ NTSTATUS _r_fs_copyfile (
 	_In_ BOOLEAN is_failifexists
 )
 {
-	IO_STATUS_BLOCK isb;
 	FILETIME creation_time;
 	FILETIME access_time;
 	FILETIME write_time;
 	HANDLE hfile_src;
 	HANDLE hfile_dst;
 	PBYTE buffer;
+	ULONG_PTR readed;
 	ULONG attributes;
 	ULONG length;
 	NTSTATUS status;
@@ -3879,14 +3886,14 @@ NTSTATUS _r_fs_copyfile (
 
 	while (TRUE)
 	{
-		status = NtReadFile (hfile_src, NULL, NULL, NULL, &isb, buffer, length, NULL, NULL);
+		status = _r_fs_readfile (hfile_src, buffer, length, &readed);
 
-		if (!NT_SUCCESS (status) || isb.Information == 0)
+		if (!NT_SUCCESS (status) || readed == 0)
 			break;
 
-		status = NtWriteFile (hfile_dst, NULL, NULL, NULL, &isb, buffer, (ULONG)isb.Information, NULL, NULL);
+		status = _r_fs_writefile (hfile_dst, buffer, (ULONG)readed);
 
-		if (!NT_SUCCESS (status) || isb.Information == 0)
+		if (!NT_SUCCESS (status))
 			break;
 	}
 
@@ -4188,7 +4195,7 @@ NTSTATUS _r_fs_enumfiles (
 			// Our ISB is on the stack, so we have to wait for the operation to complete before continuing.
 			if (status == STATUS_PENDING)
 			{
-				status = _r_sys_waitforsingleobject (hdirectory, 0);
+				status = _r_sys_waitforsingleobject (hdirectory, INFINITE);
 
 				if (NT_SUCCESS (status))
 					status = isb.Status;
@@ -4230,7 +4237,7 @@ NTSTATUS _r_fs_enumfiles (
 				{
 					file_name = _r_obj_createstring_ex (directory_info->FileName, directory_info->FileNameLength);
 
-					path_full = _r_format_string (L"%s\\%s", path, file_name->buffer);
+					path_full = _r_format_string (L"%s%c%s", path, OBJ_NAME_PATH_SEPARATOR, file_name->buffer);
 
 					if (!enum_callback (path_full, directory_info->FileAttributes, &directory_info->CreationTime, &directory_info->LastWriteTime, context))
 						is_break = TRUE;
@@ -4551,13 +4558,13 @@ NTSTATUS _r_fs_getsecurityinfo (
 	_In_opt_ HANDLE hfile,
 	_In_opt_ LPCWSTR path,
 	_Out_ PSECURITY_DESCRIPTOR_PTR out_sd,
-	_Out_ PACL_PTR out_dacl
+	_Out_opt_ PACL_PTR out_dacl
 )
 {
 	PSECURITY_DESCRIPTOR security_descriptor;
 	PACL dacl = NULL;
 	HANDLE hfile_new = NULL;
-	ULONG buffer_length;
+	ULONG buffer_length = 0x100;
 	ULONG required_length;
 	BOOLEAN is_defaulted;
 	BOOLEAN is_present = FALSE;
@@ -4576,7 +4583,6 @@ NTSTATUS _r_fs_getsecurityinfo (
 		hfile = hfile_new;
 	}
 
-	buffer_length = 0x100;
 	security_descriptor = _r_mem_allocate (buffer_length);
 
 	status = NtQuerySecurityObject (hfile, DACL_SECURITY_INFORMATION, security_descriptor, buffer_length, &required_length);
@@ -4589,22 +4595,22 @@ NTSTATUS _r_fs_getsecurityinfo (
 		status = NtQuerySecurityObject (hfile, DACL_SECURITY_INFORMATION, security_descriptor, buffer_length, &buffer_length);
 	}
 
-	if (!NT_SUCCESS (status))
-		goto CleanupExit;
-
-	status = RtlGetDaclSecurityDescriptor (security_descriptor, &is_present, &dacl, &is_defaulted);
-
-CleanupExit:
+	if (NT_SUCCESS (status) && out_dacl)
+		status = RtlGetDaclSecurityDescriptor (security_descriptor, &is_present, &dacl, &is_defaulted);
 
 	if (NT_SUCCESS (status))
 	{
 		*out_sd = security_descriptor;
-		*out_dacl = dacl;
+
+		if (out_dacl)
+			*out_dacl = dacl;
 	}
 	else
 	{
 		*out_sd = NULL;
-		*out_dacl = NULL;
+
+		if (out_dacl)
+			*out_dacl = NULL;
 
 		_r_mem_free (security_descriptor);
 	}
@@ -4859,14 +4865,43 @@ NTSTATUS _r_fs_openfile (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_readfile (
 	_In_ HANDLE hfile,
-	_Outptr_ PR_BYTE_PTR out_buffer
+	_Out_writes_bytes_ (length) PVOID buffer,
+	_In_ ULONG length,
+	_Out_opt_ PULONG_PTR out_readed
+)
+{
+	IO_STATUS_BLOCK isb;
+	NTSTATUS status;
+
+	if (out_readed)
+		*out_readed = 0;
+
+	status = NtReadFile (hfile, NULL, NULL, NULL, &isb, buffer, length, NULL, NULL);
+
+	if (status == STATUS_PENDING)
+	{
+		_r_sys_waitforsingleobject (hfile, INFINITE);
+
+		status = isb.Status;
+	}
+
+	if (out_readed)
+		*out_readed = isb.Information;
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_readfilebytes (
+	_In_ HANDLE hfile,
+	_Out_ PR_BYTE_PTR out_buffer
 )
 {
 	LARGE_INTEGER file_size;
-	IO_STATUS_BLOCK isb;
 	PR_BYTE buffer;
 	PVOID pmemory;
 	ULONG_PTR length = 0;
+	ULONG_PTR readed;
 	ULONG allocated_length;
 	NTSTATUS status;
 
@@ -4897,7 +4932,7 @@ NTSTATUS _r_fs_readfile (
 
 	while (TRUE)
 	{
-		status = NtReadFile (hfile, NULL, NULL, NULL, &isb, pmemory, allocated_length, NULL, NULL);
+		status = _r_fs_readfile (hfile, pmemory, allocated_length, &readed);
 
 		if (status == STATUS_END_OF_FILE)
 		{
@@ -4906,12 +4941,12 @@ NTSTATUS _r_fs_readfile (
 			break;
 		}
 
-		if (!NT_SUCCESS (status) || !isb.Information)
+		if (!NT_SUCCESS (status) || !readed)
 			break;
 
-		RtlCopyMemory (PTR_ADD_OFFSET (buffer->buffer, length), pmemory, isb.Information);
+		RtlCopyMemory (PTR_ADD_OFFSET (buffer->buffer, length), pmemory, readed);
 
-		length += isb.Information;
+		length += readed;
 	}
 
 	if (NT_SUCCESS (status))
@@ -5057,6 +5092,28 @@ NTSTATUS _r_fs_settimestamp (
 	}
 
 	status = NtSetInformationFile (hfile, &isb, &info, sizeof (info), FileBasicInformation);
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_writefile (
+	_In_ HANDLE hfile,
+	_In_reads_bytes_ (length) PVOID buffer,
+	_In_ ULONG length
+)
+{
+	IO_STATUS_BLOCK isb;
+	NTSTATUS status;
+
+	status = NtWriteFile (hfile, NULL, NULL, NULL, &isb, buffer, length, NULL, NULL);
+
+	if (status == STATUS_PENDING)
+	{
+		_r_sys_waitforsingleobject (hfile, INFINITE);
+
+		status = isb.Status;
+	}
 
 	return status;
 }
@@ -5232,11 +5289,10 @@ NTSTATUS _r_path_getfullpath (
 )
 {
 	PR_STRING full_path;
-	ULONG buffer_length;
+	ULONG buffer_length = 512;
 	ULONG return_length;
 	NTSTATUS status;
 
-	buffer_length = 512;
 	full_path = _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR));
 
 	status = RtlGetFullPathName_UEx (filename, buffer_length, full_path->buffer, NULL, &return_length);
@@ -5542,7 +5598,7 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 		{
 			buffer = _r_obj_createstring2 (&args_sr);
 
-			status = _r_path_search (buffer->buffer, L".exe", &file_path_sr);
+			status = _r_path_search (NULL, buffer->buffer, L".exe", &file_path_sr);
 
 			if (NT_SUCCESS (status))
 			{
@@ -5593,7 +5649,7 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 			*(remaining_part.buffer - 1) = UNICODE_NULL;
 		}
 
-		status = _r_path_search (temp.buffer, L".exe", &file_path_sr);
+		status = _r_path_search (NULL, temp.buffer, L".exe", &file_path_sr);
 
 		if (is_found)
 			*(remaining_part.buffer - 1) = original_char;
@@ -5894,7 +5950,7 @@ PR_STRING _r_path_resolvenetworkprefix (
 	ULONG_PTR prefix_length;
 	NTSTATUS status;
 
-	status = _r_reg_openkey (HKEY_LOCAL_MACHINE, L"System\\CurrentControlSet\\Control\\NetworkProvider\\Order", KEY_READ, &hkey);
+	status = _r_reg_openkey (HKEY_LOCAL_MACHINE, L"System\\CurrentControlSet\\Control\\NetworkProvider\\Order", 0, KEY_READ, &hkey);
 
 	if (!NT_SUCCESS (status))
 		return NULL;
@@ -5918,7 +5974,7 @@ PR_STRING _r_path_resolvenetworkprefix (
 					&provider_part_sr
 				);
 
-				status = _r_reg_openkey (HKEY_LOCAL_MACHINE, service_key->buffer, KEY_READ, &hsvckey);
+				status = _r_reg_openkey (HKEY_LOCAL_MACHINE, service_key->buffer, 0, KEY_READ, &hsvckey);
 
 				if (NT_SUCCESS (status))
 				{
@@ -6180,6 +6236,7 @@ NTSTATUS _r_path_ntpathfromdos (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_search (
+	_In_opt_ LPWSTR path,
 	_In_ LPWSTR filename,
 	_In_opt_ LPWSTR extension,
 	_Out_ PR_STRING_PTR out_buffer
@@ -6187,13 +6244,14 @@ NTSTATUS _r_path_search (
 {
 	static R_STRINGREF sr = PR_STRINGREF_INIT (L"%PATH%");
 
-	UNICODE_STRING path_us;
-	UNICODE_STRING filename_us;
 	UNICODE_STRING extension_us;
+	UNICODE_STRING filename_us;
 	UNICODE_STRING buffer = {0};
-	PR_STRING full_path;
-	PR_STRING string;
+	UNICODE_STRING path_us;
+	PR_STRING full_path = NULL;
+	PR_STRING string = NULL;
 	ULONG_PTR return_length;
+	ULONG flags = RTL_DOS_SEARCH_PATH_FLAG_DISALLOW_DOT_RELATIVE_PATH_SEARCH | RTL_DOS_SEARCH_PATH_FLAG_APPLY_DEFAULT_EXTENSION_WHEN_NOT_RELATIVE_PATH_EVEN_IF_FILE_HAS_EXTENSION;
 	NTSTATUS status;
 
 	if (_r_fs_exists (filename))
@@ -6203,52 +6261,39 @@ NTSTATUS _r_path_search (
 		return STATUS_SUCCESS;
 	}
 
-	status = _r_str_environmentexpandstring (NULL, &sr, &string);
-
-	if (!NT_SUCCESS (status))
+	if (path)
 	{
-		*out_buffer = NULL;
+		_r_obj_initializeunicodestring (&path_us, path);
+	}
+	else
+	{
+		// works as RtlGetSearchPath
+		status = _r_str_environmentexpandstring (NULL, &sr, &string);
 
-		return status;
+		if (!NT_SUCCESS (status))
+		{
+			*out_buffer = NULL;
+
+			return status;
+		}
+
+		_r_obj_initializeunicodestring2 (&path_us, &string->sr);
+
+		flags |= RTL_DOS_SEARCH_PATH_FLAG_APPLY_ISOLATION_REDIRECTION;
 	}
 
-	_r_obj_initializeunicodestring2 (&path_us, &string->sr);
 	_r_obj_initializeunicodestring (&filename_us, filename);
 	_r_obj_initializeunicodestring (&extension_us, extension);
 
-	status = RtlDosSearchPath_Ustr (
-		RTL_DSP_FLAG_APPLY_ISOLATION_REDIRECTION | RTL_DSP_FLAG_DISALLOW_DOT_RELATIVE_PATH_SEARCH | RTL_DSP_FLAG_APPLY_DEFAULT_EXTENSION,
-		&path_us,
-		&filename_us,
-		&extension_us,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-		&return_length
-	);
+	status = RtlDosSearchPath_Ustr (flags, &path_us, &filename_us, extension ? &extension_us : NULL, NULL, NULL, NULL, NULL, &return_length);
 
 	if (status == STATUS_BUFFER_TOO_SMALL)
 	{
 		full_path = _r_obj_createstring_ex (NULL, return_length * sizeof (WCHAR));
 
-		_r_obj_initializeunicodestring_ex (&buffer, full_path->buffer, 0, (USHORT)full_path->length);
+		_r_obj_initializeunicodestring_ex (&buffer, full_path->buffer, 0, (ULONG)full_path->length);
 
-		status = RtlDosSearchPath_Ustr (
-			RTL_DSP_FLAG_APPLY_ISOLATION_REDIRECTION | RTL_DSP_FLAG_DISALLOW_DOT_RELATIVE_PATH_SEARCH | RTL_DSP_FLAG_APPLY_DEFAULT_EXTENSION,
-			&path_us,
-			&filename_us,
-			&extension_us,
-			&buffer,
-			NULL,
-			NULL,
-			NULL,
-			NULL
-		);
-	}
-	else
-	{
-		full_path = NULL;
+		status = RtlDosSearchPath_Ustr (flags, &path_us, &filename_us, extension ? &extension_us : NULL, &buffer, NULL, NULL, NULL, NULL);
 	}
 
 	if (NT_SUCCESS (status))
@@ -6261,12 +6306,13 @@ NTSTATUS _r_path_search (
 	else
 	{
 		if (full_path)
-			_r_obj_dereference (full_path);
+			_r_obj_dereference (full_path); // cleanup
 
 		*out_buffer = NULL;
 	}
 
-	_r_obj_dereference (string);
+	if (string)
+		_r_obj_dereference (string);
 
 	return status;
 }
@@ -6357,16 +6403,54 @@ HRESULT _r_shell_showfile (
 )
 {
 	LPITEMIDLIST item;
-	SFGAOF attributes;
 	HRESULT status;
 
-	status = SHParseDisplayName (path, NULL, &item, 0, &attributes);
+	status = SHParseDisplayName (path, NULL, &item, 0, NULL);
 
 	if (SUCCEEDED (status))
 	{
 		status = SHOpenFolderAndSelectItems (item, 0, NULL, 0);
 
 		CoTaskMemFree (item);
+	}
+
+	return status;
+}
+
+HRESULT _r_shell_resolveshortcut (
+	_In_ LPWSTR lnk_path,
+	_Out_ PR_STRING_PTR out_buffer
+)
+{
+	IPersistFile *persist_file = NULL;
+	IShellLinkW *shell_link = NULL;
+	WCHAR path[512];
+	HRESULT status;
+
+	*out_buffer = NULL;
+
+	status = CoCreateInstance (&CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER, &IID_IShellLinkW, &shell_link);
+
+	if (SUCCEEDED (status))
+	{
+		status = IShellLinkW_QueryInterface (shell_link, &IID_IPersistFile, &persist_file);
+
+		if (SUCCEEDED (status))
+		{
+			status = IPersistFile_Load (persist_file, lnk_path, STGM_READ);
+
+			if (SUCCEEDED (status) && SUCCEEDED (status = IShellLinkW_Resolve (shell_link, NULL, SLR_NO_UI)))
+			{
+				status = IShellLinkW_GetPath (shell_link, path, RTL_NUMBER_OF (path), NULL, 0);
+
+				if (SUCCEEDED (status))
+					*out_buffer = _r_obj_createstring (path);
+			}
+
+			IPersistFile_Release (persist_file);
+		}
+
+		IShellLinkW_Release (shell_link);
 	}
 
 	return status;
@@ -6468,22 +6552,22 @@ VOID _r_str_copystring (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_environmentexpandstring (
 	_In_opt_ PVOID environment,
-	_In_ PR_STRINGREF string,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_In_ PR_STRINGREF name,
+	_Out_ PR_STRING_PTR out_buffer
 )
 {
-	UNICODE_STRING input_string;
 	UNICODE_STRING output_string;
+	UNICODE_STRING input_string;
 	PR_STRING buffer_string;
 	ULONG buffer_length;
 	NTSTATUS status;
 
-	_r_obj_initializeunicodestring2 (&input_string, string);
+	_r_obj_initializeunicodestring2 (&input_string, name);
 
-	buffer_length = 512 * sizeof (WCHAR);
+	buffer_length = 256 * sizeof (WCHAR);
 	buffer_string = _r_obj_createstring_ex (NULL, buffer_length);
 
-	_r_obj_initializeunicodestring_ex (&output_string, buffer_string->buffer, 0, (USHORT)buffer_length);
+	_r_obj_initializeunicodestring_ex (&output_string, buffer_string->buffer, 0, buffer_length);
 
 	status = RtlExpandEnvironmentStrings_U (environment, &input_string, &output_string, &buffer_length);
 
@@ -6491,7 +6575,7 @@ NTSTATUS _r_str_environmentexpandstring (
 	{
 		_r_obj_movereference (&buffer_string, _r_obj_createstring_ex (NULL, buffer_length));
 
-		_r_obj_initializeunicodestring_ex (&output_string, buffer_string->buffer, 0, (USHORT)buffer_length);
+		_r_obj_initializeunicodestring_ex (&output_string, buffer_string->buffer, 0, buffer_length);
 
 		status = RtlExpandEnvironmentStrings_U (environment, &input_string, &output_string, &buffer_length);
 	}
@@ -6517,9 +6601,8 @@ PR_STRING _r_str_environmentunexpandstring (
 )
 {
 	PR_STRING buffer;
-	ULONG length;
+	ULONG length = 512;
 
-	length = 512;
 	buffer = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
 	if (PathUnExpandEnvStringsW (string, buffer->buffer, length))
@@ -7906,6 +7989,9 @@ NTSTATUS _r_str_multibyte2unicode (
 
 	if (NT_SUCCESS (status))
 	{
+		// RtlMultiByteToUnicodeN doesn't null terminate the string.
+		*(LPWSTR)PTR_ADD_OFFSET (out_string->buffer, out_length) = UNICODE_NULL;
+
 		*out_buffer = out_string;
 	}
 	else
@@ -7980,6 +8066,9 @@ NTSTATUS _r_str_utf8toutf16 (
 
 	if (NT_SUCCESS (status))
 	{
+		// RtlUTF8ToUnicodeN doesn't null terminate the string.
+		*(LPWSTR)PTR_ADD_OFFSET (out_string->buffer, out_length) = UNICODE_NULL;
+
 		*out_buffer = out_string;
 	}
 	else
@@ -8253,7 +8342,7 @@ BOOLEAN _r_sys_iswine ()
 
 	procedure = _r_sys_getprocaddress (hntdll, "wine_get_version", 0);
 
-	_r_sys_freelibrary (hntdll, FALSE);
+	_r_sys_freelibrary (hntdll);
 
 	return NT_SUCCESS (status);
 }
@@ -8433,7 +8522,7 @@ NTSTATUS _r_sys_getcomputername (
 	HANDLE hkey;
 	NTSTATUS status;
 
-	status = _r_reg_openkey (HKEY_LOCAL_MACHINE, L"System\\CurrentControlSet\\Control\\ComputerName\\ActiveComputerName", KEY_READ, &hkey);
+	status = _r_reg_openkey (HKEY_LOCAL_MACHINE, L"System\\CurrentControlSet\\Control\\ComputerName\\ActiveComputerName", 0, KEY_READ, &hkey);
 
 	if (NT_SUCCESS (status))
 	{
@@ -8499,6 +8588,47 @@ PR_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ()
 	}
 
 	return &attributes;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_sys_getenvironmentvariable (
+	_In_opt_ PVOID_PTR environment,
+	_In_ PR_STRINGREF name_sr,
+	_Out_ PR_STRING_PTR out_buffer
+)
+{
+	UNICODE_STRING value_us = {0};
+	UNICODE_STRING name_us;
+	NTSTATUS status;
+
+	_r_obj_initializeunicodestring2 (&name_us, name_sr);
+
+	value_us.Length = 0x100 * sizeof (WCHAR);
+	value_us.MaximumLength = value_us.Length + sizeof (UNICODE_NULL);
+	value_us.Buffer = _r_mem_allocate (value_us.MaximumLength);
+
+	status = RtlQueryEnvironmentVariable_U (environment, &name_us, &value_us);
+
+	if (status == STATUS_BUFFER_TOO_SMALL)
+	{
+		value_us.MaximumLength = value_us.Length + sizeof (UNICODE_NULL) > UNICODE_STRING_MAX_BYTES ? value_us.Length : value_us.Length + sizeof (UNICODE_NULL);
+		value_us.Buffer = _r_mem_reallocate (value_us.Buffer, value_us.MaximumLength);
+
+		status = RtlQueryEnvironmentVariable_U (environment, &name_us, &value_us);
+	}
+
+	if (NT_SUCCESS (status))
+	{
+		*out_buffer = _r_obj_createstring3 (&value_us);
+	}
+	else
+	{
+		*out_buffer = NULL;
+	}
+
+	_r_mem_free (value_us.Buffer);
+
+	return status;
 }
 
 _Success_ (NT_SUCCESS (return))
@@ -8721,7 +8851,7 @@ PR_STRING _r_sys_gettempdirectory ()
 
 	if (return_length)
 	{
-		// Remove trailing backslash
+		// remove trailing backslash
 		if (path->buffer[return_length - 1] == OBJ_NAME_PATH_SEPARATOR)
 			return_length -= 1;
 
@@ -9048,13 +9178,13 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getusername (
 	_In_ PSID sid,
 	_In_ BOOLEAN is_withdomain,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 )
 {
-	LSA_OBJECT_ATTRIBUTES oa = {0};
-	PLSA_REFERENCED_DOMAIN_LIST referenced_domains = NULL;
+	PLSA_REFERENCED_DOMAIN_LIST domains = NULL;
 	PLSA_TRANSLATED_NAME names = NULL;
 	PLSA_TRUST_INFORMATION trust_info;
+	LSA_OBJECT_ATTRIBUTES oa = {0};
 	LSA_HANDLE policy_handle;
 	R_STRINGBUILDER sb = {0};
 	BOOLEAN is_hasdomain;
@@ -9068,38 +9198,38 @@ NTSTATUS _r_sys_getusername (
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
-	status = LsaLookupSids (policy_handle, 1, &sid, &referenced_domains, &names);
+	status = LsaLookupSids (policy_handle, 1, &sid, &domains, &names);
 
 	if (!NT_SUCCESS (status))
 		goto CleanupExit;
 
-	if (names[0].Use == SidTypeInvalid || names[0].Use == SidTypeUnknown)
+	if (names[0].Use != SidTypeInvalid && names[0].Use != SidTypeUnknown)
 	{
-		status = STATUS_SOME_NOT_MAPPED;
+		_r_obj_initializestringbuilder (&sb, 256);
 
-		goto CleanupExit;
-	}
+		is_hasdomain = is_withdomain && (domains && names[0].DomainIndex >= 0);
+		is_hasname = (names[0].Name.Buffer != NULL);
 
-	_r_obj_initializestringbuilder (&sb, 256);
-
-	is_hasdomain = is_withdomain && (referenced_domains && names[0].DomainIndex >= 0);
-	is_hasname = (names[0].Name.Buffer != NULL);
-
-	if (is_hasdomain)
-	{
-		trust_info = &referenced_domains->Domains[names[0].DomainIndex];
-
-		if (trust_info->Name.Buffer)
+		if (is_hasdomain)
 		{
-			_r_obj_appendstringbuilder3 (&sb, &trust_info->Name);
+			trust_info = &domains->Domains[names[0].DomainIndex];
 
-			if (is_hasname)
-				_r_obj_appendstringbuilder (&sb, L"\\");
+			if (trust_info->Name.Buffer)
+			{
+				_r_obj_appendstringbuilder3 (&sb, &trust_info->Name);
+
+				if (is_hasname)
+					_r_obj_appendstringbuilder (&sb, L"\\");
+			}
 		}
-	}
 
-	if (is_hasname)
-		_r_obj_appendstringbuilder3 (&sb, &names[0].Name);
+		if (is_hasname)
+			_r_obj_appendstringbuilder3 (&sb, &names[0].Name);
+	}
+	else
+	{
+		status = STATUS_NONE_MAPPED;
+	}
 
 CleanupExit:
 
@@ -9114,8 +9244,8 @@ CleanupExit:
 		_r_obj_deletestringbuilder (&sb);
 	}
 
-	if (referenced_domains)
-		LsaFreeMemory (referenced_domains);
+	if (domains)
+		LsaFreeMemory (domains);
 
 	if (names)
 		LsaFreeMemory (names);
@@ -9300,7 +9430,7 @@ NTSTATUS _r_sys_createprocess (
 	// The user typed a name without a path so attempt to locate the executable. (dmex)
 	if (!_r_fs_exists (file_name))
 	{
-		status = _r_path_search (file_name_string->buffer, L".exe", &new_path);
+		status = _r_path_search (NULL, file_name_string->buffer, L".exe", &new_path);
 
 		if (!NT_SUCCESS (status))
 			return status;
@@ -9968,6 +10098,7 @@ NTSTATUS _r_sys_getprocessimagepathbyid (
 
 	if (status == STATUS_INFO_LENGTH_MISMATCH)
 	{
+		// Required length is stored in MaximumLength.
 		data.ImageName.Buffer = _r_mem_reallocate (data.ImageName.Buffer, data.ImageName.MaximumLength);
 
 		status = NtQuerySystemInformation (SystemProcessIdInformation, &data, sizeof (SYSTEM_PROCESS_ID_INFORMATION), NULL);
@@ -10116,7 +10247,7 @@ NTSTATUS _r_sys_loadlibraryasresource (
 	}
 	else
 	{
-		status = _r_path_search (lib_name, NULL, &path);
+		status = _r_path_search (NULL, lib_name, L".dll", &path);
 
 		if (!NT_SUCCESS (status))
 			return status;
@@ -10149,7 +10280,7 @@ NTSTATUS _r_sys_loadlibraryasresource (
 		&offset,
 		&base_size,
 		ViewUnmap,
-		_r_sys_isosversiongreaterorequal (WINDOWS_10_RS3) ? MEM_MAPPED : 0,
+		_r_sys_isosversiongreaterorequal (WINDOWS_10_RS2) ? MEM_MAPPED : 0,
 		PAGE_READONLY
 	);
 
@@ -10452,13 +10583,12 @@ NTSTATUS NTAPI _r_sys_basethreadstart (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_freelibrary (
-	_In_ PVOID dll_handle,
-	_In_ BOOLEAN is_resource
+	_In_ PVOID dll_handle
 )
 {
 	NTSTATUS status;
 
-	if (is_resource)
+	if (LDR_IS_IMAGEMAPPING (dll_handle))
 	{
 		status = NtUnmapViewOfSection (NtCurrentProcess (), LDR_IMAGEMAPPING_TO_MAPPEDVIEW (dll_handle));
 	}
@@ -10779,18 +10909,6 @@ NTSTATUS _r_sys_setprocessprivilege (
 	return status;
 }
 
-VOID _r_sys_setenvironment (
-	_Out_ PR_ENVIRONMENT environment,
-	_In_ KPRIORITY base_priority,
-	_In_ ULONG io_priority,
-	_In_ ULONG page_priority
-)
-{
-	environment->base_priority = base_priority;
-	environment->io_priority = io_priority;
-	environment->page_priority = page_priority;
-}
-
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_setenvironmentvariable (
 	_Inout_opt_ PVOID_PTR environment,
@@ -10798,8 +10916,8 @@ NTSTATUS _r_sys_setenvironmentvariable (
 	_In_opt_ PR_STRINGREF value_sr
 )
 {
-	UNICODE_STRING name_us;
 	UNICODE_STRING value_us;
+	UNICODE_STRING name_us;
 	NTSTATUS status;
 
 	_r_obj_initializeunicodestring2 (&name_us, name_sr);
@@ -10807,13 +10925,13 @@ NTSTATUS _r_sys_setenvironmentvariable (
 	if (value_sr)
 	{
 		_r_obj_initializeunicodestring2 (&value_us, value_sr);
-
-		status = RtlSetEnvironmentVariable (environment, &name_us, &value_us);
 	}
 	else
 	{
-		status = RtlSetEnvironmentVariable (environment, &name_us, NULL);
+		_r_obj_initializeunicodestring (&value_us, NULL);
 	}
+
+	status = RtlSetEnvironmentVariable (environment, &name_us, &value_us);
 
 	return status;
 }
@@ -11669,8 +11787,8 @@ VOID _r_dc_getsizedpivalue (
 	_In_ BOOLEAN is_unpack
 )
 {
-	LONG numerator;
 	LONG denominator;
+	LONG numerator;
 
 	if (dpi_value == USER_DEFAULT_SCREEN_DPI)
 		return;
@@ -11814,7 +11932,7 @@ HTHEME _r_dc_openthemedata (
 		_r_initonce_end (&init_once);
 	}
 
-	// wind10rs2+
+	// win10rs2+
 	if (dpi_value && _OpenThemeDataForDpi)
 		return _OpenThemeDataForDpi (hwnd, class_list, dpi_value);
 
@@ -12138,15 +12256,15 @@ ULONG _r_layout_getcontrolflags (
 	if (!class_name)
 		return 0;
 
-	if (_r_str_isequal2 (&class_name->sr, WC_STATIC, TRUE))
+	if (_r_str_isequal2 (&class_name->sr, WC_STATICW, TRUE))
 	{
 		flags = PR_LAYOUT_FORCE_INVALIDATE;
 	}
-	else if (_r_str_isequal2 (&class_name->sr, STATUSCLASSNAME, TRUE))
+	else if (_r_str_isequal2 (&class_name->sr, STATUSCLASSNAMEW, TRUE))
 	{
 		flags = PR_LAYOUT_SEND_NOTIFY | PR_LAYOUT_NO_ANCHOR;
 	}
-	else if (_r_str_isequal2 (&class_name->sr, REBARCLASSNAME, TRUE))
+	else if (_r_str_isequal2 (&class_name->sr, REBARCLASSNAMEW, TRUE))
 	{
 		flags = PR_LAYOUT_SEND_NOTIFY | PR_LAYOUT_NO_ANCHOR;
 	}
@@ -12207,7 +12325,7 @@ BOOLEAN _r_layout_resize (
 		}
 
 		if (layout_item->flags & PR_LAYOUT_FORCE_INVALIDATE)
-			SetWindowPos (layout_item->hwnd, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+			InvalidateRect (layout_item->hwnd, NULL, FALSE);
 	}
 
 	if (layout_manager->root_item.defer_handle)
@@ -12229,8 +12347,8 @@ VOID _r_layout_resizeitem (
 	RECT parent_rect;
 	RECT prev_rect;
 	RECT rect;
-	LONG width;
 	LONG height;
+	LONG width;
 	LONG sx;
 	LONG sy;
 
@@ -12354,8 +12472,8 @@ VOID _r_layout_setitemanchor (
 {
 	LONG horz_break;
 	LONG vert_break;
-	LONG width;
 	LONG height;
+	LONG width;
 
 	// Compute control edge points if it did not set
 	if (layout_item->flags & (PR_LAYOUT_NO_ANCHOR | PR_LAYOUT_ANCHOR_ALL))
@@ -12432,7 +12550,6 @@ VOID _r_wnd_addstyle (
 {
 	HWND htarget;
 	LONG_PTR style;
-	UINT swp_flags;
 
 	htarget = _r_ctrl_getdlgitem (hwnd, ctrl_id);
 
@@ -12443,9 +12560,15 @@ VOID _r_wnd_addstyle (
 
 	SetWindowLongPtrW (htarget, index, style);
 
-	swp_flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER;
-
-	SetWindowPos (htarget, NULL, 0, 0, 0, 0, swp_flags);
+	SetWindowPos (
+		htarget,
+		NULL,
+		0,
+		0,
+		0,
+		0,
+		SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_NOOWNERZORDER
+	);
 }
 
 VOID _r_wnd_adjustrectangletobounds (
@@ -12545,8 +12668,8 @@ BOOLEAN _r_wnd_center (
 )
 {
 	MONITORINFO monitor_info = {0};
-	R_RECTANGLE rectangle;
 	R_RECTANGLE parent_rect;
+	R_RECTANGLE rectangle;
 	HMONITOR hmonitor;
 
 	if (hparent)
@@ -12718,7 +12841,7 @@ BOOLEAN _r_wnd_isdarkmodeenabled ()
 
 	// "ShouldAppsUseDarkMode" is incorrect started from 1903+, use this instead!
 	// https://github.com/ysc3839/win32-darkmode/issues/3
-	status = _r_reg_openkey (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", KEY_READ, &hkey);
+	status = _r_reg_openkey (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", 0, KEY_READ, &hkey);
 
 	if (NT_SUCCESS (status))
 	{
@@ -12741,8 +12864,8 @@ BOOLEAN _r_wnd_isfocusassist ()
 	WNF_CHANGE_STAMP change_stamp;
 	WNF_STATE_NAME state_name = {0};
 	PVOID hntdll;
-	ULONG buffer = 0;
 	ULONG buffer_size;
+	ULONG buffer = 0;
 	NTSTATUS status;
 
 	if (_r_initonce_begin (&init_once))
@@ -12788,8 +12911,8 @@ BOOLEAN _r_wnd_isfullscreenconsolemode (
 	_In_ HWND hwnd
 )
 {
-	ULONG pid = 0;
 	ULONG modes = 0;
+	ULONG pid = 0;
 
 	GetWindowThreadProcessId (hwnd, &pid);
 
@@ -12825,8 +12948,8 @@ BOOLEAN _r_wnd_isfullscreenwindowmode (
 )
 {
 	MONITORINFO monitor_info = {0};
-	RECT rect;
 	HMONITOR hmonitor;
+	RECT rect;
 	LONG_PTR style;
 	LONG_PTR ex_style;
 
@@ -12952,26 +13075,21 @@ ULONG CALLBACK _r_wnd_message_callback (
 )
 {
 	MSG msg;
-	HWND hactive_wnd;
 	HACCEL haccelerator = NULL;
+	HWND hactive_wnd;
 	INT result;
 	BOOLEAN is_processed;
 	ULONG status = ERROR_SUCCESS;
 
 	if (accelerator_table)
-	{
 		haccelerator = LoadAcceleratorsW (NULL, accelerator_table);
-
-		if (!haccelerator)
-			return NtLastError ();
-	}
 
 	while (TRUE)
 	{
 		result = GetMessageW (&msg, NULL, 0, 0);
 
 		if (msg.message == WM_QUIT)
-			status = (INT)msg.wParam;
+			status = (ULONG)msg.wParam;
 
 		if (result <= 0)
 			break;
@@ -13048,7 +13166,7 @@ VOID CALLBACK _r_wnd_message_settingchange (
 	static GIICUHC _GetIsImmersiveColorUsingHighContrast = NULL;
 
 	R_STRINGREF sr;
-	PVOID hlib;
+	PVOID huxtheme;
 	LPWSTR type;
 	NTSTATUS status;
 
@@ -13069,12 +13187,12 @@ VOID CALLBACK _r_wnd_message_settingchange (
 	{
 		if (_r_initonce_begin (&init_once))
 		{
-			status = _r_sys_getmodulehandle (L"uxtheme.dll", &hlib);
+			status = _r_sys_getmodulehandle (L"uxtheme.dll", &huxtheme);
 
 			if (NT_SUCCESS (status))
 			{
-				_RefreshImmersiveColorPolicyState = (RICPS)_r_sys_getprocaddress (hlib, NULL, 104);
-				_GetIsImmersiveColorUsingHighContrast = (GIICUHC)_r_sys_getprocaddress (hlib, NULL, 106);
+				_RefreshImmersiveColorPolicyState = (RICPS)_r_sys_getprocaddress (huxtheme, NULL, 104);
+				_GetIsImmersiveColorUsingHighContrast = (GIICUHC)_r_sys_getprocaddress (huxtheme, NULL, 106);
 			}
 
 			_r_initonce_end (&init_once);
@@ -13331,8 +13449,8 @@ VOID _r_wnd_setcontext (
 	_In_ PVOID context
 )
 {
-	PR_HASHTABLE hashtable;
 	R_OBJECT_POINTER object_pointer = {0};
+	PR_HASHTABLE hashtable;
 	ULONG hash_code;
 
 	hashtable = _r_wnd_getcontext_table ();
@@ -13425,10 +13543,10 @@ ULONG _r_inet_openurl (
 )
 {
 	R_URLPARTS url_parts;
-	HINTERNET hconnect;
 	HINTERNET hrequest = NULL;
-	ULONG attempts = 6;
+	HINTERNET hconnect;
 	ULONG flags = WINHTTP_FLAG_REFRESH;
+	ULONG attempts = 6;
 	BOOL is_valid;
 	ULONG status;
 
@@ -13552,12 +13670,9 @@ BOOLEAN _r_inet_readrequest (
 	_Inout_opt_ PULONG total_readed_ptr
 )
 {
-	ULONG readed;
+	ULONG readed = 0;
 
-	if (!WinHttpReadData (hrequest, buffer, buffer_size, &readed))
-		return FALSE;
-
-	if (!readed)
+	if (!WinHttpReadData (hrequest, buffer, buffer_size, &readed) || !readed)
 		return FALSE;
 
 	if (readed_ptr)
@@ -13669,17 +13784,16 @@ NTSTATUS _r_inet_begindownload (
 	_Inout_ PR_DOWNLOAD_INFO download_info
 )
 {
-	IO_STATUS_BLOCK isb;
 	R_STRINGBUILDER sb;
 	HINTERNET hconnect;
 	HINTERNET hrequest;
-	PR_STRING string;
 	PR_BYTE content_bytes;
+	PR_STRING string;
 	ULONG allocated_length;
 	ULONG total_readed = 0;
 	ULONG total_length;
 	ULONG readed_length;
-	LONG status;
+	NTSTATUS status;
 
 	status = _r_inet_openurl (hsession, url, &hconnect, &hrequest, &total_length);
 
@@ -13700,7 +13814,7 @@ NTSTATUS _r_inet_begindownload (
 
 		if (download_info->is_savetofile)
 		{
-			status = NtWriteFile (download_info->hfile, NULL, NULL, NULL, &isb, content_bytes->buffer, readed_length, NULL, NULL);
+			status = _r_fs_writefile (download_info->hfile, content_bytes->buffer, readed_length);
 
 			if (!NT_SUCCESS (status))
 				break;
@@ -13736,9 +13850,7 @@ NTSTATUS _r_inet_begindownload (
 	{
 		if (status == STATUS_SUCCESS)
 		{
-			string = _r_obj_finalstringbuilder (&sb);
-
-			download_info->string = string;
+			download_info->string = _r_obj_finalstringbuilder (&sb);
 		}
 		else
 		{
@@ -13887,18 +13999,12 @@ HANDLE _r_reg_getroothandle (
 	static HANDLE hkeyhku = NULL;
 	static HANDLE hkeyhcc = NULL;
 
-	OBJECT_ATTRIBUTES oa = {0};
-	UNICODE_STRING us;
 	NTSTATUS status;
 
 	if (_r_initonce_begin (&init_once))
 	{
 		// HKEY_CLASSES_ROOT
-		_r_obj_initializeunicodestring (&us, L"\\Registry\\Machine\\Software\\CLASSES");
-
-		InitializeObjectAttributes (&oa, &us, OBJ_CASE_INSENSITIVE, NULL, NULL);
-
-		status = NtOpenKey (&hkeyhkcr, MAXIMUM_ALLOWED, &oa);
+		status = _r_reg_openkey (NULL, L"\\Registry\\Machine\\Software\\CLASSES", 0, MAXIMUM_ALLOWED, &hkeyhkcr);
 
 		if (!NT_SUCCESS (status))
 			RtlRaiseStatus (status);
@@ -13910,34 +14016,28 @@ HANDLE _r_reg_getroothandle (
 			RtlRaiseStatus (status);
 
 		// HKEY_LOCAL_MACHINE
-		_r_obj_initializeunicodestring (&us, L"\\Registry\\Machine");
-
-		InitializeObjectAttributes (&oa, &us, OBJ_CASE_INSENSITIVE, NULL, NULL);
-
-		status = NtOpenKey (&hkeyhklm, MAXIMUM_ALLOWED, &oa);
+		status = _r_reg_openkey (NULL, L"\\Registry\\Machine", 0, MAXIMUM_ALLOWED, &hkeyhklm);
 
 		if (!NT_SUCCESS (status))
 			RtlRaiseStatus (status);
 
 		// HKEY_USERS
-		_r_obj_initializeunicodestring (&us, L"\\Registry\\User");
-
-		InitializeObjectAttributes (&oa, &us, OBJ_CASE_INSENSITIVE, NULL, NULL);
-
-		status = NtOpenKey (&hkeyhku, MAXIMUM_ALLOWED, &oa);
+		status = _r_reg_openkey (NULL, L"\\Registry\\User", 0, MAXIMUM_ALLOWED, &hkeyhku);
 
 		if (!NT_SUCCESS (status))
 			RtlRaiseStatus (status);
 
 		// HKEY_CURRENT_CONFIG
-		_r_obj_initializeunicodestring (&us, L"\\Registry\\Machine\\System\\CurrentControlSet\\Hardware Profiles\\Current");
-
-		InitializeObjectAttributes (&oa, &us, OBJ_CASE_INSENSITIVE, NULL, NULL);
-
-		status = NtOpenKey (&hkeyhcc, MAXIMUM_ALLOWED, &oa);
+		status = _r_reg_openkey (NULL, L"\\Registry\\Machine\\System\\CurrentControlSet\\Hardware Profiles\\Current", 0, MAXIMUM_ALLOWED, &hkeyhcc);
 
 		if (!NT_SUCCESS (status))
 			RtlRaiseStatus (status);
+
+		// HKEY_DYN_DATA
+		//status = _r_reg_openkey (NULL, L"\\Registry\\DynData", 0, MAXIMUM_ALLOWED, &hkeydd);
+		//
+		//if (!NT_SUCCESS (status))
+		//	RtlRaiseStatus (status); // have STATUS_OBJECT_NAME_NOT_FOUND
 
 		_r_initonce_end (&init_once);
 	}
@@ -13968,6 +14068,11 @@ HANDLE _r_reg_getroothandle (
 		{
 			return hkeyhcc;
 		}
+
+		//case HKEY_DYN_DATA:
+		//{
+		//	return hkeydd;
+		//}
 	}
 
 	return NULL;
@@ -13977,37 +14082,9 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_createkey (
 	_In_ HANDLE hroot,
 	_In_opt_ LPWSTR path,
+	_In_ ULONG flags,
 	_In_ ACCESS_MASK desired_access,
 	_Out_opt_ PULONG disposition,
-	_In_ BOOLEAN is_open,
-	_Out_ PHANDLE hkey
-)
-{
-	OBJECT_ATTRIBUTES oa = {0};
-	UNICODE_STRING us;
-	HANDLE hroot_handle;
-	BOOLEAN flags = OBJ_CASE_INSENSITIVE;
-	NTSTATUS status;
-
-	hroot_handle = _r_reg_getroothandle (hroot);
-
-	_r_obj_initializeunicodestring (&us, path);
-
-	if (is_open)
-		flags |= OBJ_OPENIF;
-
-	InitializeObjectAttributes (&oa, &us, flags, hroot_handle, NULL);
-
-	status = NtCreateKey (hkey, desired_access, &oa, 0, NULL, 0, disposition);
-
-	return status;
-}
-
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_reg_openkey (
-	_In_ HANDLE hroot,
-	_In_opt_ LPWSTR path,
-	_In_ ACCESS_MASK desired_access,
 	_Out_ PHANDLE out_buffer
 )
 {
@@ -14021,9 +14098,52 @@ NTSTATUS _r_reg_openkey (
 
 	_r_obj_initializeunicodestring (&us, path);
 
+	InitializeObjectAttributes (&oa, &us, OBJ_OPENIF | OBJ_CASE_INSENSITIVE, hroot_handle, NULL);
+
+	if (flags & REG_OPTION_OPEN_LINK)
+		oa.Attributes |= OBJ_OPENLINK;
+
+	status = NtCreateKey (&hkey, desired_access, &oa, 0, NULL, flags, disposition);
+
+	if (NT_SUCCESS (status))
+	{
+		*out_buffer = hkey;
+	}
+	else
+	{
+		*out_buffer = NULL;
+	}
+
+	return status;
+}
+
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_reg_openkey (
+	_In_opt_ HANDLE hroot,
+	_In_opt_ LPWSTR path,
+	_In_ ULONG flags,
+	_In_ ACCESS_MASK desired_access,
+	_Out_ PHANDLE out_buffer
+)
+{
+	OBJECT_ATTRIBUTES oa = {0};
+	UNICODE_STRING us;
+	HANDLE hroot_handle = NULL;
+	HANDLE hkey;
+	NTSTATUS status;
+
+	if (hroot)
+		hroot_handle = _r_reg_getroothandle (hroot);
+
+	_r_obj_initializeunicodestring (&us, path);
+
 	InitializeObjectAttributes (&oa, &us, OBJ_CASE_INSENSITIVE, hroot_handle, NULL);
 
-	status = NtOpenKey (&hkey, desired_access, &oa);
+	if (flags & REG_OPTION_OPEN_LINK)
+		oa.Attributes |= OBJ_OPENLINK;
+
+	// win7+
+	status = NtOpenKeyEx (&hkey, desired_access, &oa, flags);
 
 	if (NT_SUCCESS (status))
 	{
@@ -14040,7 +14160,7 @@ NTSTATUS _r_reg_openkey (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_deletevalue (
 	_In_ HANDLE hkey,
-	_In_ LPWSTR value_name
+	_In_opt_ LPWSTR value_name
 )
 {
 	UNICODE_STRING us;
@@ -14053,47 +14173,43 @@ NTSTATUS _r_reg_deletevalue (
 	return status;
 }
 
+// returns STATUS_NO_MORE_ENTRIES when no more items
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_enumkey (
 	_In_ HANDLE hkey,
-	_In_ KEY_INFORMATION_CLASS info,
-	_In_ PR_ENUM_KEY_CALLBACK callback,
-	_In_opt_ PVOID context
+	_In_ ULONG index,
+	_Out_ PR_STRING_PTR out_name,
+	_Out_opt_ PLONG64 out_timestamp
 )
 {
-	PVOID buffer;
-	ULONG buffer_length;
-	ULONG index = 0;
+	PKEY_NODE_INFORMATION buffer;
+	ULONG buffer_length = 0x100;
 	NTSTATUS status;
 
-	buffer_length = sizeof (0x100);
 	buffer = _r_mem_allocate (buffer_length);
 
-	while (TRUE)
+	status = NtEnumerateKey (hkey, index, KeyNodeInformation, buffer, buffer_length, &buffer_length);
+
+	if (status == STATUS_BUFFER_OVERFLOW || status == STATUS_BUFFER_TOO_SMALL)
 	{
-		status = NtEnumerateKey (hkey, index, info, buffer, buffer_length, &buffer_length);
+		buffer = _r_mem_reallocate (buffer, buffer_length);
 
-		if (status == STATUS_NO_MORE_ENTRIES)
-		{
-			status = STATUS_SUCCESS;
+		status = NtEnumerateKey (hkey, index, KeyNodeInformation, buffer, buffer_length, &buffer_length);
+	}
 
-			break;
-		}
+	if (NT_SUCCESS (status))
+	{
+		*out_name = _r_obj_createstring_ex (buffer->Name, buffer->NameLength);
 
-		if (status == STATUS_BUFFER_OVERFLOW || status == STATUS_BUFFER_TOO_SMALL)
-		{
-			buffer = _r_mem_reallocate (buffer, buffer_length);
+		if (out_timestamp)
+			*out_timestamp = _r_unixtime_from_largeinteger (&buffer->LastWriteTime);
+	}
+	else
+	{
+		*out_name = NULL;
 
-			status = NtEnumerateKey (hkey, index, info, buffer, buffer_length, &buffer_length);
-		}
-
-		if (!NT_SUCCESS (status))
-			break;
-
-		if (!callback (hkey, buffer, context))
-			break;
-
-		index += 1;
+		if (out_timestamp)
+			*out_timestamp = 0;
 	}
 
 	_r_mem_free (buffer);
@@ -14101,55 +14217,60 @@ NTSTATUS _r_reg_enumkey (
 	return status;
 }
 
+// returns STATUS_NO_MORE_ENTRIES when no more items
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_enumvalues (
 	_In_ HANDLE hkey,
-	_In_ KEY_INFORMATION_CLASS info,
-	_Outptr_ PVOID_PTR out_buffer
+	_In_ ULONG index,
+	_Out_ PR_STRING_PTR out_name,
+	_Out_opt_ PVOID out_value,
+	_Out_opt_ PULONG out_length,
+	_Out_opt_ PULONG out_type
 )
 {
-	PVOID buffer;
-	ULONG buffer_length;
-	ULONG index = 0;
+	PKEY_VALUE_FULL_INFORMATION buffer;
+	ULONG buffer_length = 0x100;
 	NTSTATUS status;
 
-	buffer_length = 0x100;
 	buffer = _r_mem_allocate (buffer_length);
 
-	while (TRUE)
+	status = NtEnumerateValueKey (hkey, index, KeyValueFullInformation, buffer, buffer_length, &buffer_length);
+
+	if (status == STATUS_BUFFER_OVERFLOW || status == STATUS_BUFFER_TOO_SMALL)
 	{
-		status = NtEnumerateValueKey (hkey, index, info, buffer, buffer_length, &buffer_length);
+		buffer = _r_mem_reallocate (buffer, buffer_length);
 
-		if (status == STATUS_NO_MORE_ENTRIES)
-		{
-			status = STATUS_SUCCESS;
-
-			break;
-		}
-
-		if (status == STATUS_BUFFER_OVERFLOW || status == STATUS_BUFFER_TOO_SMALL)
-		{
-			buffer = _r_mem_reallocate (buffer, buffer_length);
-
-			status = NtEnumerateValueKey (hkey, index, info, buffer, buffer_length, &buffer_length);
-		}
-
-		if (!NT_SUCCESS (status))
-			break;
-
-		index += 1;
+		status = NtEnumerateValueKey (hkey, index, KeyValueFullInformation, buffer, buffer_length, &buffer_length);
 	}
 
 	if (NT_SUCCESS (status))
 	{
-		*out_buffer = buffer;
+		*out_name = _r_obj_createstring_ex (buffer->Name, buffer->NameLength);
+
+		if (out_value)
+			RtlCopyMemory (out_value, PTR_ADD_OFFSET (buffer, buffer->DataOffset), buffer->DataLength);
+
+		if (out_length)
+			*out_length = buffer->DataLength;
+
+		if (out_type)
+			*out_type = buffer->Type;
 	}
 	else
 	{
-		*out_buffer = NULL;
+		*out_name = NULL;
 
-		_r_mem_free (buffer);
+		if (out_value)
+			RtlZeroMemory (out_value, 1);
+
+		if (out_length)
+			*out_length = 0;
+
+		if (out_type)
+			*out_type = 0;
 	}
+
+	_r_mem_free (buffer);
 
 	return status;
 }
@@ -14190,16 +14311,16 @@ NTSTATUS _r_reg_queryinfo (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_querybinary (
 	_In_ HANDLE hkey,
-	_In_ LPWSTR value_name,
+	_In_opt_ LPWSTR value_name,
 	_Outptr_ PR_BYTE_PTR out_buffer
 )
 {
 	PR_BYTE bytes;
+	ULONG buffer_length;
 	ULONG type;
-	ULONG size;
 	NTSTATUS status;
 
-	status = _r_reg_queryvalue (hkey, value_name, NULL, &size, &type);
+	status = _r_reg_queryvalue (hkey, value_name, NULL, &buffer_length, &type);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -14215,9 +14336,9 @@ NTSTATUS _r_reg_querybinary (
 		return STATUS_OBJECT_TYPE_MISMATCH;
 	}
 
-	bytes = _r_obj_createbyte_ex (NULL, size);
+	bytes = _r_obj_createbyte_ex (NULL, buffer_length);
 
-	status = _r_reg_queryvalue (hkey, value_name, bytes->buffer, &size, NULL);
+	status = _r_reg_queryvalue (hkey, value_name, bytes->buffer, &buffer_length, NULL);
 
 	if (NT_SUCCESS (status))
 	{
@@ -14242,11 +14363,11 @@ NTSTATUS _r_reg_querystring (
 {
 	PR_STRING expanded_string;
 	PR_STRING string;
+	ULONG buffer_length;
 	ULONG type;
-	ULONG size;
 	NTSTATUS status;
 
-	status = _r_reg_queryvalue (hkey, value_name, NULL, &size, &type);
+	status = _r_reg_queryvalue (hkey, value_name, NULL, &buffer_length, &type);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -14262,17 +14383,15 @@ NTSTATUS _r_reg_querystring (
 		return STATUS_OBJECT_TYPE_MISMATCH;
 	}
 
-	string = _r_obj_createstring_ex (NULL, size * sizeof (WCHAR));
+	string = _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR));
 
-	size = (ULONG)string->length;
-	status = _r_reg_queryvalue (hkey, value_name, string->buffer, &size, &type);
+	status = _r_reg_queryvalue (hkey, value_name, string->buffer, &buffer_length, &type);
 
 	if (status == STATUS_BUFFER_TOO_SMALL)
 	{
-		_r_obj_movereference (&string, _r_obj_createstring_ex (NULL, size * sizeof (WCHAR)));
+		_r_obj_movereference (&string, _r_obj_createstring_ex (NULL, buffer_length * sizeof (WCHAR)));
 
-		size = (ULONG)string->length;
-		status = _r_reg_queryvalue (hkey, value_name, string->buffer, &size, &type);
+		status = _r_reg_queryvalue (hkey, value_name, string->buffer, &buffer_length, &type);
 	}
 
 	if (NT_SUCCESS (status))
@@ -14302,17 +14421,16 @@ NTSTATUS _r_reg_querystring (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_queryulong (
 	_In_ HANDLE hkey,
-	_In_ LPWSTR value_name,
+	_In_opt_ LPWSTR value_name,
 	_Out_ PULONG out_buffer
 )
 {
-	ULONG buffer_size;
+	ULONG buffer_length;
 	ULONG buffer = 0;
 	ULONG type;
 	NTSTATUS status;
 
-	buffer_size = sizeof (ULONG);
-	status = _r_reg_queryvalue (hkey, value_name, &buffer, &buffer_size, &type);
+	status = _r_reg_queryvalue (hkey, value_name, &buffer, &buffer_length, &type);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -14328,7 +14446,7 @@ NTSTATUS _r_reg_queryulong (
 		return STATUS_OBJECT_TYPE_MISMATCH;
 	}
 
-	*out_buffer = buffer;
+	RtlCopyMemory (out_buffer, &buffer, buffer_length);
 
 	return status;
 }
@@ -14336,17 +14454,16 @@ NTSTATUS _r_reg_queryulong (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_queryulong64 (
 	_In_ HANDLE hkey,
-	_In_ LPWSTR value_name,
+	_In_opt_ LPWSTR value_name,
 	_Out_ PULONG64 out_buffer
 )
 {
 	ULONG64 buffer = 0;
-	ULONG buffer_size;
+	ULONG buffer_length;
 	ULONG type;
 	NTSTATUS status;
 
-	buffer_size = sizeof (ULONG64);
-	status = _r_reg_queryvalue (hkey, value_name, &buffer, &buffer_size, &type);
+	status = _r_reg_queryvalue (hkey, value_name, &buffer, &buffer_length, &type);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -14362,7 +14479,7 @@ NTSTATUS _r_reg_queryulong64 (
 		return STATUS_OBJECT_TYPE_MISMATCH;
 	}
 
-	*out_buffer = buffer;
+	RtlCopyMemory (out_buffer, &buffer, buffer_length);
 
 	return status;
 }
@@ -14377,17 +14494,27 @@ NTSTATUS _r_reg_queryvalue (
 )
 {
 	PKEY_VALUE_PARTIAL_INFORMATION value_info;
-	UNICODE_STRING us = {0};
+	UNICODE_STRING us;
 	ULONG length;
 	NTSTATUS status;
 
-	if (value_name)
-		_r_obj_initializeunicodestring (&us, value_name);
+	_r_obj_initializeunicodestring (&us, value_name);
 
 	status = NtQueryValueKey (hkey, &us, KeyValuePartialInformation, NULL, 0, &length);
 
-	if (!NT_SUCCESS (status) && status != STATUS_BUFFER_OVERFLOW && status != STATUS_BUFFER_TOO_SMALL)
+	if (status != STATUS_BUFFER_OVERFLOW && status != STATUS_BUFFER_TOO_SMALL)
+	{
+		if (buffer)
+			RtlZeroMemory (buffer, 1);
+
+		if (buffer_length)
+			*buffer_length = 0;
+
+		if (type)
+			*type = REG_NONE;
+
 		return status;
+	}
 
 	value_info = _r_mem_allocate (length);
 
@@ -14419,7 +14546,7 @@ NTSTATUS _r_reg_queryvalue (
 			*buffer_length = 0;
 
 		if (type)
-			*type = 0;
+			*type = REG_NONE;
 	}
 
 	_r_mem_free (value_info);
@@ -14432,17 +14559,16 @@ NTSTATUS _r_reg_setvalue (
 	_In_ HANDLE hkey,
 	_In_opt_ LPWSTR value_name,
 	_In_ ULONG type,
-	_In_ PVOID buffer,
-	_In_ ULONG buffer_length
+	_In_reads_bytes_opt_ (data_length) PVOID data,
+	_In_ ULONG data_length
 )
 {
-	UNICODE_STRING us = {0};
+	UNICODE_STRING us;
 	NTSTATUS status;
 
-	if (value_name)
-		_r_obj_initializeunicodestring (&us, value_name);
+	_r_obj_initializeunicodestring (&us, value_name);
 
-	status = NtSetValueKey (hkey, &us, 0, type, buffer, buffer_length);
+	status = NtSetValueKey (hkey, &us, 0, type, data, data_length);
 
 	return status;
 }
@@ -14793,11 +14919,11 @@ NTSTATUS _r_crypt_getfilehash (
 )
 {
 	R_CRYPT_CONTEXT hash_context;
-	IO_STATUS_BLOCK isb;
 	HANDLE hfile_new = NULL;
 	PVOID buffer;
 	PR_STRING string;
-	ULONG buffer_size;
+	ULONG_PTR readed;
+	ULONG buffer_length;
 	NTSTATUS status;
 
 	if (!path && !hfile)
@@ -14826,17 +14952,17 @@ NTSTATUS _r_crypt_getfilehash (
 		return status;
 	}
 
-	buffer_size = PR_SIZE_BUFFER;
-	buffer = _r_mem_allocate (buffer_size);
+	buffer_length = PR_SIZE_BUFFER;
+	buffer = _r_mem_allocate (buffer_length);
 
 	while (TRUE)
 	{
-		status = NtReadFile (hfile, NULL, NULL, NULL, &isb, buffer, buffer_size, NULL, NULL);
+		status = _r_fs_readfile (hfile, buffer, buffer_length, &readed);
 
-		if (!NT_SUCCESS (status) || isb.Information == 0)
+		if (!NT_SUCCESS (status) || readed == 0)
 			break;
 
-		status = _r_crypt_hashbuffer (&hash_context, buffer, (ULONG)isb.Information);
+		status = _r_crypt_hashbuffer (&hash_context, buffer, (ULONG)readed);
 
 		if (!NT_SUCCESS (status))
 			break;
@@ -17848,7 +17974,6 @@ HTREEITEM _r_treeview_additem (
 	_In_ INT image_id,
 	_In_ INT state,
 	_In_opt_ HTREEITEM hparent,
-	_In_opt_ HTREEITEM hinsert_after,
 	_In_opt_ LPARAM lparam
 )
 {
@@ -17867,9 +17992,6 @@ HTREEITEM _r_treeview_additem (
 
 	if (hparent)
 		tvi.hParent = hparent;
-
-	if (hinsert_after)
-		tvi.hInsertAfter = hinsert_after;
 
 	if (image_id != I_IMAGENONE)
 	{

@@ -92,10 +92,10 @@ BOOLEAN _r_app_isportable ()
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static BOOLEAN is_portable = FALSE;
 
-	PR_STRING string;
-	PR_STRING directory;
 	LPCWSTR file_names[] = {L"portable", _r_app_getnameshort ()};
 	LPCWSTR file_exts[] = {L"dat", L"ini"};
+	PR_STRING directory;
+	PR_STRING string;
 
 	C_ASSERT (sizeof (file_names) == sizeof (file_exts));
 
@@ -134,7 +134,6 @@ BOOLEAN _r_app_isportable ()
 	}
 
 	return is_portable;
-
 #endif // !APP_NO_APPDATA || !APP_CONSOLE
 }
 
@@ -489,13 +488,9 @@ PR_STRING _r_app_getcrashdirectory (
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static PR_STRING cached_path = NULL;
 
-	WCHAR buffer[128];
-
 	if (_r_initonce_begin (&init_once))
 	{
-		_r_str_printf (buffer, RTL_NUMBER_OF (buffer), L"%c%s", OBJ_NAME_PATH_SEPARATOR, _r_app_getname ());
-
-		if (FAILED (_r_path_getknownfolder (&FOLDERID_Desktop, buffer, &cached_path)))
+		if (FAILED (_r_path_getknownfolder (&FOLDERID_Desktop, NULL, &cached_path)))
 			cached_path = _r_format_string (L"%s\\crashdump", _r_app_getprofiledirectory ()->buffer);
 
 		_r_initonce_end (&init_once);
@@ -906,7 +901,7 @@ VOID _r_app_restart (
 
 	status = _r_sys_createprocess (_r_sys_getimagepath (), _r_sys_getcommandline (), _r_sys_getcurrentdirectory ());
 
-	if (!NT_SUCCESS (status))
+	if (status != STATUS_SUCCESS)
 	{
 		// restore mutex on error
 		_r_mutant_create (_r_app_getmutexname (), MUTANT_ALL_ACCESS, TRUE, &app_global.main.hmutex);
@@ -1948,7 +1943,7 @@ NTSTATUS _r_autorun_enable (
 	PR_STRING string;
 	NTSTATUS status;
 
-	status = _r_reg_openkey (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", KEY_WRITE, &hkey);
+	status = _r_reg_openkey (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE, &hkey);
 
 	if (!NT_SUCCESS (status))
 		return status;
@@ -1996,7 +1991,7 @@ BOOLEAN _r_autorun_isenabled ()
 	BOOLEAN is_enabled = FALSE;
 	NTSTATUS status;
 
-	status = _r_reg_openkey (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", KEY_READ, &hkey);
+	status = _r_reg_openkey (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_READ, &hkey);
 
 	if (NT_SUCCESS (status))
 	{
@@ -2697,10 +2692,8 @@ BOOLEAN _r_log_isenabled (
 _Ret_maybenull_
 HANDLE _r_log_getfilehandle ()
 {
-
 	LARGE_INTEGER file_size;
 	BYTE bom[] = {0xFF, 0xFE};
-	IO_STATUS_BLOCK isb;
 	HANDLE hfile;
 	NTSTATUS status;
 
@@ -2715,10 +2708,10 @@ HANDLE _r_log_getfilehandle ()
 			if (!file_size.QuadPart)
 			{
 				// write utf-16 le byte order mask
-				NtWriteFile (hfile, NULL, NULL, NULL, &isb, bom, sizeof (bom), NULL, NULL);
+				_r_fs_writefile (hfile, bom, sizeof (bom));
 
 				// adds csv header
-				NtWriteFile (hfile, NULL, NULL, NULL, &isb, PR_DEBUG_HEADER, (ULONG)(_r_str_getlength (PR_DEBUG_HEADER) * sizeof (WCHAR)), NULL, NULL);
+				_r_fs_writefile (hfile, PR_DEBUG_HEADER, (ULONG)(_r_str_getlength (PR_DEBUG_HEADER) * sizeof (WCHAR)));
 			}
 
 			_r_fs_setpos (hfile, &file_size);
@@ -2739,10 +2732,9 @@ VOID _r_log (
 	PR_STRING error_string;
 	PR_STRING date_string;
 	LPCWSTR level_string;
-	IO_STATUS_BLOCK isb;
+	HANDLE hfile;
 	LONG64 current_timestamp;
 	ULONG number = 0;
-	HANDLE hfile;
 
 	if (!_r_log_isenabled (log_level))
 		return;
@@ -2753,7 +2745,7 @@ VOID _r_log (
 	level_string = _r_log_leveltostring (log_level);
 
 	// print log for debuggers
-	_r_debug (L"[%s],%s,0x%08" TEXT (PRIX32) L",%s\r\n", level_string, title, error_code, description);
+	_r_debug (L"[%s], %s, 0x%08" TEXT (PRIX32) L", %s\r\n", level_string, title, error_code, description);
 
 	hfile = _r_log_getfilehandle ();
 
@@ -2772,7 +2764,7 @@ VOID _r_log (
 			NtCurrentPeb ()->OSBuildNumber
 		);
 
-		NtWriteFile (hfile, NULL, NULL, NULL, &isb, error_string->buffer, (ULONG)error_string->length, NULL, NULL);
+		_r_fs_writefile (hfile, error_string->buffer, (ULONG)error_string->length);
 
 		NtClose (hfile);
 
@@ -3139,7 +3131,7 @@ NTSTATUS _r_show_errormessage (
 	}
 
 	if (hmodule)
-		_r_sys_freelibrary (hmodule, TRUE);
+		_r_sys_freelibrary (hmodule);
 
 	if (string)
 		_r_obj_dereference (string);
@@ -3659,7 +3651,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 				index += 1;
 #else
-				hitem = _r_treeview_additem (hwnd, IDC_NAV, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, 0, NULL, NULL, (LPARAM)ptr_page);
+				hitem = _r_treeview_additem (hwnd, IDC_NAV, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, 0, NULL, (LPARAM)ptr_page);
 
 				if (dlg_id && ptr_page->dlg_id == dlg_id)
 					_r_treeview_selectitem (hwnd, IDC_NAV, hitem);
@@ -5696,10 +5688,10 @@ LRESULT CALLBACK _r_theme_statusbar_subclass (
 		{
 			PAINTSTRUCT ps;
 			RECT intersect = {0};
-			RECT divider;
 			RECT rect = {0};
 			RECT part = {0};
 			SIZE grip = {0};
+			RECT divider;
 			PR_STRING string;
 			HDC hdc;
 			LONG borders[3] = {0};
@@ -5730,8 +5722,6 @@ LRESULT CALLBACK _r_theme_statusbar_subclass (
 					if (!IntersectRect (&intersect, &part, &ps.rcPaint))
 						continue;
 
-					SetRect (&divider, part.right - borders[1], part.top, part.right, part.bottom);
-
 					SetBkMode (hdc, TRANSPARENT);
 					SetTextColor (hdc, WND_TEXT_CLR);
 
@@ -5747,8 +5737,12 @@ LRESULT CALLBACK _r_theme_statusbar_subclass (
 						_r_obj_dereference (string);
 					}
 
-					if (i < (parts - 1))
+					if (i < parts)
+					{
+						SetRect (&divider, part.right - borders[1], part.top, part.right, part.bottom);
+
 						_r_dc_fillrect (hdc, &divider, WND_BACKGROUND2_CLR);
+					}
 				}
 
 				if (_r_wnd_getstyle (GetParent (hwnd), GWL_STYLE) & WS_SIZEBOX)
@@ -6666,17 +6660,17 @@ LRESULT CALLBACK _r_theme_subclassproc (
 				break;
 
 			if ((menu_item->dis.itemState & ODS_DEFAULT) || (menu_item->dis.itemState & ODS_INACTIVE))
-				state_id = MBI_NORMAL; // normal display
+				state_id = MPI_NORMAL; // normal display
 
 			if ((menu_item->dis.itemState & ODS_SELECTED) || (menu_item->dis.itemState & ODS_HOTLIGHT))
 			{
-				state_id = MBI_HOT; // hot tracking
+				state_id = MPI_HOT; // hot tracking
 
 				clr = WND_HIGHLIGHT_CLR;
 			}
 
 			if ((menu_item->dis.itemState & ODS_GRAYED) || (menu_item->dis.itemState & ODS_DISABLED))
-				state_id = MBI_DISABLED;
+				state_id = MPI_DISABLED;
 
 			if (menu_item->dis.itemState & ODS_NOACCEL)
 				flags |= DT_HIDEPREFIX;

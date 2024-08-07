@@ -402,8 +402,8 @@ typedef struct _R_FREE_LIST
 
 	ULONG_PTR size;
 
-	ULONG count;
 	ULONG maximum_count;
+	ULONG count;
 } R_FREE_LIST, *PR_FREE_LIST;
 
 typedef struct _R_FREE_LIST_ENTRY
