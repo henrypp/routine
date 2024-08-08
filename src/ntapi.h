@@ -175,22 +175,22 @@
 // Create disposition
 //
 
-// If the file already exists, replace it with the given file. If it does not, create the given file.
+// If the file exists, replace it. Otherwise, create the file.
 #define FILE_SUPERSEDE 0x00000000
 
-// If the file already exists, open it instead of creating a new file. If it does not, fail the request and do not create a new file.
+// If the file exists, open it. Otherwise, fail.
 #define FILE_OPEN 0x00000001
 
-// If the file already exists, fail the request and do not create or open the given file. If it does not, create the given file.
+// If the file exists, fail. Otherwise, create the file.
 #define FILE_CREATE 0x00000002
 
-// If the file already exists, open it. If it does not, create the given file.
+// If the file exists, open it. Otherwise, create the file.
 #define FILE_OPEN_IF 0x00000003
 
-// If the file already exists, open it and overwrite it. If it does not, fail the request.
+// If the file exists, open and overwrite it. Otherwise, fail.
 #define FILE_OVERWRITE 0x00000004
 
-// If the file already exists, open it and overwrite it. If it does not, create the given file.
+// If the file exists, open and overwrite it. Otherwise, create the file.
 #define FILE_OVERWRITE_IF 0x00000005
 
 //
@@ -290,9 +290,6 @@ typedef struct DECLSPEC_ALIGN (MEMORY_ALLOCATION_ALIGNMENT) _QUAD_PTR
 	ULONG_PTR DoNotUseThisField2;
 } QUAD_PTR, *PQUAD_PTR;
 
-typedef ULONG LOGICAL;
-typedef ULONG *PLOGICAL;
-
 #include <pshpack1.h>
 typedef struct _DLGTEMPLATEEX
 {
@@ -341,9 +338,12 @@ typedef struct _DLGITEMTEMPLATEEX
 // types
 //
 
+typedef HANDLE ALPC_HANDLE, *PALPC_HANDLE;
+typedef USHORT RTL_ATOM, *PRTL_ATOM;
 typedef UCHAR KIRQL, *PKIRQL;
 typedef LONG KPRIORITY;
-typedef USHORT RTL_ATOM, *PRTL_ATOM;
+typedef ULONG LOGICAL;
+typedef ULONG *PLOGICAL;
 
 //
 // enums
@@ -1144,6 +1144,56 @@ typedef enum _VIRTUAL_MEMORY_INFORMATION_CLASS
 	VmRemoveFromWorkingSetInformation,
 	MaxVmInfoClass
 } VIRTUAL_MEMORY_INFORMATION_CLASS;
+
+typedef enum _RTL_NORM_FORM
+{
+	NormOther = 0x0,
+	NormC = 0x1,
+	NormD = 0x2,
+	NormKC = 0x5,
+	NormKD = 0x6,
+	NormIdna = 0xd,
+	DisallowUnassigned = 0x100,
+	NormCDisallowUnassigned = 0x101,
+	NormDDisallowUnassigned = 0x102,
+	NormKCDisallowUnassigned = 0x105,
+	NormKDDisallowUnassigned = 0x106,
+	NormIdnaDisallowUnassigned = 0x10d
+} RTL_NORM_FORM;
+
+typedef enum _ALPC_PORT_INFORMATION_CLASS
+{
+	AlpcBasicInformation, // q: out ALPC_BASIC_INFORMATION
+	AlpcPortInformation, // s: in ALPC_PORT_ATTRIBUTES
+	AlpcAssociateCompletionPortInformation, // s: in ALPC_PORT_ASSOCIATE_COMPLETION_PORT
+	AlpcConnectedSIDInformation, // q: in SID
+	AlpcServerInformation, // q: inout ALPC_SERVER_INFORMATION
+	AlpcMessageZoneInformation, // s: in ALPC_PORT_MESSAGE_ZONE_INFORMATION
+	AlpcRegisterCompletionListInformation, // s: in ALPC_PORT_COMPLETION_LIST_INFORMATION
+	AlpcUnregisterCompletionListInformation, // s: VOID
+	AlpcAdjustCompletionListConcurrencyCountInformation, // s: in ULONG
+	AlpcRegisterCallbackInformation, // s: ALPC_REGISTER_CALLBACK // kernel-mode only
+	AlpcCompletionListRundownInformation, // s: VOID // 10
+	AlpcWaitForPortReferences,
+	AlpcServerSessionInformation // q: ALPC_SERVER_SESSION_INFORMATION // since 19H2
+} ALPC_PORT_INFORMATION_CLASS;
+
+typedef enum _ALPC_MESSAGE_INFORMATION_CLASS
+{
+	AlpcMessageSidInformation, // q: out SID
+	AlpcMessageTokenModifiedIdInformation,  // q: out LUID
+	AlpcMessageDirectStatusInformation,
+	AlpcMessageHandleInformation, // ALPC_MESSAGE_HANDLE_INFORMATION
+	MaxAlpcMessageInfoClass
+} ALPC_MESSAGE_INFORMATION_CLASS, *PALPC_MESSAGE_INFORMATION_CLASS;
+
+typedef enum _DIRECTORY_NOTIFY_INFORMATION_CLASS
+{
+	DirectoryNotifyInformation = 1, // FILE_NOTIFY_INFORMATION
+	DirectoryNotifyExtendedInformation, // FILE_NOTIFY_EXTENDED_INFORMATION
+	DirectoryNotifyFullInformation, // FILE_NOTIFY_FULL_INFORMATION // since 22H2
+	DirectoryNotifyMaximumInformation
+} DIRECTORY_NOTIFY_INFORMATION_CLASS, *PDIRECTORY_NOTIFY_INFORMATION_CLASS;
 
 //
 // structs
@@ -2143,6 +2193,52 @@ typedef struct _MEMORY_RANGE_ENTRY
 	PVOID VirtualAddress;
 	ULONG_PTR NumberOfBytes;
 } MEMORY_RANGE_ENTRY, *PMEMORY_RANGE_ENTRY;
+
+typedef struct _ALPC_PORT_ATTRIBUTES
+{
+	ULONG Flags;
+	SECURITY_QUALITY_OF_SERVICE SecurityQos;
+	ULONG_PTR MaxMessageLength;
+	ULONG_PTR MemoryBandwidth;
+	ULONG_PTR MaxPoolUsage;
+	ULONG_PTR MaxSectionSize;
+	ULONG_PTR MaxViewSize;
+	ULONG_PTR MaxTotalSectionSize;
+	ULONG DupObjectTypes;
+#if defined(_WIN64)
+	ULONG Reserved;
+#endif // _WIN64
+} ALPC_PORT_ATTRIBUTES, *PALPC_PORT_ATTRIBUTES;
+
+typedef struct _ALPC_SECURITY_ATTR
+{
+	ULONG Flags;
+	PSECURITY_QUALITY_OF_SERVICE QoS;
+	ALPC_HANDLE ContextHandle; // dbg
+} ALPC_SECURITY_ATTR, *PALPC_SECURITY_ATTR;
+
+typedef struct _ALPC_DATA_VIEW_ATTR
+{
+	ULONG Flags;
+	ALPC_HANDLE SectionHandle;
+	PVOID ViewBase; // must be zero on input
+	ULONG_PTR ViewSize;
+} ALPC_DATA_VIEW_ATTR, *PALPC_DATA_VIEW_ATTR;
+
+typedef struct _ALPC_MESSAGE_ATTRIBUTES
+{
+	ULONG AllocatedAttributes;
+	ULONG ValidAttributes;
+} ALPC_MESSAGE_ATTRIBUTES, *PALPC_MESSAGE_ATTRIBUTES;
+
+typedef struct _ALPC_CONTEXT_ATTR
+{
+	PVOID PortContext;
+	PVOID MessageContext;
+	ULONG Sequence;
+	ULONG MessageId;
+	ULONG CallbackId;
+} ALPC_CONTEXT_ATTR, *PALPC_CONTEXT_ATTR;
 
 typedef VOID (NTAPI *PTIMER_APC_ROUTINE)(
 	_In_ PVOID TimerContext,
@@ -4617,6 +4713,21 @@ NtQueryDefaultLocale (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
+NtSetDefaultLocale (
+	_In_ BOOLEAN UserProfile,
+	_In_ LCID DefaultLocaleId
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtQueryInstallUILanguage (
+	_Out_ LANGID *InstallUILanguageId
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
 RtlConvertLCIDToString (
 	_In_ LCID LcidValue,
 	_In_ ULONG Base,
@@ -4664,6 +4775,40 @@ NTSYSCALLAPI
 NTSTATUS
 NTAPI
 RtlGetUserPreferredUILanguages (
+	_In_ ULONG Flags, // MUI_LANGUAGE_NAME
+	_In_ PCWSTR LocaleName,
+	_Out_ PULONG NumberOfLanguages,
+	_Out_writes_opt_ (*ReturnLength) PZZWSTR Languages,
+	_Inout_ PULONG ReturnLength
+);
+
+// win7+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlGetProcessPreferredUILanguages (
+	_In_ ULONG Flags, // MUI_LANGUAGE_NAME
+	_Out_ PULONG NumberOfLanguages,
+	_Out_writes_opt_ (*ReturnLength) PZZWSTR Languages,
+	_Inout_ PULONG ReturnLength
+);
+
+// win7+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlGetThreadPreferredUILanguages (
+	_In_ ULONG Flags, // MUI_LANGUAGE_NAME
+	_Out_ PULONG NumberOfLanguages,
+	_Out_writes_opt_ (*ReturnLength) PZZWSTR Languages,
+	_Inout_ PULONG ReturnLength
+);
+
+// win7+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlGetSystemPreferredUILanguages (
 	_In_ ULONG Flags, // MUI_LANGUAGE_NAME
 	_In_ PCWSTR LocaleName,
 	_Out_ PULONG NumberOfLanguages,
@@ -5036,8 +5181,8 @@ RtlQueryHeapInformation (
 	_In_opt_ PVOID HeapHandle,
 	_In_ HEAP_INFORMATION_CLASS HeapInformationClass,
 	_Out_opt_ PVOID HeapInformation,
-	_In_opt_ SIZE_T HeapInformationLength,
-	_Out_opt_ PSIZE_T ReturnLength
+	_In_opt_ ULONG_PTR HeapInformationLength,
+	_Out_opt_ PULONG_PTR ReturnLength
 );
 
 NTSYSCALLAPI
@@ -5340,6 +5485,280 @@ TpWaitForWork (
 );
 
 //
+// Asynchronous Local Inter-process Communication
+//
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcCreatePort (
+	_Out_ PHANDLE PortHandle,
+	_In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
+	_In_opt_ PALPC_PORT_ATTRIBUTES PortAttributes
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcDisconnectPort (
+	_In_ HANDLE PortHandle,
+	_In_ ULONG Flags
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcQueryInformation (
+	_In_opt_ HANDLE PortHandle,
+	_In_ ALPC_PORT_INFORMATION_CLASS PortInformationClass,
+	_Inout_updates_bytes_to_ (Length, *ReturnLength) PVOID PortInformation,
+	_In_ ULONG Length,
+	_Out_opt_ PULONG ReturnLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcSetInformation (
+	_In_ HANDLE PortHandle,
+	_In_ ALPC_PORT_INFORMATION_CLASS PortInformationClass,
+	_In_reads_bytes_opt_ (Length) PVOID PortInformation,
+	_In_ ULONG Length
+);
+
+#define ALPC_CREATEPORTSECTIONFLG_SECURE 0x40000 // rev
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcCreatePortSection (
+	_In_ HANDLE PortHandle,
+	_In_ ULONG Flags,
+	_In_opt_ HANDLE SectionHandle,
+	_In_ ULONG_PTR SectionSize,
+	_Out_ PALPC_HANDLE AlpcSectionHandle,
+	_Out_ PULONG_PTR ActualSectionSize
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcDeletePortSection (
+	_In_ HANDLE PortHandle,
+	_Reserved_ ULONG Flags,
+	_In_ ALPC_HANDLE SectionHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcCreateResourceReserve (
+	_In_ HANDLE PortHandle,
+	_Reserved_ ULONG Flags,
+	_In_ ULONG_PTR MessageSize,
+	_Out_ PALPC_HANDLE ResourceId
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcDeleteResourceReserve (
+	_In_ HANDLE PortHandle,
+	_Reserved_ ULONG Flags,
+	_In_ ALPC_HANDLE ResourceId
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcCreateSectionView (
+	_In_ HANDLE PortHandle,
+	_Reserved_ ULONG Flags,
+	_Inout_ PALPC_DATA_VIEW_ATTR ViewAttributes
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcDeleteSectionView (
+	_In_ HANDLE PortHandle,
+	_Reserved_ ULONG Flags,
+	_In_ PVOID ViewBase
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcCreateSecurityContext (
+	_In_ HANDLE PortHandle,
+	_Reserved_ ULONG Flags,
+	_Inout_ PALPC_SECURITY_ATTR SecurityAttribute
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcDeleteSecurityContext (
+	_In_ HANDLE PortHandle,
+	_Reserved_ ULONG Flags,
+	_In_ ALPC_HANDLE ContextHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcRevokeSecurityContext (
+	_In_ HANDLE PortHandle,
+	_Reserved_ ULONG Flags,
+	_In_ ALPC_HANDLE ContextHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcQueryInformationMessage (
+	_In_ HANDLE PortHandle,
+	_In_ PPORT_MESSAGE PortMessage,
+	_In_ ALPC_MESSAGE_INFORMATION_CLASS MessageInformationClass,
+	_Out_writes_bytes_to_opt_ (Length, *ReturnLength) PVOID MessageInformation,
+	_In_ ULONG Length,
+	_Out_opt_ PULONG ReturnLength
+);
+
+#define ALPC_MSGFLG_REPLY_MESSAGE 0x1
+#define ALPC_MSGFLG_LPC_MODE 0x2
+#define ALPC_MSGFLG_RELEASE_MESSAGE 0x10000 // dbg
+#define ALPC_MSGFLG_SYNC_REQUEST 0x20000 // dbg
+#define ALPC_MSGFLG_TRACK_PORT_REFERENCES 0x40000
+#define ALPC_MSGFLG_WAIT_USER_MODE 0x100000
+#define ALPC_MSGFLG_WAIT_ALERTABLE 0x200000
+#define ALPC_MSGFLG_WOW64_CALL 0x80000000 // dbg
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcConnectPort (
+	_Out_ PHANDLE PortHandle,
+	_In_ PUNICODE_STRING PortName,
+	_In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
+	_In_opt_ PALPC_PORT_ATTRIBUTES PortAttributes,
+	_In_ ULONG Flags,
+	_In_opt_ PSID RequiredServerSid,
+	_Inout_updates_bytes_to_opt_ (*BufferLength, *BufferLength) PPORT_MESSAGE ConnectionMessage,
+	_Inout_opt_ PULONG_PTR BufferLength,
+	_Inout_opt_ PALPC_MESSAGE_ATTRIBUTES OutMessageAttributes,
+	_Inout_opt_ PALPC_MESSAGE_ATTRIBUTES InMessageAttributes,
+	_In_opt_ PLARGE_INTEGER Timeout
+);
+
+// win8+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcConnectPortEx (
+	_Out_ PHANDLE PortHandle,
+	_In_ POBJECT_ATTRIBUTES ConnectionPortObjectAttributes,
+	_In_opt_ POBJECT_ATTRIBUTES ClientPortObjectAttributes,
+	_In_opt_ PALPC_PORT_ATTRIBUTES PortAttributes,
+	_In_ ULONG Flags,
+	_In_opt_ PSECURITY_DESCRIPTOR ServerSecurityRequirements,
+	_Inout_updates_bytes_to_opt_ (*BufferLength, *BufferLength) PPORT_MESSAGE ConnectionMessage,
+	_Inout_opt_ PULONG_PTR BufferLength,
+	_Inout_opt_ PALPC_MESSAGE_ATTRIBUTES OutMessageAttributes,
+	_Inout_opt_ PALPC_MESSAGE_ATTRIBUTES InMessageAttributes,
+	_In_opt_ PLARGE_INTEGER Timeout
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcAcceptConnectPort (
+	_Out_ PHANDLE PortHandle,
+	_In_ HANDLE ConnectionPortHandle,
+	_In_ ULONG Flags,
+	_In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
+	_In_opt_ PALPC_PORT_ATTRIBUTES PortAttributes,
+	_In_opt_ PVOID PortContext,
+	_In_reads_bytes_ (ConnectionRequest->u1.s1.TotalLength) PPORT_MESSAGE ConnectionRequest,
+	_Inout_opt_ PALPC_MESSAGE_ATTRIBUTES ConnectionMessageAttributes,
+	_In_ BOOLEAN AcceptConnection
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcSendWaitReceivePort (
+	_In_ HANDLE PortHandle,
+	_In_ ULONG Flags,
+	_In_reads_bytes_opt_ (SendMessage->u1.s1.TotalLength) PPORT_MESSAGE SendMessage,
+	_Inout_opt_ PALPC_MESSAGE_ATTRIBUTES SendMessageAttributes,
+	_Out_writes_bytes_to_opt_ (*BufferLength, *BufferLength) PPORT_MESSAGE ReceiveMessage,
+	_Inout_opt_ PSIZE_T BufferLength,
+	_Inout_opt_ PALPC_MESSAGE_ATTRIBUTES ReceiveMessageAttributes,
+	_In_opt_ PLARGE_INTEGER Timeout
+);
+
+#define ALPC_CANCELFLG_TRY_CANCEL 0x1 // dbg
+#define ALPC_CANCELFLG_NO_CONTEXT_CHECK 0x8
+#define ALPC_CANCELFLGP_FLUSH 0x10000 // dbg
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcCancelMessage (
+	_In_ HANDLE PortHandle,
+	_In_ ULONG Flags,
+	_In_ PALPC_CONTEXT_ATTR MessageContext
+);
+
+#define ALPC_IMPERSONATEFLG_ANONYMOUS 0x1
+#define ALPC_IMPERSONATEFLG_REQUIRE_IMPERSONATE 0x2
+//ALPC_IMPERSONATEFLG 0x3-0x10 (SECURITY_IMPERSONATION_LEVEL)
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcImpersonateClientOfPort (
+	_In_ HANDLE PortHandle,
+	_In_ PPORT_MESSAGE Message,
+	_In_ PVOID Flags
+);
+
+// win10+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcImpersonateClientContainerOfPort (
+	_In_ HANDLE PortHandle,
+	_In_ PPORT_MESSAGE Message,
+	_Reserved_ ULONG Flags
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcOpenSenderProcess (
+	_Out_ PHANDLE ProcessHandle,
+	_In_ HANDLE PortHandle,
+	_In_ PPORT_MESSAGE PortMessage,
+	_Reserved_ ULONG Flags,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAlpcOpenSenderThread (
+	_Out_ PHANDLE ThreadHandle,
+	_In_ HANDLE PortHandle,
+	_In_ PPORT_MESSAGE PortMessage,
+	_Reserved_ ULONG Flags,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes
+);
+
+//
 // Timers
 //
 
@@ -5592,6 +6011,90 @@ NtQueryInformationProcess (
 	_Out_writes_bytes_ (ProcessInformationLength) PVOID ProcessInformation,
 	_In_ ULONG ProcessInformationLength,
 	_Out_opt_ PULONG ReturnLength
+);
+
+//
+// Job objects
+//
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtCreateJobObject (
+	_Out_ PHANDLE JobHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_opt_ POBJECT_ATTRIBUTES ObjectAttributes
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtOpenJobObject (
+	_Out_ PHANDLE JobHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_ POBJECT_ATTRIBUTES ObjectAttributes
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtAssignProcessToJobObject (
+	_In_ HANDLE JobHandle,
+	_In_ HANDLE ProcessHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtTerminateJobObject (
+	_In_ HANDLE JobHandle,
+	_In_ NTSTATUS ExitStatus
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtIsProcessInJob (
+	_In_ HANDLE ProcessHandle,
+	_In_opt_ HANDLE JobHandle
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtQueryInformationJobObject (
+	_In_opt_ HANDLE JobHandle,
+	_In_ JOBOBJECTINFOCLASS JobObjectInformationClass,
+	_Out_writes_bytes_ (JobObjectInformationLength) PVOID JobObjectInformation,
+	_In_ ULONG JobObjectInformationLength,
+	_Out_opt_ PULONG ReturnLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtSetInformationJobObject (
+	_In_ HANDLE JobHandle,
+	_In_ JOBOBJECTINFOCLASS JobObjectInformationClass,
+	_In_reads_bytes_ (JobObjectInformationLength) PVOID JobObjectInformation,
+	_In_ ULONG JobObjectInformationLength
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtCreateJobSet (
+	_In_ ULONG NumJob,
+	_In_reads_ (NumJob) PJOB_SET_ARRAY UserJobSet,
+	_In_ ULONG Flags
+);
+
+// win10+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtRevertContainerImpersonation (
+	VOID
 );
 
 //
@@ -6631,9 +7134,9 @@ NtNotifyChangeSession (
 // Path functions
 //
 
-#define RTL_DSP_FLAG_APPLY_ISOLATION_REDIRECTION 0x00000001
-#define RTL_DSP_FLAG_DISALLOW_DOT_RELATIVE_PATH_SEARCH 0x00000002
-#define RTL_DSP_FLAG_APPLY_DEFAULT_EXTENSION 0x00000004
+#define RTL_DOS_SEARCH_PATH_FLAG_APPLY_ISOLATION_REDIRECTION 0x00000001
+#define RTL_DOS_SEARCH_PATH_FLAG_DISALLOW_DOT_RELATIVE_PATH_SEARCH 0x00000002
+#define RTL_DOS_SEARCH_PATH_FLAG_APPLY_DEFAULT_EXTENSION_WHEN_NOT_RELATIVE_PATH_EVEN_IF_FILE_HAS_EXTENSION 0x00000004
 
 NTSYSCALLAPI
 NTSTATUS
@@ -6728,6 +7231,38 @@ VOID
 NTAPI
 RtlReleaseRelativeName (
 	_Inout_ PRTL_RELATIVE_NAME_U RelativeName
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtNotifyChangeDirectoryFile (
+	_In_ HANDLE FileHandle,
+	_In_opt_ HANDLE Event,
+	_In_opt_ PIO_APC_ROUTINE ApcRoutine,
+	_In_opt_ PVOID ApcContext,
+	_Out_ PIO_STATUS_BLOCK IoStatusBlock,
+	_Out_writes_bytes_ (Length) PVOID Buffer, // FILE_NOTIFY_INFORMATION
+	_In_ ULONG Length,
+	_In_ ULONG CompletionFilter,
+	_In_ BOOLEAN WatchTree
+);
+
+// win10rs3+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtNotifyChangeDirectoryFileEx (
+	_In_ HANDLE FileHandle,
+	_In_opt_ HANDLE Event,
+	_In_opt_ PIO_APC_ROUTINE ApcRoutine,
+	_In_opt_ PVOID ApcContext,
+	_Out_ PIO_STATUS_BLOCK IoStatusBlock,
+	_Out_writes_bytes_ (Length) PVOID Buffer,
+	_In_ ULONG Length,
+	_In_ ULONG CompletionFilter,
+	_In_ BOOLEAN WatchTree,
+	_In_opt_ DIRECTORY_NOTIFY_INFORMATION_CLASS DirectoryNotifyInformationClass
 );
 
 //
@@ -6883,6 +7418,29 @@ RtlUnicodeToUTF8N (
 	_Out_opt_ PULONG UTF8StringActualByteCount,
 	_In_reads_bytes_ (UnicodeStringByteCount) PCWCH UnicodeStringSource,
 	_In_ ULONG UnicodeStringByteCount
+);
+
+// vista+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlNormalizeString (
+	_In_ ULONG NormForm, // RTL_NORM_FORM
+	_In_ PCWSTR SourceString,
+	_In_ LONG SourceStringLength,
+	_Out_writes_to_ (*DestinationStringLength, *DestinationStringLength) PWSTR DestinationString,
+	_Inout_ PLONG DestinationStringLength
+);
+
+// vista+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlIsNormalizedString (
+	_In_ ULONG NormForm, // RTL_NORM_FORM
+	_In_ PCWSTR SourceString,
+	_In_ LONG SourceStringLength,
+	_Out_ PBOOLEAN Normalized
 );
 
 //
@@ -7078,6 +7636,36 @@ RtlRandomEx (
 //
 // Environment
 //
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlCreateEnvironment (
+	_In_ BOOLEAN CloneCurrentEnvironment,
+	_Out_ PVOID *Environment
+);
+
+#define RTL_CREATE_ENVIRONMENT_TRANSLATE 0x1 // translate from multi-byte to Unicode
+#define RTL_CREATE_ENVIRONMENT_TRANSLATE_FROM_OEM 0x2 // translate from OEM to Unicode (Translate flag must also be set)
+#define RTL_CREATE_ENVIRONMENT_EMPTY 0x4 // create empty environment block
+
+// vista+
+// private
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlCreateEnvironmentEx (
+	_In_opt_ PVOID SourceEnvironment,
+	_Out_ PVOID *Environment,
+	_In_ ULONG Flags
+);
+
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+RtlDestroyEnvironment (
+	_In_ _Post_invalid_ PVOID Environment
+);
 
 // vista+
 NTSYSCALLAPI
@@ -7457,18 +8045,18 @@ RtlInitializeCriticalSection (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-RtlInitializeCriticalSectionAndSpinCount (
-	_Inout_ PRTL_CRITICAL_SECTION CriticalSection,
-	_In_ ULONG SpinCount
+RtlInitializeCriticalSectionEx (
+	_Out_ PRTL_CRITICAL_SECTION CriticalSection,
+	_In_ ULONG SpinCount,
+	_In_ ULONG Flags
 );
 
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-RtlInitializeCriticalSectionEx (
-	_Out_ PRTL_CRITICAL_SECTION CriticalSection,
-	_In_ ULONG SpinCount,
-	_In_ ULONG Flags
+RtlInitializeCriticalSectionAndSpinCount (
+	_Inout_ PRTL_CRITICAL_SECTION CriticalSection,
+	_In_ ULONG SpinCount
 );
 
 NTSYSCALLAPI
