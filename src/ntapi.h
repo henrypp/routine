@@ -892,6 +892,7 @@ typedef enum _MEMORY_INFORMATION_CLASS
 	MemoryPhysicalContiguityInformation, // MEMORY_PHYSICAL_CONTIGUITY_INFORMATION // since 20H1
 	MemoryBadInformation, // since WIN11
 	MemoryBadInformationAllProcesses, // since 22H1
+	MemoryImageExtensionInformation, // MEMORY_IMAGE_EXTENSION_INFORMATION // since 24H2
 	MaxMemoryInfoClass
 } MEMORY_INFORMATION_CLASS;
 
@@ -1744,8 +1745,8 @@ typedef struct _TOKEN_SECURITY_ATTRIBUTE_FQBN_VALUE
 
 typedef struct _TOKEN_SECURITY_ATTRIBUTE_OCTET_STRING_VALUE
 {
-	PVOID pValue;
-	ULONG ValueLength;
+	PVOID Value; // Pointer is BYTE aligned.
+	ULONG ValueLength; // In bytes
 } TOKEN_SECURITY_ATTRIBUTE_OCTET_STRING_VALUE, *PTOKEN_SECURITY_ATTRIBUTE_OCTET_STRING_VALUE;
 
 typedef struct _TOKEN_SECURITY_ATTRIBUTE_V1
@@ -2445,7 +2446,7 @@ typedef struct _KUSER_SHARED_DATA
 	volatile ULONG DismountCount;
 
 	// This field indicates the status of the 64-bit COM+ package on the
-	// system. It indicates whether the Itermediate Language (IL) COM+
+	// system. It indicates whether the Intermediate Language (IL) COM+
 	// images need to use the 64-bit COM+ runtime or the 32-bit COM+ runtime.
 	ULONG ComPlusPackage;
 

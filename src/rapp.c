@@ -13,13 +13,10 @@ VOID _r_app_exceptionfilter_savedump (
 	_In_ PEXCEPTION_POINTERS exception_ptr
 )
 {
-	MINIDUMP_EXCEPTION_INFORMATION minidump_info = {0};
+	MINIDUMP_EXCEPTION_INFORMATION exception_info = {0};
 	WCHAR path[512];
-	LONG64 current_time;
 	HANDLE hfile;
 	NTSTATUS status;
-
-	current_time = _r_unixtime_now ();
 
 	_r_str_printf (
 		path,
@@ -27,29 +24,38 @@ VOID _r_app_exceptionfilter_savedump (
 		L"%s\\%s-%" TEXT (PR_LONG64) L".dmp",
 		_r_app_getcrashdirectory (TRUE)->buffer,
 		_r_app_getnameshort (),
-		current_time
+		_r_unixtime_now ()
 	);
 
-	status = _r_fs_createfile (path, FILE_OVERWRITE_IF, GENERIC_WRITE, FILE_SHARE_READ, FILE_ATTRIBUTE_NORMAL, 0, FALSE, NULL, &hfile);
+	status = _r_fs_createfile (path, FILE_OVERWRITE_IF, GENERIC_WRITE, FILE_SHARE_WRITE, FILE_ATTRIBUTE_NORMAL, 0, FALSE, NULL, &hfile);
 
 	if (!NT_SUCCESS (status))
+	{
+		_r_log (LOG_LEVEL_ERROR, NULL, L"_r_fs_createfile", status, path);
+
 		return;
+	}
 
-	minidump_info.ThreadId = HandleToULong (NtCurrentThreadId ());
-	minidump_info.ExceptionPointers = exception_ptr;
+	exception_info.ThreadId = HandleToULong (NtCurrentThreadId ());
+	exception_info.ExceptionPointers = exception_ptr;
+	exception_info.ClientPointers = TRUE;
 
-	MiniDumpWriteDump (NtCurrentProcess (), HandleToULong (NtCurrentProcessId ()), hfile, MiniDumpNormal, &minidump_info, NULL, NULL);
+	MiniDumpWriteDump (NtCurrentProcess (), HandleToULong (NtCurrentProcessId ()), hfile, MiniDumpNormal, &exception_info, NULL, NULL);
 
 	NtClose (hfile);
 }
 
-ULONG NTAPI _r_app_exceptionfilter_callback (
+ULONG CALLBACK _r_app_exceptionfilter_callback (
 	_In_ PEXCEPTION_POINTERS exception_ptr
 )
 {
+	// Let the debugger handle the exception
+	if (NtCurrentPeb ()->BeingDebugged)
+		return EXCEPTION_CONTINUE_SEARCH;
+
 	_r_app_exceptionfilter_savedump (exception_ptr);
 
-	_r_report_error (APP_EXCEPTION_TITLE, NULL, exception_ptr->ExceptionRecord->ExceptionCode, TRUE);
+	_r_report_error (APP_EXCEPTION_TITLE, NULL, exception_ptr->ExceptionRecord->ExceptionCode, ET_NATIVE);
 
 	RtlExitUserProcess (exception_ptr->ExceptionRecord->ExceptionCode);
 
@@ -307,16 +313,6 @@ BOOLEAN _r_app_initialize (
 	_r_app_initialize_com ();
 
 #if !defined(APP_CONSOLE)
-	// prevent app duplicates
-	if (_r_mutant_isexists (_r_app_getmutexname ()))
-	{
-		_r_obj_initializestringref (&sr, _r_app_getname ());
-
-		EnumWindows (&_r_util_activate_window_callback, (LPARAM)&sr);
-
-		return FALSE;
-	}
-
 	_r_app_initialize_components ();
 
 #if defined(APP_NO_GUEST)
@@ -334,9 +330,6 @@ BOOLEAN _r_app_initialize (
 	if (!_r_sys_iselevated () && _r_skipuac_run ())
 		return FALSE;
 #endif // APP_NO_GUEST
-
-	// set running flag
-	_r_mutant_create (_r_app_getmutexname (), MUTANT_ALL_ACCESS, TRUE, &app_global.main.hmutex);
 #endif // !APP_CONSOLE
 
 	// check for wow64 working and show warning if it is TRUE!
@@ -399,6 +392,21 @@ BOOLEAN _r_app_initialize (
 			return FALSE;
 	}
 
+#if !defined(APP_CONSOLE)
+	// prevent app duplicates
+	if (_r_mutant_isexists (_r_app_getmutexname ()))
+	{
+		_r_obj_initializestringref (&sr, _r_app_getname ());
+
+		EnumWindows (&_r_util_activate_window_callback, (LPARAM)&sr);
+
+		return FALSE;
+	}
+
+	// set running flag
+	_r_mutant_create (_r_app_getmutexname (), MUTANT_ALL_ACCESS, TRUE, &app_global.main.hmutex);
+#endif // !APP_CONSOLE
+
 	return TRUE;
 }
 
@@ -449,7 +457,7 @@ PR_STRING _r_app_getconfigpath ()
 		}
 		else
 		{
-			status = _r_path_getknownfolder (&FOLDERID_RoamingAppData, L"\\" APP_AUTHOR L"\\" APP_NAME L"\\" APP_NAME_SHORT L".ini", &string);
+			status = _r_path_getknownfolder (&FOLDERID_RoamingAppData, 0, L"\\" APP_AUTHOR L"\\" APP_NAME L"\\" APP_NAME_SHORT L".ini", &string);
 
 			if (SUCCEEDED (status))
 				cached_result = string;
@@ -488,10 +496,14 @@ PR_STRING _r_app_getcrashdirectory (
 	static R_INITONCE init_once = PR_INITONCE_INIT;
 	static PR_STRING cached_path = NULL;
 
+	HRESULT status;
+
 	if (_r_initonce_begin (&init_once))
 	{
-		if (FAILED (_r_path_getknownfolder (&FOLDERID_Desktop, NULL, &cached_path)))
-			cached_path = _r_format_string (L"%s\\crashdump", _r_app_getprofiledirectory ()->buffer);
+		status = _r_path_getknownfolder (&FOLDERID_Desktop, 0, L"\\" APP_NAME_SHORT L"_crash", &cached_path);
+
+		if (FAILED (status))
+			cached_path = _r_format_string (L"%s\\" APP_NAME_SHORT L"_crash", _r_app_getprofiledirectory ()->buffer);
 
 		_r_initonce_end (&init_once);
 	}
@@ -551,7 +563,7 @@ PR_STRING _r_app_getprofiledirectory ()
 		}
 		else
 		{
-			_r_path_getknownfolder (&FOLDERID_RoamingAppData, L"\\" APP_AUTHOR L"\\" APP_NAME, &cached_path);
+			_r_path_getknownfolder (&FOLDERID_RoamingAppData, 0, L"\\" APP_AUTHOR L"\\" APP_NAME, &cached_path);
 		}
 
 		_r_initonce_end (&init_once);
@@ -737,7 +749,7 @@ ULONG _r_app_getshowcode (
 	ULONG show_code;
 	BOOLEAN is_windowhidden = FALSE;
 
-	show_code = NtCurrentPeb ()->ProcessParameters->WindowFlags & STARTF_USESHOWWINDOW ? NtCurrentPeb ()->ProcessParameters->ShowWindowFlags : SW_SHOWNORMAL;
+	show_code = (NtCurrentPeb ()->ProcessParameters->WindowFlags & STARTF_USESHOWWINDOW) ? NtCurrentPeb ()->ProcessParameters->ShowWindowFlags : SW_SHOWNORMAL;
 
 	if (show_code == SW_HIDE || show_code == SW_MINIMIZE || show_code == SW_SHOWMINNOACTIVE || show_code == SW_FORCEMINIMIZE)
 		is_windowhidden = TRUE;
@@ -876,7 +888,7 @@ BOOLEAN _r_app_runasadmin ()
 		return TRUE;
 #endif // APP_HAVE_SKIPUAC
 
-	if (_r_sys_runasadmin (_r_sys_getimagepath (), _r_sys_getcommandline (), _r_sys_getcurrentdirectory (), FALSE))
+	if (_r_sys_runasadmin (_r_sys_getimagepath (), _r_sys_getcommandline (), _r_sys_getcurrentdirectory ()))
 		return TRUE;
 
 	// restore mutex on error
@@ -899,7 +911,7 @@ VOID _r_app_restart (
 
 	_r_mutant_destroy (&app_global.main.hmutex);
 
-	status = _r_sys_createprocess (_r_sys_getimagepath (), _r_sys_getcommandline (), _r_sys_getcurrentdirectory ());
+	status = _r_sys_createprocess (_r_sys_getimagepath (), _r_sys_getcommandline (), _r_sys_getcurrentdirectory (), FALSE);
 
 	if (status != STATUS_SUCCESS)
 	{
@@ -1939,8 +1951,8 @@ NTSTATUS _r_autorun_enable (
 	_In_ BOOLEAN is_enable
 )
 {
-	HANDLE hkey;
 	PR_STRING string;
+	HANDLE hkey;
 	NTSTATUS status;
 
 	status = _r_reg_openkey (HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE, &hkey);
@@ -1959,9 +1971,9 @@ NTSTATUS _r_autorun_enable (
 
 		status = _r_reg_setvalue (hkey, _r_app_getname (), REG_SZ, string->buffer, (ULONG)(string->length + sizeof (UNICODE_NULL)));
 
-		_r_obj_dereference (string);
-
 		_r_sys_registerrestart (FALSE);
+
+		_r_obj_dereference (string);
 	}
 	else
 	{
@@ -1986,6 +1998,8 @@ NTSTATUS _r_autorun_enable (
 
 BOOLEAN _r_autorun_isenabled ()
 {
+	R_STRINGREF sr1;
+	R_STRINGREF sr2;
 	PR_STRING path;
 	HANDLE hkey;
 	BOOLEAN is_enabled = FALSE;
@@ -1999,12 +2013,11 @@ BOOLEAN _r_autorun_isenabled ()
 
 		if (NT_SUCCESS (status))
 		{
-			PathRemoveArgsW (path->buffer);
-			PathUnquoteSpacesW (path->buffer);
+			_r_path_parsecommandlinefuzzy (&path->sr, &sr1, &sr2, NULL);
 
-			_r_obj_trimstringtonullterminator (&path->sr);
+			_r_obj_initializestringref3 (&sr2, &NtCurrentPeb ()->ProcessParameters->ImagePathName);
 
-			is_enabled = _r_str_isequal2 (&path->sr, _r_sys_getimagepath (), TRUE);
+			is_enabled = _r_str_isequal (&sr1, &sr2, TRUE);
 
 			_r_obj_dereference (path);
 		}
@@ -2026,15 +2039,19 @@ BOOLEAN NTAPI _r_update_downloadcallback (
 )
 {
 	PR_UPDATE_INFO update_info;
-	LONG percent;
 
 	update_info = lparam;
 
 	if (update_info->htaskdlg)
 	{
-		percent = _r_calc_percentof (total_written, total_length);
+		_r_wnd_sendmessage (update_info->htaskdlg, 0, TDM_SET_PROGRESS_BAR_POS, (WPARAM)_r_calc_percentof (total_written, total_length), 0);
 
-		_r_wnd_sendmessage (update_info->htaskdlg, 0, TDM_SET_PROGRESS_BAR_POS, (WPARAM)percent, 0);
+		if (update_info->htaskbar)
+		{
+			_r_taskbar_setprogressstate (update_info->htaskbar, update_info->htaskdlg, TBPF_NORMAL);
+
+			_r_taskbar_setprogressvalue (update_info->htaskbar, update_info->htaskdlg, total_written, total_length);
+		}
 	}
 
 	return TRUE;
@@ -2423,18 +2440,14 @@ HRESULT CALLBACK _r_update_pagecallback (
 			_r_wnd_sendmessage (hwnd, 0, TDM_SET_MARQUEE_PROGRESS_BAR, TRUE, 0);
 			_r_wnd_sendmessage (hwnd, 0, TDM_SET_PROGRESS_BAR_MARQUEE, TRUE, 10);
 
+			_r_taskbar_initialize (&update_info->htaskbar);
+
 			hparent = GetParent (hwnd);
 
 			_r_wnd_center (hwnd, hparent);
 
 			_r_wnd_top (hwnd, TRUE); // always on top
 
-			break;
-		}
-
-		case TDN_VERIFICATION_CLICKED:
-		{
-			update_info->is_clicked = !!wparam;
 			break;
 		}
 
@@ -2488,8 +2501,36 @@ HRESULT CALLBACK _r_update_pagecallback (
 			break;
 		}
 
+		case TDN_DESTROYED:
+		{
+			if (update_info->hthread)
+			{
+				NtTerminateThread (update_info->hthread, STATUS_CANCELLED);
+				NtClose (update_info->hthread);
+
+				update_info->hthread = NULL;
+			}
+
+			if (update_info->htaskbar)
+			{
+				_r_taskbar_destroy (update_info->htaskbar);
+
+				update_info->htaskbar = NULL;
+			}
+
+			if (update_info->htaskdlg)
+				update_info->htaskdlg = NULL;
+
+			break;
+		}
+
 		case TDN_DIALOG_CONSTRUCTED:
 		{
+			//_r_theme_initialize (hwnd, _r_theme_isenabled ());
+
+			if (_r_sys_isosversiongreaterorequal (WINDOWS_11))
+				DwmSetWindowAttribute (hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &(DWM_WINDOW_CORNER_PREFERENCE){ DWMWCP_DONOTROUND }, sizeof (DWM_WINDOW_CORNER_PREFERENCE));
+
 			if (update_info->hthread)
 			{
 				NtResumeThread (update_info->hthread, NULL);
@@ -2501,18 +2542,9 @@ HRESULT CALLBACK _r_update_pagecallback (
 			break;
 		}
 
-		case TDN_DESTROYED:
+		case TDN_VERIFICATION_CLICKED:
 		{
-			update_info->htaskdlg = NULL;
-
-			if (update_info->hthread)
-			{
-				NtTerminateThread (update_info->hthread, STATUS_CANCELLED);
-				NtClose (update_info->hthread);
-
-				update_info->hthread = NULL;
-			}
-
+			update_info->is_clicked = !!wparam;
 			break;
 		}
 	}
@@ -2577,6 +2609,8 @@ VOID _r_update_navigate (
 			);
 
 			tdc.pszContent = buffer;
+
+			_r_sys_freelibrary (hlib);
 		}
 	}
 
@@ -2662,7 +2696,7 @@ VOID _r_update_install (
 
 	cmd_string = _r_format_string (L"\"%s\" /u /S /D=%s", update_component->cache_path->buffer, update_component->target_path->buffer);
 
-	if (!_r_sys_runasadmin (update_component->cache_path->buffer, cmd_string->buffer, NULL, TRUE))
+	if (!_r_sys_runasadmin (update_component->cache_path->buffer, cmd_string->buffer, NULL))
 		_r_show_errormessage (NULL, NULL, NtLastError (), update_component->cache_path->buffer, ET_WINDOWS);
 
 	_r_obj_dereference (cmd_string);
@@ -2697,11 +2731,21 @@ HANDLE _r_log_getfilehandle ()
 	HANDLE hfile;
 	NTSTATUS status;
 
-	status = _r_fs_createfile (_r_app_getlogpath ()->buffer, FILE_OPEN_IF, GENERIC_WRITE, FILE_SHARE_READ, FILE_ATTRIBUTE_NORMAL, 0, FALSE, NULL, &hfile);
+	status = _r_fs_createfile (
+		_r_app_getlogpath ()->buffer,
+		FILE_OPEN_IF,
+		GENERIC_WRITE,
+		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+		FILE_ATTRIBUTE_NORMAL,
+		FILE_WRITE_THROUGH | FILE_SEQUENTIAL_ONLY,
+		FALSE,
+		NULL,
+		&hfile
+	);
 
 	if (NT_SUCCESS (status))
 	{
-		status = _r_fs_getsize (hfile, NULL, &file_size);
+		status = _r_fs_getsize (NULL, hfile, &file_size);
 
 		if (NT_SUCCESS (status))
 		{
@@ -2733,14 +2777,14 @@ VOID _r_log (
 	PR_STRING date_string;
 	LPCWSTR level_string;
 	HANDLE hfile;
-	LONG64 current_timestamp;
+	LONG64 timestamp;
 	ULONG number = 0;
 
 	if (!_r_log_isenabled (log_level))
 		return;
 
-	current_timestamp = _r_unixtime_now ();
-	date_string = _r_format_unixtime (current_timestamp, FDTF_SHORTDATE | FDTF_LONGTIME | FDTF_NOAUTOREADINGORDER);
+	timestamp = _r_unixtime_now ();
+	date_string = _r_format_unixtime (timestamp, FDTF_SHORTDATE | FDTF_LONGTIME | FDTF_NOAUTOREADINGORDER);
 
 	level_string = _r_log_leveltostring (log_level);
 
@@ -2786,11 +2830,11 @@ VOID _r_log (
 				number |= NIIF_NOSOUND;
 
 			// check for timeout (sec.)
-			if ((current_timestamp - app_global.error.last_timestamp) > APP_ERROR_PERIOD)
+			if ((timestamp - app_global.error.last_timestamp) > APP_ERROR_PERIOD)
 			{
 				_r_tray_popup (_r_app_gethwnd (), tray_guid, number, _r_app_getname (), APP_WARNING_LOG_TEXT);
 
-				app_global.error.last_timestamp = current_timestamp;
+				app_global.error.last_timestamp = timestamp;
 			}
 		}
 	}
@@ -2899,7 +2943,7 @@ VOID _r_report_error (
 )
 {
 #if defined(APP_CONSOLE)
-	_r_console_writestringformat (L"ERROR: %s (%d, 0x%08" TEXT (PRIX32) L")!\r\n", string, status, status);
+	_r_console_writestringformat (L"EXCEPTION: %s (%d, 0x%08" TEXT (PRIX32) L")!\r\n", string, status, status);
 #else
 	_r_show_errormessage (NULL, title, status, string, type);
 #endif // APP_CONSOLE
@@ -2928,7 +2972,8 @@ VOID _r_show_aboutmessage (
 #endif
 
 	_r_str_printf (
-		str_content, RTL_NUMBER_OF (str_content),
+		str_content,
+		RTL_NUMBER_OF (str_content),
 		L"Version %s %s, %" TEXT (PR_LONG) L"-bit (Unicode)\r\n%s\r\n\r\n" \
 		L"<a href=\"%s\">%s</a>",
 		_r_app_getversion (),
@@ -2949,7 +2994,6 @@ VOID _r_show_aboutmessage (
 	tdc.pszMainInstruction = _r_app_getname ();
 	tdc.pszContent = str_content;
 	tdc.pfCallback = &_r_msg_callback;
-	tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
 	tdc.pszExpandedInformation = APP_ABOUT_DONATE;
 
 #if defined(IDI_MAIN)
@@ -2958,7 +3002,11 @@ VOID _r_show_aboutmessage (
 
 #if defined(IDS_DONATE)
 	tdc.pszCollapsedControlText = _r_locale_getstring (IDS_DONATE);
+#else
+	tdc.pszCollapsedControlText = L"Donate!";
+#pragma PR_PRINT_WARNING(IDS_DONATE)
 #endif // IDS_DONATE
+
 	tdc.pszFooter = APP_ABOUT_FOOTER;
 
 	_r_msg_taskdialog (&tdc, NULL, NULL, NULL);
@@ -4210,7 +4258,7 @@ HRESULT _r_skipuac_enable (
 		// TASK_COMPATIBILITY_V2_2 - win8
 		// TASK_COMPATIBILITY_V2_1 - win7
 
-		for (INT i = TASK_COMPATIBILITY_V2_4; i != TASK_COMPATIBILITY_V2; --i)
+		for (TASK_COMPATIBILITY i = TASK_COMPATIBILITY_V2_4; i != TASK_COMPATIBILITY_V2; --i)
 		{
 			status = ITaskSettings_put_Compatibility (task_settings, i);
 
@@ -4369,7 +4417,7 @@ BOOLEAN _r_skipuac_run ()
 	WCHAR arguments[512] = {0};
 	VARIANT params = {0};
 	LPWSTR *arga;
-	ULONG attempts;
+	ULONG attempts = 6;
 	TASK_STATE state;
 	INT numargs;
 	HRESULT status;
@@ -4441,8 +4489,6 @@ BOOLEAN _r_skipuac_run ()
 	status = E_ABORT;
 
 	// check if started succesfull
-	attempts = 6;
-
 	do
 	{
 		IRunningTask_Refresh (running_task);
@@ -4463,7 +4509,7 @@ BOOLEAN _r_skipuac_run ()
 			}
 		}
 
-		_r_sys_sleep (200);
+		_r_sys_sleep (250);
 	}
 	while (--attempts);
 
@@ -4738,7 +4784,7 @@ VOID _r_theme_initialize (
 				_SetPreferredAppMode = (SPAM)_r_sys_getprocaddress (huxtheme, NULL, 135);
 				_FlushMenuThemes = (FMT)_r_sys_getprocaddress (huxtheme, NULL, 136);
 
-				//_r_sys_freelibrary (huxtheme, FALSE);
+				//_r_sys_freelibrary (huxtheme);
 			}
 		}
 
@@ -6501,7 +6547,7 @@ LRESULT CALLBACK _r_theme_drawtoolbar (
 	{
 		case CDDS_PREPAINT:
 		{
-			return CDRF_NOTIFYITEMDRAW;
+			return CDRF_NOTIFYITEMDRAW | CDRF_NOTIFYPOSTPAINT;
 		}
 
 		case CDDS_ITEMPREPAINT:
@@ -6621,11 +6667,11 @@ LRESULT CALLBACK _r_theme_subclassproc (
 
 			mbi.cbSize = sizeof (mbi);
 
-			// get the menubar rect
-			if (!GetMenuBarInfo (hwnd, OBJID_MENU, 0, &mbi))
+			if (!GetWindowRect (hwnd, &rect))
 				break;
 
-			if (!GetWindowRect (hwnd, &rect))
+			// get the menubar rect
+			if (!GetMenuBarInfo (hwnd, OBJID_MENU, 0, &mbi))
 				break;
 
 			// the rcBar is offset by the window rect
@@ -6641,54 +6687,62 @@ LRESULT CALLBACK _r_theme_subclassproc (
 		case WM_UAHDRAWMENUITEM:
 		{
 			LPUAHDRAWMENUITEM menu_item;
-			MENUITEMINFO mii = {0};
-			R_STRINGREF sr;
-			WCHAR buffer[128] = {0};
+			PR_STRING string;
 			HTHEME htheme;
 			ULONG flags = DT_CENTER | DT_SINGLELINE | DT_VCENTER;
-			COLORREF clr = WND_BACKGROUND_CLR;
-			INT state_id = MPI_NORMAL;
+			COLORREF bg_clr = WND_BACKGROUND_CLR;
+			COLORREF text_clr = WND_TEXT_CLR;
+			INT state_id = MBI_NORMAL; // normal display (default)
 
 			menu_item = (LPUAHDRAWMENUITEM)lparam;
 
-			mii.cbSize = sizeof (mii);
-			mii.fMask = MIIM_STRING;
-			mii.dwTypeData = buffer;
-			mii.cch = RTL_NUMBER_OF (buffer);
+			string = _r_menu_getitemtext (menu_item->um.hmenu, menu_item->umi.iPosition, TRUE);
 
-			if (!GetMenuItemInfoW (menu_item->um.hmenu, menu_item->umi.iPosition, TRUE, &mii))
+			if (!string)
 				break;
 
-			if ((menu_item->dis.itemState & ODS_DEFAULT) || (menu_item->dis.itemState & ODS_INACTIVE))
-				state_id = MPI_NORMAL; // normal display
-
-			if ((menu_item->dis.itemState & ODS_SELECTED) || (menu_item->dis.itemState & ODS_HOTLIGHT))
+			if (menu_item->dis.itemState & ODS_HOTLIGHT)
 			{
-				state_id = MPI_HOT; // hot tracking
+				state_id = MBI_HOT; // hot tracking
 
-				clr = WND_HIGHLIGHT_CLR;
+				bg_clr = WND_HIGHLIGHT_CLR;
+			}
+
+			if (menu_item->dis.itemState & ODS_SELECTED)
+			{
+				state_id = MBI_PUSHED; // clicked
+
+				bg_clr = WND_HIGHLIGHT_CLR;
 			}
 
 			if ((menu_item->dis.itemState & ODS_GRAYED) || (menu_item->dis.itemState & ODS_DISABLED))
-				state_id = MPI_DISABLED;
+				state_id = MBI_DISABLED; // disabled
 
 			if (menu_item->dis.itemState & ODS_NOACCEL)
 				flags |= DT_HIDEPREFIX;
 
 			htheme = _r_dc_openthemedata (hwnd, VSCLASS_MENU, _r_dc_getwindowdpi (hwnd));
 
-			if (!htheme)
-				break;
+			if (htheme)
+			{
+				if (state_id == MBI_NORMAL || state_id == MBI_HOT || state_id == MBI_PUSHED || state_id == MBI_DISABLED)
+				{
+					_r_dc_fillrect (menu_item->um.hdc, &menu_item->dis.rcItem, bg_clr);
+				}
+				else
+				{
+					DrawThemeBackground (htheme, menu_item->um.hdc, MENU_BARITEM, state_id, &menu_item->dis.rcItem, NULL);
+				}
 
-			_r_dc_fillrect (menu_item->um.hdc, &menu_item->dis.rcItem, clr);
+				if (state_id == MBI_DISABLED || state_id == MBI_DISABLEDHOT || state_id == MBI_DISABLEDPUSHED)
+					text_clr = WND_GRAYTEXT_CLR;
 
-			DrawThemeBackground (htheme, menu_item->um.hdc, MENU_POPUPITEM, state_id, &menu_item->dis.rcItem, NULL);
+				_r_dc_drawtext (htheme, menu_item->um.hdc, &string->sr, &menu_item->dis.rcItem, MENU_BARITEM, state_id, flags, text_clr);
 
-			_r_obj_initializestringref (&sr, buffer);
+				CloseThemeData (htheme);
+			}
 
-			_r_dc_drawtext (htheme, menu_item->um.hdc, &sr, &menu_item->dis.rcItem, MENU_BARITEM, state_id, flags, WND_TEXT_CLR);
-
-			CloseThemeData (htheme);
+			_r_obj_dereference (string);
 
 			return TRUE;
 		}

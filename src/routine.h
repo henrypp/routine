@@ -57,6 +57,7 @@
 #include <dbghelp.h>
 #include <dde.h>
 #include <dwmapi.h>
+#include <intrin.h>
 #include <knownfolders.h>
 #include <ntsecapi.h>
 #include <psapi.h>
@@ -291,9 +292,9 @@ FORCEINLINE BOOLEAN _InterlockedBitTestAndSetPointer (
 )
 {
 #if defined(_WIN64)
-	return _interlockedbittestandset64 ((PLONG64)base, (LONG64)bit);
+	return _interlockedbittestandset64 ((LONG64 volatile *)base, (LONG64)bit);
 #else
-	return _interlockedbittestandset ((PLONG)base, (LONG)bit);
+	return _interlockedbittestandset ((LONG volatile *)base, (LONG)bit);
 #endif // _WIN64
 }
 
@@ -303,9 +304,9 @@ FORCEINLINE LONG_PTR InterlockedExchangeAddPointer (
 )
 {
 #if defined(_WIN64)
-	return (LONG_PTR)_InterlockedExchangeAdd64 ((PLONG64)addend, (LONG64)value);
+	return (LONG_PTR)_InterlockedExchangeAdd64 ((LONG64 volatile *)addend, (LONG64)value);
 #else
-	return (LONG_PTR)_InterlockedExchangeAdd ((PLONG)addend, (LONG)value);
+	return (LONG_PTR)_InterlockedExchangeAdd ((LONG volatile *)addend, (LONG)value);
 #endif // _WIN64
 }
 
@@ -314,9 +315,9 @@ FORCEINLINE LONG_PTR InterlockedIncrementPointer (
 )
 {
 #if defined(_WIN64)
-	return (LONG_PTR)_InterlockedIncrement64 ((PLONG64)addend);
+	return (LONG_PTR)_InterlockedIncrement64 ((LONG64 volatile *)addend);
 #else
-	return (LONG_PTR)_InterlockedIncrement ((PLONG)addend);
+	return (LONG_PTR)_InterlockedIncrement ((LONG volatile *)addend);
 #endif // _WIN64
 }
 
@@ -325,9 +326,9 @@ FORCEINLINE LONG_PTR InterlockedDecrementPointer (
 )
 {
 #if defined(_WIN64)
-	return (LONG_PTR)_InterlockedDecrement64 ((PLONG64)addend);
+	return (LONG_PTR)_InterlockedDecrement64 ((LONG_PTR volatile *)addend);
 #else
-	return (LONG_PTR)_InterlockedDecrement ((PLONG)addend);
+	return (LONG_PTR)_InterlockedDecrement ((LONG_PTR volatile *)addend);
 #endif // _WIN64
 }
 
@@ -508,11 +509,6 @@ VOID FASTCALL _r_queuedlock_optimizelist (
 
 VOID FASTCALL _r_queuedlock_wake (
 	_Inout_ PR_QUEUED_LOCK queued_lock,
-	_In_ ULONG_PTR value
-);
-
-VOID FASTCALL _r_queuedlock_wake_ex (
-	_Inout_ PR_QUEUED_LOCK queued_lock,
 	_In_ ULONG_PTR value,
 	_In_ BOOLEAN is_ignoreowned,
 	_In_ BOOLEAN is_wakeall
@@ -540,7 +536,7 @@ FORCEINLINE VOID _r_queuedlock_acquireshared (
 {
 	ULONG_PTR value;
 
-	value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, IntToPtr (PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC), NULL);
+	value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, IntToPtr (PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC), NULL);
 
 	if (value != 0)
 		_r_queuedlock_acquireshared_ex (queued_lock);
@@ -569,7 +565,7 @@ FORCEINLINE VOID _r_queuedlock_releaseshared (
 
 	value = PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC;
 
-	new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, NULL, (PVOID)value);
+	new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, NULL, (PVOID)value);
 
 	if (new_value != value)
 		_r_queuedlock_releaseshared_ex (queued_lock);
@@ -654,11 +650,11 @@ FORCEINLINE BOOLEAN _r_protection_acquire (
 	_Inout_ PR_RUNDOWN_PROTECT protection
 )
 {
-	ULONG_PTR value;
 	ULONG_PTR new_value;
+	ULONG_PTR value;
 
 	value = protection->value & ~PR_RUNDOWN_ACTIVE; // fail fast path when rundown is active
-	new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value + PR_RUNDOWN_REF_INC), (PVOID)value);
+	new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value + PR_RUNDOWN_REF_INC), (PVOID)value);
 
 	if (new_value == value)
 	{
@@ -674,11 +670,11 @@ FORCEINLINE VOID _r_protection_release (
 	_Inout_ PR_RUNDOWN_PROTECT protection
 )
 {
-	ULONG_PTR value;
 	ULONG_PTR new_value;
+	ULONG_PTR value;
 
 	value = protection->value & ~PR_RUNDOWN_ACTIVE; // Fail fast path when rundown is active
-	new_value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value - PR_RUNDOWN_REF_INC), (PVOID)value);
+	new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value - PR_RUNDOWN_REF_INC), (PVOID)value);
 
 	if (new_value != value)
 		_r_protection_release_ex (protection);
@@ -690,7 +686,7 @@ FORCEINLINE VOID _r_protection_waitfor (
 {
 	ULONG_PTR value;
 
-	value = (ULONG_PTR)InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, IntToPtr (PR_RUNDOWN_ACTIVE), NULL);
+	value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, IntToPtr (PR_RUNDOWN_ACTIVE), NULL);
 
 	if (value != 0 && value != PR_RUNDOWN_ACTIVE)
 		_r_protection_waitfor_ex (protection);
@@ -701,6 +697,10 @@ FORCEINLINE VOID _r_protection_waitfor (
 //
 
 PR_FREE_LIST _r_workqueue_getfreelist ();
+
+HANDLE _r_workqueue_getsemaphore (
+	_Inout_ PR_WORKQUEUE work_queue
+);
 
 VOID _r_workqueue_initialize (
 	_Out_ PR_WORKQUEUE work_queue,
@@ -1981,8 +1981,8 @@ NTSTATUS _r_fs_deviceiocontrol (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_dospathnametontpathname (
-	_In_ LPCWSTR dos_path,
-	_Out_ PUNICODE_STRING nt_path
+	_In_ LPCWSTR path,
+	_Out_ PUNICODE_STRING out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2036,6 +2036,13 @@ NTSTATUS _r_fs_getdiskspace (
 );
 
 _Success_ (NT_SUCCESS (return))
+NTSTATUS _r_fs_getobjectname (
+	_In_ HANDLE hfile,
+	_In_ BOOLEAN is_ntpathtodos,
+	_Out_ PR_STRING_PTR out_buffer
+);
+
+_Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getpos (
 	_In_ HANDLE hfile,
 	_Out_ PLONG64 out_buffer
@@ -2051,15 +2058,15 @@ NTSTATUS _r_fs_getsecurityinfo (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getsize (
-	_In_opt_ HANDLE hfile,
 	_In_opt_ LPCWSTR path,
+	_In_opt_ HANDLE hfile,
 	_Out_ PLARGE_INTEGER out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getsize2 (
-	_In_opt_ HANDLE hfile,
 	_In_opt_ LPCWSTR path,
+	_In_opt_ HANDLE hfile,
 	_Out_ PLONG64 out_buffer
 );
 
@@ -2069,6 +2076,11 @@ NTSTATUS _r_fs_gettimestamp (
 	_Out_opt_ PFILETIME creation_time,
 	_Out_opt_ PFILETIME access_time,
 	_Out_opt_ PFILETIME write_time
+);
+
+_Success_ (return)
+BOOLEAN _r_fs_isdirectory (
+	_In_ LPCWSTR path
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2159,13 +2171,6 @@ BOOLEAN _r_path_geticon (
 	_Out_opt_ HICON_PTR hicon_ptr
 );
 
-_Success_ (return)
-BOOLEAN _r_path_getpathinfo (
-	_In_ PR_STRINGREF path,
-	_Out_opt_ PR_STRINGREF directory,
-	_Out_opt_ PR_STRINGREF basename
-);
-
 _Ret_maybenull_
 PR_STRING _r_path_getbasedirectory (
 	_In_ PR_STRINGREF path
@@ -2198,6 +2203,7 @@ NTSTATUS _r_path_getfullpath (
 _Success_ (SUCCEEDED (return))
 HRESULT _r_path_getknownfolder (
 	_In_ LPCGUID rfid,
+	_In_ ULONG flags,
 	_In_opt_ LPCWSTR append,
 	_Outptr_ PR_STRING_PTR out_buffer
 );
@@ -2206,6 +2212,17 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_getmodulepath (
 	_In_ PVOID hinst,
 	_Outptr_ PR_STRING_PTR out_buffer
+);
+
+_Success_ (return)
+BOOLEAN _r_path_getpathinfo (
+	_In_ PR_STRINGREF path,
+	_Out_opt_ PR_STRINGREF directory,
+	_Out_opt_ PR_STRINGREF basename
+);
+
+RTL_PATH_TYPE _r_path_getnametype (
+	_In_ LPCWSTR path
 );
 
 BOOLEAN _r_path_issecurelocation (
@@ -2284,13 +2301,22 @@ NTSTATUS _r_locale_lcidtoname (
 // Shell
 //
 
-HRESULT _r_shell_showfile (
-	_In_ LPCWSTR path
+_Success_ (NT_SUCCESS (return))
+NTSTATUS _r_shell_openkey (
+	_In_opt_ HWND hwnd,
+	_In_ HANDLE hkey
 );
 
+_Success_ (SUCCEEDED (return))
 HRESULT _r_shell_resolveshortcut (
 	_In_ LPWSTR lnk_path,
-	_Out_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_path,
+	_Out_opt_ PR_STRING_PTR out_arguments
+);
+
+_Success_ (SUCCEEDED (return))
+HRESULT _r_shell_showfile (
+	_In_ LPCWSTR path
 );
 
 FORCEINLINE VOID _r_shell_opendefault (
@@ -2332,7 +2358,7 @@ VOID _r_str_appendformat (
 INT _r_str_compare (
 	_In_ LPCWSTR string1,
 	_In_ LPCWSTR string2,
-	_In_opt_ ULONG_PTR max_count
+	_In_opt_ LONG max_count
 );
 
 VOID _r_str_copy (
@@ -2440,10 +2466,6 @@ ULONG_PTR _r_str_getbytelength3 (
 ULONG_PTR _r_str_getbytelength_ex (
 	_In_reads_or_z_ (max_length) LPCSTR string,
 	_In_ _In_range_ (<= , PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR max_length
-);
-
-BOOLEAN _r_str_isdigit (
-	_In_ WCHAR chr
 );
 
 BOOLEAN _r_str_isequal (
@@ -2805,7 +2827,7 @@ NTSTATUS _r_sys_formatmessage (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getbinarytype (
 	_In_ LPCWSTR path,
-	_Out_ PULONG out_buffer
+	_Inout_ PULONG out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2817,7 +2839,7 @@ PR_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ();
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getenvironmentvariable (
-	_In_opt_ PVOID_PTR environment,
+	_In_opt_ PVOID environment,
 	_In_ PR_STRINGREF name_sr,
 	_Out_ PR_STRING_PTR out_buffer
 );
@@ -2846,6 +2868,7 @@ VOID _r_sys_getsystemroot (
 
 PR_STRING _r_sys_getsystemdirectory ();
 
+_Ret_maybenull_
 PR_STRING _r_sys_gettempdirectory ();
 
 _Success_ (NT_SUCCESS (return))
@@ -2894,11 +2917,12 @@ BOOLEAN _r_sys_isprocessimmersive (
 	_In_ HANDLE hprocess
 );
 
-_Success_ (NT_SUCCESS (return))
+_Success_ (return == STATUS_SUCCESS)
 NTSTATUS _r_sys_createprocess (
-	_In_ LPWSTR file_name,
+	_In_opt_ LPWSTR file_name,
 	_In_opt_ LPWSTR command_line,
-	_In_opt_ LPWSTR directory
+	_In_opt_ LPWSTR directory,
+	_In_ BOOLEAN is_wait
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -3016,8 +3040,7 @@ HRESULT _r_sys_registerrestart (
 BOOLEAN _r_sys_runasadmin (
 	_In_ LPCWSTR file_name,
 	_In_opt_ LPCWSTR command_line,
-	_In_opt_ LPCWSTR directory,
-	_In_ BOOLEAN is_wait
+	_In_opt_ LPCWSTR directory
 );
 
 NTSTATUS NTAPI _r_sys_basethreadstart (
@@ -3504,7 +3527,7 @@ BOOLEAN _r_layout_setwindowanchor (
 // Window management
 //
 
-VOID _r_wnd_addstyle (
+BOOLEAN _r_wnd_addstyle (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
 	_In_ LONG_PTR mask,
@@ -3792,12 +3815,12 @@ FORCEINLINE VOID _r_wnd_seticon (
 	_r_wnd_sendmessage (hwnd, 0, WM_SETICON, ICON_BIG, (LPARAM)hicon_big);
 }
 
-FORCEINLINE VOID _r_wnd_top (
+FORCEINLINE BOOLEAN _r_wnd_top (
 	_In_ HWND hwnd,
 	_In_ BOOLEAN is_enable
 )
 {
-	SetWindowPos (
+	return !!SetWindowPos (
 		hwnd,
 		is_enable ? HWND_TOPMOST : HWND_NOTOPMOST,
 		0,
@@ -3928,8 +3951,7 @@ NTSTATUS _r_reg_enumvalues (
 	_In_ HANDLE hkey,
 	_In_ ULONG index,
 	_Out_ PR_STRING_PTR out_name,
-	_Out_opt_ PVOID out_value,
-	_Out_opt_ PULONG out_length,
+	_Out_opt_ PR_STRING_PTR out_value,
 	_Out_opt_ PULONG out_type
 );
 
@@ -3982,8 +4004,8 @@ NTSTATUS _r_reg_setvalue (
 	_In_ HANDLE hkey,
 	_In_opt_ LPWSTR value_name,
 	_In_ ULONG type,
-	_In_reads_bytes_opt_ (data_length) PVOID data,
-	_In_ ULONG data_length
+	_In_reads_bytes_opt_ (buffer_length) PVOID buffer,
+	_In_ ULONG buffer_length
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -4210,6 +4232,25 @@ HRESULT _r_imagelist_create (
 	_Out_ HIMAGELIST_PTR out_buffer
 );
 
+VOID _r_imagelist_destroy (
+	_In_ HIMAGELIST himg
+);
+
+_Success_ (SUCCEEDED (return))
+HRESULT _r_imagelist_add (
+	_In_ HIMAGELIST himg,
+	_In_ HBITMAP hbitmap,
+	_In_opt_ HBITMAP hmask,
+	_Out_opt_ PLONG out_index
+);
+
+_Success_ (SUCCEEDED (return))
+HRESULT _r_imagelist_addicon (
+	_In_ HIMAGELIST himg,
+	_In_ HICON hicon,
+	_Out_opt_ PLONG out_index
+);
+
 _Success_ (SUCCEEDED (return))
 HRESULT _r_imagelist_draw (
 	_In_ HIMAGELIST himg,
@@ -4226,62 +4267,22 @@ HRESULT _r_imagelist_draw (
 );
 
 _Success_ (SUCCEEDED (return))
-FORCEINLINE HRESULT _r_imagelist_add (
+HRESULT _r_imagelist_getsize (
 	_In_ HIMAGELIST himg,
-	_In_ HBITMAP hbitmap,
-	_In_opt_ HBITMAP hmask,
-	_Out_opt_ PLONG out_size
-)
-{
-	INT size = 0;
-	HRESULT status;
-
-	// error C3861: 'IImageList2_Add': identifier not found
-	// don't know why!
-
-	status = ((IImageList2*)himg)->lpVtbl->Add ((IImageList2*)himg, hbitmap, hmask, &size);
-
-	if (out_size)
-		*out_size = size;
-
-	return status;
-}
-
-FORCEINLINE VOID _r_imagelist_destroy (
-	_In_ HIMAGELIST himg
-)
-{
-	// error C3861: 'IImageList2_Release': identifier not found
-	// don't know why!
-	//IImageList2_Release ((IImageList2*)himg);
-
-	((IImageList2*)himg)->lpVtbl->Release ((IImageList2*)himg);
-}
+	_Out_ PSIZE out_buffer
+);
 
 _Success_ (SUCCEEDED (return))
-FORCEINLINE HRESULT _r_imagelist_getsize (
-	_In_ HIMAGELIST himg,
-	_Out_ PINT out_size_x,
-	_Out_ PINT out_size_y
-)
-{
-	// error C3861: 'IImageList2_GetIconSize': identifier not found
-	// don't know why!
-
-	return ((IImageList2*)himg)->lpVtbl->GetIconSize ((IImageList2*)himg, out_size_x, out_size_y);
-}
+HRESULT _r_imagelist_getsystem (
+	_In_ LONG icons_size,
+	_Out_ HIMAGELIST_PTR out_buffer
+);
 
 _Success_ (SUCCEEDED (return))
-FORCEINLINE HRESULT _r_imagelist_setsize (
+HRESULT _r_imagelist_setsize (
 	_In_ HIMAGELIST himg,
 	_In_ LONG size
-)
-{
-	// error C3861: 'IImageList2_SetIconSize': identifier not found
-	// don't know why!
-
-	return ((IImageList2*)himg)->lpVtbl->SetIconSize ((IImageList2*)himg, size, size);
-}
+);
 
 //
 // Other
@@ -4440,13 +4441,50 @@ VOID _r_xml_writewhitespace (
 );
 
 //
+// Taskbar (win7+)
+//
+
+_Success_ (SUCCEEDED (return))
+HRESULT _r_taskbar_initialize (
+	_Out_ PHANDLE out_buffer
+);
+
+VOID _r_taskbar_destroy (
+	_In_ HANDLE htaskbar
+);
+
+_Success_ (SUCCEEDED (return))
+HRESULT _r_taskbar_setprogressstate (
+	_In_ HANDLE htaskbar,
+	_In_ HWND hwnd,
+	_In_ TBPFLAG state
+);
+
+_Success_ (SUCCEEDED (return))
+HRESULT _r_taskbar_setprogressvalue (
+	_In_ HANDLE htaskbar,
+	_In_ HWND hwnd,
+	_In_ ULONG64 total_written,
+	_In_ ULONG64 total_length
+);
+
+_Success_ (SUCCEEDED (return))
+HRESULT _r_taskbar_setoverlayicon (
+	_In_ HANDLE htaskbar,
+	_In_ HWND hwnd,
+	_In_opt_ HICON hicon,
+	_In_opt_ LPCWSTR description
+);
+
+//
 // System tray
 //
 
 VOID _r_tray_initialize (
 	_Out_ PNOTIFYICONDATA nid,
 	_In_ HWND hwnd,
-	_In_ LPCGUID guid
+	_In_ LPCGUID guid,
+	_In_opt_ UINT msg
 );
 
 VOID _r_tray_create (
@@ -4521,7 +4559,7 @@ HWND _r_ctrl_createtip (
 	_In_opt_ HWND hparent
 );
 
-VOID _r_ctrl_enable (
+BOOLEAN _r_ctrl_enable (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
 	_In_ BOOLEAN is_enable
@@ -4578,27 +4616,28 @@ VOID _r_ctrl_setstringformat (
 
 VOID _r_ctrl_setstringlength (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ PR_STRINGREF string
 );
 
 VOID _r_ctrl_settiptext (
 	_In_ HWND htip,
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ LPWSTR string
 );
 
 VOID _r_ctrl_settiptextformat (
 	_In_ HWND htip,
 	_In_ HWND hparent,
-	_In_ INT ctrl_id,
+	_In_opt_ INT ctrl_id,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 );
 
 VOID _r_ctrl_settipstyle (
-	_In_ HWND htip
+	_In_ HWND htip,
+	_In_ BOOLEAN is_instant
 );
 
 VOID _r_ctrl_showballoontip (
@@ -4606,7 +4645,7 @@ VOID _r_ctrl_showballoontip (
 	_In_opt_ INT ctrl_id,
 	_In_ INT icon_id,
 	_In_opt_ LPCWSTR title,
-	_In_ LPCWSTR string
+	_In_opt_ LPCWSTR string
 );
 
 VOID _r_ctrl_showballoontipformat (
@@ -4958,14 +4997,14 @@ FORCEINLINE LRESULT _r_datetime_gettime (
 	return _r_wnd_sendmessage (hwnd, ctrl_id, DTM_GETSYSTEMTIME, GDT_VALID, (LPARAM)out_buffer);
 }
 
-FORCEINLINE ULONG _r_datetime_setcolor (
+FORCEINLINE COLORREF _r_datetime_setcolor (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
 	_In_ WPARAM type,
-	_In_ ULONG clr
+	_In_ COLORREF clr
 )
 {
-	return (ULONG)_r_wnd_sendmessage (hwnd, ctrl_id, DTM_SETMCCOLOR, type, (LPARAM)clr);
+	return (COLORREF)_r_wnd_sendmessage (hwnd, ctrl_id, DTM_SETMCCOLOR, type, (LPARAM)clr);
 }
 
 FORCEINLINE LRESULT _r_datetime_setformat (
@@ -5074,27 +5113,27 @@ _Ret_maybenull_
 PR_STRING _r_menu_getitemtext (
 	_In_ HMENU hmenu,
 	_In_ UINT item_id,
-	_In_ BOOL is_byposition
+	_In_ BOOLEAN is_byposition
 );
 
 VOID _r_menu_setitembitmap (
 	_In_ HMENU hmenu,
 	_In_ UINT item_id,
-	_In_ BOOL is_byposition,
+	_In_ BOOLEAN is_byposition,
 	_In_ HBITMAP hbitmap
 );
 
 VOID _r_menu_setitemtext (
 	_In_ HMENU hmenu,
 	_In_ UINT item_id,
-	_In_ BOOL is_byposition,
+	_In_ BOOLEAN is_byposition,
 	_In_ LPWSTR string
 );
 
 VOID _r_menu_setitemtextformat (
 	_In_ HMENU hmenu,
 	_In_ UINT item_id,
-	_In_ BOOL is_byposition,
+	_In_ BOOLEAN is_byposition,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 );
@@ -5327,7 +5366,7 @@ VOID _r_listview_fillitems (
 	_In_ INT image_id
 );
 
-_Success_ (return != -1)
+_Success_ (return != INT_ERROR)
 INT _r_listview_finditem (
 	_In_ HWND hwnd,
 	_In_opt_ INT listview_id,
@@ -5502,6 +5541,7 @@ FORCEINLINE INT _r_listview_getitemcount (
 	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_GETITEMCOUNT, 0, 0);
 }
 
+_Success_ (return != INT_ERROR)
 FORCEINLINE INT _r_listview_getnextselected (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
@@ -5519,6 +5559,7 @@ FORCEINLINE INT _r_listview_getselectedcount (
 	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_GETSELECTEDCOUNT, 0, 0);
 }
 
+_Success_ (return != INT_ERROR)
 FORCEINLINE INT _r_listview_getselecteditem (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id
@@ -5934,7 +5975,7 @@ INT _r_toolbar_getwidth (
 VOID _r_toolbar_setbutton (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
-	_In_ UINT command_id,
+	_In_ UINT_PTR command_id,
 	_In_opt_ LPWSTR string,
 	_In_opt_ INT style,
 	_In_opt_ INT state,
@@ -5958,11 +5999,11 @@ FORCEINLINE VOID _r_toolbar_addseparator (
 FORCEINLINE VOID _r_toolbar_enablebutton (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
-	_In_ UINT command_id,
+	_In_ UINT_PTR command_id,
 	_In_ BOOLEAN is_enable
 )
 {
-	_r_wnd_sendmessage (hwnd, ctrl_id, TB_ENABLEBUTTON, (WPARAM)command_id, MAKELPARAM (is_enable, 0));
+	_r_wnd_sendmessage (hwnd, ctrl_id, TB_ENABLEBUTTON, command_id, MAKELPARAM (is_enable, 0));
 }
 
 FORCEINLINE INT _r_toolbar_getbuttoncount (
@@ -5983,7 +6024,7 @@ FORCEINLINE ULONG _r_toolbar_getbuttonsize (
 
 FORCEINLINE LRESULT _r_toolbar_getexstyle (
 	_In_ HWND hwnd,
-	_In_ INT ctrl_id
+	_In_opt_ INT ctrl_id
 )
 {
 	return _r_wnd_sendmessage (hwnd, ctrl_id, TB_GETEXTENDEDSTYLE, 0, 0);
@@ -5998,14 +6039,15 @@ FORCEINLINE HIMAGELIST _r_toolbar_getimagelist (
 	return (HIMAGELIST)_r_wnd_sendmessage (hwnd, ctrl_id, TB_GETIMAGELIST, 0, 0);
 }
 
+_Success_ (return != INT_ERROR)
 FORCEINLINE LRESULT _r_toolbar_getinfo (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
-	_In_ UINT command_id,
+	_In_ UINT_PTR command_id,
 	_Inout_ LPTBBUTTONINFOW out_buffer
 )
 {
-	return _r_wnd_sendmessage (hwnd, ctrl_id, TB_GETBUTTONINFO, (WPARAM)command_id, (LPARAM)out_buffer);
+	return _r_wnd_sendmessage (hwnd, ctrl_id, TB_GETBUTTONINFO, command_id, (LPARAM)out_buffer);
 }
 
 FORCEINLINE ULONG _r_toolbar_getpadding (
@@ -6099,19 +6141,21 @@ FORCEINLINE VOID _r_toolbar_setimagelist (
 // Control: progress bar
 //
 
-VOID _r_progress_setmarquee (
+FORCEINLINE ULONG _r_progress_getvalue (
 	_In_ HWND hwnd,
-	_In_opt_ INT ctrl_id,
-	_In_ BOOL is_enable
-);
+	_In_opt_ INT ctrl_id
+)
+{
+	return (ULONG)_r_wnd_sendmessage (hwnd, ctrl_id, PBM_GETPOS, 0, 0);
+}
 
 FORCEINLINE VOID _r_progress_setvalue (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
-	_In_ LONG percent
+	_In_ UINT_PTR percent
 )
 {
-	_r_wnd_sendmessage (hwnd, ctrl_id, PBM_SETPOS, (WPARAM)percent, 0);
+	_r_wnd_sendmessage (hwnd, ctrl_id, PBM_SETPOS, percent, 0);
 }
 
 FORCEINLINE VOID _r_progress_setbarcolor (
@@ -6130,6 +6174,17 @@ FORCEINLINE VOID _r_progress_setbkcolor (
 )
 {
 	_r_wnd_sendmessage (hwnd, ctrl_id, PBM_SETBKCOLOR, 0, clr);
+}
+
+FORCEINLINE VOID _r_progress_setmarquee (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ BOOL is_enable
+)
+{
+	_r_wnd_sendmessage (hwnd, ctrl_id, PBM_SETMARQUEE, (WPARAM)is_enable, (LPARAM)10);
+
+	_r_wnd_addstyle (hwnd, ctrl_id, is_enable ? PBS_MARQUEE : 0, PBS_MARQUEE, GWL_STYLE);
 }
 
 //

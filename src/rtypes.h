@@ -13,8 +13,8 @@
 
 typedef PSYSTEM_PROCESS_INFORMATION *PSYSTEM_PROCESS_INFORMATION_PTR;
 typedef PSECURITY_DESCRIPTOR *PSECURITY_DESCRIPTOR_PTR;
-typedef HCATADMIN *HCATADMIN_PTR;
 typedef HIMAGELIST *HIMAGELIST_PTR;
+typedef HCATADMIN *HCATADMIN_PTR;
 typedef HBITMAP *HBITMAP_PTR;
 typedef PVOID *PVOID_PTR;
 typedef PBYTE *PBYTE_PTR;
@@ -249,6 +249,7 @@ typedef union _UAHMENUITEMMETRICS
 {
 	// cx appears to be 14 / 0xE less than rcItem's width!
 	// cy 0x14 seems stable, i wonder if it is 4 less than rcItem's height which is always 24 atm
+
 	struct
 	{
 		ULONG cx;
@@ -275,7 +276,7 @@ typedef struct _UAHMENU
 {
 	HMENU hmenu;
 	HDC hdc;
-	ULONG dwFlags; // no idea what these mean, in my testing it's either 0x00000a00 or sometimes 0x00000a10
+	ULONG dwFlags; // no idea what these mean, in my testing it's either 0x00000A00 or sometimes 0x00000A10
 } UAHMENU, *LPUAHMENU;
 
 // the DRAWITEMSTRUCT contains the states of the menu items, as well as
@@ -462,7 +463,7 @@ typedef struct DECLSPEC_ALIGN (16) _R_QUEUED_WAIT_BLOCK
 #define PR_QUEUED_LOCK_TRAVERSING ((ULONG_PTR)0x4)
 #define PR_QUEUED_LOCK_MULTIPLE_SHARED ((ULONG_PTR)0x8)
 
-#define PR_QUEUED_LOCK_FLAGS ((ULONG_PTR)0xf)
+#define PR_QUEUED_LOCK_FLAGS ((ULONG_PTR)0xF)
 
 #define _r_queuedlock_getsharedowners(value) \
 	((ULONG_PTR)(value) >> PR_QUEUED_LOCK_SHARED_SHIFT)
@@ -479,7 +480,7 @@ typedef struct _R_QUEUED_LOCK R_CONDITION, *PR_CONDITION;
 #define PR_CONDITION_WAIT_QUEUED_LOCK 0x001
 #define PR_CONDITION_WAIT_CRITICAL_SECTION 0x002
 #define PR_CONDITION_WAIT_FAST_LOCK 0x004
-#define PR_CONDITION_WAIT_LOCK_TYPE_MASK 0xfff
+#define PR_CONDITION_WAIT_LOCK_TYPE_MASK 0xFFF
 
 #define PR_CONDITION_WAIT_SHARED 0x1000
 #define PR_CONDITION_WAIT_SPIN 0x2000
@@ -510,8 +511,7 @@ typedef struct _R_QUEUED_LOCK R_RUNDOWN_PROTECT, *PR_RUNDOWN_PROTECT;
 //
 
 typedef VOID (NTAPI *PR_WORKQUEUE_FUNCTION) (
-	_In_ PVOID arglist,
-	_In_ ULONG busy_count
+	_In_opt_ PVOID arglist
 	);
 
 typedef struct _R_ENVIRONMENT
@@ -542,8 +542,9 @@ typedef struct _R_WORKQUEUE
 	R_ENVIRONMENT environment;
 	PVOID thread_name; // PR_STRING
 
-	HANDLE semaphore_handle;
+	HANDLE hsemaphore;
 
+	ULONG minimum_threads;
 	ULONG maximum_threads;
 
 	volatile ULONG current_threads;
@@ -1053,6 +1054,7 @@ typedef struct _R_UPDATE_INFO
 	HWND htaskdlg;
 	HWND hparent;
 	HANDLE hthread;
+	HANDLE htaskbar;
 	HINTERNET hsession;
 	ULONG flags;
 	volatile LONG lock;
