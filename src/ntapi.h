@@ -27,31 +27,31 @@
 
 #if !defined(NT_CUSTOMER_SHIFT)
 #define NT_CUSTOMER_SHIFT 0x1D
-#endif // !NT_FACILITY_MASK
+#endif // NT_FACILITY_MASK
 
 #if !defined(NT_CUSTOMER)
 #define NT_CUSTOMER(Status) ((((ULONG)(Status)) >> NT_CUSTOMER_SHIFT) & 1)
-#endif // !NT_FACILITY_MASK
+#endif // NT_FACILITY_MASK
 
 #if !defined(NT_FACILITY_MASK)
 #define NT_FACILITY_MASK 0xFFF
-#endif // !NT_FACILITY_MASK
+#endif // NT_FACILITY_MASK
 
 #if !defined(NT_FACILITY_SHIFT)
 #define NT_FACILITY_SHIFT 16
-#endif // !NT_FACILITY_SHIFT
+#endif // NT_FACILITY_SHIFT
 
 #if !defined(NT_FACILITY)
 #define NT_FACILITY(Status) ((((ULONG)(Status)) >> NT_FACILITY_SHIFT) & NT_FACILITY_MASK)
-#endif // !NT_FACILITY
+#endif // NT_FACILITY
 
 #if !defined(NT_NTWIN32)
 #define NT_NTWIN32(Status) (NT_FACILITY(Status) == FACILITY_NTWIN32)
-#endif // !NT_NTWIN32
+#endif // NT_NTWIN32
 
 #if !defined(WIN32_FROM_NTSTATUS)
 #define WIN32_FROM_NTSTATUS(Status) (((ULONG)(Status)) & 0xFFFF)
-#endif // !WIN32_FROM_NTSTATUS
+#endif // WIN32_FROM_NTSTATUS
 
 //
 // Memory
@@ -79,31 +79,31 @@
 
 #if !defined(SIH_APPLICATION)
 #define SIH_APPLICATION 32512
-#endif // !SIH_APPLICATION
+#endif // SIH_APPLICATION
 
 #if !defined(SIH_ERROR)
 #define SIH_ERROR 32513
-#endif // !SIH_ERROR
+#endif // SIH_ERROR
 
 #if !defined(SIH_QUESTION)
 #define SIH_QUESTION 32514
-#endif // !SIH_QUESTION
+#endif // SIH_QUESTION
 
 #if !defined(SIH_EXCLAMATION)
 #define SIH_EXCLAMATION 32515
-#endif // !SIH_EXCLAMATION
+#endif // SIH_EXCLAMATION
 
 #if !defined(SIH_INFORMATION)
 #define SIH_INFORMATION 32516
-#endif // !SIH_INFORMATION
+#endif // SIH_INFORMATION
 
 #if !defined(SIH_WINLOGO)
 #define SIH_WINLOGO 32517
-#endif // !SIH_WINLOGO
+#endif // SIH_WINLOGO
 
 #if !defined(SIH_SHIELD)
 #define SIH_SHIELD 32518
-#endif // !SIH_SHIELD
+#endif // SIH_SHIELD
 
 //
 // Path separator
@@ -111,11 +111,11 @@
 
 #if !defined(OBJ_NAME_PATH_SEPARATOR)
 #define OBJ_NAME_PATH_SEPARATOR L'\\'
-#endif // !OBJ_NAME_PATH_SEPARATOR
+#endif // OBJ_NAME_PATH_SEPARATOR
 
 #if !defined(OBJ_NAME_ALTPATH_SEPARATOR)
 #define OBJ_NAME_ALTPATH_SEPARATOR L'/'
-#endif // !OBJ_NAME_ALTPATH_SEPARATOR
+#endif // OBJ_NAME_ALTPATH_SEPARATOR
 
 //
 // Undocumented codes
@@ -123,11 +123,11 @@
 
 #if !defined(LVM_RESETEMPTYTEXT)
 #define LVM_RESETEMPTYTEXT (LVM_FIRST + 84)
-#endif // !LVM_RESETEMPTYTEXT
+#endif // LVM_RESETEMPTYTEXT
 
 #if !defined(WM_COPYGLOBALDATA)
 #define WM_COPYGLOBALDATA 0x0049
-#endif // !WM_COPYGLOBALDATA
+#endif // WM_COPYGLOBALDATA
 
 //
 // Privileges
@@ -259,7 +259,7 @@
 #define PROCESS_CREATE_FLAGS_PROTECTED_PROCESS 0x00000040 // NtCreateUserProcess only
 #define PROCESS_CREATE_FLAGS_CREATE_SESSION 0x00000080 // NtCreateProcessEx & NtCreateUserProcess, requires SeLoadDriver
 #define PROCESS_CREATE_FLAGS_INHERIT_FROM_PARENT 0x00000100 // NtCreateProcessEx & NtCreateUserProcess
-#define PROCESS_CREATE_FLAGS_SUSPENDED 0x00000200 // NtCreateProcessEx & NtCreateUserProcess
+#define PROCESS_CREATE_FLAGS_CREATE_SUSPENDED 0x00000200 // NtCreateProcessEx & NtCreateUserProcess
 #define PROCESS_CREATE_FLAGS_FORCE_BREAKAWAY 0x00000400 // NtCreateProcessEx & NtCreateUserProcess, requires SeTcb
 #define PROCESS_CREATE_FLAGS_MINIMAL_PROCESS 0x00000800 // NtCreateProcessEx only
 #define PROCESS_CREATE_FLAGS_RELEASE_SECTION 0x00001000 // NtCreateProcessEx & NtCreateUserProcess
@@ -799,12 +799,12 @@ typedef enum _PROCESSINFOCLASS
 	ProcessApplyStateChange,
 	ProcessEnableOptionalXStateFeatures, // s: ULONG64 // optional XState feature bitmask
 	ProcessAltPrefetchParam, // qs: OVERRIDE_PREFETCH_PARAMETER // App Launch Prefetch (ALPF) // since 22H1
-	ProcessAssignCpuPartitions,
+	ProcessAssignCpuPartitions, // HANDLE
 	ProcessPriorityClassEx, // s: PROCESS_PRIORITY_CLASS_EX
 	ProcessMembershipInformation, // q: PROCESS_MEMBERSHIP_INFORMATION
 	ProcessEffectiveIoPriority, // q: IO_PRIORITY_HINT // 110
 	ProcessEffectivePagePriority, // q: ULONG
-	ProcessSchedulerSharedData, // since 24H2
+	ProcessSchedulerSharedData, // SCHEDULER_SHARED_DATA_SLOT_INFORMATION // since 24H2
 	ProcessSlistRollbackInformation,
 	ProcessNetworkIoCounters, // q: PROCESS_NETWORK_COUNTERS
 	ProcessFindFirstThreadByTebValue, // PROCESS_TEB_VALUE_INFORMATION
@@ -2264,6 +2264,11 @@ typedef VOID (NTAPI *PTIMER_APC_ROUTINE)(
 #define NtCurrentProcessId() (NtCurrentTeb()->ClientId.UniqueProcess)
 #define NtCurrentThreadId() (NtCurrentTeb()->ClientId.UniqueThread)
 
+#define NtCurrentImageBase() ((PIMAGE_DOS_HEADER)&__ImageBase)
+
+#define NtCurrentSessionId() (RtlGetActiveConsoleId())
+#define NtCurrentLogonId() (NtCurrentPeb()->LogonId)
+
 #define NtLastError() (NtCurrentTeb()->LastErrorValue)
 
 #define InitializeObjectAttributes(p, n, a, r, s) { \
@@ -2893,6 +2898,30 @@ typedef struct _RTL_USER_PROCESS_PARAMETERS
 	ULONG DefaultThreadpoolThreadMaximum;
 	ULONG HeapMemoryTypeMask; // WIN11
 } RTL_USER_PROCESS_PARAMETERS, *PRTL_USER_PROCESS_PARAMETERS;
+
+typedef struct _RTL_PROCESS_MODULE_INFORMATION
+{
+	PVOID Section;
+	PVOID MappedBase;
+	PVOID ImageBase;
+
+	ULONG ImageSize;
+	ULONG Flags;
+
+	USHORT LoadOrderIndex;
+	USHORT InitOrderIndex;
+	USHORT LoadCount;
+	USHORT OffsetToFileName;
+
+	UCHAR FullPathName[256];
+} RTL_PROCESS_MODULE_INFORMATION, *PRTL_PROCESS_MODULE_INFORMATION;
+
+typedef struct _RTL_PROCESS_MODULES
+{
+	ULONG NumberOfModules;
+
+	_Field_size_ (NumberOfModules) RTL_PROCESS_MODULE_INFORMATION Modules[1];
+} RTL_PROCESS_MODULES, *PRTL_PROCESS_MODULES;
 
 typedef struct _TELEMETRY_COVERAGE_HEADER
 {
@@ -5142,6 +5171,7 @@ _Ret_maybenull_
 _Post_writable_byte_size_ (Size)
 __drv_allocatesMem (Mem)
 DECLSPEC_ALLOCATOR
+DECLSPEC_RESTRICT
 PVOID
 NTAPI
 RtlAllocateHeap (
@@ -5157,6 +5187,7 @@ _Ret_maybenull_
 _Post_writable_byte_size_ (Size)
 _When_ (Size > 0, __drv_allocatesMem (Mem))
 DECLSPEC_ALLOCATOR
+DECLSPEC_RESTRICT
 PVOID
 NTAPI
 RtlReAllocateHeap (
@@ -5694,7 +5725,7 @@ NtAlpcSendWaitReceivePort (
 	_In_reads_bytes_opt_ (SendMessage->u1.s1.TotalLength) PPORT_MESSAGE SendMessage,
 	_Inout_opt_ PALPC_MESSAGE_ATTRIBUTES SendMessageAttributes,
 	_Out_writes_bytes_to_opt_ (*BufferLength, *BufferLength) PPORT_MESSAGE ReceiveMessage,
-	_Inout_opt_ PSIZE_T BufferLength,
+	_Inout_opt_ PULONG_PTR BufferLength,
 	_Inout_opt_ PALPC_MESSAGE_ATTRIBUTES ReceiveMessageAttributes,
 	_In_opt_ PLARGE_INTEGER Timeout
 );
@@ -5924,7 +5955,6 @@ RtlDestroyProcessParameters (
 	_In_ _Post_invalid_ PRTL_USER_PROCESS_PARAMETERS ProcessParameters
 );
 
-// vista+
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -5937,7 +5967,7 @@ NtCreateUserProcess (
 	_In_opt_ POBJECT_ATTRIBUTES ThreadObjectAttributes,
 	_In_ ULONG ProcessFlags, // PROCESS_CREATE_FLAGS_*
 	_In_ ULONG ThreadFlags, // THREAD_CREATE_FLAGS_*
-	_In_opt_ PVOID ProcessParameters, // PRTL_USER_PROCESS_PARAMETERS
+	_In_opt_ PRTL_USER_PROCESS_PARAMETERS ProcessParameters,
 	_Inout_ PPS_CREATE_INFO CreateInfo,
 	_In_opt_ PPS_ATTRIBUTE_LIST AttributeList
 );
@@ -7010,7 +7040,7 @@ RtlGetNtVersionNumbers (
 
 #if defined(IO_COMPLETION_QUERY_STATE)
 #undef IO_COMPLETION_QUERY_STATE
-#endif // !IO_COMPLETION_QUERY_STATE
+#endif // IO_COMPLETION_QUERY_STATE
 
 #if defined(IO_COMPLETION_MODIFY_STATE)
 #undef IO_COMPLETION_MODIFY_STATE

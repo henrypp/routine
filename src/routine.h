@@ -130,6 +130,10 @@ static SID SeLocalSystemSid = {SID_REVISION, 1, SECURITY_NT_AUTHORITY, {SECURITY
 static SID SeLocalServiceSid = {SID_REVISION, 1, SECURITY_NT_AUTHORITY, {SECURITY_LOCAL_SERVICE_RID}};
 static SID SeNetworkServiceSid = {SID_REVISION, 1, SECURITY_NT_AUTHORITY, {SECURITY_NETWORK_SERVICE_RID}};
 
+#if !defined(NOTHING)
+#define NOTHING
+#endif // NOTHING
+
 // safe clenup memory
 #if !defined(SAFE_DELETE_MEMORY)
 #define SAFE_DELETE_MEMORY(p) {if(p) {_r_mem_free (p); (p)=NULL;}}
@@ -767,27 +771,31 @@ BOOLEAN _r_mutant_isexists (
 
 HANDLE NTAPI _r_mem_getheap ();
 
+DECLSPEC_RESTRICT
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_allocate (
 	_In_ ULONG_PTR bytes_count
 );
 
 _Ret_maybenull_
+DECLSPEC_RESTRICT
 _Must_inspect_result_
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_allocatesafe (
 	_In_ ULONG_PTR bytes_count
 );
 
+DECLSPEC_RESTRICT
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_allocateandcopy (
-	_In_ LPCVOID src,
+	_In_ LPCVOID source,
 	_In_ ULONG_PTR bytes_count
 );
 
 // // If RtlReAllocateHeap fails, the original memory is not freed, and the original handle and pointer are still valid.
 // // https://docs.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heaprealloc
 
+DECLSPEC_RESTRICT
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_reallocate (
 	_Frees_ptr_opt_ PVOID base_address,
@@ -795,6 +803,7 @@ PVOID NTAPI _r_mem_reallocate (
 );
 
 _Ret_maybenull_
+DECLSPEC_RESTRICT
 _Must_inspect_result_
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_reallocatesafe (
@@ -889,15 +898,6 @@ PR_BYTE _r_obj_createbyte_ex (
 	_In_ ULONG_PTR length
 );
 
-BOOLEAN _r_obj_isbytenullterminated (
-	_In_ PR_BYTEREF string
-);
-
-VOID _r_obj_setbytelength (
-	_Inout_ PR_BYTE string,
-	_In_ ULONG_PTR new_length
-);
-
 VOID _r_obj_setbytelength_ex (
 	_Inout_ PR_BYTE string,
 	_In_ ULONG_PTR new_length,
@@ -913,9 +913,27 @@ VOID _r_obj_trimbytetonullterminator (
 	_In_ PR_BYTE string
 );
 
-VOID _r_obj_writebytenullterminator (
+FORCEINLINE BOOLEAN _r_obj_isbytenullterminated (
+	_In_ PR_BYTEREF string
+)
+{
+	return (string->buffer[string->length] == ANSI_NULL);
+}
+
+FORCEINLINE VOID _r_obj_setbytelength (
+	_Inout_ PR_BYTE string,
+	_In_ ULONG_PTR new_length
+)
+{
+	_r_obj_setbytelength_ex (string, new_length, string->length);
+}
+
+FORCEINLINE VOID _r_obj_writebytenullterminator (
 	_In_ PR_BYTE string
-);
+)
+{
+	*(LPSTR)PTR_ADD_OFFSET (string->buffer, string->length) = ANSI_NULL;
+}
 
 //
 // 16-bit string object
@@ -1964,7 +1982,8 @@ NTSTATUS _r_fs_deletefile (
 	_In_opt_ HANDLE hfile
 );
 
-LONG _r_fs_deleterecycle (
+_Success_ (SUCCEEDED (return))
+HRESULT _r_fs_deleterecycle (
 	_In_ LPCWSTR path
 );
 
@@ -2711,27 +2730,6 @@ FORCEINLINE VOID _r_str_fromulong64 (
 	_r_str_printf (buffer, buffer_size, L"%" TEXT (PR_ULONG64), value);
 }
 
-FORCEINLINE BOOLEAN _r_str_isnullterminated (
-	_In_ PR_STRINGREF string
-)
-{
-	return (string->buffer[_r_str_getlength2 (string)] == UNICODE_NULL);
-}
-
-FORCEINLINE WCHAR _r_str_lower (
-	_In_ WCHAR str
-)
-{
-	return RtlDowncaseUnicodeChar (str);
-}
-
-FORCEINLINE WCHAR _r_str_upper (
-	_In_ WCHAR str
-)
-{
-	return RtlUpcaseUnicodeChar (str);
-}
-
 FORCEINLINE VOID _r_str_fromlong_ptr (
 	_Out_writes_ (buffer_size) LPWSTR buffer,
 	_In_ ULONG_PTR buffer_size,
@@ -2767,6 +2765,20 @@ FORCEINLINE BOOLEAN _r_str_isdigit (
 	return (USHORT)(chr - '0') < 10;
 }
 
+FORCEINLINE BOOLEAN _r_str_isnullterminated (
+	_In_ PR_STRINGREF string
+)
+{
+	return (string->buffer[_r_str_getlength2 (string)] == UNICODE_NULL);
+}
+
+FORCEINLINE WCHAR _r_str_lower (
+	_In_ WCHAR str
+)
+{
+	return RtlDowncaseUnicodeChar (str);
+}
+
 FORCEINLINE LONG_PTR _r_str_tolong_ptr (
 	_In_ PR_STRINGREF string
 )
@@ -2789,6 +2801,13 @@ FORCEINLINE LONG_PTR _r_str_toulong_ptr (
 #else
 	return _r_str_toulong (string);
 #endif // _WIN64
+}
+
+FORCEINLINE WCHAR _r_str_upper (
+	_In_ WCHAR str
+)
+{
+	return RtlUpcaseUnicodeChar (str);
 }
 
 //
@@ -2842,6 +2861,11 @@ NTSTATUS _r_sys_getenvironmentvariable (
 	_In_opt_ PVOID environment,
 	_In_ PR_STRINGREF name_sr,
 	_Out_ PR_STRING_PTR out_buffer
+);
+
+_Ret_maybenull_
+PR_STRING _r_sys_getkernelfilename (
+	_In_ BOOLEAN is_ntpathtodos
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -3367,7 +3391,7 @@ VOID _r_dc_getsizedpivalue (
 );
 
 LONG _r_dc_getsystemmetrics (
-	_In_ INT index,
+	_In_ LONG index,
 	_In_opt_ LONG dpi_value
 );
 
@@ -3380,6 +3404,11 @@ BOOLEAN _r_dc_getsystemparametersinfo (
 );
 
 LONG _r_dc_gettaskbardpi ();
+
+_Ret_maybenull_
+HBITMAP _r_dc_getuacshield (
+	_In_opt_ LONG dpi_value
+);
 
 LONG _r_dc_getwindowdpi (
 	_In_ HWND hwnd
@@ -5163,14 +5192,14 @@ FORCEINLINE VOID _r_menu_deleteitem (
 	RemoveMenu (hmenu, item_id, is_byposition ? MF_BYPOSITION : MF_BYCOMMAND);
 }
 
-FORCEINLINE VOID _r_menu_enableitem (
+FORCEINLINE BOOLEAN _r_menu_enableitem (
 	_In_ HMENU hmenu,
 	_In_ UINT item_id,
-	_In_ UINT position_flag,
+	_In_ BOOLEAN is_byposition,
 	_In_ BOOLEAN is_enable
 )
 {
-	EnableMenuItem (hmenu, item_id, position_flag | (is_enable ? MF_ENABLED : MF_DISABLED | MF_GRAYED));
+	return !!EnableMenuItem (hmenu, item_id, (is_byposition ? MF_BYPOSITION : MF_BYCOMMAND) | (is_enable ? MF_ENABLED : MF_DISABLED | MF_GRAYED));
 }
 
 //

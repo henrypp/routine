@@ -123,7 +123,7 @@ PR_STRING _r_format_string_v (
 	PR_STRING string;
 	LONG length;
 
-	length = _vscwprintf (format, arg_ptr);
+	length = _vscwprintf_l (format, NULL, arg_ptr);
 
 	if (length == 0 || length == -1)
 		return _r_obj_referenceemptystring ();
@@ -600,8 +600,7 @@ FORCEINLINE NTSTATUS _r_queuedlock_blockwaitblock (
 	{
 		status = NtWaitForKeyedEvent (_r_queuedlock_getevent (), wait_block, FALSE, timeout);
 
-		// If an error occurred (timeout is not an error), raise an exception as it is nearly
-		// impossible to recover from this situation.
+		// If an error occurred (timeout is not an error), raise an exception as it is nearly impossible to recover from this situation.
 		if (!NT_SUCCESS (status))
 			RtlRaiseStatus (status);
 	}
@@ -1768,6 +1767,7 @@ HANDLE NTAPI _r_mem_getheap ()
 	return heap_handle;
 }
 
+DECLSPEC_RESTRICT
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_allocate (
 	_In_ ULONG_PTR bytes_count
@@ -1775,6 +1775,8 @@ PVOID NTAPI _r_mem_allocate (
 {
 	HANDLE heap_handle;
 	PVOID base_address;
+
+	assert (bytes_count);
 
 	heap_handle = _r_mem_getheap ();
 
@@ -1784,6 +1786,7 @@ PVOID NTAPI _r_mem_allocate (
 }
 
 _Ret_maybenull_
+DECLSPEC_RESTRICT
 _Must_inspect_result_
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_allocatesafe (
@@ -1793,6 +1796,8 @@ PVOID NTAPI _r_mem_allocatesafe (
 	HANDLE heap_handle;
 	PVOID base_address;
 
+	assert (bytes_count);
+
 	heap_handle = _r_mem_getheap ();
 
 	base_address = RtlAllocateHeap (heap_handle, HEAP_ZERO_MEMORY, bytes_count);
@@ -1800,21 +1805,25 @@ PVOID NTAPI _r_mem_allocatesafe (
 	return base_address;
 }
 
+DECLSPEC_RESTRICT
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_allocateandcopy (
-	_In_ LPCVOID src,
+	_In_ LPCVOID source,
 	_In_ ULONG_PTR bytes_count
 )
 {
 	PVOID base_address;
 
+	assert (bytes_count);
+
 	base_address = _r_mem_allocate (bytes_count);
 
-	RtlCopyMemory (base_address, src, bytes_count);
+	RtlCopyMemory (base_address, source, bytes_count);
 
 	return base_address;
 }
 
+DECLSPEC_RESTRICT
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_reallocate (
 	_Frees_ptr_opt_ PVOID base_address,
@@ -1824,6 +1833,8 @@ PVOID NTAPI _r_mem_reallocate (
 	HANDLE heap_handle;
 	PVOID new_address;
 
+	assert (bytes_count);
+
 	heap_handle = _r_mem_getheap ();
 
 	// RtlReAllocateHeap does not behave the same as realloc when Memory is NULL.
@@ -1831,15 +1842,20 @@ PVOID NTAPI _r_mem_reallocate (
 	// realloc, produce the same behavior as realloc. If Memory is NULL, then
 	// allocate a new block.
 
-	if (!base_address)
-		return RtlAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, bytes_count);
-
-	new_address = RtlReAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, base_address, bytes_count);
+	if (base_address)
+	{
+		new_address = RtlReAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, base_address, bytes_count);
+	}
+	else
+	{
+		new_address = RtlAllocateHeap (heap_handle, HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, bytes_count);
+	}
 
 	return new_address;
 }
 
 _Ret_maybenull_
+DECLSPEC_RESTRICT
 _Must_inspect_result_
 _Post_writable_byte_size_ (bytes_count)
 PVOID NTAPI _r_mem_reallocatesafe (
@@ -1850,6 +1866,8 @@ PVOID NTAPI _r_mem_reallocatesafe (
 	HANDLE heap_handle;
 	PVOID new_address;
 
+	assert (bytes_count);
+
 	heap_handle = _r_mem_getheap ();
 
 	// RtlReAllocateHeap does not behave the same as realloc when Memory is NULL.
@@ -1857,10 +1875,14 @@ PVOID NTAPI _r_mem_reallocatesafe (
 	// realloc, produce the same behavior as realloc. If Memory is NULL, then
 	// allocate a new block.
 
-	if (!base_address)
-		return RtlAllocateHeap (heap_handle, HEAP_ZERO_MEMORY, bytes_count);
-
-	new_address = RtlReAllocateHeap (heap_handle, HEAP_ZERO_MEMORY, base_address, bytes_count);
+	if (base_address)
+	{
+		new_address = RtlReAllocateHeap (heap_handle, HEAP_ZERO_MEMORY, base_address, bytes_count);
+	}
+	else
+	{
+		new_address = RtlAllocateHeap (heap_handle, HEAP_ZERO_MEMORY, bytes_count);
+	}
 
 	return new_address;
 }
@@ -1977,7 +1999,7 @@ VOID NTAPI _r_obj_dereference_ex (
 	}
 	else if (new_count < 0)
 	{
-		//RtlRaiseStatus (STATUS_UNSUCCESSFUL);
+		RtlRaiseStatus (STATUS_IN_PAGE_ERROR);
 	}
 }
 
@@ -2098,21 +2120,6 @@ PR_BYTE _r_obj_createbyte_ex (
 	return bytes;
 }
 
-BOOLEAN _r_obj_isbytenullterminated (
-	_In_ PR_BYTEREF string
-)
-{
-	return (string->buffer[string->length] == ANSI_NULL);
-}
-
-VOID _r_obj_setbytelength (
-	_Inout_ PR_BYTE string,
-	_In_ ULONG_PTR new_length
-)
-{
-	_r_obj_setbytelength_ex (string, new_length, string->length);
-}
-
 VOID _r_obj_setbytelength_ex (
 	_Inout_ PR_BYTE string,
 	_In_ ULONG_PTR new_length,
@@ -2143,13 +2150,6 @@ VOID _r_obj_trimbytetonullterminator (
 	string->length = _r_str_getbytelength_ex (string->buffer, string->length + 1);
 
 	_r_obj_writebytenullterminator (string); // terminate
-}
-
-VOID _r_obj_writebytenullterminator (
-	_In_ PR_BYTE string
-)
-{
-	*(LPSTR)PTR_ADD_OFFSET (string->buffer, string->length) = ANSI_NULL;
 }
 
 //
@@ -2585,7 +2585,7 @@ VOID _r_obj_appendstringbuilderformat_v (
 	ULONG_PTR length_in_bytes;
 	LONG length;
 
-	length = _vscwprintf (format, arg_ptr);
+	length = _vscwprintf_l (format, NULL, arg_ptr);
 
 	if (length == 0 || length == -1)
 		return;
@@ -2690,7 +2690,7 @@ VOID _r_obj_insertstringbuilderformat_v (
 	ULONG_PTR length_in_bytes;
 	LONG length;
 
-	length = _vscwprintf (format, arg_ptr);
+	length = _vscwprintf_l (format, NULL, arg_ptr);
 
 	if (length == 0 || length == -1)
 		return;
@@ -4070,18 +4070,42 @@ NTSTATUS _r_fs_deletefile (
 	return status;
 }
 
-LONG _r_fs_deleterecycle (
+_Success_ (SUCCEEDED (return))
+HRESULT _r_fs_deleterecycle (
 	_In_ LPCWSTR path
 )
 {
-	SHFILEOPSTRUCTW shfop = {0};
-	LONG status;
+	IFileOperation* file_ops = NULL;
+	IShellItem* shell_item = NULL;
+	HRESULT status;
 
-	shfop.wFunc = FO_DELETE;
-	shfop.fFlags = FOF_ALLOWUNDO | FOF_NO_UI;
-	shfop.pFrom = path;
+	if (!_r_fs_exists (path))
+		return E_NOT_SET;
 
-	status = SHFileOperationW (&shfop);
+	// vista+
+	status = CoCreateInstance (&CLSID_FileOperation, NULL, CLSCTX_INPROC_SERVER, &IID_IFileOperation, &file_ops);
+
+	if (FAILED (status))
+		return status;
+
+	status = SHCreateItemFromParsingName (path, NULL, &IID_IShellItem, &shell_item);
+
+	if (FAILED (status))
+		goto CleanupExit;
+
+	IFileOperation_SetOperationFlags (file_ops, FOF_ALLOWUNDO | FOF_NO_UI);
+
+	IFileOperation_DeleteItem (file_ops, shell_item, NULL);
+
+	status = IFileOperation_PerformOperations (file_ops);
+
+CleanupExit:
+
+	if (file_ops)
+		IFileOperation_Release (file_ops);
+
+	if (shell_item)
+		IShellItem_Release (shell_item);
 
 	return status;
 }
@@ -8931,6 +8955,39 @@ NTSTATUS _r_sys_getenvironmentvariable (
 	return status;
 }
 
+_Ret_maybenull_
+PR_STRING _r_sys_getkernelfilename (
+	_In_ BOOLEAN is_ntpathtodos
+)
+{
+	UCHAR buffer[FIELD_OFFSET (RTL_PROCESS_MODULES, Modules) + sizeof (RTL_PROCESS_MODULE_INFORMATION)] = {0};
+	PRTL_PROCESS_MODULES modules;
+	R_BYTEREF br;
+	PR_STRING string;
+	ULONG length;
+	NTSTATUS status;
+
+	modules = (PRTL_PROCESS_MODULES)buffer;
+	length = sizeof (buffer);
+
+	status = NtQuerySystemInformation (SystemModuleInformation, modules, length, &length);
+
+	if (status != STATUS_SUCCESS && status != STATUS_INFO_LENGTH_MISMATCH)
+		return NULL;
+
+	if (status == STATUS_SUCCESS && modules->NumberOfModules < 1)
+		return NULL;
+
+	_r_obj_initializebyteref (&br, modules->Modules[0].FullPathName);
+
+	_r_str_utf8toutf16 (&br, &string);
+
+	if (is_ntpathtodos)
+		string = _r_path_dospathfromnt (string);
+
+	return string;
+}
+
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getmemoryinfo (
 	_Out_ PR_MEMORY_INFO out_buffer
@@ -10155,6 +10212,11 @@ NTSTATUS _r_sys_doserrortontstatus (
 			return STATUS_NONE_MAPPED;
 		}
 
+		case ERROR_NO_SUCH_DOMAIN:
+		{
+			return STATUS_NO_SUCH_DOMAIN;
+		}
+
 		case ERROR_INTERNAL_ERROR:
 		{
 			return STATUS_INTERNAL_ERROR;
@@ -11191,6 +11253,7 @@ NTSTATUS _r_sys_setprocessprivilege (
 )
 {
 	PTOKEN_PRIVILEGES token_privileges;
+	LARGE_INTEGER li = {0};
 	PVOID privileges_buffer;
 	HANDLE token_handle;
 	NTSTATUS status;
@@ -11205,9 +11268,13 @@ NTSTATUS _r_sys_setprocessprivilege (
 	token_privileges = privileges_buffer;
 	token_privileges->PrivilegeCount = count;
 
-	for (ULONG i = 0; i < count; i++)
+	for (ULONG_PTR i = 0; i < count; i++)
 	{
-		token_privileges->Privileges[i].Luid.LowPart = privileges[i];
+		li.QuadPart = privileges[i];
+
+		token_privileges->Privileges[i].Luid.LowPart = li.LowPart;
+		token_privileges->Privileges[i].Luid.HighPart = li.HighPart;
+
 		token_privileges->Privileges[i].Attributes = is_enable ? SE_PRIVILEGE_ENABLED : SE_PRIVILEGE_REMOVED;
 	}
 
@@ -12124,7 +12191,7 @@ VOID _r_dc_getsizedpivalue (
 }
 
 LONG _r_dc_getsystemmetrics (
-	_In_ INT index,
+	_In_ LONG index,
 	_In_opt_ LONG dpi_value
 )
 {
@@ -12204,6 +12271,32 @@ LONG _r_dc_gettaskbardpi ()
 		return _r_dc_getmonitordpi (&taskbar_rect.rc);
 
 	return _r_dc_getdpivalue (NULL, NULL);
+}
+
+_Ret_maybenull_
+HBITMAP _r_dc_getuacshield (
+	_In_opt_ LONG dpi_value
+)
+{
+	HBITMAP hbitmap = NULL;
+	HICON hicon;
+	LONG icon_size_x;
+	LONG icon_size_y;
+	HRESULT status;
+
+	icon_size_x = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
+	icon_size_y = _r_dc_getsystemmetrics (SM_CYSMICON, dpi_value);
+
+	status = _r_sys_loadicon (NULL, IDI_SHIELD, icon_size_x, &hicon);
+
+	if (SUCCEEDED (status))
+	{
+		hbitmap = _r_dc_bitmapfromicon (hicon, icon_size_x, icon_size_y);
+
+		DestroyIcon (hicon);
+	}
+
+	return hbitmap;
 }
 
 LONG _r_dc_getwindowdpi (
@@ -17697,8 +17790,9 @@ VOID _r_menu_setitembitmap (
 	MENUITEMINFO mii = {0};
 
 	mii.cbSize = sizeof (mii);
-	mii.fMask = MIIM_BITMAP;
-	mii.hbmpItem = hbitmap;
+	mii.fMask = MIIM_STATE | MIIM_CHECKMARKS;
+	mii.hbmpChecked = hbitmap;
+	mii.hbmpUnchecked = hbitmap;
 
 	SetMenuItemInfoW (hmenu, item_id, is_byposition, &mii);
 }

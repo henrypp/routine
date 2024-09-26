@@ -12,8 +12,8 @@
 #define STRINGIZE_HELPER(x) #x
 #define STRINGIZE(x) STRINGIZE_HELPER(x)
 
-#define PR_PRINT_WARNING(desc) \
-	message("[WARNING!] Compile-time warning: " #desc " (" STRINGIZE(__FILE__) ":" STRINGIZE(__LINE__) ")")
+#define PR_PRINT_WARNING_UNDEFINED(desc) \
+	message("[WARNING!] Undefined: " #desc " (" STRINGIZE(__FILE__) ":" STRINGIZE(__LINE__) ")")
 
 #define PR_PRINT_WARNING_DEFINE(desc) \
 	message("[WARNING!] Config already defined: " #desc " (" STRINGIZE(__FILE__) ":" STRINGIZE(__LINE__) ")")
@@ -84,8 +84,10 @@
 #endif /// APP_COMMENT
 
 // update checking period (in days)
-#if !defined(APP_UPDATE_PERIOD)
-#define APP_UPDATE_PERIOD 4
+#if defined(APP_UPDATE_PERIOD)
+#pragma PR_PRINT_WARNING_DEFINE(APP_UPDATE_PERIOD)
+#else
+#define APP_UPDATE_PERIOD 6
 #endif // APP_UPDATE_PERIOD
 
 // error tray balloon period (in seconds)

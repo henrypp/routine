@@ -824,21 +824,6 @@ HWND _r_app_createwindow (
 	// set window title
 	_r_ctrl_setstring (hwnd, 0, _r_app_getname ());
 
-	// set window icon
-	if (icon_name)
-	{
-		dpi_value = _r_dc_getwindowdpi (hwnd);
-
-		icon_small = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
-		icon_large = _r_dc_getsystemmetrics (SM_CXICON, dpi_value);
-
-		_r_wnd_seticon (
-			hwnd,
-			_r_sys_loadsharedicon (hinst, icon_name, icon_small),
-			_r_sys_loadsharedicon (hinst, icon_name, icon_large)
-		);
-	}
-
 	// set window prop
 	SetPropW (hwnd, _r_app_getname (), IntToPtr (42));
 
@@ -859,6 +844,21 @@ HWND _r_app_createwindow (
 
 	// restore window position
 	_r_window_restoreposition (hwnd, L"window");
+
+	// set window icon
+	if (icon_name)
+	{
+		dpi_value = _r_dc_getwindowdpi (hwnd);
+
+		icon_small = _r_dc_getsystemmetrics (SM_CXSMICON, dpi_value);
+		icon_large = _r_dc_getsystemmetrics (SM_CXICON, dpi_value);
+
+		_r_wnd_seticon (
+			hwnd,
+			_r_sys_loadsharedicon (hinst, icon_name, icon_small),
+			_r_sys_loadsharedicon (hinst, icon_name, icon_large)
+		);
+	}
 
 	// common initialization
 	_r_wnd_sendmessage (hwnd, 0, RM_INITIALIZE, 0, 0);
@@ -1749,7 +1749,7 @@ VOID _r_locale_enum (
 
 		_r_menu_checkitem (hsubmenu, menu_id, menu_id, MF_BYCOMMAND, menu_id);
 
-		_r_menu_enableitem (hwnd, ctrl_id, MF_BYPOSITION, FALSE);
+		_r_menu_enableitem (hwnd, ctrl_id, FALSE, FALSE);
 	}
 	else
 	{
@@ -1769,7 +1769,7 @@ VOID _r_locale_enum (
 
 	if (is_menu)
 	{
-		_r_menu_enableitem (hwnd, ctrl_id, MF_BYPOSITION, TRUE);
+		_r_menu_enableitem (hwnd, ctrl_id, FALSE, TRUE);
 
 		_r_menu_additem (hsubmenu, 0, NULL);
 	}
@@ -2152,20 +2152,45 @@ NTSTATUS NTAPI _r_update_downloadthread (
 	}
 
 	// set result text and navigate taskdialog
-	if (status == STATUS_SUCCESS && update_flags)
+	if (status == STATUS_SUCCESS)
 	{
 		if (update_flags & PR_UPDATE_FLAG_FILE)
 			_r_update_applyconfig ();
 
-		str_content = (update_flags & PR_UPDATE_FLAG_INSTALLER) ? L"Update available. Do you want to install it now?" : L"Downloading update finished.";
-		buttons = (update_flags & PR_UPDATE_FLAG_INSTALLER) ? TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON : TDCBF_CLOSE_BUTTON;
+		if (update_flags & PR_UPDATE_FLAG_INSTALLER)
+		{
+#if defined(IDS_UPDATE_INSTALL)
+			str_content = _r_locale_getstring (IDS_UPDATE_INSTALL);
+#else
+			str_content = L"Update available. Do you want to install it now?";
+#pragma PR_PRINT_WARNING_UNDEFINED(IDS_UPDATE_INSTALL)
+#endif // IDS_UPDATE_INSTALL
+
+			buttons = TDCBF_OK_BUTTON | TDCBF_CANCEL_BUTTON;
+		}
+		else
+		{
+#if defined(IDS_UPDATE_DONE)
+			str_content = _r_locale_getstring (IDS_UPDATE_DONE);
+#else
+			str_content = L"Downloading update finished.";
+#pragma PR_PRINT_WARNING_UNDEFINED(IDS_UPDATE_DONE)
+#endif // IDS_UPDATE_DONE
+
+			buttons = TDCBF_CLOSE_BUTTON;
+		}
 	}
 	else
 	{
 		main_icon = TD_WARNING_ICON;
 		buttons = TDCBF_CLOSE_BUTTON;
 
+#if defined(IDS_UPDATE_ERROR)
+		str_content = _r_locale_getstring (IDS_UPDATE_ERROR);
+#else
 		str_content = L"Update server connection error.";
+#pragma PR_PRINT_WARNING_UNDEFINED(IDS_UPDATE_ERROR)
+#endif // IDS_UPDATE_ERROR
 	}
 
 	_r_update_navigate (update_info, buttons, 0, main_icon, NULL, str_content, status, ET_WINHTTP);
@@ -2206,7 +2231,12 @@ NTSTATUS NTAPI _r_update_checkthread (
 	{
 		if (update_info->hparent)
 		{
+#if defined(IDS_UPDATE_ERROR)
+			str_content = _r_locale_getstring (IDS_UPDATE_ERROR);
+#else
 			str_content = L"Update server connection error.";
+#pragma PR_PRINT_WARNING_UNDEFINED(IDS_UPDATE_ERROR)
+#endif // IDS_UPDATE_ERROR
 
 			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, TD_WARNING_ICON, NULL, str_content, status, ET_WINHTTP);
 		}
@@ -2289,7 +2319,12 @@ NTSTATUS NTAPI _r_update_checkthread (
 
 		_r_str_trimstring2 (&sr, L"\r\n ", 0);
 
+#if defined(IDS_UPDATE_YES)
+		str_content = _r_locale_getstring (IDS_UPDATE_YES);
+#else
 		str_content = L"Update available. Download and install now?";
+#pragma PR_PRINT_WARNING_UNDEFINED(IDS_UPDATE_YES)
+#endif // IDS_UPDATE_YES
 
 		_r_update_navigate (update_info, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, 0, NULL, str_content, sr.buffer, 0, ET_WINDOWS);
 	}
@@ -2299,11 +2334,33 @@ NTSTATUS NTAPI _r_update_checkthread (
 		{
 			if (status != STATUS_SUCCESS)
 			{
+#if defined(IDS_UPDATE_ERROR)
+				str_content = _r_locale_getstring (IDS_UPDATE_ERROR);
+#else
 				str_content = L"Update server connection error.";
+#pragma PR_PRINT_WARNING_UNDEFINED(IDS_UPDATE_ERROR)
+#endif // IDS_UPDATE_ERROR
 			}
 			else
 			{
-				str_content = downloads_count ? L"Downloading update finished." : L"No updates available.";
+				if (downloads_count)
+				{
+#if defined(IDS_UPDATE_DONE)
+					str_content = _r_locale_getstring (IDS_UPDATE_DONE);
+#else
+					str_content = L"Downloading update finished.";
+#pragma PR_PRINT_WARNING_UNDEFINED(IDS_UPDATE_DONE)
+#endif // IDS_UPDATE_DONE
+				}
+				else
+				{
+#if defined(IDS_UPDATE_NO)
+					str_content = _r_locale_getstring (IDS_UPDATE_NO);
+#else
+					str_content = L"No updates available.";
+#pragma PR_PRINT_WARNING_UNDEFINED(IDS_UPDATE_NO)
+#endif // IDS_UPDATE_NO
+				}
 			}
 
 			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, NULL, NULL, str_content, status, ET_WINHTTP);
@@ -2350,7 +2407,7 @@ BOOLEAN _r_update_isenabled (
 
 		update_last_timestamp = _r_config_getlong64 (L"CheckUpdatesLast", 0);
 
-		if ((current_timestamp - update_last_timestamp) <= _r_calc_days2seconds (update_period))
+		if ((current_timestamp - update_last_timestamp) <= _r_calc_hours2seconds (update_period))
 			return FALSE;
 	}
 
@@ -2401,7 +2458,12 @@ BOOLEAN _r_update_check (
 
 	if (hparent)
 	{
+#if defined(IDS_UPDATE_INIT)
+		str_content = _r_locale_getstring (IDS_UPDATE_INIT);
+#else
 		str_content = L"Checking for new releases...";
+#pragma PR_PRINT_WARNING_UNDEFINED(IDS_UPDATE_INIT)
+#endif // IDS_UPDATE_INIT
 
 		update_info->hthread = hthread;
 
@@ -2470,7 +2532,12 @@ HRESULT CALLBACK _r_update_pagecallback (
 						update_info->is_clicked = FALSE;
 					}
 
+#if defined(IDS_UPDATE_DOWNLOAD)
+					str_content = _r_locale_getstring (IDS_UPDATE_DOWNLOAD);
+#else
 					str_content = L"Downloading update...";
+#pragma PR_PRINT_WARNING_UNDEFINED(IDS_UPDATE_DOWNLOAD)
+#endif // IDS_UPDATE_DOWNLOAD
 
 					_r_update_navigate (update_info, TDCBF_CANCEL_BUTTON, TDF_SHOW_PROGRESS_BAR, NULL, NULL, str_content, 0, ET_WINDOWS);
 
@@ -2617,7 +2684,14 @@ VOID _r_update_navigate (
 	if (buttons & TDCBF_YES_BUTTON)
 	{
 		if (update_info->flags & PR_UPDATE_FLAG_FILE)
+		{
+#if defined(IDS_UPDATE_AUTOINSTALL)
+			tdc.pszVerificationText = _r_locale_getstring (IDS_UPDATE_AUTOINSTALL);
+#else
 			tdc.pszVerificationText = L"Automatically install non-executable updates";
+#pragma PR_PRINT_WARNING_UNDEFINED(IDS_UPDATE_AUTOINSTALL)
+#endif // IDS_UPDATE_AUTOINSTALL
+		}
 	}
 
 	if (update_info->htaskdlg)
@@ -2968,7 +3042,7 @@ VOID _r_show_aboutmessage (
 	str_title = _r_locale_getstring (IDS_ABOUT);
 #else
 	str_title = L"About";
-#pragma PR_PRINT_WARNING(IDS_ABOUT)
+#pragma PR_PRINT_WARNING_UNDEFINED(IDS_ABOUT)
 #endif
 
 	_r_str_printf (
@@ -3004,7 +3078,7 @@ VOID _r_show_aboutmessage (
 	tdc.pszCollapsedControlText = _r_locale_getstring (IDS_DONATE);
 #else
 	tdc.pszCollapsedControlText = L"Donate!";
-#pragma PR_PRINT_WARNING(IDS_DONATE)
+#pragma PR_PRINT_WARNING_UNDEFINED(IDS_DONATE)
 #endif // IDS_DONATE
 
 	tdc.pszFooter = APP_ABOUT_FOOTER;
@@ -3044,7 +3118,7 @@ BOOLEAN _r_show_confirmmessage (
 		tdc.pszVerificationText = _r_locale_getstring (IDS_QUESTION_FLAG_CHK);
 #else
 		tdc.pszVerificationText = L"Do not ask again";
-#pragma PR_PRINT_WARNING(IDS_QUESTION_FLAG_CHK)
+#pragma PR_PRINT_WARNING_UNDEFINED(IDS_QUESTION_FLAG_CHK)
 #endif // IDS_QUESTION_FLAG_CHK
 	}
 
@@ -3733,7 +3807,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 			_r_ctrl_setstring (hwnd, 0, _r_locale_getstring (IDS_SETTINGS));
 #else
 			_r_ctrl_setstring (hwnd, 0, L"Settings");
-#pragma PR_PRINT_WARNING(IDS_SETTINGS)
+#pragma PR_PRINT_WARNING_UNDEFINED(IDS_SETTINGS)
 #endif // IDS_SETTINGS
 
 			// localize navigation
@@ -3787,7 +3861,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 			_r_ctrl_setstring (hwnd, IDC_RESET, _r_locale_getstring (IDS_RESET));
 #else
 			_r_ctrl_setstring (hwnd, IDC_RESET, L"Reset");
-#pragma PR_PRINT_WARNING(IDS_RESET)
+#pragma PR_PRINT_WARNING_UNDEFINED(IDS_RESET)
 #endif // IDS_RESET
 
 #if defined(APP_HAVE_SETTINGS_TABS)
@@ -3795,7 +3869,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 			_r_ctrl_setstring (hwnd, IDC_SAVE, _r_locale_getstring (IDS_SAVE));
 #else
 			_r_ctrl_setstring (hwnd, IDC_SAVE, L"Save");
-#pragma PR_PRINT_WARNING(IDS_SAVE)
+#pragma PR_PRINT_WARNING_UNDEFINED(IDS_SAVE)
 #endif // IDS_SAVE
 #endif // APP_HAVE_SETTINGS_TABS
 
@@ -3803,7 +3877,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 			_r_ctrl_setstring (hwnd, IDC_CLOSE, _r_locale_getstring (IDS_CLOSE));
 #else
 			_r_ctrl_setstring (hwnd, IDC_CLOSE, L"Close");
-#pragma PR_PRINT_WARNING(IDS_CLOSE)
+#pragma PR_PRINT_WARNING_UNDEFINED(IDS_CLOSE)
 #endif // IDS_CLOSE
 
 			break;
@@ -4121,8 +4195,7 @@ BOOLEAN _r_skipuac_isenabled ()
 	IRegisteredTask *registered_task = NULL;
 	ITaskService *task_service = NULL;
 	ITaskFolder *task_folder = NULL;
-	VARIANT empty = {VT_EMPTY};
-	BSTR task_root = NULL;
+	VARIANT empty = {0};
 	BSTR task_name = NULL;
 	HRESULT status;
 
@@ -4131,14 +4204,14 @@ BOOLEAN _r_skipuac_isenabled ()
 	if (FAILED (status))
 		goto CleanupExit;
 
+	V_VT (&empty) = VT_NULL;
+
 	status = ITaskService_Connect (task_service, empty, empty, empty, empty);
 
 	if (FAILED (status))
 		goto CleanupExit;
 
-	task_root = SysAllocString (L"\\");
-
-	status = ITaskService_GetFolder (task_service, task_root, &task_folder);
+	status = ITaskService_GetFolder (task_service, NULL, &task_folder);
 
 	if (FAILED (status))
 		goto CleanupExit;
@@ -4153,9 +4226,6 @@ BOOLEAN _r_skipuac_isenabled ()
 	status = _r_skipuac_checkmodulepath (registered_task);
 
 CleanupExit:
-
-	if (task_root)
-		SysFreeString (task_root);
 
 	if (task_name)
 		SysFreeString (task_name);
@@ -4188,15 +4258,14 @@ HRESULT _r_skipuac_enable (
 	IExecAction *exec_action = NULL;
 	IPrincipal *principal = NULL;
 	IAction *action = NULL;
-	VARIANT empty = {VT_EMPTY};
-	BSTR task_root = NULL;
-	BSTR task_name = NULL;
-	BSTR task_author = NULL;
-	BSTR task_url = NULL;
+	VARIANT empty = {0};
 	BSTR task_time_limit = NULL;
-	BSTR task_path = NULL;
 	BSTR task_directory = NULL;
+	BSTR task_author = NULL;
+	BSTR task_name = NULL;
+	BSTR task_path = NULL;
 	BSTR task_args = NULL;
+	BSTR task_url = NULL;
 	HRESULT status;
 
 	if (hwnd && is_enable)
@@ -4213,14 +4282,14 @@ HRESULT _r_skipuac_enable (
 	if (FAILED (status))
 		goto CleanupExit;
 
+	V_VT (&empty) = VT_NULL;
+
 	status = ITaskService_Connect (task_service, empty, empty, empty, empty);
 
 	if (FAILED (status))
 		goto CleanupExit;
 
-	task_root = SysAllocString (L"\\");
-
-	status = ITaskService_GetFolder (task_service, task_root, &task_folder);
+	status = ITaskService_GetFolder (task_service, NULL, &task_folder);
 
 	if (FAILED (status))
 		goto CleanupExit;
@@ -4344,9 +4413,6 @@ HRESULT _r_skipuac_enable (
 
 CleanupExit:
 
-	if (task_root)
-		SysFreeString (task_root);
-
 	if (task_name)
 		SysFreeString (task_name);
 
@@ -4406,12 +4472,11 @@ CleanupExit:
 
 BOOLEAN _r_skipuac_run ()
 {
-	VARIANT empty = {VT_EMPTY};
-	ITaskService *task_service = NULL;
-	ITaskFolder *task_folder = NULL;
 	IRegisteredTask *registered_task = NULL;
 	IRunningTask *running_task = NULL;
-	BSTR task_root = NULL;
+	ITaskService *task_service = NULL;
+	ITaskFolder *task_folder = NULL;
+	VARIANT empty = {0};
 	BSTR task_name = NULL;
 	BSTR task_args = NULL;
 	WCHAR arguments[512] = {0};
@@ -4427,14 +4492,14 @@ BOOLEAN _r_skipuac_run ()
 	if (FAILED (status))
 		goto CleanupExit;
 
+	V_VT (&empty) = VT_NULL;
+
 	status = ITaskService_Connect (task_service, empty, empty, empty, empty);
 
 	if (FAILED (status))
 		goto CleanupExit;
 
-	task_root = SysAllocString (L"\\");
-
-	status = ITaskService_GetFolder (task_service, task_root, &task_folder);
+	status = ITaskService_GetFolder (task_service, NULL, &task_folder);
 
 	if (FAILED (status))
 		goto CleanupExit;
@@ -4514,9 +4579,6 @@ BOOLEAN _r_skipuac_run ()
 	while (--attempts);
 
 CleanupExit:
-
-	if (task_root)
-		SysFreeString (task_root);
 
 	if (task_name)
 		SysFreeString (task_name);
