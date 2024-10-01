@@ -1751,8 +1751,8 @@ HANDLE NTAPI _r_mem_getheap ()
 
 	if (_r_initonce_begin (&init_once))
 	{
-		// win10rs1+
-		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS1))
+		// win8+
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_8))
 			heap_handle = RtlCreateHeap (HEAP_GROWABLE | HEAP_CLASS_1 | HEAP_CREATE_SEGMENT_HEAP, NULL, 0, 0, NULL, NULL);
 
 		if (!heap_handle)
@@ -5275,6 +5275,36 @@ PR_STRING _r_path_compact (
 	return _r_obj_reference (path);
 }
 
+_Ret_maybenull_
+PR_STRING _r_path_find (
+	_In_ PR_STRINGREF path
+)
+{
+	PR_STRING string;
+	NTSTATUS status;
+
+	if (path->buffer[0] == L'%')
+	{
+		status = _r_str_environmentexpandstring (NULL, path, &string);
+
+		if (!NT_SUCCESS (status))
+			return NULL;
+	}
+	else if (_r_path_getnametype (path) == RtlPathTypeRelative)
+	{
+		status = _r_path_search (NULL, path, NULL, &string);
+
+		if (!NT_SUCCESS (status))
+			return NULL;
+	}
+	else
+	{
+		string = _r_obj_createstring2 (path);
+	}
+
+	return string;
+}
+
 BOOLEAN _r_path_geticon (
 	_In_ LPCWSTR path,
 	_Out_opt_ PLONG icon_id_ptr,
@@ -5478,48 +5508,41 @@ HRESULT _r_path_getknownfolder (
 	return status;
 }
 
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_path_getmodulepath (
-	_In_ PVOID hinst,
-	_Outptr_ PR_STRING_PTR out_buffer
+_Ret_maybenull_
+PR_STRING _r_path_getmodulepath (
+	_In_ PVOID hinst
 )
 {
-	UNICODE_STRING name = {0};
-	PR_STRING string = NULL;
-	ULONG attempts = 6;
-	ULONG length = 256;
-	NTSTATUS status;
+	PLDR_DATA_TABLE_ENTRY result = NULL;
+	PLDR_DATA_TABLE_ENTRY entry;
+	PLIST_ENTRY list_entry;
+	PLIST_ENTRY list_head;
+	PR_STRING path;
 
-	do
+	RtlEnterCriticalSection (NtCurrentPeb ()->LoaderLock);
+
+	list_head = &NtCurrentPeb ()->Ldr->InLoadOrderModuleList;
+	list_entry = list_head->Flink;
+
+	while (list_entry != list_head)
 	{
-		length *= 2;
+		entry = CONTAINING_RECORD (list_entry, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
 
-		_r_obj_movereference (&string, _r_obj_createstring_ex (NULL, length * sizeof (WCHAR)));
+		if (entry->DllBase == hinst)
+		{
+			result = entry;
 
-		name.Buffer = string->buffer;
-		name.MaximumLength = (USHORT)string->length;
-
-		status = LdrGetDllFullName (hinst, &name);
-
-		if (status != STATUS_BUFFER_TOO_SMALL)
 			break;
-	}
-	while (--attempts);
+		}
 
-	if (NT_SUCCESS (status))
-	{
-		_r_obj_setstringlength (&string->sr, name.Length);
-
-		*out_buffer = string;
-	}
-	else
-	{
-		*out_buffer = NULL;
-
-		_r_obj_dereference (string);
+		list_entry = list_entry->Flink;
 	}
 
-	return status;
+	path = result ? _r_obj_createstring3 (&result->FullDllName) : NULL;
+
+	RtlLeaveCriticalSection (NtCurrentPeb ()->LoaderLock);
+
+	return path;
 }
 
 _Success_ (return)
@@ -5548,20 +5571,20 @@ BOOLEAN _r_path_getpathinfo (
 }
 
 RTL_PATH_TYPE _r_path_getnametype (
-	_In_ LPCWSTR path
+	_In_ PR_STRINGREF path
 )
 {
 	// RtlDetermineDosPathNameType_U
-	if (path[0] == OBJ_NAME_PATH_SEPARATOR || path[0] == OBJ_NAME_ALTPATH_SEPARATOR)
+	if (path->buffer[0] == OBJ_NAME_PATH_SEPARATOR || path->buffer[0] == OBJ_NAME_ALTPATH_SEPARATOR)
 	{
-		if (path[1] == OBJ_NAME_PATH_SEPARATOR || path[1] == OBJ_NAME_ALTPATH_SEPARATOR)
+		if (path->buffer[1] == OBJ_NAME_PATH_SEPARATOR || path->buffer[1] == OBJ_NAME_ALTPATH_SEPARATOR)
 		{
-			if (path[2] == L'?' || path[2] == L'.')
+			if (path->buffer[2] == L'?' || path->buffer[2] == L'.')
 			{
-				if (path[3] == OBJ_NAME_PATH_SEPARATOR || path[3] == OBJ_NAME_ALTPATH_SEPARATOR)
+				if (path->buffer[3] == OBJ_NAME_PATH_SEPARATOR || path->buffer[3] == OBJ_NAME_ALTPATH_SEPARATOR)
 					return RtlPathTypeLocalDevice;
 
-				if (path[3] != UNICODE_NULL)
+				if (path->buffer[3] != UNICODE_NULL)
 					return RtlPathTypeUncAbsolute;
 
 				return RtlPathTypeRootLocalDevice;
@@ -5572,9 +5595,9 @@ RTL_PATH_TYPE _r_path_getnametype (
 
 		return RtlPathTypeRooted;
 	}
-	else if (path[0] != UNICODE_NULL && path[1] == L':')
+	else if (path->buffer[0] != UNICODE_NULL && path->buffer[1] == L':')
 	{
-		if (path[2] == OBJ_NAME_PATH_SEPARATOR || path[2] == OBJ_NAME_ALTPATH_SEPARATOR)
+		if (path->buffer[2] == OBJ_NAME_PATH_SEPARATOR || path->buffer[2] == OBJ_NAME_ALTPATH_SEPARATOR)
 			return RtlPathTypeDriveAbsolute;
 
 		return RtlPathTypeDriveRelative;
@@ -5707,15 +5730,14 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 	_Out_opt_ PR_STRING_PTR full_file_name
 )
 {
-	static R_STRINGREF whitespace = PR_STRINGREF_INIT (L" \t");
-
+	R_STRINGREF whitespace = PR_STRINGREF_INIT (L" \t");
 	R_STRINGREF remaining_part;
 	R_STRINGREF current_part;
 	R_STRINGREF arguments;
 	R_STRINGREF temp = {0};
+	R_STRINGREF sr;
 	R_STRINGREF args_sr;
 	PR_STRING file_path_sr;
-	PR_STRING buffer;
 	WCHAR original_char;
 	BOOLEAN is_found;
 	NTSTATUS status;
@@ -5745,7 +5767,7 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 			// Unskip the initial quote character
 			_r_obj_skipstringlength (&args_sr, -(LONG_PTR)sizeof (WCHAR));
 
-			*path = args_sr;
+			_r_obj_initializestringref2 (command_line, &args_sr);
 
 			_r_obj_initializestringrefempty (command_line);
 
@@ -5762,9 +5784,7 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 
 		if (full_file_name)
 		{
-			buffer = _r_obj_createstring2 (&args_sr);
-
-			status = _r_path_search (NULL, buffer->buffer, L".exe", &file_path_sr);
+			status = _r_path_search (NULL, &args_sr, L".exe", &file_path_sr);
 
 			if (NT_SUCCESS (status))
 			{
@@ -5774,8 +5794,6 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 			{
 				*full_file_name = NULL;
 			}
-
-			_r_obj_dereference (buffer);
 		}
 
 		return TRUE;
@@ -5816,7 +5834,9 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 			*(remaining_part.buffer - 1) = UNICODE_NULL;
 		}
 
-		status = _r_path_search (NULL, temp.buffer, L".exe", &file_path_sr);
+		_r_obj_initializestringref (&sr, temp.buffer);
+
+		status = _r_path_search (NULL, &sr, L".exe", &file_path_sr);
 
 		if (is_found)
 			*(remaining_part.buffer - 1) = original_char;
@@ -5828,7 +5848,15 @@ BOOLEAN _r_path_parsecommandlinefuzzy (
 
 			_r_str_trimstring (&remaining_part, &whitespace, PR_TRIM_START_ONLY);
 
-			*command_line = remaining_part;
+			if (remaining_part.length)
+			{
+				command_line->buffer = PTR_ADD_OFFSET (args_sr.buffer, PTR_SUB_OFFSET (remaining_part.buffer, temp.buffer));
+				command_line->length = args_sr.length - (ULONG_PTR)PTR_SUB_OFFSET (remaining_part.buffer, temp.buffer);
+			}
+			else
+			{
+				_r_obj_initializestringrefempty (command_line);
+			}
 
 			if (full_file_name)
 			{
@@ -6403,8 +6431,8 @@ NTSTATUS _r_path_ntpathfromdos (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_search (
-	_In_opt_ LPWSTR path,
-	_In_ LPWSTR filename,
+	_In_opt_ PR_STRINGREF path,
+	_In_ PR_STRINGREF filename,
 	_In_opt_ LPWSTR extension,
 	_Out_ PR_STRING_PTR out_buffer
 )
@@ -6421,16 +6449,9 @@ NTSTATUS _r_path_search (
 	ULONG flags = RTL_DOS_SEARCH_PATH_FLAG_DISALLOW_DOT_RELATIVE_PATH_SEARCH | RTL_DOS_SEARCH_PATH_FLAG_APPLY_DEFAULT_EXTENSION_WHEN_NOT_RELATIVE_PATH_EVEN_IF_FILE_HAS_EXTENSION;
 	NTSTATUS status;
 
-	if (_r_fs_exists (filename))
-	{
-		*out_buffer = _r_obj_createstring (filename);
-
-		return STATUS_SUCCESS;
-	}
-
 	if (path)
 	{
-		_r_obj_initializeunicodestring (&path_us, path);
+		_r_obj_initializeunicodestring2 (&path_us, path);
 	}
 	else
 	{
@@ -6449,7 +6470,7 @@ NTSTATUS _r_path_search (
 		flags |= RTL_DOS_SEARCH_PATH_FLAG_APPLY_ISOLATION_REDIRECTION;
 	}
 
-	_r_obj_initializeunicodestring (&filename_us, filename);
+	_r_obj_initializeunicodestring2 (&filename_us, filename);
 	_r_obj_initializeunicodestring (&extension_us, extension);
 
 	status = RtlDosSearchPath_Ustr (flags, &path_us, &filename_us, extension ? &extension_us : NULL, NULL, NULL, NULL, NULL, &return_length);
@@ -6769,16 +6790,40 @@ HRESULT _r_shell_showfile (
 	_In_ LPCWSTR path
 )
 {
+	SHELLEXECUTEINFO info = {0};
 	LPITEMIDLIST item;
 	HRESULT status;
 
-	status = SHParseDisplayName (path, NULL, &item, 0, NULL);
+	if (!_r_fs_exists (path))
+		return STG_E_PATHNOTFOUND;
 
-	if (SUCCEEDED (status))
+	if (_r_fs_isdirectory (path))
 	{
-		status = SHOpenFolderAndSelectItems (item, 0, NULL, 0);
+		info.cbSize = sizeof (SHELLEXECUTEINFO);
+		info.fMask = SEE_MASK_FLAG_NO_UI | SEE_MASK_NOASYNC;
+		info.nShow = SW_SHOW;
+		info.lpFile = L"explorer.exe";
+		info.lpParameters = path;
 
-		CoTaskMemFree (item);
+		if (ShellExecuteExW (&info))
+		{
+			status = S_OK;
+		}
+		else
+		{
+			status = HRESULT_FROM_WIN32 (NtLastError ());
+		}
+	}
+	else
+	{
+		status = SHParseDisplayName (path, NULL, &item, 0, NULL);
+
+		if (SUCCEEDED (status))
+		{
+			status = SHOpenFolderAndSelectItems (item, 0, NULL, 0);
+
+			CoTaskMemFree (item);
+		}
 	}
 
 	return status;
@@ -9786,7 +9831,7 @@ NTSTATUS _r_sys_createprocess (
 		// The user typed a name without a path so attempt to locate the executable. (dmex)
 		if (!_r_fs_exists (file_name))
 		{
-			status = _r_path_search (NULL, file_name_string->buffer, L".exe", &new_path);
+			status = _r_path_search (NULL, &file_name_string->sr, L".exe", &new_path);
 
 			if (!NT_SUCCESS (status))
 				return status;
@@ -10175,6 +10220,11 @@ NTSTATUS _r_sys_doserrortontstatus (
 		case ERROR_DUPLICATE_SERVICE_NAME:
 		{
 			return STATUS_OBJECT_NAME_EXISTS;
+		}
+
+		case ERROR_DLL_INIT_FAILED:
+		{
+			return STATUS_DLL_INIT_FAILED;
 		}
 
 		case ERROR_NOT_FOUND:
@@ -10619,6 +10669,7 @@ NTSTATUS _r_sys_loadlibraryasresource (
 {
 	LARGE_INTEGER offset = {0};
 	PVOID base_address = NULL;
+	R_STRINGREF sr;
 	PR_STRING path;
 	HANDLE hsection = NULL;
 	HANDLE hfile;
@@ -10633,7 +10684,9 @@ NTSTATUS _r_sys_loadlibraryasresource (
 	}
 	else
 	{
-		status = _r_path_search (NULL, lib_name, L".dll", &path);
+		_r_obj_initializestringref (&sr, lib_name);
+
+		status = _r_path_search (NULL, &sr, L".dll", &path);
 
 		if (!NT_SUCCESS (status))
 			return status;
@@ -11343,7 +11396,7 @@ NTSTATUS _r_sys_setprocessenvironment (
 		else
 		{
 			priority_class.PriorityClass = (UCHAR)(new_environment->base_priority);
-			//priority_class.Foreground = FALSE;
+			priority_class.Foreground = FALSE;
 
 			status = NtSetInformationProcess (process_handle, ProcessPriorityClass, &priority_class, sizeof (priority_class));
 		}
@@ -12712,7 +12765,11 @@ BOOLEAN _r_layout_resize (
 			continue;
 
 		if (layout_item->flags & PR_LAYOUT_SEND_NOTIFY)
+		{
 			PostMessageW (layout_item->hwnd, WM_SIZE, 0, 0);
+
+			InvalidateRect (layout_item->hwnd, NULL, FALSE);
+		}
 
 		if (!(layout_item->flags & PR_LAYOUT_NO_ANCHOR))
 			_r_layout_resizeitem (layout_manager, layout_item);
@@ -12770,9 +12827,9 @@ VOID _r_layout_resizeitem (
 	_r_layout_resizeitem (layout_manager, layout_item->parent_item);
 
 	// save previous value
-	_r_wnd_rectangletorect (&rect, &layout_item->rect);
 	_r_wnd_rectangletorect (&prev_rect, &layout_item->parent_item->prev_rect);
 	_r_wnd_rectangletorect (&parent_rect, &layout_item->parent_item->rect);
+	_r_wnd_rectangletorect (&rect, &layout_item->rect);
 
 	_r_wnd_copyrectangle (&layout_item->prev_rect, &layout_item->rect);
 
@@ -15840,6 +15897,55 @@ NTSTATUS _r_res_loadstring (
 	}
 
 	return status;
+}
+
+_Ret_maybenull_
+PR_STRING _r_res_loadindirectstring (
+	_In_ PR_STRINGREF string
+)
+{
+	R_STRINGREF path_part;
+	R_STRINGREF idx_part;
+	R_STRINGREF sr;
+	PR_STRING indirect_string = NULL;
+	PR_STRING path_string = NULL;
+	PVOID hlibrary;
+	LONG index;
+	NTSTATUS status;
+
+	if (string->buffer[0] == L'@')
+	{
+		_r_obj_initializestringref2 (&sr, string);
+
+		_r_obj_skipstringlength (&sr, sizeof (WCHAR)); // skip the @ character
+
+		if (!_r_str_splitatlastchar (&sr, L',', &path_part, &idx_part))
+			return NULL;
+
+		path_string = _r_path_find (&path_part);
+
+		if (!path_string)
+			return NULL;
+
+		status = _r_sys_loadlibraryasresource (path_string->buffer, &hlibrary);
+
+		if (NT_SUCCESS (status))
+		{
+			index = _r_str_tolong (&idx_part);
+
+			status = _r_res_loadstring (hlibrary, -index, &indirect_string);
+
+			_r_sys_freelibrary (hlibrary);
+		}
+
+		_r_obj_dereference (path_string);
+	}
+	else
+	{
+		indirect_string = _r_obj_createstring2 (string);
+	}
+
+	return indirect_string;
 }
 
 _Ret_maybenull_

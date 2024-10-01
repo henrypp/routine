@@ -885,11 +885,19 @@ BOOLEAN _r_app_runasadmin ()
 
 #if defined(APP_HAVE_SKIPUAC)
 	if (_r_skipuac_run ())
+	{
+		RtlExitUserProcess (STATUS_SUCCESS);
+
 		return TRUE;
+	}
 #endif // APP_HAVE_SKIPUAC
 
 	if (_r_sys_runasadmin (_r_sys_getimagepath (), _r_sys_getcommandline (), _r_sys_getcurrentdirectory ()))
+	{
+		RtlExitUserProcess (STATUS_SUCCESS);
+
 		return TRUE;
+	}
 
 	// restore mutex on error
 	_r_mutant_create (_r_app_getmutexname (), MUTANT_ALL_ACCESS, TRUE, &app_global.main.hmutex);
@@ -2193,7 +2201,7 @@ NTSTATUS NTAPI _r_update_downloadthread (
 #endif // IDS_UPDATE_ERROR
 	}
 
-	_r_update_navigate (update_info, buttons, 0, main_icon, NULL, str_content, status, ET_WINHTTP);
+	_r_update_navigate (update_info, buttons, 0, main_icon, str_content, NULL, status, ET_WINHTTP);
 
 	return STATUS_SUCCESS;
 }
@@ -2238,7 +2246,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 #pragma PR_PRINT_WARNING_UNDEFINED(IDS_UPDATE_ERROR)
 #endif // IDS_UPDATE_ERROR
 
-			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, TD_WARNING_ICON, NULL, str_content, status, ET_WINHTTP);
+			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, TD_WARNING_ICON, str_content, NULL, status, ET_WINHTTP);
 		}
 
 		goto CleanupExit;
@@ -2326,7 +2334,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 #pragma PR_PRINT_WARNING_UNDEFINED(IDS_UPDATE_YES)
 #endif // IDS_UPDATE_YES
 
-		_r_update_navigate (update_info, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, 0, NULL, str_content, sr.buffer, 0, ET_WINDOWS);
+		_r_update_navigate (update_info, TDCBF_YES_BUTTON | TDCBF_NO_BUTTON, 0, str_content, NULL, sr.buffer, 0, ET_WINDOWS);
 	}
 	else
 	{
@@ -2363,7 +2371,7 @@ NTSTATUS NTAPI _r_update_checkthread (
 				}
 			}
 
-			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, NULL, NULL, str_content, status, ET_WINHTTP);
+			_r_update_navigate (update_info, TDCBF_CLOSE_BUTTON, 0, NULL, str_content, NULL, status, ET_WINHTTP);
 		}
 	}
 
@@ -2467,7 +2475,7 @@ BOOLEAN _r_update_check (
 
 		update_info->hthread = hthread;
 
-		_r_update_navigate (update_info, TDCBF_CANCEL_BUTTON, TDF_SHOW_PROGRESS_BAR, NULL, NULL, str_content, 0, ET_WINDOWS);
+		_r_update_navigate (update_info, TDCBF_CANCEL_BUTTON, TDF_SHOW_PROGRESS_BAR, NULL, str_content, NULL, 0, ET_WINDOWS);
 	}
 	else
 	{
@@ -2654,9 +2662,6 @@ VOID _r_update_navigate (
 	if (title)
 		tdc.pszMainInstruction = title;
 
-	if (content)
-		tdc.pszContent = content;
-
 	if (error_code != STATUS_SUCCESS)
 	{
 		status = _r_sys_loadlibrarytype (type, &hlib);
@@ -2665,20 +2670,39 @@ VOID _r_update_navigate (
 		{
 			_r_sys_formatmessage (error_code, hlib, 0, &string);
 
-			_r_str_printf (
-				buffer,
-				RTL_NUMBER_OF (buffer),
-				L"%s\r\n\r\nDescription:\r\n%s\r\nStatus:\r\n%" TEXT (PR_LONG) L" (0x%08" TEXT (PRIX32)")",
-				content,
-				_r_obj_getstringordefault (string, L"n/a"),
-				error_code,
-				error_code
-			);
+			if (content)
+			{
+				_r_str_printf (
+					buffer,
+					RTL_NUMBER_OF (buffer),
+					L"%s\r\n\r\nDescription:\r\n%s\r\nStatus:\r\n%" TEXT (PR_LONG) L" (0x%08" TEXT (PRIX32)")",
+					content,
+					_r_obj_getstringordefault (string, L"n/a"),
+					error_code,
+					error_code
+				);
+			}
+			else
+			{
+				_r_str_printf (
+					buffer,
+					RTL_NUMBER_OF (buffer),
+					L"Description:\r\n%s\r\nStatus:\r\n%" TEXT (PR_LONG) L" (0x%08" TEXT (PRIX32)")",
+					_r_obj_getstringordefault (string, L"n/a"),
+					error_code,
+					error_code
+				);
+			}
 
 			tdc.pszContent = buffer;
 
 			_r_sys_freelibrary (hlib);
 		}
+	}
+	else
+	{
+		if (content)
+			tdc.pszContent = content;
 	}
 
 	if (buttons & TDCBF_YES_BUTTON)
@@ -3098,6 +3122,7 @@ BOOLEAN _r_show_confirmmessage (
 	TASKDIALOGCONFIG tdc = {0};
 	INT command_id = 0;
 	BOOL is_flagchecked = FALSE;
+	HRESULT status;
 
 	if (config_key && !_r_config_getboolean (config_key, TRUE))
 		return TRUE;
@@ -3128,14 +3153,17 @@ BOOLEAN _r_show_confirmmessage (
 	if (content)
 		tdc.pszContent = content;
 
-	_r_msg_taskdialog (&tdc, &command_id, NULL, &is_flagchecked);
+	status = _r_msg_taskdialog (&tdc, &command_id, NULL, &is_flagchecked);
 
-	if (command_id == IDYES)
+	if (status == S_OK)
 	{
-		if (config_key && is_flagchecked)
-			_r_config_setboolean (config_key, FALSE);
+		if (command_id == IDYES)
+		{
+			if (config_key && is_flagchecked)
+				_r_config_setboolean (config_key, FALSE);
 
-		return TRUE;
+			return TRUE;
+		}
 	}
 
 	return FALSE;
@@ -3238,7 +3266,7 @@ NTSTATUS _r_show_errormessage (
 
 	tdc.nDefaultButton = IDCLOSE;
 
-	if (SUCCEEDED (_r_msg_taskdialog (&tdc, &command_id, NULL, NULL)))
+	if (_r_msg_taskdialog (&tdc, &command_id, NULL, NULL) == S_OK)
 	{
 		if (command_id == IDYES)
 		{

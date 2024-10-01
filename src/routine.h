@@ -1720,14 +1720,14 @@ FORCEINLINE LONG _r_calc_megabytes2bytes (
 	_In_ LONG megabytes
 )
 {
-	return megabytes * 1048576L;
+	return megabytes * 1024L * 1024L;
 }
 
 FORCEINLINE LONG64 _r_calc_megabytes2bytes64 (
 	_In_ LONG64 megabytes
 )
 {
-	return megabytes * 1048576LL;
+	return megabytes * 1024LL * 1024LL;
 }
 
 _Ret_maybenull_
@@ -2184,6 +2184,11 @@ PR_STRING _r_path_compact (
 	_In_ ULONG length
 );
 
+_Ret_maybenull_
+PR_STRING _r_path_find (
+	_In_ PR_STRINGREF path
+);
+
 BOOLEAN _r_path_geticon (
 	_In_ LPCWSTR path,
 	_Out_opt_ PLONG icon_id_ptr,
@@ -2227,10 +2232,9 @@ HRESULT _r_path_getknownfolder (
 	_Outptr_ PR_STRING_PTR out_buffer
 );
 
-_Success_ (NT_SUCCESS (return))
-NTSTATUS _r_path_getmodulepath (
-	_In_ PVOID hinst,
-	_Outptr_ PR_STRING_PTR out_buffer
+_Ret_maybenull_
+PR_STRING _r_path_getmodulepath (
+	_In_ PVOID hinst
 );
 
 _Success_ (return)
@@ -2241,7 +2245,7 @@ BOOLEAN _r_path_getpathinfo (
 );
 
 RTL_PATH_TYPE _r_path_getnametype (
-	_In_ LPCWSTR path
+	_In_ PR_STRINGREF path
 );
 
 BOOLEAN _r_path_issecurelocation (
@@ -2290,8 +2294,8 @@ NTSTATUS _r_path_ntpathfromdos (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_search (
-	_In_opt_ LPWSTR path,
-	_In_ LPWSTR filename,
+	_In_opt_ PR_STRINGREF path,
+	_In_ PR_STRINGREF filename,
 	_In_opt_ LPWSTR extension,
 	_Out_ PR_STRING_PTR out_buffer
 );
@@ -4208,6 +4212,11 @@ NTSTATUS _r_res_loadstring (
 	_In_ PVOID hinst,
 	_In_ ULONG string_id,
 	_Outptr_ PR_STRING_PTR out_buffer
+);
+
+_Ret_maybenull_
+PR_STRING _r_res_loadindirectstring (
+	_In_ PR_STRINGREF string
 );
 
 _Ret_maybenull_
