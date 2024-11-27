@@ -518,6 +518,7 @@ VOID _r_update_addcomponent (
 VOID _r_update_applyconfig ();
 
 VOID _r_update_install (
+	_In_opt_ HWND hwnd,
 	_In_ PR_UPDATE_COMPONENT update_component
 );
 
@@ -608,11 +609,7 @@ VOID _r_window_saveposition (
 // Application: seh
 //
 
-VOID _r_app_exceptionfilter_savedump (
-	_In_ PEXCEPTION_POINTERS exception_ptr
-);
-
-ULONG CALLBACK _r_app_exceptionfilter_callback (
+ULONG NTAPI _r_app_exceptionfilter_callback (
 	_In_ PEXCEPTION_POINTERS exception_ptr
 );
 
@@ -656,7 +653,7 @@ PR_STRING _r_app_getdirectory ();
 
 PR_STRING _r_app_getconfigpath ();
 
-LPCWSTR _r_app_getcachedirectory (
+PR_STRING _r_app_getcachedirectory (
 	_In_ BOOLEAN is_create
 );
 

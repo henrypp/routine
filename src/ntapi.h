@@ -1182,7 +1182,7 @@ typedef enum _ALPC_PORT_INFORMATION_CLASS
 typedef enum _ALPC_MESSAGE_INFORMATION_CLASS
 {
 	AlpcMessageSidInformation, // q: out SID
-	AlpcMessageTokenModifiedIdInformation,  // q: out LUID
+	AlpcMessageTokenModifiedIdInformation, // q: out LUID
 	AlpcMessageDirectStatusInformation,
 	AlpcMessageHandleInformation, // ALPC_MESSAGE_HANDLE_INFORMATION
 	MaxAlpcMessageInfoClass
@@ -2505,7 +2505,7 @@ typedef struct _KUSER_SHARED_DATA
 	ULONG LastSystemRITEventTickCount;
 
 	// Number of physical pages in the system. This can dynamically change as
-	// physical memory can be added or removed from a running system.  This
+	// physical memory can be added or removed from a running system. This
 	// cell is too small to hold the non-truncated value on very large memory
 	// machines so code that needs the full value should access
 	// FullNumberOfPhysicalPages instead.
@@ -3750,8 +3750,9 @@ typedef enum _SYMBOLIC_LINK_INFO_CLASS
 #define HEAP_TAG_SHIFT 18
 #define HEAP_TAG_MASK (HEAP_MAXIMUM_TAG << HEAP_TAG_SHIFT)
 
+// win8+
 #define HEAP_CREATE_SEGMENT_HEAP 0x00000100
-//
+
 // Only applies to segment heap. Applies pointer obfuscation which is
 // generally excessive and unnecessary but is necessary for certain insecure
 // heaps in win32k.
@@ -3759,7 +3760,7 @@ typedef enum _SYMBOLIC_LINK_INFO_CLASS
 // Specifying HEAP_CREATE_HARDENED prevents the heap from using locks as
 // pointers would potentially be exposed in heap metadata lock variables.
 // Callers are therefore responsible for synchronizing access to hardened heaps.
-//
+
 #define HEAP_CREATE_HARDENED 0x00000200
 
 typedef struct _RTL_HEAP_WALK_ENTRY
@@ -7011,7 +7012,7 @@ NtFlushBuffersFile (
 	_Out_ PIO_STATUS_BLOCK IoStatusBlock
 );
 
-//  Flag definitions for NtFlushBuffersFileEx
+//	Flag definitions for NtFlushBuffersFileEx
 //
 //	If none of the below flags are specified the following will occur for a
 //	given file handle:
@@ -7033,30 +7034,30 @@ NtFlushBuffersFile (
 //	This is equivalent to how NtFlushBuffersFile has always worked.
 //
 
-//  If set, this operation will write the data for the given file from the
-//  Windows in-memory cache.  This will NOT commit any associated metadata
-//  changes.  This will NOT send a SYNC to the storage device to flush its
-//  cache.  Not supported on volume handles.
+//	If set, this operation will write the data for the given file from the
+//	Windows in-memory cache. This will NOT commit any associated metadata
+//	changes. This will NOT send a SYNC to the storage device to flush its
+//	cache. Not supported on volume handles.
 //
 #define FLUSH_FLAGS_FILE_DATA_ONLY 0x00000001
 //
-//  If set, this operation will commit both the data and metadata changes for
-//  the given file from the Windows in-memory cache.  This will NOT send a SYNC
-//  to the storage device to flush its cache.  Not supported on volume handles.
+//	If set, this operation will commit both the data and metadata changes for
+//	the given file from the Windows in-memory cache. This will NOT send a SYNC
+//	to the storage device to flush its cache. Not supported on volume handles.
 //
 #define FLUSH_FLAGS_NO_SYNC 0x00000002
 //
-//  If set, this operation will write the data for the given file from the
-//  Windows in-memory cache.  It will also try to skip updating the timestamp
-//  as much as possible.  This will send a SYNC to the storage device to flush its
-//  cache.  Not supported on volume or directory handles.
+//	If set, this operation will write the data for the given file from the
+//	Windows in-memory cache. It will also try to skip updating the timestamp
+//	as much as possible. This will send a SYNC to the storage device to flush its
+//	cache. Not supported on volume or directory handles.
 //
 #define FLUSH_FLAGS_FILE_DATA_SYNC_ONLY 0x00000004 // REDSTONE1
 //
-//  If set, this operation will write the data for the given file from the
-//  Windows in-memory cache.  It will also try to skip updating the timestamp
-//  as much as possible.  This will send a SYNC to the storage device to flush its
-//  cache.  Not supported on volume or directory handles.
+//	If set, this operation will write the data for the given file from the
+//	Windows in-memory cache. It will also try to skip updating the timestamp
+//	as much as possible. This will send a SYNC to the storage device to flush its
+//	cache. Not supported on volume or directory handles.
 //
 #define FLUSH_FLAGS_FLUSH_AND_PURGE 0x00000008 // 24H2
 
@@ -8254,6 +8255,10 @@ RtlKnownExceptionFilter (
 	_In_ PEXCEPTION_POINTERS ExceptionPointers
 );
 
+//
+// Slim reader-writer locks
+//
+
 NTSYSCALLAPI
 VOID
 NTAPI
@@ -8261,6 +8266,7 @@ RtlInitializeSRWLock (
 	_Out_ PRTL_SRWLOCK SRWLock
 );
 
+_Acquires_exclusive_lock_ (*SRWLock)
 NTSYSCALLAPI
 VOID
 NTAPI
@@ -8268,6 +8274,7 @@ RtlAcquireSRWLockExclusive (
 	_Inout_ PRTL_SRWLOCK SRWLock
 );
 
+_Acquires_shared_lock_ (*SRWLock)
 NTSYSCALLAPI
 VOID
 NTAPI
@@ -8275,6 +8282,7 @@ RtlAcquireSRWLockShared (
 	_Inout_ PRTL_SRWLOCK SRWLock
 );
 
+_Releases_exclusive_lock_ (*SRWLock)
 NTSYSCALLAPI
 VOID
 NTAPI
@@ -8282,6 +8290,7 @@ RtlReleaseSRWLockExclusive (
 	_Inout_ PRTL_SRWLOCK SRWLock
 );
 
+_Releases_shared_lock_ (*SRWLock)
 NTSYSCALLAPI
 VOID
 NTAPI
@@ -8289,6 +8298,7 @@ RtlReleaseSRWLockShared (
 	_Inout_ PRTL_SRWLOCK SRWLock
 );
 
+_When_ (return != 0, _Acquires_exclusive_lock_ (*SRWLock))
 NTSYSCALLAPI
 BOOLEAN
 NTAPI
@@ -8296,6 +8306,7 @@ RtlTryAcquireSRWLockExclusive (
 	_Inout_ PRTL_SRWLOCK SRWLock
 );
 
+_When_ (return != 0, _Acquires_shared_lock_ (*SRWLock))
 NTSYSCALLAPI
 BOOLEAN
 NTAPI
@@ -8389,6 +8400,14 @@ RtlAcquirePebLock (
 NTSYSCALLAPI
 VOID
 RtlReleasePebLock (
+	VOID
+);
+
+// vista+
+NTSYSCALLAPI
+LOGICAL
+NTAPI
+RtlTryAcquirePebLock (
 	VOID
 );
 
@@ -9617,17 +9636,17 @@ RtlSelfRelativeToAbsoluteSD2 (
 );
 
 // win10 19h2+
-__drv_maxIRQL (APC_LEVEL)
-NTSYSCALLAPI
-BOOLEAN
-NTAPI
-RtlNormalizeSecurityDescriptor (
-	_Inout_ PSECURITY_DESCRIPTOR *SecurityDescriptor,
-	_In_ ULONG SecurityDescriptorLength,
-	_Out_opt_ PSECURITY_DESCRIPTOR *NewSecurityDescriptor,
-	_Out_opt_ PULONG NewSecurityDescriptorLength,
-	_In_ BOOLEAN CheckOnly
-);
+// __drv_maxIRQL (APC_LEVEL)
+//NTSYSCALLAPI
+//BOOLEAN
+//NTAPI
+//RtlNormalizeSecurityDescriptor (
+//	_Inout_ PSECURITY_DESCRIPTOR *SecurityDescriptor,
+//	_In_ ULONG SecurityDescriptorLength,
+//	_Out_opt_ PSECURITY_DESCRIPTOR *NewSecurityDescriptor,
+//	_Out_opt_ PULONG NewSecurityDescriptorLength,
+//	_In_ BOOLEAN CheckOnly
+//);
 
 NTSYSCALLAPI
 NTSTATUS

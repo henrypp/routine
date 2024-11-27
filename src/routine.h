@@ -745,14 +745,14 @@ NTSTATUS _r_mutant_create (
 	_In_ LPWSTR name,
 	_In_ ULONG desired_access,
 	_In_ BOOLEAN is_initowner,
-	_Outptr_ PHANDLE hmutex
+	_Out_ PHANDLE hmutex
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_mutant_open (
 	_In_ LPWSTR name,
 	_In_ ULONG desired_access,
-	_Outptr_ PHANDLE out_buffer
+	_Out_ PHANDLE out_buffer
 );
 
 _When_ (NT_SUCCESS (return), _Releases_lock_ (*hmutex))
@@ -1081,6 +1081,11 @@ VOID _r_obj_initializebyteref3 (
 	_In_ PR_BYTEREF buffer
 );
 
+VOID _r_obj_initializebyteref4 (
+	_Out_ PR_BYTEREF string,
+	_In_ PR_STORAGE buffer
+);
+
 VOID _r_obj_initializebyterefempty (
 	_Out_ PR_BYTEREF string
 );
@@ -1251,16 +1256,10 @@ VOID _r_obj_insertstringbuilder (
 VOID _r_obj_insertstringbuilder2 (
 	_Inout_ PR_STRINGBUILDER sb,
 	_In_ ULONG_PTR index,
-	_In_ PR_STRING string
-);
-
-VOID _r_obj_insertstringbuilder3 (
-	_Inout_ PR_STRINGBUILDER sb,
-	_In_ ULONG_PTR index,
 	_In_ PR_STRINGREF string
 );
 
-VOID _r_obj_insertstringbuilder4 (
+VOID _r_obj_insertstringbuilder3 (
 	_Inout_ PR_STRINGBUILDER sb,
 	_In_ ULONG_PTR index,
 	_In_ PUNICODE_STRING string
@@ -1504,7 +1503,7 @@ VOID _r_obj_clearhashtable (
 _Success_ (return)
 BOOLEAN _r_obj_enumhashtable (
 	_In_ PR_HASHTABLE hashtable,
-	_Outptr_opt_ PVOID_PTR entry_ptr,
+	_Out_opt_ PVOID_PTR entry_ptr,
 	_Out_opt_ PULONG_PTR hash_code_ptr,
 	_Inout_ PULONG_PTR enum_key
 );
@@ -1553,7 +1552,7 @@ PR_OBJECT_POINTER _r_obj_addhashtablepointer (
 _Success_ (return)
 BOOLEAN _r_obj_enumhashtablepointer (
 	_In_ PR_HASHTABLE hashtable,
-	_Outptr_opt_ PVOID_PTR entry_ptr,
+	_Out_opt_ PVOID_PTR entry_ptr,
 	_Out_opt_ PULONG_PTR hash_code_ptr,
 	_Inout_ PULONG_PTR enum_key
 );
@@ -1614,8 +1613,8 @@ PR_STRING _r_format_string_v (
 
 _Success_ (SUCCEEDED (return))
 HRESULT _r_format_bytesize64 (
-	_Out_writes_ (buffer_size) LPWSTR buffer,
-	_In_ UINT buffer_size,
+	_Out_writes_ (buffer_length) LPWSTR buffer,
+	_In_ UINT buffer_length,
 	_In_ ULONG64 bytes
 );
 
@@ -1632,8 +1631,8 @@ PR_STRING _r_format_interval (
 );
 
 VOID _r_format_number (
-	_Out_writes_ (buffer_size) LPWSTR buffer,
-	_In_ ULONG buffer_size,
+	_Out_writes_ (buffer_length) LPWSTR buffer,
+	_In_ ULONG buffer_length,
 	_In_ LONG64 number
 );
 
@@ -1946,13 +1945,12 @@ VOID _r_fs_clearfile (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_createdirectory (
-	_In_ LPCWSTR path,
-	_In_opt_ ULONG file_attributes
+	_In_ PR_STRINGREF path
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_createfile (
-	_In_ LPCWSTR path,
+	_In_ PR_STRINGREF path,
 	_In_ ULONG create_disposition,
 	_In_ ACCESS_MASK desired_access,
 	_In_opt_ ULONG share_access,
@@ -1960,31 +1958,31 @@ NTSTATUS _r_fs_createfile (
 	_In_opt_ ULONG create_option,
 	_In_ BOOLEAN is_directory,
 	_In_opt_ PLARGE_INTEGER allocation_size,
-	_Outptr_ PHANDLE out_buffer
+	_Out_ PHANDLE out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_copyfile (
-	_In_ LPCWSTR path_from,
-	_In_ LPCWSTR path_to,
+	_In_ PR_STRINGREF path_from,
+	_In_ PR_STRINGREF path_to,
 	_In_ BOOLEAN is_failifexists
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_deletedirectory (
-	_In_ LPCWSTR path,
+	_In_ PR_STRINGREF path,
 	_In_ BOOLEAN is_recurse
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_deletefile (
-	_In_opt_ LPCWSTR path,
+	_In_opt_ PR_STRINGREF path,
 	_In_opt_ HANDLE hfile
 );
 
 _Success_ (SUCCEEDED (return))
 HRESULT _r_fs_deleterecycle (
-	_In_ LPCWSTR path
+	_In_ PR_STRINGREF path
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2000,13 +1998,13 @@ NTSTATUS _r_fs_deviceiocontrol (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_dospathnametontpathname (
-	_In_ LPCWSTR path,
+	_In_ PR_STRINGREF path,
 	_Out_ PUNICODE_STRING out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_enumfiles (
-	_In_ LPCWSTR path,
+	_In_ PR_STRINGREF path,
 	_In_opt_ HANDLE hdirectory,
 	_In_opt_ LPWSTR search_pattern,
 	_In_ PR_FILE_ENUM_CALLBACK enum_callback,
@@ -2015,7 +2013,7 @@ NTSTATUS _r_fs_enumfiles (
 
 _Success_ (return)
 BOOLEAN _r_fs_exists (
-	_In_ LPCWSTR path
+	_In_ PR_STRINGREF path
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2025,7 +2023,7 @@ NTSTATUS _r_fs_flushfile (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getattributes (
-	_In_ LPCWSTR path,
+	_In_ PR_STRINGREF path,
 	_Out_ PULONG out_buffer
 );
 
@@ -2034,7 +2032,7 @@ PR_STRING _r_fs_getcurrentdirectory ();
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getdiskinformation (
 	_In_opt_ HANDLE hfile,
-	_In_opt_ LPCWSTR path,
+	_In_opt_ PR_STRINGREF path,
 	_Out_opt_ PR_STRING_PTR label_ptr,
 	_Out_opt_ PR_STRING_PTR filesystem_ptr,
 	_Out_opt_ PULONG flags_ptr,
@@ -2049,7 +2047,7 @@ NTSTATUS _r_fs_getdisklist (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getdiskspace (
 	_In_opt_ HANDLE hfile,
-	_In_opt_ LPCWSTR path,
+	_In_opt_ PR_STRINGREF path,
 	_Out_ PLARGE_INTEGER freespace_ptr,
 	_Out_ PLARGE_INTEGER totalspace_ptr
 );
@@ -2070,21 +2068,21 @@ NTSTATUS _r_fs_getpos (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getsecurityinfo (
 	_In_opt_ HANDLE hfile,
-	_In_opt_ LPCWSTR path,
+	_In_opt_ PR_STRINGREF path,
 	_Out_ PSECURITY_DESCRIPTOR_PTR out_sd,
 	_Out_opt_ PACL_PTR out_dacl
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getsize (
-	_In_opt_ LPCWSTR path,
+	_In_opt_ PR_STRINGREF path,
 	_In_opt_ HANDLE hfile,
 	_Out_ PLARGE_INTEGER out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_getsize2 (
-	_In_opt_ LPCWSTR path,
+	_In_opt_ PR_STRINGREF path,
 	_In_opt_ HANDLE hfile,
 	_Out_ PLONG64 out_buffer
 );
@@ -2099,24 +2097,24 @@ NTSTATUS _r_fs_gettimestamp (
 
 _Success_ (return)
 BOOLEAN _r_fs_isdirectory (
-	_In_ LPCWSTR path
+	_In_ PR_STRINGREF path
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_movefile (
-	_In_ LPCWSTR path_from,
-	_In_ LPCWSTR path_to,
+	_In_ PR_STRINGREF path_from,
+	_In_ PR_STRINGREF path_to,
 	_In_ BOOLEAN is_failifexists
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_openfile (
-	_In_ LPCWSTR path,
+	_In_ PR_STRINGREF path,
 	_In_ ACCESS_MASK desired_access,
 	_In_opt_ ULONG share_access,
 	_In_opt_ ULONG open_options,
 	_In_ BOOLEAN is_directory,
-	_Outptr_ PHANDLE out_buffer
+	_Out_ PHANDLE out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2136,7 +2134,7 @@ NTSTATUS _r_fs_readfilebytes (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_fs_setattributes (
 	_In_opt_ HANDLE hfile,
-	_In_opt_ LPCWSTR path,
+	_In_opt_ PR_STRINGREF path,
 	_In_ ULONG attributes
 );
 
@@ -2229,7 +2227,7 @@ HRESULT _r_path_getknownfolder (
 	_In_ LPCGUID rfid,
 	_In_ ULONG flags,
 	_In_opt_ LPCWSTR append,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 _Ret_maybenull_
@@ -2249,7 +2247,7 @@ RTL_PATH_TYPE _r_path_getnametype (
 );
 
 BOOLEAN _r_path_issecurelocation (
-	_In_ LPCWSTR file_path
+	_In_ LPWSTR file_path
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2261,9 +2259,9 @@ NTSTATUS _r_path_makebackup (
 _Success_ (return)
 BOOLEAN _r_path_parsecommandlinefuzzy (
 	_In_ PR_STRINGREF args,
-	_Out_ PR_STRINGREF path,
-	_Out_ PR_STRINGREF command_line,
-	_Out_opt_ PR_STRING_PTR full_file_name
+	_Out_ PR_STRINGREF out_path,
+	_Out_opt_ PR_STRINGREF out_command_line,
+	_Out_opt_ PR_STRING_PTR out_full_file_name
 );
 
 _Ret_maybenull_
@@ -2289,7 +2287,7 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_path_ntpathfromdos (
 	_In_ PR_STRINGREF path,
 	_In_ BOOLEAN is_lowercase,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2339,7 +2337,7 @@ HRESULT _r_shell_resolveshortcut (
 
 _Success_ (SUCCEEDED (return))
 HRESULT _r_shell_showfile (
-	_In_ LPCWSTR path
+	_In_ PR_STRINGREF path
 );
 
 FORCEINLINE VOID _r_shell_opendefault (
@@ -2366,33 +2364,33 @@ FORCEINLINE VOID _r_shell_opendefault (
 	((string)[0] == UNICODE_NULL)
 
 VOID _r_str_append (
-	_Inout_updates_z_ (buffer_size) LPWSTR buffer,
-	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_size,
+	_Inout_updates_z_ (buffer_length) LPWSTR buffer,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_length,
 	_In_ LPCWSTR string
 );
 
 VOID _r_str_appendformat (
-	_Inout_updates_z_ (buffer_size) LPWSTR buffer,
-	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_size,
+	_Inout_updates_z_ (buffer_length) LPWSTR buffer,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_length,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 );
 
-INT _r_str_compare (
+LONG _r_str_compare (
 	_In_ LPCWSTR string1,
 	_In_ LPCWSTR string2,
-	_In_opt_ LONG max_count
+	_In_ BOOLEAN is_ignorecase
 );
 
 VOID _r_str_copy (
-	_Out_writes_z_ (buffer_size) LPWSTR buffer,
-	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_size,
+	_Out_writes_z_ (buffer_length) LPWSTR buffer,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_length,
 	_In_ LPCWSTR string
 );
 
 VOID _r_str_copystring (
-	_Out_writes_z_ (buffer_size) LPWSTR buffer,
-	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_size,
+	_Out_writes_z_ (buffer_length) LPWSTR buffer,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_length,
 	_In_ PR_STRINGREF string
 );
 
@@ -2428,6 +2426,13 @@ ULONG_PTR _r_str_findstring (
 	_In_ BOOLEAN is_ignorecase
 );
 
+_Success_ (return != SIZE_MAX)
+ULONG_PTR _r_str_findstring2 (
+	_In_ PR_STRINGREF string,
+	_In_ LPWSTR sub_string,
+	_In_ BOOLEAN is_ignorecase
+);
+
 PR_STRING _r_str_formatversion (
 	_In_ PR_STRING string
 );
@@ -2436,7 +2441,7 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_fromguid (
 	_In_ LPGUID guid,
 	_In_ BOOLEAN is_uppercase,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 PR_STRING _r_str_fromhex (
@@ -2455,12 +2460,12 @@ ULONG _r_str_fromsecuritydescriptor (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_fromsid (
 	_In_ PSID sid,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 VOID _r_str_generaterandom (
-	_Out_writes_z_ (buffer_size) LPWSTR buffer,
-	_In_ ULONG_PTR buffer_size,
+	_Out_writes_z_ (buffer_length) LPWSTR buffer,
+	_In_ ULONG_PTR buffer_length,
 	_In_ BOOLEAN is_uppercase
 );
 
@@ -2539,15 +2544,15 @@ BOOLEAN _r_str_match (
 );
 
 VOID _r_str_printf (
-	_Out_writes_z_ (buffer_size) LPWSTR buffer,
-	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_size,
+	_Out_writes_z_ (buffer_length) LPWSTR buffer,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_length,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	...
 );
 
 VOID _r_str_printf_v (
-	_Out_writes_z_ (buffer_size) LPWSTR buffer,
-	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_size,
+	_Out_writes_z_ (buffer_length) LPWSTR buffer,
+	_In_ _In_range_ (1, PR_SIZE_MAX_STRING_LENGTH) ULONG_PTR buffer_length,
 	_In_ _Printf_format_string_ LPCWSTR format,
 	_In_ va_list arg_ptr
 );
@@ -2644,25 +2649,25 @@ VOID _r_str_trimstring2 (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_multibyte2unicode (
 	_In_ PR_BYTEREF string,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_unicode2multibyte (
 	_In_ PR_STRINGREF string,
-	_Outptr_ PR_BYTE_PTR out_buffer
+	_Out_ PR_BYTE_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_utf8toutf16 (
 	_In_ PR_BYTEREF string,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_str_utf16toutf8 (
 	_In_ PR_STRINGREF string,
-	_Outptr_ PR_BYTE_PTR out_buffer
+	_Out_ PR_BYTE_PTR out_buffer
 );
 
 VOID _r_str_reversestring (
@@ -2690,7 +2695,7 @@ ULONG _r_str_x65599 (
 	_In_ BOOLEAN is_ignorecase
 );
 
-FORCEINLINE INT _r_str_compare_logical (
+FORCEINLINE LONG _r_str_compare_logical (
 	_In_ LPCWSTR string1,
 	_In_ LPCWSTR string2
 )
@@ -2849,13 +2854,13 @@ NTSTATUS _r_sys_formatmessage (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getbinarytype (
-	_In_ LPCWSTR path,
+	_In_ PR_STRINGREF path,
 	_Inout_ PULONG out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getcomputername (
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 PR_TOKEN_ATTRIBUTES _r_sys_getcurrenttoken ();
@@ -2880,7 +2885,7 @@ NTSTATUS _r_sys_getmemoryinfo (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_getmodulehandle (
 	_In_ LPWSTR lib_name,
-	_Outptr_ PVOID_PTR out_buffer
+	_Out_ PVOID_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -2957,14 +2962,14 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_compressbuffer (
 	_In_ USHORT format,
 	_In_ PR_BYTEREF buffer,
-	_Outptr_ PR_BYTE_PTR out_buffer
+	_Out_ PR_BYTE_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_decompressbuffer (
 	_In_ USHORT format,
 	_In_ PR_BYTEREF buffer,
-	_Outptr_ PR_BYTE_PTR out_buffer
+	_Out_ PR_BYTE_PTR out_buffer
 );
 
 NTSTATUS _r_sys_doserrortontstatus (
@@ -2981,7 +2986,7 @@ NTSTATUS _r_sys_doserrortontstatus (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_enumprocesses (
-	_Outptr_ PSYSTEM_PROCESS_INFORMATION_PTR out_buffer
+	_Out_ PSYSTEM_PROCESS_INFORMATION_PTR out_buffer
 );
 
 _Ret_maybenull_
@@ -3022,15 +3027,15 @@ HICON _r_sys_loadsharedicon (
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_loadlibraryasresource (
-	_In_ LPWSTR lib_name,
+	_In_ PR_STRINGREF lib_name,
 	_Out_ PVOID_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_loadlibrary (
-	_In_ LPWSTR lib_name,
+	_In_ PR_STRINGREF lib_name,
 	_In_opt_ ULONG lib_flags,
-	_Outptr_ PVOID_PTR out_buffer
+	_Out_ PVOID_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -3043,14 +3048,14 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_openprocess (
 	_In_opt_ HANDLE process_id,
 	_In_ ACCESS_MASK desired_access,
-	_Outptr_ PHANDLE out_buffer
+	_Out_ PHANDLE out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_sys_openthread (
 	_In_opt_ HANDLE thread_id,
 	_In_ ACCESS_MASK desired_access,
-	_Outptr_ PHANDLE out_buffer
+	_Out_ PHANDLE out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -3065,7 +3070,8 @@ HRESULT _r_sys_registerrestart (
 	_In_ BOOLEAN is_register
 );
 
-BOOLEAN _r_sys_runasadmin (
+_Success_ (return == STATUS_SUCCESS)
+NTSTATUS _r_sys_runasadmin (
 	_In_ LPCWSTR file_name,
 	_In_opt_ LPCWSTR command_line,
 	_In_opt_ LPCWSTR directory
@@ -3230,6 +3236,20 @@ FORCEINLINE BOOLEAN _r_sys_isosversionlowerorequal (
 	return _r_sys_getwindowsversion () <= version;
 }
 
+_Success_ (NT_SUCCESS (return))
+FORCEINLINE NTSTATUS _r_sys_loadlibrary2 (
+	_In_ LPWSTR lib_name,
+	_In_opt_ ULONG lib_flags,
+	_Out_ PVOID_PTR out_buffer
+)
+{
+	R_STRINGREF sr;
+
+	_r_obj_initializestringref (&sr, lib_name);
+
+	return _r_sys_loadlibrary (&sr, lib_flags, out_buffer);
+}
+
 FORCEINLINE VOID _r_sys_setenvironment (
 	_Out_ PR_ENVIRONMENT environment,
 	_In_ KPRIORITY base_priority,
@@ -3237,6 +3257,8 @@ FORCEINLINE VOID _r_sys_setenvironment (
 	_In_ ULONG page_priority
 )
 {
+	RtlZeroMemory (environment, sizeof (R_ENVIRONMENT));
+
 	environment->base_priority = base_priority;
 	environment->io_priority = io_priority;
 	environment->page_priority = page_priority;
@@ -3299,8 +3321,8 @@ BOOLEAN _r_dc_adjustwindowrect (
 _Ret_maybenull_
 HBITMAP _r_dc_bitmapfromicon (
 	_In_ HICON hicon,
-	_In_ LONG x,
-	_In_ LONG y
+	_In_ LONG width,
+	_In_ LONG height
 );
 
 _Ret_maybenull_
@@ -3411,7 +3433,9 @@ LONG _r_dc_gettaskbardpi ();
 
 _Ret_maybenull_
 HBITMAP _r_dc_getuacshield (
-	_In_opt_ LONG dpi_value
+	_In_opt_ LONG dpi_value,
+	_In_opt_ LONG width,
+	_In_opt_ LONG height
 );
 
 LONG _r_dc_getwindowdpi (
@@ -3886,8 +3910,8 @@ ULONG _r_inet_openurl (
 _Success_ (return)
 BOOLEAN _r_inet_readrequest (
 	_In_ HINTERNET hrequest,
-	_Out_writes_bytes_ (buffer_size) PVOID buffer,
-	_In_ ULONG buffer_size,
+	_Out_writes_bytes_ (buffer_length) PVOID buffer,
+	_In_ ULONG buffer_length,
 	_Out_opt_ PULONG readed_ptr,
 	_Inout_opt_ PULONG total_readed_ptr
 );
@@ -3999,14 +4023,15 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_querybinary (
 	_In_ HANDLE hkey,
 	_In_opt_ LPWSTR value_name,
-	_Outptr_ PR_BYTE_PTR out_buffer
+	_Out_ PR_BYTE_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_reg_querystring (
 	_In_ HANDLE hkey,
 	_In_opt_ LPWSTR value_name,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_In_ BOOLEAN is_terminate,
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 _Success_ (NT_SUCCESS (return))
@@ -4106,9 +4131,9 @@ NTSTATUS _r_crypt_finalhashcontext (
 _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_crypt_getfilehash (
 	_In_ LPCWSTR algorithm_id,
-	_In_opt_ LPCWSTR path,
+	_In_opt_ PR_STRINGREF path,
 	_In_opt_ HANDLE hfile,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 FORCEINLINE PR_BYTE _r_crypt_getivblock (
@@ -4211,29 +4236,29 @@ _Success_ (NT_SUCCESS (return))
 NTSTATUS _r_res_loadstring (
 	_In_ PVOID hinst,
 	_In_ ULONG string_id,
-	_Outptr_ PR_STRING_PTR out_buffer
+	_Out_ PR_STRING_PTR out_buffer
 );
 
 _Ret_maybenull_
 PR_STRING _r_res_loadindirectstring (
-	_In_ PR_STRINGREF string
+	_In_ PR_STRINGREF path
 );
 
 _Ret_maybenull_
 PR_STRING _r_res_querystring (
 	_In_ LPCVOID ver_block,
 	_In_ LPCWSTR entry_name,
-	_In_ ULONG lcid
+	_In_ LCID lcid
 );
 
 _Ret_maybenull_
 PR_STRING _r_res_querystring_ex (
 	_In_ LPCVOID ver_block,
 	_In_ LPCWSTR entry_name,
-	_In_ ULONG lcid
+	_In_ LCID lcid
 );
 
-ULONG _r_res_querytranslation (
+LCID _r_res_querytranslation (
 	_In_ LPCVOID ver_block
 );
 
@@ -4242,7 +4267,7 @@ BOOL _r_res_verqueryvalue (
 	_In_ LPCVOID block,
 	_In_ LPCWSTR sub_block,
 	_Out_ PVOID_PTR out_buffer,
-	_Out_ PUINT out_length
+	_Out_ PULONG out_length
 );
 
 _Success_ (return)
@@ -4262,11 +4287,11 @@ PR_STRING _r_res_queryversionstring (
 
 _Success_ (SUCCEEDED (return))
 HRESULT _r_imagelist_create (
-	_In_ INT width,
-	_In_ INT height,
-	_In_ UINT flags,
-	_In_ INT32 initial_count,
-	_In_ INT32 grow_count,
+	_In_ LONG width,
+	_In_ LONG height,
+	_In_ ULONG flags,
+	_In_ LONG initial_count,
+	_In_ LONG grow_count,
 	_Out_ HIMAGELIST_PTR out_buffer
 );
 
@@ -4307,7 +4332,8 @@ HRESULT _r_imagelist_draw (
 _Success_ (SUCCEEDED (return))
 HRESULT _r_imagelist_getsize (
 	_In_ HIMAGELIST himg,
-	_Out_ PSIZE out_buffer
+	_Out_ PLONG out_width,
+	_Out_ PLONG out_height
 );
 
 _Success_ (SUCCEEDED (return))
@@ -4329,7 +4355,7 @@ HRESULT _r_imagelist_setsize (
 _Success_ (return)
 BOOLEAN _r_parseini (
 	_In_ PR_STRING path,
-	_Outptr_ PR_HASHTABLE_PTR out_buffer,
+	_Out_ PR_HASHTABLE_PTR out_buffer,
 	_Inout_opt_ PR_LIST section_list
 );
 
@@ -4453,7 +4479,7 @@ HRESULT _r_xml_parsestring (
 _Success_ (SUCCEEDED (return))
 HRESULT _r_xml_readstream (
 	_Inout_ PR_XML_LIBRARY xml_library,
-	_Outptr_ PR_BYTE_PTR out_buffer
+	_Out_ PR_BYTE_PTR out_buffer
 );
 
 VOID _r_xml_writestartdocument (
@@ -4835,6 +4861,15 @@ FORCEINLINE BOOLEAN _r_ctrl_isbuttonchecked (
 )
 {
 	return _r_wnd_sendmessage (hwnd, ctrl_id, BM_GETCHECK, 0, 0) == BST_CHECKED;
+}
+
+FORCEINLINE VOID _r_ctrl_sendcommand (
+	_In_ HWND hwnd,
+	_In_ ULONG command_id,
+	_In_opt_ LPARAM lparam
+)
+{
+	_r_wnd_sendmessage (hwnd, 0, WM_COMMAND, MAKELPARAM (command_id, 0), lparam);
 }
 
 FORCEINLINE VOID _r_ctrl_setacceleration (
@@ -5744,7 +5779,7 @@ UINT _r_treeview_getitemstate (
 HTREEITEM _r_treeview_getnextitem (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
-	_In_ HTREEITEM item_id,
+	_In_opt_ HTREEITEM item_id,
 	_In_opt_ ULONG retrieve_id
 );
 
@@ -5949,31 +5984,31 @@ FORCEINLINE VOID _r_status_settext (
 VOID _r_rebar_deleteband (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
-	_In_ UINT band_id
+	_In_ ULONG band_id
 );
 
 VOID _r_rebar_insertband (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
-	_In_ UINT band_id,
+	_In_ ULONG band_id,
 	_In_ HWND hchild,
-	_In_opt_ UINT style,
-	_In_ UINT width,
-	_In_ UINT height
+	_In_opt_ ULONG style,
+	_In_ ULONG width,
+	_In_ ULONG height
 );
 
 BOOLEAN _r_rebar_isbandexists (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
-	_In_ UINT band_id
+	_In_ ULONG band_id
 );
 
-FORCEINLINE UINT _r_rebar_getcount (
+FORCEINLINE ULONG _r_rebar_getcount (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id
 )
 {
-	return (UINT)_r_wnd_sendmessage (hwnd, ctrl_id, RB_GETBANDCOUNT, 0, 0);
+	return (ULONG)_r_wnd_sendmessage (hwnd, ctrl_id, RB_GETBANDCOUNT, 0, 0);
 }
 
 FORCEINLINE LONG _r_rebar_getheight (
@@ -5982,6 +6017,15 @@ FORCEINLINE LONG _r_rebar_getheight (
 )
 {
 	return (LONG)_r_wnd_sendmessage (hwnd, ctrl_id, RB_GETBARHEIGHT, 0, 0);
+}
+
+FORCEINLINE ULONG _r_rebar_getindex (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ ULONG band_id
+)
+{
+	return (ULONG)_r_wnd_sendmessage (hwnd, ctrl_id, RB_IDTOINDEX, (WPARAM)band_id, 0);
 }
 
 //
@@ -5993,7 +6037,7 @@ VOID _r_toolbar_addbutton (
 	_In_opt_ INT ctrl_id,
 	_In_ UINT command_id,
 	_In_ INT style,
-	_In_opt_ INT_PTR string,
+	_In_opt_ LPCWSTR string,
 	_In_ INT state,
 	_In_ INT image_id
 );
@@ -6005,7 +6049,7 @@ PR_STRING _r_toolbar_gettext (
 	_In_ UINT command_id
 );
 
-INT _r_toolbar_getwidth (
+LONG _r_toolbar_getwidth (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id
 );
@@ -6031,7 +6075,7 @@ FORCEINLINE VOID _r_toolbar_addseparator (
 	_In_opt_ INT ctrl_id
 )
 {
-	_r_toolbar_addbutton (hwnd, ctrl_id, 0, BTNS_SEP, 0, 0, I_IMAGENONE);
+	_r_toolbar_addbutton (hwnd, ctrl_id, 0, BTNS_SEP, NULL, 0, I_IMAGENONE);
 }
 
 FORCEINLINE VOID _r_toolbar_enablebutton (
@@ -6060,7 +6104,7 @@ FORCEINLINE ULONG _r_toolbar_getbuttonsize (
 	return (ULONG)_r_wnd_sendmessage (hwnd, ctrl_id, TB_GETBUTTONSIZE, 0, 0);
 }
 
-FORCEINLINE LRESULT _r_toolbar_getexstyle (
+FORCEINLINE LRESULT _r_toolbar_getstyle_ex (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id
 )
@@ -6132,18 +6176,14 @@ FORCEINLINE BOOLEAN _r_toolbar_ishighlighted (
 	_In_ UINT command_id
 )
 {
-	LRESULT current_index;
-
-	current_index = _r_wnd_sendmessage (hwnd, ctrl_id, TB_COMMANDTOINDEX, (WPARAM)command_id, 0);
-
-	return _r_wnd_sendmessage (hwnd, ctrl_id, TB_GETHOTITEM, 0, 0) == current_index;
+	return (_r_wnd_sendmessage (hwnd, ctrl_id, TB_GETHOTITEM, 0, 0) == _r_wnd_sendmessage (hwnd, ctrl_id, TB_COMMANDTOINDEX, (WPARAM)command_id, 0));
 }
 
 FORCEINLINE BOOLEAN _r_toolbar_pressbutton (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
 	_In_ UINT command_id,
-	_In_opt_ BOOLEAN is_enabled
+	_In_ BOOLEAN is_enabled
 )
 {
 	return !!_r_wnd_sendmessage (hwnd, ctrl_id, TB_PRESSBUTTON, command_id, MAKELPARAM (is_enabled, 0));

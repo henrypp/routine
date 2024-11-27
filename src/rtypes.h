@@ -189,7 +189,7 @@ typedef HTHEME (WINAPI* ONCTD)(
 
 #else
 
-#error "Some printf specifiers are undefined. Unknown architecture!"
+#error "Some printf specifiers are not defined. Unknown architecture!"
 
 #endif // _WIN64
 

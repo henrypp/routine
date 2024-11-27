@@ -9,53 +9,57 @@
 // Application: seh
 //
 
-VOID _r_app_exceptionfilter_savedump (
+ULONG NTAPI _r_app_exceptionfilter_callback (
 	_In_ PEXCEPTION_POINTERS exception_ptr
 )
 {
 	MINIDUMP_EXCEPTION_INFORMATION exception_info = {0};
-	WCHAR path[512];
+	PR_STRING path;
 	HANDLE hfile;
 	NTSTATUS status;
 
-	_r_str_printf (
-		path,
-		RTL_NUMBER_OF (path),
+	// Let the debugger handle the exception
+	if (NtCurrentPeb ()->BeingDebugged)
+		return EXCEPTION_CONTINUE_SEARCH;
+
+	path = _r_format_string (
 		L"%s\\%s-%" TEXT (PR_LONG64) L".dmp",
 		_r_app_getcrashdirectory (TRUE)->buffer,
 		_r_app_getnameshort (),
 		_r_unixtime_now ()
 	);
 
-	status = _r_fs_createfile (path, FILE_OVERWRITE_IF, GENERIC_WRITE, FILE_SHARE_WRITE, FILE_ATTRIBUTE_NORMAL, 0, FALSE, NULL, &hfile);
+	status = _r_fs_createfile (
+		&path->sr,
+		FILE_OVERWRITE_IF,
+		GENERIC_WRITE,
+		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+		FILE_ATTRIBUTE_READONLY,
+		0,
+		FALSE,
+		NULL,
+		&hfile
+	);
 
-	if (!NT_SUCCESS (status))
+	if (NT_SUCCESS (status))
 	{
-		_r_log (LOG_LEVEL_ERROR, NULL, L"_r_fs_createfile", status, path);
+		exception_info.ThreadId = HandleToULong (NtCurrentThreadId ());
+		exception_info.ExceptionPointers = exception_ptr;
+		exception_info.ClientPointers = TRUE;
 
-		return;
+		MiniDumpWriteDump (NtCurrentProcess (), HandleToULong (NtCurrentProcessId ()), hfile, MiniDumpNormal, &exception_info, NULL, NULL);
+
+		NtClose (hfile);
+	}
+	else
+	{
+		if (status != STATUS_ACCESS_DENIED)
+			_r_log (LOG_LEVEL_ERROR, NULL, L"_r_fs_createfile", status, path->buffer);
 	}
 
-	exception_info.ThreadId = HandleToULong (NtCurrentThreadId ());
-	exception_info.ExceptionPointers = exception_ptr;
-	exception_info.ClientPointers = TRUE;
-
-	MiniDumpWriteDump (NtCurrentProcess (), HandleToULong (NtCurrentProcessId ()), hfile, MiniDumpNormal, &exception_info, NULL, NULL);
-
-	NtClose (hfile);
-}
-
-ULONG CALLBACK _r_app_exceptionfilter_callback (
-	_In_ PEXCEPTION_POINTERS exception_ptr
-)
-{
-	// Let the debugger handle the exception
-	if (NtCurrentPeb ()->BeingDebugged)
-		return EXCEPTION_CONTINUE_SEARCH;
-
-	_r_app_exceptionfilter_savedump (exception_ptr);
-
 	_r_report_error (APP_EXCEPTION_TITLE, NULL, exception_ptr->ExceptionRecord->ExceptionCode, ET_NATIVE);
+
+	_r_obj_dereference (path);
 
 	RtlExitUserProcess (exception_ptr->ExceptionRecord->ExceptionCode);
 
@@ -126,7 +130,7 @@ BOOLEAN _r_app_isportable ()
 					file_exts[i]
 				);
 
-				if (_r_fs_exists (string->buffer))
+				if (_r_fs_exists (&string->sr))
 					is_portable = TRUE;
 
 				_r_obj_dereference (string);
@@ -469,22 +473,22 @@ PR_STRING _r_app_getconfigpath ()
 	return cached_result;
 }
 
-LPCWSTR _r_app_getcachedirectory (
+PR_STRING _r_app_getcachedirectory (
 	_In_ BOOLEAN is_create
 )
 {
 	static R_INITONCE init_once = PR_INITONCE_INIT;
-	static WCHAR cached_path[512] = {0};
+	static PR_STRING cached_path = NULL;
 
 	if (_r_initonce_begin (&init_once))
 	{
-		_r_str_printf (cached_path, RTL_NUMBER_OF (cached_path), L"%s\\cache", _r_app_getprofiledirectory ()->buffer);
+		cached_path = _r_format_string (L"%s\\cache", _r_app_getprofiledirectory ()->buffer);
 
 		_r_initonce_end (&init_once);
 	}
 
-	if (is_create && !_r_fs_exists (cached_path))
-		_r_fs_createdirectory (cached_path, FILE_ATTRIBUTE_NORMAL);
+	if (is_create && !_r_fs_exists (&cached_path->sr))
+		_r_fs_createdirectory (&cached_path->sr);
 
 	return cached_path;
 }
@@ -508,8 +512,8 @@ PR_STRING _r_app_getcrashdirectory (
 		_r_initonce_end (&init_once);
 	}
 
-	if (is_create && !_r_fs_exists (cached_path->buffer))
-		_r_fs_createdirectory (cached_path->buffer, FILE_ATTRIBUTE_NORMAL);
+	if (is_create && !_r_fs_exists (&cached_path->sr))
+		_r_fs_createdirectory (&cached_path->sr);
 
 	return cached_path;
 }
@@ -569,8 +573,8 @@ PR_STRING _r_app_getprofiledirectory ()
 		_r_initonce_end (&init_once);
 	}
 
-	if (cached_path && !_r_fs_exists (cached_path->buffer))
-		_r_fs_createdirectory (cached_path->buffer, FILE_ATTRIBUTE_NORMAL);
+	if (cached_path && !_r_fs_exists (&cached_path->sr))
+		_r_fs_createdirectory (&cached_path->sr);
 
 	return cached_path;
 }
@@ -892,7 +896,7 @@ BOOLEAN _r_app_runasadmin ()
 	}
 #endif // APP_HAVE_SKIPUAC
 
-	if (_r_sys_runasadmin (_r_sys_getimagepath (), _r_sys_getcommandline (), _r_sys_getcurrentdirectory ()))
+	if (_r_sys_runasadmin (_r_sys_getimagepath (), _r_sys_getcommandline (), _r_sys_getcurrentdirectory ()) == STATUS_SUCCESS)
 	{
 		RtlExitUserProcess (STATUS_SUCCESS);
 
@@ -2017,7 +2021,7 @@ BOOLEAN _r_autorun_isenabled ()
 
 	if (NT_SUCCESS (status))
 	{
-		status = _r_reg_querystring (hkey, _r_app_getname (), &path);
+		status = _r_reg_querystring (hkey, _r_app_getname (), TRUE, &path);
 
 		if (NT_SUCCESS (status))
 		{
@@ -2071,14 +2075,14 @@ NTSTATUS _r_update_downloadupdate (
 )
 {
 	R_DOWNLOAD_INFO download_info;
-	LPCWSTR path;
+	PR_STRING path;
 	HANDLE hfile;
 	NTSTATUS status;
 
 	path = _r_app_getcachedirectory (TRUE);
 
 	status = _r_fs_createfile (
-		update_component->cache_path->buffer,
+		&update_component->cache_path->sr,
 		FILE_OVERWRITE_IF,
 		GENERIC_WRITE,
 		FILE_SHARE_READ | FILE_SHARE_WRITE,
@@ -2104,18 +2108,18 @@ NTSTATUS _r_update_downloadupdate (
 	if (update_component->flags & PR_UPDATE_FLAG_FILE)
 	{
 		// copy required files
-		if (_r_fs_exists (update_component->target_path->buffer))
-			_r_fs_deletefile (update_component->target_path->buffer, NULL);
+		if (_r_fs_exists (&update_component->target_path->sr))
+			_r_fs_deletefile (&update_component->target_path->sr, NULL);
 
 		// move target files
-		status = _r_fs_movefile (update_component->cache_path->buffer, update_component->target_path->buffer, FALSE);
+		status = _r_fs_movefile (&update_component->cache_path->sr, &update_component->target_path->sr, FALSE);
 
 		if (!NT_SUCCESS (status))
-			_r_fs_copyfile (update_component->cache_path->buffer, update_component->target_path->buffer, FALSE);
+			_r_fs_copyfile (&update_component->cache_path->sr, &update_component->target_path->sr, FALSE);
 
 		// remove if it exists
-		if (_r_fs_exists (update_component->cache_path->buffer))
-			_r_fs_deletefile (update_component->cache_path->buffer, NULL);
+		if (_r_fs_exists (&update_component->cache_path->sr))
+			_r_fs_deletefile (&update_component->cache_path->sr, NULL);
 
 		update_component->flags &= ~PR_UPDATE_FLAG_AVAILABLE;
 
@@ -2125,7 +2129,7 @@ NTSTATUS _r_update_downloadupdate (
 	}
 
 	// remove cache directory if it is empty
-	_r_fs_deletedirectory (path, FALSE);
+	_r_fs_deletedirectory (&path->sr, FALSE);
 
 	return STATUS_SUCCESS;
 }
@@ -2229,9 +2233,9 @@ NTSTATUS NTAPI _r_update_checkthread (
 
 	update_info = arglist;
 
-	update_url = _r_obj_createstring (_r_app_getupdate_url ());
-
 	_r_inet_initializedownload (&download_info, NULL, NULL, NULL);
+
+	update_url = _r_obj_createstring (_r_app_getupdate_url ());
 
 	status = _r_inet_begindownload (update_info->hsession, &update_url->sr, &download_info);
 
@@ -2445,9 +2449,14 @@ BOOLEAN _r_update_check (
 		update_info->hsession = _r_inet_createsession (_r_app_getuseragent (), _r_app_getproxyconfiguration ());
 
 	if (!update_info->hsession)
-		return FALSE;
+	{
+		if (hparent)
+			_r_show_errormessage (hparent, L"Internet session failure!", NtLastError (), NULL, ET_WINHTTP);
 
-	_r_sys_setenvironment (&environment, THREAD_PRIORITY_LOWEST, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
+		return FALSE;
+	}
+
+	_r_sys_setenvironment (&environment, THREAD_PRIORITY_ABOVE_NORMAL, IoPriorityNormal, MEMORY_PRIORITY_NORMAL);
 
 	status = _r_sys_createthread (&hthread, NtCurrentProcess (), &_r_update_checkthread, update_info, &environment, L"UpdateThread");
 
@@ -2559,7 +2568,7 @@ HRESULT CALLBACK _r_update_pagecallback (
 					update_component = _r_obj_getarrayitem (update_info->components, i);
 
 					if (update_component->flags & (PR_UPDATE_FLAG_INSTALLER | PR_UPDATE_FLAG_AVAILABLE))
-						_r_update_install (update_component);
+						_r_update_install (hwnd, update_component);
 				}
 			}
 			else if (wparam == IDCANCEL)
@@ -2601,7 +2610,8 @@ HRESULT CALLBACK _r_update_pagecallback (
 
 		case TDN_DIALOG_CONSTRUCTED:
 		{
-			//_r_theme_initialize (hwnd, _r_theme_isenabled ());
+			//if (_r_theme_isenabled ())
+			//	_r_theme_initializetaskdialogtheme (hwnd, 0);
 
 			if (_r_sys_isosversiongreaterorequal (WINDOWS_11))
 				DwmSetWindowAttribute (hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &(DWM_WINDOW_CORNER_PREFERENCE){ DWMWCP_DONOTROUND }, sizeof (DWM_WINDOW_CORNER_PREFERENCE));
@@ -2656,7 +2666,7 @@ VOID _r_update_navigate (
 	tdc.pszWindowTitle = _r_app_getname ();
 
 #if defined(IDI_MAIN)
-	tdc.pszMainIcon = icon ? icon : MAKEINTRESOURCEW (IDI_MAIN);
+	tdc.pszMainIcon = icon ? icon : MAKEINTRESOURCE (IDI_MAIN);
 #endif // IDI_MAIN
 
 	if (title)
@@ -2751,7 +2761,7 @@ VOID _r_update_addcomponent (
 
 	update_component.cache_path = _r_obj_concatstrings (
 		7,
-		_r_app_getcachedirectory (FALSE),
+		_r_app_getcachedirectory (FALSE)->buffer,
 		L"\\",
 		L"update-",
 		short_name,
@@ -2784,18 +2794,22 @@ VOID _r_update_applyconfig ()
 }
 
 VOID _r_update_install (
+	_In_opt_ HWND hwnd,
 	_In_ PR_UPDATE_COMPONENT update_component
 )
 {
 	PR_STRING cmd_string;
+	NTSTATUS status;
 
-	if (!_r_fs_exists (update_component->cache_path->buffer))
+	if (!_r_fs_exists (&update_component->cache_path->sr))
 		return;
 
 	cmd_string = _r_format_string (L"\"%s\" /u /S /D=%s", update_component->cache_path->buffer, update_component->target_path->buffer);
 
-	if (!_r_sys_runasadmin (update_component->cache_path->buffer, cmd_string->buffer, NULL))
-		_r_show_errormessage (NULL, NULL, NtLastError (), update_component->cache_path->buffer, ET_WINDOWS);
+	status = _r_sys_runasadmin (update_component->cache_path->buffer, cmd_string->buffer, NULL);
+
+	if (status != STATUS_SUCCESS)
+		_r_show_errormessage (hwnd, NULL, status, update_component->cache_path->buffer, ET_NATIVE);
 
 	_r_obj_dereference (cmd_string);
 }
@@ -2830,7 +2844,7 @@ HANDLE _r_log_getfilehandle ()
 	NTSTATUS status;
 
 	status = _r_fs_createfile (
-		_r_app_getlogpath ()->buffer,
+		&_r_app_getlogpath ()->sr,
 		FILE_OPEN_IF,
 		GENERIC_WRITE,
 		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
@@ -3095,7 +3109,7 @@ VOID _r_show_aboutmessage (
 	tdc.pszExpandedInformation = APP_ABOUT_DONATE;
 
 #if defined(IDI_MAIN)
-	tdc.pszMainIcon = MAKEINTRESOURCEW (IDI_MAIN);
+	tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
 #endif // IDI_MAIN
 
 #if defined(IDS_DONATE)
@@ -3240,7 +3254,7 @@ NTSTATUS _r_show_errormessage (
 	tdc.pfCallback = &_r_msg_callback;
 	tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
 
-	if (_r_fs_exists (path->buffer))
+	if (_r_fs_exists (&path->sr))
 	{
 		// add "Crash dumps" button
 		td_buttons[btn_cnt].pszButtonText = L"Crash dumps";
@@ -3312,7 +3326,7 @@ INT _r_show_message (
 	if ((flags & MB_ICONMASK) == MB_USERICON)
 	{
 #if defined(IDI_MAIN)
-		tdc.pszMainIcon = MAKEINTRESOURCEW (IDI_MAIN);
+		tdc.pszMainIcon = MAKEINTRESOURCE (IDI_MAIN);
 #endif // IDI_MAIN
 	}
 	else if ((flags & MB_ICONMASK) == MB_ICONWARNING)
@@ -3398,7 +3412,7 @@ VOID _r_window_restoreposition (
 	if (style & WS_MAXIMIZEBOX)
 	{
 		// HACK!!! Do not maximize main window!
-		if (_r_str_compare (window_name, L"window", 0) != 0)
+		if (_r_str_compare (window_name, L"window", TRUE) != 0)
 		{
 			if (_r_config_getboolean_ex (L"IsMaximized", FALSE, window_name))
 				ShowWindow (hwnd, SW_SHOWMAXIMIZED);
@@ -3547,7 +3561,7 @@ VOID _r_settings_createwindow (
 			if (!ptr_page->dlg_id)
 				continue;
 
-			status = _r_res_loadresource (_r_sys_getimagebase (), RT_DIALOG, MAKEINTRESOURCEW (ptr_page->dlg_id), 0, &dlg_buffer);
+			status = _r_res_loadresource (_r_sys_getimagebase (), RT_DIALOG, MAKEINTRESOURCE (ptr_page->dlg_id), 0, &dlg_buffer);
 
 			if (!NT_SUCCESS (status))
 				continue;
@@ -3762,8 +3776,8 @@ INT_PTR CALLBACK _r_settings_wndproc (
 #if defined(IDI_MAIN)
 			_r_wnd_seticon (
 				hwnd,
-				_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCEW (IDI_MAIN), icon_small),
-				_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCEW (IDI_MAIN), icon_large)
+				_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCE (IDI_MAIN), icon_small),
+				_r_sys_loadsharedicon (_r_sys_getimagebase (), MAKEINTRESOURCE (IDI_MAIN), icon_large)
 			);
 #endif // IDI_MAIN
 
@@ -3782,7 +3796,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 				if (!ptr_page->dlg_id)
 					continue;
 
-				ptr_page->hwnd = _r_wnd_createwindow (_r_sys_getimagebase (), MAKEINTRESOURCEW (ptr_page->dlg_id), hwnd, app_global.settings.wnd_proc, 0);
+				ptr_page->hwnd = _r_wnd_createwindow (_r_sys_getimagebase (), MAKEINTRESOURCE (ptr_page->dlg_id), hwnd, app_global.settings.wnd_proc, 0);
 
 				if (!ptr_page->hwnd)
 					continue;
@@ -4195,7 +4209,7 @@ HRESULT _r_skipuac_checkmodulepath (
 	// check path is for current module
 	PathUnquoteSpacesW (task_path);
 
-	if (_r_str_compare (task_path, _r_sys_getimagepath (), 0) != 0)
+	if (_r_str_compare (task_path, _r_sys_getimagepath (), TRUE) != 0)
 		status = SCHED_E_INVALID_TASK;
 
 CleanupExit:
@@ -4691,7 +4705,7 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 
 		SetWindowPlacement (GetParent (hwnd), &pos);
 	}
-	//else if (_r_str_isequal2 (&class_name->sr, PROGRESS_CLASSW, TRUE))
+	//else if (_r_str_isequal2 (&class_name->sr, PROGRESS_CLASS, TRUE))
 	//{
 	//	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
 	//		_r_theme_setdarkmode (hwnd, is_enable);
@@ -4699,15 +4713,15 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 	//	_r_progress_setbarcolor (hwnd, 0, is_enable ? WND_TEXT_CLR : CLR_DEFAULT);
 	//	_r_progress_setbkcolor (hwnd, 0, is_enable ? WND_BACKGROUND2_CLR : CLR_DEFAULT);
 	//}
-	else if (_r_str_isequal2 (&class_name->sr, REBARCLASSNAMEW, TRUE))
+	else if (_r_str_isequal2 (&class_name->sr, REBARCLASSNAME, TRUE))
 	{
 		_r_theme_initializecontext (hwnd, NULL, &_r_theme_rebar_subclass, is_enable);
 	}
-	else if (_r_str_isequal2 (&class_name->sr, STATUSCLASSNAMEW, TRUE))
+	else if (_r_str_isequal2 (&class_name->sr, STATUSCLASSNAME, TRUE))
 	{
 		_r_theme_initializecontext (hwnd, VSCLASS_STATUS, &_r_theme_statusbar_subclass, is_enable);
 	}
-	else if (_r_str_isequal2 (&class_name->sr, TOOLBARCLASSNAMEW, TRUE))
+	else if (_r_str_isequal2 (&class_name->sr, TOOLBARCLASSNAME, TRUE))
 	{
 		scheme.dwSize = sizeof (COLORSCHEME);
 
@@ -4724,12 +4738,12 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 				_r_theme_setdarkmode (htip, is_enable);
 		}
 	}
-	else if (_r_str_isequal2 (&class_name->sr, UPDOWN_CLASSW, TRUE))
+	else if (_r_str_isequal2 (&class_name->sr, UPDOWN_CLASS, TRUE))
 	{
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
 			_r_theme_setdarkmode (hwnd, is_enable);
 	}
-	else if (_r_str_isequal2 (&class_name->sr, WC_BUTTONW, TRUE))
+	else if (_r_str_isequal2 (&class_name->sr, WC_BUTTON, TRUE))
 	{
 		style = _r_wnd_getstyle (hwnd, GWL_STYLE);
 
@@ -4759,7 +4773,7 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 			}
 		}
 	}
-	else if (_r_str_isequal2 (&class_name->sr, WC_COMBOBOXW, TRUE))
+	else if (_r_str_isequal2 (&class_name->sr, WC_COMBOBOX, TRUE))
 	{
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
 		{
@@ -4780,7 +4794,7 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 
 		_r_theme_initializecontext (hwnd, VSCLASS_COMBOBOX, &_r_theme_combobox_subclassproc, is_enable);
 	}
-	else if (_r_str_isequal2 (&class_name->sr, WC_EDITW, TRUE))
+	else if (_r_str_isequal2 (&class_name->sr, WC_EDIT, TRUE))
 	{
 		ex_style = _r_wnd_getstyle (hwnd, GWL_EXSTYLE);
 		style = _r_wnd_getstyle (hwnd, GWL_STYLE);
@@ -4797,13 +4811,13 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 
 		_r_wnd_sendmessage (hwnd, 0, WM_THEMECHANGED, 0, 0);
 	}
-	else if (_r_str_isequal2 (&class_name->sr, WC_HEADERW, TRUE))
+	else if (_r_str_isequal2 (&class_name->sr, WC_HEADER, TRUE))
 	{
 		SetWindowTheme (hwnd, is_enable ? L"DarkMode_ItemsView" : L"Explorer", NULL);
 
 		_r_theme_initializecontext (hwnd, VSCLASS_HEADER, &_r_theme_header_subclass, is_enable);
 	}
-	else if (_r_str_isequal2 (&class_name->sr, WC_LISTVIEWW, TRUE))
+	else if (_r_str_isequal2 (&class_name->sr, WC_LISTVIEW, TRUE))
 	{
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
 		{
@@ -4819,16 +4833,16 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 		_r_wnd_sendmessage (hwnd, 0, LVM_SETBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : GetSysColor (COLOR_WINDOW));
 		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTCOLOR, 0, is_enable ? WND_TEXT_CLR : GetSysColor (COLOR_WINDOWTEXT));
 	}
-	else if (_r_str_isequal2 (&class_name->sr, WC_SCROLLBARW, TRUE))
+	else if (_r_str_isequal2 (&class_name->sr, WC_SCROLLBAR, TRUE))
 	{
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
 			_r_theme_setdarkmode (hwnd, is_enable);
 	}
-	else if (_r_str_isequal2 (&class_name->sr, WC_TABCONTROLW, TRUE))
+	else if (_r_str_isequal2 (&class_name->sr, WC_TABCONTROL, TRUE))
 	{
 		_r_theme_initializecontext (hwnd, VSCLASS_HEADER, &_r_theme_tabcontrol_subclass, is_enable);
 	}
-	else if (_r_str_isequal2 (&class_name->sr, WC_TREEVIEWW, TRUE))
+	else if (_r_str_isequal2 (&class_name->sr, WC_TREEVIEW, TRUE))
 	{
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
 		{
@@ -4867,7 +4881,7 @@ VOID _r_theme_initialize (
 	{
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
 		{
-			status = _r_sys_loadlibrary (L"uxtheme.dll", 0, &huxtheme);
+			status = _r_sys_loadlibrary2 (L"uxtheme.dll", 0, &huxtheme);
 
 			if (NT_SUCCESS (status))
 			{
@@ -6855,7 +6869,7 @@ LRESULT CALLBACK _r_theme_subclassproc (
 					if (!GetClassNameW (custom_draw->hdr.hwndFrom, class_name, RTL_NUMBER_OF (class_name)))
 						break;
 
-					if (_r_str_compare (class_name, WC_BUTTONW, 0) == 0)
+					if (_r_str_compare (class_name, WC_BUTTON, TRUE) == 0)
 					{
 						// The control does it's own theme drawing.
 						if (_r_wnd_getcontext (custom_draw->hdr.hwndFrom, SHORT_MAX))
@@ -6884,15 +6898,15 @@ LRESULT CALLBACK _r_theme_subclassproc (
 							}
 						}
 					}
-					else if (_r_str_compare (class_name, REBARCLASSNAMEW, 0) == 0)
+					else if (_r_str_compare (class_name, REBARCLASSNAME, TRUE) == 0)
 					{
 						return _r_theme_drawrebar (custom_draw);
 					}
-					else if (_r_str_compare (class_name, TOOLBARCLASSNAMEW, 0) == 0)
+					else if (_r_str_compare (class_name, TOOLBARCLASSNAME, TRUE) == 0)
 					{
 						return _r_theme_drawtoolbar ((LPNMTBCUSTOMDRAW)custom_draw);
 					}
-					else if (_r_str_compare (class_name, WC_LISTVIEWW, 0) == 0)
+					else if (_r_str_compare (class_name, WC_LISTVIEW, TRUE) == 0)
 					{
 						lvcd = (LPNMLVCUSTOMDRAW)custom_draw;
 
