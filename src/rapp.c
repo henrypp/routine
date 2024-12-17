@@ -1,7 +1,7 @@
 // routine.c
 // project sdk library
 //
-// Copyright (c) 2012-2024 Henry++
+// Copyright (c) 2012-2025 Henry++
 
 #include "rapp.h"
 
@@ -55,6 +55,8 @@ ULONG NTAPI _r_app_exceptionfilter_callback (
 	{
 		if (status != STATUS_ACCESS_DENIED)
 			_r_log (LOG_LEVEL_ERROR, NULL, L"_r_fs_createfile", status, path->buffer);
+
+		_r_fs_deletedirectory (&path->sr, FALSE); // remove if it is empty
 	}
 
 	_r_report_error (APP_EXCEPTION_TITLE, NULL, exception_ptr->ExceptionRecord->ExceptionCode, ET_NATIVE);
@@ -180,9 +182,9 @@ VOID _r_app_initialize_components ()
 #endif // APP_HAVE_TRAY
 
 	// initialize objects
-	app_global.update.info.components = _r_obj_createarray (sizeof (R_UPDATE_COMPONENT), NULL);
+	app_global.update.info.components = _r_obj_createarray (sizeof (R_UPDATE_COMPONENT), 2, NULL);
 
-	app_global.settings.page_list = _r_obj_createarray (sizeof (R_SETTINGS_PAGE), NULL);
+	app_global.settings.page_list = _r_obj_createarray (sizeof (R_SETTINGS_PAGE), 4, NULL);
 }
 
 VOID _r_app_initialize_controls ()
@@ -1638,33 +1640,33 @@ VOID _r_config_setstring_ex (
 VOID _r_locale_initialize ()
 {
 	PR_HASHTABLE locale_table;
-	PR_STRING language_config;
 	PR_STRING language_path;
+	PR_STRING language_name;
 	PR_LIST locale_names;
 
-	language_config = _r_config_getstring (L"Language", NULL);
+	language_name = _r_config_getstring (L"Language", NULL);
 
-	if (!language_config)
+	if (language_name)
 	{
-		_r_obj_swapreference (&app_global.locale.current_name, app_global.locale.default_name);
-	}
-	else
-	{
-		if (_r_str_isstartswith (&language_config->sr, &app_global.locale.resource_name->sr, TRUE))
+		if (_r_str_isstartswith (&language_name->sr, &app_global.locale.resource_name->sr, TRUE))
 		{
 			_r_obj_swapreference (&app_global.locale.current_name, app_global.locale.resource_name);
 		}
 		else
 		{
-			_r_obj_swapreference (&app_global.locale.current_name, language_config);
+			_r_obj_swapreference (&app_global.locale.current_name, language_name);
 		}
 
-		_r_obj_dereference (language_config);
+		_r_obj_dereference (language_name);
+	}
+	else
+	{
+		_r_obj_swapreference (&app_global.locale.current_name, app_global.locale.default_name);
 	}
 
 	language_path = _r_app_getlocalepath ();
 
-	locale_names = _r_obj_createlist (&_r_obj_dereference);
+	locale_names = _r_obj_createlist (4, &_r_obj_dereference);
 
 	_r_parseini (language_path, &locale_table, locale_names);
 
@@ -1873,7 +1875,9 @@ PR_STRING _r_locale_getstring_ex (
 		hash_code = _r_str_gethash2 (&hash_string->sr, TRUE);
 
 		_r_queuedlock_acquireshared (&app_global.locale.lock);
+
 		value_string = _r_obj_findhashtablepointer (app_global.locale.table, hash_code);
+
 		_r_queuedlock_releaseshared (&app_global.locale.lock);
 	}
 	else
@@ -1890,7 +1894,9 @@ PR_STRING _r_locale_getstring_ex (
 			hash_code = _r_str_gethash2 (&hash_string->sr, TRUE);
 
 			_r_queuedlock_acquireshared (&app_global.locale.lock);
+
 			value_string = _r_obj_findhashtablepointer (app_global.locale.table, hash_code);
+
 			_r_queuedlock_releaseshared (&app_global.locale.lock);
 
 			if (!value_string)
@@ -1900,7 +1906,9 @@ PR_STRING _r_locale_getstring_ex (
 				if (NT_SUCCESS (status))
 				{
 					_r_queuedlock_acquireexclusive (&app_global.locale.lock);
+
 					_r_obj_addhashtablepointer (app_global.locale.table, hash_code, _r_obj_reference (value_string));
+
 					_r_queuedlock_releaseexclusive (&app_global.locale.lock);
 				}
 			}
@@ -2021,7 +2029,7 @@ BOOLEAN _r_autorun_isenabled ()
 
 	if (NT_SUCCESS (status))
 	{
-		status = _r_reg_querystring (hkey, _r_app_getname (), TRUE, &path);
+		status = _r_reg_querystring (hkey, _r_app_getname (), &path, NULL);
 
 		if (NT_SUCCESS (status))
 		{
@@ -2451,7 +2459,7 @@ BOOLEAN _r_update_check (
 	if (!update_info->hsession)
 	{
 		if (hparent)
-			_r_show_errormessage (hparent, L"Internet session failure!", NtLastError (), NULL, ET_WINHTTP);
+			_r_show_errormessage (hparent, L"Internet session create failure!", NtLastError (), NULL, ET_WINHTTP);
 
 		return FALSE;
 	}
@@ -2461,7 +2469,12 @@ BOOLEAN _r_update_check (
 	status = _r_sys_createthread (&hthread, NtCurrentProcess (), &_r_update_checkthread, update_info, &environment, L"UpdateThread");
 
 	if (!NT_SUCCESS (status))
+	{
+		if (hparent)
+			_r_show_errormessage (hparent, L"Thread create failure!", status, NULL, ET_NATIVE);
+
 		return FALSE;
+	}
 
 	_InterlockedIncrement (&update_info->lock);
 
@@ -2772,7 +2785,7 @@ VOID _r_update_addcomponent (
 
 	update_component.flags = is_installer ? PR_UPDATE_FLAG_INSTALLER : PR_UPDATE_FLAG_FILE;
 
-	_r_obj_addarrayitem (app_global.update.info.components, &update_component);
+	_r_obj_addarrayitem (app_global.update.info.components, &update_component, NULL);
 }
 
 VOID _r_update_applyconfig ()
@@ -3487,7 +3500,7 @@ VOID _r_settings_addpage (
 	settings_page.locale_id = locale_id;
 	settings_page.dlg_id = dlg_id;
 
-	_r_obj_addarrayitem (app_global.settings.page_list, &settings_page);
+	_r_obj_addarrayitem (app_global.settings.page_list, &settings_page, NULL);
 }
 
 VOID _r_settings_adjustchild (
@@ -3860,7 +3873,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 				if (ptr_page)
 				{
-					_r_tab_setitem (hwnd, IDC_NAV, i, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, 0);
+					_r_tab_setitem (hwnd, IDC_NAV, i, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, LONG_PTR_ERROR);
 
 					if (ptr_page->hwnd && _r_wnd_isvisible (ptr_page->hwnd, FALSE))
 						_r_wnd_sendmessage (ptr_page->hwnd, 0, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
@@ -4888,7 +4901,7 @@ VOID _r_theme_initialize (
 				_SetPreferredAppMode = (SPAM)_r_sys_getprocaddress (huxtheme, NULL, 135);
 				_FlushMenuThemes = (FMT)_r_sys_getprocaddress (huxtheme, NULL, 136);
 
-				//_r_sys_freelibrary (huxtheme);
+				_r_sys_freelibrary (huxtheme);
 			}
 		}
 

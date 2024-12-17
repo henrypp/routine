@@ -1,7 +1,7 @@
 // routine.c
 // project sdk library
 //
-// Copyright (c) 2020-2024 Henry++
+// Copyright (c) 2020-2025 Henry++
 
 #pragma once
 
@@ -250,26 +250,27 @@
 // Process flags
 //
 
+#define PROCESS_CREATE_FLAGS_NONE 0x00000000
 #define PROCESS_CREATE_FLAGS_BREAKAWAY 0x00000001 // NtCreateProcessEx & NtCreateUserProcess
 #define PROCESS_CREATE_FLAGS_NO_DEBUG_INHERIT 0x00000002 // NtCreateProcessEx & NtCreateUserProcess
 #define PROCESS_CREATE_FLAGS_INHERIT_HANDLES 0x00000004 // NtCreateProcessEx & NtCreateUserProcess
 #define PROCESS_CREATE_FLAGS_OVERRIDE_ADDRESS_SPACE 0x00000008 // NtCreateProcessEx only
-#define PROCESS_CREATE_FLAGS_LARGE_PAGES 0x00000010 // NtCreateProcessEx only, requires SeLockMemory
-#define PROCESS_CREATE_FLAGS_LARGE_PAGE_SYSTEM_DLL 0x00000020 // NtCreateProcessEx only, requires SeLockMemory
+#define PROCESS_CREATE_FLAGS_LARGE_PAGES 0x00000010 // NtCreateProcessEx only (requires SeLockMemoryPrivilege)
+#define PROCESS_CREATE_FLAGS_LARGE_PAGE_SYSTEM_DLL 0x00000020 // NtCreateProcessEx only (requires SeLockMemoryPrivilege)
 #define PROCESS_CREATE_FLAGS_PROTECTED_PROCESS 0x00000040 // NtCreateUserProcess only
-#define PROCESS_CREATE_FLAGS_CREATE_SESSION 0x00000080 // NtCreateProcessEx & NtCreateUserProcess, requires SeLoadDriver
+#define PROCESS_CREATE_FLAGS_CREATE_SESSION 0x00000080 // NtCreateProcessEx & NtCreateUserProcess (requires SeLoadDriverPrivilege)
 #define PROCESS_CREATE_FLAGS_INHERIT_FROM_PARENT 0x00000100 // NtCreateProcessEx & NtCreateUserProcess
 #define PROCESS_CREATE_FLAGS_CREATE_SUSPENDED 0x00000200 // NtCreateProcessEx & NtCreateUserProcess
-#define PROCESS_CREATE_FLAGS_FORCE_BREAKAWAY 0x00000400 // NtCreateProcessEx & NtCreateUserProcess, requires SeTcb
+#define PROCESS_CREATE_FLAGS_FORCE_BREAKAWAY 0x00000400 // NtCreateProcessEx & NtCreateUserProcess (requires SeTcbPrivilege)
 #define PROCESS_CREATE_FLAGS_MINIMAL_PROCESS 0x00000800 // NtCreateProcessEx only
 #define PROCESS_CREATE_FLAGS_RELEASE_SECTION 0x00001000 // NtCreateProcessEx & NtCreateUserProcess
 #define PROCESS_CREATE_FLAGS_CLONE_MINIMAL 0x00002000 // NtCreateProcessEx only
-#define PROCESS_CREATE_FLAGS_CLONE_MINIMAL_REDUCED_COMMIT 0x00004000 //
-#define PROCESS_CREATE_FLAGS_AUXILIARY_PROCESS 0x00008000 // NtCreateProcessEx & NtCreateUserProcess, requires SeTcb
+#define PROCESS_CREATE_FLAGS_CLONE_MINIMAL_REDUCED_COMMIT 0x00004000
+#define PROCESS_CREATE_FLAGS_AUXILIARY_PROCESS 0x00008000 // NtCreateProcessEx & NtCreateUserProcess (requires SeTcbPrivilege)
 #define PROCESS_CREATE_FLAGS_CREATE_STORE 0x00020000 // NtCreateProcessEx & NtCreateUserProcess
 #define PROCESS_CREATE_FLAGS_USE_PROTECTED_ENVIRONMENT 0x00040000 // NtCreateProcessEx & NtCreateUserProcess
 #define PROCESS_CREATE_FLAGS_IMAGE_EXPANSION_MITIGATION_DISABLE 0x00080000
-#define PROCESS_CREATE_FLAGS_PARTITION_CREATE_SLAB_IDENTITY 0x00400000 // NtCreateProcessEx & NtCreateUserProcess, requires SeLockMemoryPrivilege
+#define PROCESS_CREATE_FLAGS_PARTITION_CREATE_SLAB_IDENTITY 0x00400000 // NtCreateProcessEx & NtCreateUserProcess (requires SeLockMemoryPrivilege)
 
 //
 // Thread flags
@@ -279,9 +280,9 @@
 #define THREAD_CREATE_FLAGS_CREATE_SUSPENDED 0x00000001 // NtCreateUserProcess & NtCreateThreadEx
 #define THREAD_CREATE_FLAGS_SKIP_THREAD_ATTACH 0x00000002 // NtCreateThreadEx only
 #define THREAD_CREATE_FLAGS_HIDE_FROM_DEBUGGER 0x00000004 // NtCreateThreadEx only
-#define THREAD_CREATE_FLAGS_LOADER_WORKER 0x00000010 // NtCreateThreadEx only, since THRESHOLD
-#define THREAD_CREATE_FLAGS_SKIP_LOADER_INIT 0x00000020 // NtCreateThreadEx only, since REDSTONE2
-#define THREAD_CREATE_FLAGS_BYPASS_PROCESS_FREEZE 0x00000040 // NtCreateThreadEx only, since 19H1
+#define THREAD_CREATE_FLAGS_LOADER_WORKER 0x00000010 // NtCreateThreadEx only // since THRESHOLD
+#define THREAD_CREATE_FLAGS_SKIP_LOADER_INIT 0x00000020 // NtCreateThreadEx only // since REDSTONE2
+#define THREAD_CREATE_FLAGS_BYPASS_PROCESS_FREEZE 0x00000040 // NtCreateThreadEx only // since 19H1
 
 // This isn't in NT, but it's useful.
 typedef struct DECLSPEC_ALIGN (MEMORY_ALLOCATION_ALIGNMENT) _QUAD_PTR
@@ -362,7 +363,7 @@ typedef enum _SYSTEM_INFORMATION_CLASS
 	SystemProcessorPerformanceInformation, // q: SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION (EX in: USHORT ProcessorGroup)
 	SystemFlagsInformation, // q: SYSTEM_FLAGS_INFORMATION
 	SystemCallTimeInformation, // not implemented // SYSTEM_CALL_TIME_INFORMATION // 10
-	SystemModuleInformation, // q: RTL_PROCESS_MODULES
+	SystemModuleInformation, // q: RTL_PROCS_MODULES
 	SystemLocksInformation, // q: RTL_PROCESS_LOCKS
 	SystemStackTraceInformation, // q: RTL_PROCESS_BACKTRACES
 	SystemPagedPoolInformation, // not implemented
@@ -591,7 +592,7 @@ typedef enum _SYSTEM_INFORMATION_CLASS
 	SystemSecureKernelDebuggerInformation,
 	SystemOriginalImageFeatureInformation, // q: in: SYSTEM_ORIGINAL_IMAGE_FEATURE_INFORMATION_INPUT, out: SYSTEM_ORIGINAL_IMAGE_FEATURE_INFORMATION_OUTPUT // NtQuerySystemInformationEx
 	SystemMemoryNumaInformation, // SYSTEM_MEMORY_NUMA_INFORMATION_INPUT, SYSTEM_MEMORY_NUMA_INFORMATION_OUTPUT
-	SystemMemoryNumaPerformanceInformation, // SYSTEM_MEMORY_NUMA_PERFORMANCE_INFORMATION_INPUTSYSTEM_MEMORY_NUMA_PERFORMANCE_INFORMATION_* // since 24H2 // 240
+	SystemMemoryNumaPerformanceInformation, // SYSTEM_MEMORY_NUMA_PERFORMANCE_INFORMATION_INPUTSYSTEM_MEMORY_NUMA_PERFORMANCE_INFORMATION_INPUT, SYSTEM_MEMORY_NUMA_PERFORMANCE_INFORMATION_OUTPUT // since 24H2 // 240
 	SystemCodeIntegritySignedPoliciesFullInformation,
 	SystemSecureSecretsInformation,
 	SystemTrustedAppsRuntimeInformation, // SYSTEM_TRUSTEDAPPS_RUNTIME_INFORMATION
@@ -784,7 +785,7 @@ typedef enum _PROCESSINFOCLASS
 	ProcessImageSection, // q: HANDLE
 	ProcessDebugAuthInformation, // since REDSTONE4 // 90
 	ProcessSystemResourceManagement, // s: PROCESS_SYSTEM_RESOURCE_MANAGEMENT
-	ProcessSequenceNumber, // q: ULONGLONG
+	ProcessSequenceNumber, // q: ULONG64
 	ProcessLoaderDetour, // since REDSTONE5
 	ProcessSecurityDomainInformation, // q: PROCESS_SECURITY_DOMAIN_INFORMATION
 	ProcessCombineSecurityDomainsInformation, // s: PROCESS_COMBINE_SECURITY_DOMAINS_INFORMATION
@@ -821,7 +822,7 @@ typedef enum _THREADINFOCLASS
 	ThreadImpersonationToken, // s: HANDLE
 	ThreadDescriptorTableEntry, // q: DESCRIPTOR_TABLE_ENTRY (or WOW64_DESCRIPTOR_TABLE_ENTRY)
 	ThreadEnableAlignmentFaultFixup, // s: BOOLEAN
-	ThreadEventPair,
+	ThreadEventPair, // Obsolete
 	ThreadQuerySetWin32StartAddress, // q: ULONG_PTR
 	ThreadZeroTlsCell, // s: ULONG // TlsIndex // 10
 	ThreadPerformanceCount, // q: LARGE_INTEGER
@@ -836,12 +837,12 @@ typedef enum _THREADINFOCLASS
 	ThreadIsTerminated, // q: ULONG // 20
 	ThreadLastSystemCall, // q: THREAD_LAST_SYSCALL_INFORMATION
 	ThreadIoPriority, // qs: IO_PRIORITY_HINT (requires SeIncreaseBasePriorityPrivilege)
-	ThreadCycleTime, // q: THREAD_CYCLE_TIME_INFORMATION
+	ThreadCycleTime, // q: THREAD_CYCLE_TIME_INFORMATION (requires THREAD_QUERY_LIMITED_INFORMATION)
 	ThreadPagePriority, // qs: PAGE_PRIORITY_INFORMATION
 	ThreadActualBasePriority, // s: LONG (requires SeIncreaseBasePriorityPrivilege)
 	ThreadTebInformation, // q: THREAD_TEB_INFORMATION (requires THREAD_GET_CONTEXT + THREAD_SET_CONTEXT)
 	ThreadCSwitchMon, // Obsolete
-	ThreadCSwitchPmu,
+	ThreadCSwitchPmu, // Obsolete
 	ThreadWow64Context, // qs: WOW64_CONTEXT, ARM_NT_CONTEXT since 20H1
 	ThreadGroupInformation, // qs: GROUP_AFFINITY // 30
 	ThreadUmsInformation, // q: THREAD_UMS_INFORMATION // Obsolete
@@ -851,7 +852,7 @@ typedef enum _THREADINFOCLASS
 	ThreadSuspendCount, // q: ULONG // since WINBLUE
 	ThreadHeterogeneousCpuPolicy, // q: KHETERO_CPU_POLICY // since THRESHOLD
 	ThreadContainerId, // q: GUID
-	ThreadNameInformation, // qs: THREAD_NAME_INFORMATION
+	ThreadNameInformation, // qs: THREAD_NAME_INFORMATION (requires THREAD_SET_LIMITED_INFORMATION)
 	ThreadSelectedCpuSets,
 	ThreadSystemThreadInformation, // q: SYSTEM_THREAD_INFORMATION // 40
 	ThreadActualGroupAffinity, // q: GROUP_AFFINITY // since THRESHOLD2
@@ -869,7 +870,7 @@ typedef enum _THREADINFOCLASS
 	ThreadStrongerBadHandleChecks, // since 22H1
 	ThreadEffectiveIoPriority, // q: IO_PRIORITY_HINT
 	ThreadEffectivePagePriority, // q: ULONG
-	ThreadUpdateLockOwnership, // since 24H2
+	ThreadUpdateLockOwnership, // THREAD_LOCK_OWNERSHIP // since 24H2
 	ThreadSchedulerSharedDataSlot, // SCHEDULER_SHARED_DATA_SLOT_INFORMATION
 	ThreadTebInformationAtomic, // THREAD_TEB_INFORMATION
 	ThreadIndexInformation, // THREAD_INDEX_INFORMATION
@@ -1261,19 +1262,37 @@ typedef struct _IO_STATUS_BLOCK
 
 typedef struct _FILE_BASIC_INFORMATION
 {
+	// Specifies the time that the file was created.
 	LARGE_INTEGER CreationTime;
+
+	// Specifies the time that the file was last accessed.
 	LARGE_INTEGER LastAccessTime;
+
+	// Specifies the time that the file was last written to.
 	LARGE_INTEGER LastWriteTime;
+
+	// Specifies the last time the file was changed.
 	LARGE_INTEGER ChangeTime;
+
+	// Specifies one or more FILE_ATTRIBUTE_XXX flags.
 	ULONG FileAttributes;
 } FILE_BASIC_INFORMATION, *PFILE_BASIC_INFORMATION;
 
 typedef struct _FILE_STANDARD_INFORMATION
 {
+	// The file allocation size in bytes. Usually, this value is a multiple of the sector or cluster size of the underlying physical device.
 	LARGE_INTEGER AllocationSize;
+
+	// The end of file location as a byte offset.
 	LARGE_INTEGER EndOfFile;
+
+	// The number of hard links to the file.
 	ULONG NumberOfLinks;
+
+	// The delete pending status. TRUE indicates that a file deletion has been requested.
 	BOOLEAN DeletePending;
+
+	// The file directory status. TRUE indicates the file object represents a directory.
 	BOOLEAN Directory;
 } FILE_STANDARD_INFORMATION, *PFILE_STANDARD_INFORMATION;
 
@@ -1293,12 +1312,12 @@ typedef struct _FILE_INTERNAL_INFORMATION
 {
 	union
 	{
-		LARGE_INTEGER IndexNumber;
+		ULARGE_INTEGER IndexNumber;
 
 		struct
 		{
-			LONG64 MftRecordIndex : 48; // rev
-			LONG64 SequenceNumber : 16; // rev
+			ULONG64 MftRecordIndex : 48; // rev
+			ULONG64 SequenceNumber : 16; // rev
 		};
 	};
 } FILE_INTERNAL_INFORMATION, *PFILE_INTERNAL_INFORMATION;
@@ -1448,6 +1467,24 @@ typedef struct _FILE_END_OF_FILE_INFORMATION
 	LARGE_INTEGER EndOfFile;
 } FILE_END_OF_FILE_INFORMATION, *PFILE_END_OF_FILE_INFORMATION;
 
+typedef struct _FILE_BOTH_DIR_INFORMATION
+{
+	ULONG NextEntryOffset;
+	ULONG FileIndex;
+	LARGE_INTEGER CreationTime;
+	LARGE_INTEGER LastAccessTime;
+	LARGE_INTEGER LastWriteTime;
+	LARGE_INTEGER ChangeTime;
+	LARGE_INTEGER EndOfFile;
+	LARGE_INTEGER AllocationSize;
+	ULONG FileAttributes;
+	ULONG FileNameLength;
+	ULONG EaSize;
+	CCHAR ShortNameLength;
+	WCHAR ShortName[12];
+	_Field_size_bytes_ (FileNameLength) WCHAR FileName[1];
+} FILE_BOTH_DIR_INFORMATION, *PFILE_BOTH_DIR_INFORMATION;
+
 // win10rs5+
 #define FLAGS_END_OF_FILE_INFO_EX_EXTEND_PAGING 0x00000001
 #define FLAGS_END_OF_FILE_INFO_EX_NO_EXTRA_PAGING_EXTEND 0x00000002
@@ -1524,6 +1561,7 @@ typedef struct _OBJECT_BASIC_INFORMATION
 
 typedef struct _OBJECT_NAME_INFORMATION
 {
+	// The object name (when present) includes a NULL-terminator and all path separators "\" in the name.
 	UNICODE_STRING Name;
 } OBJECT_NAME_INFORMATION, *POBJECT_NAME_INFORMATION;
 
@@ -1740,9 +1778,13 @@ typedef struct _SYSTEM_PERFORMANCE_INFORMATION
 	ULONG SecondLevelTbFills;
 	ULONG SystemCalls;
 	ULONG64 CcTotalDirtyPages; // since THRESHOLD
-	ULONG64 CcDirtyPageThreshold; // since THRESHOLD
-	LONG64 ResidentAvailablePages; // since THRESHOLD
-	ULONG64 SharedCommittedPages; // since THRESHOLD
+	ULONG64 CcDirtyPageThreshold;
+	LONG64 ResidentAvailablePages;
+	ULONG64 SharedCommittedPages;
+	ULONG64 MdlPagesAllocated; // since 24H2
+	ULONG64 PfnDatabaseCommittedPages;
+	ULONG64 SystemPageTableCommittedPages;
+	ULONG64 ContiguousPagesAllocated;
 } SYSTEM_PERFORMANCE_INFORMATION, *PSYSTEM_PERFORMANCE_INFORMATION;
 
 // Can be used instead of SYSTEM_FILECACHE_INFORMATION
@@ -1778,6 +1820,7 @@ typedef struct _MEMORY_COMBINE_INFORMATION_EX2
 
 typedef struct _THREAD_NAME_INFORMATION
 {
+	// A Unicode string that specifies the description of the thread.
 	UNICODE_STRING ThreadName;
 } THREAD_NAME_INFORMATION, *PTHREAD_NAME_INFORMATION;
 
@@ -2815,6 +2858,7 @@ typedef ULONG GDI_HANDLE_BUFFER[GDI_HANDLE_BUFFER_SIZE];
 
 #define GDI_BATCH_BUFFER_SIZE 310
 
+// RTL_DRIVE_LETTER_CURDIR Flags
 #define RTL_MAX_DRIVE_LETTERS 32
 #define RTL_DRIVE_LETTER_VALID (USHORT)0x0001
 
@@ -2855,7 +2899,7 @@ typedef struct _GDI_TEB_BATCH
 typedef struct _TEB_ACTIVE_FRAME_CONTEXT
 {
 	ULONG Flags;
-	PSTR FrameName;
+	PCSTR FrameName;
 } TEB_ACTIVE_FRAME_CONTEXT, *PTEB_ACTIVE_FRAME_CONTEXT;
 
 typedef struct _TEB_ACTIVE_FRAME
@@ -3250,15 +3294,22 @@ typedef struct _PEB
 	PVOID OemCodePageData; // PCPTABLEINFO
 	PVOID UnicodeCaseTableData; // PNLSTABLEINFO
 
+	// Information for LdrpInitialize
 	ULONG NumberOfProcessors;
 	ULONG NtGlobalFlag;
 
+	// Passed up from MmCreatePeb from Session Manager registry key
 	ULARGE_INTEGER CriticalSectionTimeout;
 	ULONG_PTR HeapSegmentReserve;
 	ULONG_PTR HeapSegmentCommit;
 	ULONG_PTR HeapDeCommitTotalFreeThreshold;
 	ULONG_PTR HeapDeCommitFreeBlockThreshold;
 
+	// Where heap manager keeps track of all heaps created for a process
+	// Fields initialized by MmCreatePeb.  ProcessHeaps is initialized
+	// to point to the first free byte after the PEB and MaximumNumberOfHeaps
+	// is computed from the page size used to hold the PEB, less the fixed
+	// size of this data structure.
 	ULONG NumberOfHeaps;
 	ULONG MaximumNumberOfHeaps;
 	PVOID *ProcessHeaps; // PHEAP
@@ -3269,6 +3320,7 @@ typedef struct _PEB
 
 	PRTL_CRITICAL_SECTION LoaderLock;
 
+	// Following fields filled in by MmCreatePeb from system values and/or image header.
 	ULONG OSMajorVersion;
 	ULONG OSMinorVersion;
 	USHORT OSBuildNumber;
@@ -5611,21 +5663,20 @@ NtQuerySystemEnvironmentValueEx (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-NtSetSystemEnvironmentValueEx (
+NtSetSystemEnvironmentValue (
 	_In_ PUNICODE_STRING VariableName,
-	_In_ LPCGUID VendorGuid,
-	_In_reads_bytes_opt_ (ValueLength) PVOID Value,
-	_In_ ULONG ValueLength, // 0 = delete variable
-	_In_ ULONG Attributes // EFI_VARIABLE_*
+	_In_ PUNICODE_STRING VariableValue
 );
-
 
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-NtSetSystemEnvironmentValue (
+NtSetSystemEnvironmentValueEx (
 	_In_ PUNICODE_STRING VariableName,
-	_In_ PUNICODE_STRING VariableValue
+	_In_ LPCGUID VendorGuid,
+	_In_reads_bytes_opt_ (BufferLength) PVOID Buffer,
+	_In_ ULONG BufferLength, // 0 = delete variable
+	_In_ ULONG Attributes // EFI_VARIABLE_*
 );
 
 NTSYSCALLAPI
@@ -9350,15 +9401,6 @@ RtlDeleteAce (
 );
 
 NTSYSCALLAPI
-NTSTATUS
-NTAPI
-RtlGetAce (
-	_In_ PACL Acl,
-	_In_ ULONG AceIndex,
-	_Outptr_ PVOID *Ace
-);
-
-NTSYSCALLAPI
 BOOLEAN
 NTAPI
 RtlFirstFreeAce (
@@ -9667,7 +9709,7 @@ RtlNewSecurityObjectEx (
 	_In_opt_ PSECURITY_DESCRIPTOR ParentDescriptor,
 	_In_opt_ PSECURITY_DESCRIPTOR CreatorDescriptor,
 	_Out_ PSECURITY_DESCRIPTOR *NewDescriptor,
-	_In_opt_ GUID *ObjectType,
+	_In_opt_ LPGUID ObjectType,
 	_In_ BOOLEAN IsDirectoryObject,
 	_In_ ULONG AutoInheritFlags, // SEF_*
 	_In_opt_ HANDLE Token,
@@ -9681,7 +9723,7 @@ RtlNewSecurityObjectWithMultipleInheritance (
 	_In_opt_ PSECURITY_DESCRIPTOR ParentDescriptor,
 	_In_opt_ PSECURITY_DESCRIPTOR CreatorDescriptor,
 	_Out_ PSECURITY_DESCRIPTOR *NewDescriptor,
-	_In_opt_ GUID **ObjectType,
+	_In_opt_ LPGUID *ObjectType,
 	_In_ ULONG GuidCount,
 	_In_ BOOLEAN IsDirectoryObject,
 	_In_ ULONG AutoInheritFlags, // SEF_*
@@ -9737,7 +9779,7 @@ RtlConvertToAutoInheritSecurityObject (
 	_In_opt_ PSECURITY_DESCRIPTOR ParentDescriptor,
 	_In_ PSECURITY_DESCRIPTOR CurrentSecurityDescriptor,
 	_Out_ PSECURITY_DESCRIPTOR *NewSecurityDescriptor,
-	_In_opt_ GUID *ObjectType,
+	_In_opt_ LPGUID ObjectType,
 	_In_ BOOLEAN IsDirectoryObject,
 	_In_ PGENERIC_MAPPING GenericMapping
 );
@@ -9990,7 +10032,7 @@ NTSTATUS
 NTAPI
 RtlGetAppContainerParent (
 	_In_ PSID AppContainerSid,
-	_Out_ PSID* AppContainerSidParent // RtlFreeSid
+	_Out_ PSID *AppContainerSidParent // RtlFreeSid
 );
 
 // win8.1+
