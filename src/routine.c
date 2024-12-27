@@ -7065,22 +7065,38 @@ NTSTATUS _r_str_environmentexpandstring (
 }
 
 PR_STRING _r_str_environmentunexpandstring (
-	_In_ LPCWSTR string
+	_In_ PR_STRINGREF path
 )
 {
+	PR_STRINGREF sr;
+	PR_STRING string = NULL;
 	PR_STRING buffer;
 	ULONG length = 512;
 
+	if (_r_str_isnullterminated (path))
+	{
+		sr = path;
+	}
+	else
+	{
+		string = _r_obj_createstring2 (path);
+
+		sr = &string->sr;
+	}
+
 	buffer = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
-	if (PathUnExpandEnvStringsW (string, buffer->buffer, length))
+	if (PathUnExpandEnvStringsW (sr->buffer, buffer->buffer, length))
 	{
 		_r_str_trimtonullterminator (&buffer->sr);
 	}
 	else
 	{
-		_r_obj_movereference (&buffer, _r_obj_createstring (string));
+		_r_obj_movereference (&buffer, _r_obj_createstring2 (path));
 	}
+
+	if (string)
+		_r_obj_dereference (string);
 
 	return buffer;
 }
@@ -9125,7 +9141,7 @@ NTSTATUS _r_sys_getmemoryinfo (
 	SYSTEM_PERFORMANCE_INFORMATION perf_info = {0};
 	SYSTEM_BASIC_INFORMATION basic_info = {0};
 	SYSTEM_FILECACHE_INFORMATION sfci = {0};
-	PSYSTEM_PAGEFILE_INFORMATION page_file;
+	PSYSTEM_PAGEFILE_INFORMATION pagefiles;
 	PSYSTEM_PAGEFILE_INFORMATION pagefile;
 	ULONG buffer_length = 0x200;
 	ULONG attempts = 6;
@@ -9151,7 +9167,8 @@ NTSTATUS _r_sys_getmemoryinfo (
 
 		out_buffer->physical_memory.used_bytes = out_buffer->physical_memory.total_bytes - out_buffer->physical_memory.free_bytes;
 
-		out_buffer->physical_memory.percent = _r_calc_percentof64 (out_buffer->physical_memory.used_bytes, out_buffer->physical_memory.total_bytes);
+		out_buffer->physical_memory.percent = (ULONG)PR_CALC_PERCENTOF (out_buffer->physical_memory.used_bytes, out_buffer->physical_memory.total_bytes);
+		out_buffer->physical_memory.percent_f = PR_CALC_PERCENTOF (out_buffer->physical_memory.used_bytes, out_buffer->physical_memory.total_bytes);
 	}
 
 	// file cache information
@@ -9163,42 +9180,44 @@ NTSTATUS _r_sys_getmemoryinfo (
 		out_buffer->system_cache.free_bytes = (ULONG64)sfci.PeakSize - (ULONG64)sfci.CurrentSize;
 		out_buffer->system_cache.used_bytes = sfci.CurrentSize;
 
-		out_buffer->system_cache.percent = _r_calc_percentof64 (out_buffer->system_cache.used_bytes, out_buffer->system_cache.total_bytes);
+		out_buffer->system_cache.percent = (ULONG)PR_CALC_PERCENTOF (out_buffer->system_cache.used_bytes, out_buffer->system_cache.total_bytes);
+		out_buffer->system_cache.percent_f = PR_CALC_PERCENTOF (out_buffer->system_cache.used_bytes, out_buffer->system_cache.total_bytes);
 	}
 
 	// page file information
-	page_file = _r_mem_allocate (buffer_length);
+	pagefiles = _r_mem_allocate (buffer_length);
 
 	do
 	{
-		status = NtQuerySystemInformation (SystemPageFileInformation, page_file, buffer_length, NULL);
+		status = NtQuerySystemInformation (SystemPageFileInformation, pagefiles, buffer_length, NULL);
 
 		if (status != STATUS_INFO_LENGTH_MISMATCH)
 			break;
 
 		buffer_length *= 2;
-		page_file = _r_mem_reallocate (page_file, buffer_length);
+		pagefiles = _r_mem_reallocate (pagefiles, buffer_length);
 	}
 	while (--attempts);
 
 	if (NT_SUCCESS (status))
 	{
 		// caclulate all pagefile size
-		pagefile = page_file->TotalSize ? page_file : NULL;
+		pagefile = pagefiles->TotalSize ? pagefiles : NULL;
 
 		while (pagefile)
 		{
-			out_buffer->page_file.total_bytes += UInt32x32To64 (pagefile->TotalSize, PAGE_SIZE);
-			out_buffer->page_file.free_bytes += UInt32x32To64 (pagefile->TotalSize - pagefile->PeakUsage, PAGE_SIZE);
-			out_buffer->page_file.used_bytes += UInt32x32To64 (pagefile->TotalInUse, PAGE_SIZE);
+			out_buffer->page_file.total_bytes += UInt32x32To64 (pagefile->TotalSize, basic_info.PageSize);
+			out_buffer->page_file.free_bytes += UInt32x32To64 (pagefile->TotalSize - pagefile->TotalInUse, basic_info.PageSize);
+			out_buffer->page_file.used_bytes += UInt32x32To64 (pagefile->TotalInUse, basic_info.PageSize);
 
-			pagefile = page_file->NextEntryOffset ? PTR_ADD_OFFSET ((page_file), page_file->NextEntryOffset) : NULL;
+			pagefile = pagefile->NextEntryOffset ? PTR_ADD_OFFSET (pagefile, pagefile->NextEntryOffset) : NULL;
 		}
 
-		out_buffer->page_file.percent = _r_calc_percentof64 (out_buffer->page_file.used_bytes, out_buffer->page_file.total_bytes);
+		out_buffer->page_file.percent = (ULONG)PR_CALC_PERCENTOF (out_buffer->page_file.used_bytes, out_buffer->page_file.total_bytes);
+		out_buffer->page_file.percent_f = PR_CALC_PERCENTOF (out_buffer->page_file.used_bytes, out_buffer->page_file.total_bytes);
 	}
 
-	_r_mem_free (page_file);
+	_r_mem_free (pagefiles);
 
 	return status;
 }
@@ -12002,7 +12021,7 @@ VOID _r_dc_drawtext (
 		if (clr_text)
 			clr_old = SetTextColor (hdc, clr_text);
 
-		DrawTextExW (hdc, string->buffer, (INT)_r_str_getlength2 (string), rect, flags, NULL);
+		DrawTextExW (hdc, string->buffer, (ULONG)_r_str_getlength2 (string), rect, flags, NULL);
 
 		if (clr_text)
 			SetTextColor (hdc, clr_old);
@@ -13069,8 +13088,8 @@ VOID _r_layout_setitemanchor (
 	width = layout_item->parent_item->rect.width;
 	height = layout_item->parent_item->rect.height;
 
-	horz_break = _r_calc_percentval (48, width);
-	vert_break = _r_calc_percentval (78, height);
+	horz_break = PR_CALC_PERCENTVAL (48, width);
+	vert_break = PR_CALC_PERCENTVAL (78, height);
 
 	// If the left-edge of the control is within the left-half of the client area, set a left-anchor.
 	if (layout_item->rect.left < horz_break)
@@ -14095,6 +14114,9 @@ HINTERNET _r_inet_createsession (
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_8_1))
 	{
 		protocols = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3;
+
+		// enable compression feature
+		WinHttpSetOption (hsession, WINHTTP_OPTION_DECOMPRESSION, &(ULONG){WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE}, sizeof (ULONG));
 	}
 	else
 	{
@@ -14106,16 +14128,17 @@ HINTERNET _r_inet_createsession (
 	// disable redirect from https to http
 	WinHttpSetOption (hsession, WINHTTP_OPTION_REDIRECT_POLICY, &(ULONG){WINHTTP_OPTION_REDIRECT_POLICY_DISALLOW_HTTPS_TO_HTTP}, sizeof (ULONG));
 
-	// enable compression feature
-	WinHttpSetOption (hsession, WINHTTP_OPTION_DECOMPRESSION, &(ULONG){WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE}, sizeof (ULONG));
-
 	// enable http2 protocol (win10+)
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_10))
 		WinHttpSetOption (hsession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &(ULONG){WINHTTP_PROTOCOL_FLAG_HTTP2}, sizeof (ULONG));
 
 	// disable global, cross-session pooling (win11+)
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_11))
+	{
 		WinHttpSetOption (hsession, WINHTTP_OPTION_DISABLE_GLOBAL_POOLING, &(ULONG){TRUE}, sizeof (ULONG));
+
+		WinHttpSetOption (hsession, WINHTTP_OPTION_TLS_FALSE_START, &(ULONG){TRUE}, sizeof (ULONG));
+	}
 
 	return hsession;
 }
@@ -14841,27 +14864,21 @@ NTSTATUS _r_reg_enumvalues (
 
 			_r_obj_initializestringref_ex (&sr, PTR_ADD_OFFSET (buffer, buffer->DataOffset), buffer->DataLength);
 
+			if (buffer->Type != REG_MULTI_SZ)
+				_r_str_trimtonullterminator (&sr);
+
 			if (buffer->Type == REG_BINARY)
 			{
 				*out_value = _r_str_fromhex (PTR_ADD_OFFSET (buffer, buffer->DataOffset), buffer->DataLength, TRUE);
 			}
-			else if (buffer->Type == REG_SZ || buffer->Type == REG_EXPAND_SZ || buffer->Type == REG_MULTI_SZ)
+			else if (buffer->Type == REG_EXPAND_SZ)
 			{
-				if (buffer->Type == REG_EXPAND_SZ)
-				{
-					if (NT_SUCCESS (_r_str_environmentexpandstring (NULL, &sr, &string)))
-					{
-						*out_value = string;
-					}
-					else
-					{
-						*out_value = NULL;
-					}
-				}
-				else
-				{
-					*out_value = _r_obj_createstring2 (&sr);
-				}
+				if (NT_SUCCESS (_r_str_environmentexpandstring (NULL, &sr, &string)))
+					*out_value = string;
+			}
+			else if (buffer->Type == REG_SZ || buffer->Type == REG_MULTI_SZ)
+			{
+				*out_value = _r_obj_createstring2 (&sr);
 			}
 			else if (buffer->Type == REG_DWORD)
 			{
@@ -18142,7 +18159,7 @@ INT _r_tab_additem (
 	_In_ INT item_id,
 	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
-	_In_opt_ LPARAM lparam
+	_In_ LPARAM lparam
 )
 {
 	TCITEMW tci = {0};
@@ -18153,17 +18170,20 @@ INT _r_tab_additem (
 		tci.pszText = string;
 	}
 
-	if (image_id != I_IMAGENONE)
+	if (image_id != I_DEFAULT)
 	{
 		tci.mask |= TCIF_IMAGE;
 		tci.iImage = image_id;
 	}
 
-	if (lparam != LONG_PTR_ERROR)
+	if (lparam != I_DEFAULT)
 	{
 		tci.mask |= TCIF_PARAM;
 		tci.lParam = lparam;
 	}
+
+	if (item_id == INT_ERROR)
+		item_id = _r_tab_getitemcount (hwnd, ctrl_id);
 
 	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, TCM_INSERTITEM, (WPARAM)item_id, (LPARAM)&tci);
 }
@@ -18184,13 +18204,42 @@ LPARAM _r_tab_getitemlparam (
 	return 0;
 }
 
+_Ret_maybenull_
+PR_STRING _r_tab_getitemtext (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ INT item_id
+)
+{
+	TCITEMW tci = {0};
+	PR_STRING string;
+	ULONG length = 256;
+
+	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
+
+	tci.mask = TCIF_TEXT;
+	tci.pszText = string->buffer;
+	tci.cchTextMax = length;
+
+	if (_r_wnd_sendmessage (hwnd, ctrl_id, TCM_GETITEM, (WPARAM)item_id, (LPARAM)&tci))
+	{
+		_r_str_trimtonullterminator (&string->sr);
+
+		return string;
+	}
+
+	_r_obj_dereference (string);
+
+	return NULL;
+}
+
 INT _r_tab_setitem (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
 	_In_ INT item_id,
 	_In_opt_ LPWSTR string,
 	_In_ INT image_id,
-	_In_opt_ LPARAM lparam
+	_In_ LPARAM lparam
 )
 {
 	TCITEMW tci = {0};
@@ -18198,18 +18247,21 @@ INT _r_tab_setitem (
 	if (string)
 	{
 		tci.mask |= TCIF_TEXT;
+
 		tci.pszText = string;
 	}
 
-	if (image_id != I_IMAGENONE)
+	if (image_id != I_DEFAULT)
 	{
 		tci.mask |= TCIF_IMAGE;
+
 		tci.iImage = image_id;
 	}
 
-	if (lparam != LONG_PTR_ERROR)
+	if (lparam != I_DEFAULT)
 	{
 		tci.mask |= TCIF_PARAM;
+
 		tci.lParam = lparam;
 	}
 
@@ -18275,7 +18327,7 @@ INT _r_listview_addcolumn (
 
 			if (client_width)
 			{
-				width = (INT)_r_calc_percentval (-width, client_width);
+				width = PR_CALC_PERCENTVAL (-width, client_width);
 			}
 			else
 			{
@@ -18339,7 +18391,8 @@ INT _r_listview_addgroup (
 	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_INSERTGROUP, (WPARAM)group_id, (LPARAM)&lvg);
 }
 
-INT _r_listview_additem_ex (
+_Success_ (return != INT_ERROR)
+INT _r_listview_additem (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
 	_In_ INT item_id,
@@ -18361,21 +18414,21 @@ INT _r_listview_additem_ex (
 		lvi.pszText = string;
 	}
 
-	if (image_id != I_IMAGENONE)
+	if (image_id != I_DEFAULT)
 	{
 		lvi.mask |= LVIF_IMAGE;
 
 		lvi.iImage = image_id;
 	}
 
-	if (group_id != I_GROUPIDNONE)
+	if (group_id != I_DEFAULT)
 	{
 		lvi.mask |= LVIF_GROUPID;
 
 		lvi.iGroupId = group_id;
 	}
 
-	if (lparam != LONG_PTR_ERROR)
+	if (lparam != I_DEFAULT)
 	{
 		lvi.mask |= LVIF_PARAM;
 
@@ -18421,9 +18474,9 @@ VOID _r_listview_fillitems (
 	for (INT i = item_start; i < item_end; i++)
 	{
 		if (subitem_id)
-			_r_listview_setitem_ex (hwnd, ctrl_id, i, 0, NULL, image_id, I_GROUPIDNONE, LONG_PTR_ERROR);
+			_r_listview_setitem (hwnd, ctrl_id, i, 0, NULL, image_id, I_DEFAULT, I_DEFAULT);
 
-		_r_listview_setitem_ex (hwnd, ctrl_id, i, subitem_id, string, image_id, I_GROUPIDNONE, LONG_PTR_ERROR);
+		_r_listview_setitem (hwnd, ctrl_id, i, subitem_id, string, I_DEFAULT, I_DEFAULT, I_DEFAULT);
 	}
 }
 
@@ -18509,7 +18562,7 @@ INT _r_listview_getcolumnwidth (
 
 	column_width = (LONG)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_GETCOLUMNWIDTH, (WPARAM)column_id, 0);
 
-	return (INT)_r_calc_percentof (column_width, total_width);
+	return (INT)PR_CALC_PERCENTOF (column_width, total_width);
 }
 
 _Ret_maybenull_
@@ -18760,7 +18813,7 @@ VOID _r_listview_savetofile (
 	NtClose (hfile);
 }
 
-VOID _r_listview_setcolumn (
+BOOLEAN _r_listview_setcolumn (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
 	_In_ INT column_id,
@@ -18772,7 +18825,7 @@ VOID _r_listview_setcolumn (
 	LONG client_width;
 
 	if (!string && !width)
-		return;
+		return FALSE;
 
 	if (string)
 	{
@@ -18789,7 +18842,7 @@ VOID _r_listview_setcolumn (
 
 			if (client_width)
 			{
-				width = (INT)_r_calc_percentval (-width, client_width);
+				width = (INT)PR_CALC_PERCENTVAL (-width, client_width);
 			}
 			else
 			{
@@ -18802,7 +18855,7 @@ VOID _r_listview_setcolumn (
 		lvc.cx = width;
 	}
 
-	_r_wnd_sendmessage (hwnd, ctrl_id, LVM_SETCOLUMN, (WPARAM)column_id, (LPARAM)&lvc);
+	return (_r_wnd_sendmessage (hwnd, ctrl_id, LVM_SETCOLUMN, (WPARAM)column_id, (LPARAM)&lvc) == TRUE);
 }
 
 VOID _r_listview_setcolumnsortindex (
@@ -18813,16 +18866,16 @@ VOID _r_listview_setcolumnsortindex (
 )
 {
 	HDITEMW hdi = {0};
-	HWND hhdr;
+	HWND hheader;
 
-	hhdr = _r_listview_getheader (hwnd, ctrl_id);
+	hheader = _r_listview_getheader (hwnd, ctrl_id);
 
-	if (!hhdr)
+	if (!hheader)
 		return;
 
 	hdi.mask = HDI_FORMAT;
 
-	if (!_r_wnd_sendmessage (hhdr, 0, HDM_GETITEM, (WPARAM)column_id, (LPARAM)&hdi))
+	if (!_r_wnd_sendmessage (hheader, 0, HDM_GETITEM, (WPARAM)column_id, (LPARAM)&hdi))
 		return;
 
 	if (arrow == 1)
@@ -18838,10 +18891,11 @@ VOID _r_listview_setcolumnsortindex (
 		hdi.fmt = hdi.fmt & ~(HDF_SORTDOWN | HDF_SORTUP);
 	}
 
-	_r_wnd_sendmessage (hhdr, 0, HDM_SETITEM, (WPARAM)column_id, (LPARAM)&hdi);
+	_r_wnd_sendmessage (hheader, 0, HDM_SETITEM, (WPARAM)column_id, (LPARAM)&hdi);
 }
 
-VOID _r_listview_setitem_ex (
+_Success_ (return)
+BOOLEAN _r_listview_setitem (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
 	_In_ INT item_id,
@@ -18866,21 +18920,21 @@ VOID _r_listview_setitem_ex (
 
 	if (subitem_id == 0)
 	{
-		if (image_id != I_IMAGENONE)
+		if (image_id != I_DEFAULT)
 		{
 			lvi.mask |= LVIF_IMAGE;
 
 			lvi.iImage = image_id;
 		}
 
-		if (group_id != I_GROUPIDNONE)
+		if (group_id != I_DEFAULT)
 		{
 			lvi.mask |= LVIF_GROUPID;
 
 			lvi.iGroupId = group_id;
 		}
 
-		if (lparam != LONG_PTR_ERROR)
+		if (lparam != I_DEFAULT)
 		{
 			lvi.mask |= LVIF_PARAM;
 
@@ -18888,15 +18942,15 @@ VOID _r_listview_setitem_ex (
 		}
 	}
 
-	_r_wnd_sendmessage (hwnd, ctrl_id, LVM_SETITEM, 0, (LPARAM)&lvi);
+	return (_r_wnd_sendmessage (hwnd, ctrl_id, LVM_SETITEM, 0, (LPARAM)&lvi) == TRUE);
 }
 
-VOID _r_listview_setitemstate (
+BOOLEAN _r_listview_setitemstate (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
 	_In_ INT item_id,
-	_In_ UINT state,
-	_In_opt_ UINT state_mask
+	_In_ ULONG state,
+	_In_opt_ ULONG state_mask
 )
 {
 	LVITEMW lvi = {0};
@@ -18904,7 +18958,7 @@ VOID _r_listview_setitemstate (
 	lvi.state = state;
 	lvi.stateMask = state_mask;
 
-	_r_wnd_sendmessage (hwnd, ctrl_id, LVM_SETITEMSTATE, (WPARAM)item_id, (LPARAM)&lvi);
+	return (_r_wnd_sendmessage (hwnd, ctrl_id, LVM_SETITEMSTATE, (WPARAM)item_id, (LPARAM)&lvi) == TRUE);
 }
 
 VOID _r_listview_setitemvisible (
@@ -18920,7 +18974,8 @@ VOID _r_listview_setitemvisible (
 	_r_listview_ensurevisible (hwnd, ctrl_id, item_id);
 }
 
-VOID _r_listview_setgroup (
+_Success_ (return != INT_ERROR)
+INT _r_listview_setgroup (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
 	_In_ INT group_id,
@@ -18946,7 +19001,7 @@ VOID _r_listview_setgroup (
 		lvg.stateMask = state_mask;
 	}
 
-	_r_wnd_sendmessage (hwnd, ctrl_id, LVM_SETGROUPINFO, (WPARAM)group_id, (LPARAM)&lvg);
+	return (LONG)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_SETGROUPINFO, (WPARAM)group_id, (LPARAM)&lvg);
 }
 
 VOID _r_listview_setstyle (
@@ -18985,7 +19040,7 @@ HTREEITEM _r_treeview_additem (
 	_In_ INT image_id,
 	_In_ INT state,
 	_In_opt_ HTREEITEM hparent,
-	_In_opt_ LPARAM lparam
+	_In_ LPARAM lparam
 )
 {
 	TVINSERTSTRUCTW tvi = {0};
@@ -19004,7 +19059,7 @@ HTREEITEM _r_treeview_additem (
 	if (hparent)
 		tvi.hParent = hparent;
 
-	if (image_id != I_IMAGENONE)
+	if (image_id != I_DEFAULT)
 	{
 		tvi.itemex.mask |= TVIF_IMAGE | TVIF_SELECTEDIMAGE;
 
@@ -19012,7 +19067,7 @@ HTREEITEM _r_treeview_additem (
 		tvi.itemex.iSelectedImage = image_id;
 	}
 
-	if (lparam)
+	if (lparam != I_DEFAULT)
 	{
 		tvi.itemex.mask |= TVIF_PARAM;
 
@@ -19118,7 +19173,46 @@ VOID _r_treeview_selectfirstchild (
 	_r_treeview_selectitem (hwnd, ctrl_id, tvi.hItem);
 }
 
-VOID _r_treeview_setitemstate (
+_Success_ (return)
+BOOLEAN _r_treeview_setitem (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ HTREEITEM hitem,
+	_In_opt_ LPWSTR string,
+	_In_ INT image_id,
+	_In_ LPARAM lparam
+)
+{
+	TVITEMEX tvi = {0};
+
+	tvi.hItem = hitem;
+
+	if (string)
+	{
+		tvi.mask |= TVIF_TEXT;
+
+		tvi.pszText = string;
+	}
+
+	if (image_id != I_DEFAULT)
+	{
+		tvi.mask |= TVIF_IMAGE | TVIF_SELECTEDIMAGE;
+
+		tvi.iImage = image_id;
+		tvi.iSelectedImage = image_id;
+	}
+
+	if (lparam != I_DEFAULT)
+	{
+		tvi.mask |= TVIF_PARAM;
+
+		tvi.lParam = lparam;
+	}
+
+	return (_r_wnd_sendmessage (hwnd, ctrl_id, TVM_SETITEM, 0, (LPARAM)&tvi) == TRUE);
+}
+
+BOOLEAN _r_treeview_setitemstate (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
 	_In_ HTREEITEM item_id,
@@ -19133,45 +19227,7 @@ VOID _r_treeview_setitemstate (
 	tvi.state = state;
 	tvi.stateMask = state_mask;
 
-	_r_wnd_sendmessage (hwnd, ctrl_id, TVM_SETITEM, 0, (LPARAM)&tvi);
-}
-
-VOID _r_treeview_setitem (
-	_In_ HWND hwnd,
-	_In_opt_ INT ctrl_id,
-	_In_ HTREEITEM hitem,
-	_In_opt_ LPWSTR string,
-	_In_ INT image_id,
-	_In_opt_ LPARAM lparam
-)
-{
-	TVITEMEX tvi = {0};
-
-	tvi.hItem = hitem;
-
-	if (string)
-	{
-		tvi.mask |= TVIF_TEXT;
-
-		tvi.pszText = string;
-	}
-
-	if (image_id != I_IMAGENONE)
-	{
-		tvi.mask |= TVIF_IMAGE | TVIF_SELECTEDIMAGE;
-
-		tvi.iImage = image_id;
-		tvi.iSelectedImage = image_id;
-	}
-
-	if (lparam)
-	{
-		tvi.mask |= TVIF_PARAM;
-
-		tvi.lParam = lparam;
-	}
-
-	_r_wnd_sendmessage (hwnd, ctrl_id, TVM_SETITEM, 0, (LPARAM)&tvi);
+	return (_r_wnd_sendmessage (hwnd, ctrl_id, TVM_SETITEM, 0, (LPARAM)&tvi) == TRUE);
 }
 
 VOID _r_treeview_setstyle (
@@ -19360,7 +19416,7 @@ BOOLEAN _r_rebar_isbandexists (
 // Control: toolbar
 //
 
-VOID _r_toolbar_addbutton (
+BOOLEAN _r_toolbar_addbutton (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
 	_In_ UINT command_id,
@@ -19381,7 +19437,7 @@ VOID _r_toolbar_addbutton (
 
 	button_id = _r_toolbar_getbuttoncount (hwnd, ctrl_id);
 
-	_r_wnd_sendmessage (hwnd, ctrl_id, TB_INSERTBUTTON, (WPARAM)button_id, (LPARAM)&tbi);
+	return (_r_wnd_sendmessage (hwnd, ctrl_id, TB_INSERTBUTTON, (WPARAM)button_id, (LPARAM)&tbi) == TRUE);
 }
 
 _Ret_maybenull_
@@ -19394,14 +19450,14 @@ PR_STRING _r_toolbar_gettext (
 	PR_STRING string;
 	LRESULT length;
 
-	length = _r_wnd_sendmessage (hwnd, ctrl_id, TB_GETBUTTONTEXTW, (WPARAM)command_id, 0);
+	length = _r_wnd_sendmessage (hwnd, ctrl_id, TB_GETBUTTONTEXT, (WPARAM)command_id, 0);
 
 	if (length == INT_ERROR)
 		return NULL;
 
 	string = _r_obj_createstring_ex (NULL, length * sizeof (WCHAR));
 
-	_r_wnd_sendmessage (hwnd, ctrl_id, TB_GETBUTTONTEXTW, (WPARAM)command_id, (LPARAM)string->buffer);
+	_r_wnd_sendmessage (hwnd, ctrl_id, TB_GETBUTTONTEXT, (WPARAM)command_id, (LPARAM)string->buffer);
 
 	_r_str_trimtonullterminator (&string->sr);
 
@@ -19425,7 +19481,7 @@ LONG _r_toolbar_getwidth (
 	return total_width;
 }
 
-VOID _r_toolbar_setbutton (
+BOOLEAN _r_toolbar_setbutton (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
 	_In_ UINT_PTR command_id,
@@ -19467,7 +19523,7 @@ VOID _r_toolbar_setbutton (
 		tbi.iImage = image_id;
 	}
 
-	_r_wnd_sendmessage (hwnd, ctrl_id, TB_SETBUTTONINFO, command_id, (LPARAM)&tbi);
+	return (_r_wnd_sendmessage (hwnd, ctrl_id, TB_SETBUTTONINFO, command_id, (LPARAM)&tbi) != 0);
 }
 
 VOID _r_toolbar_setstyle (

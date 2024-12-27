@@ -31,7 +31,7 @@
 #define WND_BORDER_CLR RGB(0x90, 0x10, 0x20)
 #define WND_BUTTON_CLR RGB(0x24, 0x24, 0x24)
 #define WND_HIGHLIGHT_CLR RGB(0x80, 0x80, 0x80)
-#define WND_HOT_CLR _r_dc_getcoloraccent()
+#define WND_HOT_CLR RGB(0xE3, 0x20, 0x00)
 #define WND_TEXT_CLR RGB(0xFF, 0xFF, 0xFF)
 #define WND_GRAYTEXT_CLR RGB(0x50, 0x50, 0x50)
 
@@ -226,12 +226,12 @@ VOID _r_config_setsize (
 
 VOID _r_config_setstringexpand (
 	_In_ LPCWSTR key_name,
-	_In_opt_ LPCWSTR value
+	_In_opt_ LPWSTR value
 );
 
 VOID _r_config_setstringexpand_ex (
 	_In_ LPCWSTR key_name,
-	_In_opt_ LPCWSTR value,
+	_In_opt_ LPWSTR value,
 	_In_opt_ LPCWSTR section_name
 );
 
@@ -577,7 +577,8 @@ BOOLEAN _r_show_confirmmessage (
 	_In_opt_ HWND hwnd,
 	_In_opt_ LPCWSTR title,
 	_In_opt_ LPCWSTR content,
-	_In_opt_ LPCWSTR config_key
+	_In_opt_ LPCWSTR config_key,
+	_In_opt_ BOOLEAN is_adminrequired
 );
 
 NTSTATUS _r_show_errormessage (

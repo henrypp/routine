@@ -1518,7 +1518,7 @@ VOID _r_config_setsize (
 
 VOID _r_config_setstringexpand (
 	_In_ LPCWSTR key_name,
-	_In_opt_ LPCWSTR value
+	_In_opt_ LPWSTR value
 )
 {
 	_r_config_setstringexpand_ex (key_name, value, NULL);
@@ -1526,13 +1526,19 @@ VOID _r_config_setstringexpand (
 
 VOID _r_config_setstringexpand_ex (
 	_In_ LPCWSTR key_name,
-	_In_opt_ LPCWSTR value,
+	_In_opt_ LPWSTR value,
 	_In_opt_ LPCWSTR section_name
 )
 {
-	PR_STRING string;
+	R_STRINGREF sr;
+	PR_STRING string = NULL;
 
-	string = value ? _r_str_environmentunexpandstring (value) : _r_obj_referenceemptystring ();
+	if (value)
+	{
+		_r_obj_initializestringref (&sr, value);
+
+		string = _r_str_environmentunexpandstring (&sr);
+	}
 
 	_r_config_setstring_ex (key_name, _r_obj_getstring (string), section_name);
 
@@ -2064,7 +2070,7 @@ BOOLEAN NTAPI _r_update_downloadcallback (
 
 	if (update_info->htaskdlg)
 	{
-		_r_wnd_sendmessage (update_info->htaskdlg, 0, TDM_SET_PROGRESS_BAR_POS, (WPARAM)_r_calc_percentof (total_written, total_length), 0);
+		_r_wnd_sendmessage (update_info->htaskdlg, 0, TDM_SET_PROGRESS_BAR_POS, (WPARAM)PR_CALC_PERCENTOF (total_written, total_length), 0);
 
 		if (update_info->htaskbar)
 		{
@@ -2626,7 +2632,7 @@ HRESULT CALLBACK _r_update_pagecallback (
 			//if (_r_theme_isenabled ())
 			//	_r_theme_initializetaskdialogtheme (hwnd, 0);
 
-			if (_r_sys_isosversiongreaterorequal (WINDOWS_11))
+			if (_r_sys_isosversiongreaterorequal (WINDOWS_11) && !_r_config_getboolean (L"IsWindowCornerRound", FALSE))
 				DwmSetWindowAttribute (hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &(DWM_WINDOW_CORNER_PREFERENCE){ DWMWCP_DONOTROUND }, sizeof (DWM_WINDOW_CORNER_PREFERENCE));
 
 			if (update_info->hthread)
@@ -3143,7 +3149,8 @@ BOOLEAN _r_show_confirmmessage (
 	_In_opt_ HWND hwnd,
 	_In_opt_ LPCWSTR title,
 	_In_opt_ LPCWSTR content,
-	_In_opt_ LPCWSTR config_key
+	_In_opt_ LPCWSTR config_key,
+	_In_opt_ BOOLEAN is_adminrequired
 )
 {
 	TASKDIALOGCONFIG tdc = {0};
@@ -3158,11 +3165,10 @@ BOOLEAN _r_show_confirmmessage (
 	tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
 	tdc.hwndParent = hwnd;
 	tdc.hInstance = _r_sys_getimagebase ();
-	tdc.pszMainIcon = TD_WARNING_ICON;
+	tdc.pszMainIcon = is_adminrequired ? TD_SHIELD_ICON : TD_WARNING_ICON;
 	tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
 	tdc.pszWindowTitle = _r_app_getname ();
 	tdc.pfCallback = &_r_msg_callback;
-	tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
 
 	if (config_key)
 	{
@@ -3265,7 +3271,6 @@ NTSTATUS _r_show_errormessage (
 	tdc.pszContent = str_content;
 	tdc.pszFooter = APP_FAILED_MESSAGE_FOOTER;
 	tdc.pfCallback = &_r_msg_callback;
-	tdc.lpCallbackData = MAKELONG (0, TRUE); // on top
 
 	if (_r_fs_exists (&path->sr))
 	{
@@ -3821,14 +3826,14 @@ INT_PTR CALLBACK _r_settings_wndproc (
 #if defined(APP_HAVE_SETTINGS_TABS)
 				EnableThemeDialogTexture (ptr_page->hwnd, ETDT_ENABLETAB);
 
-				_r_tab_additem (hwnd, IDC_NAV, index, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, (LPARAM)ptr_page);
+				_r_tab_additem (hwnd, IDC_NAV, index, _r_locale_getstring (ptr_page->locale_id), I_DEFAULT, (LPARAM)ptr_page);
 
 				if (dlg_id && ptr_page->dlg_id == dlg_id)
 					_r_tab_selectitem (hwnd, IDC_NAV, index);
 
 				index += 1;
 #else
-				hitem = _r_treeview_additem (hwnd, IDC_NAV, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, 0, NULL, (LPARAM)ptr_page);
+				hitem = _r_treeview_additem (hwnd, IDC_NAV, _r_locale_getstring (ptr_page->locale_id), I_DEFAULT, 0, NULL, (LPARAM)ptr_page);
 
 				if (dlg_id && ptr_page->dlg_id == dlg_id)
 					_r_treeview_selectitem (hwnd, IDC_NAV, hitem);
@@ -3873,7 +3878,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 				if (ptr_page)
 				{
-					_r_tab_setitem (hwnd, IDC_NAV, i, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, LONG_PTR_ERROR);
+					_r_tab_setitem (hwnd, IDC_NAV, i, _r_locale_getstring (ptr_page->locale_id), I_DEFAULT, I_DEFAULT);
 
 					if (ptr_page->hwnd && _r_wnd_isvisible (ptr_page->hwnd, FALSE))
 						_r_wnd_sendmessage (ptr_page->hwnd, 0, RM_LOCALIZE, (WPARAM)ptr_page->dlg_id, 0);
@@ -3898,7 +3903,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 
 				if (ptr_page)
 				{
-					_r_treeview_setitem (hwnd, IDC_NAV, hitem, _r_locale_getstring (ptr_page->locale_id), I_IMAGENONE, 0);
+					_r_treeview_setitem (hwnd, IDC_NAV, hitem, _r_locale_getstring (ptr_page->locale_id), I_DEFAULT, I_DEFAULT);
 
 					if (ptr_page->hwnd)
 					{
@@ -4327,7 +4332,7 @@ HRESULT _r_skipuac_enable (
 	{
 		if (!_r_path_issecurelocation (_r_sys_getimagepath ()))
 		{
-			if (!_r_show_confirmmessage (hwnd, APP_SECURITY_TITLE, APP_WARNING_UAC_TEXT, NULL))
+			if (!_r_show_confirmmessage (hwnd, APP_SECURITY_TITLE, APP_WARNING_UAC_TEXT, NULL, FALSE))
 				return E_ABORT;
 		}
 	}
@@ -4985,7 +4990,9 @@ VOID _r_theme_setwindowframe (
 			DwmSetWindowAttribute (hwnd, DWMWA_BORDER_COLOR, &(COLORREF){ is_enable ? WND_BORDER_CLR : DWMWA_COLOR_DEFAULT}, sizeof (COLORREF));
 
 		DwmSetWindowAttribute (hwnd, DWMWA_CAPTION_COLOR, &(COLORREF){ is_enable ? WND_BACKGROUND_CLR : DWMWA_COLOR_DEFAULT}, sizeof (COLORREF));
-		DwmSetWindowAttribute (hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &(DWM_WINDOW_CORNER_PREFERENCE){ DWMWCP_DONOTROUND }, sizeof (DWM_WINDOW_CORNER_PREFERENCE));
+
+		if (_r_sys_isosversiongreaterorequal (WINDOWS_11) && !_r_config_getboolean (L"IsWindowCornerRound", FALSE))
+			DwmSetWindowAttribute (hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &(DWM_WINDOW_CORNER_PREFERENCE){ DWMWCP_DONOTROUND }, sizeof (DWM_WINDOW_CORNER_PREFERENCE));
 	}
 
 	if (_r_sys_isosversiongreaterorequal (WINDOWS_11_22H2))
@@ -5941,15 +5948,16 @@ VOID _r_theme_rendertabcontrol (
 	_In_ PR_THEME_CONTEXT context,
 	_In_ HWND hwnd,
 	_In_ HDC hdc,
-	_In_ PRECT client_rect
+	_In_ LPCRECT client_rect
 )
 {
-	TCITEMW tci = {0};
-	WCHAR buffer[128] = {0};
+	RECT frame_rect;
 	RECT rect = {0};
-	R_STRINGREF sr;
+	PR_STRING string;
 	INT current_item;
 	INT count;
+	BOOLEAN is_selected;
+	BOOLEAN is_hot;
 
 	SetBkMode (hdc, TRANSPARENT);
 	SetTextColor (hdc, WND_TEXT_CLR);
@@ -5965,7 +5973,10 @@ VOID _r_theme_rendertabcontrol (
 	{
 		_r_wnd_sendmessage (hwnd, 0, TCM_GETITEMRECT, (WPARAM)i, (LPARAM)&rect);
 
-		if (PtInRect (&rect, context->pt))
+		is_selected = current_item == i;
+		is_hot = PtInRect (&rect, context->pt);
+
+		if (is_hot)
 		{
 			OffsetRect (&rect, 2, 2);
 
@@ -5975,19 +5986,25 @@ VOID _r_theme_rendertabcontrol (
 		{
 			OffsetRect (&rect, 2, 2);
 
-			_r_dc_fillrect (hdc, &rect, (current_item == i) ? WND_BACKGROUND2_CLR : WND_BACKGROUND_CLR);
+			_r_dc_fillrect (hdc, &rect, is_selected ? WND_BACKGROUND2_CLR : WND_BACKGROUND_CLR);
 		}
 
-		tci.mask = TCIF_TEXT | TCIF_IMAGE | TCIF_STATE;
-		tci.dwStateMask = TCIS_BUTTONPRESSED | TCIS_HIGHLIGHTED;
-		tci.pszText = buffer;
-		tci.cchTextMax = RTL_NUMBER_OF (buffer);
+		string = _r_tab_getitemtext (hwnd, 0, i);
 
-		if (_r_wnd_sendmessage (hwnd, 0, TCM_GETITEM, (WPARAM)i, (LPARAM)&tci))
+		if (string)
 		{
-			_r_obj_initializestringref (&sr, tci.pszText);
+			_r_dc_drawtext (NULL, hdc, &string->sr, &rect, 0, 0, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_HIDEPREFIX, 0);
 
-			_r_dc_drawtext (NULL, hdc, &sr, &rect, 0, 0, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_HIDEPREFIX, 0);
+			_r_obj_dereference (string);
+		}
+
+		if (is_selected)
+		{
+			frame_rect = rect;
+
+			frame_rect.bottom = 6;
+
+			_r_dc_fillrect (hdc, &frame_rect, is_hot ? WND_BACKGROUND_CLR : WND_HOT_CLR);
 		}
 	}
 }
@@ -6069,7 +6086,8 @@ LRESULT CALLBACK _r_theme_tabcontrol_subclass (
 			HBITMAP hold_bitmap;
 			HBITMAP hbitmap;
 
-			GetClientRect (hwnd, &client_rect);
+			if (!GetClientRect (hwnd, &client_rect))
+				break;
 
 			hdc = GetDC (hwnd);
 
@@ -6079,7 +6097,7 @@ LRESULT CALLBACK _r_theme_tabcontrol_subclass (
 
 			rect = client_rect;
 
-			_r_wnd_sendmessage (hwnd, 0, TCM_ADJUSTRECT, 0, (LPARAM)&rect);
+			_r_wnd_sendmessage (hwnd, 0, TCM_ADJUSTRECT, FALSE, (LPARAM)&rect);
 
 			ExcludeClipRect (hdc, rect.left, rect.top, rect.right, rect.bottom);
 
