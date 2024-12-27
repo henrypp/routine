@@ -112,6 +112,13 @@ IsAutoinstallUpdates=FALSE
 
 # Show window border in Windows 11 and above (boolean)
 IsWindowBorderEnabled=TRUE
+
+#
+#2.7.10+
+#
+
+# Show window round corners in Windows 11 and above (boolean)
+IsWindowCornerRound=FALSE
 ~~~
 ---
 </details>
