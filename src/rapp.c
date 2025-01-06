@@ -831,7 +831,7 @@ HWND _r_app_createwindow (
 	_r_ctrl_setstring (hwnd, 0, _r_app_getname ());
 
 	// set window prop
-	SetPropW (hwnd, _r_app_getname (), IntToPtr (42));
+	SetPropW (hwnd, _r_app_getname (), IntToPtr (0x2A));
 
 	// set window on top
 	_r_wnd_top (hwnd, _r_config_getboolean (L"AlwaysOnTop", FALSE));
@@ -1995,7 +1995,7 @@ NTSTATUS _r_autorun_enable (
 			L"\" -minimized"
 		);
 
-		status = _r_reg_setvalue (hkey, _r_app_getname (), REG_SZ, string->buffer, (ULONG)(string->length + sizeof (UNICODE_NULL)));
+		status = _r_reg_setvalue (hkey, _r_app_getname (), REG_SZ, string->buffer, (ULONG)string->length + sizeof (UNICODE_NULL));
 
 		_r_sys_registerrestart (FALSE);
 
@@ -2016,7 +2016,7 @@ NTSTATUS _r_autorun_enable (
 	if (hwnd)
 	{
 		if (!NT_SUCCESS (status))
-			_r_show_errormessage (hwnd, NULL, status, NULL, ET_NATIVE);
+			_r_show_errormessage (hwnd, L"Could not configure autorun!", status, NULL, ET_NATIVE);
 	}
 
 	return status;
@@ -2477,7 +2477,7 @@ BOOLEAN _r_update_check (
 	if (!NT_SUCCESS (status))
 	{
 		if (hparent)
-			_r_show_errormessage (hparent, L"Thread create failure!", status, NULL, ET_NATIVE);
+			_r_show_errormessage (hparent, L"Could not create thread!", status, NULL, ET_NATIVE);
 
 		return FALSE;
 	}
@@ -2531,8 +2531,6 @@ HRESULT CALLBACK _r_update_pagecallback (
 	{
 		case TDN_CREATED:
 		{
-			HWND hparent;
-
 			update_info->htaskdlg = hwnd;
 
 			_r_wnd_sendmessage (hwnd, 0, TDM_SET_MARQUEE_PROGRESS_BAR, TRUE, 0);
@@ -2540,9 +2538,7 @@ HRESULT CALLBACK _r_update_pagecallback (
 
 			_r_taskbar_initialize (&update_info->htaskbar);
 
-			hparent = GetParent (hwnd);
-
-			_r_wnd_center (hwnd, hparent);
+			_r_wnd_center (hwnd, GetParent (hwnd));
 
 			_r_wnd_top (hwnd, TRUE); // always on top
 
@@ -2578,6 +2574,10 @@ HRESULT CALLBACK _r_update_pagecallback (
 					_r_update_navigate (update_info, TDCBF_CANCEL_BUTTON, TDF_SHOW_PROGRESS_BAR, NULL, NULL, str_content, 0, ET_WINDOWS);
 
 					return S_FALSE;
+				}
+				else
+				{
+					_r_show_errormessage (hwnd, L"Could not create thread!", status, NULL, ET_NATIVE);
 				}
 			}
 			else if (wparam == IDOK)
@@ -2828,7 +2828,7 @@ VOID _r_update_install (
 	status = _r_sys_runasadmin (update_component->cache_path->buffer, cmd_string->buffer, NULL);
 
 	if (status != STATUS_SUCCESS)
-		_r_show_errormessage (hwnd, NULL, status, update_component->cache_path->buffer, ET_NATIVE);
+		_r_show_errormessage (hwnd, L"Could not install update!", status, update_component->cache_path->buffer, ET_NATIVE);
 
 	_r_obj_dereference (cmd_string);
 }
@@ -3119,7 +3119,7 @@ VOID _r_show_aboutmessage (
 	tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_EXPAND_FOOTER_AREA | TDF_SIZE_TO_CONTENT;
 	tdc.hwndParent = hwnd;
 	tdc.hInstance = _r_sys_getimagebase ();
-	tdc.dwCommonButtons = TDCBF_CLOSE_BUTTON;
+	tdc.dwCommonButtons = TDCBF_OK_BUTTON;
 	tdc.pszFooterIcon = TD_INFORMATION_ICON;
 	tdc.pszWindowTitle = str_title;
 	tdc.pszMainInstruction = _r_app_getname ();
@@ -3895,7 +3895,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 				_r_dc_getdpi (PR_SIZE_TREEINDENT, dpi_value)
 			);
 
-			hitem = (HTREEITEM)_r_wnd_sendmessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_ROOT, 0);
+			hitem = _r_treeview_getnextitem (hwnd, IDC_NAV, NULL, TVGN_ROOT);
 
 			while (hitem)
 			{
@@ -3912,7 +3912,7 @@ INT_PTR CALLBACK _r_settings_wndproc (
 					}
 				}
 
-				hitem = (HTREEITEM)_r_wnd_sendmessage (hwnd, IDC_NAV, TVM_GETNEXTITEM, TVGN_NEXT, (LPARAM)hitem);
+				hitem = _r_treeview_getnextitem (hwnd, IDC_NAV, hitem, TVGN_NEXT);
 			}
 #endif // APP_HAVE_SETTINGS_TABS
 
@@ -4525,7 +4525,7 @@ CleanupExit:
 		ITaskService_Release (task_service);
 
 	if (hwnd && FAILED (status))
-		_r_show_errormessage (hwnd, NULL, status, NULL, ET_WINDOWS);
+		_r_show_errormessage (hwnd, L"Could not configure task scheduler!", status, NULL, ET_WINDOWS);
 
 	return status;
 }
@@ -4847,9 +4847,9 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 				_r_theme_setdarkmode (htip, is_enable);
 		}
 
-		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : GetSysColor (COLOR_WINDOW));
 		_r_wnd_sendmessage (hwnd, 0, LVM_SETBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : GetSysColor (COLOR_WINDOW));
 		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTCOLOR, 0, is_enable ? WND_TEXT_CLR : GetSysColor (COLOR_WINDOWTEXT));
+		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : GetSysColor (COLOR_WINDOW));
 	}
 	else if (_r_str_isequal2 (&class_name->sr, WC_SCROLLBAR, TRUE))
 	{
@@ -4872,8 +4872,8 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 				_r_theme_setdarkmode (htip, is_enable);
 		}
 
-		_r_wnd_sendmessage (hwnd, 0, TVM_SETBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : -1);
 		_r_wnd_sendmessage (hwnd, 0, TVM_SETTEXTCOLOR, 0, is_enable ? WND_TEXT_CLR : -1);
+		_r_wnd_sendmessage (hwnd, 0, TVM_SETBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : -1);
 	}
 
 	InvalidateRect (hwnd, NULL, FALSE);
@@ -5954,6 +5954,7 @@ VOID _r_theme_rendertabcontrol (
 	RECT frame_rect;
 	RECT rect = {0};
 	PR_STRING string;
+	LONG dpi_value;
 	INT current_item;
 	INT count;
 	BOOLEAN is_selected;
@@ -5971,21 +5972,19 @@ VOID _r_theme_rendertabcontrol (
 
 	for (INT i = 0; i < count; i++)
 	{
-		_r_wnd_sendmessage (hwnd, 0, TCM_GETITEMRECT, (WPARAM)i, (LPARAM)&rect);
+		_r_tab_getrect (hwnd, 0, i, &rect);
 
 		is_selected = current_item == i;
-		is_hot = PtInRect (&rect, context->pt);
+		is_hot = !!PtInRect (&rect, context->pt);
+
+		OffsetRect (&rect, 2, 2);
 
 		if (is_hot)
 		{
-			OffsetRect (&rect, 2, 2);
-
 			_r_dc_fillrect (hdc, &rect, WND_HOT_CLR);
 		}
 		else
 		{
-			OffsetRect (&rect, 2, 2);
-
 			_r_dc_fillrect (hdc, &rect, is_selected ? WND_BACKGROUND2_CLR : WND_BACKGROUND_CLR);
 		}
 
@@ -6002,7 +6001,9 @@ VOID _r_theme_rendertabcontrol (
 		{
 			frame_rect = rect;
 
-			frame_rect.bottom = 6;
+			dpi_value = _r_dc_getwindowdpi (hwnd);
+
+			frame_rect.bottom = _r_dc_getdpi (6, dpi_value);
 
 			_r_dc_fillrect (hdc, &frame_rect, is_hot ? WND_BACKGROUND_CLR : WND_HOT_CLR);
 		}

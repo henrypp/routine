@@ -66,7 +66,7 @@ VOID _r_console_setcolor (
 
 VOID _r_console_writestring_ex (
 	_In_reads_ (length) LPCWSTR string,
-	_In_ ULONG length
+	_In_ ULONG_PTR length
 )
 {
 	HANDLE hconsole;
@@ -76,7 +76,7 @@ VOID _r_console_writestring_ex (
 	if (!hconsole || hconsole == INVALID_HANDLE_VALUE)
 		return;
 
-	WriteConsoleW (hconsole, string, length, NULL, NULL);
+	WriteConsoleW (hconsole, string, (ULONG)length, NULL, NULL);
 }
 
 VOID _r_console_writestringformat (
@@ -2461,7 +2461,7 @@ VOID _r_obj_appendstringbuilderformat_v (
 
 	length = _vscwprintf_l (format, NULL, arg_ptr);
 
-	if (length == -1 || length == 0)
+	if (length == 0 || length == -1)
 		return;
 
 	length_in_bytes = length * sizeof (WCHAR);
@@ -6404,7 +6404,7 @@ NTSTATUS _r_path_search (
 	UNICODE_STRING path_us;
 	PR_STRING full_path = NULL;
 	PR_STRING string = NULL;
-	ULONG_PTR return_length;
+	ULONG_PTR return_length = 0;
 	ULONG flags = RTL_DOS_SEARCH_PATH_FLAG_DISALLOW_DOT_RELATIVE_PATH_SEARCH | RTL_DOS_SEARCH_PATH_FLAG_APPLY_DEFAULT_EXTENSION_WHEN_NOT_RELATIVE_PATH_EVEN_IF_FILE_HAS_EXTENSION;
 	NTSTATUS status;
 
@@ -6435,7 +6435,8 @@ NTSTATUS _r_path_search (
 
 	status = RtlDosSearchPath_Ustr (flags, &path_us, &filename_us, &extension_us, NULL, NULL, NULL, NULL, &return_length);
 
-	if (status == STATUS_BUFFER_TOO_SMALL)
+	// sometimes returns STATUS_SUCCESS when return_length is correct, STUPID FUCKING CUNTS!
+	if (status == STATUS_SUCCESS || status == STATUS_BUFFER_TOO_SMALL)
 	{
 		full_path = _r_obj_createstring_ex (NULL, return_length * sizeof (WCHAR));
 
@@ -6558,31 +6559,30 @@ NTSTATUS _r_shell_openkey (
 	static R_STRINGREF hklm_prefix_sr = PR_STRINGREF_INIT (L"\\Registry\\Machine");
 	static R_STRINGREF hku_prefix_sr = PR_STRINGREF_INIT (L"\\Registry\\User");
 	static R_STRINGREF hkcucr_sr = PR_STRINGREF_INIT (L"HKCU\\Software\\Classes");
-	static R_STRINGREF hklm_sr = PR_STRINGREF_INIT (L"HKLM");
-	static R_STRINGREF hkcr_sr = PR_STRINGREF_INIT (L"HKCR");
-	static R_STRINGREF hkcu_sr = PR_STRINGREF_INIT (L"HKCU");
-	static R_STRINGREF hku_sr = PR_STRINGREF_INIT (L"HKU");
+	static R_STRINGREF hklm_sr = PR_STRINGREF_INIT (L"HKEY_LOCAL_MACHINE");
+	static R_STRINGREF hkcr_sr = PR_STRINGREF_INIT (L"HKEY_CLASSES_ROOT");
+	static R_STRINGREF hkcu_sr = PR_STRINGREF_INIT (L"HKEY_CURRENT_USER");
+	static R_STRINGREF hku_sr = PR_STRINGREF_INIT (L"HKEY_USERS");
 	static PR_STRING hkcucr_prefix;
 	static PR_STRING hkcu_prefix;
 
 	R_STRINGREF registry_user_sr = PR_STRINGREF_INIT (L"\\Registry\\User\\");
 	R_STRINGREF classes_sr = PR_STRINGREF_INIT (L"_Classes");
-	R_STRINGREF name;
-	PR_STRING string = NULL;
 	PR_STRING value = NULL;
+	PR_STRING name = NULL;
 	HANDLE hkey_handle = NULL;
 	NTSTATUS status;
 
 	if (_r_initonce_begin (&init_once))
 	{
-		status = _r_str_fromsid (_r_sys_getcurrenttoken ()->token_sid, &string);
+		status = _r_str_fromsid (_r_sys_getcurrenttoken ()->token_sid, &name);
 
 		if (NT_SUCCESS (status))
 		{
-			hkcu_prefix = _r_obj_concatstringrefs (2, &registry_user_sr, &string->sr);
+			hkcu_prefix = _r_obj_concatstringrefs (2, &registry_user_sr, &name->sr);
 			hkcucr_prefix = _r_obj_concatstringrefs (2, &hkcu_prefix->sr, &classes_sr);
 
-			_r_obj_dereference (string);
+			_r_obj_dereference (name);
 		}
 		else
 		{
@@ -6594,7 +6594,7 @@ NTSTATUS _r_shell_openkey (
 		_r_initonce_end (&init_once);
 	}
 
-	status = _r_fs_getobjectname (hkey, FALSE, &string);
+	status = _r_fs_getobjectname (hkey, FALSE, &name);
 
 	if (!NT_SUCCESS (status))
 	{
@@ -6614,44 +6614,42 @@ NTSTATUS _r_shell_openkey (
 		goto CleanupExit;
 	}
 
-	name = string->sr;
-
-	if (_r_str_isstartswith (&name, &hkcu_prefix->sr, TRUE))
+	if (_r_str_isstartswith (&name->sr, &hkcu_prefix->sr, TRUE))
 	{
-		_r_str_skiplength (&name, hkcu_prefix->length);
+		_r_str_skiplength (&name->sr, hkcu_prefix->length);
 
-		value = _r_obj_concatstringrefs (2, &hkcu_sr, &name);
+		value = _r_obj_concatstringrefs (2, &hkcu_sr, &name->sr);
 	}
-	else if (_r_str_isstartswith (&name, &hklm_prefix_sr, TRUE))
+	else if (_r_str_isstartswith (&name->sr, &hklm_prefix_sr, TRUE))
 	{
-		_r_str_skiplength (&name, hklm_prefix_sr.length);
+		_r_str_skiplength (&name->sr, hklm_prefix_sr.length);
 
-		value = _r_obj_concatstringrefs (2, &hklm_sr, &name);
+		value = _r_obj_concatstringrefs (2, &hklm_sr, &name->sr);
 	}
-	else if (_r_str_isstartswith (&name, &hkcr_prefix_sr, TRUE))
+	else if (_r_str_isstartswith (&name->sr, &hkcr_prefix_sr, TRUE))
 	{
-		_r_str_skiplength (&name, hkcr_sr.length);
+		_r_str_skiplength (&name->sr, hkcr_sr.length);
 
-		value = _r_obj_concatstringrefs (2, &hkcr_prefix_sr, &name);
+		value = _r_obj_concatstringrefs (2, &hkcr_prefix_sr, &name->sr);
 	}
-	else if (_r_str_isstartswith (&name, &hkcucr_prefix->sr, TRUE))
+	else if (_r_str_isstartswith (&name->sr, &hkcucr_prefix->sr, TRUE))
 	{
-		_r_str_skiplength (&name, hkcucr_prefix->length);
+		_r_str_skiplength (&name->sr, hkcucr_prefix->length);
 
-		value = _r_obj_concatstringrefs (2, &hkcucr_sr, &name);
+		value = _r_obj_concatstringrefs (2, &hkcucr_sr, &name->sr);
 	}
-	else if (_r_str_isstartswith (&name, &hku_prefix_sr, TRUE))
+	else if (_r_str_isstartswith (&name->sr, &hku_prefix_sr, TRUE))
 	{
-		_r_str_skiplength (&name, hku_prefix_sr.length);
+		_r_str_skiplength (&name->sr, hku_prefix_sr.length);
 
-		value = _r_obj_concatstringrefs (2, &hku_sr, &name);
+		value = _r_obj_concatstringrefs (2, &hku_sr, &name->sr);
 	}
 	else
 	{
-		value = _r_obj_reference (string);
+		value = _r_obj_reference (name);
 	}
 
-	status = _r_reg_setvalue (hkey_handle, L"LastKey", REG_SZ, value->buffer, (ULONG)value->length);
+	status = _r_reg_setvalue (hkey_handle, L"LastKey", REG_SZ, value->buffer, (ULONG)value->length + sizeof (UNICODE_NULL));
 
 	if (NT_SUCCESS (status))
 	{
@@ -6664,22 +6662,25 @@ NTSTATUS _r_shell_openkey (
 			status = _r_sys_runasadmin (L"regedit.exe", NULL, NULL);
 		}
 
-		if (hwnd && !NT_SUCCESS (status) && status != STATUS_CANCELLED)
-			_r_show_errormessage (hwnd, NULL, status, L"Could not create process", ET_NATIVE);
+		if (hwnd)
+		{
+			if (status != STATUS_SUCCESS && status != STATUS_CANCELLED)
+				_r_show_errormessage (hwnd, L"Could not create process!", status, NULL, ET_NATIVE);
+		}
 	}
 	else
 	{
 		if (hwnd)
-			_r_show_errormessage (hwnd, NULL, status, L"Could not set value", ET_NATIVE);
+			_r_show_errormessage (hwnd, L"Could not set value!", status, NULL, ET_NATIVE);
 	}
 
 CleanupExit:
 
-	if (string)
-		_r_obj_dereference (string);
-
 	if (value)
 		_r_obj_dereference (value);
+
+	if (name)
+		_r_obj_dereference (name);
 
 	if (hkey_handle)
 		NtClose (hkey_handle);
@@ -8197,7 +8198,7 @@ BOOLEAN _r_str_touinteger64 (
 	_Out_ PULONG64 integer_ptr
 )
 {
-	static const ULONG char_to_integer[256] =
+	const ULONG char_to_integer[256] =
 	{
 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 0 - 15
 		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, // 16 - 31
@@ -11191,8 +11192,10 @@ NTSTATUS _r_sys_createthread (
 	PR_THREAD_CONTEXT context;
 	PR_FREE_LIST free_list;
 	HANDLE hthread;
+	ULONG flags = THREAD_CREATE_FLAGS_CREATE_SUSPENDED;
 	NTSTATUS status;
 
+	// allocate thread context
 	free_list = _r_sys_getthreadfreelist ();
 
 	context = _r_freelist_allocateitem (free_list);
@@ -11200,18 +11203,7 @@ NTSTATUS _r_sys_createthread (
 	context->base_address = base_address;
 	context->arglist = arglist;
 
-	status = RtlCreateUserThread (
-		hprocess,
-		NULL,
-		TRUE,
-		0,
-		0,
-		0,
-		&_r_sys_basethreadstart,
-		context,
-		&hthread,
-		NULL
-	);
+	status = NtCreateThreadEx (&hthread, THREAD_ALL_ACCESS, NULL, hprocess, &_r_sys_basethreadstart, context, flags, 0, 0, 0, NULL);
 
 	if (NT_SUCCESS (status))
 	{
@@ -14862,10 +14854,10 @@ NTSTATUS _r_reg_enumvalues (
 		{
 			*out_value = NULL;
 
-			_r_obj_initializestringref_ex (&sr, PTR_ADD_OFFSET (buffer, buffer->DataOffset), buffer->DataLength);
+			if (buffer->Type == REG_SZ || buffer->Type == REG_EXPAND_SZ || buffer->Type == REG_MULTI_SZ)
+				buffer->DataLength -= sizeof (UNICODE_NULL);
 
-			if (buffer->Type != REG_MULTI_SZ)
-				_r_str_trimtonullterminator (&sr);
+			_r_obj_initializestringref_ex (&sr, PTR_ADD_OFFSET (buffer, buffer->DataOffset), buffer->DataLength);
 
 			if (buffer->Type == REG_BINARY)
 			{
@@ -15024,22 +15016,19 @@ NTSTATUS _r_reg_querystring (
 		return STATUS_OBJECT_TYPE_MISMATCH;
 	}
 
-	string = _r_obj_createstring_ex (NULL, buffer_length);
+	string = _r_obj_createstring_ex (NULL, buffer_length - sizeof (UNICODE_NULL));
 
 	status = _r_reg_queryvalue (hkey, value_name, string->buffer, &buffer_length, &type);
 
 	if (status == STATUS_BUFFER_TOO_SMALL)
 	{
-		_r_obj_movereference (&string, _r_obj_createstring_ex (NULL, buffer_length));
+		_r_obj_movereference (&string, _r_obj_createstring_ex (NULL, buffer_length - sizeof (UNICODE_NULL)));
 
-		status = _r_reg_queryvalue (hkey, value_name, string->buffer, &buffer_length, &type);
+		status = _r_reg_queryvalue (hkey, value_name, string->buffer, NULL, &type);
 	}
 
 	if (NT_SUCCESS (status))
 	{
-		if (type != REG_MULTI_SZ)
-			_r_str_trimtonullterminator (&string->sr);
-
 		if (type == REG_EXPAND_SZ)
 		{
 			status = _r_str_environmentexpandstring (NULL, &string->sr, &expanded_string);
@@ -15131,26 +15120,26 @@ NTSTATUS _r_reg_queryvalue (
 	_In_ HANDLE hkey,
 	_In_opt_ LPWSTR value_name,
 	_Out_opt_ PVOID out_buffer,
-	_Out_opt_ PULONG out_buffer_length,
+	_Out_opt_ PULONG out_length,
 	_Out_opt_ PULONG out_type
 )
 {
 	PKEY_VALUE_PARTIAL_INFORMATION value_info;
 	UNICODE_STRING us;
-	ULONG length;
+	ULONG return_length;
 	NTSTATUS status;
 
 	_r_obj_initializeunicodestring (&us, value_name);
 
-	status = NtQueryValueKey (hkey, &us, KeyValuePartialInformation, NULL, 0, &length);
+	status = NtQueryValueKey (hkey, &us, KeyValuePartialInformation, NULL, 0, &return_length);
 
 	if (status != STATUS_BUFFER_OVERFLOW && status != STATUS_BUFFER_TOO_SMALL)
 	{
 		if (out_buffer)
 			RtlZeroMemory (out_buffer, 2);
 
-		if (out_buffer_length)
-			*out_buffer_length = 0;
+		if (out_length)
+			*out_length = 0;
 
 		if (out_type)
 			*out_type = REG_NONE;
@@ -15158,17 +15147,17 @@ NTSTATUS _r_reg_queryvalue (
 		return status;
 	}
 
-	value_info = _r_mem_allocate (length);
+	value_info = _r_mem_allocate (return_length);
 
-	status = NtQueryValueKey (hkey, &us, KeyValuePartialInformation, value_info, length, &length);
+	status = NtQueryValueKey (hkey, &us, KeyValuePartialInformation, value_info, return_length, &return_length);
 
 	if (NT_SUCCESS (status))
 	{
 		if (out_buffer)
 			RtlCopyMemory (out_buffer, value_info->Data, value_info->DataLength);
 
-		if (out_buffer_length)
-			*out_buffer_length = value_info->DataLength;
+		if (out_length)
+			*out_length = value_info->DataLength;
 
 		if (out_type)
 			*out_type = value_info->Type;
@@ -15178,8 +15167,8 @@ NTSTATUS _r_reg_queryvalue (
 		if (out_buffer)
 			RtlZeroMemory (out_buffer, 2);
 
-		if (out_buffer_length)
-			*out_buffer_length = 0;
+		if (out_length)
+			*out_length = 0;
 
 		if (out_type)
 			*out_type = REG_NONE;
@@ -18464,7 +18453,7 @@ VOID _r_listview_fillitems (
 	_In_ INT image_id
 )
 {
-	if (item_start == -1 || item_end == -1)
+	if (item_start == INT_ERROR || item_end == INT_ERROR)
 	{
 		item_start = 0;
 
@@ -18858,7 +18847,7 @@ BOOLEAN _r_listview_setcolumn (
 	return (_r_wnd_sendmessage (hwnd, ctrl_id, LVM_SETCOLUMN, (WPARAM)column_id, (LPARAM)&lvc) == TRUE);
 }
 
-VOID _r_listview_setcolumnsortindex (
+BOOLEAN _r_listview_setcolumnsortindex (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
 	_In_ INT column_id,
@@ -18871,12 +18860,12 @@ VOID _r_listview_setcolumnsortindex (
 	hheader = _r_listview_getheader (hwnd, ctrl_id);
 
 	if (!hheader)
-		return;
+		return FALSE;
 
 	hdi.mask = HDI_FORMAT;
 
 	if (!_r_wnd_sendmessage (hheader, 0, HDM_GETITEM, (WPARAM)column_id, (LPARAM)&hdi))
-		return;
+		return FALSE;
 
 	if (arrow == 1)
 	{
@@ -18891,7 +18880,7 @@ VOID _r_listview_setcolumnsortindex (
 		hdi.fmt = hdi.fmt & ~(HDF_SORTDOWN | HDF_SORTUP);
 	}
 
-	_r_wnd_sendmessage (hheader, 0, HDM_SETITEM, (WPARAM)column_id, (LPARAM)&hdi);
+	return (_r_wnd_sendmessage (hheader, 0, HDM_SETITEM, (WPARAM)column_id, (LPARAM)&hdi) != 0);
 }
 
 _Success_ (return)
@@ -18967,7 +18956,7 @@ VOID _r_listview_setitemvisible (
 	_In_ INT item_id
 )
 {
-	_r_listview_setitemstate (hwnd, ctrl_id, -1, 0, LVIS_SELECTED | LVIS_FOCUSED);
+	_r_listview_setitemstate (hwnd, ctrl_id, INT_ERROR, 0, LVIS_SELECTED | LVIS_FOCUSED);
 
 	_r_listview_setitemstate (hwnd, ctrl_id, item_id, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
 
@@ -19109,6 +19098,7 @@ UINT _r_treeview_getitemstate (
 	return tvi.state;
 }
 
+_Ret_maybenull_
 HTREEITEM _r_treeview_getnextitem (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
@@ -19121,9 +19111,10 @@ HTREEITEM _r_treeview_getnextitem (
 	tvi.mask = TVIF_HANDLE;
 	tvi.hItem = item_id;
 
-	_r_wnd_sendmessage (hwnd, ctrl_id, TVM_GETNEXTITEM, retrieve_id, item_id ? (LPARAM)&tvi : 0);
+	if (_r_wnd_sendmessage (hwnd, ctrl_id, TVM_GETNEXTITEM, retrieve_id, item_id ? (LPARAM)&tvi : 0))
+		return tvi.hItem;
 
-	return tvi.hItem;
+	return NULL;
 }
 
 _Ret_maybenull_
@@ -19326,7 +19317,7 @@ VOID _r_status_setstyle (
 	_r_wnd_sendmessage (hwnd, ctrl_id, WM_SIZE, 0, 0);
 }
 
-VOID _r_status_settextformat (
+BOOLEAN _r_status_settextformat (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
 	_In_ LONG part_id,
@@ -19336,14 +19327,17 @@ VOID _r_status_settextformat (
 {
 	va_list arg_ptr;
 	PR_STRING string;
+	BOOLEAN is_success;
 
 	va_start (arg_ptr, format);
 	string = _r_format_string_v (format, arg_ptr);
 	va_end (arg_ptr);
 
-	_r_status_settext (hwnd, ctrl_id, part_id, string->buffer);
+	is_success = _r_status_settext (hwnd, ctrl_id, part_id, string->buffer);
 
 	_r_obj_dereference (string);
+
+	return is_success;
 }
 
 //
@@ -19396,7 +19390,7 @@ VOID _r_rebar_insertband (
 	// Set the rebar info with no imagelist
 	_r_wnd_sendmessage (hwnd, ctrl_id, RB_SETBARINFO, 0, (LPARAM)&ri);
 
-	_r_wnd_sendmessage (hwnd, ctrl_id, RB_INSERTBAND, (WPARAM)-1, (LPARAM)&rbi);
+	_r_wnd_sendmessage (hwnd, ctrl_id, RB_INSERTBAND, (WPARAM)INT_ERROR, (LPARAM)&rbi);
 }
 
 BOOLEAN _r_rebar_isbandexists (
@@ -19585,7 +19579,7 @@ BOOL CALLBACK _r_util_activate_window_callback (
 	if (_r_str_isequal (app_name, &string->sr, FALSE))
 	{
 		// check window prop
-		if (GetPropW (hwnd, app_name->buffer))
+		if (GetPropW (hwnd, app_name->buffer) != NULL)
 		{
 			_r_wnd_toggle (hwnd, TRUE);
 

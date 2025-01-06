@@ -535,7 +535,7 @@ FORCEINLINE VOID _r_queuedlock_acquireshared (
 {
 	ULONG_PTR value;
 
-	value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, IntToPtr (PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC), NULL);
+	value = (ULONG_PTR)(PULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, IntToPtr (PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC), NULL);
 
 	if (value != 0)
 		_r_queuedlock_acquireshared_ex (queued_lock);
@@ -564,7 +564,7 @@ FORCEINLINE VOID _r_queuedlock_releaseshared (
 
 	value = PR_QUEUED_LOCK_OWNED | PR_QUEUED_LOCK_SHARED_INC;
 
-	new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, NULL, (PVOID)value);
+	new_value = (ULONG_PTR)(PULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&queued_lock->value, NULL, (PVOID)value);
 
 	if (new_value != value)
 		_r_queuedlock_releaseshared_ex (queued_lock);
@@ -672,7 +672,7 @@ FORCEINLINE VOID _r_protection_release (
 	ULONG_PTR new_value;
 	ULONG_PTR value;
 
-	value = protection->value & ~PR_RUNDOWN_ACTIVE; // Fail fast path when rundown is active
+	value = protection->value & ~PR_RUNDOWN_ACTIVE; // fail fast path when rundown is active
 	new_value = (ULONG_PTR)_InterlockedCompareExchangePointer ((PVOID_PTR)&protection->value, (PVOID)(value - PR_RUNDOWN_REF_INC), (PVOID)value);
 
 	if (new_value != value)
@@ -1522,7 +1522,7 @@ VOID _r_console_setcolor (
 
 VOID _r_console_writestring_ex (
 	_In_reads_ (length) LPCWSTR string,
-	_In_ ULONG length
+	_In_ ULONG_PTR length
 );
 
 VOID _r_console_writestringformat (
@@ -1534,14 +1534,14 @@ FORCEINLINE VOID _r_console_writestring (
 	_In_ LPCWSTR string
 )
 {
-	_r_console_writestring_ex (string, (ULONG)_r_str_getlength (string));
+	_r_console_writestring_ex (string, _r_str_getlength (string));
 }
 
 FORCEINLINE VOID _r_console_writestring2 (
 	_In_ PR_STRINGREF string
 )
 {
-	_r_console_writestring_ex (string->buffer, (ULONG)_r_str_getlength2 (string));
+	_r_console_writestring_ex (string->buffer, _r_str_getlength2 (string));
 }
 
 //
@@ -4041,7 +4041,7 @@ NTSTATUS _r_reg_queryvalue (
 	_In_ HANDLE hkey,
 	_In_opt_ LPWSTR value_name,
 	_Out_opt_ PVOID out_buffer,
-	_Out_opt_ PULONG out_buffer_length,
+	_Out_opt_ PULONG out_length,
 	_Out_opt_ PULONG out_type
 );
 
@@ -5361,6 +5361,16 @@ FORCEINLINE INT _r_tab_getitemcount (
 	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, TCM_GETITEMCOUNT, 0, 0);
 }
 
+FORCEINLINE BOOLEAN _r_tab_getrect (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id,
+	_In_ INT index,
+	_Out_ LPRECT out_rect
+)
+{
+	return (_r_wnd_sendmessage (hwnd, 0, TCM_GETITEMRECT, (WPARAM)index, (LPARAM)out_rect) == TRUE);
+}
+
 FORCEINLINE VOID _r_tab_setimagelist (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
@@ -5510,7 +5520,7 @@ BOOLEAN _r_listview_setcolumn (
 	_In_opt_ INT width
 );
 
-VOID _r_listview_setcolumnsortindex (
+BOOLEAN _r_listview_setcolumnsortindex (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
 	_In_ INT column_id,
@@ -5651,7 +5661,7 @@ FORCEINLINE INT _r_listview_getselecteditem (
 	_In_opt_ INT ctrl_id
 )
 {
-	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_GETNEXTITEM, (WPARAM)-1, (LPARAM)LVNI_SELECTED);
+	return (INT)_r_wnd_sendmessage (hwnd, ctrl_id, LVM_GETNEXTITEM, (WPARAM)INT_ERROR, (LPARAM)LVNI_SELECTED);
 }
 
 _Ret_maybenull_
@@ -5787,7 +5797,7 @@ UINT _r_treeview_getitemstate (
 	_In_opt_ INT ctrl_id,
 	_In_ HTREEITEM item_id
 );
-
+_Ret_maybenull_
 HTREEITEM _r_treeview_getnextitem (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
@@ -5925,7 +5935,7 @@ VOID _r_status_setstyle (
 	_In_opt_ ULONG height
 );
 
-VOID _r_status_settextformat (
+BOOLEAN _r_status_settextformat (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,
 	_In_ LONG part_id,

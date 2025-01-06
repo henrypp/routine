@@ -2238,12 +2238,16 @@ typedef struct _PROCESS_DEVICEMAP_INFORMATION
 	{
 		struct
 		{
+			// A handle to a directory object that can be set as the new device map for the process. This handle must have DIRECTORY_TRAVERSE access.
 			HANDLE DirectoryHandle;
 		} Set;
 
 		struct
 		{
+			// A bitmask that indicates which drive letters are currently in use in the process's device map.
 			ULONG DriveMap;
+
+			// A value that indicates the type of each drive (e.g., local disk, network drive, etc.). // DRIVE_* WinBase.h
 			UCHAR DriveType[32];
 		} Query;
 	};
@@ -2257,12 +2261,16 @@ typedef struct _PROCESS_DEVICEMAP_INFORMATION_EX
 	{
 		struct
 		{
+			// A handle to a directory object that can be set as the new device map for the process. This handle must have DIRECTORY_TRAVERSE access.
 			HANDLE DirectoryHandle;
 		} Set;
 
 		struct
 		{
+			// A bitmask that indicates which drive letters are currently in use in the process's device map.
 			ULONG DriveMap;
+
+			// A value that indicates the type of each drive (e.g., local disk, network drive, etc.). // DRIVE_* WinBase.h
 			UCHAR DriveType[32];
 		} Query;
 	};
@@ -4603,7 +4611,7 @@ NtAllocateVirtualMemory (
 	_In_ ULONG_PTR ZeroBits,
 	_Inout_ PULONG_PTR RegionSize,
 	_In_ ULONG AllocationType,
-	_In_ ULONG Protect
+	_In_ ULONG PageProtection
 );
 
 // win10rs5+
@@ -4675,6 +4683,7 @@ NtWriteVirtualMemory (
 	_Out_opt_ PULONG_PTR NumberOfBytesWritten
 );
 
+// win10rs5+
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
@@ -4682,8 +4691,8 @@ NtProtectVirtualMemory (
 	_In_ HANDLE ProcessHandle,
 	_Inout_ PVOID *BaseAddress,
 	_Inout_ PULONG_PTR RegionSize,
-	_In_ ULONG NewProtect,
-	_Out_ PULONG OldProtect
+	_In_ ULONG NewProtection,
+	_Out_ PULONG OldProtection
 );
 
 NTSYSCALLAPI
@@ -5166,17 +5175,18 @@ RtlGetLocaleFileMappingAddress (
 NTSYSCALLAPI
 NTSTATUS
 NTAPI
-RtlCreateUserThread (
-	_In_ HANDLE Process,
-	_In_opt_ PSECURITY_DESCRIPTOR ThreadSecurityDescriptor,
-	_In_ BOOLEAN CreateSuspended,
-	_In_opt_ ULONG ZeroBits,
-	_In_opt_ ULONG_PTR MaximumStackSize,
-	_In_opt_ ULONG_PTR CommittedStackSize,
-	_In_ PUSER_THREAD_START_ROUTINE StartAddress,
-	_In_opt_ PVOID Parameter,
-	_Out_opt_ PHANDLE Thread,
-	_Out_opt_ PCLIENT_ID ClientId
+NtCreateThreadEx (
+	_Out_ PHANDLE ThreadHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_opt_ PCOBJECT_ATTRIBUTES ObjectAttributes,
+	_In_ HANDLE ProcessHandle,
+	_In_ PUSER_THREAD_START_ROUTINE StartRoutine,
+	_In_opt_ PVOID Argument,
+	_In_ ULONG CreateFlags, // THREAD_CREATE_FLAGS_*
+	_In_ ULONG_PTR ZeroBits,
+	_In_ ULONG_PTR StackSize,
+	_In_ ULONG_PTR MaximumStackSize,
+	_In_opt_ PPS_ATTRIBUTE_LIST AttributeList
 );
 
 // vista+
@@ -5185,14 +5195,6 @@ NTSYSCALLAPI
 VOID
 NTAPI
 RtlExitUserThread (
-	_In_ NTSTATUS ExitStatus
-);
-
-DECLSPEC_NORETURN
-NTSYSCALLAPI
-VOID
-NTAPI
-RtlExitUserProcess (
 	_In_ NTSTATUS ExitStatus
 );
 
@@ -6271,6 +6273,14 @@ NtOpenProcess (
 	_In_ ACCESS_MASK DesiredAccess,
 	_In_ POBJECT_ATTRIBUTES ObjectAttributes,
 	_In_opt_ PCLIENT_ID ClientId
+);
+
+DECLSPEC_NORETURN
+NTSYSCALLAPI
+VOID
+NTAPI
+RtlExitUserProcess (
+	_In_ NTSTATUS ExitStatus
 );
 
 NTSYSCALLAPI
