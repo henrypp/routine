@@ -2,8 +2,9 @@
 routine library for my projects.
 
 ### System requirements:
-- Windows 7 SP1 and above operating system.
-- [Visual C++ 2022 Redistributable package](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170)
+- Windows 7, 8, 8.1, 10, 11 32-bit/64-bit/ARM64
+- An SSE2-capable CPU
+- <s>KB2533623</s> KB3063858 update for Windows 7 was required [[x64](https://www.microsoft.com/en-us/download/details.aspx?id=47442) / [x32](https://www.microsoft.com/en-us/download/details.aspx?id=47409)]
 
 ### Donate:
 - [Bitcoin](https://www.blockchain.com/btc/address/1LrRTXPsvHcQWCNZotA9RcwjsGcRghG96c) (BTC)
@@ -40,62 +41,62 @@ List of `ini` options for compiled binary with `routine` library:
 #2.0+
 #
 
-# Enable update checking (boolean)
+# Enable update checking (BOOLEAN)
 # CheckUpdates=TRUE // removed in 2.3
 
-# Last update checking timestamp (long64)
+# Last update checking timestamp (LONG64)
 CheckUpdatesLast=0
 
-# Last opened settings dialog id (long)
+# Last opened settings dialog id (LONG)
 SettingsLastPage=0
 
-# Main window always on top (boolean)
+# Main window always on top (BOOLEAN)
 AlwaysOnTop=FALSE
 
-# Minimized main window on startup (boolean)
+# Minimized main window on startup (BOOLEAN)
 IsStartMinimized=FALSE
 
-# Application locale name (string)
+# Application locale name (STRING)
 Language=NULL
 
-# WinHTTP connections user-agent (string)
+# WinHTTP connections user-agent (STRING)
 UserAgent=NULL
 
 #
 #2.1+
 #
 
-# Minimum error logging level (long)
+# Minimum error logging level (LONG)
 ErrorLevel=LOG_LEVEL_INFO
 
-# Last error notification timestamp (long64)
+# Last error notification timestamp (LONG64)
 #ErrorNotificationsTimestamp=0 // removed in 2.3
 
-# Error notification period in seconds (long64)
+# Error notification period in seconds (LONG64)
 #ErrorNotificationsPeriod=4 // removed in 2.3
 
-# Enable error notifications
+# Enable error notifications (BOOLEAN)
 IsErrorNotificationsEnabled=TRUE
 
-# Enable notifications sound
+# Enable notifications sound (BOOLEAN)
 IsNotificationsSound=TRUE
 
 #
 #2.3+
 #
 
-# Update checking period in days, 0 for disable (long)
+# Update checking period in hours, 0 for disable (LONG)
 CheckUpdatesPeriod=APP_UPDATE_PERIOD
 
 #
 #2.3.1+
 #
 
-# Minimized main window into system tray (boolean)
+# Minimized main window into system tray (BOOLEAN)
 # Note: only when APP_HAVE_TRAY defined.
 IsMinimizeToTray=TRUE
 
-# Close main window into system tray (boolean)
+# Close main window into system tray (BOOLEAN)
 # Note: only when APP_HAVE_TRAY defined.
 IsCloseToTray=TRUE
 
@@ -103,27 +104,34 @@ IsCloseToTray=TRUE
 #2.4+
 #
 
-# Auto install non-executable updates if found (boolean)
+# Auto install non-executable updates if found (BOOLEAN)
 IsAutoinstallUpdates=FALSE
+
+#
+#2.7+
+#
+
+# Enable dark theme support (BOOLEAN)
+IsDarkThemeEnabled=<reads "HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" "AppsUseLightTheme" value>
 
 #
 #2.7.2+
 #
 
-# Show window border in Windows 11 and above (boolean)
+# Show window border in Windows 11 and above (BOOLEAN)
 IsWindowBorderEnabled=TRUE
 
 #
 #2.7.10+
 #
 
-# Show window round corners in Windows 11 and above (boolean)
+# Show window round corners in Windows 11 and above (BOOLEAN)
 IsWindowCornerRound=FALSE
 ~~~
----
 </details>
 
+---
 - Website: [github.com/henrypp](https://github.com/henrypp)
 - Support: sforce5@mail.ru
-
+---
 (c) 2012-2025 Henry++
