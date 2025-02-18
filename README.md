@@ -2,8 +2,9 @@
 routine library for my projects.
 
 ### System requirements:
-- Windows 7 SP1 and above operating system.
-- [Visual C++ 2022 Redistributable package](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170)
+- Windows 7, 8, 8.1, 10, 11 32-bit/64-bit/ARM64
+- An SSE2-capable CPU
+- <s>KB2533623</s> KB3063858 update for Windows 7 was required [[x64](https://www.microsoft.com/en-us/download/details.aspx?id=47442) / [x32](https://www.microsoft.com/en-us/download/details.aspx?id=47409)]
 
 ### Donate:
 - [Bitcoin](https://www.blockchain.com/btc/address/1LrRTXPsvHcQWCNZotA9RcwjsGcRghG96c) (BTC)
@@ -105,6 +106,13 @@ IsCloseToTray=TRUE
 
 # Auto install non-executable updates if found (boolean)
 IsAutoinstallUpdates=FALSE
+
+#
+#2.7+
+#
+
+# Enable dark theme support (boolean)
+IsDarkThemeEnabled=<reads "HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" "AppsUseLightTheme" value>
 
 #
 #2.7.2+
