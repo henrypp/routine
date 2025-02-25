@@ -3396,8 +3396,9 @@ HRESULT CALLBACK _r_msg_callback (
 
 			_r_wnd_center (hwnd, hparent);
 
-			// set on top (always)
-			_r_wnd_top (hwnd, TRUE);
+			// set on top (based on lpdata value that is used as flags storage)
+			// do not set FALSE - it breaks z-ordering between related windows
+			if (lpdata & 0x1) _r_wnd_top (hwnd, TRUE);
 
 			// don't round corners
 			if (_r_sys_isosversiongreaterorequal (WINDOWS_11))
