@@ -3117,6 +3117,7 @@ VOID _r_show_aboutmessage (
 
 	tdc.cbSize = sizeof (tdc);
 	tdc.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_ALLOW_DIALOG_CANCELLATION | TDF_EXPAND_FOOTER_AREA | TDF_SIZE_TO_CONTENT;
+	// docs says "parent window should not be hidden or disabled"; and there's a reason - no taskbar icon and thus, once fully overlapped, dialog inaccessible
 	tdc.hwndParent = hwnd;
 	tdc.hInstance = _r_sys_getimagebase ();
 	tdc.dwCommonButtons = TDCBF_OK_BUTTON;
@@ -3125,6 +3126,9 @@ VOID _r_show_aboutmessage (
 	tdc.pszMainInstruction = _r_app_getname ();
 	tdc.pszContent = str_content;
 	tdc.pfCallback = &_r_msg_callback;
+	// since docs recommendation not followed(call from tray) - topmost used as alternative way to access icon-less dialog
+	// for simplicity data pointer used as flag storage (as data; capable of 32 or 64 flags)
+	tdc.lpCallbackData = !_r_wnd_isvisible (hwnd, FALSE);
 	tdc.pszExpandedInformation = APP_ABOUT_DONATE;
 
 #if defined(IDI_MAIN)
@@ -3169,6 +3173,7 @@ BOOLEAN _r_show_confirmmessage (
 	tdc.dwCommonButtons = TDCBF_YES_BUTTON | TDCBF_NO_BUTTON;
 	tdc.pszWindowTitle = _r_app_getname ();
 	tdc.pfCallback = &_r_msg_callback;
+	tdc.lpCallbackData = 0x1; //use pointer as flag storage
 
 	if (config_key)
 	{
@@ -3271,6 +3276,7 @@ NTSTATUS _r_show_errormessage (
 	tdc.pszContent = str_content;
 	tdc.pszFooter = APP_FAILED_MESSAGE_FOOTER;
 	tdc.pfCallback = &_r_msg_callback;
+	tdc.lpCallbackData = 0x1; //use pointer as flag storage
 
 	if (_r_fs_exists (&path->sr))
 	{
@@ -3336,6 +3342,7 @@ INT _r_show_message (
 	tdc.hwndParent = hwnd;
 	tdc.hInstance = _r_sys_getimagebase ();
 	tdc.pfCallback = &_r_msg_callback;
+	tdc.lpCallbackData = 0x1; //use pointer as flag storage
 	tdc.pszWindowTitle = _r_app_getname ();
 	tdc.pszMainInstruction = title;
 	tdc.pszContent = content;
@@ -3800,8 +3807,6 @@ INT_PTR CALLBACK _r_settings_wndproc (
 #endif // IDI_MAIN
 
 			// configure window
-			_r_wnd_top (hwnd, TRUE);
-
 			_r_wnd_center (hwnd, GetParent (hwnd));
 
 			// configure navigation control
