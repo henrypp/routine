@@ -5586,6 +5586,16 @@ FORCEINLINE BOOLEAN _r_listview_deleteallitems (
 	return (_r_wnd_sendmessage (hwnd, ctrl_id, LVM_DELETEALLITEMS, 0, 0) == TRUE);
 }
 
+FORCEINLINE VOID _r_listview_reset (
+	_In_ HWND hwnd,
+	_In_opt_ INT ctrl_id
+)
+{
+	_r_listview_deleteallitems(hwnd, ctrl_id);
+	_r_listview_deleteallgroups(hwnd, ctrl_id);
+	_r_listview_deleteallcolumns(hwnd, ctrl_id);
+}
+
 FORCEINLINE BOOLEAN _r_listview_deleteitem (
 	_In_ HWND hwnd,
 	_In_opt_ INT ctrl_id,

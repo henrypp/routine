@@ -115,6 +115,13 @@ IsAutoinstallUpdates=FALSE (changed to TRUE in 2.7.12+)
 IsDarkThemeEnabled=<reads "HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" "AppsUseLightTheme" value>
 
 #
+#2.7+
+#
+
+# Enable dark theme support (boolean)
+IsDarkThemeEnabled=<reads "HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" "AppsUseLightTheme" value>
+
+#
 #2.7.2+
 #
 
