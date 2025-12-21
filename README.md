@@ -1,16 +1,20 @@
 ## routine.c
-routine library for my projects.
+Project SDK library for EVERYTHING.
+
+<p align="center">
+	<img src="/images/routine.png" />
+</p>
 
 ### System requirements:
-- Windows 7, 8, 8.1, 10, 11 32-bit/64-bit/ARM64
+- Windows 7, 8, 8.1, 10, 11 (64-bit/ARM64)
 - An SSE2-capable CPU
-- <s>KB2533623</s> KB3063858 update for Windows 7 was required [[x64](https://www.microsoft.com/en-us/download/details.aspx?id=47442) / [x32](https://www.microsoft.com/en-us/download/details.aspx?id=47409)]
+- <s>KB2533623</s> [KB3063858](https://www.microsoft.com/en-us/download/details.aspx?id=47442) update for Windows 7 was required
 
 ### Donate:
 - [Bitcoin](https://www.blockchain.com/btc/address/1LrRTXPsvHcQWCNZotA9RcwjsGcRghG96c) (BTC)
-- [Ethereum](https://www.blockchain.com/explorer/addresses/eth/0xe2C84A62eb2a4EF154b19bec0c1c106734B95960) (ETC)
-- [Paypal](https://paypal.me/henrypp) (USD)
+- [Ethereum](https://www.blockchain.com/explorer/addresses/eth/0xe2C84A62eb2a4EF154b19bec0c1c106734B95960) (ETH)
 - [Yandex Money](https://yoomoney.ru/to/4100115776040583) (RUB)
+- [Paypal](https://paypal.me/henrypp) (USD)
 
 ### GPG Signature:
 Binaries have this GPG signature.
@@ -19,18 +23,56 @@ Binaries have this GPG signature.
 - Key ID: 0x5635B5FD
 - Fingerprint: D985 2361 1524 AB29 BE73 30AC 2881 20A7 5635 B5FD
 
-### Command line:
-List of arguments for compiled binary with `routine` library:
-
-~~~
--minimized - start application with minimized/hidden window.
--portable - set force portable mode.
--readonly - set force readonly mode (no settings will be written).
--nowow64 - allow to run 32-bit executable under 64-bit environment (32-bit only)
-~~~
-
 ### Settings:
-List of `ini` options for compiled binary with `routine` library:
+List of definitions which can change compiled binary with `routine` library:
+
+<details>
+<summary>Project defines:</summary>
+
+---
+~~~c
+//
+// Available project configurations
+//
+
+// app has pre-release status (same as when _DEBUG bulded)
+#define APP_BETA
+
+// enable autorun feature
+#define APP_HAVE_AUTORUN
+
+// enable settings dialog feature based on tabs
+#define APP_HAVE_SETTINGS_TABS
+
+// implement admin task feature based on task schedulerwhich can skip UAC
+#define APP_HAVE_SKIPUAC
+
+// enable tray icon feature
+#define APP_HAVE_TRAY
+
+// enable update checkng feature
+#define APP_HAVE_UPDATES
+
+// compile portable builds
+#define APP_NO_APPDATA
+
+// do not save configuration
+#define APP_NO_CONFIG
+
+// disable "guest" mode, running without admin rights; see APP_HAVE_SKIPUAC
+#define APP_NO_GUEST
+
+// disable mutex
+#define APP_NO_MUTEX
+
+// use safe-string functions
+#define PR_SAFE_STRING
+~~~
+</details>
+
+---
+
+List of `.ini` options for compiled binary with `routine` library:
 
 <details>
 <summary>APP_NAME_SHORT.ini:</summary>
@@ -105,7 +147,7 @@ IsCloseToTray=TRUE
 #
 
 # Auto install non-executable updates if found (BOOLEAN)
-IsAutoinstallUpdates=FALSE (changed to TRUE in 2.7.12+)
+IsAutoinstallUpdates=FALSE (changed to TRUE in 3.0+)
 
 #
 #2.7+
@@ -127,11 +169,27 @@ IsWindowBorderEnabled=TRUE
 
 # Show window round corners in Windows 11 and above (BOOLEAN)
 IsWindowCornerRound=FALSE
+
+#
+#3.0+
+#
+
+# Scramble window title to hide from anyone (BOOLEAN)
+IsScrambleTitle=FALSE
 ~~~
 </details>
+
+### Command line:
+List of arguments for compiled binary with `routine` library:
+
+~~~
+-minimized - start application with minimized/hidden window.
+-portable - set force portable mode.
+-readonly - set force readonly mode (no settings will be written).
+~~~
 
 ---
 - Website: [github.com/henrypp](https://github.com/henrypp)
 - Support: sforce5@mail.ru
 ---
-(c) 2012-2025 Henry++
+(c) 2012-2026 Henry++
