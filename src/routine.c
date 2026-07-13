@@ -3401,7 +3401,11 @@ HRESULT CALLBACK _r_msg_callback (
 
 			// don't round corners
 			if (_r_sys_isosversiongreaterorequal (WINDOWS_11))
-				DwmSetWindowAttribute (hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &(DWM_WINDOW_CORNER_PREFERENCE){ DWMWCP_DONOTROUND }, sizeof (DWM_WINDOW_CORNER_PREFERENCE));
+			{
+				ULONG corner_preference = R_DWMWCP_DONOTROUND;
+
+				DwmSetWindowAttribute (hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &corner_preference, sizeof (corner_preference));
+			}
 
 			break;
 		}

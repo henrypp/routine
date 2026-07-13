@@ -90,6 +90,39 @@
 #include "rtypes.h"
 #include "rapp.h"
 
+#if !defined(DWMWA_USE_IMMERSIVE_DARK_MODE)
+#define DWMWA_USE_IMMERSIVE_DARK_MODE 20
+#endif // !DWMWA_USE_IMMERSIVE_DARK_MODE
+
+#if !defined(DWMWA_WINDOW_CORNER_PREFERENCE)
+#define DWMWA_WINDOW_CORNER_PREFERENCE 33
+#endif // !DWMWA_WINDOW_CORNER_PREFERENCE
+
+#if !defined(DWMWA_BORDER_COLOR)
+#define DWMWA_BORDER_COLOR 34
+#endif // !DWMWA_BORDER_COLOR
+
+#if !defined(DWMWA_CAPTION_COLOR)
+#define DWMWA_CAPTION_COLOR 35
+#endif // !DWMWA_CAPTION_COLOR
+
+#if !defined(DWMWA_SYSTEMBACKDROP_TYPE)
+#define DWMWA_SYSTEMBACKDROP_TYPE 38
+#endif // !DWMWA_SYSTEMBACKDROP_TYPE
+
+#if !defined(DWMWA_COLOR_DEFAULT)
+#define DWMWA_COLOR_DEFAULT ((COLORREF)0xFFFFFFFF)
+#endif // !DWMWA_COLOR_DEFAULT
+
+#if !defined(DWMWA_COLOR_NONE)
+#define DWMWA_COLOR_NONE ((COLORREF)0xFFFFFFFE)
+#endif // !DWMWA_COLOR_NONE
+
+#define R_DWMWCP_DONOTROUND 1
+#define R_DWMWCP_ROUND 2
+#define R_DWMSBT_NONE 1
+#define R_DWMSBT_MAINWINDOW 2
+
 // libs
 #pragma comment(lib, "bcrypt.lib")
 #pragma comment(lib, "comctl32.lib")

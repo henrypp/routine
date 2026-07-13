@@ -26,14 +26,15 @@
 #define IDC_CLOSE 1003
 #endif // IDC_CLOSE
 
-#define WND_BACKGROUND_CLR RGB(0x2A, 0x2A, 0x2A)
-#define WND_BACKGROUND2_CLR RGB(0x40, 0x40, 0x40)
-#define WND_BORDER_CLR RGB(0x90, 0x10, 0x20)
-#define WND_BUTTON_CLR RGB(0x24, 0x24, 0x24)
-#define WND_HIGHLIGHT_CLR RGB(0x80, 0x80, 0x80)
-#define WND_HOT_CLR RGB(0xE3, 0x20, 0x00)
+#define WND_BACKGROUND_CLR RGB(0x24, 0x26, 0x29)
+#define WND_BACKGROUND2_CLR RGB(0x3A, 0x3D, 0x42)
+#define WND_CARD_CLR RGB(0x2D, 0x30, 0x34)
+#define WND_BORDER_CLR RGB(0x3E, 0x42, 0x48)
+#define WND_BUTTON_CLR RGB(0x2B, 0x2F, 0x34)
+#define WND_HIGHLIGHT_CLR RGB(0x68, 0x72, 0x7E)
+#define WND_HOT_CLR RGB(0x5E, 0x8F, 0xD8)
 #define WND_TEXT_CLR RGB(0xFF, 0xFF, 0xFF)
-#define WND_GRAYTEXT_CLR RGB(0x50, 0x50, 0x50)
+#define WND_GRAYTEXT_CLR RGB(0x8A, 0x90, 0x99)
 
 //
 // Global variables
@@ -371,6 +372,11 @@ VOID _r_theme_initializecontext (
 );
 
 BOOLEAN _r_theme_isenabled ();
+
+VOID _r_wnd_applymodernframe (
+	_In_ HWND hwnd,
+	_In_ BOOLEAN is_enable
+);
 
 VOID _r_theme_setwindowframe (
 	_In_ HWND hwnd,

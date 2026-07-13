@@ -2632,8 +2632,7 @@ HRESULT CALLBACK _r_update_pagecallback (
 			//if (_r_theme_isenabled ())
 			//	_r_theme_initializetaskdialogtheme (hwnd, 0);
 
-			if (_r_sys_isosversiongreaterorequal (WINDOWS_11) && !_r_config_getboolean (L"IsWindowCornerRound", FALSE))
-				DwmSetWindowAttribute (hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &(DWM_WINDOW_CORNER_PREFERENCE){ DWMWCP_DONOTROUND }, sizeof (DWM_WINDOW_CORNER_PREFERENCE));
+			_r_wnd_applymodernframe (hwnd, _r_theme_isenabled ());
 
 			if (update_info->hthread)
 			{
@@ -4665,6 +4664,39 @@ CleanupExit:
 // Theme
 //
 
+#define R_THEME_STATE_UNINITIALIZED 0
+#define R_THEME_STATE_LIGHT 1
+#define R_THEME_STATE_DARK 2
+
+static volatile LONG theme_state = R_THEME_STATE_UNINITIALIZED;
+
+VOID _r_theme_drawroundrect (
+	_In_ HDC hdc,
+	_In_ LPCRECT rect,
+	_In_ COLORREF fill_clr,
+	_In_ COLORREF border_clr,
+	_In_ LONG radius,
+	_In_ BOOLEAN is_fill
+)
+{
+	HGDIOBJ brush_prev;
+	HGDIOBJ pen_prev;
+	COLORREF brush_clr_prev;
+	COLORREF pen_clr_prev;
+
+	brush_prev = SelectObject (hdc, GetStockObject (is_fill ? DC_BRUSH : NULL_BRUSH));
+	pen_prev = SelectObject (hdc, GetStockObject (DC_PEN));
+	brush_clr_prev = SetDCBrushColor (hdc, fill_clr);
+	pen_clr_prev = SetDCPenColor (hdc, border_clr);
+
+	RoundRect (hdc, rect->left, rect->top, rect->right, rect->bottom, radius, radius);
+
+	SetDCPenColor (hdc, pen_clr_prev);
+	SetDCBrushColor (hdc, brush_clr_prev);
+	SelectObject (hdc, pen_prev);
+	SelectObject (hdc, brush_prev);
+}
+
 VOID _r_theme_cleanup (
 	_In_ HWND hwnd,
 	_In_ PR_THEME_CONTEXT context
@@ -4847,9 +4879,9 @@ BOOL CALLBACK _r_theme_enumchildwindows (
 				_r_theme_setdarkmode (htip, is_enable);
 		}
 
-		_r_wnd_sendmessage (hwnd, 0, LVM_SETBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : GetSysColor (COLOR_WINDOW));
+		_r_wnd_sendmessage (hwnd, 0, LVM_SETBKCOLOR, 0, is_enable ? WND_CARD_CLR : GetSysColor (COLOR_WINDOW));
 		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTCOLOR, 0, is_enable ? WND_TEXT_CLR : GetSysColor (COLOR_WINDOWTEXT));
-		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTBKCOLOR, 0, is_enable ? WND_BACKGROUND_CLR : GetSysColor (COLOR_WINDOW));
+		_r_wnd_sendmessage (hwnd, 0, LVM_SETTEXTBKCOLOR, 0, is_enable ? WND_CARD_CLR : GetSysColor (COLOR_WINDOW));
 	}
 	else if (_r_str_isequal2 (&class_name->sr, WC_SCROLLBAR, TRUE))
 	{
@@ -4895,6 +4927,8 @@ VOID _r_theme_initialize (
 	PVOID huxtheme;
 	NTSTATUS status;
 
+	InterlockedExchange (&theme_state, is_enable ? R_THEME_STATE_DARK : R_THEME_STATE_LIGHT);
+
 	if (_r_initonce_begin (&init_once))
 	{
 		if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
@@ -4916,7 +4950,7 @@ VOID _r_theme_initialize (
 	}
 
 	if (_SetPreferredAppMode)
-		_SetPreferredAppMode (is_enable ? AllowDark : Default);
+		_SetPreferredAppMode (is_enable ? ForceDark : ForceLight);
 
 	if (_FlushMenuThemes)
 		_FlushMenuThemes ();
@@ -4970,7 +5004,67 @@ VOID _r_theme_initializecontext (
 
 BOOLEAN _r_theme_isenabled ()
 {
-	return _r_config_getboolean (L"IsDarkThemeEnabled", _r_wnd_isdarkmodeenabled ());
+	BOOLEAN is_enabled;
+	LONG state;
+
+	state = InterlockedCompareExchange (&theme_state, R_THEME_STATE_UNINITIALIZED, R_THEME_STATE_UNINITIALIZED);
+
+	if (state != R_THEME_STATE_UNINITIALIZED)
+		return state == R_THEME_STATE_DARK;
+
+	is_enabled = _r_config_getboolean (L"IsDarkThemeEnabled", _r_wnd_isdarkmodeenabled ());
+
+	InterlockedCompareExchange (&theme_state, is_enabled ? R_THEME_STATE_DARK : R_THEME_STATE_LIGHT, R_THEME_STATE_UNINITIALIZED);
+
+	return InterlockedCompareExchange (&theme_state, R_THEME_STATE_UNINITIALIZED, R_THEME_STATE_UNINITIALIZED) == R_THEME_STATE_DARK;
+}
+
+VOID _r_wnd_applymodernframe (
+	_In_ HWND hwnd,
+	_In_ BOOLEAN is_enable
+)
+{
+	BOOL is_dark;
+	COLORREF border_color;
+	COLORREF caption_color;
+	ULONG backdrop_type;
+	ULONG corner_preference;
+
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
+	{
+		is_dark = !!is_enable;
+
+		if (FAILED (DwmSetWindowAttribute (hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &is_dark, sizeof (is_dark))))
+			DwmSetWindowAttribute (hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE - 1, &is_dark, sizeof (is_dark));
+	}
+
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_11))
+	{
+		if (_r_config_getboolean (L"IsWindowBorderEnabled", TRUE))
+		{
+			border_color = is_enable ? DWMWA_COLOR_NONE : DWMWA_COLOR_DEFAULT;
+
+			if (FAILED (DwmSetWindowAttribute (hwnd, DWMWA_BORDER_COLOR, &border_color, sizeof (border_color))) && is_enable)
+			{
+				border_color = WND_BACKGROUND2_CLR;
+
+				DwmSetWindowAttribute (hwnd, DWMWA_BORDER_COLOR, &border_color, sizeof (border_color));
+			}
+		}
+
+		caption_color = is_enable ? WND_BACKGROUND_CLR : DWMWA_COLOR_DEFAULT;
+		DwmSetWindowAttribute (hwnd, DWMWA_CAPTION_COLOR, &caption_color, sizeof (caption_color));
+
+		corner_preference = _r_config_getboolean (L"IsWindowCornerRound", TRUE) ? R_DWMWCP_ROUND : R_DWMWCP_DONOTROUND;
+		DwmSetWindowAttribute (hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &corner_preference, sizeof (corner_preference));
+	}
+
+	if (_r_sys_isosversiongreaterorequal (WINDOWS_11_22H2))
+	{
+		backdrop_type = _r_config_getboolean (L"IsMicaBackdropEnabled", FALSE) ? R_DWMSBT_MAINWINDOW : R_DWMSBT_NONE;
+
+		DwmSetWindowAttribute (hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop_type, sizeof (backdrop_type));
+	}
 }
 
 VOID _r_theme_setwindowframe (
@@ -4978,25 +5072,7 @@ VOID _r_theme_setwindowframe (
 	_In_ BOOLEAN is_enable
 )
 {
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_10_RS5))
-	{
-		if (FAILED (DwmSetWindowAttribute (hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &(BOOL){ is_enable }, sizeof (BOOL))))
-			DwmSetWindowAttribute (hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE - 1, &(BOOL){ is_enable }, sizeof (BOOL));
-	}
-
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_11))
-	{
-		if (_r_config_getboolean (L"IsWindowBorderEnabled", TRUE))
-			DwmSetWindowAttribute (hwnd, DWMWA_BORDER_COLOR, &(COLORREF){ is_enable ? WND_BORDER_CLR : DWMWA_COLOR_DEFAULT}, sizeof (COLORREF));
-
-		DwmSetWindowAttribute (hwnd, DWMWA_CAPTION_COLOR, &(COLORREF){ is_enable ? WND_BACKGROUND_CLR : DWMWA_COLOR_DEFAULT}, sizeof (COLORREF));
-
-		if (_r_sys_isosversiongreaterorequal (WINDOWS_11) && !_r_config_getboolean (L"IsWindowCornerRound", FALSE))
-			DwmSetWindowAttribute (hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &(DWM_WINDOW_CORNER_PREFERENCE){ DWMWCP_DONOTROUND }, sizeof (DWM_WINDOW_CORNER_PREFERENCE));
-	}
-
-	if (_r_sys_isosversiongreaterorequal (WINDOWS_11_22H2))
-		DwmSetWindowAttribute (hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &(ULONG){ DWMSBT_NONE }, sizeof (ULONG));
+	_r_wnd_applymodernframe (hwnd, is_enable);
 }
 
 VOID _r_theme_comboboxrender (
@@ -5033,17 +5109,26 @@ VOID _r_theme_comboboxrender (
 
 	SelectObject (hdc_buffer, (HGDIOBJ)CallWindowProcW (wnd_proc, hwnd, WM_GETFONT, 0, 0));
 
-	_r_dc_fillrect (hdc_buffer, client_rect, WND_BACKGROUND2_CLR);
+	_r_dc_fillrect (hdc_buffer, client_rect, WND_CARD_CLR);
 
-	_r_dc_framerect (hdc_buffer, client_rect, PtInRect (client_rect, context->pt) || GetFocus () == hwnd ? WND_HOT_CLR : WND_HIGHLIGHT_CLR);
+	_r_dc_framerect (hdc_buffer, client_rect, PtInRect (client_rect, context->pt) || GetFocus () == hwnd ? WND_HOT_CLR : WND_BORDER_CLR);
 
 	if (context->htheme)
 	{
+		INT state_id;
+
 		GetThemePartSize (context->htheme, hdc_buffer, CP_DROPDOWNBUTTONRIGHT, CBXSR_NORMAL, NULL, TS_TRUE, &size);
 
 		rect.left = client_rect->right - size.cy;
 
-		DrawThemeBackground (context->htheme, hdc_buffer, CP_DROPDOWNBUTTONRIGHT, CBXSR_DISABLED, &rect, NULL);
+		if (!IsWindowEnabled (hwnd))
+			state_id = CBXSR_DISABLED;
+		else if (PtInRect (client_rect, context->pt) || GetFocus () == hwnd)
+			state_id = CBXSR_HOT;
+		else
+			state_id = CBXSR_NORMAL;
+
+		DrawThemeBackground (context->htheme, hdc_buffer, CP_DROPDOWNBUTTONRIGHT, state_id, &rect, NULL);
 
 		rect.left = 0;
 	}
@@ -5240,7 +5325,7 @@ LRESULT CALLBACK _r_theme_edit_subclass (
 				GetCursorPos (&pt);
 				ScreenToClient (hwnd, &pt);
 
-				clr = ((context->is_mouseactive && PtInRect (&rect, pt)) || GetFocus () == hwnd) ? WND_HOT_CLR : WND_BACKGROUND2_CLR;
+				clr = ((context->is_mouseactive && PtInRect (&rect, pt)) || GetFocus () == hwnd) ? WND_HOT_CLR : WND_BORDER_CLR;
 
 				_r_dc_framerect (hdc, &rect, clr);
 
@@ -5415,6 +5500,7 @@ VOID _r_theme_drawgroupbox (
 	SIZE size = {0};
 	PR_STRING string;
 	LONG_PTR style;
+	LONG dpi_value;
 	ULONG flags;
 	INT state_id;
 	BOOLEAN is_disabled;
@@ -5430,10 +5516,13 @@ VOID _r_theme_drawgroupbox (
 
 	rc_background = rect;
 	rc_text = rect;
+	dpi_value = _r_dc_getwindowdpi (hwnd);
 
 	_r_dc_getfontwidth (ps->hdc, &string->sr, &size);
 
 	rc_background.top += size.cy / 2;
+	rc_background.right -= 1;
+	rc_background.bottom -= 1;
 
 	style = _r_wnd_getstyle (hwnd, GWL_STYLE);
 
@@ -5456,7 +5545,7 @@ VOID _r_theme_drawgroupbox (
 		ExcludeClipRect (ps->hdc, rc_content.left, rc_content.top, rc_content.right, rc_content.bottom);
 	}
 
-	_r_dc_framerect (ps->hdc, &rc_background, WND_BACKGROUND2_CLR);
+	_r_theme_drawroundrect (ps->hdc, &rc_background, WND_CARD_CLR, WND_BORDER_CLR, _r_dc_getdpi (8, dpi_value), TRUE);
 
 	SelectClipRgn (ps->hdc, NULL);
 
@@ -5468,6 +5557,7 @@ VOID _r_theme_drawgroupbox (
 	rc_text.right -= 2;
 	rc_text.left += 2;
 
+	_r_dc_fillrect (ps->hdc, &rc_text, WND_BACKGROUND_CLR);
 	_r_dc_drawtext (htheme, ps->hdc, &string->sr, &rc_text, BP_GROUPBOX, state_id, flags, is_disabled ? WND_GRAYTEXT_CLR : WND_TEXT_CLR);
 
 	_r_obj_dereference (string);
@@ -5794,7 +5884,7 @@ LRESULT CALLBACK _r_theme_rebar_subclass (
 
 			SetBkMode (hdc, TRANSPARENT);
 			SetTextColor (hdc, WND_TEXT_CLR);
-			SetDCBrushColor (hdc, WND_BACKGROUND2_CLR);
+			SetDCBrushColor (hdc, WND_CARD_CLR);
 
 			return (LRESULT)GetStockObject (DC_BRUSH);
 		}
@@ -6215,7 +6305,7 @@ VOID _r_theme_rendercheckbox (
 
 	_r_dc_drawtext (htheme, hdc, &string->sr, &rect_text, part_id, state_id, flags, clr_text);
 
-	if (draw_info->uItemState & BST_FOCUS)
+	if ((draw_info->uItemState & BST_FOCUS) && !(_r_ctrl_getuistate (draw_info->hdr.hwndFrom, 0) & UISF_HIDEFOCUS))
 	{
 		_r_dc_drawtext (htheme, hdc, &string->sr, &rect_text, part_id, state_id, flags | DTT_CALCRECT, clr_text);
 
@@ -6314,7 +6404,7 @@ VOID _r_theme_drawicon (
 
 		DrawIconEx (
 			draw_info->hdc,
-			_r_str_getlength2 (&string->sr) > 1 ? rect->left + (size.cx / 2) : rect->left + (_r_calc_rectwidth (rect) - size.cx) / 2,
+			_r_str_getlength2 (&string->sr) > 1 ? rect->left + (size.cx / 2) + _r_dc_getdpi (8, dpi_value) : rect->left + (_r_calc_rectwidth (rect) - size.cx) / 2,
 			rect->top + (_r_calc_rectheight (rect) - size.cy) / 2,
 			hicon,
 			size.cx,
@@ -6335,7 +6425,7 @@ VOID _r_theme_drawicon (
 				btn_imagelist.himl,
 				0,
 				draw_info->hdc,
-				_r_str_getlength2 (&string->sr) > 1 ? rect->left + (size.cx / 2) : rect->left + (_r_calc_rectwidth (rect) - size.cx) / 2,
+				_r_str_getlength2 (&string->sr) > 1 ? rect->left + (size.cx / 2) + _r_dc_getdpi (8, dpi_value) : rect->left + (_r_calc_rectwidth (rect) - size.cx) / 2,
 				rect->top + (_r_calc_rectheight (rect) - size.cy) / 2,
 				size.cx,
 				size.cy,
@@ -6427,7 +6517,7 @@ VOID _r_theme_drawsplitglyph (
 		if (hfont)
 		{
 			SetBkMode (hdc, TRANSPARENT);
-			SetTextColor (hdc, WND_TEXT_CLR);
+			SetTextColor (hdc, _r_theme_isenabled () ? WND_TEXT_CLR : GetSysColor (COLOR_BTNTEXT));
 
 			old_font = SelectObject (hdc, hfont);
 
@@ -6457,12 +6547,23 @@ LRESULT CALLBACK _r_theme_drawbutton (
 			RECT rect_client = {0};
 			HTHEME htheme;
 			HICON hicon;
-			COLORREF clr = WND_BUTTON_CLR;
+			COLORREF clr;
+			COLORREF border_clr;
+			COLORREF text_clr;
+			COLORREF focus_clr;
 			LONG dpi_value;
 			ULONG flags;
+			INT corner_radius;
 			INT state_id = PBS_NORMAL;
+			BOOLEAN is_dark;
 
 			dpi_value = _r_dc_getwindowdpi (draw_info->hdr.hwndFrom);
+			is_dark = _r_theme_isenabled ();
+
+			clr = is_dark ? WND_BUTTON_CLR : GetSysColor (COLOR_WINDOW);
+			border_clr = is_dark ? WND_BORDER_CLR : RGB (0xC8, 0xCD, 0xD4);
+			text_clr = is_dark ? WND_TEXT_CLR : GetSysColor (COLOR_BTNTEXT);
+			focus_clr = is_dark ? WND_HOT_CLR : GetSysColor (COLOR_HIGHLIGHT);
 
 			htheme = _r_dc_openthemedata (draw_info->hdr.hwndFrom, VSCLASS_BUTTON, dpi_value);
 
@@ -6520,14 +6621,15 @@ LRESULT CALLBACK _r_theme_drawbutton (
 
 			if ((draw_info->uItemState & CDIS_SELECTED) == CDIS_SELECTED)
 			{
-				clr = WND_GRAYTEXT_CLR;
+				clr = is_dark ? WND_GRAYTEXT_CLR : RGB (0xD8, 0xDC, 0xE2);
 			}
 			else if ((draw_info->uItemState & CDIS_HOT) == CDIS_HOT)
 			{
-				clr = WND_HOT_CLR;
+				clr = is_dark ? WND_HOT_CLR : RGB (0xE6, 0xEE, 0xF8);
 			}
 
-			_r_dc_fillrect (draw_info->hdc, &draw_info->rc, clr);
+			corner_radius = _r_dc_getdpi (8, dpi_value);
+			_r_theme_drawroundrect (draw_info->hdc, &draw_info->rc, clr, border_clr, corner_radius, TRUE);
 
 			if (((style & BS_TYPEMASK) & BS_SPLITBUTTON) == BS_SPLITBUTTON || ((style & BS_TYPEMASK) & BS_DEFSPLITBUTTON) == BS_DEFSPLITBUTTON)
 			{
@@ -6540,15 +6642,19 @@ LRESULT CALLBACK _r_theme_drawbutton (
 			if (hicon)
 				_r_theme_drawicon (draw_info, string, hicon, &rect_content, dpi_value);
 
-			_r_dc_drawtext (htheme, draw_info->hdc, &string->sr, &rect_content, BP_PUSHBUTTON, state_id, flags, (style & WS_DISABLED) ? WND_GRAYTEXT_CLR : WND_TEXT_CLR);
+			_r_dc_drawtext (htheme, draw_info->hdc, &string->sr, &rect_content, BP_PUSHBUTTON, state_id, flags, (style & WS_DISABLED) ? (is_dark ? WND_GRAYTEXT_CLR : GetSysColor (COLOR_GRAYTEXT)) : text_clr);
 
-			if ((draw_info->uItemState & CDIS_FOCUS) == CDIS_FOCUS)
+			if ((draw_info->uItemState & CDIS_FOCUS) == CDIS_FOCUS && !(_r_ctrl_getuistate (draw_info->hdr.hwndFrom, 0) & UISF_HIDEFOCUS))
 			{
-				DrawFocusRect (draw_info->hdc, &draw_info->rc);
-			}
-			else
-			{
-				_r_dc_framerect (draw_info->hdc, &draw_info->rc, WND_BACKGROUND2_CLR);
+				RECT rect_focus;
+				LONG focus_radius;
+
+				rect_focus = draw_info->rc;
+
+				InflateRect (&rect_focus, -_r_dc_getdpi (3, dpi_value), -_r_dc_getdpi (3, dpi_value));
+				focus_radius = max (corner_radius - _r_dc_getdpi (3, dpi_value), _r_dc_getdpi (2, dpi_value));
+
+				_r_theme_drawroundrect (draw_info->hdc, &rect_focus, clr, focus_clr, focus_radius, FALSE);
 			}
 
 			_r_obj_dereference (string);
@@ -6661,7 +6767,7 @@ LRESULT CALLBACK _r_theme_drawrebar (
 		{
 			SetTextColor (draw_info->hdc, WND_TEXT_CLR);
 
-			_r_dc_fillrect (draw_info->hdc, &draw_info->rc, WND_BACKGROUND_CLR);
+			_r_dc_fillrect (draw_info->hdc, &draw_info->rc, WND_CARD_CLR);
 
 			return CDRF_NOTIFYITEMDRAW;
 		}
@@ -6783,7 +6889,78 @@ LRESULT CALLBACK _r_theme_subclassproc (
 		return FALSE;
 
 	if (!_r_theme_isenabled ())
+	{
+		if (msg == WM_NCDESTROY)
+		{
+			LRESULT result;
+
+			result = CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
+			_r_wnd_removesubclass (hwnd);
+
+			return result;
+		}
+
+		if (msg == WM_NOTIFY)
+		{
+			LPNMHDR data;
+			WCHAR class_name[128];
+			LONG_PTR style;
+
+			data = (LPNMHDR)lparam;
+
+			if (data->code == NM_CUSTOMDRAW && GetClassNameW (data->hwndFrom, class_name, RTL_NUMBER_OF (class_name)) && _r_str_compare (class_name, WC_BUTTON, TRUE) == 0)
+			{
+				style = _r_wnd_getstyle (data->hwndFrom, GWL_STYLE);
+
+				switch (style & BS_TYPEMASK)
+				{
+					case BS_PUSHBUTTON:
+					case BS_DEFPUSHBUTTON:
+					case BS_SPLITBUTTON:
+					case BS_DEFSPLITBUTTON:
+					{
+						return _r_theme_drawbutton ((LPNMCUSTOMDRAW)lparam, style);
+					}
+				}
+			}
+		}
+
+		if (msg == WM_NCACTIVATE || msg == WM_NCPAINT)
+		{
+			RECT client_rect;
+			RECT rect;
+			RECT line;
+			HDC hdc;
+			LRESULT result;
+
+			result = CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
+
+			if (GetMenu (hwnd))
+			{
+				GetClientRect (hwnd, &client_rect);
+				GetWindowRect (hwnd, &rect);
+
+				MapWindowPoints (hwnd, NULL, (PPOINT)&client_rect, 2);
+				OffsetRect (&client_rect, -rect.left, -rect.top);
+
+				line = client_rect;
+				line.bottom = line.top;
+				line.top -= 1;
+
+				hdc = GetWindowDC (hwnd);
+
+				if (hdc)
+				{
+					_r_dc_fillrect (hdc, &line, GetSysColor (COLOR_WINDOW));
+					ReleaseDC (hwnd, hdc);
+				}
+			}
+
+			return result;
+		}
+
 		return CallWindowProcW (wnd_proc, hwnd, msg, wparam, lparam);
+	}
 
 	switch (msg)
 	{
@@ -6944,6 +7121,22 @@ LRESULT CALLBACK _r_theme_subclassproc (
 
 						if (lvcd->dwItemType == LVCDI_GROUP)
 							return _r_theme_drawlistviewgroup (lvcd);
+
+						switch (lvcd->nmcd.dwDrawStage)
+						{
+							case CDDS_PREPAINT:
+							{
+								return CDRF_NOTIFYITEMDRAW;
+							}
+
+							case CDDS_ITEMPREPAINT:
+							{
+								lvcd->clrText = WND_TEXT_CLR;
+								lvcd->clrTextBk = (lvcd->nmcd.uItemState & CDIS_SELECTED) ? WND_BACKGROUND2_CLR : WND_CARD_CLR;
+
+								return CDRF_NEWFONT;
+							}
+						}
 					}
 
 					break;
@@ -6970,7 +7163,7 @@ LRESULT CALLBACK _r_theme_subclassproc (
 
 			SetBkMode (hdc, TRANSPARENT);
 			SetTextColor (hdc, WND_TEXT_CLR);
-			SetDCBrushColor (hdc, WND_BACKGROUND2_CLR);
+			SetDCBrushColor (hdc, WND_CARD_CLR);
 
 			return (LRESULT)GetStockObject (DC_BRUSH);
 		}
